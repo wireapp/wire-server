@@ -83,7 +83,7 @@ runAppSubsystem runUser runAuth =
       GetApps lusr tid -> getAppsImpl lusr tid
       UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
       RefreshAppCookie lusr tid appId password -> runError $ refreshAppCookieImpl lusr tid appId password
-      DeleteApp tid appId -> deleteAppImpl tid appId
+      InternalDeleteApp tid appId -> internalDeleteAppImpl tid appId
 
 createAppImpl ::
   ( Member UserStore r,
@@ -287,10 +287,10 @@ appNewStoredUser creator new = do
 defAppSupportedProtocols :: Set BaseProtocolTag
 defAppSupportedProtocols = Set.singleton BaseProtocolMLSTag
 
-deleteAppImpl ::
+internalDeleteAppImpl ::
   (Member AppStore r) =>
   TeamId ->
   UserId ->
   Sem r ()
-deleteAppImpl teamId appId =
+internalDeleteAppImpl teamId appId =
   Store.deleteApp appId teamId

@@ -69,10 +69,9 @@ data AppSubsystem m a where
     UserId ->
     Maybe PlainTextPassword6 ->
     AppSubsystem m (Either RetryAfter SomeUserToken)
-  DeleteApp ::
-    TeamId ->
-    UserId ->
-    AppSubsystem m ()
+  -- | Delete app.  This is meant for calling from when deleting team
+  -- members and does not check authentication.
+  InternalDeleteApp :: TeamId -> UserId -> AppSubsystem m ()
 
 makeSem ''AppSubsystem
 
