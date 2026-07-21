@@ -26,6 +26,8 @@ module Wire.JobSubsystem.Interpreter
 where
 
 import Arbiter.Core qualified as ArbiterCore
+import Arbiter.Core.Codec (Col (CInt8, CText), col, pval)
+import Arbiter.Core.Operations qualified as ArbiterOperations
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
@@ -50,6 +52,7 @@ interpretJobSubsystem conf =
       ScheduleAdminlessSetupJob lusr tid -> scheduleAdminlessSetupJob conf lusr tid
       ScheduleAdminlessDeletionJob lusr tid cid scheduledFor -> scheduleAdminlessDeletionJob conf lusr tid cid scheduledFor
       ScheduleAdminlessReminderJob lusr tid cid deletionScheduledFor reminderTimeout scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid deletionScheduledFor reminderTimeout scheduledFor
+      CancelAdminlessJobsForTeam tid -> cancelAdminlessJobsForTeam conf tid
 
 scheduleAdminlessSetupJob ::
   forall r.
@@ -124,6 +127,43 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
             ArbiterCore.maxAttempts = Just 3
           }
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter JobRegistry) @JobRegistry @ConversationsJobPayload arbiterJob
+
+cancelAdminlessJobsForTeam ::
+  forall r.
+  (PGConstraints r) =>
+  JobSubsystemConfig ->
+  TeamId ->
+  Sem r ()
+cancelAdminlessJobsForTeam JobSubsystemConfig {..} teamId = do
+  pool <- input @HasqlPoolExt.Pool
+  let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
+  embed $ runWireArbiter arbiterEnv (cancelAdminlessJobsForTeamInTransaction jobSubsystemSchemaName)
+  where
+    cancelAdminlessJobsForTeamInTransaction :: Text -> WireArbiter JobRegistry ()
+    cancelAdminlessJobsForTeamInTransaction schemaName =
+      ArbiterCore.withDbTransaction $ do
+        jobIds <-
+          ArbiterCore.executeQuery
+            (adminlessJobsForTeamQuery schemaName conversationsQueueName)
+            [pval CText (idToText teamId)]
+            (col "id" CInt8)
+        unless (null jobIds) $
+          void $
+            ArbiterOperations.cancelJobsBatch schemaName conversationsQueueName jobIds
+
+    adminlessJobsForTeamQuery :: Text -> Text -> Text
+    adminlessJobsForTeamQuery schemaName tableName =
+      "SELECT id FROM "
+        <> quoteIdentifier schemaName
+        <> "."
+        <> quoteIdentifier tableName
+        <> " WHERE claimed_by IS NULL"
+        <> " AND payload #>> '{data,team_id}' = ?"
+        <> " AND payload->>'type' IN ('adminless_setup', 'adminless_deletion', 'adminless_reminder')"
+        <> " FOR UPDATE"
+
+    quoteIdentifier :: Text -> Text
+    quoteIdentifier identifier = "\"" <> Text.replace "\"" "\"\"" identifier <> "\""
 
 adminlessJobDedupKey :: Text -> ConvId -> Text
 adminlessJobDedupKey jobType convId =

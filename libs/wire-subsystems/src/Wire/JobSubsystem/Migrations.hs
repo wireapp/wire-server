@@ -32,19 +32,21 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
 import Hasql.Connection qualified as HasqlConnection
 import Hasql.Connection.Settings qualified as HasqlConnectionSettings
+import Hasql.Decoders qualified as HasqlDecoders
+import Hasql.Encoders qualified as HasqlEncoders
 import Hasql.Session qualified as HasqlSession
 import Hasql.Statement qualified as HasqlStatement
 import Hasql.TH
 import Imports
 import System.IO.Error (userError)
 import System.Timeout (timeout)
-import Wire.API.Jobs (JobRegistry)
+import Wire.API.Jobs (JobRegistry, conversationsQueueName)
 
 -- | Apply all migrations for the job registry before constructing any worker
 -- pools or accepting jobs.
 runJobMigrations :: SecretText -> Text -> IO ()
 runJobMigrations connStr schemaName =
-  withArbiterMigrationLock connStr schemaName $ do
+  withArbiterMigrationLock connStr schemaName $ \lockConnection -> do
     result <-
       ArbiterMigrations.runMigrationsForRegistry
         (Proxy @JobRegistry)
@@ -52,21 +54,52 @@ runJobMigrations connStr schemaName =
         schemaName
         ArbiterMigrations.defaultMigrationConfig
     case result of
-      ArbiterMigrations.MigrationSuccess -> pure ()
+      ArbiterMigrations.MigrationSuccess -> ensureAdminlessJobsTeamIndex lockConnection
       ArbiterMigrations.MigrationError err ->
         throwIO . userError $
           "Arbiter migrations failed for schema " <> T.unpack schemaName <> ": " <> err
+  where
+    -- Add the lookup index after Arbiter has created the conversations queue.
+    -- The partial index only covers unclaimed adminless jobs, which are the rows
+    -- that feature teardown needs to select and cancel.
+    ensureAdminlessJobsTeamIndex :: HasqlConnection.Connection -> IO ()
+    ensureAdminlessJobsTeamIndex connection =
+      runRawSql connection $
+        "CREATE INDEX IF NOT EXISTS "
+          <> quoteIdentifier "conversations_adminless_team_id_idx"
+          <> " ON "
+          <> quoteIdentifier schemaName
+          <> "."
+          <> quoteIdentifier conversationsQueueName
+          <> " ((payload #>> '{data,team_id}'))"
+          <> " WHERE claimed_by IS NULL"
+          <> " AND payload->>'type' IN ('adminless_setup', 'adminless_deletion', 'adminless_reminder')"
+
+    runRawSql :: HasqlConnection.Connection -> Text -> IO ()
+    runRawSql connection sql = do
+      result <-
+        HasqlConnection.use connection $
+          HasqlSession.statement
+            ()
+            (HasqlStatement.unpreparable sql HasqlEncoders.noParams HasqlDecoders.noResult)
+      either
+        (\err -> throwIO . userError $ "Arbiter SQL statement failed: " <> show err)
+        pure
+        result
+
+    quoteIdentifier :: Text -> Text
+    quoteIdentifier identifier = "\"" <> T.replace "\"" "\"\"" identifier <> "\""
 
 -- | Serialize Arbiter schema migrations across all service instances that can
 -- schedule or execute jobs. The lock is held on the same dedicated connection
 -- for the whole migration because PostgreSQL advisory locks are session-scoped.
-withArbiterMigrationLock :: SecretText -> Text -> IO a -> IO a
+withArbiterMigrationLock :: SecretText -> Text -> (HasqlConnection.Connection -> IO a) -> IO a
 withArbiterMigrationLock connStr schemaName action = do
   bracket acquireConnection HasqlConnection.release $ \lockConnection -> do
     bracket_
       (acquireArbiterMigrationLockWithTimeout lockConnection)
       (runAdvisoryLockStatement lockConnection releaseArbiterMigrationLock)
-      action
+      (action lockConnection)
   where
     lockId :: Int64
     lockId = fromIntegral . Hashable.hash $ ("wire-server:arbiter-migrations:" <> schemaName :: Text)

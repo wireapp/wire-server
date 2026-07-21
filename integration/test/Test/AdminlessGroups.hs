@@ -182,6 +182,276 @@ testOnLastAdminLeaveNoEligibleMembersExist = do
     bindResponse (GalleyI.getConversation conv) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
+testAdminlessSetupOnFeatureEnable :: (HasCallStack) => App ()
+testAdminlessSetupOnFeatureEnable = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+  let newApp :: NewApp
+      newApp = def {name = "adminless-setup-app", description = "not eligible for promotion"}
+  app <- bindResponse (createApp alice tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  [alice1, app1] <- traverse (createMLSClient def) [alice, app]
+  traverse_ (uploadNewKeyPackage def) [alice1, app1]
+
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [app] >>= sendAndConsumeCommitBundle
+
+  -- The feature is disabled, so leaving the conversation must not schedule a
+  -- deletion job. Enabling it afterwards exercises the team reconciliation job.
+  bindResponse (removeMember alice conv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  bindResponse (GalleyI.getConversation conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  withWebSockets [app] $ \[wsApp] -> do
+    patchTeamFeature
+      OwnDomain
+      tid
+      "preventAdminlessGroups"
+      ( object
+          [ "status" .= "enabled",
+            "config"
+              .= object
+                [ "deletionTimeoutDuration" .= "5s",
+                  "reminderTimeoutDurations" .= ["4s"],
+                  "promotionStrategy" .= "random"
+                ]
+          ]
+      )
+      >>= assertSuccess
+
+    -- Leave enough margin for the setup job to enqueue both jobs and for them
+    -- to be picked up when the integration suite is under load.
+    reminder <- awaitMatchFor 20 isConvSystemAdminlessReminderNotif wsApp
+    reminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    reminder %. "payload.0.data.deletion_scheduled_for" & asString
+    void $ awaitMatchFor 20 isConvDeleteNotif wsApp
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
+testAdminlessSetupSystemMemberUpdate :: (HasCallStack) => App ()
+testAdminlessSetupSystemMemberUpdate = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- Create an adminless conversation while the feature is disabled. The setup
+  -- job will later autopromote bob without an originating user ID.
+  bindResponse (removeMember alice conv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  withWebSockets [bob] $ \[wsBob] -> do
+    patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
+
+    notif <- awaitMatchFor 20 isConvSystemMemberUpdateNotif wsBob
+    notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    notif %. "payload.0.data.qualified_target" `shouldMatch` objQidObject bob
+    notif %. "payload.0.data.conversation_role" `shouldMatch` "wire_admin"
+
+    bindResponse (getConversation bob conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+
+testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
+testAdminlessJobsCancelledOnFeatureDisable = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature
+    OwnDomain
+    tid
+    "preventAdminlessGroups"
+    ( object
+        [ "status" .= "enabled",
+          "config"
+            .= object
+              [ "deletionTimeoutDuration" .= "5s",
+                "reminderTimeoutDurations" .= ([] :: [String]),
+                "promotionStrategy" .= "random"
+              ]
+        ]
+    )
+    >>= assertSuccess
+
+  let newApp :: NewApp
+      newApp = def {name = "adminless-cancel-app", description = "not eligible for promotion"}
+  app <- bindResponse (createApp alice tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  [alice1, app1] <- traverse (createMLSClient def) [alice, app]
+  traverse_ (uploadNewKeyPackage def) [alice1, app1]
+
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [app] >>= sendAndConsumeCommitBundle
+
+  withWebSockets [app] $ \[wsApp] -> do
+    -- Leaving schedules deletion while the feature is enabled.
+    bindResponse (removeMember alice conv alice) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- Disabling the feature must cancel the pending deletion before its deadline.
+    patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+    -- Wait beyond the original deadline and worker polling window. The
+    -- conversation must remain because the pending job was canceled. Feature
+    -- update events are ignored by the matcher.
+    result <- awaitNMatchesResultFor 15 1 isConvDeleteNotif wsApp
+    result.success `shouldMatch` False
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+testAdminlessJobsRecreatedOnFeatureConfigChange :: (HasCallStack) => App ()
+testAdminlessJobsRecreatedOnFeatureConfigChange = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature
+    OwnDomain
+    tid
+    "preventAdminlessGroups"
+    ( object
+        [ "status" .= "enabled",
+          "config"
+            .= object
+              [ "deletionTimeoutDuration" .= "10s",
+                "reminderTimeoutDurations" .= ([] :: [String]),
+                "promotionStrategy" .= "random"
+              ]
+        ]
+    )
+    >>= assertSuccess
+
+  let newApp :: NewApp
+      newApp = def {name = "adminless-reschedule-app", description = "not eligible for promotion"}
+  app <- bindResponse (createApp alice tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  [alice1, app1] <- traverse (createMLSClient def) [alice, app]
+  traverse_ (uploadNewKeyPackage def) [alice1, app1]
+
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [app] >>= sendAndConsumeCommitBundle
+
+  withWebSockets [app] $ \[wsApp] -> do
+    -- Leaving schedules a deletion using the original timeout.
+    bindResponse (removeMember alice conv alice) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- Changing the configuration must cancel the old job and recreate it
+    -- using the new timeout.
+    patchTeamFeature
+      OwnDomain
+      tid
+      "preventAdminlessGroups"
+      ( object
+          [ "status" .= "enabled",
+            "config"
+              .= object
+                [ "deletionTimeoutDuration" .= "20s",
+                  "reminderTimeoutDurations" .= ([] :: [String]),
+                  "promotionStrategy" .= "random"
+                ]
+          ]
+      )
+      >>= assertSuccess
+
+    -- If the old job was not canceled, it would delete the conversation after
+    -- 10s. Wait past that deadline before checking that it still exists.
+    oldJobResult <- awaitNMatchesResultFor 15 1 isConvDeleteNotif wsApp
+    oldJobResult.success `shouldMatch` False
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- The replacement job uses the new 20s timeout.
+    void $ awaitMatchFor 30 isConvDeleteNotif wsApp
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
+testAdminlessJobCancellationIsTeamScoped :: (HasCallStack) => App ()
+testAdminlessJobCancellationIsTeamScoped = do
+  (alice, canceledTid, _) <- createTeam OwnDomain 1
+  (bob, activeTid, _) <- createTeam OwnDomain 1
+
+  let enabledFeature :: Value
+      enabledFeature =
+        object
+          [ "status" .= "enabled",
+            "config"
+              .= object
+                [ "deletionTimeoutDuration" .= "10s",
+                  "reminderTimeoutDurations" .= ([] :: [String]),
+                  "promotionStrategy" .= "random"
+                ]
+          ]
+
+  for_ [(alice, canceledTid), (bob, activeTid)] $ \(owner, tid) -> do
+    setTeamFeatureLockStatus owner tid "preventAdminlessGroups" "unlocked"
+    patchTeamFeature OwnDomain tid "preventAdminlessGroups" enabledFeature >>= assertSuccess
+
+  let newApp :: String -> NewApp
+      newApp name = def {name = name, description = "not eligible for promotion"}
+  canceledApp <- bindResponse (createApp alice canceledTid (newApp "adminless-cancel-team-app")) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+  activeApp <- bindResponse (createApp bob activeTid (newApp "adminless-active-team-app")) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  [alice1, canceledApp1] <- traverse (createMLSClient def) [alice, canceledApp]
+  [bob1, activeApp1] <- traverse (createMLSClient def) [bob, activeApp]
+  traverse_ (uploadNewKeyPackage def) [alice1, canceledApp1, bob1, activeApp1]
+
+  canceledConv <- postConversation alice (allowAll defMLS) {team = Just canceledTid} >>= getJSON 201
+  canceledConvId <- objConvId canceledConv
+  createGroup def alice1 canceledConvId
+  void $ createAddCommit alice1 canceledConvId [canceledApp] >>= sendAndConsumeCommitBundle
+
+  activeConv <- postConversation bob (allowAll defMLS) {team = Just activeTid} >>= getJSON 201
+  activeConvId <- objConvId activeConv
+  createGroup def bob1 activeConvId
+  void $ createAddCommit bob1 activeConvId [activeApp] >>= sendAndConsumeCommitBundle
+
+  withWebSockets [canceledApp, activeApp] $ \[wsCanceled, wsActive] -> do
+    -- Schedule one deletion job for each team before disabling only one team.
+    bindResponse (removeMember alice canceledConv alice) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+    bindResponse (removeMember bob activeConv bob) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    patchTeamFeature OwnDomain canceledTid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+    -- The cancellation query must not affect the other team's job.
+    canceledResult <- awaitNMatchesResultFor 20 1 isConvDeleteNotif wsCanceled
+    canceledResult.success `shouldMatch` False
+    void $ awaitMatchFor 30 isConvDeleteNotif wsActive
+
+    bindResponse (GalleyI.getConversation canceledConv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+    bindResponse (GalleyI.getConversation activeConv) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
 testOnLastAdminLeaveFeatureDisabled :: (HasCallStack) => App ()
 testOnLastAdminLeaveFeatureDisabled = do
   -- bob is eligible

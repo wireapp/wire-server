@@ -72,7 +72,7 @@ import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
-import Wire.JobSubsystem (JobSubsystem, scheduleAdminlessSetupJob)
+import Wire.JobSubsystem (JobSubsystem, cancelAdminlessJobsForTeam, scheduleAdminlessSetupJob)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Options.Galley
@@ -449,10 +449,10 @@ instance SetFeatureConfig PreventAdminlessGroupsConfig where
       (FeatureStatusDisabled, FeatureStatusEnabled) ->
         scheduleAdminlessSetupJob originUser tid
       (FeatureStatusEnabled, FeatureStatusDisabled) ->
-        todo "adminless teardown"
+        cancelAdminlessJobsForTeam tid
       (FeatureStatusEnabled, FeatureStatusEnabled)
         | oldFeature.config /= newFeature.config -> do
-            todo "adminless teardown"
+            cancelAdminlessJobsForTeam tid
             scheduleAdminlessSetupJob originUser tid
         | otherwise -> pure ()
       _ -> pure ()

@@ -23,6 +23,7 @@ module Wire.JobSubsystem
     scheduleAdminlessSetupJob,
     scheduleAdminlessDeletionJob,
     scheduleAdminlessReminderJob,
+    cancelAdminlessJobsForTeam,
   )
 where
 
@@ -41,5 +42,6 @@ data JobSubsystem m a where
   ScheduleAdminlessSetupJob :: Maybe UserId -> TeamId -> JobSubsystem m ()
   ScheduleAdminlessDeletionJob :: Maybe (Local UserId) -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ()
   ScheduleAdminlessReminderJob :: Maybe (Local UserId) -> TeamId -> ConvId -> UTCTimeMillis -> NominalDiffTime -> UTCTime -> JobSubsystem m ()
+  CancelAdminlessJobsForTeam :: TeamId -> JobSubsystem m ()
 
 makeSem ''JobSubsystem
