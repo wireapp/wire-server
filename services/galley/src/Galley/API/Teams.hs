@@ -792,7 +792,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       E.deleteUser remove
       case uType of
         UserTypeFilterRegular -> pure ()
-        UserTypeFilterApp -> E.deleteApp tid remove
+        UserTypeFilterApp -> E.internalDeleteApp tid remove
       owners <- E.getBillingTeamMembers tid
       Journal.teamUpdate tid teamSizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
