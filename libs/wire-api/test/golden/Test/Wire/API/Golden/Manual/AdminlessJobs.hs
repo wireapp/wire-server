@@ -50,6 +50,12 @@ testObject_AdminlessReminderJob_1 = AdminlessReminderJob teamId conversationId N
 testObject_AdminlessReminderJob_2 :: AdminlessReminderJob
 testObject_AdminlessReminderJob_2 = AdminlessReminderJob teamId conversationId (Just originUserId) deletionScheduledFor requestId
 
+testObject_AdminlessSetupJob_1 :: AdminlessSetupJob
+testObject_AdminlessSetupJob_1 = AdminlessSetupJob teamId Nothing requestId
+
+testObject_AdminlessSetupJob_2 :: AdminlessSetupJob
+testObject_AdminlessSetupJob_2 = AdminlessSetupJob teamId (Just originUserId) requestId
+
 testObject_MeetingsJobPayload_MeetingsCleanup_1 :: MeetingsJobPayload
 testObject_MeetingsJobPayload_MeetingsCleanup_1 = MeetingsCleanup MeetingsCleanupJob
 
@@ -58,3 +64,6 @@ testObject_ConversationsJobPayload_AdminlessDeletion_1 = AdminlessDeletion testO
 
 testObject_ConversationsJobPayload_AdminlessReminder_1 :: ConversationsJobPayload
 testObject_ConversationsJobPayload_AdminlessReminder_1 = AdminlessReminder testObject_AdminlessReminderJob_1
+
+testObject_ConversationsJobPayload_AdminlessSetup_1 :: ConversationsJobPayload
+testObject_ConversationsJobPayload_AdminlessSetup_1 = AdminlessSetup testObject_AdminlessSetupJob_1

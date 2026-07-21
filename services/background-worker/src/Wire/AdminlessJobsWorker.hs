@@ -16,7 +16,8 @@
 -- along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.AdminlessJobsWorker
-  ( runAdminlessDeletionJob,
+  ( runAdminlessSetupJob,
+    runAdminlessDeletionJob,
     runAdminlessReminderJob,
   )
 where
@@ -26,11 +27,32 @@ import Arbiter.Core.Job.Types (JobRead, notVisibleUntil, payload)
 import Data.Qualified (toLocalUnsafe)
 import Imports
 import System.Logger qualified as Log
-import Wire.API.Jobs (AdminlessDeletionJob (..), AdminlessReminderJob (..))
+import Wire.API.Jobs (AdminlessDeletionJob (..), AdminlessReminderJob (..), AdminlessSetupJob (..))
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.ConversationSubsystem
 import Wire.Effects (runBackgroundWorkerEffects)
 import Wire.ExternalAccess.External (ExtEnv)
+
+runAdminlessSetupJob :: ExtEnv -> JobRead AdminlessSetupJob -> AppT IO ()
+runAdminlessSetupJob extEnv job = do
+  env <- ask
+  Log.debug env.logger $
+    Log.msg (Log.val "Running adminless setup job")
+      . Log.field "team_id" (show job.payload.adminlessSetupJobTeamId)
+      . Log.field "orig_user_id" (show job.payload.adminlessSetupJobOrigUserId)
+      . Log.field "request_id" (show job.payload.adminlessSetupJobRequestId)
+      . Log.field "scheduled_for" (show job.notVisibleUntil)
+  result <-
+    liftIO $
+      runBackgroundWorkerEffects env extEnv job.payload.adminlessSetupJobRequestId Nothing $
+        do
+          setupAdminlessGroupsCleanup
+            (toLocalUnsafe env.federationDomain <$> job.payload.adminlessSetupJobOrigUserId)
+            job.payload.adminlessSetupJobTeamId
+          Log.debug env.logger $
+            Log.msg (Log.val "Adminless setup job finished")
+              . Log.field "team_id" (show job.payload.adminlessSetupJobTeamId)
+  either (liftIO . throwRetryable) pure result
 
 runAdminlessDeletionJob :: ExtEnv -> JobRead AdminlessDeletionJob -> AppT IO ()
 runAdminlessDeletionJob extEnv job = do

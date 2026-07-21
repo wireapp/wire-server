@@ -43,7 +43,7 @@ import System.IO.Error (userError)
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
 import Wire.API.Jobs
-import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob)
+import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob, runAdminlessSetupJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
 import Wire.BackgroundWorker.Options (JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util
@@ -170,6 +170,7 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
             . Log.field "queue_name" conversationsQueueName
             . Log.field "payload_type" (conversationsJobPayloadTypeName job.payload)
         case job.payload of
+          AdminlessSetup payload -> runAppT env $ runAdminlessSetupJob extEnv (mapJobPayload (const payload) job)
           AdminlessDeletion payload -> runAppT env $ runAdminlessDeletionJob extEnv (mapJobPayload (const payload) job)
           AdminlessReminder payload -> runAppT env $ runAdminlessReminderJob extEnv (mapJobPayload (const payload) job)
 
@@ -249,6 +250,7 @@ meetingsJobPayloadTypeName = \case
 
 conversationsJobPayloadTypeName :: ConversationsJobPayload -> Text
 conversationsJobPayloadTypeName = \case
+  AdminlessSetup _ -> "adminless_setup"
   AdminlessDeletion _ -> "adminless_deletion"
   AdminlessReminder _ -> "adminless_reminder"
 

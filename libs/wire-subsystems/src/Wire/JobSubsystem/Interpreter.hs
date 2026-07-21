@@ -47,8 +47,31 @@ interpretJobSubsystem ::
 interpretJobSubsystem conf =
   interpret
     \case
+      ScheduleAdminlessSetupJob lusr tid -> scheduleAdminlessSetupJob conf lusr tid
       ScheduleAdminlessDeletionJob lusr tid cid scheduledFor -> scheduleAdminlessDeletionJob conf lusr tid cid scheduledFor
       ScheduleAdminlessReminderJob lusr tid cid deletionScheduledFor reminderTimeout scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid deletionScheduledFor reminderTimeout scheduledFor
+
+scheduleAdminlessSetupJob ::
+  forall r.
+  (PGConstraints r, Member (Input RequestId) r) =>
+  JobSubsystemConfig ->
+  Maybe (Local UserId) ->
+  TeamId ->
+  Sem r ()
+scheduleAdminlessSetupJob JobSubsystemConfig {..} lusr teamId = do
+  requestId <- input @RequestId
+  pool <- input @HasqlPoolExt.Pool
+  let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
+      groupKey = "adminless-setup:" <> idToText teamId
+      arbiterJob =
+        ( ArbiterCore.defaultGroupedJob
+            groupKey
+            (AdminlessSetup (AdminlessSetupJob teamId (tUnqualified <$> lusr) requestId))
+        )
+          { ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessSetupJobDedupKey teamId,
+            ArbiterCore.maxAttempts = Just 3
+          }
+  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter JobRegistry) @JobRegistry @ConversationsJobPayload arbiterJob
 
 scheduleAdminlessDeletionJob ::
   forall r.
@@ -105,6 +128,10 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
 adminlessJobDedupKey :: Text -> ConvId -> Text
 adminlessJobDedupKey jobType convId =
   "adminless-" <> jobType <> ":" <> idToText convId
+
+adminlessSetupJobDedupKey :: TeamId -> Text
+adminlessSetupJobDedupKey teamId =
+  "adminless-setup:" <> idToText teamId
 
 adminlessReminderJobDedupKey :: ConvId -> NominalDiffTime -> Text
 adminlessReminderJobDedupKey convId reminderTimeout =

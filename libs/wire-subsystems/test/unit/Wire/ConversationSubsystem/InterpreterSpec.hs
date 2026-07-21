@@ -267,6 +267,8 @@ interpretJobSubsystem ::
   Sem r a
 interpretJobSubsystem =
   interpret $ \case
+    ScheduleAdminlessSetupJob {} ->
+      pure ()
     ScheduleAdminlessDeletionJob {} ->
       pure ()
     ScheduleAdminlessReminderJob {} ->

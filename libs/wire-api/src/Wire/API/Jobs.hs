@@ -114,6 +114,26 @@ instance ToSchema AdminlessReminderJob where
         <*> (.adminlessReminderJobDeletionScheduledFor) .= field "deletion_scheduled_for" schema
         <*> (.adminlessReminderJobRequestId) .= field "request_id" schema
 
+-- | Payload for reconciling all adminless groups in a team.
+data AdminlessSetupJob = AdminlessSetupJob
+  { adminlessSetupJobTeamId :: TeamId,
+    adminlessSetupJobOrigUserId :: Maybe UserId,
+    adminlessSetupJobRequestId :: RequestId
+  }
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema AdminlessSetupJob)
+
+instance Arbitrary AdminlessSetupJob where
+  arbitrary = AdminlessSetupJob <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance ToSchema AdminlessSetupJob where
+  schema =
+    object $
+      AdminlessSetupJob
+        <$> (.adminlessSetupJobTeamId) .= field "team_id" schema
+        <*> (.adminlessSetupJobOrigUserId) .= maybe_ (optField "orig_user_id" schema)
+        <*> (.adminlessSetupJobRequestId) .= field "request_id" schema
+
 -- | Common representation for all queue payload envelopes.
 -- The queue-specific sum supplies the type tag and its associated data schema,
 -- while this helper guarantees the stable {"type": ..., "data": ...} shape.
@@ -175,12 +195,14 @@ instance Arbitrary MeetingsJobPayload where
 -- | Payload persisted in the conversations queue. Keep the type tags and
 -- nested data shapes stable when changing job payloads.
 data ConversationsJobPayload
-  = AdminlessDeletion AdminlessDeletionJob
+  = AdminlessSetup AdminlessSetupJob
+  | AdminlessDeletion AdminlessDeletionJob
   | AdminlessReminder AdminlessReminderJob
   deriving stock (Eq, Generic, Show)
 
 data ConversationsJobPayloadTag
-  = AdminlessReminderTag
+  = AdminlessSetupTag
+  | AdminlessReminderTag
   | AdminlessDeletionTag
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationsJobPayloadTag
@@ -189,7 +211,8 @@ instance ToSchema ConversationsJobPayloadTag where
   schema =
     enum @Text $
       mconcat
-        [ element "adminless_deletion" AdminlessDeletionTag,
+        [ element "adminless_setup" AdminlessSetupTag,
+          element "adminless_deletion" AdminlessDeletionTag,
           element "adminless_reminder" AdminlessReminderTag
         ]
 
@@ -201,11 +224,13 @@ conversationsJobPayloadObjectSchema = taggedJobPayloadObjectSchema toTag toSchem
     toTag :: ConversationsJobPayload -> ConversationsJobPayloadTag
     toTag =
       \case
+        AdminlessSetup {} -> AdminlessSetupTag
         AdminlessDeletion {} -> AdminlessDeletionTag
         AdminlessReminder {} -> AdminlessReminderTag
 
     toSchema :: ConversationsJobPayloadTag -> ObjectSchema SwaggerDoc ConversationsJobPayload
     toSchema = \case
+      AdminlessSetupTag -> tag _AdminlessSetup (field "data" schema)
       AdminlessDeletionTag -> tag _AdminlessDeletion (field "data" schema)
       AdminlessReminderTag -> tag _AdminlessReminder (field "data" schema)
 
