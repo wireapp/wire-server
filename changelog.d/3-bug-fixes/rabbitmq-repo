@@ -1,0 +1,1 @@
+Use *bitnamilegacy* *docker.io* repository for RabbitMQ images. The `docker.io/bitnami` repository is deprecated and offline; `docker.io/bitnamilegacy` provides the old images for continued compatibility.
