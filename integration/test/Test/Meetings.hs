@@ -191,7 +191,7 @@ testMeetingsReadsWhenDisabled = do
   getMeetingsList owner `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     meetings <- resp.json & asList
-    length meetings `shouldMatchInt` 0
+    shouldBeEmpty meetings
 
   getMeeting owner domain meetingId >>= assertLabel 404 "meeting-not-found"
 
