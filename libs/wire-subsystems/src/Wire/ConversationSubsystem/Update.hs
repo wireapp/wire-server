@@ -135,6 +135,7 @@ import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
 import Wire.ConversationSubsystem.Message
+import Wire.ConversationSubsystem.Notify qualified as Notify
 import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess qualified as E
@@ -1324,20 +1325,47 @@ adminlessTryAutopromote mlusr lcnv altAction = do
       x : xs -> do
         seed <- randomWord64
         let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
-            update = (OtherMemberUpdate (Just roleNameWireAdmin))
+            update = OtherMemberUpdate (Just roleNameWireAdmin)
         for_ autopromotionCandidates $ \candidate -> do
           E.setOtherMember lcnv candidate update
-        for_ mlusr \lusr ->
-          sendConversationActionNotifications
-            (sing @'ConversationMemberUpdateTag)
-            (tUntagged lusr)
-            False
-            Nothing
-            (qualifyAs lcnv conv)
-            (convBotsAndMembers conv)
-            (ConversationMemberUpdate (tUntagged lusr) update)
-            def
+        case mlusr of
+          Just lusr ->
+            void $
+              sendConversationActionNotifications
+                (sing @'ConversationMemberUpdateTag)
+                (tUntagged lusr)
+                False
+                Nothing
+                (qualifyAs lcnv conv)
+                (convBotsAndMembers conv)
+                (ConversationMemberUpdate (tUntagged lusr) update)
+                def
+          Nothing -> do
+            now <- Now.get
+            for_ autopromotionCandidates $ \candidate ->
+              Notify.pushSystemEvent
+                Nothing
+                ( SystemEvent
+                    (tUntagged lcnv)
+                    Nothing
+                    now
+                    conv.metadata.cnvmTeam
+                    (EdSystemMemberUpdate (memberUpdateData candidate update))
+                )
+                (Set.fromList (map (.id_) conv.localMembers))
       [] -> altAction conv feature eligibleMembers
+  where
+    memberUpdateData candidate memberUpdate' =
+      MemberUpdateData
+        { misTarget = candidate,
+          misOtrMutedStatus = Nothing,
+          misOtrMutedRef = Nothing,
+          misOtrArchived = Nothing,
+          misOtrArchivedRef = Nothing,
+          misHidden = Nothing,
+          misHiddenRef = Nothing,
+          misConvRoleName = omuConvRoleName memberUpdate'
+        }
 
 adminlessAutopromoteOrDelete ::
   ( Member ConversationStore r,
@@ -1360,16 +1388,24 @@ adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orA
   where
     orAlternativelyDeleteConv conv _ _ = do
       removeConversation (qualifyAs lcnv conv)
-      for_ mlusr $ \lusr ->
-        sendConversationActionNotifications
-          (sing @'ConversationDeleteTag)
-          (tUntagged lusr)
-          False
-          Nothing
-          (qualifyAs lcnv conv)
-          (convBotsAndMembers conv)
-          ()
-          def
+      case mlusr of
+        Just lusr ->
+          void $
+            sendConversationActionNotifications
+              (sing @'ConversationDeleteTag)
+              (tUntagged lusr)
+              False
+              Nothing
+              (qualifyAs lcnv conv)
+              (convBotsAndMembers conv)
+              ()
+              def
+        Nothing -> do
+          now <- Now.get
+          Notify.pushSystemEvent
+            Nothing
+            (SystemEvent (tUntagged lcnv) Nothing now conv.metadata.cnvmTeam EdSystemConvDelete)
+            (Set.fromList (map (.id_) conv.localMembers))
 
 adminlessAutopromoteOrSendReminder ::
   ( Member ConversationStore r,
@@ -1389,17 +1425,30 @@ adminlessAutopromoteOrSendReminder ::
   Sem r ()
 adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
-    orAlternativelySendReminder conv _ _ = for_ mlusr \lusr -> do
+    orAlternativelySendReminder conv _ _ = do
       now <- Now.get
-      let event =
-            Event
-              (tUntagged lcnv)
-              Nothing
-              (EventFromUser (tUntagged lusr))
-              now
-              (conv.metadata.cnvmTeam)
-              (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
-      pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
+      case mlusr of
+        Just lusr -> do
+          let event =
+                Event
+                  (tUntagged lcnv)
+                  Nothing
+                  (EventFromUser (tUntagged lusr))
+                  now
+                  (conv.metadata.cnvmTeam)
+                  (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
+          pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
+        Nothing ->
+          Notify.pushSystemEvent
+            Nothing
+            ( SystemEvent
+                (tUntagged lcnv)
+                Nothing
+                now
+                conv.metadata.cnvmTeam
+                (EdSystemAdminlessReminder (AdminlessReminder deletionScheduledFor))
+            )
+            (Set.fromList (map (.id_) conv.localMembers))
 
 -- Use eight random bytes and fold them into a big-endian Word64. This keeps
 -- the helper small, deterministic under tests, and free of extra Random API.

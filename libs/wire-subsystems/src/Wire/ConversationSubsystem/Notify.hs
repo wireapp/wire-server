@@ -15,9 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ConversationSubsystem.Notify (notifyConversationActionImpl) where
+module Wire.ConversationSubsystem.Notify
+  ( notifyConversationActionImpl,
+    pushSystemEvent,
+  )
+where
 
+import Data.Default
 import Data.Id
+import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Qualified
 import Data.Singletons (Sing)
 import Imports
@@ -89,3 +95,23 @@ notifyConversationActionImpl tag eventFrom notifyOrigDomain con lconv targetsLoc
   pushConversationEvent con conv.metadata.cnvmCellsState e (qualifyAs lcnv targetsLocal) targetsBots
 
   pure $ LocalConversationUpdate {lcuEvent = e, lcuUpdate = update}
+
+pushSystemEvent ::
+  ( Member ExternalAccess r,
+    Member NotificationSubsystem r
+  ) =>
+  Maybe ConnId ->
+  SystemEvent ->
+  Set UserId ->
+  Sem r ()
+pushSystemEvent con event targets = do
+  let eventJson = toJSONObject event
+  pushNotifications
+    [ def
+        { conn = con,
+          origin = Nothing,
+          json = eventJson,
+          recipients = map userRecipient (toList targets),
+          isCellsEvent = True
+        }
+    ]

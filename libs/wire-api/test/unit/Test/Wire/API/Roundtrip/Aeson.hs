@@ -165,6 +165,8 @@ tests =
       testRoundTrip @EJPD.EJPDContact,
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
+      testRoundTrip @Event.Conversation.SystemEvent,
+      testRoundTrip @Event.Conversation.SystemEventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.MembersJoin,
       testRoundTrip @Event.Conversation.Connect,
