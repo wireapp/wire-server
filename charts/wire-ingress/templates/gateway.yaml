@@ -13,6 +13,9 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   gatewayClassName: {{ .Values.gateway.className | quote }}
+  allowedListeners:
+    namespaces:
+      from: Same
   {{- $envoyProxyName := "" }}
   {{- if .Values.gateway.envoyProxy.create }}
   {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.gatewayName" .) }}
@@ -33,29 +36,18 @@ spec:
     {{- end }}
   {{- end }}
   listeners:
-    {{- $domains := include "wire-ingress.domains" . | fromJsonArray }}
-    {{- range $domain := $domains }}
-    - name: {{ $domain.section }}
-      port: {{ $.Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "an HTTPS listener hostname is required (gateway.listeners.https.hostname for single-domain, or config.domains[].base/hostname)" $domain.hostname | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ $domain.secretName | quote }}
-            kind: Secret
-    {{- end }}
-    {{- if .Values.federator.enabled }}
-    - name: federator
+    - name: gateway
       port: {{ .Values.gateway.listeners.https.port }}
       protocol: HTTPS
-      hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}
+      hostname: {{ include "wire-ingress.gatewayDummyHostname" . | quote }}
+      allowedRoutes:
+        namespaces:
+          from: None
       tls:
         mode: Terminate
         certificateRefs:
-          - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
+          - name: {{ include "wire-ingress.certificateSecretName" . | quote }}
             kind: Secret
-    {{- end }}
     {{- if .Values.gateway.listeners.http.enabled }}
     - name: http
       port: {{ .Values.gateway.listeners.http.port }}
