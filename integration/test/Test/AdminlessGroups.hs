@@ -429,7 +429,7 @@ createAndAddAppMember creator tid ownerClient conv newApp = do
 configureAdminlessGroupsFeature :: (MakesValue domain) => domain -> String -> String -> String -> [String] -> App ()
 configureAdminlessGroupsFeature domain tid status deletionTimeout reminderTimeouts = do
   setTeamFeatureLockStatus domain tid "preventAdminlessGroups" "unlocked"
-  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (mkAdminlessFeature status deletionTimeout reminderTimeouts) >>= assertSuccess
+  patchTeamFeature domain tid "preventAdminlessGroups" (mkAdminlessFeature status deletionTimeout reminderTimeouts) >>= assertSuccess
 
 mkAdminlessFeature :: String -> String -> [String] -> Value
 mkAdminlessFeature status deletionTimeout reminderTimeouts =
