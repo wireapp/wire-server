@@ -22,6 +22,7 @@ module CargoHold.S3
   ( S3AssetKey,
     S3AssetMeta (..),
     AssetAuditLogMetadata (..),
+    setAmzAuditLogMetadata,
     uploadV3,
     downloadV3,
     getMetadataV3,
