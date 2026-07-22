@@ -1,0 +1,6 @@
+The wire-ingress and nginx-ingress-services charts now expose annotation
+passthroughs (`httpRoute.annotations` on the HTTPRoutes, `ingress.annotations` on
+the Ingresses), so external-dns weighted records (set-identifier/aws-weight) can
+be attached to both routers for a zero-downtime nginx-to-Envoy DNS cutover.
+wire-ingress also gains a `service.create` toggle (default true) to reuse the
+backend Services owned by nginx-ingress-services while both run in parallel.

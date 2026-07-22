@@ -3,6 +3,10 @@ kind: HTTPRoute
 metadata:
   name: {{ include "wire-ingress.fullname" . }}-nginz
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"

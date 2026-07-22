@@ -126,6 +126,9 @@ service:
   accountPages:
     externalPort: 8080
 
+ingress:
+  # Annotations added to the Ingress resources created by this chart.
+  annotations: {}
 config:
   ingressClass: "nginx"
 # You will need to supply some DNS names, namely
