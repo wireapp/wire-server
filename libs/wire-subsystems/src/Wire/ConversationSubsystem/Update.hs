@@ -1231,26 +1231,24 @@ guardPreventAdminlessGroups ::
   Sem r ()
 guardPreventAdminlessGroups responseMode lcnv lusr victim = do
   conv <- getConversationWithError lcnv
-  if (isAdminlessCheckCandidate conv)
-    then for_ conv.metadata.cnvmTeam $ \tid -> do
-      (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
-      -- we cannot use the onAdminless helper here because this check happens _before_ removing the potential admin
-      when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
-        eligibleMembers <- eligibleAdminFallbackMembers lcnv (Just (qUnqualified victim)) conv
-        case (responseMode, eligibleMembers) of
-          (RemoveMemberLegacyResponse, x : xs) -> do
-            seed <- randomWord64
-            let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
-            for_ autopromotionCandidates $ \candidate ->
-              updateLocalConversationMemberUpdate lcnv (tUntagged lusr) Nothing $
-                ConversationMemberUpdate candidate (OtherMemberUpdate (Just roleNameWireAdmin))
-          (RemoveMemberEligibleMembersResponse, _ : _) ->
-            throw $ AdminlessConversation (fmap fst eligibleMembers)
-          (RemoveMemberLegacyResponse, []) ->
-            scheduleDeletion lcnv (Just lusr) tid feature
-          (RemoveMemberEligibleMembersResponse, []) ->
-            scheduleDeletion lcnv (Just lusr) tid feature
-    else pure ()
+  when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
+    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    -- we cannot use the onAdminless helper here because this check happens _before_ removing the potential admin
+    when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
+      eligibleMembers <- eligibleAdminFallbackMembers lcnv (Just (qUnqualified victim)) conv
+      case (responseMode, eligibleMembers) of
+        (RemoveMemberLegacyResponse, x : xs) -> do
+          seed <- randomWord64
+          let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
+          for_ autopromotionCandidates $ \candidate ->
+            updateLocalConversationMemberUpdate lcnv (tUntagged lusr) Nothing $
+              ConversationMemberUpdate candidate (OtherMemberUpdate (Just roleNameWireAdmin))
+        (RemoveMemberEligibleMembersResponse, _ : _) ->
+          throw $ AdminlessConversation (fmap fst eligibleMembers)
+        (RemoveMemberLegacyResponse, []) ->
+          scheduleDeletion lcnv (Just lusr) tid feature
+        (RemoveMemberEligibleMembersResponse, []) ->
+          scheduleDeletion lcnv (Just lusr) tid feature
 
 scheduleDeletion ::
   ( Member Now r,
@@ -1298,14 +1296,12 @@ onAdminless ::
   Sem r ()
 onAdminless lcnv action = do
   conv <- getConversationWithError lcnv
-  if (isAdminlessCheckCandidate conv)
-    then for_ conv.metadata.cnvmTeam $ \tid -> do
-      (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
-      let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
-      when (feature.status == FeatureStatusEnabled && not adminExists) $ do
-        eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
-        action conv feature eligibleMembers
-    else pure ()
+  when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
+    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
+    when (feature.status == FeatureStatusEnabled && not adminExists) $ do
+      eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
+      action conv feature eligibleMembers
 
 adminlessTryAutopromote ::
   ( Member ConversationStore r,
