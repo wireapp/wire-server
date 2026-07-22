@@ -31,7 +31,7 @@ testOnLastAdminLeaveReturnEligibleMembers = do
   -- bob is eligible
   (alice, tid, [bob]) <- createTeam OwnDomain 2
 
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
 
   -- local user is eligible
@@ -116,27 +116,7 @@ testOnLastAdminLeaveReturnEligibleMembers = do
 testOnLastAdminLeaveNoEligibleMembersExist :: (HasCallStack) => App ()
 testOnLastAdminLeaveNoEligibleMembersExist = do
   (alice, tid, _) <- createTeam OwnDomain 1
-
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
-  patchTeamFeature
-    OwnDomain
-    tid
-    "preventAdminlessGroups"
-    ( object
-        [ "status" .= "enabled",
-          "config"
-            .= object
-              -- The reminders are due early (+1s and +2s), while deletion is
-              -- later (+10s). This gives Arbiter's 1s polling and serial
-              -- grouped-job processing enough room to emit both reminders
-              -- before the conversation is deleted.
-              [ "deletionTimeoutDuration" .= "10s",
-                "reminderTimeoutDurations" .= ["9s", "8s"],
-                "promotionStrategy" .= "random"
-              ]
-        ]
-    )
-    >>= assertSuccess
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" ["9s", "8s"]
 
   let newApp :: NewApp
       newApp = def {name = "adminless-reminder-app", description = "not eligible for promotion"}
@@ -186,7 +166,7 @@ testAdminlessSetupOnFeatureEnable :: (HasCallStack) => App ()
 testAdminlessSetupOnFeatureEnable = do
   (alice, tid, _) <- createTeam OwnDomain 1
 
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
 
   let newApp :: NewApp
@@ -211,27 +191,13 @@ testAdminlessSetupOnFeatureEnable = do
     resp.status `shouldMatchInt` 200
 
   withWebSockets [app] $ \[wsApp] -> do
-    patchTeamFeature
-      OwnDomain
-      tid
-      "preventAdminlessGroups"
-      ( object
-          [ "status" .= "enabled",
-            "config"
-              .= object
-                [ "deletionTimeoutDuration" .= "5s",
-                  "reminderTimeoutDurations" .= ["4s"],
-                  "promotionStrategy" .= "random"
-                ]
-          ]
-      )
-      >>= assertSuccess
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "5s" ["4s"]
 
     -- Leave enough margin for the setup job to enqueue both jobs and for them
     -- to be picked up when the integration suite is under load.
     reminder <- awaitMatchFor 20 isConvSystemAdminlessReminderNotif wsApp
     reminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
-    reminder %. "payload.0.data.deletion_scheduled_for" & asString
+    void $ reminder %. "payload.0.data.deletion_scheduled_for" & asString
     void $ awaitMatchFor 20 isConvDeleteNotif wsApp
     bindResponse (GalleyI.getConversation conv) $ \resp -> do
       resp.status `shouldMatchInt` 404
@@ -240,7 +206,7 @@ testAdminlessSetupSystemMemberUpdate :: (HasCallStack) => App ()
 testAdminlessSetupSystemMemberUpdate = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
 
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
@@ -271,23 +237,7 @@ testAdminlessSetupSystemMemberUpdate = do
 testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
 testAdminlessJobsCancelledOnFeatureDisable = do
   (alice, tid, _) <- createTeam OwnDomain 1
-
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
-  patchTeamFeature
-    OwnDomain
-    tid
-    "preventAdminlessGroups"
-    ( object
-        [ "status" .= "enabled",
-          "config"
-            .= object
-              [ "deletionTimeoutDuration" .= "5s",
-                "reminderTimeoutDurations" .= ([] :: [String]),
-                "promotionStrategy" .= "random"
-              ]
-        ]
-    )
-    >>= assertSuccess
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "5s" []
 
   let newApp :: NewApp
       newApp = def {name = "adminless-cancel-app", description = "not eligible for promotion"}
@@ -323,22 +273,7 @@ testAdminlessJobsRecreatedOnFeatureConfigChange :: (HasCallStack) => App ()
 testAdminlessJobsRecreatedOnFeatureConfigChange = do
   (alice, tid, _) <- createTeam OwnDomain 1
 
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
-  patchTeamFeature
-    OwnDomain
-    tid
-    "preventAdminlessGroups"
-    ( object
-        [ "status" .= "enabled",
-          "config"
-            .= object
-              [ "deletionTimeoutDuration" .= "10s",
-                "reminderTimeoutDurations" .= ([] :: [String]),
-                "promotionStrategy" .= "random"
-              ]
-        ]
-    )
-    >>= assertSuccess
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
 
   let newApp :: NewApp
       newApp = def {name = "adminless-reschedule-app", description = "not eligible for promotion"}
@@ -361,21 +296,7 @@ testAdminlessJobsRecreatedOnFeatureConfigChange = do
 
     -- Changing the configuration must cancel the old job and recreate it
     -- using the new timeout.
-    patchTeamFeature
-      OwnDomain
-      tid
-      "preventAdminlessGroups"
-      ( object
-          [ "status" .= "enabled",
-            "config"
-              .= object
-                [ "deletionTimeoutDuration" .= "20s",
-                  "reminderTimeoutDurations" .= ([] :: [String]),
-                  "promotionStrategy" .= "random"
-                ]
-          ]
-      )
-      >>= assertSuccess
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "20s" []
 
     -- If the old job was not canceled, it would delete the conversation after
     -- 10s. Wait past that deadline before checking that it still exists.
@@ -394,20 +315,10 @@ testAdminlessJobCancellationIsTeamScoped = do
   (alice, canceledTid, _) <- createTeam OwnDomain 1
   (bob, activeTid, _) <- createTeam OwnDomain 1
 
-  let enabledFeature :: Value
-      enabledFeature =
-        object
-          [ "status" .= "enabled",
-            "config"
-              .= object
-                [ "deletionTimeoutDuration" .= "10s",
-                  "reminderTimeoutDurations" .= ([] :: [String]),
-                  "promotionStrategy" .= "random"
-                ]
-          ]
+  let enabledFeature = mkAdminlessFeature "enabled" "10s" []
 
-  for_ [(alice, canceledTid), (bob, activeTid)] $ \(owner, tid) -> do
-    setTeamFeatureLockStatus owner tid "preventAdminlessGroups" "unlocked"
+  for_ [canceledTid, activeTid] $ \tid -> do
+    setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
     patchTeamFeature OwnDomain tid "preventAdminlessGroups" enabledFeature >>= assertSuccess
 
   let newApp :: String -> NewApp
@@ -457,7 +368,7 @@ testOnLastAdminLeaveFeatureDisabled = do
   -- bob is eligible
   (alice, tid, [bob]) <- createTeam OwnDomain 2
 
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
 
   clients@(alice1 : _) <- traverse (createMLSClient def) [alice, bob]
@@ -476,7 +387,7 @@ testOnLastAdminTeamMemberDeletionAutopromotes :: (HasCallStack) => App ()
 testOnLastAdminTeamMemberDeletionAutopromotes = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
 
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
 
   [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
@@ -509,7 +420,7 @@ testOnLastAdminSelfDeletionAutopromotes :: (HasCallStack) => App ()
 testOnLastAdminSelfDeletionAutopromotes = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
 
-  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
 
   [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
@@ -536,3 +447,20 @@ testOnLastAdminSelfDeletionAutopromotes = do
       resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
       members <- resp.json %. "members.others" & asList
       shouldBeEmpty members
+
+configureAdminlessGroupsFeature :: (MakesValue domain) => domain -> String -> String -> String -> [String] -> App ()
+configureAdminlessGroupsFeature domain tid status deletionTimeout reminderTimeouts = do
+  setTeamFeatureLockStatus domain tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (mkAdminlessFeature status deletionTimeout reminderTimeouts) >>= assertSuccess
+
+mkAdminlessFeature :: String -> String -> [String] -> Value
+mkAdminlessFeature status deletionTimeout reminderTimeouts =
+  object
+    [ "status" .= status,
+      "config"
+        .= object
+          [ "deletionTimeoutDuration" .= deletionTimeout,
+            "reminderTimeoutDurations" .= reminderTimeouts,
+            "promotionStrategy" .= "random"
+          ]
+    ]

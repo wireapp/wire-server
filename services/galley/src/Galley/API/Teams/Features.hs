@@ -37,7 +37,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Kind
-import Data.Qualified (Local)
+import Data.Qualified
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.App
@@ -88,6 +88,7 @@ import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as SearchVisibilityData
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.Util
 
 type ComputeFeatureConstraints cfg r = (Member FeaturesConfigSubsystem r)
 
@@ -139,16 +140,18 @@ setFeature ::
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeature uid tid feat = do
+  lusr <- qualifyLocal uid
   zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
   void $ TeamSubsystem.permissionCheck ChangeTeamFeature zusrMembership
-  setFeatureUnchecked (Just uid) tid feat
+  setFeatureUnchecked (Just lusr) tid feat
 
 setFeatureInternal ::
   forall cfg r.
@@ -181,7 +184,7 @@ setFeatureUnchecked ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
-  Maybe UserId ->
+  Maybe (Local UserId) ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
@@ -261,7 +264,7 @@ setFeatureForTeam ::
     Member TeamFeatureStore r,
     Member TeamSubsystem r
   ) =>
-  Maybe UserId ->
+  Maybe (Local UserId) ->
   TeamId ->
   LockableFeature cfg ->
   LockableFeature cfg ->
@@ -297,13 +300,13 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
 
   afterFeatureSet ::
     (SetFeatureForTeamConstraints cfg r) =>
-    Maybe UserId ->
+    Maybe (Local UserId) ->
     TeamId ->
     LockableFeature cfg ->
     LockableFeature cfg ->
     Sem r ()
   default afterFeatureSet ::
-    Maybe UserId ->
+    Maybe (Local UserId) ->
     TeamId ->
     LockableFeature cfg ->
     LockableFeature cfg ->

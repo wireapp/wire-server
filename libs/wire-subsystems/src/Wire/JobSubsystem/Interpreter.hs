@@ -58,7 +58,7 @@ scheduleAdminlessSetupJob ::
   forall r.
   (PGConstraints r, Member (Input RequestId) r) =>
   JobSubsystemConfig ->
-  Maybe UserId ->
+  Maybe (Local UserId) ->
   TeamId ->
   Sem r ()
 scheduleAdminlessSetupJob JobSubsystemConfig {..} lusr teamId = do
@@ -69,7 +69,7 @@ scheduleAdminlessSetupJob JobSubsystemConfig {..} lusr teamId = do
       arbiterJob =
         ( ArbiterCore.defaultGroupedJob
             groupKey
-            (AdminlessSetup (AdminlessSetupJob teamId lusr requestId))
+            (AdminlessSetup (AdminlessSetupJob teamId (tUnqualified <$> lusr) requestId))
         )
           { ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessSetupJobDedupKey teamId,
             ArbiterCore.maxAttempts = Just 3
