@@ -320,7 +320,8 @@ galley:
         email:
           from: meetings@example.com
           replyTo: noreply@example.com
-          transport:
+          useSES: true
+          aws:
             sesQueue: integration-galley-meetings-events
             sesEndpoint: http://fake-aws-ses:4569
 

@@ -266,7 +266,7 @@ settings:
       replyTo: noreply@example.com
       transport:               # SES:
         sesQueue: wire-meetings-email-feedback
-        sesEndpoint: email.us-east-1.amazonaws.com
+        sesEndpoint: https://email.us-east-1.amazonaws.com
       # transport:             # SMTP (xor SES):
       #   smtpEndpoint: { host: smtp.example.com, port: 587 }
       #   smtpConnType: tls
@@ -275,9 +275,12 @@ settings:
       #     smtpPassword: /etc/wire/galley/secrets/smtp-password.txt
 ```
 
-For SMTP, provision `galley.secrets.smtpPassword` (mounted at
-`/etc/wire/galley/secrets/smtp-password.txt`). Email sending itself lands in a
-follow-up.
+For SMTP, the Helm value `galley.config.settings.meetings.email.smtp.passwordFile`
+points at the path where the SMTP password is read, and
+`galley.secrets.smtpPassword` holds the value (mounted at
+`/etc/wire/galley/secrets/smtp-password.txt`). The Galley ConfigMap injects that
+path into `transport.smtpCredentials.smtpPassword`, the same pattern Brig uses
+for `smtp.passwordFile`. Email sending itself lands in a follow-up.
 
 ### Meetings Premium (deprecated)
 

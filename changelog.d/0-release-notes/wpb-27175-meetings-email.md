@@ -4,5 +4,8 @@
   and a `transport` that selects AWS SES or SMTP (the same shape Brig uses).
   When the block is unset, meeting invitation emails are disabled. For SMTP,
   set `galley.secrets.smtpPassword` (mounted at
-  `/etc/wire/galley/secrets/smtp-password.txt`). This change adds the
+  `/etc/wire/galley/secrets/smtp-password.txt`) and point
+  `settings.meetings.email.smtp.passwordFile` at that path; the Galley ConfigMap
+  injects it into `transport.smtpCredentials.smtpPassword`, the same pattern
+  Brig uses for `smtp.passwordFile`. This change adds the
   configuration plumbing only; email sending itself lands in a follow-up.
