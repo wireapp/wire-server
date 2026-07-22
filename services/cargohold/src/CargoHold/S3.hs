@@ -22,6 +22,8 @@ module CargoHold.S3
   ( S3AssetKey,
     S3AssetMeta (..),
     AssetAuditLogMetadata (..),
+    setAmzAuditLogMetadata,
+    getAmzAuditLogMetadata,
     uploadV3,
     downloadV3,
     getMetadataV3,
@@ -74,6 +76,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
+import qualified Network.HTTP.Types.URI as HTTPURI
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import Test.QuickCheck (Arbitrary (..))
@@ -383,7 +386,8 @@ setAmzAuditLogMetadata :: AssetAuditLogMetadata -> (Text, Text)
 setAmzAuditLogMetadata t = (hAmzWireMetadata, encodeAuditLogMetadata t)
   where
     encodeAuditLogMetadata :: AssetAuditLogMetadata -> Text
-    encodeAuditLogMetadata meta = Text.decodeUtf8 (LBS.toStrict (A.encode meta))
+    encodeAuditLogMetadata meta =
+      decodeLatin1 . HTTPURI.urlEncode False . LBS.toStrict $ A.encode meta
 
 -------------------------------------------------------------------------------
 -- S3 Metadata Getters
@@ -418,7 +422,13 @@ getAmzAuditLogMetadata :: [(Text, Text)] -> Maybe AssetAuditLogMetadata
 getAmzAuditLogMetadata = lookupCI hAmzWireMetadata >=> parseAuditLogMetadata
   where
     parseAuditLogMetadata :: Text -> Maybe AssetAuditLogMetadata
-    parseAuditLogMetadata t = A.decode $ fromStrict $ encodeUtf8 t
+    parseAuditLogMetadata t = parseJSON t <|> parseJSONBytes (HTTPURI.urlDecode False (encodeUtf8 t))
+
+    parseJSON :: Text -> Maybe AssetAuditLogMetadata
+    parseJSON = parseJSONBytes . encodeUtf8
+
+    parseJSONBytes :: ByteString -> Maybe AssetAuditLogMetadata
+    parseJSONBytes = A.decode . fromStrict
 
 -------------------------------------------------------------------------------
 -- Utilities

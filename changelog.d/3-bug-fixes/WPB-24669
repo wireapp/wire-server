@@ -1,0 +1,1 @@
+Fixed asset uploads with non-ASCII filenames when audit logging is enabled. Audit-log metadata is now percent-encoded before being stored in S3 metadata headers and decoded when read back.
