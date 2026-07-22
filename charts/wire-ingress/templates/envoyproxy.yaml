@@ -5,8 +5,11 @@
   query string. We intentionally strip it here because browser-only flows may
   need to send access_token as a query parameter, and that must never end up in
   access logs.
+
+  Envoy Gateway requires an explicit sink when accessLog settings are set, so we
+  send the redacted format to /dev/stdout through a File sink.
 */ -}}
-{{- $defaultTelemetry := dict "telemetry" (dict "accessLog" (dict "settings" (list (dict "format" (dict "type" "Text" "text" (printf "[%%START_TIME%%] \"%%REQ(:METHOD)%% %%PATH(NQ:ORIG_OR_PATH)%% %%PROTOCOL%%\" %%RESPONSE_CODE%% %%RESPONSE_FLAGS%% %%BYTES_RECEIVED%% %%BYTES_SENT%% %%DURATION%% \"%%REQ(X-FORWARDED-FOR)%%\" \"%%REQ(USER-AGENT)%%\" \"%%REQ(X-REQUEST-ID)%%\" \"%%REQ(:AUTHORITY)%%\" \"%%UPSTREAM_HOST%%\"")))))) }}
+{{- $defaultTelemetry := dict "telemetry" (dict "accessLog" (dict "settings" (list (dict "format" (dict "type" "Text" "text" (printf "[%%START_TIME%%] \"%%REQ(:METHOD)%% %%PATH(NQ:ORIG_OR_PATH)%% %%PROTOCOL%%\" %%RESPONSE_CODE%% %%RESPONSE_FLAGS%% %%BYTES_RECEIVED%% %%BYTES_SENT%% %%DURATION%% \"%%REQ(X-FORWARDED-FOR)%%\" \"%%REQ(USER-AGENT)%%\" \"%%REQ(X-REQUEST-ID)%%\" \"%%REQ(:AUTHORITY)%%\" \"%%UPSTREAM_HOST%%\"")) "sinks" (list (dict "type" "File" "file" (dict "path" "/dev/stdout")))))) }}
 {{- $spec := deepCopy $defaultTelemetry }}
 {{- with .Values.gateway.envoyProxy.spec }}
 {{- $spec = mergeOverwrite $spec . }}
