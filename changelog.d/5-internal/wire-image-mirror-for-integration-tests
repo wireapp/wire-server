@@ -1,0 +1,5 @@
+Use wire image mirror for integration tests as `public.ecr.aws/bitnami/` is no
+longer available
+(https://aws.amazon.com/blogs/containers/bitnami-image-removal-from-ecr-public/).
+Docker Hub has strict rate-limiting. So, in lieu of better options, we now use
+our own image cache at `quay.io/wire/mirror-images`.
