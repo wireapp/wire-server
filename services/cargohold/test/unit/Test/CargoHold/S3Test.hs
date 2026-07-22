@@ -46,3 +46,16 @@ propAuditLogMetadataPercentRoundtrip metadata =
   let meta' = metadata {filename = "Mönchsjochhütte"}
       (k, v) = setAmzAuditLogMetadata meta'
    in getAmzAuditLogMetadata [(k, v)] QC.=== Just meta'
+
+propAuditLogMetadataHeaderIsAscii :: AssetAuditLogMetadata -> QC.Property
+propAuditLogMetadataHeaderIsAscii metadata =
+  let (_, headerValue) =
+        setAmzAuditLogMetadata metadata {filename = "Mönchsjochhütte"}
+   in QC.counterexample ("non-ASCII S3 metadata header: " <> show headerValue) $
+        BS.all (< 128) (encodeUtf8 headerValue)
+
+propLegacyRawAuditLogMetadataPreservesPercentEscapes :: AssetAuditLogMetadata -> QC.Property
+propLegacyRawAuditLogMetadataPreservesPercentEscapes metadata =
+  let expected = metadata {filename = "%2F and %20 stay unchanged"}
+      rawJSON = decodeUtf8 (LBS.toStrict (A.encode expected))
+   in getAmzAuditLogMetadata [("wire-metadata", rawJSON)] QC.=== Just expected

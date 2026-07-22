@@ -422,13 +422,13 @@ getAmzAuditLogMetadata :: [(Text, Text)] -> Maybe AssetAuditLogMetadata
 getAmzAuditLogMetadata = lookupCI hAmzWireMetadata >=> parseAuditLogMetadata
   where
     parseAuditLogMetadata :: Text -> Maybe AssetAuditLogMetadata
-    parseAuditLogMetadata t = parseJSON t <|> parseJSON (decodePercentEncoded t)
+    parseAuditLogMetadata t = parseJSON t <|> parseJSONBytes (HTTPURI.urlDecode False (encodeUtf8 t))
 
     parseJSON :: Text -> Maybe AssetAuditLogMetadata
-    parseJSON = A.decode . fromStrict . encodeUtf8
+    parseJSON = parseJSONBytes . encodeUtf8
 
-    decodePercentEncoded :: Text -> Text
-    decodePercentEncoded = decodeLatin1 . HTTPURI.urlDecode False . encodeUtf8
+    parseJSONBytes :: ByteString -> Maybe AssetAuditLogMetadata
+    parseJSONBytes = A.decode . fromStrict
 
 -------------------------------------------------------------------------------
 -- Utilities
