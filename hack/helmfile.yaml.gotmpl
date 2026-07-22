@@ -118,7 +118,7 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
-      - './helm_vars/bitnami.yaml'
+      - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
@@ -151,7 +151,7 @@ releases:
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
-      - './helm_vars/bitnami.yaml'
+      - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
@@ -164,8 +164,10 @@ releases:
     namespace: "{{ .Values.namespace1 }}"
     chart: "bitnami/postgresql"
     values:
-      - './helm_vars/bitnami.yaml'
+      - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/postgresql/values.yaml.gotmpl'
+      - image:
+          repository: postgresql
       - primary:
           initdb:
             scripts:
@@ -184,8 +186,10 @@ releases:
     namespace: "{{ .Values.namespace2 }}"
     chart: "bitnami/postgresql"
     values:
-      - './helm_vars/bitnami.yaml'
+      - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/postgresql/values.yaml.gotmpl'
+      - image:
+          repository: postgresql
       - primary:
           initdb:
             scripts:
@@ -253,16 +257,20 @@ releases:
     chart: 'bitnami/rabbitmq'
     version: '16.0.14'
     values:
-      - './helm_vars/bitnami.yaml'
+      - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
+      - image:
+          repository: rabbitmq
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace2 }}'
     chart: 'bitnami/rabbitmq'
     version: '16.0.14'
     values:
-      - './helm_vars/bitnami.yaml'
+      - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
+      - image:
+          repository: rabbitmq
 
   - name: 'ingress'
     namespace: '{{ .Values.namespace1 }}'
