@@ -130,6 +130,13 @@ instance
 instance (RoutesToPaths api) => RoutesToPaths (Until v :> api) where
   getRoutes = getRoutes @api
 
+-- | 'Until' is transparent for OpenAPI generation: version gating is a runtime
+-- concern, and a non-version-specific doc (e.g. the internal API) renders the
+-- inner endpoint. Per-version docs go through 'SpecialiseToVersion', which
+-- strips 'Until'\/'From' and never reaches this instance.
+instance (HasOpenApi api) => HasOpenApi (Until v :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)
+
 instance
   ( SingI n,
     Ord (Demote v),
@@ -171,6 +178,11 @@ instance
 
 instance (RoutesToPaths api) => RoutesToPaths (From v :> api) where
   getRoutes = getRoutes @api
+
+-- | Same as the 'Until' instance above: a doc no-op for non-version-specific
+-- docs (e.g. the internal API). Per-version docs specialise it away.
+instance (HasOpenApi api) => HasOpenApi (From v :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 instance (Enum v, HasServer api ctx) => HasServer (APIVersion (v :: Type) :> api) ctx where
   type ServerT (APIVersion v :> api) m = v -> ServerT api m

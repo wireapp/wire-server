@@ -17,14 +17,35 @@
 
 module Test.FeatureFlags.MeetingPremium where
 
+import SetupHelpers (createTeam)
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testPatchMeetingPremium :: (HasCallStack) => App ()
-testPatchMeetingPremium = checkPatch OwnDomain "meetingsPremium" disabledLocked
+testPatchMeetingPremium = withAPIVersion 16 $ checkPatch OwnDomain "meetingsPremium" disabledLocked
 
 testMeetingPremium :: (HasCallStack) => APIAccess -> App ()
 testMeetingPremium access =
-  mkFeatureTests "meetingsPremium"
+  withAPIVersion 16
+    $ mkFeatureTests "meetingsPremium"
     & addUpdate enabled
     & runFeatureTests OwnDomain access
+
+-- | WPB-26771: the public meetingsPremium endpoints are gated at v17 (404)
+-- while remaining available through v16. Only the v16 GET is asserted here:
+-- v16 PUT success is covered by 'testMeetingPremium' (whose runFeatureTests
+-- unlocks the feature first), and a public PUT in this test would 409
+-- feature-locked against the default enabled+locked state.
+testMeetingPremiumRemovedAtV17 :: (HasCallStack) => App ()
+testMeetingPremiumRemovedAtV17 = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  let p = joinHttpPath ["teams", tid, "features", "meetingsPremium"]
+      body = object ["status" .= "enabled", "lockStatus" .= "locked"]
+  bindResponse (baseRequest owner Galley (ExplicitVersion 17) p >>= submit "GET") $ \resp -> do
+    resp.status `shouldMatchInt` 404
+  bindResponse (baseRequest owner Galley (ExplicitVersion 17) p <&> addJSON body >>= submit "PUT") $ \resp -> do
+    resp.status `shouldMatchInt` 404
+  bindResponse (baseRequest owner Galley (ExplicitVersion 16) p >>= submit "GET") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "enabled"
+    resp.json %. "lockStatus" `shouldMatch` "locked"
