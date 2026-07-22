@@ -1,5 +1,19 @@
 {{- if (and .Values.gateway.create .Values.gateway.envoyProxy.create) }}
 {{- $name := .Values.gateway.envoyProxy.name | default (include "wire-ingress.gatewayName" .) }}
+{{- /*
+  Envoy Gateway access logs include the request path by default, including the
+  query string. We intentionally strip it here because browser-only flows may
+  need to send access_token as a query parameter, and that must never end up in
+  access logs.
+*/ -}}
+{{- $defaultTelemetry := dict "telemetry" (dict "accessLog" (dict "settings" (list (dict "format" (dict "type" "Text" "text" (printf "[%%START_TIME%%] \"%%REQ(:METHOD)%% %%PATH(NQ:ORIG_OR_PATH)%% %%PROTOCOL%%\" %%RESPONSE_CODE%% %%RESPONSE_FLAGS%% %%BYTES_RECEIVED%% %%BYTES_SENT%% %%DURATION%% \"%%REQ(X-FORWARDED-FOR)%%\" \"%%REQ(USER-AGENT)%%\" \"%%REQ(X-REQUEST-ID)%%\" \"%%REQ(:AUTHORITY)%%\" \"%%UPSTREAM_HOST%%\"")))))) }}
+{{- $spec := deepCopy $defaultTelemetry }}
+{{- with .Values.gateway.envoyProxy.spec }}
+{{- $spec = mergeOverwrite $spec . }}
+{{- end }}
+{{- if .Values.gateway.manageServiceType }}
+{{- $_ := set $spec "provider" (dict "type" "Kubernetes" "kubernetes" (dict "envoyService" (dict "type" .Values.gateway.serviceType))) }}
+{{- end }}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
@@ -10,14 +24,5 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
-  {{- with .Values.gateway.envoyProxy.spec }}
-  {{- toYaml . | nindent 2 }}
-  {{- end }}
-  {{- if .Values.gateway.manageServiceType }}
-  provider:
-    type: Kubernetes
-    kubernetes:
-      envoyService:
-        type: {{ .Values.gateway.serviceType | quote }}
-  {{- end }}
+{{- toYaml $spec | nindent 2 }}
 {{- end }}
