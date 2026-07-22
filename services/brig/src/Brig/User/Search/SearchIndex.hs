@@ -157,7 +157,12 @@ mkUserQuery setting q =
     ( ES.Filter
         . ES.QueryBoolQuery
         $ boolQuery
-          { ES.boolQueryMustNotMatch = maybeToList $ matchSelf setting,
+          { ES.boolQueryMustNotMatch =
+              maybeToList (matchSelf setting)
+                <>
+                -- Federated search must respect the same "searchable" flag as
+                -- local contact search.
+                [ES.TermQuery (ES.Term "searchable" "false") Nothing],
             ES.boolQueryMustMatch =
               [ restrictSearchSpaceByTeam setting,
                 restrictSearchSpaceByUserType setting.types,
