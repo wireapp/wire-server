@@ -649,7 +649,7 @@ background-worker:
       jobTimeout: 60s
       maxAttempts: 3
     jobs:
-      pollInterval: 5s
+      pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests
       workerThreads: 1
       visibilityTimeout: 60s
       jobHeartbeatInterval: 30s
