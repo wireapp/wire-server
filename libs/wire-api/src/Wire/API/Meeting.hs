@@ -43,7 +43,6 @@ data Meeting = Meeting
     recurrence :: Maybe Recurrence,
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
-    trial :: Bool,
     createdAt :: UTCTime,
     updatedAt :: UTCTime
   }
@@ -62,7 +61,6 @@ meetingObject =
     <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
     <*> (.conversationId) .= field "qualified_conversation" schema
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
-    <*> (.trial) .= field "trial" schema
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
 
@@ -89,6 +87,89 @@ instance ToSchema MeetingWithConversation where
       MeetingWithConversation
         <$> (.meeting) .= meetingObject
         <*> (.conversation) .= field "conversation" schema
+
+-- | Legacy 'Meeting' type that still carries the deprecated @trial@ field, served
+-- to clients on API versions V15–V17. The @trial@ field is always 'False': team
+-- meetings are never trial, and the field is no longer meaningful (see
+-- 'toLegacyMeeting').
+data MeetingLegacy = MeetingLegacy
+  { id :: Qualified MeetingId,
+    title :: Range 1 256 Text,
+    creator :: Qualified UserId,
+    startTime :: UTCTime,
+    endTime :: UTCTime,
+    recurrence :: Maybe Recurrence,
+    conversationId :: Qualified ConvId,
+    invitedEmails :: [EmailAddress],
+    trial :: Bool,
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingLegacy)
+  deriving (Arbitrary) via (GenericUniform MeetingLegacy)
+
+meetingLegacyObject :: ObjectSchema SwaggerDoc MeetingLegacy
+meetingLegacyObject =
+  MeetingLegacy
+    <$> (.id) .= field "qualified_id" schema
+    <*> (.title) .= field "title" schema
+    <*> (.creator) .= field "qualified_creator" schema
+    <*> (.startTime) .= field "start_time" utcTimeSchema
+    <*> (.endTime) .= field "end_time" utcTimeSchema
+    <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+    <*> (.conversationId) .= field "qualified_conversation" schema
+    <*> (.invitedEmails) .= field "invited_emails" (array schema)
+    <*> (.trial) .= field "trial" schema
+    <*> (.createdAt) .= field "created_at" utcTimeSchema
+    <*> (.updatedAt) .= field "updated_at" utcTimeSchema
+
+instance ToSchema MeetingLegacy where
+  schema =
+    objectWithDocModifier (description ?~ "A scheduled meeting (legacy, with trial)") meetingLegacyObject
+
+-- | Legacy 'MeetingWithConversation' carrying a 'MeetingLegacy', served to
+-- clients on API versions V15–V17.
+data MeetingWithConversationLegacy = MeetingWithConversationLegacy
+  { meeting :: MeetingLegacy,
+    conversation :: Conversation GroupConvType
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversationLegacy)
+  deriving (Arbitrary) via (GenericUniform MeetingWithConversationLegacy)
+
+instance ToSchema MeetingWithConversationLegacy where
+  schema =
+    objectWithDocModifier (description ?~ "A scheduled meeting with its associated conversation (legacy)") $
+      MeetingWithConversationLegacy
+        <$> (.meeting) .= meetingLegacyObject
+        <*> (.conversation) .= field "conversation" schema
+
+-- | Convert the trial-less 'Meeting' to the legacy representation, hardcoding
+-- @trial = False@.
+toLegacyMeeting :: Meeting -> MeetingLegacy
+toLegacyMeeting m =
+  MeetingLegacy
+    { id = m.id,
+      title = m.title,
+      creator = m.creator,
+      startTime = m.startTime,
+      endTime = m.endTime,
+      recurrence = m.recurrence,
+      conversationId = m.conversationId,
+      invitedEmails = m.invitedEmails,
+      trial = False,
+      createdAt = m.createdAt,
+      updatedAt = m.updatedAt
+    }
+
+-- | Convert 'MeetingWithConversation' to the legacy representation.
+toLegacyMeetingWithConversation :: MeetingWithConversation -> MeetingWithConversationLegacy
+toLegacyMeetingWithConversation mwc =
+  MeetingWithConversationLegacy
+    { meeting = toLegacyMeeting mwc.meeting,
+      conversation = mwc.conversation
+    }
 
 -- | Request to create a new meeting
 data NewMeeting = NewMeeting

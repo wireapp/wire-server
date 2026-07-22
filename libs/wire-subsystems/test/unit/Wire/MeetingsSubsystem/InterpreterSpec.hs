@@ -353,51 +353,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Right Nothing
 
-  it "creates trial meeting for personal user" $ do
-    let now = UTCTime (fromGregorian 2026 1 1) 0
-        gen = mkStdGen 42
-        uid = Id $ read "00000000-0000-0000-0000-000000000001"
-        zUser = toLocalUnsafe (Domain "wire.com") uid
-        newMeeting =
-          API.NewMeeting
-            { title = fromJust $ checked "Personal Meeting",
-              startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 7200 now,
-              recurrence = Nothing,
-              invitedEmails = []
-            }
-
-    result <-
-      runTestStack now gen Map.empty def $
-        createMeeting zUser newMeeting
-
-    fmap (.meeting.trial) result `shouldBe` Right True
-
-  it "creates non-trial meeting for team user" $ do
-    let now = UTCTime (fromGregorian 2026 1 1) 0
-        gen = mkStdGen 42
-        uid = Id $ read "00000000-0000-0000-0000-000000000001"
-        zUser = toLocalUnsafe (Domain "wire.com") uid
-        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
-        teamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
-        teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $
-            def
-        newMeeting =
-          API.NewMeeting
-            { title = fromJust $ checked "Team Meeting",
-              startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 7200 now,
-              recurrence = Nothing,
-              invitedEmails = []
-            }
-
-    result <-
-      runTestStack now gen (Map.singleton teamId [teamMember]) teamConfig $
-        createMeeting zUser newMeeting
-
-    fmap (.meeting.trial) result `shouldBe` Right False
-
   describe "updateMeeting" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
