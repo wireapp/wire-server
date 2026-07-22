@@ -86,7 +86,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.namespace` | `""` | Namespace of the parent Gateway. Defaults to the release namespace when empty. Only needed when `gateway.create: false` points at a Gateway in another namespace. |
 | `gateway.alpn.enabled` | `true` | Enables ALPN configuration via `ClientTrafficPolicy` on the ListenerSet to support HTTP/2 despite overlapping certificate SANs across multiple service listeners. When disabled, ALPN defaults to HTTP/1.1 only. |
 | `gateway.alpn.protocols` | `[h2, http/1.1]` | List of ALPN protocols to advertise to clients. Defaults to HTTP/2 with HTTP/1.1 fallback. |
-| `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80 on the parent Gateway. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
+| `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80 on the parent Gateway. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver. When enabled, the chart annotates the generated Certificate so cert-manager can fall back to the parent Gateway for the ACME HTTPRoute. The parent Gateway must allow HTTPRoutes from the release namespace. See [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
 | `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set `mergeGateways`, custom service annotations, etc. |
@@ -301,7 +301,10 @@ disabled — setting both fails template rendering with a clear error.
 
 cert-manager can complete ACME HTTP01 challenges through the Gateway using the `gatewayHTTPRoute`
 solver (cert-manager >= 1.14). The **default solver** in this chart uses `gatewayHTTPRoute` — it
-requires the HTTP listener to be enabled:
+requires the HTTP listener to be enabled. When `gateway.listeners.http.enabled: true`, the chart
+adds `acme.cert-manager.io/http01-parentreffallback: "true"` to the generated Certificate so
+cert-manager attaches the challenge HTTPRoute to the parent Gateway instead of the ListenerSet.
+That means a shared Gateway must allow HTTPRoutes from the release namespace:
 
 ```yaml
 gateway:
@@ -309,6 +312,9 @@ gateway:
     http:
       enabled: true  # required for HTTP01 challenges
 ```
+
+If you are using a shared Gateway in another namespace, make sure its HTTP listener allows
+HTTPRoutes from the release namespace. If that is not acceptable, use a DNS01 solver instead.
 
 If you cannot or do not want to open port 80, use a DNS01 solver instead by setting
 

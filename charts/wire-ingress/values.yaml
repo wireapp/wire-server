@@ -89,9 +89,11 @@ gateway:
       # Gateway object with multiple listeners. See the Gateway API docs.
       hostname: ""
     # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
-    # gatewayHTTPRoute solver. This listener remains on the parent Gateway.
-    # Requires cert-manager >= 1.14.
-    # See the README for configuration details.
+    # gatewayHTTPRoute solver. The chart also annotates the generated Certificate with
+    # acme.cert-manager.io/http01-parentreffallback: "true" so cert-manager can attach
+    # the challenge HTTPRoute via the parent Gateway when using ListenerSet support.
+    # The parent Gateway must allow HTTPRoutes from the release namespace.
+    # See the README for configuration details and cert-manager version requirements.
     http:
       enabled: false
       port: 80
