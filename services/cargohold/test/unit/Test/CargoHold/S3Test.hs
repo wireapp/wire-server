@@ -17,9 +17,11 @@
 
 module Test.CargoHold.S3Test (tests) where
 
-import CargoHold.S3 (AssetAuditLogMetadata (..), setAmzAuditLogMetadata)
+import CargoHold.S3 (AssetAuditLogMetadata (..), getAmzAuditLogMetadata, setAmzAuditLogMetadata)
+import qualified Data.Aeson as A
 import qualified Data.ByteString as BS
-import Data.Text.Encoding (encodeUtf8)
+import qualified Data.ByteString.Lazy as LBS
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
@@ -30,7 +32,10 @@ tests =
     "CargoHold.S3"
     [ QC.testProperty
         "audit-log metadata header is ASCII for filenames with umlauts"
-        propAuditLogMetadataHeaderIsAscii
+        propAuditLogMetadataHeaderIsAscii,
+      QC.testProperty
+        "legacy raw audit-log metadata preserves percent escapes"
+        propLegacyRawAuditLogMetadataPreservesPercentEscapes
     ]
 
 propAuditLogMetadataHeaderIsAscii :: AssetAuditLogMetadata -> QC.Property
@@ -39,3 +44,9 @@ propAuditLogMetadataHeaderIsAscii metadata =
         setAmzAuditLogMetadata metadata {filename = "Mönchsjochhütte"}
    in QC.counterexample ("non-ASCII S3 metadata header: " <> show headerValue) $
         BS.all (< 128) (encodeUtf8 headerValue)
+
+propLegacyRawAuditLogMetadataPreservesPercentEscapes :: AssetAuditLogMetadata -> QC.Property
+propLegacyRawAuditLogMetadataPreservesPercentEscapes metadata =
+  let expected = metadata {filename = "%2F and %20 stay unchanged"}
+      rawJSON = decodeUtf8 (LBS.toStrict (A.encode expected))
+   in getAmzAuditLogMetadata [("wire-metadata", rawJSON)] QC.=== Just expected
