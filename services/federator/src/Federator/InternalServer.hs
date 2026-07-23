@@ -43,6 +43,7 @@ import Polysemy.TinyLog
 import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
+import Servant.Client.Core (responseHeaders, responseStatusCode)
 import Servant.Server.Generic
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
@@ -127,6 +128,24 @@ callOutward targetDomain component (RPC path) req cont = do
       path
       (Wai.requestHeaders req)
       (fromLazyByteString body)
+  -- Diagnostic for a known flaky failure mode (WPB: federation ingress probe
+  -- occasionally receives a 200 with a non-JSON body). The federator is a
+  -- transparent byte proxy, so a federation RPC coming back as a 200 whose body
+  -- is not JSON means the outward call reached something other than the target's
+  -- federation endpoint (e.g. an ingress/route not yet programmed during backend
+  -- startup, or a stale/mismatched response on a reused connection). We only
+  -- inspect the status line and Content-Type header here; the body must not be
+  -- consumed, as it is streamed straight back to the caller.
+  let respStatus = HTTP.statusCode (responseStatusCode resp)
+      respContentType = snd <$> find ((== HTTP.hContentType) . fst) (responseHeaders resp)
+  when (respStatus == 200 && respContentType /= Just "application/json") $
+    warn $
+      Log.msg (Log.val "Federator outward call returned a non-JSON 200; upstream is not the target's federation endpoint")
+        . Log.field "domain" targetDomain._domainText
+        . Log.field "component" (show component)
+        . Log.field "path" path
+        . Log.field "status" (show respStatus)
+        . Log.field "contentType" (maybe ("<none>" :: ByteString) id respContentType)
   embed . cont $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IORef [IO ()] -> IO ()
