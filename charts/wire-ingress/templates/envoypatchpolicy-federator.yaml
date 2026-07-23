@@ -1,4 +1,7 @@
 {{- if and .Values.federator.enabled .Values.gateway.patchPolicies.enabled }}
+{{- if and (not .Values.gateway.patchPolicies.targetGatewayClass) (ne (include "wire-ingress.parentGatewayNamespace" .) .Release.Namespace) }}
+{{- fail "gateway.patchPolicies.targetGatewayClass must be true when the parent Gateway is in a different namespace" }}
+{{- end }}
 {{/* Adds the FQDN variant (trailing dot) of the federator hostname to the
      virtual host's domain list so Envoy matches requests whose :authority
      header carries a trailing dot.
@@ -27,7 +30,6 @@ spec:
     {{- else }}
     kind: Gateway
     name: {{ include "wire-ingress.gatewayName" . | quote }}
-    namespace: {{ include "wire-ingress.parentGatewayNamespace" . | quote }}
     {{- end }}
   type: JSONPatch
   jsonPatches:

@@ -174,8 +174,11 @@ used where the standard Gateway API has gaps. These resources are clearly marked
 
 ### Gateway creation is optional
 
-The chart always creates one `ListenerSet` per release. Chart-managed `HTTPRoute`s and
-listener-scoped Envoy Gateway policies attach to that ListenerSet.
+The chart always creates one `ListenerSet` per release. Chart-managed `HTTPRoute`s attach to that
+ListenerSet.
+
+Envoy Gateway `ClientTrafficPolicy` resources attach to the `ListenerSet`, while chart-managed
+`HTTPRoute`s attach to that same ListenerSet.
 
 When `gateway.create: true`, the chart also creates the parent `Gateway` in the release namespace
 and configures it to accept ListenerSets from the same namespace. The Gateway keeps a placeholder
@@ -256,6 +259,9 @@ both the bare hostname and the FQDN.
 The policy patches the `RouteConfiguration` named
 `<parent-gateway-namespace>/<gateway>/federator`. Route configuration names are per-namespace even
 when multiple Gateways share a single Envoy proxy, so the name is predictable from chart values.
+With the current Envoy Gateway schema, `gateway.patchPolicies.targetGatewayClass: false` only works
+when the parent Gateway lives in the release namespace. If the parent Gateway is in another
+namespace, set `gateway.patchPolicies.targetGatewayClass: true` or expect the chart to fail fast.
 
 **`gateway.patchPolicies.targetGatewayClass`** controls what the policy targets:
 

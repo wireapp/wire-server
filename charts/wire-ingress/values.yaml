@@ -103,7 +103,7 @@ gateway:
   # ALPN configuration for HTTP/2 support with multiple listeners.
   # When using multiple listeners with overlapping certificate SANs,
   # Envoy Gateway may downgrade to HTTP/1.1. This ClientTrafficPolicy
-  # explicitly configures ALPN to allow HTTP/2 on the ListenerSet.
+  # explicitly configures ALPN on the ListenerSet.
   alpn:
     enabled: true
     protocols:
@@ -117,7 +117,8 @@ gateway:
     # Set to true when the GatewayClass uses mergeGateways: true.
     # With mergeGateways, EnvoyPatchPolicy must target the GatewayClass
     # rather than the individual Gateway. Default false targets the Gateway,
-    # which is correct for single-Gateway (non-merged) deployments.
+    # which is correct for single-Gateway (non-merged) deployments in the
+    # release namespace.
     targetGatewayClass: false
 
 # NOTE: Please provide names. Here are naming suggestions:
@@ -293,4 +294,4 @@ certManager:
 #
 # When federator.enabled is true, a ConfigMap named `federator-ca` with a `ca.crt` key
 # must exist in the release namespace. It is created by the wire-server chart
-# and is referenced by the ClientTrafficPolicy for mTLS.
+# and is referenced by the ClientTrafficPolicy for mTLS on the parent Gateway.

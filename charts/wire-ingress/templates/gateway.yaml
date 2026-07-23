@@ -42,7 +42,7 @@ spec:
       hostname: {{ include "wire-ingress.gatewayDummyHostname" . | quote }}
       allowedRoutes:
         namespaces:
-          from: None
+          from: Same
       tls:
         mode: Terminate
         certificateRefs:
