@@ -217,6 +217,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.adminlessAutopromoteOrDelete lusr lcnv
   InternalNotifyAdminlessReminder lusr lcnv deletionScheduledFor ->
     mapErrors $ Update.adminlessAutopromoteOrSendReminder lusr lcnv deletionScheduledFor
+  SetupAdminlessGroupsCleanup lusr tid ->
+    mapErrors $ Update.setupAdminlessGroupsCleanup lusr tid
   GetMLSPublicKeys fmt ->
     mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->

@@ -26,6 +26,7 @@ module Testlib.Cannon
     withWebSocket,
     withWebSockets,
     awaitNMatchesResult,
+    awaitNMatchesResultFor,
     awaitNMatches,
     awaitMatch,
     awaitMatchFor,

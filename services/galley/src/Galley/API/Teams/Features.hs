@@ -37,7 +37,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Kind
-import Data.Qualified (Local)
+import Data.Qualified
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.App
@@ -72,6 +72,7 @@ import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
+import Wire.JobSubsystem (JobSubsystem, cancelAdminlessJobsForTeam, scheduleAdminlessSetupJob)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Options.Galley
@@ -87,6 +88,7 @@ import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as SearchVisibilityData
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.Util
 
 type ComputeFeatureConstraints cfg r = (Member FeaturesConfigSubsystem r)
 
@@ -114,6 +116,7 @@ patchFeatureInternal tid patch = do
   prepareFeature tid patchedFeature
   patchDbFeature tid patch
   (returnedFeature :: LockableFeature cfg) <- getFeatureForTeam tid
+  afterFeatureSet @cfg Nothing tid dbFeatureWithDefaults returnedFeature
   pushFeatureEvent @cfg tid (mkUpdateEvent tid returnedFeature)
   pure returnedFeature
   where
@@ -137,16 +140,18 @@ setFeature ::
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeature uid tid feat = do
+  lusr <- qualifyLocal uid
   zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
   void $ TeamSubsystem.permissionCheck ChangeTeamFeature zusrMembership
-  setFeatureUnchecked tid feat
+  setFeatureUnchecked (Just lusr) tid feat
 
 setFeatureInternal ::
   forall cfg r.
@@ -165,7 +170,7 @@ setFeatureInternal ::
   Sem r (LockableFeature cfg)
 setFeatureInternal tid feat = do
   TeamSubsystem.assertTeamExists tid
-  setFeatureUnchecked tid feat
+  setFeatureUnchecked Nothing tid feat
 
 setFeatureUnchecked ::
   forall cfg r.
@@ -179,13 +184,14 @@ setFeatureUnchecked ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
+  Maybe (Local UserId) ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureUnchecked tid feat = do
+setFeatureUnchecked originUser tid feat = do
   (feat0 :: LockableFeature cfg) <- getFeatureForTeam tid
   guardLockStatus feat0.lockStatus
-  setFeatureForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
+  setFeatureForTeam @cfg originUser tid feat0 (withLockStatus feat0.lockStatus feat)
 
 updateLockStatus ::
   forall cfg r.
@@ -258,12 +264,15 @@ setFeatureForTeam ::
     Member TeamFeatureStore r,
     Member TeamSubsystem r
   ) =>
+  Maybe (Local UserId) ->
   TeamId ->
   LockableFeature cfg ->
+  LockableFeature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureForTeam tid feat = do
+setFeatureForTeam originUser tid oldFeature feat = do
   prepareFeature tid feat
   newFeat <- persistFeature tid feat
+  afterFeatureSet @cfg originUser tid oldFeature newFeat
   pushFeatureEvent @cfg tid (mkUpdateEvent tid newFeat)
   pure newFeat
 
@@ -288,6 +297,21 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
     Sem r ()
   default prepareFeature :: TeamId -> LockableFeature cfg -> Sem r ()
   prepareFeature _tid _feat = pure ()
+
+  afterFeatureSet ::
+    (SetFeatureForTeamConstraints cfg r) =>
+    Maybe (Local UserId) ->
+    TeamId ->
+    LockableFeature cfg ->
+    LockableFeature cfg ->
+    Sem r ()
+  default afterFeatureSet ::
+    Maybe (Local UserId) ->
+    TeamId ->
+    LockableFeature cfg ->
+    LockableFeature cfg ->
+    Sem r ()
+  afterFeatureSet _originUser _tid _oldFeature _newFeature = pure ()
 
 instance SetFeatureConfig SSOConfig where
   type
@@ -420,7 +444,21 @@ instance SetFeatureConfig MLSConfig where
 
 instance SetFeatureConfig ChannelsConfig
 
-instance SetFeatureConfig PreventAdminlessGroupsConfig
+instance SetFeatureConfig PreventAdminlessGroupsConfig where
+  type SetFeatureForTeamConstraints PreventAdminlessGroupsConfig r = Member JobSubsystem r
+
+  afterFeatureSet originUser tid oldFeature newFeature =
+    case (oldFeature.status, newFeature.status) of
+      (FeatureStatusDisabled, FeatureStatusEnabled) ->
+        scheduleAdminlessSetupJob originUser tid
+      (FeatureStatusEnabled, FeatureStatusDisabled) ->
+        cancelAdminlessJobsForTeam tid
+      (FeatureStatusEnabled, FeatureStatusEnabled)
+        | oldFeature.config /= newFeature.config -> do
+            cancelAdminlessJobsForTeam tid
+            scheduleAdminlessSetupJob originUser tid
+        | otherwise -> pure ()
+      _ -> pure ()
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 

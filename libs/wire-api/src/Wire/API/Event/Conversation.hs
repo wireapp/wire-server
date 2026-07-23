@@ -33,6 +33,10 @@ module Wire.API.Event.Conversation
     AddCodeResult (..),
     createConversationEventData,
     isCellsConversationEvent,
+    SystemEvent (..),
+    SystemEventType (..),
+    SystemEventData (..),
+    systemEventDataType,
 
     -- * Cells Event
     CellsEvent (..),
@@ -60,6 +64,9 @@ module Wire.API.Event.Conversation
     _EdMLSMessage,
     _EdMLSWelcome,
     _EdAddPermissionUpdate,
+    _EdSystemConvDelete,
+    _EdSystemMemberUpdate,
+    _EdSystemAdminlessReminder,
 
     -- * Event data helpers
     SimpleMember (..),
@@ -514,6 +521,98 @@ instance ToSchema AdminlessReminder where
     object $
       AdminlessReminder
         <$> (.deletionScheduledFor) .= field "deletion_scheduled_for" schema
+
+data SystemEvent = SystemEvent
+  { seConv :: Qualified ConvId,
+    seSubConv :: Maybe SubConvId,
+    seTime :: UTCTime,
+    seTeam :: Maybe TeamId,
+    seData :: SystemEventData
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance Arbitrary SystemEvent where
+  arbitrary = do
+    SystemEvent
+      <$> arbitrary
+      <*> arbitrary
+      <*> (milli <$> arbitrary)
+      <*> arbitrary
+      <*> arbitrary
+    where
+      milli = fromUTCTimeMillis . toUTCTimeMillis
+
+data SystemEventType
+  = SystemConvDelete
+  | SystemMemberUpdate
+  | SystemAdminlessReminder
+  deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
+  deriving (Arbitrary) via (GenericUniform SystemEventType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SystemEventType
+
+instance ToSchema SystemEventType where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "conversation.system.delete" SystemConvDelete,
+          element "conversation.system.member-update" SystemMemberUpdate,
+          element "conversation.system.adminless-reminder" SystemAdminlessReminder
+        ]
+
+data SystemEventData
+  = EdSystemConvDelete
+  | EdSystemMemberUpdate MemberUpdateData
+  | EdSystemAdminlessReminder AdminlessReminder
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SystemEventData)
+
+systemEventDataType :: SystemEventData -> SystemEventType
+systemEventDataType EdSystemConvDelete = SystemConvDelete
+systemEventDataType (EdSystemMemberUpdate _) = SystemMemberUpdate
+systemEventDataType (EdSystemAdminlessReminder _) = SystemAdminlessReminder
+
+makePrisms ''SystemEventData
+
+taggedSystemEventDataSchema :: ObjectSchema SwaggerDoc (SystemEventType, SystemEventData)
+taggedSystemEventDataSchema =
+  bind
+    (fst .= field "type" schema)
+    (snd .= fieldOver _1 "data" edata)
+  where
+    edata :: SchemaP SwaggerDoc (A.Value, SystemEventType) A.Value SystemEventData SystemEventData
+    edata = dispatch $ \case
+      SystemConvDelete -> tag _EdSystemConvDelete null_
+      SystemMemberUpdate -> tag _EdSystemMemberUpdate (unnamed schema)
+      SystemAdminlessReminder -> tag _EdSystemAdminlessReminder (unnamed schema)
+
+instance ToSchema SystemEvent where
+  schema = object systemEventObjectSchema
+
+instance S.ToSchema SystemEvent where
+  declareNamedSchema = schemaToSwagger
+
+instance ToJSONObject SystemEvent where
+  toJSONObject =
+    KeyMap.fromList
+      . fromMaybe []
+      . schemaOut systemEventObjectSchema
+
+systemEventObjectSchema :: ObjectSchema SwaggerDoc SystemEvent
+systemEventObjectSchema =
+  mk
+    <$> (systemEventDataType . seData &&& seData) .= taggedSystemEventDataSchema
+    <* (qUnqualified . seConv) .= optional (field "conversation" schema)
+    <*> seConv .= field "qualified_conversation" schema
+    <*> seSubConv .= maybe_ (optField "subconv" schema)
+    <* const ("system" :: Text) .= field "via" (schema @Text)
+    <*> (toUTCTimeMillis . seTime) .= field "time" (fromUTCTimeMillis <$> schema)
+    <*> seTeam .= maybe_ (optField "team" schema)
+  where
+    mk (_, d) conv subconv tm team = SystemEvent conv subconv tm team d
+
+deriving via (Schema SystemEvent) instance FromJSON SystemEvent
+
+deriving via (Schema SystemEvent) instance ToJSON SystemEvent
 
 makePrisms ''EventData
 

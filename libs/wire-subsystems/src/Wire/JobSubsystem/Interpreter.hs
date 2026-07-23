@@ -26,6 +26,8 @@ module Wire.JobSubsystem.Interpreter
 where
 
 import Arbiter.Core qualified as ArbiterCore
+import Arbiter.Core.Codec (Col (CInt8, CText), col, pval)
+import Arbiter.Core.Operations qualified as ArbiterOperations
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
@@ -47,8 +49,32 @@ interpretJobSubsystem ::
 interpretJobSubsystem conf =
   interpret
     \case
+      ScheduleAdminlessSetupJob lusr tid -> scheduleAdminlessSetupJob conf lusr tid
       ScheduleAdminlessDeletionJob lusr tid cid scheduledFor -> scheduleAdminlessDeletionJob conf lusr tid cid scheduledFor
       ScheduleAdminlessReminderJob lusr tid cid deletionScheduledFor reminderTimeout scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid deletionScheduledFor reminderTimeout scheduledFor
+      CancelAdminlessJobsForTeam tid -> cancelAdminlessJobsForTeam conf tid
+
+scheduleAdminlessSetupJob ::
+  forall r.
+  (PGConstraints r, Member (Input RequestId) r) =>
+  JobSubsystemConfig ->
+  Maybe (Local UserId) ->
+  TeamId ->
+  Sem r ()
+scheduleAdminlessSetupJob JobSubsystemConfig {..} lusr teamId = do
+  requestId <- input @RequestId
+  pool <- input @HasqlPoolExt.Pool
+  let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
+      groupKey = "adminless-setup:" <> idToText teamId
+      arbiterJob =
+        ( ArbiterCore.defaultGroupedJob
+            groupKey
+            (AdminlessSetup (AdminlessSetupJob teamId (tUnqualified <$> lusr) requestId))
+        )
+          { ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessSetupJobDedupKey teamId,
+            ArbiterCore.maxAttempts = Just 3
+          }
+  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter JobRegistry) @JobRegistry @ConversationsJobPayload arbiterJob
 
 scheduleAdminlessDeletionJob ::
   forall r.
@@ -102,9 +128,50 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
           }
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter JobRegistry) @JobRegistry @ConversationsJobPayload arbiterJob
 
+cancelAdminlessJobsForTeam ::
+  forall r.
+  (PGConstraints r) =>
+  JobSubsystemConfig ->
+  TeamId ->
+  Sem r ()
+cancelAdminlessJobsForTeam JobSubsystemConfig {..} teamId = do
+  pool <- input @HasqlPoolExt.Pool
+  let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
+  embed $ runWireArbiter arbiterEnv (cancelAdminlessJobsForTeamInTransaction jobSubsystemSchemaName)
+  where
+    cancelAdminlessJobsForTeamInTransaction :: Text -> WireArbiter JobRegistry ()
+    cancelAdminlessJobsForTeamInTransaction schemaName =
+      ArbiterCore.withDbTransaction $ do
+        jobIds <-
+          ArbiterCore.executeQuery
+            (adminlessJobsForTeamQuery schemaName conversationsQueueName)
+            [pval CText (idToText teamId)]
+            (col "id" CInt8)
+        unless (null jobIds) $
+          void $
+            ArbiterOperations.cancelJobsBatch schemaName conversationsQueueName jobIds
+
+    adminlessJobsForTeamQuery :: Text -> Text -> Text
+    adminlessJobsForTeamQuery schemaName tableName =
+      "SELECT id FROM "
+        <> quoteIdentifier schemaName
+        <> "."
+        <> quoteIdentifier tableName
+        <> " WHERE claimed_by IS NULL"
+        <> " AND payload #>> '{data,team_id}' = ?"
+        <> " AND payload->>'type' IN ('adminless_setup', 'adminless_deletion', 'adminless_reminder')"
+        <> " FOR UPDATE"
+
+    quoteIdentifier :: Text -> Text
+    quoteIdentifier identifier = "\"" <> Text.replace "\"" "\"\"" identifier <> "\""
+
 adminlessJobDedupKey :: Text -> ConvId -> Text
 adminlessJobDedupKey jobType convId =
   "adminless-" <> jobType <> ":" <> idToText convId
+
+adminlessSetupJobDedupKey :: TeamId -> Text
+adminlessSetupJobDedupKey teamId =
+  "adminless-setup:" <> idToText teamId
 
 adminlessReminderJobDedupKey :: ConvId -> NominalDiffTime -> Text
 adminlessReminderJobDedupKey convId reminderTimeout =
