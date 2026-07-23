@@ -168,6 +168,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    async
     base
     bytestring
     bytestring-conversion
@@ -178,6 +179,7 @@ mkDerivation {
     dns-util
     filepath
     HsOpenSSL
+    http-client
     http-types
     http2
     http2-manager
@@ -185,6 +187,7 @@ mkDerivation {
     interpolate
     kan-extensions
     mtl
+    network
     polysemy
     polysemy-wire-zoo
     QuickCheck

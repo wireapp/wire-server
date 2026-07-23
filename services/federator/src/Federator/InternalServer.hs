@@ -145,7 +145,7 @@ callOutward targetDomain component (RPC path) req cont = do
         . Log.field "component" (show component)
         . Log.field "path" path
         . Log.field "status" (show respStatus)
-        . Log.field "contentType" (maybe ("<none>" :: ByteString) id respContentType)
+        . Log.field "contentType" (fromMaybe ("<none>" :: ByteString) respContentType)
   embed . cont $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IORef [IO ()] -> IO ()
