@@ -1,0 +1,1 @@
+Fix an absurdity where sometimes federator would serve the /i/metrics response on an unrelated request, especially visible during early startup of the server.
