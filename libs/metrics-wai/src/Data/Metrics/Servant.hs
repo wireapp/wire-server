@@ -42,8 +42,19 @@ import Servant.Multipart
 
 -- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
 servantPrometheusMiddleware :: forall proxy api. (RoutesToPaths api) => proxy api -> Wai.Middleware
-servantPrometheusMiddleware _ = Promth.prometheus conf . instrument promthNormalize
+servantPrometheusMiddleware _ = exactMetrics . instrument promthNormalize
   where
+    -- Keep the endpoint handling separate from the instrumentation middleware.
+    -- In particular, the Prometheus middleware must not get a chance to
+    -- handle requests merely because they are sent to the same WAI
+    -- application. Federation uses RawM routes, and a non-exact endpoint
+    -- match would make an unrelated request return the metrics document.
+    exactMetrics app req respond
+      | Wai.requestMethod req == "GET"
+          && Wai.pathInfo req == Promth.prometheusEndPoint conf =
+          Promth.prometheus conf app req respond
+      | otherwise = app req respond
+
     promthNormalize :: Wai.Request -> Text
     promthNormalize req = pathInfo
       where
