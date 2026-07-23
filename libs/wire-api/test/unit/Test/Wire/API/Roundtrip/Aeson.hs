@@ -17,7 +17,9 @@
 
 module Test.Wire.API.Roundtrip.Aeson (tests) where
 
-import Data.Aeson (FromJSON, Result (..), ToJSON, fromJSON, parseJSON, toJSON)
+import Data.Aeson (FromJSON, Result (..), ToJSON, Value (..), fromJSON, parseJSON, toJSON)
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (parseEither)
 import Data.Default (def)
 import Data.Id (ConvId)
@@ -46,6 +48,7 @@ import Wire.API.Event.WebSocketProtocol qualified as EventWebSocketProtocol
 import Wire.API.FederationStatus qualified as FederationStatus
 import Wire.API.Jobs qualified as Jobs
 import Wire.API.Locale qualified as Locale
+import Wire.API.Meeting qualified as Meeting
 import Wire.API.Message qualified as Message
 import Wire.API.OAuth qualified as OAuth
 import Wire.API.Properties qualified as Properties
@@ -58,7 +61,9 @@ import Wire.API.Push.Token qualified as Push.Token
 import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
+import Wire.API.Routes.Version (Version (V15, V16))
 import Wire.API.Routes.Version qualified as Routes.Version
+import Wire.API.Routes.Versioned (Versioned (..))
 import Wire.API.SystemSettings qualified as SystemSettings
 import Wire.API.Team qualified as Team
 import Wire.API.Team.Conversation qualified as Team.Conversation
@@ -392,6 +397,10 @@ tests =
       testRoundTrip @Team.TeamSize,
       testRoundTrip @Team.LegalHold.Internal.LegalHoldService,
       testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest,
+      meetingTrialVersioningTests,
+      testRoundTripWithSwagger @Meeting.Meeting,
+      testRoundTripWithSwagger @(Versioned 'V15 Meeting.Meeting),
+      testRoundTripWithSwagger @(Versioned 'V16 [Meeting.Meeting]),
       testFeatureFlagsCanonicalJsonRoundtrip
     ]
 
@@ -440,3 +449,26 @@ testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
             validatePrettyToJSON v
         )
         $ isNothing (validatePrettyToJSON v)
+
+-- | Defends the API versioning contract introduced when dropping the deprecated
+-- @trial@ field: legacy versions (< V17) still render @trial@ as @false@, while
+-- the current version (V17) omits it entirely.
+meetingTrialVersioningTests :: T.TestTree
+meetingTrialVersioningTests =
+  T.testGroup
+    "Meeting trial field versioning"
+    [ testProperty "legacy (V15) response renders trial=false" $
+        \(m :: Meeting.Meeting) ->
+          trialField (toJSON (Versioned @'V15 m)) === Just False,
+      testProperty "current (V17) response omits trial" $
+        \(m :: Meeting.Meeting) ->
+          trialField (toJSON m) === Nothing
+    ]
+
+-- | Extract the @trial@ boolean from a 'Meeting' JSON object, if present.
+trialField :: Value -> Maybe Bool
+trialField = \case
+  Object o -> case KeyMap.lookup (Key.fromString "trial") o of
+    Just (Bool b) -> Just b
+    _ -> Nothing
+  _ -> Nothing

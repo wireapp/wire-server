@@ -17,14 +17,10 @@
 
 module Galley.API.Meetings
   ( createMeeting,
-    createMeetingLegacy,
     updateMeeting,
-    updateMeetingLegacy,
     deleteMeeting,
     getMeeting,
-    getMeetingLegacy,
     listMeetings,
-    listMeetingsLegacy,
     addMeetingInvitation,
     removeMeetingInvitation,
     replaceMeetingInvitation,
@@ -140,44 +136,3 @@ replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails)
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.replaceInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
-
--- | Legacy wrappers serving the 'MeetingLegacy' / 'MeetingWithConversationLegacy'
--- representations to clients on API versions V15–V17. They reuse the trial-less
--- subsystem handlers and apply the legacy conversion (which hardcodes
--- @trial = False@).
-createMeetingLegacy ::
-  (Member Meetings.MeetingsSubsystem r) =>
-  Local UserId ->
-  NewMeeting ->
-  Sem r MeetingWithConversationLegacy
-createMeetingLegacy lUser newMeeting =
-  toLegacyMeetingWithConversation <$> createMeeting lUser newMeeting
-
-updateMeetingLegacy ::
-  ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'MeetingNotFound) r
-  ) =>
-  Local UserId ->
-  Domain ->
-  MeetingId ->
-  UpdateMeeting ->
-  Sem r MeetingWithConversationLegacy
-updateMeetingLegacy zUser domain meetingId update =
-  toLegacyMeetingWithConversation <$> updateMeeting zUser domain meetingId update
-
-getMeetingLegacy ::
-  ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'MeetingNotFound) r
-  ) =>
-  Local UserId ->
-  Domain ->
-  MeetingId ->
-  Sem r MeetingLegacy
-getMeetingLegacy zUser domain meetingId =
-  toLegacyMeeting <$> getMeeting zUser domain meetingId
-
-listMeetingsLegacy ::
-  (Member Meetings.MeetingsSubsystem r) =>
-  Local UserId ->
-  Sem r [MeetingLegacy]
-listMeetingsLegacy lUser = map toLegacyMeeting <$> listMeetings lUser

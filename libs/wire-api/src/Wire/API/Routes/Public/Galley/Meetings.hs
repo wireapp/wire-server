@@ -27,13 +27,14 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 
 type MeetingsAPI =
   Named
-    "create-meeting@v17"
+    "create-meeting@v15"
     ( Summary "Create a new meeting"
         :> From 'V15
-        :> Until 'V18
+        :> Until 'V17
         :> ZLocalUser
         :> "meetings"
         :> ReqBody '[JSON] NewMeeting
@@ -42,13 +43,13 @@ type MeetingsAPI =
         :> MultiVerb
              'POST
              '[JSON]
-             '[Respond 201 "Meeting created" MeetingWithConversationLegacy]
-             MeetingWithConversationLegacy
+             '[VersionedRespond 'V15 201 "Meeting created" MeetingWithConversation]
+             MeetingWithConversation
     )
     :<|> Named
            "create-meeting"
            ( Summary "Create a new meeting"
-               :> From 'V18
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> ReqBody '[JSON] NewMeeting
@@ -61,10 +62,10 @@ type MeetingsAPI =
                     MeetingWithConversation
            )
     :<|> Named
-           "update-meeting@v17"
+           "update-meeting@v15"
            ( Summary "Update an existing meeting"
                :> From 'V15
-               :> Until 'V18
+               :> Until 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
@@ -76,13 +77,13 @@ type MeetingsAPI =
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    '[Respond 200 "Meeting updated" MeetingWithConversationLegacy]
-                    MeetingWithConversationLegacy
+                    '[VersionedRespond 'V15 200 "Meeting updated" MeetingWithConversation]
+                    MeetingWithConversation
            )
     :<|> Named
            "update-meeting"
            ( Summary "Update an existing meeting"
-               :> From 'V18
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
@@ -115,21 +116,24 @@ type MeetingsAPI =
                     ()
            )
     :<|> Named
-           "get-meeting@v17"
+           "get-meeting@v15"
            ( Summary "Get a single meeting by ID"
                :> From 'V15
-               :> Until 'V18
+               :> Until 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
-               :> Get '[JSON] MeetingLegacy
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V15 200 "A single meeting by ID" Meeting)
            )
     :<|> Named
            "get-meeting"
            ( Summary "Get a single meeting by ID"
-               :> From 'V18
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
@@ -138,19 +142,22 @@ type MeetingsAPI =
                :> Get '[JSON] Meeting
            )
     :<|> Named
-           "list-meetings@v17"
+           "list-meetings@v16"
            ( Summary "List all meetings for the authenticated user"
                :> From 'V16
-               :> Until 'V18
+               :> Until 'V17
                :> ZLocalUser
                :> "meetings"
                :> "list"
-               :> Get '[JSON] [MeetingLegacy]
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V16 200 "List of meetings for the authenticated user" [Meeting])
            )
     :<|> Named
            "list-meetings"
            ( Summary "List all meetings for the authenticated user"
-               :> From 'V18
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> "list"
