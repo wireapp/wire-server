@@ -237,6 +237,7 @@ type UserAPI =
                :> ZUser
                :> From 'V4
                :> "list-users"
+               :> QueryParam' [Optional, Strict, Description "Include whether each local user can currently be contacted"] "include-contact-status" Bool
                :> ReqBody '[JSON] ListUsersQuery
                :> Post '[JSON] ListUsersById
            )

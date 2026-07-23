@@ -2615,7 +2615,8 @@ mkProfile quid name =
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeRegular,
       profileApp = Nothing,
-      profileSearchable = True
+      profileSearchable = True,
+      profileContactStatus = Nothing
     }
 
 -- mock federator

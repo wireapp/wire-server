@@ -31,6 +31,8 @@ module Wire.API.User
     UserSet (..),
     -- Profiles
     UserProfile (..),
+    ContactStatus (..),
+    ContactStatusState (..),
     SelfProfile (..),
     -- User (should not be here)
     User (..),
@@ -545,7 +547,8 @@ data UserProfile = UserProfile
     profileSupportedProtocols :: Set BaseProtocolTag,
     profileType :: UserType,
     profileApp :: Maybe AppInfo,
-    profileSearchable :: Bool
+    profileSearchable :: Bool,
+    profileContactStatus :: Maybe ContactStatus
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
@@ -589,6 +592,30 @@ userProfileObjectSchema =
     <*> profileType .= fmap (fromMaybe UserTypeRegular) (optField "type" schema)
     <*> profileApp .= maybe_ (optField "app" schema)
     <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
+    <*> profileContactStatus .= maybe_ (optField "contact_status" schema)
+
+data ContactStatusState
+  = Contactable
+  | NonContactable
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ContactStatusState)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ContactStatusState)
+
+instance ToSchema ContactStatusState where
+  schema =
+    enum @Text $
+      element "contactable" Contactable
+        <> element "non-contactable" NonContactable
+
+data ContactStatus = ContactStatus
+  { contactStatusState :: ContactStatusState
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ContactStatus)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ContactStatus)
+
+instance ToSchema ContactStatus where
+  schema = object $ ContactStatus <$> contactStatusState .= field "state" schema
 
 --------------------------------------------------------------------------------
 -- SelfProfile
@@ -777,7 +804,8 @@ mkUserProfileWithEmail memail u mba legalHoldStatus =
       profileSupportedProtocols = userSupportedProtocols u,
       profileType = u.userType,
       profileApp = mba,
-      profileSearchable = userSearchable u
+      profileSearchable = userSearchable u,
+      profileContactStatus = Nothing
     }
 
 mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> Maybe AppInfo -> UserLegalHoldStatus -> UserProfile
