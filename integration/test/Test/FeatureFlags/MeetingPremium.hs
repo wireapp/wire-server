@@ -49,3 +49,21 @@ testMeetingPremiumRemovedAtV17 = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
     resp.json %. "lockStatus" `shouldMatch` "locked"
+
+-- | WPB-26771: the aggregate list endpoints 'GET /feature-configs' and
+-- 'GET /teams/:tid/features' are version-agnostic — like 'From'-gated features
+-- (e.g. MLS), they include every feature at every API version. Even though the
+-- dedicated meetingsPremium endpoints 404 at v17, both list endpoints keep
+-- returning the (default enabled+locked) meetingsPremium entry. This test
+-- locks that behaviour in.
+testMeetingPremiumListedAtV17 :: (HasCallStack) => App ()
+testMeetingPremiumListedAtV17 = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  let assertMeetingPremium resp = do
+        resp.status `shouldMatchInt` 200
+        mp <- resp.json %. "meetingsPremium"
+        mp %. "status" `shouldMatch` "enabled"
+        mp %. "lockStatus" `shouldMatch` "locked"
+      teamFeatures = joinHttpPath ["teams", tid, "features"]
+  bindResponse (baseRequest owner Galley (ExplicitVersion 17) "/feature-configs" >>= submit "GET") assertMeetingPremium
+  bindResponse (baseRequest owner Galley (ExplicitVersion 17) teamFeatures >>= submit "GET") assertMeetingPremium

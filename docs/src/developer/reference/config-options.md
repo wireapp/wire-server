@@ -296,6 +296,10 @@ override has been removed (operators can no longer change it via Helm). The
 lock-status endpoints have no behavioural effect and now return 404 at API
 version v17; they remain available through v16.
 
+The aggregate list endpoints (`GET /feature-configs`,
+`GET /teams/:tid/features`) continue to include `meetingsPremium` at all API
+versions, including v17.
+
 ### Background Effects
 
 The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is disabled and locked by default. If you want a different configuration, use the following syntax: 
