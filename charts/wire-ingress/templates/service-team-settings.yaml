@@ -1,4 +1,4 @@
-{{- if .Values.teamSettings.enabled }}
+{{- if and .Values.service.create .Values.teamSettings.enabled }}
 apiVersion: v1
 kind: Service
 metadata:

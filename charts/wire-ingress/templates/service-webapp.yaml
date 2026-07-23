@@ -1,4 +1,4 @@
-{{- if .Values.webapp.enabled }}
+{{- if and .Values.service.create .Values.webapp.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
