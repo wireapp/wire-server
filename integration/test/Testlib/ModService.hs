@@ -34,7 +34,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
-import Control.Monad.Catch (catch, catchAll, throwM)
+import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -473,7 +473,7 @@ checkFederationIngress origin target = do
               (do
                   label <- inner %. "label" & asString
                   pure $ res.status == 533 && label == "federation-denied"
-              ) `catchAll` const (pure False)
+              ) `catch` \(_ :: AssertionFailure) -> pure False
           pure (is200 || isFedDenied)
         _ -> pure False
   eith <- liftIO (E.try checkStatus)
