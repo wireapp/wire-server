@@ -71,7 +71,7 @@ type CombinedAPI = CannonAPI :<|> Internal.API
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
   lift $ validateOpts o
-  tracer <- Codensity withTracer
+  tracer <- Codensity (withTracer "cannon")
   when (o ^. drainOpts . millisecondsBetweenBatches == 0) $
     error "drainOpts.millisecondsBetweenBatches must not be set to 0."
   when (o ^. drainOpts . gracePeriodSeconds == 0) $

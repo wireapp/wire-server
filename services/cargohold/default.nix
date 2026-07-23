@@ -25,6 +25,8 @@
 , exceptions
 , extended
 , federator
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -72,6 +74,7 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
+, wire-otel
 , yaml
 }:
 mkDerivation {
@@ -102,6 +105,8 @@ mkDerivation {
     errors
     exceptions
     extended
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     HsOpenSSL
     http-client
     http-client-openssl
@@ -136,6 +141,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
     yaml
   ];
   executableHaskellDepends = [

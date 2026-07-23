@@ -33,6 +33,7 @@ import Cassandra as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens (to, (^.))
+import Control.Monad.Catch (finally)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
@@ -45,6 +46,8 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as WU
+import qualified OpenTelemetry.Instrumentation.Wai as OtelWai
+import OpenTelemetry.Trace as Otel
 import qualified SAML2.WebSSO as SAML
 import Spar.API (SparAPI, app)
 import Spar.App
@@ -59,6 +62,7 @@ import Util.Options
 import qualified Web.Scim.Schema.Common as Scim
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
+import Wire.OpenTelemetry (withTracer)
 import Wire.ScimSubsystem.Interpreter
 
 ----------------------------------------------------------------------
@@ -77,13 +81,13 @@ initCassandra opts lgr =
 -- servant / wai / warp
 
 runServer :: Opts -> IO ()
-runServer sparCtxOpts = do
+runServer sparCtxOpts = withTracer "spar" \tracer -> do
   let shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
       sport :: Int = sparCtxOpts ^. to saml . SAML.cfgSPPort
   (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
   let logger = sparCtxLogger ctxOpts
   let settings = newSettings $ defaultServer shost (fromIntegral sport) logger
-  WU.runSettingsWithShutdown settings wrappedApp Nothing
+  inSpan tracer "spar" defaultSpanArguments {kind = Otel.Server} (WU.runSettingsWithShutdown settings wrappedApp Nothing) `finally` pure ()
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
@@ -100,6 +104,7 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . to port)
           $ Bilge.empty
   let sparCtxRequestId = RequestId defRequestId
+      sparCtxOtelLocalRootSpanContext = Nothing
   sparCtxScimSubsystemConfig <- do
     let bsUri :: URI.URI
         bsUri = sparCtxOpts.scimBaseUri
@@ -122,9 +127,11 @@ mkApp sparCtxOpts = do
         if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]
           then Just out
           else Nothing
+  otelMiddleware <- OtelWai.newOpenTelemetryWaiMiddleware
   let middleware =
         versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
           . requestIdMiddleware (ctx0.sparCtxLogger) defaultRequestIdHeaderName
+          . otelMiddleware
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . GZip.gunzip

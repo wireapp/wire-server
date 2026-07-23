@@ -120,7 +120,7 @@ getUserAuthenticationInfoImpl uid = fmap f <$> retry x1 (query1 authSelect (para
 getUsersImpl :: [UserId] -> Client [StoredUser]
 getUsersImpl usrs =
   map asRecord
-    <$> retry x1 (query selectUsers (params LocalQuorum (Identity usrs)))
+    <$> retry x1 (queryTraced selectUsers (params LocalQuorum (Identity usrs)))
 
 doesUserExistImpl :: UserId -> Client Bool
 doesUserExistImpl uid =
@@ -329,7 +329,7 @@ freeHandleImpl uid h = do
 lookupHandleImpl :: Consistency -> Handle -> Client (Maybe UserId)
 lookupHandleImpl consistencyLevel h = do
   (runIdentity =<<)
-    <$> retry x1 (query1 handleSelect (params consistencyLevel (Identity h)))
+    <$> retry x1 (query1Traced handleSelect (params consistencyLevel (Identity h)))
 
 deleteUserImpl :: User -> Client ()
 deleteUserImpl user = do

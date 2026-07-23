@@ -143,7 +143,7 @@ verifyCode ::
   ActivationCode ->
   ExceptT ActivationError m (EmailKey, Maybe UserId)
 verifyCode key code = do
-  s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
+  s <- lift . retry x1 . query1Traced keySelect $ params LocalQuorum (Identity key)
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
@@ -156,7 +156,7 @@ verifyCode key code = do
       Just e -> pure (mkEmailKey e, u)
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode
-    countdown = lift . retry x5 . write keyInsert . params LocalQuorum
+    countdown = lift . retry x5 . writeTraced keyInsert . params LocalQuorum
     revoke = lift $ deleteActivationPair key
     keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
     keyInsert =
@@ -172,7 +172,7 @@ mkActivationKey k = do
   pure . ActivationKey $ Ascii.encodeBase64Url bs
 
 deleteActivationPair :: (MonadClient m) => ActivationKey -> m ()
-deleteActivationPair = write keyDelete . params LocalQuorum . Identity
+deleteActivationPair = writeTraced keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError
 invalidUser = InvalidActivationCodeWrongUser -- "User does not exist."

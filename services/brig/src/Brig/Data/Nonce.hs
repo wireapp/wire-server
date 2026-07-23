@@ -34,7 +34,7 @@ insertNonce ::
   Text ->
   Nonce ->
   m ()
-insertNonce ttl uid key nonce = retry x5 . write insert $ params LocalQuorum (uid, key, nonce, ttl)
+insertNonce ttl uid key nonce = retry x5 . writeTraced insert $ params LocalQuorum (uid, key, nonce, ttl)
   where
     insert :: PrepQuery W (UserId, Text, Nonce, NonceTtlSecs) ()
     insert = "INSERT INTO nonce (user, key, nonce) VALUES (?, ?, ?) USING TTL ?"
@@ -51,7 +51,7 @@ lookupNonce ::
   UserId ->
   Text ->
   m (Maybe Nonce)
-lookupNonce uid key = (runIdentity <$$>) . retry x5 . query1 get $ params LocalQuorum (uid, key)
+lookupNonce uid key = (runIdentity <$$>) . retry x5 . query1Traced get $ params LocalQuorum (uid, key)
   where
     get :: PrepQuery R (UserId, Text) (Identity Nonce)
     get = "SELECT nonce FROM nonce WHERE user = ? AND key = ?"
@@ -61,7 +61,7 @@ deleteNonce ::
   UserId ->
   Text ->
   m ()
-deleteNonce uid key = retry x5 . write delete $ params LocalQuorum (uid, key)
+deleteNonce uid key = retry x5 . writeTraced delete $ params LocalQuorum (uid, key)
   where
     delete :: PrepQuery W (UserId, Text) ()
     delete = "DELETE FROM nonce WHERE user = ? AND key = ?"

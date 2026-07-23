@@ -60,7 +60,7 @@ instance MonadHttp App where
 instance MonadClient App where
   liftClient m = do
     cs <- view cstate
-    liftIO $ runClient cs m
+    liftIO $ runClientTraced cs m
   localState f = locally cstate f
 
 instance LC.MonadLogger App where

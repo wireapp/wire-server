@@ -82,6 +82,7 @@ library
     , cql-io                >=0.14
     , cql-io-tinylog
     , exceptions            >=0.6
+    , hs-opentelemetry-sdk
     , HsOpenSSL
     , imports
     , lens                  >=4.4
@@ -93,6 +94,7 @@ library
     , text                  >=0.11
     , time                  >=1.4
     , tinylog               >=0.7
+    , unordered-containers
     , uuid
     , wreq                  >=0.2
 

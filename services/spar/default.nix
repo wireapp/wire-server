@@ -23,6 +23,9 @@
 , exceptions
 , extended
 , filepath
+, hs-opentelemetry-api
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , hscim
 , HsOpenSSL
 , hspec
@@ -75,6 +78,7 @@
 , wai-middleware-gunzip
 , wai-utilities
 , wire-api
+, wire-otel
 , wire-subsystems
 , xml-conduit
 , yaml
@@ -101,6 +105,9 @@ mkDerivation {
     crypton-x509
     exceptions
     extended
+    hs-opentelemetry-api
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     hscim
     hspec
     http-types
@@ -133,6 +140,7 @@ mkDerivation {
     wai-middleware-gunzip
     wai-utilities
     wire-api
+    wire-otel
     wire-subsystems
     yaml
   ];

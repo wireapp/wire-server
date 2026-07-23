@@ -75,7 +75,7 @@ claimKeyPackage u c suite = do
     kps <- getNonClaimedKeyPackages u c suite
     mk <- liftIO (pick kps)
     for mk $ \(ref, kpd) -> do
-      retry x5 $ write delete1Query (params LocalQuorum (tUnqualified u, c, suite, ref))
+      retry x5 $ writeTraced delete1Query (params LocalQuorum (tUnqualified u, c, suite, ref))
       pure (ref, kpd)
   pure (ref, kpd)
   where
@@ -93,7 +93,7 @@ getNonClaimedKeyPackages ::
   CipherSuiteTag ->
   m [(KeyPackageRef, KeyPackageData)]
 getNonClaimedKeyPackages u c suite = do
-  kps <- retry x1 $ query lookupQuery (params LocalQuorum (tUnqualified u, c, suite))
+  kps <- retry x1 $ queryTraced lookupQuery (params LocalQuorum (tUnqualified u, c, suite))
   let decodedKps = foldMap (keepDecoded . (decodeKp &&& id)) kps
 
   now <- liftIO getPOSIXTime
@@ -136,7 +136,7 @@ countKeyPackages u c suite = fromIntegral . length <$> getNonClaimedKeyPackages 
 deleteKeyPackages :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> m ()
 deleteKeyPackages u c suite refs =
   retry x5 $
-    write
+    writeTraced
       deleteQuery
       (params LocalQuorum (u, c, suite, refs))
   where
@@ -152,7 +152,7 @@ deleteAllKeyPackages ::
 deleteAllKeyPackages u c suites =
   pooledForConcurrentlyN_ 16 suites $ \suite ->
     retry x5 $
-      write
+      writeTraced
         deleteQuery
         (params LocalQuorum (u, c, suite))
   where

@@ -117,7 +117,7 @@ import Brig.Team.Template
 import Brig.Template (InvitationUrlTemplates (..), genTemplateBranding, genTemplateBrandingMap)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
-import Cassandra (runClient)
+import Cassandra (runClientTraced)
 import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
@@ -555,7 +555,7 @@ instance MonadHttp (AppT r) where
 wrapClient :: ReaderT Env Cas.Client a -> AppT r a
 wrapClient m = do
   env <- ask
-  runClient env.casClient $ runReaderT m env
+  liftIO $ runClientTraced env.casClient $ runReaderT m env
 
 wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r) a
 wrapClientE = mapExceptT wrapClient
@@ -590,7 +590,8 @@ newtype HttpClientIO a = HttpClientIO
 
 runHttpClientIO :: (MonadIO m) => Env -> HttpClientIO a -> m a
 runHttpClientIO env =
-  runClient (env.casClient)
+  liftIO
+    . runClientTraced (env.casClient)
     . runHttpT (env.httpManager)
     . flip runReaderT env
     . unHttpClientIO
@@ -601,7 +602,7 @@ instance HasRequestId HttpClientIO where
 instance Cas.MonadClient HttpClientIO where
   liftClient cl = do
     env <- ask
-    liftIO $ runClient (asks (.casClient) env) cl
+    liftIO $ runClientTraced (asks (.casClient) env) cl
   localState f = local (casClientLens %~ f)
 
 instance MonadMonitor HttpClientIO where

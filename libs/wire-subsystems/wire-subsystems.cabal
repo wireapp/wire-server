@@ -137,6 +137,7 @@ common common-all
     , hasql-th
     , hasql-transaction
     , hex
+    , hs-opentelemetry-sdk
     , hscim
     , HsOpenSSL
     , hspec
@@ -515,6 +516,7 @@ library
     , HaskellNet
     , HaskellNet-SSL
     , hex
+    , hs-opentelemetry-sdk
     , HsOpenSSL
     , hspec
     , html-entities
@@ -639,6 +641,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.PostgresSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
     Wire.SAMLEmailSubsystem.InterpreterSpec

@@ -2,6 +2,7 @@
 -- instrument http/2 request similarly to how it was done for http-client here:
 -- https://github.com/iand675/hs-opentelemetry/blob/0b3c854a88113fc18df8561202a76357e593a294/instrumentation/http-client/src/OpenTelemetry/Instrumentation/HttpClient/Raw.hs#L60
 -- This is non-trivial because http/2 forgets the structure on the out objs.
+{-# LANGUAGE DataKinds #-}
 module Wire.OpenTelemetry
   ( -- * instrumentation helpers
     withTracer,
@@ -21,18 +22,26 @@ import OpenTelemetry.Context.ThreadLocal (getContext)
 import OpenTelemetry.Instrumentation.HttpClient.Raw
 import OpenTelemetry.Trace
 import UnliftIO (MonadUnliftIO, bracket, liftIO)
+import OpenTelemetry.Resource (Resource, mkResource, (.=))
+
 
 -- | a tracer for a service like brig, galley, etc.
-withTracer :: (MonadUnliftIO m) => (Tracer -> m r) -> m r
-withTracer k =
+withTracer :: Text -> (Tracer -> IO r) -> IO r
+withTracer serviceName k =
   bracket
-    (liftIO initializeGlobalTracerProvider)
+    (liftIO $ do
+      let svcResource = mkResource ["service.name" .= serviceName] :: Resource 'Nothing
+      (processors, opts) <- getTracerProviderInitializationOptions' svcResource
+      tp <- createTracerProvider processors opts
+      setGlobalTracerProvider tp
+      pure tp
+    )
     shutdownTracerProvider
     \tp -> k $ makeTracer tp "wire-otel" tracerOptions
 
 -- | like 'withTracer' but in 'Codensity'
-withTracerC :: Codensity IO Tracer
-withTracerC = Codensity withTracer
+withTracerC :: Text -> Codensity IO Tracer
+withTracerC serviceName = Codensity (withTracer serviceName)
 
 -- | instrument a http client
 withClientInstrumentation ::

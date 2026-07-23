@@ -30,7 +30,7 @@ import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
-import Wire.Postgres
+import Wire.Postgres (PGConstraints, runPipeline, runPipelineTraced, runStatement, runStatementTraced, runTransaction)
 import Wire.Sem.Logger
 import Wire.StoredUser
 import Wire.UserStore
@@ -248,7 +248,7 @@ deleteAssetsStatement =
 getUsersImpl :: (PGConstraints r, Member TinyLog r) => [UserId] -> Sem r [StoredUser]
 getUsersImpl uids = do
   (userRows, deletedUserIds, assetRows) <-
-    runPipeline $
+    runPipelineTraced "db.query.get_users" "pipeline: select_users, select_deleted_users, select_assets" $
       (,,)
         <$> Pipeline.statement uids selectUsers
         <*> Pipeline.statement uids selectDeletedUsers
@@ -547,7 +547,7 @@ lookupNameImpl uid = runStatement uid select
         |]
 
 lookupHandleImpl :: (PGConstraints r) => Handle -> Sem r (Maybe UserId)
-lookupHandleImpl h = runStatement h select
+lookupHandleImpl h = runStatementTraced "db.query.lookup_handle" "SELECT id :: uuid FROM wire_user WHERE handle = $1 :: text" h select
   where
     select :: Hasql.Statement Handle (Maybe UserId)
     select =

@@ -15,6 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Wire.Postgres
   ( -- | This module provides a composable DSL for constructing postgres
     -- statements. Queries are assembled from smaller 'QueryFragment's that
@@ -37,12 +39,15 @@ module Wire.Postgres
     -- resulting statement can be run with something like @runStatement ()@.
 
     -- * Runners
+    dbStatementSpanArguments,
     runStatement,
+    runStatementTraced,
     runSession,
     runSessionWithRetry,
     runTransaction,
     runTransactionWithRetry,
     runPipeline,
+    runPipelineTraced,
     parseCount,
     PGConstraints,
 
@@ -69,6 +74,7 @@ where
 
 import Control.Monad.Trans.State
 import Data.Functor.Contravariant
+import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Misc
 import Data.Text qualified as Text
@@ -87,6 +93,7 @@ import Hasql.Transaction (Transaction)
 import Hasql.Transaction.Sessions
 import Hasql.Transaction.Sessions qualified as Transaction
 import Imports
+import OpenTelemetry.Trace (SpanArguments (..), defaultSpanArguments, getGlobalTracerProvider, inSpan, makeTracer, toAttribute, tracerOptions)
 import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
@@ -190,6 +197,39 @@ runStatement ::
 runStatement a stmt =
   runSessionWithRetry $ statement a stmt
 
+dbStatementSpanArguments :: Text -> SpanArguments
+dbStatementSpanArguments queryTemplate =
+  defaultSpanArguments
+    { attributes = HashMap.fromList [("db.statement", toAttribute queryTemplate)]
+    }
+
+-- | Runs a 'Statement' using the 'Hasql.Pool' with OpenTelemetry tracing.
+-- Always retries on server errors due to admin intervention.
+--
+-- Span name: query operation name (e.g., "db.query.select_users")
+runStatementTraced ::
+  (PGConstraints r) =>
+  Text ->
+  Text ->
+  a ->
+  Statement a b ->
+  Sem r b
+runStatementTraced queryName queryTemplate a stmt = do
+  pool <- input
+  let sess = statement a stmt
+  result <- liftIO $ useWithResetAndRetryTraced queryName queryTemplate pool sess
+  either throw pure result
+
+-- | Internal: Wraps useWithResetAndRetry with OpenTelemetry tracing
+useWithResetAndRetryTraced :: Text -> Text -> Pool -> Session a -> IO (Either UsageError a)
+useWithResetAndRetryTraced queryName queryTemplate pool sess = do
+  tp <- getGlobalTracerProvider
+  let tracer = makeTracer tp "postgres" tracerOptions
+  inSpan tracer queryName (dbStatementSpanArguments queryTemplate) $
+    useWithResetAndRetry pool sess
+
+
+
 -- | Runs a 'Transaction' using the 'Hasql.Pool'. Unlike
 -- 'runTransactionWithRetry' it doesn't retry on server errors due to admin
 -- intervention. Things like server restart.
@@ -224,6 +264,14 @@ runPipeline ::
   Sem r a
 runPipeline p =
   runSession $ pipeline p
+
+-- | Runs a 'Pipeline' using the 'Hasql.Pool' with OpenTelemetry tracing.
+-- Always retries on server errors due to admin intervention.
+runPipelineTraced :: (PGConstraints r) => Text -> Text -> Pipeline a -> Sem r a
+runPipelineTraced queryName queryTemplate p = do
+  pool <- input
+  result <- liftIO $ useWithResetAndRetryTraced queryName queryTemplate pool (pipeline p)
+  either throw pure result
 
 class PostgresValue a where
   postgresType :: Text

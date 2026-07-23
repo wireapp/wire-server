@@ -50,7 +50,7 @@ insertAccount ::
   m ProviderId
 insertAccount name pass url descr = do
   pid <- randomId
-  retry x5 $ write cql $ params LocalQuorum (pid, name, pass, url, descr)
+  retry x5 $ writeTraced cql $ params LocalQuorum (pid, name, pass, url, descr)
   pure pid
   where
     cql :: PrepQuery W (ProviderId, Name, Password, HttpsUrl, Text) ()
@@ -82,7 +82,7 @@ lookupAccountData ::
   (MonadClient m) =>
   ProviderId ->
   m (Maybe (Name, Maybe EmailAddress, HttpsUrl, Text))
-lookupAccountData p = retry x1 $ query1 cql $ params LocalQuorum (Identity p)
+lookupAccountData p = retry x1 $ query1Traced cql $ params LocalQuorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId) (Name, Maybe EmailAddress, HttpsUrl, Text)
     cql = "SELECT name, email, url, descr FROM provider WHERE id = ?"
@@ -107,7 +107,7 @@ deleteAccount ::
   (MonadClient m) =>
   ProviderId ->
   m ()
-deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
+deleteAccount pid = retry x5 $ writeTraced cql $ params LocalQuorum (Identity pid)
   where
     cql :: PrepQuery W (Identity ProviderId) ()
     cql = "DELETE FROM provider WHERE id = ?"
@@ -118,7 +118,7 @@ updateAccountPassword ::
   Password ->
   m ()
 updateAccountPassword pid pwd = do
-  retry x5 $ write cql $ params LocalQuorum (pwd, pid)
+  retry x5 $ writeTraced cql $ params LocalQuorum (pwd, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
     cql = "UPDATE provider SET password = ? where id = ?"
@@ -155,14 +155,14 @@ lookupKey ::
 lookupKey k =
   fmap (fmap runIdentity) $
     retry x1 $
-      query1 cql $
+      query1Traced cql $
         params LocalQuorum (Identity (emailKeyUniq k))
   where
     cql :: PrepQuery R (Identity Text) (Identity ProviderId)
     cql = "SELECT provider FROM provider_keys WHERE key = ?"
 
 deleteKey :: (MonadClient m) => EmailKey -> m ()
-deleteKey k = retry x5 $ write cql $ params LocalQuorum (Identity (emailKeyUniq k))
+deleteKey k = retry x5 $ writeTraced cql $ params LocalQuorum (Identity (emailKeyUniq k))
   where
     cql :: PrepQuery W (Identity Text) ()
     cql = "DELETE FROM provider_keys WHERE key = ?"
@@ -187,7 +187,7 @@ insertService pid name summary descr url token key fprint assets tags = do
   sid <- randomId
   let tagSet = C.Set (Set.toList tags)
   retry x5 $
-    write cql $
+    writeTraced cql $
       params
         LocalQuorum
         (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
@@ -223,7 +223,7 @@ lookupService ::
 lookupService pid sid =
   fmap (fmap mk) $
     retry x1 $
-      query1 cql $
+      query1Traced cql $
         params LocalQuorum (pid, sid)
   where
     cql ::
@@ -244,7 +244,7 @@ listServices ::
 listServices p =
   fmap (map mk) $
     retry x1 $
-      query cql $
+      queryTraced cql $
         params LocalQuorum (Identity p)
   where
     cql ::
@@ -339,7 +339,7 @@ lookupServiceProfile ::
 lookupServiceProfile p s =
   fmap (fmap mk) $
     retry x1 $
-      query1 cql $
+      query1Traced cql $
         params One (p, s)
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
@@ -358,7 +358,7 @@ listServiceProfiles ::
 listServiceProfiles p =
   fmap (map mk) $
     retry x1 $
-      query cql $
+      queryTraced cql $
         params One (Identity p)
   where
     cql ::
@@ -394,7 +394,7 @@ lookupServiceConn ::
 lookupServiceConn pid sid =
   fmap (fmap mk) $
     retry x1 $
-      query1 cql $
+      query1Traced cql $
         params LocalQuorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, CqlNonEmpty ServiceToken, CqlNonEmpty (Fingerprint Rsa), Bool)
@@ -728,7 +728,7 @@ insertServiceWhitelist tid pid sid =
 deleteServiceWhitelist :: (MonadClient m) => Maybe TeamId -> ProviderId -> ServiceId -> m ()
 deleteServiceWhitelist mbTid pid sid = case mbTid of
   Nothing -> do
-    teams <- retry x5 $ query lookupRev $ params LocalQuorum (pid, sid)
+    teams <- retry x5 $ queryTraced lookupRev $ params LocalQuorum (pid, sid)
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
@@ -776,7 +776,7 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
   -- services, regardless of 'size'. This is because otherwise we would
   -- have to go through multiple passes of query->filter->query a bit
   -- more->filter->... if we get unlucky.
-  p <- retry x1 $ query cql $ params One (Identity tid)
+  p <- retry x1 $ queryTraced cql $ params One (Identity tid)
   r <-
     maybeFilterPrefix
       . sortOn (Text.toLower . fromName . serviceProfileName)
@@ -809,7 +809,7 @@ getServiceWhitelistStatus ::
   ServiceId ->
   m Bool
 getServiceWhitelistStatus tid pid sid = liftClient $ do
-  fmap isJust $ retry x1 $ query1 cql $ params One (tid, pid, sid)
+  fmap isJust $ retry x1 $ query1Traced cql $ params One (tid, pid, sid)
   where
     cql :: PrepQuery R (TeamId, ProviderId, ServiceId) (Identity TeamId)
     cql =

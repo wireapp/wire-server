@@ -195,8 +195,12 @@ upsertConversationImpl lcnv nc = do
 
 deleteConversationImpl :: (PGConstraints r) => ConvId -> Sem r ()
 deleteConversationImpl cid =
-  runStatement cid delete
+  runStatementTraced "db.mutation.delete_conversation" deleteQuery cid delete
   where
+    deleteQuery =
+      "DELETE FROM conversation \
+      \WHERE id = ($1 :: uuid)"
+
     delete :: Hasql.Statement ConvId ()
     delete =
       -- cascades to shadow convs, subconvs, local and remote members
@@ -591,8 +595,15 @@ deleteTeamConversationImpl :: (PGConstraints r) => TeamId -> ConvId -> Sem r ()
 deleteTeamConversationImpl _ = deleteConversationImpl
 
 getTeamConversationImpl :: (PGConstraints r) => TeamId -> ConvId -> Sem r (Maybe ConvId)
-getTeamConversationImpl tid cid = runStatement (tid, cid) select
+getTeamConversationImpl tid cid =
+  runStatementTraced "db.query.get_team_conversation" selectQuery (tid, cid) select
   where
+    selectQuery =
+      "SELECT (id :: uuid) \
+      \FROM conversation \
+      \WHERE team = ($1 :: uuid) \
+      \AND id = ($2 :: uuid)"
+
     select :: Hasql.Statement (TeamId, ConvId) (Maybe ConvId)
     select =
       dimapPG
@@ -604,8 +615,13 @@ getTeamConversationImpl tid cid = runStatement (tid, cid) select
 
 getTeamConversationsImpl :: (PGConstraints r) => TeamId -> Sem r [ConvId]
 getTeamConversationsImpl tid =
-  runStatement tid select
+  runStatementTraced "db.query.get_team_conversations" selectQuery tid select
   where
+    selectQuery =
+      "SELECT (id :: uuid) \
+      \FROM conversation \
+      \WHERE team = ($1 :: uuid)"
+
     select :: Hasql.Statement TeamId [ConvId]
     select =
       dimapPG
@@ -616,8 +632,12 @@ getTeamConversationsImpl tid =
 
 deleteTeamConversationsImpl :: (PGConstraints r) => TeamId -> Sem r ()
 deleteTeamConversationsImpl tid =
-  runStatement tid delete
+  runStatementTraced "db.mutation.delete_team_conversations" deleteQuery tid delete
   where
+    deleteQuery =
+      "DELETE FROM conversation \
+      \WHERE team = ($1 :: uuid)"
+
     delete :: Hasql.Statement TeamId ()
     delete =
       lmapPG

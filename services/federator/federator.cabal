@@ -60,6 +60,7 @@ library
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -123,6 +124,8 @@ library
     , extended
     , filepath
     , fsnotify
+    , hs-opentelemetry-instrumentation-wai
+    , hs-opentelemetry-sdk
     , HsOpenSSL
     , http-client
     , http-media
@@ -154,6 +157,7 @@ library
     , warp
     , wire-api
     , wire-api-federation
+    , wire-otel
 
   default-language:   GHC2021
 

@@ -11,6 +11,7 @@
 , cql-io
 , cql-io-tinylog
 , exceptions
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , imports
 , lens
@@ -39,6 +40,7 @@ mkDerivation {
     cql-io
     cql-io-tinylog
     exceptions
+    hs-opentelemetry-sdk
     HsOpenSSL
     imports
     lens

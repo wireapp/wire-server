@@ -46,6 +46,7 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities (getRequestId)
+import OpenTelemetry.Instrumentation.Wai qualified as OtelWai
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Server (defaultRequestIdHeaderName, federationRequestIdHeaderName, requestIdMiddleware)
 import Network.Wai.Utilities.Server qualified as Wai
@@ -135,8 +136,10 @@ serveServant env port cleanupsRef server = do
         Warp.setPort port
           . Warp.setInstallShutdownHandler registerCleanupAction
           $ Warp.defaultSettings
+  otelMiddleware <- OtelWai.newOpenTelemetryWaiMiddleware
   Warp.runSettings settings
     . requestIdMiddleware env._applog federationRequestIdHeaderName
+    . otelMiddleware
     . Wai.catchErrors (view applog env) federationRequestIdHeaderName
     . Metrics.servantPrometheusMiddleware (Proxy @api)
     $ app hoistApp

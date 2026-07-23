@@ -57,6 +57,7 @@ import Data.These
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
+import qualified OpenTelemetry.Trace as Otel
 import Polysemy
 import Polysemy.Error
 import SAML2.Util (renderURI)
@@ -117,7 +118,8 @@ data Env = Env
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
     sparCtxRequestId :: RequestId,
-    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig,
+    sparCtxOtelLocalRootSpanContext :: Maybe Otel.SpanContext
   }
 
 -- | Get a user by UserRef, no matter what the team.
