@@ -71,6 +71,14 @@ module Wire.API.Conversation
     GroupConvTypeLegacy (..),
     fromGroupConvTypeLegacy,
     toGroupConvTypeLegacy,
+    toLegacyOwnConversation,
+    toLegacyConversation,
+    toLegacyConversationsResponse,
+    toLegacyConversationMetadata,
+    toLegacyMLSOne2OneConversation,
+    toLegacyCreateGroupOwnConversation,
+    toLegacyCreateGroupConversation,
+    isMeetingConversation,
     NewOne2OneConv (..),
     ConvTeamInfo (..),
 
@@ -1388,3 +1396,50 @@ instance AsHeaders '[ConvId] (CreateGroupConversation gct) (CreateGroupConversat
   toHeaders c =
     (I c.conversation.qualifiedId.qUnqualified :* Nil, c)
   fromHeaders = snd
+
+--------------------------------------------------------------------------------
+-- Legacy conversion functions
+
+toLegacyConversationMetadata :: ConversationMetadata GroupConvType -> ConversationMetadata GroupConvTypeLegacy
+toLegacyConversationMetadata meta =
+  meta {cnvmGroupConvType = meta.cnvmGroupConvType >>= toGroupConvTypeLegacy}
+
+toLegacyOwnConversation :: OwnConversation GroupConvType -> OwnConversation GroupConvTypeLegacy
+toLegacyOwnConversation conv =
+  conv {cnvMetadata = toLegacyConversationMetadata conv.cnvMetadata}
+
+toLegacyConversation :: Conversation GroupConvType -> Conversation GroupConvTypeLegacy
+toLegacyConversation conv =
+  conv {metadata = toLegacyConversationMetadata conv.metadata}
+
+toLegacyConversationsResponse :: ConversationsResponse GroupConvType -> ConversationsResponse GroupConvTypeLegacy
+toLegacyConversationsResponse resp =
+  ConversationsResponse
+    { crFound = map toLegacyOwnConversation $ filter (not . isMeetingConversation) resp.crFound,
+      crNotFound = resp.crNotFound,
+      crFailed = resp.crFailed
+    }
+
+toLegacyMLSOne2OneConversation ::
+  MLSOne2OneConversation a GroupConvType ->
+  MLSOne2OneConversation a GroupConvTypeLegacy
+toLegacyMLSOne2OneConversation conv =
+  MLSOne2OneConversation
+    { conversation = toLegacyOwnConversation conv.conversation,
+      publicKeys = conv.publicKeys
+    }
+
+toLegacyCreateGroupOwnConversation ::
+  CreateGroupOwnConversation GroupConvType ->
+  CreateGroupOwnConversation GroupConvTypeLegacy
+toLegacyCreateGroupOwnConversation cgoc =
+  cgoc {cgcConversation = toLegacyOwnConversation cgoc.cgcConversation}
+
+toLegacyCreateGroupConversation ::
+  CreateGroupConversation GroupConvType ->
+  CreateGroupConversation GroupConvTypeLegacy
+toLegacyCreateGroupConversation cgc =
+  CreateGroupConversation (toLegacyConversation cgc.conversation) cgc.failedToAdd
+
+isMeetingConversation :: OwnConversation GroupConvType -> Bool
+isMeetingConversation conv = conv.cnvMetadata.cnvmGroupConvType == Just MeetingConversation

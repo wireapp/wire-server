@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
@@ -68,7 +69,9 @@ featureAPI =
     <@> deprecatedFeatureAPI
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
     <@> featureAPIGetPut
-    <@> featureAPIGetPut
+    <@> mkNamedAPI @'("get", PreventAdminlessGroupsConfig) getFeature
+    <@> mkNamedAPI @"put-PreventAdminlessGroupsConfig@v16" setFeature
+    <@> mkNamedAPI @"put-PreventAdminlessGroupsConfig@v17" setFeature
     <@> mkNamedAPI @'("get", CellsConfig) getFeature
     <@> mkNamedAPI @"put-CellsConfig@v13" setFeature
     <@> mkNamedAPI @'("put", CellsConfig) setFeature

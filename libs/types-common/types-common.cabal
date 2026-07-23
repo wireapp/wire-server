@@ -31,6 +31,7 @@ library
     Data.Qualified
     Data.Range
     Data.RetryAfter
+    Data.Secret
     Data.SizedHashMap
     Data.Text.Ascii
     Data.UUID.Tagged
@@ -160,6 +161,7 @@ test-suite types-common-tests
     Paths_types_common
     Test.Data.Mailbox
     Test.Data.PEMKeys
+    Test.Data.Secret
     Test.Domain
     Test.Handle
     Test.Properties

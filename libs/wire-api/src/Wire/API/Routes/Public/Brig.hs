@@ -70,7 +70,6 @@ import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.SystemSettings
-import Wire.API.Team.Collaborator
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
@@ -667,8 +666,9 @@ type AccountAPI =
     -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
     -- - UserIdentityUpdated event to created user, if email code or phone code is provided
     Named
-      "register"
+      "register@v16"
       ( Summary "Register a new user."
+          :> Until 'V17
           :> Description
                "If the environment where the registration takes \
                \place is private and a registered email address \
@@ -678,6 +678,19 @@ type AccountAPI =
           :> ReqBody '[JSON] NewUserPublic
           :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
       )
+    :<|> Named
+           "register"
+           ( Summary "Register a new user."
+               :> From 'V17
+               :> Description
+                    "If the environment where the registration takes \
+                    \place is private and a registered email address \
+                    \is not whitelisted, a 403 error is returned."
+               :> "register"
+               :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
+               :> ReqBody '[JSON] NewUserPublic
+               :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
+           )
     -- This endpoint can lead to the following events being sent:
     -- UserDeleted event to contacts of deleted user
     -- MemberLeave event to members for all conversations the user was in (via galley)
@@ -2082,27 +2095,6 @@ type TeamsAPI =
                :> "accept"
                :> ReqBody '[JSON] AcceptTeamInvitation
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Team invitation accepted."] ()
-           )
-    :<|> Named
-           "add-team-collaborator"
-           ( Summary "Add a collaborator to the team."
-               :> From 'V10
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "collaborators"
-               :> ReqBody '[JSON] NewTeamCollaborator
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
-           )
-    :<|> Named
-           "get-team-collaborators"
-           ( Summary "Get all collaborators of the team."
-               :> From 'V10
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "collaborators"
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Return collaborators" [TeamCollaborator])
            )
 
 type SystemSettingsAPI =

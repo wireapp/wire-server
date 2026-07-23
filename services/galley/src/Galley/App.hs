@@ -42,11 +42,13 @@ module Galley.App
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -62,6 +64,7 @@ import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -122,6 +125,8 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
@@ -189,6 +194,8 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     JobSubsystem,
+     Input RequestId,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -236,7 +243,7 @@ type GalleyEffects =
      Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
      Input (Maybe GroupInfoCheckEnabled),
      Input Opts,
-     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Now,
      GE.Queue DeleteItem,
      Error Meeting.MeetingError,
@@ -262,10 +269,11 @@ type GalleyEffects =
      ErrorS 'NotAnMlsConversation,
      ErrorS 'NotATeamMember,
      ErrorS 'MeetingNotFound,
+     ErrorS 'CodeStoreNotFound,
      ErrorS 'InvalidOperation,
      Error RpcException,
      Input ClientState,
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
      Error MigrationLockError,
@@ -293,7 +301,7 @@ type GalleyEffects =
    ]
 
 -- Define some invariants for the options used
-validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
+validateOptions :: Opts -> IO (Either HttpsUrl (Map Domain HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit settings'._maxTeamSize settings'._maxFanoutSize
@@ -473,6 +481,7 @@ evalGalley e =
         . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
         . mapError toResponse -- ErrorS 'InvalidOperation
         . mapError toResponse -- ErrorS 'MeetingNotFound
+        . mapError toResponse -- ErrorS 'CodeStoreNotFound
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'NotAnMlsConversation
         . mapError toResponse -- ErrorS 'ChannelsNotEnabled
@@ -545,6 +554,11 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . runInputConst (e ^. reqId)
+        . interpretJobSubsystem
+          JobSubsystemConfig
+            { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+            }
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
   where

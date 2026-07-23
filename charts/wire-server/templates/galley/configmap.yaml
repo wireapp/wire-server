@@ -186,6 +186,10 @@ data:
         channels:
           {{- toYaml .settings.featureFlags.channels | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.preventAdminlessGroups }}
+        preventAdminlessGroups:
+          {{- toYaml .settings.featureFlags.preventAdminlessGroups | nindent 10 }}
+        {{- end }}
         {{- if .settings.featureFlags.cells }}
         cells:
           {{- toYaml .settings.featureFlags.cells | nindent 10 }}
@@ -225,10 +229,6 @@ data:
         {{- if .settings.featureFlags.meetings }}
         meetings:
           {{- toYaml .settings.featureFlags.meetings | nindent 10 }}
-        {{- end }}
-        {{- if .settings.featureFlags.meetingsPremium }}
-        meetingsPremium:
-          {{- toYaml .settings.featureFlags.meetingsPremium | nindent 10 }}
         {{- end }}
         {{- if .settings.featureFlags.backgroundEffects }}
         backgroundEffects:

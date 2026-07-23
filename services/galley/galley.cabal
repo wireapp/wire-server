@@ -197,6 +197,7 @@ library
     , aeson                                 >=2.0.1.0
     , amazonka                              >=1.4.5
     , amqp
+    , arbiter-core
     , async                                 >=2.0
     , base                                  >=4.6     && <5
     , bilge                                 >=0.21.1
@@ -210,7 +211,7 @@ library
     , exceptions                            >=0.4
     , extended
     , galley-types                          >=0.65.0
-    , hasql-pool
+    , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , HsOpenSSL                             >=0.11

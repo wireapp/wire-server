@@ -19,7 +19,7 @@
 , errors
 , exceptions
 , hasql
-, hasql-pool
+, hasql-resource-pool
 , hspec
 , hspec-discover
 , http-client
@@ -49,7 +49,6 @@
 , transformers
 , types-common
 , unliftio
-, uuid
 , wai
 }:
 mkDerivation {
@@ -72,7 +71,7 @@ mkDerivation {
     errors
     exceptions
     hasql
-    hasql-pool
+    hasql-resource-pool
     http-client
     http-client-tls
     http-types
@@ -96,7 +95,6 @@ mkDerivation {
     transformers
     types-common
     unliftio
-    uuid
     wai
   ];
   testHaskellDepends = [

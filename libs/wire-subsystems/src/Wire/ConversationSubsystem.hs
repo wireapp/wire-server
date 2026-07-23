@@ -32,6 +32,7 @@ import Data.Code qualified as Code
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.Misc (IpAddr)
 import Data.Qualified
 import Data.Range
@@ -341,6 +342,15 @@ data ConversationSubsystem m a where
   InternalDeleteLocalConversation ::
     Local ConvId ->
     ConversationSubsystem m ()
+  InternalDeleteLocalAdminlessGroup ::
+    Maybe (Local UserId) ->
+    Local ConvId ->
+    ConversationSubsystem m ()
+  InternalNotifyAdminlessReminder ::
+    Maybe (Local UserId) ->
+    Local ConvId ->
+    UTCTimeMillis ->
+    ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->
     ConversationSubsystem m (MLSKeysByPurpose (MLSKeys SomeKey))
@@ -449,7 +459,7 @@ data ConversationSubsystem m a where
     ConvId ->
     ConversationSubsystem m (LockableFeature GuestLinksConfig)
   GetCode ::
-    Maybe Text ->
+    Maybe ZHostValue ->
     Local UserId ->
     ConvId ->
     ConversationSubsystem m ConversationCodeInfo

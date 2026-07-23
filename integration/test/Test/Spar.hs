@@ -37,6 +37,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as ST
 import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
+import qualified Data.Vector as V
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
@@ -467,16 +468,23 @@ testSparScimCreateGetSearchUserGroup = do
   -- Test getting a single SCIM group by id
   gid <- respGroup1.json %. "id" & asString
   gottenGroup1 <- getScimUserGroup OwnDomain tok gid
-  respGroup1.json `shouldMatch` gottenGroup1.json
+  do
+    expected <- normalizeValue respGroup1.json
+    actual <- normalizeValue gottenGroup1.json
+    expected `shouldMatch` actual
 
   -- Test filter (get in bulk) SCIM groups
   -- 1. Match "group", results in finding all three groups created above.
-  filterScimUserGroup OwnDomain tok (Just "displayName co \"group\"") `bindResponse` \allThreeResp ->
-    (allThreeResp.json %. "Resources" & asList) `shouldMatchSet` [createdGroup1, createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"group\"") `bindResponse` \allThreeResp -> do
+    resources <- (allThreeResp.json %. "Resources" & asList) >>= mapM normalizeValue
+    expected <- mapM normalizeValue [createdGroup1, createdGroup2, createdGroup3]
+    resources `shouldMatchSet` expected
 
   -- 2. Match "another group", results in finding "another group" and "yet another group".
-  filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo ->
-    (justTwo.json %. "Resources" & asList) `shouldMatchSet` [createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo -> do
+    resources <- (justTwo.json %. "Resources" & asList) >>= mapM normalizeValue
+    expected <- mapM normalizeValue [createdGroup2, createdGroup3]
+    resources `shouldMatchSet` expected
 
   -- 3. Empty groups should have empty member list.
   respGroup4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "empty group" []
@@ -622,6 +630,20 @@ testSparScimUpdateUserGroup = do
       resp.json %. "displayName" `shouldMatch` "My even funkier group"
       memberValues <- (resp.json %. "members") >>= asListOf (\m -> m %. "value" >>= asString)
       memberValues `shouldMatchSet` [charlieId, dianaId]
+
+-- | Normalize on `Value` level
+--
+-- Recursively sorts all JSON arrays. This produces a canonical form, where the
+-- initial order of elements doesn't matter. Only use this function when that's
+-- desired (i.e. there is no value in the order of elements).
+normalizeValue :: (MakesValue a) => a -> App A.Value
+normalizeValue a = normalizeValueArrays <$> make a
+  where
+    normalizeValueArrays :: A.Value -> A.Value
+    normalizeValueArrays (A.Object o) = A.Object (normalizeValueArrays <$> o)
+    normalizeValueArrays (A.Array arr) =
+      A.Array . V.fromList . sort $ V.toList (normalizeValueArrays <$> arr)
+    normalizeValueArrays v = v
 
 testSparScimUpdateUserGroupRejectsInvalidMembers :: (HasCallStack) => App ()
 testSparScimUpdateUserGroupRejectsInvalidMembers = do
@@ -1474,3 +1496,115 @@ testNoPasswordResetForSAMLUser = do
   getPasswordResetCode OwnDomain email `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "invalid-key"
+
+testScimUserIsNotAllowedToChangeName :: (HasCallStack) => App ()
+testScimUserIsNotAllowedToChangeName = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  void $ createScimUser OwnDomain tok scimUser >>= assertSuccess
+  registerInvitedUser OwnDomain tid email
+  user <- getUsersByEmail OwnDomain [email] >>= getJSON 200 >>= asList >>= assertOne
+  putHandle user "foo" `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+  putSelf user def {name = Just "foo"} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+
+testScimUserIsNotAllowedToChangeNameOnRegistering :: (HasCallStack) => App ()
+testScimUserIsNotAllowedToChangeNameOnRegistering = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  scimUserDisplayName <- scimUser %. "displayName"
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  scimUserId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  code <-
+    getInvitationByEmail OwnDomain email
+      >>= getJSON 200
+      >>= getInvitationCodeForTeam OwnDomain tid
+      >>= getJSON 200
+      >>= (%. "code")
+      >>= asString
+  getInvitationByCode OwnDomain code `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` scimUserId
+    resp.json %. "managed_by" `shouldMatch` "scim"
+    resp.json %. "name" `shouldMatch` scimUserDisplayName
+
+  let newProfilename = "Takemiya Masaki"
+  registerUserWith OwnDomain email code newProfilename `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+
+testScimUserChangeNameOnRegisteringIgnoredV16 :: (HasCallStack) => App ()
+testScimUserChangeNameOnRegisteringIgnoredV16 = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  scimUserDisplayName <- scimUser %. "displayName"
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  scimUserId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  code <-
+    getInvitationByEmail OwnDomain email
+      >>= getJSON 200
+      >>= getInvitationCodeForTeam OwnDomain tid
+      >>= getJSON 200
+      >>= (%. "code")
+      >>= asString
+  getInvitationByCode OwnDomain code `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` scimUserId
+    resp.json %. "managed_by" `shouldMatch` "scim"
+    resp.json %. "name" `shouldMatch` scimUserDisplayName
+
+  let newProfilename = "Takemiya Masaki"
+  registerUserWithVersioned (ExplicitVersion 16) OwnDomain email code newProfilename `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "name" `shouldMatch` scimUserDisplayName
+
+-- | A pending email update (emailUnvalidated + activation code) must be
+-- invalidated when the user transitions to SCIM control.  Getting a Wire-managed
+-- user via the SCIM API triggers 'getUserById' -> 'synthesizeStoredUser' ->
+-- 'ManagedByScim' -> 'deletePendingEmailUpdate' in spar, which calls the brig
+-- internal endpoint that deletes both the activation code and the pending
+-- email entry.  See WPB-21744 / PR #5333.
+testSparScimInvalidatesPendingEmail :: (HasCallStack) => App ()
+testSparScimInvalidatesPendingEmail = do
+  -- 1. Create a team with an owner and one Wire-managed member.
+  (owner, _tid, [mem]) <- createTeam OwnDomain 2
+  memberId <- mem %. "id" >>= asString
+  memberEmail <- mem %. "email" >>= asString
+
+  -- 2. Login as the member and initiate an email update.  This creates a
+  --    pending emailUnvalidated entry plus an activation code for the new email.
+  (cookie, token) <-
+    login mem memberEmail defPassword `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      tok <- resp.json %. "access_token" & asString
+      let c = fromJust $ getCookie "zuid" resp
+      pure ("zuid=" <> c, tok)
+  newEmail <- randomEmail
+  updateEmail mem newEmail cookie token >>= assertSuccess
+
+  -- 3. Verify the activation code exists for the pending (unvalidated) email.
+  getActivationCode OwnDomain newEmail >>= assertStatus 200
+
+  -- 4. Transition the member to SCIM control.  Reading the user through the
+  --    SCIM API triggers getUserById -> synthesizeStoredUser -> (since the user
+  --    is email-only and not yet SCIM-managed) setManagedBy ManagedByScim and
+  --    deletePendingEmailUpdate.
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  getScimUser OwnDomain tok memberId >>= assertStatus 200
+
+  -- 5. The activation code for the pending email has been invalidated.
+  getActivationCode OwnDomain newEmail >>= assertStatus 404
+
+  -- 6. The member's email is unchanged: the SCIM transition must not promote
+  --    the unvalidated email, only drop the pending update.
+  bindResponse (getUsersId OwnDomain [memberId]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    u <- resp.json & asList >>= assertOne
+    u %. "email" `shouldMatch` memberEmail

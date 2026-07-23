@@ -1,4 +1,8 @@
 # Default values for wire-ingress
+httpRoute:
+  # Annotations added to every HTTPRoute created by this chart.
+  annotations: {}
+
 gateway:
   # If true, a Gateway resource is created by this chart.
   # If false, set gateway.name to reference an existing Gateway.
@@ -177,6 +181,9 @@ accountPages:
   enabled: false
 
 service:
+  # Set false to reuse the backend Services owned by nginx-ingress-services
+  # (e.g. during a migration) instead of creating them here.
+  create: true
   webapp:
     externalPort: 8080
   teamSettings:

@@ -192,7 +192,6 @@ import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -416,7 +415,6 @@ servantSitemap ::
     Member CryptoSign r,
     Member Random r,
     Member UserGroupSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member AppSubsystem r,
     Member ClientStore r,
@@ -498,6 +496,7 @@ servantSitemap =
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
       Named @"upgrade-personal-to-team" upgradePersonalToTeam
+        :<|> Named @"register@v16" createUserV16
         :<|> Named @"register" createUser
         :<|> Named @"verify-delete" verifyDeleteUser
         :<|> Named @"get-activate" activate
@@ -932,12 +931,43 @@ createUser ::
   IpAddr ->
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
-createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
+createUser = createUserWith API.createUser
+
+createUserV16 ::
+  ( Member BlockListStore r,
+    Member GalleyAPIAccess r,
+    Member InvitationStore r,
+    Member (UserPendingActivationStore p) r,
+    Member (Input (Local ())) r,
+    Member TinyLog r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member EmailSubsystem r,
+    Member Events r,
+    Member UserSubsystem r,
+    Member PasswordResetCodeStore r,
+    Member HashPassword r,
+    Member ActivationCodeStore r,
+    Member RateLimit r,
+    Member AuthenticationSubsystem r
+  ) =>
+  IpAddr ->
+  Public.NewUserPublic ->
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
+createUserV16 = createUserWith API.createUserV16
+
+createUserWith ::
+  (Member EmailSubsystem r, Member AuthenticationSubsystem r) =>
+  (RateLimitKey -> Public.NewUser PlainTextPassword8 -> ExceptT RegisterError (AppT r) CreateUserResult) ->
+  IpAddr ->
+  Public.NewUserPublic ->
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
+createUserWith createUserImpl ip (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
 
-  result <- API.createUser (RateLimitIp ip) new
+  result <- createUserImpl (RateLimitIp ip) new
   let acc = createdAccount result
 
   let eac = createdEmailActivation result
@@ -1777,12 +1807,7 @@ getApp lusr tid uid = lift . liftSem $ do
 
 getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
 getApps lusr tid = lift . liftSem $ do
-  -- Check if requesting user is a member of the team
-  requestingUserTeam <- getUserTeam (tUnqualified lusr)
-  unless (requestingUserTeam == Just tid) $
-    throw UserSubsystemProfileNotFound
-
-  getLocalAppProfiles (qualifyAs lusr tid)
+  getLocalAppProfiles lusr tid
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put

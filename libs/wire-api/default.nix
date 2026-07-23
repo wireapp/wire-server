@@ -252,6 +252,7 @@ mkDerivation {
     crypton
     crypton-pem
     currency-codes
+    data-default
     filepath
     hex
     hspec

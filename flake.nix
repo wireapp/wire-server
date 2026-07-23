@@ -12,7 +12,7 @@
       inputs.flake-utils.follows = "flake-utils";
     };
     sbomnix = {
-      url = "github:tiiuae/sbomnix/v1.7.4";
+      url = "github:tiiuae/sbomnix/v1.8.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -99,6 +99,18 @@
 
     hsaml2 = {
       url = "github:wireapp/hsaml2/use-crypton-asn1";
+      flake = false;
+    };
+
+    hasql-resource-pool = {
+      # Update this to the upstream repo/rev once the PR is merged there.
+      # https://github.com/avanov/hasql-resource-pool/pull/6
+      url = "github:wireapp/hasql-resource-pool?rev=5b5d3df0fff81801986a0110acae5420215f01c5";
+      flake = false;
+    };
+
+    arbiter = {
+      url = "github:velveteer/arbiter?rev=296034ea3a15b5c10f42cc0ea46d2dfc48e9493f";
       flake = false;
     };
   };

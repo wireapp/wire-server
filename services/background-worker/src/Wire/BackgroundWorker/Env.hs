@@ -29,9 +29,10 @@ import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
+import Data.Secret (SecretText)
 import HTTP2.Client.Manager
-import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
+import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
@@ -45,11 +46,14 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol (ProtocolTag)
-import Wire.API.Team.FeatureFlags (FanoutLimit)
+import Wire.API.Team.Feature (LegalholdConfig, npProject)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackgroundWorker.Options
 import Wire.Options.Galley (GuestLinkTTLSeconds, conversationCodeURISettings)
 import Wire.Options.Galley qualified as Galley
+import Wire.Options.Keys (loadAllMLSKeys)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitEnv, newRateLimitEnv)
 
@@ -86,6 +90,8 @@ data Env = Env
     cassandraGalley :: ClientState,
     cassandraBrig :: ClientState,
     hasqlPool :: Hasql.Pool,
+    -- May contain the PostgreSQL password. Do not unwrap outside the Arbiter boundary.
+    arbiterConnStr :: SecretText,
     -- Dedicated AMQP channels per concern
     amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
@@ -99,11 +105,13 @@ data Env = Env
     maxFanoutSize :: !(Maybe FanoutLimit),
     exposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
     intraListing :: !Bool,
+    featureFlags :: !FeatureFlags,
+    conversationSubsystemConfig :: !ConversationSubsystemConfig,
     federationProtocols :: !(Maybe [ProtocolTag]),
     guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
     passwordHashingOptions :: !PasswordHashingOptions,
     checkGroupInfo :: !(Maybe Bool),
-    convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
+    convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
     passwordHashingRateLimitEnv :: RateLimitEnv
   }
 
@@ -136,9 +144,18 @@ mkWorkerRunningGauge =
 mkEnv :: Opts -> Galley.Opts -> IO Env
 mkEnv opts galleyOpts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
+  -- The integration harness captures stdout/stderr and includes them in the
+  -- "Timed out waiting for service ... to come up" failure message. Emitting
+  -- the blocking startup steps makes a hung startup name its culprit (e.g. a
+  -- RabbitMQ TLS handshake) instead of failing with empty stdout/stderr.
+  Log.info logger $ Log.msg @Text "Starting background-worker environment initialization"
+  Log.info logger $ Log.msg @Text "Connecting to Cassandra (gundeck)..."
   cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
+  Log.info logger $ Log.msg @Text "Connecting to Cassandra (galley)..."
   cassandraGalley <- defInitCassandra galleyOpts._cassandra =<< setLoggerName "cassandra-galley" logger
+  Log.info logger $ Log.msg @Text "Connecting to Cassandra (brig)..."
   cassandraBrig <- defInitCassandra opts.cassandraBrig =<< setLoggerName "cassandra-brig" logger
+  Log.info logger $ Log.msg @Text "Cassandra connections established"
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
@@ -169,20 +186,37 @@ mkEnv opts galleyOpts = do
       maxFanoutSize = galleyOpts._settings._maxFanoutSize
       exposeInvitationURLsTeamAllowlist = galleyOpts._settings._exposeInvitationURLsTeamAllowlist
       intraListing = galleyOpts._settings._intraListing
+      featureFlags = galleyOpts._settings._featureFlags
       federationProtocols = galleyOpts._settings._federationProtocols
       guestLinkTTLSeconds = galleyOpts._settings._guestLinkTTLSeconds
       passwordHashingOptions = galleyOpts._settings._passwordHashingOptions
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
+  arbiterConnStr <- postgresqlConnectionStringWithPassword galleyOpts._postgresql galleyOpts._postgresqlPassword
+  Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
+  Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-backend-notifications..."
   amqpBackendNotificationsChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   convCodeURI <- conversationCodeURISettings galleyOpts
+  loadedMlsKeys <-
+    case galleyOpts._settings._mlsPrivateKeyPaths of
+      Nothing -> pure Nothing
+      Just keyPaths -> Just <$> loadAllMLSKeys keyPaths
+  let conversationSubsystemConfig =
+        ConversationSubsystemConfig
+          { mlsKeys = loadedMlsKeys,
+            federationProtocols = galleyOpts._settings._federationProtocols,
+            legalholdDefaults = npProject @LegalholdConfig featureFlags,
+            maxConvSize = galleyOpts._settings._maxConvSize,
+            listClientsUsingBrig = galleyOpts._settings._intraListing
+          }
   passwordHashingRateLimitEnv <- newRateLimitEnv galleyOpts._settings._passwordHashingRateLimit
+  Log.info logger $ Log.msg @Text "Environment initialized"
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

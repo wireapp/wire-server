@@ -180,6 +180,7 @@ data GalleyError
   | MLSReadReceiptsNotAllowed
   | MLSInvalidLeafNodeSignature
   | MeetingNotFound
+  | CodeStoreNotFound
   | MLSHistoryClientConflict
   | MLSHistoryClientDuplication
   deriving (Show, Eq, Generic)
@@ -390,6 +391,8 @@ type instance MapError 'MLSHistoryClientDuplication = 'StaticError 400 "mls-hist
 -- Meeting errors
 
 type instance MapError 'MeetingNotFound = 'StaticError 404 "meeting-not-found" "Meeting not found"
+
+type instance MapError 'CodeStoreNotFound = 'StaticError 404 "code-store-not-found" "Code store not found"
 
 --------------------------------------------------------------------------------
 -- Team Member errors

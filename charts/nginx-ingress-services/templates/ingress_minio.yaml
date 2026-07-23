@@ -6,6 +6,9 @@ kind: Ingress
 metadata:
   name: {{ include "nginx-ingress-services.getMinioIngressName" . | quote }}
   annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
     nginx.ingress.kubernetes.io/server-snippet: |
       location /minio/ {
         return 403;

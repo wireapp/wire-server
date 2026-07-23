@@ -28,7 +28,10 @@ module Wire.API.Event.Conversation
     EventVia (..),
     EventFrom (..),
     eventFromUserId,
+    mkEventFrom,
+    eventVia,
     AddCodeResult (..),
+    createConversationEventData,
     isCellsConversationEvent,
 
     -- * Cells Event
@@ -51,6 +54,7 @@ module Wire.API.Event.Conversation
     _EdConvCodeDelete,
     _EdMemberUpdate,
     _EdConversation,
+    _EdConversationMeeting,
     _EdTyping,
     _EdOtrMessage,
     _EdMLSMessage,
@@ -66,6 +70,7 @@ module Wire.API.Event.Conversation
     MemberUpdateData (..),
     OtrMessage (..),
     ConversationReset (..),
+    AdminlessReminder (..),
 
     -- * re-exports
     ConversationReceiptModeUpdate (..),
@@ -180,6 +185,7 @@ data EventType
   | ConvCodeUpdate
   | ConvCodeDelete
   | ConvCreate
+  | ConvCreateMeeting
   | ConvConnect
   | ConvDelete
   | ConvReset
@@ -191,6 +197,7 @@ data EventType
   | ProtocolUpdate
   | AddPermissionUpdate
   | ConvHistoryUpdate
+  | ConvAdminlessReminder
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -209,6 +216,7 @@ instance ToSchema EventType where
           element "conversation.code-update" ConvCodeUpdate,
           element "conversation.code-delete" ConvCodeDelete,
           element "conversation.create" ConvCreate,
+          element "conversation.create-meeting" ConvCreateMeeting,
           element "conversation.delete" ConvDelete,
           element "conversation.mls-reset" ConvReset,
           element "conversation.connect-request" ConvConnect,
@@ -218,7 +226,8 @@ instance ToSchema EventType where
           element "conversation.mls-welcome" MLSWelcome,
           element "conversation.protocol-update" ProtocolUpdate,
           element "conversation.add-permission-update" AddPermissionUpdate,
-          element "conversation.history-update" ConvHistoryUpdate
+          element "conversation.history-update" ConvHistoryUpdate,
+          element "conversation.adminless-reminder" ConvAdminlessReminder
         ]
 
 data EventData
@@ -234,7 +243,8 @@ data EventData
   | EdConvCodeUpdate ConversationCodeInfo
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
-  | EdConversation (OwnConversation GroupConvType)
+  | EdConversation (OwnConversation GroupConvTypeLegacy)
+  | EdConversationMeeting (OwnConversation GroupConvType)
   | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
@@ -242,6 +252,7 @@ data EventData
   | EdProtocolUpdate P.ProtocolTag
   | EdAddPermissionUpdate Conv.AddPermissionUpdate
   | EdConvHistoryUpdate History
+  | EdAdminlessReminder AdminlessReminder
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -256,6 +267,7 @@ genEventData = \case
   ConvCodeDelete -> pure EdConvCodeDelete
   ConvConnect -> EdConnect <$> arbitrary
   ConvCreate -> EdConversation <$> arbitrary
+  ConvCreateMeeting -> EdConversationMeeting <$> arbitrary
   ConvReceiptModeUpdate -> EdConvReceiptModeUpdate <$> arbitrary
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
@@ -266,6 +278,7 @@ genEventData = \case
   ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
   AddPermissionUpdate -> EdAddPermissionUpdate <$> arbitrary
   ConvHistoryUpdate -> EdConvHistoryUpdate <$> arbitrary
+  ConvAdminlessReminder -> EdAdminlessReminder <$> arbitrary
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
@@ -278,6 +291,7 @@ eventDataType (EdConvCodeUpdate _) = ConvCodeUpdate
 eventDataType EdConvCodeDelete = ConvCodeDelete
 eventDataType (EdConnect _) = ConvConnect
 eventDataType (EdConversation _) = ConvCreate
+eventDataType (EdConversationMeeting _) = ConvCreateMeeting
 eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
 eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
@@ -288,6 +302,13 @@ eventDataType (EdConvReset _) = ConvReset
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
 eventDataType (EdConvHistoryUpdate _) = ConvHistoryUpdate
+eventDataType (EdAdminlessReminder _) = ConvAdminlessReminder
+
+createConversationEventData ::
+  OwnConversation GroupConvType -> EventData
+createConversationEventData conv
+  | isMeetingConversation conv = EdConversationMeeting conv
+  | otherwise = EdConversation (toLegacyOwnConversation conv)
 
 isCellsConversationEvent :: EventType -> Bool
 isCellsConversationEvent eventType =
@@ -297,6 +318,7 @@ isCellsConversationEvent eventType =
     MemberStateUpdate -> True
     ConvRename -> True
     ConvCreate -> True
+    ConvCreateMeeting -> True
     ConvDelete -> True
     ConvReset -> False
     ConvCodeDelete -> False
@@ -312,6 +334,7 @@ isCellsConversationEvent eventType =
     ProtocolUpdate -> False
     AddPermissionUpdate -> False
     ConvHistoryUpdate -> False
+    ConvAdminlessReminder -> False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -479,6 +502,19 @@ instance ToSchema ConversationReset where
         <$> (.groupId) .= field "group_id" schema
         <*> (.newGroupId) .= maybe_ (optField "new_group_id" schema)
 
+data AdminlessReminder = AdminlessReminder
+  { deletionScheduledFor :: UTCTimeMillis
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AdminlessReminder)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AdminlessReminder
+
+instance ToSchema AdminlessReminder where
+  schema =
+    object $
+      AdminlessReminder
+        <$> (.deletionScheduledFor) .= field "deletion_scheduled_for" schema
+
 makePrisms ''EventData
 
 taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, EventData)
@@ -502,6 +538,7 @@ taggedEventDataSchema =
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
       ConvCreate -> tag _EdConversation (unnamed (conversationSchema (Just V2)))
+      ConvCreateMeeting -> tag _EdConversationMeeting (unnamed (conversationSchema (Just V2)))
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
@@ -514,6 +551,7 @@ taggedEventDataSchema =
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
       AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)
       ConvHistoryUpdate -> tag _EdConvHistoryUpdate (unnamed schema)
+      ConvAdminlessReminder -> tag _EdAdminlessReminder (unnamed schema)
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =

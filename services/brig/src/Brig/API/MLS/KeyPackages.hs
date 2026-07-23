@@ -118,7 +118,15 @@ claimLocalKeyPackages ::
 claimLocalKeyPackages qusr skipOwn suite qTarget = do
   let target = tUnqualified qTarget
   su <- lift (liftSem $ getUser target) >>= maybe (throwE (ClientUserNotFound target)) pure
-  when (not su.activated || maybe True ((/=) Active) su.status) $ throwE (ClientUserNotFound target)
+  case (su.activated, su.status) of
+    (True, Just Active) -> pure ()
+    -- an ephemeral user is identity-less and won't get activated
+    (_, Just Ephemeral) -> pure ()
+    (False, _) -> throwE $ ClientUserNotFound target
+    (True, Nothing) -> throwE $ ClientUserNotFound target
+    (True, Just Deleted) -> throwE $ ClientUserNotFound target
+    (True, Just Suspended) -> throwE $ ClientUserNotFound target
+    (True, Just PendingInvitation) -> throwE $ ClientUserNotFound target
   -- while we do not support federation + MLS together with legalhold, to make sure that
   -- the remote backend is complicit with our legalhold policies, we disallow anyone
   -- fetching key packages for users under legalhold

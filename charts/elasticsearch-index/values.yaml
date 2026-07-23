@@ -46,7 +46,6 @@ postgresql:
 postgresqlPool:
   size: 100
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 
 postgresMigration:

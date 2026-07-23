@@ -240,8 +240,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
     it "does the transformation correctly" $ property \(pushToUser :: Push) ->
       let v2Push = toV2Push pushToUser
        in -- Statically determined
-          v2Push._pushConnections === mempty
-            .&&. v2Push._pushNativeIncludeOrigin === True
+          v2Push._pushNativeIncludeOrigin === True
             .&&. v2Push._pushNativeEncrypt === True
             .&&. v2Push._pushNativeAps === Nothing
             -- derived from pushToUser

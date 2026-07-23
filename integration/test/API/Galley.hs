@@ -82,11 +82,18 @@ defConv :: ConversationProtocol -> CreateConv
 defConv ConversationProtocolProteus = defProteus
 defConv ConversationProtocolMLS = defMLS
 
+allowAll :: CreateConv -> CreateConv
+allowAll cc =
+  cc
+    { access = Just ["code", "link", "invite"],
+      accessRole = Just ["team_member", "guest", "non_team_member", "service"]
+    }
+
 allowGuests :: CreateConv -> CreateConv
 allowGuests cc =
   cc
     { access = Just ["code"],
-      accessRole = Just ["team_member", "guest"]
+      accessRole = Just ["team_member", "non_team_member", "service"]
     }
 
 instance MakesValue CreateConv where
@@ -102,7 +109,7 @@ instance MakesValue CreateConv where
             <> catMaybes
               [ "name" .=? cc.name,
                 "access" .=? cc.access,
-                "access_role_v2" .=? cc.access,
+                "access_role" .=? cc.accessRole,
                 "team" .=? (cc.team <&> \tid -> Aeson.object ["teamid" .= tid, "managed" .= False]),
                 "message_timer" .=? cc.messageTimer,
                 "receipt_mode" .=? cc.receiptMode,
@@ -195,9 +202,20 @@ getConversation ::
   user ->
   qcnv ->
   App Response
-getConversation user qcnv = do
+getConversation = getConversationVersioned Versioned
+
+getConversationVersioned ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue qcnv
+  ) =>
+  Versioned ->
+  user ->
+  qcnv ->
+  App Response
+getConversationVersioned version user qcnv = do
   (domain, cnv) <- objQid qcnv
-  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv])
+  req <- baseRequest user Galley version (joinHttpPath ["conversations", domain, cnv])
   submit "GET" req
 
 getConversationInternal ::
@@ -261,8 +279,11 @@ leaveSubConversation user convId = do
   submit "DELETE" req
 
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
-getSelfConversation user = do
-  req <- baseRequest user Galley Versioned "/conversations/mls-self"
+getSelfConversation = getSelfConversationVersioned Versioned
+
+getSelfConversationVersioned :: (HasCallStack, MakesValue user) => Versioned -> user -> App Response
+getSelfConversationVersioned version user = do
+  req <- baseRequest user Galley version "/conversations/mls-self"
   submit "GET" $ req
 
 data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
@@ -281,8 +302,11 @@ listConversationIds user args = do
       )
 
 listConversations :: (MakesValue user) => user -> [Value] -> App Response
-listConversations user cnvs = do
-  req <- baseRequest user Galley Versioned "/conversations/list"
+listConversations = listConversationsVersioned Versioned
+
+listConversationsVersioned :: (MakesValue user) => Versioned -> user -> [Value] -> App Response
+listConversationsVersioned version user cnvs = do
+  req <- baseRequest user Galley version "/conversations/list"
   submit "POST"
     $ req
     & addJSONObject ["qualified_ids" .= cnvs]
@@ -412,10 +436,18 @@ getMLSOne2OneConversation ::
   self ->
   other ->
   App Response
-getMLSOne2OneConversation self other = do
+getMLSOne2OneConversation = getMLSOne2OneConversationVersioned Versioned
+
+getMLSOne2OneConversationVersioned ::
+  (HasCallStack, MakesValue self, MakesValue other) =>
+  Versioned ->
+  self ->
+  other ->
+  App Response
+getMLSOne2OneConversationVersioned version self other = do
   (domain, uid) <- objQid other
   req <-
-    baseRequest self Galley Versioned
+    baseRequest self Galley version
       $ joinHttpPath ["one2one-conversations", domain, uid]
   submit "GET" req
 
@@ -562,6 +594,19 @@ getJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -
 getJoinCodeConv u k v = do
   req <- baseRequest u Galley Versioned (joinHttpPath ["conversations", "join"])
   submit "GET" (req & addQueryParams [("key", k), ("code", v)])
+
+postJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+postJoinCodeConv u k v = do
+  req <- baseRequest u Galley Versioned (joinHttpPath ["conversations", "join"])
+  submit
+    "POST"
+    ( req
+        & zType "access"
+        & addJSONObject
+          [ "key" .= k,
+            "code" .= v
+          ]
+    )
 
 -- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_conversations__cnv_domain___cnv__name
 changeConversationName ::
@@ -941,6 +986,22 @@ resetConversation user groupId epoch = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["mls", "reset-conversation"])
   let payload = object ["group_id" .= groupId, "epoch" .= epoch]
   submit "POST" $ req & addJSON payload
+
+addTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
+addTeamCollaborator owner tid collaborator permissions = do
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators"]
+  (_, collabId) <- objQid collaborator
+  submit "POST"
+    $ req
+    & addJSONObject
+      [ "user" .= collabId,
+        "permissions" .= permissions
+      ]
+
+getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
+getAllTeamCollaborators owner tid = do
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators"]
+  submit "GET" req
 
 updateTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
 updateTeamCollaborator owner tid collaborator permissions = do

@@ -33,7 +33,6 @@ cassandraBrig:
 postgresqlPool:
   size: 5
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 
 rabbitmq:
@@ -65,6 +64,21 @@ backgroundJobs:
   concurrency: 4
   jobTimeout: 5s
   maxAttempts: 3
+
+# Job dispatcher configuration for integration
+jobs:
+  pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests
+  workerThreads: 1 # Keep one worker per job queue in integration tests
+  visibilityTimeout: 60s
+  jobHeartbeatInterval: 30s
+  workerHeartbeatInterval: 10s
+  backoffBase: 2.0
+  backoffCap: 86400s
+  jitter: equal
+  gracefulShutdownTimeout: 30s
+  reaperInterval: 300s
+  reaperTimeout: 300s
+  workerStaleThreshold: 300s
 
 # Meetings cleanup configuration for integration
 meetingsCleanup:

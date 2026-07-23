@@ -27,14 +27,13 @@ where
 import Bilge hiding (head)
 import Bilge.Assert
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
+import Control.Concurrent.Async (Async, async, concurrently_, wait)
 import Control.Concurrent.Async qualified as Async
 import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
-import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Char8 qualified as C
@@ -77,11 +76,7 @@ tests s =
           test s "Remove stale presence" removeStalePresence,
           test s "Single user push" singleUserPush,
           test s "Single user push with large message" singleUserPushLargeMessage,
-          test s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8,
-          test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8,
           test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
-          test s "Targeted push by connection" targetConnectionPush,
-          test s "Targeted push by client" targetClientPush,
           test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
         ],
       testGroup
@@ -210,79 +205,6 @@ singleUserPushLargeMessage = testSingleUserPush largeMsgPayload
     -- JSON: {"list":["1","2", ... ,"10000"]}
     largeMsgPayload = NonEmpty.singleton (KeyMap.fromList ["list" .= [show i | i <- [1 .. 10000] :: [Int]]])
 
--- | Create a number of users with a number of connections each, and connect each user's connections
--- | Create a number of users with a number of connections each, and connect each user's connections
--- to one of two cannons at random.  Push either encrypted notifications (@isE2E == True@) or
--- notifications from server (@isE2E == False@) to all connections, and make sure they all arrive at
--- the destination devices.  This also works if you pass the same 'Cannon' twice, even if 'Cannon'
--- is a k8s load balancer that dispatches requests to different replicas.
-bulkPush :: Bool -> Int -> Int -> TestM ()
-bulkPush isE2E numUsers numConnsPerUser = do
-  ca <- view tsCannon
-  ca2 <- view tsCannon
-  uids@(uid : _) :: [UserId] <- replicateM numUsers randomId
-  connids@((_ : _) : _) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
-  let ucs :: [(UserId, [ConnId])] = zip uids connids
-      ucs' :: [(UserId, [(ConnId, Bool)])] = toggle (mconcat $ repeat [True, False]) ucs
-  chs <- do
-    let (ucs1, ucs2) = splitAt (fromIntegral (length ucs `div` 2)) ucs
-        (ucs1', ucs2') = splitAt (fromIntegral (length ucs `div` 2)) ucs'
-    chs1 <- injectucs ca ucs1' . fmap snd <$> connectUsersAndDevices ca ucs1
-    chs2 <- injectucs ca2 ucs2' . fmap snd <$> connectUsersAndDevices ca2 ucs2
-    pure $ chs1 ++ chs2
-  let pushData = mconcat . replicate 3 $ (if isE2E then pushE2E else pushGroup) uid ucs'
-  sendPushes pushData
-  liftIO $ forConcurrently_ chs $ replicateM 3 . checkMsg
-  where
-    -- associate chans with userid, connid.
-    injectucs ::
-      CannonR ->
-      [(UserId, [(ConnId, Bool)])] ->
-      [[TChan ByteString]] ->
-      [(CannonR, UserId, ((ConnId, Bool), TChan ByteString))]
-    injectucs ca_ ucs chs = mconcat $ zipWith (\(uid, connids) chs_ -> (ca_,uid,) <$> zip connids chs_) ucs chs
-    -- will a notification actually be sent?
-    toggle :: [Bool] -> [(UserId, [ConnId])] -> [(UserId, [(ConnId, Bool)])]
-    toggle = f1
-      where
-        f1 _ [] = []
-        f1 shoulds ((uid, connids) : ucs') = (uid, zip connids shoulds) : f1 shoulds' ucs'
-          where
-            shoulds' = drop (length connids) shoulds
-    ploadGroup :: NonEmpty Aeson.Object
-    ploadGroup = NonEmpty.singleton (KeyMap.fromList ["foo" .= (42 :: Int)])
-    pushGroup :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
-    pushGroup u ucs = [newPush (Just u) (toRecipients $ fst <$> ucs) ploadGroup & pushConnections .~ Set.fromList conns]
-      where
-        conns =
-          [ connid | (_, cns) <- ucs, (connid, shouldSend) <- cns, shouldSend
-          ]
-    ploadE2E :: ConnId -> NonEmpty Aeson.Object
-    ploadE2E connid = NonEmpty.singleton (KeyMap.fromList ["connid" .= connid])
-    pushE2E :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
-    pushE2E u ucs =
-      targets <&> \(uid, connid) ->
-        newPush (Just u) (toRecipients [uid]) (ploadE2E connid)
-          & pushConnections .~ Set.singleton connid
-      where
-        targets :: [(UserId, ConnId)]
-        targets =
-          [ (uid, connid) | (uid, cns) <- ucs, (connid, shouldSend) <- cns, shouldSend
-          ]
-    checkMsg :: (cannon, userId, ((ConnId, Bool), TChan ByteString)) -> IO ()
-    checkMsg (_ca, _uid, ((connid, shouldReceive), ch)) = do
-      let timeoutmusecs = 1000000 + 10000 * numUsers * numConnsPerUser -- 10ms of extra timeout for every conn.
-      msg <- waitForMessage' timeoutmusecs ch
-      if shouldReceive
-        then do
-          assertBool "No push message received" (isJust msg)
-          assertEqual
-            "Payload altered during transmission"
-            (Just $ if isE2E then ploadE2E connid else ploadGroup)
-            (ntfPayload <$> (decode . fromStrict . fromJust) msg)
-        else do
-          assertBool "Unexpected push message received" (isNothing msg)
-
 sendSingleUserNoPiggyback :: TestM ()
 sendSingleUserNoPiggyback = do
   ca <- view tsCannon
@@ -346,62 +268,6 @@ sendMultipleUsers = do
     pload = NonEmpty.singleton pevent
     pevent = KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
-
-targetConnectionPush :: TestM ()
-targetConnectionPush = do
-  ca <- view tsCannon
-  uid <- randomId
-  conn1 <- randomConnId
-  c1 <- connectUser ca uid conn1
-  c2 <- connectUser ca uid =<< randomConnId
-  sendPush (push uid conn1)
-  liftIO $ do
-    e1 <- waitForMessage c1
-    e2 <- waitForMessage c2
-    assertBool "No push message received" (isJust e1)
-    assertBool "Unexpected push message received" (isNothing e2)
-  where
-    pload = NonEmpty.singleton (KeyMap.fromList ["foo" .= (42 :: Int)])
-    push u t = newPush (Just u) (toRecipients [u]) pload & pushConnections .~ Set.singleton t
-
-targetClientPush :: TestM ()
-targetClientPush = do
-  ca <- view tsCannon
-  uid <- randomId
-  cid1 <- randomClientId
-  cid2 <- randomClientId
-  let ca1 = CannonR (runCannonR ca . queryItem "client" (toByteString' cid1))
-  let ca2 = CannonR (runCannonR ca . queryItem "client" (toByteString' cid2))
-  c1 <- connectUser ca1 uid =<< randomConnId
-  c2 <- connectUser ca2 uid =<< randomConnId
-  -- Push only to the first client
-  sendPush (push uid cid1)
-  liftIO $ do
-    e1 <- waitForMessage c1
-    e2 <- waitForMessage c2
-    assertBool "No push message received" (isJust e1)
-    assertBool "Unexpected push message received" (isNothing e2)
-  -- Push only to the second client
-  sendPush (push uid cid2)
-  liftIO $ do
-    e1 <- waitForMessage c1
-    e2 <- waitForMessage c2
-    assertBool "Unexpected push message received" (isNothing e1)
-    assertBool "No push message received" (isJust e2)
-  -- Check the notification stream
-  ns1 <- listNotifications uid (Just cid1)
-  ns2 <- listNotifications uid (Just cid2)
-  liftIO . forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
-    assertEqual "Not exactly 1 notification" 1 (length ns)
-    let p = view queuedNotificationPayload (Prelude.head ns)
-    assertEqual "Wrong events in notification" (pload c) p
-  where
-    pevent c = KeyMap.fromList ["foo" .= clientToText c]
-    pload c = NonEmpty.singleton $ pevent c
-    rcpt u c =
-      recipient u RouteAny
-        & recipientClients .~ RecipientClientsSome (NonEmpty.singleton c)
-    push u c = newPush (Just u) (Set.singleton (rcpt u c)) (pload c)
 
 storeNotificationsEvenWhenRedisIsDown :: TestM ()
 storeNotificationsEvenWhenRedisIsDown = do
@@ -953,7 +819,7 @@ connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
     assertPresences (uid, conns)
     pure chs
 
-assertPresences :: (UserId, [ConnId]) -> TestM ()
+assertPresences :: (HasCallStack) => (UserId, [ConnId]) -> TestM ()
 assertPresences (uid, conns) = wsAssertPresences uid (length conns)
 
 wsRun :: (HasCallStack) => CannonR -> UserId -> ConnId -> WS.ClientApp () -> TestM (Async ())

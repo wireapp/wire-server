@@ -7,8 +7,12 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ include "wire-ingress.fullname" $root }}-account-pages{{ $domain.suffix }}
-  namespace: {{ $root.Release.Namespace }}
+  name: {{ include "wire-ingress.fullname" . }}-account-pages
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     chart: "{{ $root.Chart.Name }}-{{ $root.Chart.Version }}"
     release: "{{ $root.Release.Name }}"

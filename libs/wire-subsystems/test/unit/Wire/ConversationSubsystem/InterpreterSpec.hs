@@ -48,6 +48,7 @@ import Wire.ConversationSubsystem.Update (removeMemberQualified)
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem (..))
 import Wire.FederationAPIAccess (FederationAPIAccess (..))
+import Wire.JobSubsystem (JobSubsystem (..))
 import Wire.MockInterpreters.Now (defaultTime, interpretNowConst)
 import Wire.MockInterpreters.TinyLog (noopLogger)
 import Wire.NotificationSubsystem (NotificationSubsystem (..))
@@ -121,6 +122,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   . interpretNotificationSubsystem
                   . interpretProposalStore
                   . interpretTeamSubsystem
+                  . interpretJobSubsystem
                   . interpretNowConst defaultTime
                   . interpretRandom
                   . noopLogger
@@ -259,6 +261,16 @@ interpretTeamSubsystem ::
 interpretTeamSubsystem =
   interpret $ \case
     _ -> error "unexpected TeamSubsystem call in test"
+
+interpretJobSubsystem ::
+  Sem (JobSubsystem ': r) a ->
+  Sem r a
+interpretJobSubsystem =
+  interpret $ \case
+    ScheduleAdminlessDeletionJob {} ->
+      pure ()
+    ScheduleAdminlessReminderJob {} ->
+      pure ()
 
 interpretRandom ::
   Sem (Random ': r) a ->

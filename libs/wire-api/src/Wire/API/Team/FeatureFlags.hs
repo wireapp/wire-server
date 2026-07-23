@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -165,7 +166,11 @@ instance Default (FeatureDefaults SearchVisibilityAvailableConfig) where
   def = FeatureTeamSearchVisibilityAvailableByDefault
 
 instance ParseFeatureDefaults (FeatureDefaults SearchVisibilityAvailableConfig) where
-  parseFeatureDefaults obj = obj .: "teamSearchVisibility"
+  parseFeatureDefaults obj = do
+    -- Accept both the current feature key and the legacy team-scoped key.
+    mCurrent <- obj .:? "searchVisibility"
+    mLegacy <- obj .:? "teamSearchVisibility"
+    pure $ fromMaybe def (mCurrent <|> mLegacy)
 
 instance FromJSON (FeatureDefaults SearchVisibilityAvailableConfig) where
   parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityAvailableByDefault

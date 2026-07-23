@@ -64,14 +64,15 @@ serviceHostPort m WireServerEnterprise = m.wireServerEnterprise
 
 mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 mkGlobalEnv cfgFile = do
-  eith <- liftIO $ Yaml.decodeFileEither cfgFile
+  absCfgFile <- liftIO $ makeAbsolute cfgFile
+  eith <- liftIO $ Yaml.decodeFileEither absCfgFile
   intConfig <- liftIO $ case eith of
     Left err -> do
-      hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
+      hPutStrLn stderr $ "Could not parse " <> absCfgFile <> ": " <> Yaml.prettyPrintParseException err
       exitFailure
     Right (intConfig :: IntegrationConfig) -> pure intConfig
 
-  let devEnvProjectRoot = case splitPath (takeDirectory cfgFile) of
+  let devEnvProjectRoot = case splitPath (takeDirectory absCfgFile) of
         [] -> Nothing
         ps ->
           if last ps == "services"

@@ -32,6 +32,7 @@ import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Range
+import Data.Secret (secretText)
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -59,12 +60,14 @@ import Test.Wire.Util
 import UnliftIO.Async
 import Util.Options
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
+import Wire.API.Team.FeatureFlags
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
@@ -382,7 +385,17 @@ spec = do
           guestLinkTTLSeconds = Nothing
           passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
+          arbiterConnStr = secretText ""
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
+          featureFlags = def
+          conversationSubsystemConfig =
+            ConversationSubsystemConfig
+              { mlsKeys = Nothing,
+                federationProtocols = Nothing,
+                legalholdDefaults = FeatureLegalHoldDisabledPermanently,
+                maxConvSize = 500,
+                listClientsUsingBrig = False
+              }
 
       passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics
@@ -436,7 +449,17 @@ spec = do
           guestLinkTTLSeconds = Nothing
           passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
+          arbiterConnStr = secretText ""
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
+          featureFlags = def
+          conversationSubsystemConfig =
+            ConversationSubsystemConfig
+              { mlsKeys = Nothing,
+                federationProtocols = Nothing,
+                legalholdDefaults = FeatureLegalHoldDisabledPermanently,
+                maxConvSize = 500,
+                listClientsUsingBrig = False
+              }
 
       passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics

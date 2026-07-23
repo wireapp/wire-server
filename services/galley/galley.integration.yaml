@@ -19,7 +19,6 @@ postgresql:
 postgresqlPool:
   size: 20
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 
 brig:
@@ -162,6 +161,14 @@ settings:
           allowed_to_create_channels: team-members
           allowed_to_open_channels: team-members
         lockStatus: locked
+    preventAdminlessGroups:
+      defaults:
+        status: disabled
+        lockStatus: unlocked
+        config:
+          promotionStrategy: alphabetical
+          deletionTimeoutDuration: 7d
+          reminderTimeoutDurations: [2d, 4d, 6d]
     cells:
       defaults:
         status: enabled
@@ -236,10 +243,6 @@ settings:
       defaults:
         status: enabled
         lockStatus: unlocked
-    meetingsPremium:
-      defaults:
-        status: disabled
-        lockStatus: locked
 
 logLevel: Warn
 logNetStrings: false

@@ -411,10 +411,6 @@ galley:
           defaults:
             status: enabled
             lockStatus: unlocked
-        meetingsPremium:
-          defaults:
-            status: disabled
-            lockStatus: locked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -632,6 +628,8 @@ federator:
 
 background-worker:
   replicaCount: 1
+  # Integration backends do not need graceful job shutdown
+  terminationGracePeriodSeconds: 0
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -650,6 +648,19 @@ background-worker:
       concurrency: 8
       jobTimeout: 60s
       maxAttempts: 3
+    jobs:
+      pollInterval: 5s
+      workerThreads: 1
+      visibilityTimeout: 60s
+      jobHeartbeatInterval: 30s
+      workerHeartbeatInterval: 10s
+      backoffBase: 2.0
+      backoffCap: 86400s
+      jitter: equal
+      gracefulShutdownTimeout: 30s
+      reaperInterval: 300s
+      reaperTimeout: 300s
+      workerStaleThreshold: 300s
     meetingsCleanup:
       cleanOlderThanHours: 0.0014
       batchSize: 100

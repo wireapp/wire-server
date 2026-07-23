@@ -105,6 +105,7 @@ library
     Wire.API.Event.Federation
     Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
+    Wire.API.Event.Meeting
     Wire.API.Event.Team
     Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
@@ -112,6 +113,7 @@ library
     Wire.API.History
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
+    Wire.API.Jobs
     Wire.API.Locale
     Wire.API.Meeting
     Wire.API.Message
@@ -615,6 +617,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
     Test.Wire.API.Golden.Manual.Activate_user
+    Test.Wire.API.Golden.Manual.AdminlessJobs
     Test.Wire.API.Golden.Manual.App
     Test.Wire.API.Golden.Manual.CannonId
     Test.Wire.API.Golden.Manual.ClientCapability
@@ -643,6 +646,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.Login_user
     Test.Wire.API.Golden.Manual.LoginId_user
+    Test.Wire.API.Golden.Manual.MeetingEvent
     Test.Wire.API.Golden.Manual.MLSKeys
     Test.Wire.API.Golden.Manual.Pagination
     Test.Wire.API.Golden.Manual.Presence
@@ -742,6 +746,7 @@ test-suite wire-api-tests
     , cassava
     , containers             >=0.5
     , crypton
+    , data-default
     , filepath
     , hex
     , hspec

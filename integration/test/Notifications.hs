@@ -192,6 +192,22 @@ isConvAccessUpdateNotif n =
 isConvCreateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
 
+isConvCreateMeetingNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvCreateMeetingNotif n =
+  fieldEquals n "payload.0.type" "conversation.create-meeting"
+
+isMeetingCreateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingCreateNotif n =
+  fieldEquals n "payload.0.type" "meeting.create"
+
+isMeetingUpdateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingUpdateNotif n =
+  fieldEquals n "payload.0.type" "meeting.update"
+
+isMeetingDeleteNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingDeleteNotif n =
+  fieldEquals n "payload.0.type" "meeting.delete"
+
 -- | like 'isConvCreateNotif' but excludes self conversations
 isConvCreateNotifNotSelf :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateNotifNotSelf n =
@@ -200,6 +216,9 @@ isConvCreateNotifNotSelf n =
 
 isConvDeleteNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
+
+isConvAdminlessReminderNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvAdminlessReminderNotif n = fieldEquals n "payload.0.type" "conversation.adminless-reminder"
 
 notifTypeIsEqual :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ

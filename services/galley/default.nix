@@ -7,6 +7,7 @@
 , aeson-qq
 , amazonka
 , amqp
+, arbiter-core
 , async
 , base
 , base64-bytestring
@@ -32,7 +33,7 @@
 , federator
 , filepath
 , galley-types
-, hasql-pool
+, hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , HsOpenSSL
@@ -121,6 +122,7 @@ mkDerivation {
     aeson
     amazonka
     amqp
+    arbiter-core
     async
     base
     bilge
@@ -134,7 +136,7 @@ mkDerivation {
     exceptions
     extended
     galley-types
-    hasql-pool
+    hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     HsOpenSSL

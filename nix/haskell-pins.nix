@@ -58,6 +58,18 @@ let
     # END maintained by us
     # --------------------
 
+    arbiter = {
+      src = inputs.arbiter;
+      packages = {
+        arbiter-core = "arbiter-core";
+        arbiter-hasql = "arbiter-hasql";
+        arbiter-migrations = "arbiter-migrations";
+        arbiter-simple = "arbiter-simple";
+        arbiter-test-common = "arbiter-test-common";
+        arbiter-worker = "arbiter-worker";
+      };
+    };
+
     bloodhound = {
       src = inputs.bloodhound;
     };
@@ -168,6 +180,12 @@ let
       src = inputs.postgresql-connection-string;
     };
 
+    # Wire fork with pool acquisition timeout support.
+    # Update this to the upstream repo/rev once the PR is merged there.
+    hasql-resource-pool = {
+      src = inputs.hasql-resource-pool;
+    };
+
     cryptostore = {
       src = inputs.cryptostore;
     };
@@ -198,6 +216,7 @@ let
       version = "0.13";
       sha256 = "sha256-m8Q1jwCyDrlEPbv2cZ/FIv/ey3dPjDVkmppzvi3Zjw4=";
     };
+
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:

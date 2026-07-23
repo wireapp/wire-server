@@ -24,14 +24,14 @@ import Imports
 import Network.AMQP qualified as Q
 import Polysemy
 import Wire.API.BackgroundJobs
-import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher (..))
+import Wire.BackgroundJobsPublisher (BackgroundJobPublisher (..))
 
-interpretBackgroundJobsPublisherRabbitMQ ::
+interpretBackgroundJobPublisherRabbitMQ ::
   (Member (Embed IO) r) =>
   RequestId ->
   MVar Q.Channel ->
-  InterpreterFor BackgroundJobsPublisher r
-interpretBackgroundJobsPublisherRabbitMQ requestId channelMVar =
+  InterpreterFor BackgroundJobPublisher r
+interpretBackgroundJobPublisherRabbitMQ requestId channelMVar =
   interpret $ \case
     PublishJob jobId jobPayload -> do
       channel <- readMVar channelMVar
@@ -42,11 +42,11 @@ publishJob ::
   RequestId ->
   Q.Channel ->
   JobId ->
-  JobPayload ->
+  BackgroundJobPayload ->
   Sem r ()
 publishJob requestId channel jobId jobPayload = do
   let job =
-        Job
+        BackgroundJob
           { payload = jobPayload,
             jobId = jobId,
             requestId = requestId

@@ -51,6 +51,7 @@ module Wire.ConversationSubsystem.Action
     addLocalUsersToRemoteConv,
     ConversationUpdate,
     ensureAllowed,
+    removeConversation,
   )
 where
 
@@ -114,6 +115,8 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
+import Wire.CodeStore.Code (CodeReferent (..))
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action.Kick
 import Wire.ConversationSubsystem.Action.Leave
@@ -374,28 +377,7 @@ instance IsConversationAction 'ConversationDeleteTag where
        ]
 
   performAction lconv _qusr _conId () = do
-    let lcnv = fmap (.id_) lconv
-        storedConv = tUnqualified lconv
-    let deleteGroup groupId = do
-          E.removeAllMLSClients groupId
-          E.removeAllHistoryClients groupId
-          E.deleteAllProposals groupId
-
-    let cid = storedConv.id_
-    for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
-      sconvs <- E.listSubConversations cid
-      for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
-        let gidSub = cnvmlsGroupId mlsData
-        E.deleteSubConversation cid subid
-        deleteGroup gidSub
-      deleteGroup gidParent
-
-    key <- E.makeKey (tUnqualified lcnv)
-    E.deleteCode key
-    case convTeam storedConv of
-      Nothing -> E.deleteConversation (tUnqualified lcnv)
-      Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
-
+    removeConversation lconv
     pure $ mkPerformActionResult ()
 
   ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
@@ -407,6 +389,36 @@ instance IsConversationAction 'ConversationDeleteTag where
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
   allowChannelManagePermission = True
+
+removeConversation ::
+  ( Member ConversationStore r,
+    Member ProposalStore r,
+    Member CodeStore r
+  ) =>
+  Local StoredConversation ->
+  Sem r ()
+removeConversation lconv = do
+  let lcnv = fmap (.id_) lconv
+      storedConv = tUnqualified lconv
+  let deleteGroup groupId = do
+        E.removeAllMLSClients groupId
+        E.removeAllHistoryClients groupId
+        E.deleteAllProposals groupId
+
+  let cid = storedConv.id_
+  for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidMainConv -> do
+    sconvs <- E.listSubConversations cid
+    for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
+      let gidSub = cnvmlsGroupId mlsData
+      E.deleteSubConversation cid subid
+      deleteGroup gidSub
+    deleteGroup gidMainConv
+
+  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
+  E.deleteCode key
+  case convTeam storedConv of
+    Nothing -> E.deleteConversation (tUnqualified lcnv)
+    Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
 
 instance IsConversationAction 'ConversationRenameTag where
   type
@@ -912,7 +924,7 @@ performConversationAccessData qusr lconv action = do
         && CodeAccess `notElem` cupAccess action
     )
     $ do
-      key <- E.makeKey (tUnqualified lcnv)
+      key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
       E.deleteCode key
 
   -- Determine bots and members to be removed

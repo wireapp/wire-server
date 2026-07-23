@@ -308,6 +308,7 @@ test-suite cargohold-tests
   other-modules:
     Test.CargoHold.API.AuditLogTest
     Test.CargoHold.API.LogJSON
+    Test.CargoHold.S3Test
 
   default-extensions:
     AllowAmbiguousTypes

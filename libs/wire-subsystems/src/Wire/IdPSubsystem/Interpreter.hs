@@ -16,6 +16,7 @@ import Polysemy
 import Polysemy.Error
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User
 import Wire.API.User.IdentityProvider qualified as IP
 import Wire.BrigAPIAccess
@@ -55,8 +56,7 @@ interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
 --  - Get their team
 --  - Lookup the team's IdP matching the domain
 --
---  If any of these steps fail, we return `Nothing` - except when the team has
---  only exactly one IdP configured; then we consider this as default.
+--  If any of these steps fail, we return `Nothing`.
 --
 --  In case we find more than one user for an email address, we throw an
 --  exception as this "should never happen".
@@ -83,7 +83,7 @@ getSsoCodeByEmailImpl ::
     Member GalleyAPIAccess r,
     Member IdPConfigStore r
   ) =>
-  Bool -> Maybe Text -> EmailAddress -> Sem r (Maybe SAML.IdPId)
+  Bool -> Maybe ZHostValue -> EmailAddress -> Sem r (Maybe SAML.IdPId)
 getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
   do
     if not enableIdPByEmailDiscovery
@@ -99,7 +99,7 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
                 case mbTeam of
                   Just team -> do
                     idps <- getConfigsByTeam team
-                    selectIdP idps
+                    findIdPByDomain idps
                   Nothing -> pure Nothing
               else pure Nothing
           tooManyUsers -> do
@@ -112,20 +112,12 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
     userIdToText :: Qualified UserId -> Text
     userIdToText uid = idToText (qUnqualified uid) <> "@" <> domainText (qDomain uid)
 
-    selectIdP :: (Member (Logger (Log.Msg -> Log.Msg)) r) => [IP.IdP] -> Sem r (Maybe SAML.IdPId)
-    selectIdP idps = case idps of
-      -- No IdPs: no match
-      [] -> pure Nothing
-      -- Exactly one IdP: always return it
-      [idp] -> (pure . pure) (idp ^. SAML.idpId)
-      -- Multiple IdPs: find by domain if host provided
-      _idps' -> findIdPByDomain idps
-
     isScimOrSsoUser :: User -> Bool
     isScimOrSsoUser user =
       userManagedBy user == ManagedByScim && isJust (userSSOId user)
 
     findIdPByDomain :: (Member (Logger (Log.Msg -> Log.Msg)) r) => [IP.IdP] -> Sem r (Maybe SAML.IdPId)
+    findIdPByDomain [] = pure Nothing
     findIdPByDomain idps = do
       let matches :: [SAML.IdPId] =
             SAML._idpId
@@ -133,6 +125,6 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
       when (length matches > 1) $
         Logger.warn $
           Log.msg @Text "Found more than one IdP config for domain"
-            . Log.field "domain" (fromMaybe "None" mbHost)
+            . Log.field "domain" (maybe "None" domainText mbHost)
             . Log.field "idpIds" (intercalate "," $ (UUID.toString . SAML.fromIdPId) <$> matches)
       pure $ listToMaybe matches

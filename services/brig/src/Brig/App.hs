@@ -137,8 +137,8 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
-import Hasql.Pool qualified as HasqlPool
-import Hasql.Pool.Extended
+import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q

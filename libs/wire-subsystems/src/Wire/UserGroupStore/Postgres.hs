@@ -32,7 +32,6 @@ import Data.UUID as UUID
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Hasql.Decoders qualified as HD
-import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
@@ -40,7 +39,6 @@ import Hasql.Transaction qualified as Tx
 import Hasql.Transaction.Sessions qualified as TxSessions
 import Imports
 import Polysemy
-import Polysemy.Error (Error)
 import Polysemy.Input
 import Wire.API.Pagination
 import Wire.API.PostgresMarshall
@@ -52,10 +50,7 @@ import Wire.Postgres
 import Wire.UserGroupStore (UserGroupStore (..))
 
 type UserGroupStorePostgresEffectConstraints r =
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  )
+  PGConstraints r
 
 interpretUserGroupStoreToPostgres ::
   forall r.

@@ -249,20 +249,19 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
-### Meetings Premium
+### Meetings Premium (deprecated)
 
-The `meetingsPremium` feature flag controls whether a team has premium meetings features. When enabled, meetings created by team members are not marked as trial. When disabled, meetings are trial and limited to 25 minutes. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+> **Deprecated (WPB-26771).** The `meetingsPremium` feature flag no longer
+> affects meeting behaviour. Team meetings are always non-trial regardless of
+> this flag's value. The flag, its data type and its public/internal endpoints
+> are retained for backward compatibility and are scheduled for removal in a
+> future release.
 
-```yaml
-meetingsPremium:
-  defaults:
-    status: disabled|enabled
-    lockStatus: locked|unlocked
-```
-
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetingsPremium/(un)?locked`).
-
-The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+The flag now defaults to **enabled and locked** and the Helm configuration
+override has been removed (operators can no longer change it via Helm). The
+`MeetingsPremiumConfig` type carries a `DEPRECATED` pragma. Existing
+`GET/PUT /teams/:tid/features/meetingsPremium` and internal lock-status
+endpoints remain available but have no behavioural effect.
 
 ### Background Effects
 
@@ -316,15 +315,36 @@ preventAdminlessGroups:
     lockStatus: locked|unlocked
     config:
       promotionStrategy: alphabetical|random|all
-      deletionTimeout: 7
-      reminderTimeouts: [2, 4, 6]
+      deletionTimeoutDuration: 7d
+      reminderTimeoutDurations: [2d, 4d, 6d]
 ```
 
 The settings mean:
 
 - `promotionStrategy`: how the backend chooses which eligible members to promote when the last admin leaves and autopromotion is possible.
-- `deletionTimeout`: how many days to keep an adminless conversation before it is deleted.
-- `reminderTimeouts`: on which days before deletion reminder notifications should be sent.
+- `deletionTimeoutDuration`: how long to keep an adminless conversation before it is deleted.
+- `reminderTimeoutDurations`: when before deletion reminder notifications should be sent.
+
+Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`. It is **not** recommended or supported to set these below a day in production environments.
+
+Feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`, and `GET /teams/:tid/features/preventAdminlessGroups`, include the duration fields:
+
+```json
+{
+  "status": "enabled",
+  "lockStatus": "unlocked",
+  "config": {
+    "promotionStrategy": "alphabetical",
+    "deletionTimeoutDuration": "7d",
+    "reminderTimeoutDurations": ["2d", "4d", "6d"]
+  }
+}
+```
+
+From a client's perspective, API versioning works like this:
+
+- API version V17 and newer should send the duration fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
+- Feature responses include the duration fields for clients to read.
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/preventAdminlessGroups/(un)?locked`).
 
@@ -1309,9 +1329,8 @@ Given an email address, the SSO code is looked up by these criteria:
 - The user must be activated. Either by the activation mail flow or by
   [auto-activation](#validate-saml-emails).
 - The mapping must be unambiguous (there must be exactly one matching IdP).
-  This is the case for:
-  - Teams with exactly one configured IdP
-  - There is an IdP for the given multi-ingress domain
+  In multi-ingress mode, IdPs are always bound to one domain; the request domain
+  must match the IdP's configured domain.
 - The user was created via SCIM
 
 The last condition ensures that team admins cannot get into locked-out
@@ -1327,16 +1346,19 @@ configured in `nginz`'s Helm chart in the
 
 #### IdP certificate fingerprint allowlist
 
-This optional feature restricts which X.509 certificates can be used in IdP
-metadata. When configured, all certificates in IdP descriptors must have a
-SHA-1 fingerprint present in the allowlist, or IdP creation/update and SAML
+This feature restricts which X.509 certificates can be used in IdP metadata.
+When configured, all certificates in IdP descriptors must have a SHA-1
+fingerprint present in the allowlist, or IdP creation/update and SAML
 AuthnResponse (`/sso/finalize-login`) requests will be rejected.
 
 This limits team admins in their choice of IdPs. E.g. a malicious team admin
 couldn't provision bad IdPs, as possible IdP certificates are restricted by the
 allowlist.
 
-The feature is disabled by default in Helm (the attribute can be left out as well):
+**For multi-ingress setups, this feature is mandatory** to prevent
+security-relevant configuration mistakes. For regular (non-multi-ingress)
+setups, it is optional and disabled by default in Helm (the attribute can be
+left out as well):
 
 ```yaml
 config:
@@ -1589,6 +1611,9 @@ There can be at most one IdP per multi-ingress domain and team. Creating more re
 error. Though, IdPs can be reconfigured as long as this invariant holds.
 
 Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP`.
+
+For multi-ingress setups, the [`idpCertFingerprintAllowlist`](#idp-certificate-fingerprint-allowlist)
+must be configured to restrict which X.509 certificates can be used in IdP metadata.
 
 ### Webapp
 
@@ -1919,15 +1944,6 @@ config:
     # Connection acquisition timeout.
     acquisitionTimeout: 10s
 
-    # Maximal connection lifetime.
-    #
-    # Determines how long is available for reuse. After the timeout passes and
-    # an active session is finished the connection will be closed releasing a
-    # slot in the pool for a fresh connection to be established.
-    #
-    # This is useful as a healthy measure for resetting the server-side caches.
-    agingTimeout: 1d
-
     # Maximal connection idle time.
     idlenessTimeout: 10m
 secrets:
@@ -1945,7 +1961,6 @@ postgresql:
 postgresqlPool:
   size: 100
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
 ```
@@ -2174,7 +2189,6 @@ postgresql:
 postgresqlPool:
   size: 5
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 
 # Start migration workers when true
@@ -2196,9 +2210,53 @@ backgroundJobs:
   jobTimeout: 60s    # per attempt
   maxAttempts: 3     # total attempts incl. first run
 
+# Jobs
+jobs:
+  pollInterval: 5s   # how often due jobs are discovered
+  workerThreads: 1   # worker threads for each job queue
+  visibilityTimeout: 60s       # how long a claimed job stays invisible
+  jobHeartbeatInterval: 30s    # refresh interval for running jobs
+  workerHeartbeatInterval: 10s # refresh interval for worker liveness
+  backoffBase: 2.0             # exponential retry backoff base
+  backoffCap: 86400s           # maximum exponential retry backoff
+  jitter: equal                # none, full, or equal retry jitter
+  gracefulShutdownTimeout: 30s # maximum shutdown grace period
+  reaperInterval: 300s         # Arbiter reaper interval
+  reaperTimeout: 300s          # maximum duration of one reaper pass
+  workerStaleThreshold: 300s   # worker heartbeat staleness threshold
+
+Jobs are currently split into two domain queues: `meetings`, which
+contains meeting cleanup jobs, and `conversations`, which contains adminless
+reminder and deletion jobs. Each queue has its own Arbiter worker pool. The
+`workerThreads` value applies independently to both pools.
+
+`backgroundJobs` and `jobs` configure different job systems. The
+`backgroundJobs` consumer receives immediate user-group synchronization jobs
+from RabbitMQ and controls their in-process concurrency, timeout, and retry
+behavior. `jobs` runs Arbiter-backed PostgreSQL jobs that may be
+scheduled for a future time, including recurring jobs, and controls their
+dispatcher, worker-pool, visibility, retry, and reaper behavior. The systems
+are separate because they currently use different transports and execution
+semantics. They could be merged in the future if the user-group jobs are
+migrated to Arbiter.
+
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
+
+### Job runner PostgreSQL connections
+
+Each `background-worker` instance that runs Arbiter jobs uses one additional
+PostgreSQL connection for Arbiter scheduler and notification coordination. This
+connection is in addition to the connections configured by `postgresqlPool`,
+and should be included when sizing PostgreSQL's `max_connections` and the
+service's connection budget.
+
+`jobs.workerThreads` controls how many jobs may be processed
+in parallel; it does not allocate one PostgreSQL connection per thread. The
+threads share the job worker's database resources, so increasing the
+thread count increases possible job and database workload, but not the number
+of connections opened by the job worker.
 
 The `migrationOptions.timeout` setting limits how long a single migration
 attempt may run after it has acquired the migration lock. If the timeout is
@@ -2221,3 +2279,6 @@ Notes
 - The `migrate...` flags control the corresponding PostgreSQL backfill jobs for the current migration settings; leave them `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
+- `jobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
+- `jobs.pollInterval` controls how often the background worker wakes up to check for due jobs.
+- `jobs.workerThreads` controls the number of worker threads in each job queue. The default is `1`; increasing it allows jobs in that queue to run in parallel when their group keys permit it.

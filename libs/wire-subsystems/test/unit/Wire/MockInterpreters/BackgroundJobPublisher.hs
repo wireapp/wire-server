@@ -19,8 +19,8 @@ module Wire.MockInterpreters.BackgroundJobPublisher where
 
 import Imports
 import Polysemy
-import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher (..))
+import Wire.BackgroundJobsPublisher (BackgroundJobPublisher (..))
 
-noopBackgroundJobsPublisher :: InterpreterFor BackgroundJobsPublisher r
-noopBackgroundJobsPublisher = interpret $ \case
+noopBackgroundJobPublisher :: InterpreterFor BackgroundJobPublisher r
+noopBackgroundJobPublisher = interpret $ \case
   PublishJob {} -> pure ()

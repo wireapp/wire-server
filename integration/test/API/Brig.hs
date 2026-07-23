@@ -914,13 +914,19 @@ revokeApplicationAccess user cid password = do
   submit "DELETE" $ req & addJSONObject ["password" .= password]
 
 registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
-registerUser domain email inviteeCode = do
-  req <- baseRequest domain Brig Versioned "register"
+registerUser domain email inviteeCode = registerUserWith domain email inviteeCode "Alice"
+
+registerUserWith :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+registerUserWith = registerUserWithVersioned Versioned
+
+registerUserWithVersioned :: (HasCallStack, MakesValue domain) => Versioned -> domain -> String -> String -> String -> App Response
+registerUserWithVersioned versioned domain email inviteeCode name = do
+  req <- baseRequest domain Brig versioned "register"
   submit "POST" $
     req
       & addClientIP
       & addJSONObject
-        [ "name" .= "Alice",
+        [ "name" .= name,
           "email" .= email,
           "password" .= defPassword,
           "team_code" .= inviteeCode
@@ -1211,22 +1217,6 @@ removeUserFromGroup :: (MakesValue user) => user -> String -> String -> App Resp
 removeUserFromGroup user gid uid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users", uid]
   submit "DELETE" req
-
-addTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
-addTeamCollaborator owner tid collaborator permissions = do
-  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
-  (_, collabId) <- objQid collaborator
-  submit "POST" $
-    req
-      & addJSONObject
-        [ "user" .= collabId,
-          "permissions" .= permissions
-        ]
-
-getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
-getAllTeamCollaborators owner tid = do
-  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
-  submit "GET" req
 
 data NewApp = NewApp
   { name :: String,

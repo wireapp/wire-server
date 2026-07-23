@@ -11,6 +11,9 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, arbiter-core
+, arbiter-hasql
+, arbiter-migrations
 , async
 , attoparsec
 , base
@@ -30,6 +33,7 @@
 , contravariant
 , cookie
 , cql
+, cron
 , crypton
 , crypton-asn1-encoding
 , crypton-asn1-types
@@ -53,7 +57,7 @@
 , HaskellNet-SSL
 , hasql
 , hasql-migration
-, hasql-pool
+, hasql-resource-pool
 , hasql-th
 , hasql-transaction
 , hex
@@ -152,6 +156,9 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
+    arbiter-hasql
+    arbiter-migrations
     async
     attoparsec
     base
@@ -171,6 +178,7 @@ mkDerivation {
     contravariant
     cookie
     cql
+    cron
     crypton
     crypton-asn1-encoding
     crypton-asn1-types
@@ -192,7 +200,7 @@ mkDerivation {
     HaskellNet-SSL
     hasql
     hasql-migration
-    hasql-pool
+    hasql-resource-pool
     hasql-th
     hasql-transaction
     hex
@@ -281,6 +289,9 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
+    arbiter-hasql
+    arbiter-migrations
     async
     attoparsec
     base
@@ -299,6 +310,7 @@ mkDerivation {
     contravariant
     cookie
     cql
+    cron
     crypton
     crypton-asn1-encoding
     crypton-asn1-types
@@ -322,7 +334,7 @@ mkDerivation {
     HaskellNet-SSL
     hasql
     hasql-migration
-    hasql-pool
+    hasql-resource-pool
     hasql-th
     hasql-transaction
     hex

@@ -20,6 +20,7 @@ module Wire.Effects
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge qualified
 import Bilge.Retry
 import Cassandra (ClientState)
@@ -27,6 +28,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -35,7 +37,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Galley.Types.Error (InternalError, internalErrorDescription, legalHoldServiceUnavailable)
 import Hasql.Pool (UsageError)
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.Wai.Utilities.JSONResponse (JSONResponse (..))
@@ -59,7 +61,7 @@ import Wire.API.Federation.Error (FederationError)
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Team.Collaborator (TeamCollaboratorsError)
 import Wire.API.Team.Feature (AllTeamFeatures, LegalholdConfig)
-import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults (FeatureLegalHoldDisabledPermanently), FeatureFlags, currentFanoutLimit)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults, FeatureFlags, currentFanoutLimit)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundWorker.Env (Env (..))
@@ -89,9 +91,12 @@ import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword.Interpreter (runHashPassword)
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MigrationLock (MigrationLockError)
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley (GuestLinkTTLSeconds)
@@ -123,6 +128,8 @@ import Wire.TeamCollaboratorsSubsystem.Interpreter (interpretTeamCollaboratorsSu
 import Wire.TeamFeatureStore (TeamFeatureStore)
 import Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra)
 import Wire.TeamFeatureStore.Error (TeamFeatureStoreError)
+import Wire.TeamFeatureStore.Migrating (interpretTeamFeatureStoreToCassandraAndPostgres)
+import Wire.TeamFeatureStore.Postgres (interpretTeamFeatureStoreToPostgres)
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws (interpretTeamJournal)
 import Wire.TeamStore (TeamStore)
@@ -209,6 +216,8 @@ type BackgroundWorkerEffects =
      Now,
      TeamJournal,
      LegalHoldStore,
+     JobSubsystem,
+     Input RequestId,
      TeamCollaboratorsStore,
      TeamStore,
      ConversationStore,
@@ -222,13 +231,13 @@ type BackgroundWorkerEffects =
      Input (Maybe GuestLinkTTLSeconds),
      Input (Maybe GroupInfoCheckEnabled),
      Input IntraListing,
-     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Input ExposeInvitationURLsAllowlist,
      Input LegalHoldEnv,
      Input ClientState,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      P.TinyLog,
      Error RateLimitExceeded,
      Error UnreachableBackendsLegacy,
@@ -238,8 +247,10 @@ type BackgroundWorkerEffects =
      Error (Tagged TeamNotFound ()),
      Error (Tagged ConvAccessDenied ()),
      Error (Tagged NotATeamMember ()),
+     Error (Tagged CodeStoreNotFound ()),
      Error TeamFeatureStoreError,
      Error TeamCollaboratorsError,
+     Error MigrationLockError,
      Error UnreachableBackends,
      Error InternalError,
      Error MigrationError,
@@ -288,8 +299,10 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @MigrationError (T.pack . show)
     . mapError @InternalError (TL.toStrict . internalErrorDescription)
     . mapError @UnreachableBackends (T.pack . show)
+    . mapError @MigrationLockError (const ("Migration lock error" :: Text))
     . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
     . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
+    . mapError @(Tagged 'CodeStoreNotFound ()) (const ("Code store not found" :: Text))
     . mapError @(Tagged 'NotATeamMember ()) (const ("Not a team member" :: Text))
     . mapError @(Tagged 'ConvAccessDenied ()) (const ("Conversation access denied" :: Text))
     . mapError @(Tagged 'TeamNotFound ()) (const ("Team not found" :: Text))
@@ -299,13 +312,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @UnreachableBackendsLegacy (const ("Unreachable backends legacy" :: Text))
     . mapError @RateLimitExceeded (const ("Rate limit exceeded" :: Text))
     . interpretTinyLog
-    . runInputConst @Hasql.Pool env.hasqlPool
+    . runInputConst @HasqlPoolExt.Pool env.hasqlPool
     . runInputConst @(Local ()) (toLocalUnsafe env.federationDomain ())
-    . runInputConst @(FeatureDefaults LegalholdConfig) FeatureLegalHoldDisabledPermanently
+    . runInputConst @(FeatureDefaults LegalholdConfig) (env.conversationSubsystemConfig.legalholdDefaults)
     . runInputConst @ClientState env.cassandraGalley
     . runInputConst @LegalHoldEnv legalHoldEnv
     . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.exposeInvitationURLsTeamAllowlist)
-    . runInputConst @(Either HttpsUrl (Map Text HttpsUrl)) env.convCodeURI
+    . runInputConst @(Either HttpsUrl (Map Domain HttpsUrl)) env.convCodeURI
     . runInputConst @IntraListing (IntraListing env.intraListing)
     . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.checkGroupInfo)
     . runInputConst @(Maybe GuestLinkTTLSeconds) env.guestLinkTTLSeconds
@@ -314,12 +327,14 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
-    . interpretTeamFeatureStoreToCassandra
+    . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
-    . interpretLegalHoldStoreToCassandra FeatureLegalHoldDisabledPermanently
+    . runInputConst @RequestId requestId
+    . interpretJobSubsystem jobSubsystemConfig
+    . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
     . interpretTeamJournal Nothing
     . nowToIO
     . randomToIO
@@ -333,9 +348,9 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     -- However, to prevent the background worker to require HTTP access to brig, we should consider refactoring this at some point.
     . interpretBrigAccess env.brigEndpoint
     . interpretGalleyAPIAccessToRpc mempty env.galleyEndpoint
-    . runInputSem getConversationSubsystemConfig
+    . runInputConst env.conversationSubsystemConfig
     . runInputSem @(Maybe (MLSKeysByPurpose MLSPrivateKeys)) (inputs @ConversationSubsystemConfig (.mlsKeys))
-    . runInputSem getConfiguredFeatureFlags
+    . runInputConst env.featureFlags
     . runHashPassword env.passwordHashingOptions
     . interpretRateLimit env.passwordHashingRateLimitEnv
     . interpretExternalAccess extEnv
@@ -352,11 +367,15 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTeamCollaboratorsSubsystem
     . interpretConversationSubsystem
   where
-    convCodesStoreInterpreter =
-      case env.postgresMigration.conversationCodes of
-        CassandraStorage -> interpretCodeStoreToCassandra
-        MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
-        PostgresqlStorage -> interpretCodeStoreToPostgres
+    interpretTeamFeatureStore = case env.postgresMigration.teamFeatures of
+      CassandraStorage -> interpretTeamFeatureStoreToCassandra
+      MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
+
+    convCodesStoreInterpreter = case env.postgresMigration.conversationCodes of
+      CassandraStorage -> interpretCodeStoreToCassandra
+      MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretCodeStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
@@ -369,10 +388,10 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
           http2Manager = env.http2Manager,
           requestId = requestId
         }
-    getConversationSubsystemConfig ::
-      (Member GalleyAPIAccess r) =>
-      Sem r ConversationSubsystemConfig
-    getConversationSubsystemConfig = getConversationConfig
+    jobSubsystemConfig =
+      JobSubsystemConfig
+        { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+        }
     backendQueueEnv =
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,

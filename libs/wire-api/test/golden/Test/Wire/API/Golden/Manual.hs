@@ -21,6 +21,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.Activate_user
+import Test.Wire.API.Golden.Manual.AdminlessJobs
 import Test.Wire.API.Golden.Manual.App
 import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
@@ -49,6 +50,7 @@ import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
 import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.MeetingEvent
 import Test.Wire.API.Golden.Manual.Pagination
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Manual.Push
@@ -73,6 +75,25 @@ tests =
     "Manual golden tests"
     [ testGroup "NewApp" $
         testObjects [(testObject_NewApp_1, "testObject_NewApp_1.json")],
+      testGroup "AdminlessDeletionJob" $
+        testObjects
+          [ (testObject_AdminlessDeletionJob_1, "testObject_AdminlessDeletionJob_1.json"),
+            (testObject_AdminlessDeletionJob_2, "testObject_AdminlessDeletionJob_2.json")
+          ],
+      testGroup "AdminlessReminderJob" $
+        testObjects
+          [ (testObject_AdminlessReminderJob_1, "testObject_AdminlessReminderJob_1.json"),
+            (testObject_AdminlessReminderJob_2, "testObject_AdminlessReminderJob_2.json")
+          ],
+      testGroup "MeetingsJobPayload" $
+        testObjects
+          [ (testObject_MeetingsJobPayload_MeetingsCleanup_1, "testObject_MeetingsJobPayload_MeetingsCleanup_1.json")
+          ],
+      testGroup "ConversationsJobPayload" $
+        testObjects
+          [ (testObject_ConversationsJobPayload_AdminlessDeletion_1, "testObject_ConversationsJobPayload_AdminlessDeletion_1.json"),
+            (testObject_ConversationsJobPayload_AdminlessReminder_1, "testObject_ConversationsJobPayload_AdminlessReminder_1.json")
+          ],
       testGroup "CreatedApp" $
         testObjects [(testObject_CreatedApp_1, "testObject_CreatedApp_1.json")],
       testGroup "AppInfo" $
@@ -134,6 +155,12 @@ tests =
           [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json"),
             (testObject_Event_conversation_manual_2, "testObject_Event_conversation_manual_2.json"),
             (testObject_Event_conversation_manual_3, "testObject_Event_conversation_manual_3.json")
+          ],
+      testGroup "MeetingEvent" $
+        testObjects
+          [ (testObject_Event_meeting_create_manual_1, "testObject_Event_meeting_create_manual_1.json"),
+            (testObject_Event_meeting_update_manual_1, "testObject_Event_meeting_update_manual_1.json"),
+            (testObject_Event_meeting_delete_manual_1, "testObject_Event_meeting_delete_manual_1.json")
           ],
       testGroup "GetPaginatedConversationIds" $
         testObjects

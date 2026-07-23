@@ -26,18 +26,17 @@ import Imports
 import Polysemy
 import Wire.API.Meeting
 import Wire.API.User.EmailAddress (EmailAddress)
-import Wire.StoredConversation (StoredConversation)
 
 data MeetingsSubsystem m a where
   CreateMeeting ::
     Local UserId ->
     NewMeeting ->
-    MeetingsSubsystem m (Meeting, StoredConversation)
+    MeetingsSubsystem m MeetingWithConversation
   UpdateMeeting ::
     Local UserId ->
     Qualified MeetingId ->
     UpdateMeeting ->
-    MeetingsSubsystem m (Maybe Meeting)
+    MeetingsSubsystem m (Maybe MeetingWithConversation)
   DeleteMeeting ::
     Local UserId ->
     ConnId ->

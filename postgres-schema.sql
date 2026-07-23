@@ -54,6 +54,22 @@ CREATE TYPE public.recurrence_frequency AS ENUM (
 
 ALTER TYPE public.recurrence_frequency OWNER TO "wire-server";
 
+--
+-- Name: update_updated_at(); Type: FUNCTION; Schema: public; Owner: wire-server
+--
+
+CREATE FUNCTION public.update_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.update_updated_at() OWNER TO "wire-server";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -73,6 +89,33 @@ CREATE TABLE public.apps (
 
 
 ALTER TABLE public.apps OWNER TO "wire-server";
+
+--
+-- Name: asset; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.asset (
+    user_id uuid NOT NULL,
+    typ integer NOT NULL,
+    key text NOT NULL,
+    size integer
+);
+
+
+ALTER TABLE public.asset OWNER TO "wire-server";
+
+--
+-- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.bot_conv (
+    id uuid NOT NULL,
+    conv uuid NOT NULL,
+    conv_team uuid
+);
+
+
+ALTER TABLE public.bot_conv OWNER TO "wire-server";
 
 --
 -- Name: collaborators; Type: TABLE; Schema: public; Owner: wire-server
@@ -126,7 +169,8 @@ CREATE TABLE public.conversation_codes (
     conversation uuid NOT NULL,
     password bytea,
     value text NOT NULL,
-    expires_at timestamp with time zone NOT NULL
+    expires_at timestamp with time zone NOT NULL,
+    target text DEFAULT 'conv'::text NOT NULL
 );
 
 
@@ -177,6 +221,20 @@ CREATE TABLE public.conversation_out_of_sync (
 
 
 ALTER TABLE public.conversation_out_of_sync OWNER TO "wire-server";
+
+--
+-- Name: deleted_user; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.deleted_user (
+    id uuid NOT NULL,
+    team uuid,
+    created_at timestamp with time zone NOT NULL,
+    deleted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.deleted_user OWNER TO "wire-server";
 
 --
 -- Name: domain_registration; Type: TABLE; Schema: public; Owner: wire-server
@@ -245,6 +303,7 @@ CREATE TABLE public.meetings (
     trial boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT meetings_recurrence_consistency CHECK ((((recurrence_frequency IS NULL) AND (recurrence_interval IS NULL) AND (recurrence_until IS NULL)) OR ((recurrence_frequency IS NOT NULL) AND (recurrence_interval IS NOT NULL)))),
     CONSTRAINT meetings_title_length CHECK ((length(title) <= 256)),
     CONSTRAINT meetings_title_not_empty CHECK ((length(TRIM(BOTH FROM title)) > 0)),
     CONSTRAINT meetings_valid_time_range CHECK ((end_time > start_time))
@@ -387,11 +446,55 @@ CREATE TABLE public.user_group_member (
 ALTER TABLE public.user_group_member OWNER TO "wire-server";
 
 --
+-- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.wire_user (
+    id uuid NOT NULL,
+    user_type integer NOT NULL,
+    accent_id integer NOT NULL,
+    activated boolean NOT NULL,
+    country text,
+    email text,
+    email_unvalidated text,
+    expires timestamp with time zone,
+    feature_conference_calling integer,
+    handle text,
+    language text,
+    managed_by integer,
+    name text NOT NULL,
+    password text,
+    picture jsonb,
+    provider uuid,
+    service uuid,
+    searchable boolean,
+    sso_id jsonb,
+    account_status integer,
+    supported_protocols integer,
+    team uuid,
+    text_status text,
+    rich_info jsonb,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.wire_user OWNER TO "wire-server";
+
+--
 -- Name: apps apps_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: bot_conv bot_conv_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.bot_conv
+    ADD CONSTRAINT bot_conv_pkey PRIMARY KEY (id);
 
 
 --
@@ -440,6 +543,14 @@ ALTER TABLE ONLY public.conversation_out_of_sync
 
 ALTER TABLE ONLY public.conversation
     ADD CONSTRAINT conversation_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: deleted_user deleted_user_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.deleted_user
+    ADD CONSTRAINT deleted_user_pkey PRIMARY KEY (id);
 
 
 --
@@ -547,6 +658,43 @@ ALTER TABLE ONLY public.user_group
 
 
 --
+-- Name: wire_user wire_user_handle_key; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.wire_user
+    ADD CONSTRAINT wire_user_handle_key UNIQUE (handle);
+
+
+--
+-- Name: wire_user wire_user_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.wire_user
+    ADD CONSTRAINT wire_user_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: asset_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX asset_user_id_idx ON public.asset USING btree (user_id);
+
+
+--
+-- Name: bot_conv_conv_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX bot_conv_conv_idx ON public.bot_conv USING btree (conv);
+
+
+--
+-- Name: bot_conv_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX bot_conv_team_idx ON public.bot_conv USING btree (conv_team);
+
+
+--
 -- Name: collaborators_team_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -638,6 +786,20 @@ CREATE INDEX idx_meetings_end_time ON public.meetings USING btree (end_time);
 
 
 --
+-- Name: idx_meetings_end_time_nonrecurring; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_end_time_nonrecurring ON public.meetings USING btree (end_time) WHERE (recurrence_frequency IS NULL);
+
+
+--
+-- Name: idx_meetings_recurrence_eff_end; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GREATEST(end_time, recurrence_until)) WHERE ((recurrence_frequency IS NOT NULL) AND (recurrence_interval IS NOT NULL) AND (recurrence_until IS NOT NULL));
+
+
+--
 -- Name: idx_meetings_start_time; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -649,6 +811,28 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 --
 
 CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btree (user_id);
+
+
+--
+-- Name: wire_user_service_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX wire_user_service_idx ON public.wire_user USING btree (provider, service);
+
+
+--
+-- Name: wire_user update_user_updated_at; Type: TRIGGER; Schema: public; Owner: wire-server
+--
+
+CREATE TRIGGER update_user_updated_at BEFORE UPDATE ON public.wire_user FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
+-- Name: bot_conv bot_conv_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.bot_conv
+    ADD CONSTRAINT bot_conv_id_fkey FOREIGN KEY (id) REFERENCES public.wire_user(id) ON DELETE CASCADE;
 
 
 --

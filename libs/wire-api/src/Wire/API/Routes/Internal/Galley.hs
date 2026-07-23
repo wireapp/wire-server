@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Wire.API.Routes.Internal.Galley where
 
@@ -31,7 +32,6 @@ import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
@@ -118,13 +118,6 @@ type IFeatureAPI =
                     UserId
                :> Get '[JSON] AllTeamFeatures
            )
-    :<|> Named
-           "get-configured-feature-flags"
-           ( Summary "Get the server-wide feature flag defaults (from galley config)"
-               :> "features"
-               :> "configured"
-               :> Get '[JSON] ConfiguredFeatureFlags
-           )
 
 type InternalAPI = "i" :> InternalAPIBase
 
@@ -197,9 +190,6 @@ type InternalAPIBase =
     :<|> IConversationAPI
     :<|> IEJPDAPI
     :<|> ICellsAPI
-    :<|> Named
-           "get-conversation-config"
-           ("conversations" :> "config" :> Get '[JSON] ConversationSubsystemConfig)
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"

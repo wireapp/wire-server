@@ -12,6 +12,7 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.AdminlessJobsWorker
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
@@ -20,6 +21,7 @@ library
     Wire.BackgroundWorker.Jobs.Registry
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
+    Wire.BackgroundWorker.Workers
     Wire.DeadUserNotificationWatcher
     Wire.Effects
     Wire.MeetingsCleanupWorker
@@ -35,6 +37,8 @@ library
   build-depends:
       aeson
     , amqp
+    , arbiter-core
+    , arbiter-worker
     , base
     , bilge
     , bytestring
@@ -47,7 +51,7 @@ library
     , extended
     , extra
     , galley-types
-    , hasql-pool
+    , hasql-resource-pool
     , HsOpenSSL
     , http-client
     , http2-manager

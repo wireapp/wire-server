@@ -80,7 +80,7 @@ type AllDependencies =
     `Append` '[ Input (Local ()),
                 MockNow,
                 NotificationSubsystem,
-                BackgroundJobsPublisher.BackgroundJobsPublisher,
+                BackgroundJobsPublisher.BackgroundJobPublisher,
                 State [Push],
                 Random.Random,
                 Error UserGroupSubsystemError,
@@ -114,7 +114,7 @@ interpretDependencies ::
 interpretDependencies initialUsers initialTeams =
   Random.randomToNull
     . evalState mempty
-    . noopBackgroundJobsPublisher
+    . noopBackgroundJobPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
@@ -133,7 +133,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . runLocalErrors
     . Random.randomToNull
     . runState mempty
-    . noopBackgroundJobsPublisher
+    . noopBackgroundJobPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())

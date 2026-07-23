@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Wire.API.Routes.Public.Galley.Feature where
 
@@ -67,7 +68,9 @@ type FeatureAPI =
     :<|> AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs
     :<|> FeatureAPIGet DomainRegistrationConfig
     :<|> FeatureAPIGetPut ChannelsConfig
-    :<|> FeatureAPIGetPut PreventAdminlessGroupsConfig
+    :<|> FeatureAPIGet PreventAdminlessGroupsConfig
+    :<|> Until 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v16" V16 PreventAdminlessGroupsConfig
+    :<|> From 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v17" V17 PreventAdminlessGroupsConfig
     :<|> FeatureAPIGet CellsConfig
     :<|> Until 'V14 ::> VersionedFeatureAPIPut "put-CellsConfig@v13" V13 CellsConfig
     :<|> From 'V14 ::> FeatureAPIPut CellsConfig

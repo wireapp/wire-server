@@ -167,6 +167,8 @@ interpretBrigAccess brigEndpoint =
         setHandle uid handle
       SetManagedBy uid managedBy ->
         setManagedBy uid managedBy
+      DeletePendingEmailUpdate uid ->
+        deletePendingEmailUpdate uid
       SetSSOId uid ssoId ->
         setSSOId uid ssoId
       SetRichInfo uid richInfo ->
@@ -993,6 +995,18 @@ setManagedBy buid managedBy = do
       method PUT
         . paths ["/i/users", toByteString' buid, "managed-by"]
         . json (ManagedByUpdate managedBy)
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
+
+deletePendingEmailUpdate ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error RpcException) r) =>
+  UserId ->
+  Sem r ()
+deletePendingEmailUpdate buid = do
+  resp <-
+    brigRequest $
+      method DELETE
+        . paths ["i", "users", toByteString' buid, "pending-email-update"]
   unless (statusCode resp == 200) $
     rethrow "brig" resp
 

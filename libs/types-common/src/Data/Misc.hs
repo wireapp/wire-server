@@ -41,10 +41,16 @@ module Data.Misc
     msToInt64,
     int64ToMs,
     Duration (..),
+    DurationLiteral,
+    durationLiteralText,
+    durationLiteralValue,
     diffTimeParser,
     parseDuration,
     unsafeParseDuration,
+    mkDurationLiteral,
+    unsafeDurationLiteral,
     durationToMicros,
+    durationToCeilingSeconds,
 
     -- * HttpsUrl
     HttpsUrl (..),
@@ -83,6 +89,7 @@ import Cassandra
 import Control.Lens ((.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString.Char8 qualified as Chars
 import Data.Attoparsec.Text (Parser)
 import Data.Attoparsec.Text qualified as Atto
@@ -271,6 +278,13 @@ instance Cql Milliseconds where
 newtype Duration = Duration {duration :: DiffTime}
   deriving (Eq, Show)
 
+data DurationLiteral = DurationLiteral
+  { durationLiteralText :: Text,
+    durationLiteralValue :: Duration
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DurationLiteral
+
 instance TimeUnit Duration where
   nanos = NanoSeconds 1_000_000_000
 
@@ -297,6 +311,14 @@ diffTimeParser = do
 parseDuration :: Text -> Either String Duration
 parseDuration = fmap Duration . Atto.parseOnly (diffTimeParser <* Atto.endOfInput)
 
+mkDurationLiteral :: Text -> Either String DurationLiteral
+mkDurationLiteral txt = DurationLiteral txt <$> parseDuration txt
+
+-- | Build a 'DurationLiteral' without checking that the textual literal parses
+-- to the supplied duration. Use only for trusted/generated literals.
+unsafeDurationLiteral :: Text -> Duration -> DurationLiteral
+unsafeDurationLiteral = DurationLiteral
+
 unsafeParseDuration :: Text -> Duration
 unsafeParseDuration txt =
   either
@@ -309,8 +331,46 @@ durationToMicros :: Duration -> Int
 durationToMicros =
   fromInteger . flip div 1_000_000 . diffTimeToPicoseconds . duration
 
+-- | Convert a 'Duration' to whole seconds, rounding up and clamping a bounded integral type.
+-- Non-positive durations map to zero.
+durationToCeilingSeconds :: forall a. (Bounded a, Integral a) => Duration -> a
+durationToCeilingSeconds d
+  | duration d <= 0 = 0
+  | otherwise =
+      fromInteger $
+        min
+          (toInteger (maxBound :: a))
+          (ceiling (duration d) :: Integer)
+
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration
+
+instance ToSchema DurationLiteral where
+  schema = durationLiteralText .= schema @Text `withParser` parseDurationLiteral
+
+instance Arbitrary DurationLiteral where
+  arbitrary = do
+    n :: Double <-
+      QC.frequency
+        [ (8, fromInteger <$> chooseInteger (0, 10_000)),
+          (2, (/ 10) . fromInteger <$> chooseInteger (0, 1_000))
+        ]
+    unit <-
+      QC.elements
+        [ "us",
+          "ms",
+          "s",
+          "m",
+          "h",
+          "d",
+          "w"
+        ]
+    let textValue = Text.pack (show n) <> unit
+    either (error . ("Invalid generated DurationLiteral: " <>)) pure $
+      mkDurationLiteral textValue
+
+parseDurationLiteral :: Text -> A.Parser DurationLiteral
+parseDurationLiteral = either fail pure . mkDurationLiteral
 
 --------------------------------------------------------------------------------
 -- HttpsUrl

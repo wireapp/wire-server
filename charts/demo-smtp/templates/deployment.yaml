@@ -19,6 +19,7 @@ spec:
         app: {{ template "demo-smtp.name" . }}
         release: {{ .Release.Name }}
     spec:
+      automountServiceAccountToken: false
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"

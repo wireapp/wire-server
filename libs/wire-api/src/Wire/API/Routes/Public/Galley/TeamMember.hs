@@ -210,6 +210,27 @@ type TeamMemberAPI =
                     CSV
            )
     :<|> Named
+           "add-team-collaborator"
+           ( Summary "Add a collaborator to the team."
+               :> From 'V10
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> ReqBody '[JSON] NewTeamCollaborator
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "get-team-collaborators"
+           ( Summary "Get all collaborators of the team."
+               :> From 'V10
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Return collaborators" [TeamCollaborator])
+           )
+    :<|> Named
            "update-team-collaborator"
            ( Summary "Update a collaborator permissions from the team."
                :> From 'V13
