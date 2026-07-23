@@ -34,7 +34,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
-import Control.Monad.Catch (catch, throwM)
+import Control.Monad.Catch (catch, catchAll, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -459,14 +459,22 @@ checkFederationIngress origin target = do
         . (addJSONObject [])
   checkStatus <- appToIO $ do
     submit "POST" req `bindResponse` \res -> do
-      let is200 = res.status == 200
-      mInner <- lookupField res.json "inner"
-      isFedDenied <- case mInner of
-        Nothing -> pure False
-        Just inner -> do
-          label <- inner %. "label" & asString
-          pure $ res.status == 533 && label == "federation-denied"
-      pure (is200 || isFedDenied)
+      case res.json of
+        -- A federator can briefly return an empty or JSON-null body while the
+        -- backend is warming up. Keep the retry alive instead of letting
+        -- lookupField turn that transient response into a test failure.
+        Just (Object _) -> do
+          let is200 = res.status == 200
+          mInner <- lookupField res.json "inner"
+          isFedDenied <- case mInner of
+            Nothing -> pure False
+            Just inner ->
+              (do
+                  label <- inner %. "label" & asString
+                  pure $ res.status == 533 && label == "federation-denied"
+              ) `catchAll` const (pure False)
+          pure (is200 || isFedDenied)
+        _ -> pure False
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
