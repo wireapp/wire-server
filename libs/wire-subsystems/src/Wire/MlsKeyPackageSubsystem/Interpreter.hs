@@ -47,13 +47,13 @@ insertMlsKeyPackages u c ps = Store.insertKeyPackages u c ps
 claimMlsKeyPackage ::
   (Member Store.MlsKeyPackageStore r, Member (Embed IO) r, Member Resource r) =>
   Maybe NominalDiffTime ->
-  MVar () ->
+  C.MVar () ->
   UserId ->
   ClientId ->
   CipherSuiteTag ->
   Sem r (Maybe (KeyPackageRef, KeyPackageData))
 claimMlsKeyPackage maxLifetime lock u c s =
-  bracket (embed (C.takeMVar lock)) (const $ embed (C.putMVar lock ())) (const claim)
+  bracket (embed $ C.takeMVar lock) (embed . C.putMVar lock) (const claim)
   where
     claim :: (Member Store.MlsKeyPackageStore r, Member (Embed IO) r) => Sem r (Maybe (KeyPackageRef, KeyPackageData))
     claim = do
@@ -72,15 +72,14 @@ claimMlsKeyPackage maxLifetime lock u c s =
       pure (atMay xs i)
 
 countMlsKeyPackages ::
-  ( Num b,
-    Member Store.MlsKeyPackageStore r,
+  ( Member Store.MlsKeyPackageStore r,
     Member (Embed IO) r
   ) =>
   Maybe NominalDiffTime ->
   UserId ->
   ClientId ->
   CipherSuiteTag ->
-  Sem r b
+  Sem r Int64
 countMlsKeyPackages configuredLifetime u c s = fromIntegral . length <$> getNonClaimedKeyPackages configuredLifetime u c s
 
 deleteMlsKeyPackages ::
