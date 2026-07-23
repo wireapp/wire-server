@@ -113,6 +113,10 @@ import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
 import Wire.MigrationLock
+import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
+import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -208,6 +212,8 @@ type BrigLowerLevelEffects =
      BackgroundJobPublisher,
      RateLimit,
      UserKeyStore,
+     MlsKeyPackageSubsystem,
+     MlsKeyPackageStore,
      UserStore,
      UserGroupStore,
      DomainRegistrationStore,
@@ -487,6 +493,8 @@ runBrigToIO e (AppT ma) = do
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
+              . interpretMlsKeyPackageStoreToCassandra e.casClient
+              . interpretMlsKeyPackageSubsystem e.settings.keyPackageMaximumLifetime e.keyPackageLocalLock
               . interpretUserKeyStoreCassandra e.casClient
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel

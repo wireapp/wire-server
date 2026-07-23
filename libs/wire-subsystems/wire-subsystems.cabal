@@ -384,6 +384,10 @@ library
     Wire.MeetingsSubsystem.Interpreter
     Wire.Migration
     Wire.MigrationLock
+    Wire.MlsKeyPackageStore
+    Wire.MlsKeyPackageStore.Cassandra
+    Wire.MlsKeyPackageSubsystem
+    Wire.MlsKeyPackageSubsystem.Interpreter
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.Options.Galley

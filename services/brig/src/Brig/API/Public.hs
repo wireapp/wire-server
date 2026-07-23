@@ -180,6 +180,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
@@ -418,6 +419,7 @@ servantSitemap ::
     Member TeamSubsystem r,
     Member AppSubsystem r,
     Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
     Member ClientSubsystem r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,

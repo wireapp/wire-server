@@ -105,7 +105,6 @@ library
     Brig.CanonicalInterpreter
     Brig.Data.Activation
     Brig.Data.Connection
-    Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
     Brig.Data.Types
     Brig.Data.User
