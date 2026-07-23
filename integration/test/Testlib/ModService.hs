@@ -470,10 +470,11 @@ checkFederationIngress origin target = do
           isFedDenied <- case mInner of
             Nothing -> pure False
             Just inner ->
-              (do
+              ( do
                   label <- inner %. "label" & asString
                   pure $ res.status == 533 && label == "federation-denied"
-              ) `catch` \(_ :: AssertionFailure) -> pure False
+              )
+                `catch` \(_ :: AssertionFailure) -> pure False
           pure (is200 || isFedDenied)
         _ -> pure False
   eith <- liftIO (E.try checkStatus)
@@ -676,11 +677,13 @@ federatorIngressDelay = 30 * 1000 * 1000
 warmupFederation :: (HasCallStack) => App ()
 warmupFederation = do
   env <- ask
-  enabledFedDomains <- liftIO $ fmap catMaybes $ for
-    [ (env.federationV0Domain, "ENABLE_FEDERATION_V0"),
-      (env.federationV1Domain, "ENABLE_FEDERATION_V1"),
-      (env.federationV2Domain, "ENABLE_FEDERATION_V2")
-    ]
+  enabledFedDomains <- liftIO
+    $ fmap catMaybes
+    $ for
+      [ (env.federationV0Domain, "ENABLE_FEDERATION_V0"),
+        (env.federationV1Domain, "ENABLE_FEDERATION_V1"),
+        (env.federationV2Domain, "ENABLE_FEDERATION_V2")
+      ]
     $ \(domain, flag) -> do
       enabled <- lookupEnv flag
       pure $ if enabled == Just "1" then Just domain else Nothing
