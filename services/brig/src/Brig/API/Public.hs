@@ -48,7 +48,6 @@ import Brig.Effects.ConnectionStore
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
@@ -204,6 +203,7 @@ import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore

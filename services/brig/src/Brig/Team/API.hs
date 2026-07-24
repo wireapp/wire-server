@@ -32,7 +32,6 @@ import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
 import Brig.Data.User (invitationIdToUserId)
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Template
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
@@ -85,6 +84,7 @@ import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error

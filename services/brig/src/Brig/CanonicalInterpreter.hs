@@ -25,8 +25,6 @@ import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.Effects.JwtTools
 import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.IO.Intra (runEvents)
 import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
@@ -165,6 +163,8 @@ import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
+import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)

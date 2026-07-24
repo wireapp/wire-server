@@ -28,8 +28,6 @@ import Brig.AWS.SesNotification qualified as SesNotification
 import Brig.App
 import Brig.Calling qualified as Calling
 import Brig.CanonicalInterpreter
-import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
-import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Brig.InternalEvent.Process qualified as Internal
 import Brig.Options hiding (internalEvents)
 import Brig.Queue qualified as Queue
@@ -74,6 +72,8 @@ import Wire.DeleteQueue
 import Wire.OpenTelemetry (withTracer)
 import Wire.PostgresMigrations
 import Wire.Sem.Paging qualified as P
+import Wire.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import Wire.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Wire.UserStore
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it

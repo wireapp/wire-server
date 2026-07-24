@@ -477,6 +477,8 @@ library
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserList
+    Wire.UserPendingActivationStore
+    Wire.UserPendingActivationStore.Cassandra
     Wire.UserSearch.Metrics
     Wire.UserSearch.Migration
     Wire.UserSearch.Types

@@ -72,8 +72,6 @@ import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
 import Brig.Effects.ConnectionStore
-import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
-import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
 import Brig.User.Auth.Cookie qualified as Auth
@@ -149,6 +147,8 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
+import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem as User
