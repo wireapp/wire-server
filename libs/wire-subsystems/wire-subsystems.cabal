@@ -148,6 +148,7 @@ common common-all
     , imports
     , iproute
     , iso639
+    , jwt-tools
     , kan-extensions
     , lens
     , lens-aeson
@@ -383,6 +384,7 @@ library
     Wire.JobSubsystem.ArbiterAdapter
     Wire.JobSubsystem.Interpreter
     Wire.JobSubsystem.Migrations
+    Wire.JwtTools
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra

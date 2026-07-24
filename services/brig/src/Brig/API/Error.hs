@@ -30,6 +30,7 @@ import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.AuthenticationSubsystem.Error
 import Wire.Error
+import Wire.JwtTools (CertEnrollmentError (..))
 
 throwStd :: (MonadError HttpError m) => Wai.Error -> m a
 throwStd = throwError . StdError

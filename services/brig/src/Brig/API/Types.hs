@@ -33,7 +33,6 @@ where
 import Brig.Data.Activation (ActivationError (..))
 import Data.Code
 import Data.Id
-import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.Qualified
 import Data.RetryAfter
 import Imports
@@ -160,16 +159,6 @@ data AccountStatusError
 
 data VerificationCodeThrottledError
   = VerificationCodeThrottled RetryAfter
-
-data CertEnrollmentError
-  = NonceNotFound
-  | RustError DPoPTokenGenerationError
-  | KeyBundleError
-  | MisconfiguredRequestUrl
-  | ClientIdSyntaxError
-  | NotATeamUser
-  | MissingHandle
-  | MissingName
 
 -------------------------------------------------------------------------------
 -- Exceptions

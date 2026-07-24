@@ -20,11 +20,8 @@ module Brig.User.Client
   )
 where
 
-import Brig.API.Types
 import Brig.App
 import Brig.Data.Nonce as Nonce
-import Brig.Effects.JwtTools (JwtTools)
-import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Options qualified as Opt
@@ -47,6 +44,8 @@ import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User
 import Wire.API.User.Client.DPoPAccessToken
+import Wire.JwtTools (CertEnrollmentError (..), JwtTools)
+import Wire.JwtTools qualified as JwtTools
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
