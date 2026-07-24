@@ -36,10 +36,8 @@ where
 import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
-import Brig.Budget
 import Brig.Options qualified as Opt
 import Brig.User.Auth.Cookie
-import Cassandra
 import Control.Error hiding (bool)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
@@ -71,6 +69,7 @@ import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..))
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.BudgetStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.Events (Events)
@@ -89,6 +88,7 @@ import Wire.UserSubsystem qualified as User
 login ::
   forall r.
   ( Member (Input (Local ())) r,
+    Member BudgetStore r,
     Member ActivationCodeStore r,
     Member Events r,
     Member TinyLog r,
@@ -108,7 +108,7 @@ login ::
 login (MkLogin li pw label code) typ = do
   uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
-  wrapClientE $ checkRetryLimit uid
+  checkRetryLimit uid
 
   (lift . liftSem $ Authentication.authenticateEither uid pw) >>= \case
     Right a -> pure a
@@ -131,18 +131,16 @@ login (MkLogin li pw label code) typ = do
           Left VerificationCodeNoEmail -> lift (decrRetryLimit uid) >> throwE LoginFailed
           Right () -> pure ()
 
-decrRetryLimit :: UserId -> (AppT r) ()
-decrRetryLimit = wrapClient . withRetryLimit (\k b -> withBudget k b $ pure ())
+decrRetryLimit :: forall r. (Member BudgetStore r) => UserId -> (AppT r) ()
+decrRetryLimit = withRetryLimit (\k b -> liftSem $ withBudget k b $ pure ())
 
 checkRetryLimit ::
-  ( MonadReader Env m,
-    MonadClient m
-  ) =>
+  (Member BudgetStore r) =>
   UserId ->
-  ExceptT LoginError m ()
+  ExceptT LoginError (AppT r) ()
 checkRetryLimit uid =
   flip withRetryLimit uid $ \budgetKey budget ->
-    checkBudget budgetKey budget >>= \case
+    lift (liftSem (checkBudget budgetKey budget)) >>= \case
       BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
       BudgetedValue () remaining -> pure $ BudgetedValue () remaining
 

@@ -71,6 +71,8 @@ import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.BudgetStore
+import Wire.BudgetStore.Cassandra
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
@@ -262,6 +264,7 @@ type BrigLowerLevelEffects =
      PublicKeyBundle,
      JwtTools,
      BlockListStore,
+     BudgetStore,
      UserPendingActivationStore InternalPaging,
      Now,
      Delay,
@@ -445,6 +448,7 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
+              . budgetStoreToCassandra @Cas.Client
               . interpretBlockListStoreToCassandra e.casClient
               . interpretJwtTools
               . interpretPublicKeyBundle

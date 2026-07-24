@@ -164,6 +164,7 @@ import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore (BlockListStore)
+import Wire.BudgetStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem)
@@ -428,7 +429,8 @@ servantSitemap ::
     Member ClientSubsystem r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
-    HasBrigFederationAccess m r
+    HasBrigFederationAccess m r,
+    Member BudgetStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
