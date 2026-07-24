@@ -75,7 +75,7 @@ inMemoryUserSubsystemInterpreter =
     GetAccountsBy (tUnqualified -> GetBy _ _ _ uids []) ->
       mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
-    IsUsersContactable users _ _ -> pure (const False <$> users)
+    IsUsersContactable users _ _ -> pure (False <$ users)
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"
     CheckHandle _ -> error "CheckHandle: implement on demand (userSubsystemInterpreter)"
     CheckHandles _ _ -> error "CheckHandles: implement on demand (userSubsystemInterpreter)"
