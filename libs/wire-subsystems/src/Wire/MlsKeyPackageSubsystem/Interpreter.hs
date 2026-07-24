@@ -37,12 +37,29 @@ interpretMlsKeyPackageSubsystem :: (Member Store.MlsKeyPackageStore r, Member (E
 interpretMlsKeyPackageSubsystem configuredLifetime lock = interpret $ \case
   InsertMlsKeyPackages u c ps -> insertMlsKeyPackages u c ps
   ClaimMlsKeyPackage u c s -> claimMlsKeyPackage configuredLifetime lock u c s
+  HasMlsKeyPackages u c s -> hasMlsKeyPackages configuredLifetime u c s
   CountMlsKeyPackages u c s -> countMlsKeyPackages configuredLifetime u c s
   DeleteMlsKeyPackages u c s rs -> deleteMlsKeyPackages u c s rs
   DeleteAllMlsKeyPackages u c ss -> deleteAllMlsKeyPackages u c ss
 
 insertMlsKeyPackages :: (Member Store.MlsKeyPackageStore r) => UserId -> ClientId -> [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] -> Sem r ()
 insertMlsKeyPackages u c ps = Store.insertKeyPackages u c ps
+
+hasMlsKeyPackages :: (Member Store.MlsKeyPackageStore r, Member (Embed IO) r) => Maybe NominalDiffTime -> UserId -> ClientId -> CipherSuiteTag -> Sem r Bool
+hasMlsKeyPackages maxLifetime u c s = do
+  rows <- Store.lookupKeyPackages u c s
+  now <- embed getPOSIXTime
+  pure . any (isUsable now maxLifetime) $ mapMaybe decode rows
+  where
+    decode :: (KeyPackageRef, KeyPackageData) -> Maybe KeyPackage
+    decode (_, packageData) = do
+      package <- either (const Nothing) Just (decodeMLS' (kpData packageData) :: Either Text (RawMLS KeyPackage))
+      pure package.value
+
+    isUsable now configuredLifetime package =
+      case package.leafNode.source of
+        LeafNodeSourceKeyPackage lifetime -> isRight (validateKeyPackageLifetime now configuredLifetime lifetime)
+        _ -> False
 
 claimMlsKeyPackage ::
   (Member Store.MlsKeyPackageStore r, Member (Embed IO) r, Member Resource r) =>
