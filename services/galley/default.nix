@@ -78,7 +78,6 @@
 , sop-core
 , split
 , ssl-util
-, stm
 , streaming-commons
 , string-conversions
 , tagged
@@ -164,7 +163,6 @@ mkDerivation {
     singletons
     split
     ssl-util
-    stm
     text
     time
     tinylog

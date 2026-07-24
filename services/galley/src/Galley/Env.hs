@@ -49,7 +49,6 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
-import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Hasql.Pool.Extended
 import Imports
@@ -61,6 +60,7 @@ import Wire.API.MLS.Keys
 import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.FeatureFlags qualified as FeatureFlags
 import Wire.AWS qualified as Aws
+import Wire.BoundedQueue.STM qualified as Q
 import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley

@@ -17,21 +17,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Queue
+module Wire.BoundedQueue.STM
   ( Queue,
     new,
     tryPush,
     pop,
     len,
-    interpretQueue,
+    interpretBoundedQueue,
   )
 where
 
 import Control.Concurrent.STM qualified as Stm
-import Galley.Effects.Queue qualified as E
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
+import Wire.BoundedQueue qualified as E
 
 data Queue a = Queue
   { _len :: Stm.TVar Word,
@@ -57,11 +57,11 @@ pop q = liftIO . atomically $ do
 len :: (MonadIO m) => Queue a -> m Word
 len q = liftIO $ Stm.readTVarIO (_len q)
 
-interpretQueue ::
+interpretBoundedQueue ::
   (Member (Embed IO) r) =>
   Queue a ->
-  Sem (E.Queue a ': r) x ->
+  Sem (E.BoundedQueue a ': r) x ->
   Sem r x
-interpretQueue q = interpret $ \case
+interpretBoundedQueue q = interpret $ \case
   E.TryPush a -> embed @IO $ tryPush q a
   E.Pop -> embed @IO $ pop q

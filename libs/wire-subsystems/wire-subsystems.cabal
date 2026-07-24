@@ -184,6 +184,7 @@ common common-all
     , sop-core
     , ssl-util
     , statistics
+    , stm
     , stomp-queue
     , tagged
     , template
@@ -239,6 +240,8 @@ library
     Wire.BackgroundJobsRunner.Interpreter
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
+    Wire.BoundedQueue
+    Wire.BoundedQueue.STM
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
     Wire.ClientStore
