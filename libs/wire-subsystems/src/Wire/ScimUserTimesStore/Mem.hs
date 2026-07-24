@@ -17,20 +17,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimUserTimesStore.Mem
+module Wire.ScimUserTimesStore.Mem
   ( scimUserTimesStoreToMem,
   )
 where
 
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State
-import Spar.Sem.ScimUserTimesStore
 import Web.Scim.Schema.Common (WithId (WithId))
 import Web.Scim.Schema.Meta (WithMeta (WithMeta), created, lastModified)
+import Wire.ScimUserTimesStore
 
 scimUserTimesStoreToMem ::
   Sem (ScimUserTimesStore ': r) a ->

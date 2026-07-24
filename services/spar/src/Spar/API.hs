@@ -109,8 +109,6 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
@@ -137,6 +135,8 @@ import Wire.Reporter (Reporter)
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import qualified Wire.SamlProtocolSettings as SamlProtocolSettings
 import Wire.ScimSubsystem
+import Wire.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)

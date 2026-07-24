@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimUserTimesStore.Cassandra
+module Wire.ScimUserTimesStore.Cassandra
   ( scimUserTimesStoreToCassandra,
   )
 where
@@ -28,9 +28,9 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Imports
 import Polysemy
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore (..))
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
+import Wire.ScimUserTimesStore (ScimUserTimesStore (..))
 
 scimUserTimesStoreToCassandra :: forall m r a. (MonadClient m, Member (Embed m) r) => Sem (ScimUserTimesStore ': r) a -> Sem r a
 scimUserTimesStoreToCassandra =

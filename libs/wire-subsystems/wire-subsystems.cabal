@@ -422,6 +422,9 @@ library
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
+    Wire.ScimUserTimesStore
+    Wire.ScimUserTimesStore.Cassandra
+    Wire.ScimUserTimesStore.Mem
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra
     Wire.SessionStore
