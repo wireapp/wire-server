@@ -87,6 +87,7 @@
 , network-conduit-tls
 , network-uri
 , polysemy
+, polysemy-check
 , polysemy-conc
 , polysemy-plugin
 , polysemy-time
@@ -229,6 +230,7 @@ mkDerivation {
     network-conduit-tls
     network-uri
     polysemy
+    polysemy-check
     polysemy-conc
     polysemy-plugin
     polysemy-time
@@ -362,6 +364,7 @@ mkDerivation {
     network-conduit-tls
     network-uri
     polysemy
+    polysemy-check
     polysemy-conc
     polysemy-plugin
     polysemy-time

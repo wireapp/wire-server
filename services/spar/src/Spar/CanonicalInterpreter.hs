@@ -41,8 +41,6 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
-import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Spar.Sem.SAML2 (SAML2)
@@ -62,6 +60,8 @@ import Wire.API.User.Saml (TTLError)
 import Wire.BrigAPIAccess
 import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError, clientErrorToHttpError)
+import Wire.DefaultSsoStore (DefaultSsoCode)
+import Wire.DefaultSsoStore.Cassandra (defaultSsoCodeToCassandra)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IdPConfigStore (IdPConfigStore)

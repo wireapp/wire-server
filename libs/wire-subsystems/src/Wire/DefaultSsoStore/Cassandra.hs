@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.DefaultSsoCode.Cassandra
+module Wire.DefaultSsoStore.Cassandra
   ( defaultSsoCodeToCassandra,
   )
 where
@@ -27,10 +27,10 @@ where
 import Cassandra
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO.Types as SAML
-import Spar.Data.Instances ()
-import Spar.Sem.DefaultSsoCode
-import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
+import SAML2.WebSSO.Types qualified as SAML
+{- instance Cql SAML.IdPId -}
+import Wire.DefaultSsoStore
+import Wire.DomainRegistrationStore.Cassandra ()
 
 defaultSsoCodeToCassandra ::
   forall m r a.
@@ -65,7 +65,7 @@ storeDefaultSsoCode ::
 storeDefaultSsoCode idpId = do
   -- there is a race condition here which means there could potentially be more
   -- than one entry (violating invariant 2).
-  -- However, the SELECT query will deterministally pick one of them due to the
+  -- However, the SELECT query will deterministically pick one of them due to the
   -- `ORDER BY` clause. The others will get removed by `deleteDefaultSsoCode`
   -- the next time this function is called (as it removes all entries).
   deleteDefaultSsoCode

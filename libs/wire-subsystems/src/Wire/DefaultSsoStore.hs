@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.DefaultSsoCode
+module Wire.DefaultSsoStore
   ( DefaultSsoCode (..),
     get,
     store,
@@ -28,7 +28,7 @@ where
 import Imports
 import Polysemy
 import Polysemy.Check (deriveGenericK)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 
 data DefaultSsoCode m a where
   Get :: DefaultSsoCode m (Maybe SAML.IdPId)

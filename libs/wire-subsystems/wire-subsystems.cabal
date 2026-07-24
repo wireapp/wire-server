@@ -159,6 +159,7 @@ common common-all
     , network-conduit-tls
     , network-uri
     , polysemy
+    , polysemy-check
     , polysemy-conc
     , polysemy-plugin
     , polysemy-time
@@ -308,6 +309,9 @@ library
     Wire.ConversationSubsystem.Util
     Wire.CustomBackendStore
     Wire.CustomBackendStore.Cassandra
+    Wire.DefaultSsoStore
+    Wire.DefaultSsoStore.Cassandra
+    Wire.DefaultSsoStore.Mem
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -546,6 +550,7 @@ library
     , network
     , network-conduit-tls
     , polysemy
+    , polysemy-check
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
