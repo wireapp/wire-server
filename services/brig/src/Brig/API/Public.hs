@@ -1135,7 +1135,7 @@ listUsersByIdsOrHandles self includeContactStatus q = do
       r' <- Handle.filterHandleResults lself r
       pure (l, r')
   foundUsers' <-
-    if isJust includeContactStatus
+    if includeContactStatus = Just True
       then enrichContactStatus lself foundUsers
       else pure foundUsers
   pure $ ListUsersById foundUsers' $ fst <$$> nonEmpty errors
