@@ -443,6 +443,7 @@ library
     Wire.ServiceStore.Cassandra
     Wire.SessionStore
     Wire.SessionStore.Cassandra
+    Wire.SFT
     Wire.SparAPIAccess
     Wire.SparAPIAccess.Rpc
     Wire.StoredConversation
