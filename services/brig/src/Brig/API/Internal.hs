@@ -34,7 +34,6 @@ import Brig.API.User qualified as API
 import Brig.App as App
 import Brig.Data.Activation
 import Brig.Data.Connection qualified as Data
-import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
@@ -119,6 +118,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
@@ -188,7 +189,8 @@ servantSitemap ::
     Member AppStore r,
     Member AppSubsystem r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member MlsKeyPackageSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -224,7 +226,7 @@ ejpdAPI ::
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
-mlsAPI :: (Member ClientStore r) => ServerT BrigIRoutes.MLSAPI (Handler r)
+mlsAPI :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
   Named @"get-mls-clients" getMLSClientsH
     :<|> Named @"get-mls-client" getMLSClientH
@@ -461,13 +463,13 @@ deleteAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handle
 deleteAccountConferenceCallingConfig uid =
   lift . liftSem $ UserStore.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getMLSClientH :: (Member ClientStore r) => UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
+getMLSClientH :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
 getMLSClientH usr cid suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   lift $ getMLSClient lusr cid suiteTag
 
-getMLSClientsH :: (Member ClientStore r) => UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClientsH :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> CipherSuite -> Handler r (Set ClientInfo)
 getMLSClientsH usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
@@ -476,13 +478,13 @@ getMLSClientsH usr suite = do
   pure $ Set.fromList clientInfos
 
 getMLSClient ::
-  (Member ClientStore r) =>
+  (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
   Local UserId ->
   ClientId ->
   CipherSuiteTag ->
   AppT r ClientInfo
 getMLSClient lusr cid suiteTag = do
-  numKeyPackages <- wrapClient $ Data.countKeyPackages lusr cid suiteTag
+  numKeyPackages <- liftSem $ Mls.countMlsKeyPackages (tUnqualified lusr) cid suiteTag
   mc <- liftSem $ ClientStore.lookupClient (tUnqualified lusr) cid
   let keys = foldMap (.clientMLSPublicKeys) mc
       ss = csSignatureScheme suiteTag

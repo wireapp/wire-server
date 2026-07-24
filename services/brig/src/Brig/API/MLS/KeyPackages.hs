@@ -35,7 +35,6 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.MLS.Util
 import Brig.API.Types
 import Brig.App
-import Brig.Data.MLS.KeyPackage qualified as Data
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.CommaSeparatedList
@@ -60,20 +59,23 @@ import Wire.ClientSubsystem.Error
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getUserLegalholdStatus)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.StoredUser
 import Wire.UserStore (UserStore, getUser)
 
-uploadKeyPackages :: (Member ClientStore r) => Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
+uploadKeyPackages :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid kps = do
   assertMLSEnabled
   let identity = mkClientIdentity (tUntagged lusr) cid
   kps' <- traverse (validateUploadedKeyPackage identity) kps.keyPackages
-  lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
+  lift $ liftSem $ Mls.insertMlsKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
     Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
     HasBrigFederationAccess m r
   ) =>
   Local UserId ->
@@ -87,6 +89,7 @@ claimKeyPackagesV7 ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
     Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
     HasBrigFederationAccess m r
   ) =>
   Local UserId ->
@@ -108,7 +111,8 @@ claimLocalKeyPackages ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member MlsKeyPackageSubsystem r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -157,7 +161,7 @@ claimLocalKeyPackages qusr skipOwn suite qTarget = do
       runMaybeT $ do
         guard $ Just c /= own
         uncurry (KeyPackageBundleEntry (tUntagged qTarget) c)
-          <$> wrapClientM (Data.claimKeyPackage qTarget c suite)
+          <$> MaybeT (liftSem $ Mls.claimMlsKeyPackage (tUnqualified qTarget) c suite)
 
     -- FUTUREWORK: shouldn't this be defined elsewhere for general use?
     assertUserNotUnderLegalHold :: StoredUser -> ExceptT ClientError (AppT r) ()
@@ -211,18 +215,19 @@ claimRemoteKeyPackages lusr suite target = do
 
   pure bundle
 
-countKeyPackages :: Local UserId -> ClientId -> CipherSuite -> Handler r KeyPackageCount
+countKeyPackages :: (Member MlsKeyPackageSubsystem r) => Local UserId -> ClientId -> CipherSuite -> Handler r KeyPackageCount
 countKeyPackages lusr c = countKeyPackagesV7 lusr c . Just
 
-countKeyPackagesV7 :: Local UserId -> ClientId -> Maybe CipherSuite -> Handler r KeyPackageCount
+countKeyPackagesV7 :: (Member MlsKeyPackageSubsystem r) => Local UserId -> ClientId -> Maybe CipherSuite -> Handler r KeyPackageCount
 countKeyPackagesV7 lusr c mSuite = do
   assertMLSEnabled
   suite <- getCipherSuite mSuite
   lift $
     KeyPackageCount . fromIntegral
-      <$> wrapClient (Data.countKeyPackages lusr c suite)
+      <$> liftSem (Mls.countMlsKeyPackages (tUnqualified lusr) c suite)
 
 deleteKeyPackages ::
+  (Member MlsKeyPackageSubsystem r) =>
   Local UserId ->
   ClientId ->
   CipherSuite ->
@@ -231,6 +236,7 @@ deleteKeyPackages ::
 deleteKeyPackages lusr c = deleteKeyPackagesV7 lusr c . Just
 
 deleteKeyPackagesV7 ::
+  (Member MlsKeyPackageSubsystem r) =>
   Local UserId ->
   ClientId ->
   Maybe CipherSuite ->
@@ -239,10 +245,10 @@ deleteKeyPackagesV7 ::
 deleteKeyPackagesV7 lusr c mSuite (unDeleteKeyPackages -> refs) = do
   assertMLSEnabled
   suite <- getCipherSuite mSuite
-  lift $ wrapClient (Data.deleteKeyPackages (tUnqualified lusr) c suite refs)
+  lift $ liftSem (Mls.deleteMlsKeyPackages (tUnqualified lusr) c suite refs)
 
 replaceKeyPackages ::
-  (Member ClientStore r) =>
+  (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
   Local UserId ->
   ClientId ->
   CommaSeparatedList CipherSuite ->
@@ -251,7 +257,7 @@ replaceKeyPackages ::
 replaceKeyPackages lusr c = replaceKeyPackagesV7 lusr c . Just
 
 replaceKeyPackagesV7 ::
-  (Member ClientStore r) =>
+  (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
   Local UserId ->
   ClientId ->
   Maybe (CommaSeparatedList CipherSuite) ->
@@ -260,5 +266,5 @@ replaceKeyPackagesV7 ::
 replaceKeyPackagesV7 lusr c (fmap toList -> mSuites) upload = do
   assertMLSEnabled
   suites <- validateCipherSuites mSuites upload
-  lift $ wrapClient (Data.deleteAllKeyPackages (tUnqualified lusr) c suites)
+  lift $ liftSem (Mls.deleteAllMlsKeyPackages (tUnqualified lusr) c (toList suites))
   uploadKeyPackages lusr c upload
