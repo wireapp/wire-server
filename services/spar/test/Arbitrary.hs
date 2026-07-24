@@ -33,7 +33,6 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types
 import Servant.API.ContentTypes
 import Spar.Scim
-import Spar.Scim.Types (ScimUserCreationStatus)
 import Test.QuickCheck
 import URI.ByteString
 import Wire.API.User.IdentityProvider

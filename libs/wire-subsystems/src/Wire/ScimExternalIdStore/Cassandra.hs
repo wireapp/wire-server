@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
@@ -17,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimExternalIdStore.Cassandra
+module Wire.ScimExternalIdStore.Cassandra
   ( scimExternalIdStoreToCassandra,
   )
 where
@@ -27,10 +28,22 @@ import Data.Bifunctor (second)
 import Data.Id
 import Imports
 import Polysemy
-import Spar.Data.Instances ()
-import Spar.Scim.Types (ScimUserCreationStatus (ScimUserCreated))
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore (..))
-import Wire.API.User.Scim (ValidScimId (..))
+import Wire.API.User.Scim (ScimUserCreationStatus (..), ValidScimId (..))
+import Wire.ScimExternalIdStore (ScimExternalIdStore (..))
+
+-- Moved from Spar.Data.Instances: this is the only consumer of the
+-- @scim_external.creation_status@ column, so the Cql instance lives here.
+instance Cql ScimUserCreationStatus where
+  ctype = Tagged IntColumn
+
+  toCql ScimUserCreated = CqlInt 0
+  toCql ScimUserCreating = CqlInt 1
+
+  fromCql (CqlInt i) = case i of
+    0 -> pure ScimUserCreated
+    1 -> pure ScimUserCreating
+    n -> Left $ "unexpected ScimUserCreationStatus: " ++ show n
+  fromCql _ = Left "int expected"
 
 scimExternalIdStoreToCassandra ::
   forall m r a.

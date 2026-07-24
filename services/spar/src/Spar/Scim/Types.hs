@@ -32,8 +32,6 @@ module Spar.Scim.Types where
 
 import Control.Lens (view)
 import Imports
-import Test.QuickCheck (Arbitrary (..))
-import Test.QuickCheck.Gen (elements)
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import Wire.API.User (AccountStatus (..))
@@ -89,9 +87,3 @@ normalizeLikeStored usr =
 
     tweakActive :: Maybe Scim.ScimBool -> Maybe Scim.ScimBool
     tweakActive = Just . Scim.ScimBool . maybe True Scim.unScimBool
-
-data ScimUserCreationStatus = ScimUserCreating | ScimUserCreated
-  deriving (Eq, Show, Generic)
-
-instance Arbitrary ScimUserCreationStatus where
-  arbitrary = elements [ScimUserCreating, ScimUserCreated]

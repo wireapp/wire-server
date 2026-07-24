@@ -24,11 +24,11 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Check
-import Spar.Scim.Types (ScimUserCreationStatus)
-import qualified Spar.Sem.ScimExternalIdStore as E
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.API.User.Scim (ScimUserCreationStatus)
+import qualified Wire.ScimExternalIdStore as E
 
 propsForInterpreter ::
   (PropConstraints r f) =>
