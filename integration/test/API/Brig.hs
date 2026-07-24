@@ -263,6 +263,17 @@ listUsers usr qualifiedUserIds = do
   req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
   submit "POST" (req & addJSONObject ["qualified_ids" .= qUsers])
 
+listUsersWithContactStatus :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
+listUsersWithContactStatus usr qualifiedUserIds = do
+  qUsers <- mapM objQidObject qualifiedUserIds
+  req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
+  submit
+    "POST"
+    ( req
+        & addQueryParams [("include-contact-status", "true")]
+        & addJSONObject ["qualified_ids" .= qUsers]
+    )
+
 data SearchContactsCfg = SearchContactsCfg
   { user :: Value,
     searchTerm :: String,

@@ -31,6 +31,8 @@ import Wire.API.MLS.Lifetime
 data MlsKeyPackageSubsystem m a where
   InsertMlsKeyPackages :: UserId -> ClientId -> [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] -> MlsKeyPackageSubsystem m ()
   ClaimMlsKeyPackage :: UserId -> ClientId -> CipherSuiteTag -> MlsKeyPackageSubsystem m (Maybe (KeyPackageRef, KeyPackageData))
+  HasMlsKeyPackages :: UserId -> ClientId -> CipherSuiteTag -> MlsKeyPackageSubsystem m Bool
+  HasMlsKeyPackagesBulk :: [(UserId, ClientId, CipherSuiteTag)] -> MlsKeyPackageSubsystem m (Set (UserId, ClientId, CipherSuiteTag))
   CountMlsKeyPackages :: UserId -> ClientId -> CipherSuiteTag -> MlsKeyPackageSubsystem m Int64
   DeleteMlsKeyPackages :: UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> MlsKeyPackageSubsystem m ()
   DeleteAllMlsKeyPackages :: UserId -> ClientId -> [CipherSuiteTag] -> MlsKeyPackageSubsystem m ()

@@ -1,6 +1,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
@@ -33,6 +34,7 @@ import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
+import Brig.API.MLS.Util (isMLSEnabled)
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Public.Swagger
 import Brig.API.Types
@@ -81,6 +83,7 @@ import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema ()
+import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
@@ -101,6 +104,7 @@ import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
+import Wire.API.Conversation.Protocol (ProtocolTag (..))
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -135,6 +139,7 @@ import Wire.API.Routes.Version
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
+import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError), UserProfile)
@@ -1114,11 +1119,12 @@ listUsersByIdsOrHandlesV3 self q = do
 -- using a new return type
 listUsersByIdsOrHandles ::
   forall r.
-  (Member UserSubsystem r, Member UserStore r) =>
+  (Member UserSubsystem r, Member UserStore r, Member ClientStore r, Member GalleyAPIAccess r) =>
   UserId ->
+  Maybe Bool ->
   Public.ListUsersQuery ->
   Handler r ListUsersById
-listUsersByIdsOrHandles self q = do
+listUsersByIdsOrHandles self includeContactStatus q = do
   lself <- qualifyLocal self
   (errors, foundUsers) <- case q of
     Public.ListUsersByIds us ->
@@ -1128,13 +1134,60 @@ listUsersByIdsOrHandles self q = do
       (l, r) <- byIds lself us
       r' <- Handle.filterHandleResults lself r
       pure (l, r')
-  pure $ ListUsersById foundUsers $ fst <$$> nonEmpty errors
+  foundUsers' <-
+    if includeContactStatus == Just True
+      then enrichContactStatus lself foundUsers
+      else pure foundUsers
+  pure $ ListUsersById foundUsers' $ fst <$$> nonEmpty errors
   where
     byIds ::
       Local UserId ->
       [Qualified UserId] ->
       Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
     byIds lself uids = lift (liftSem (getUserProfilesWithErrors lself uids))
+
+enrichContactStatus ::
+  forall r.
+  (Member ClientStore r, Member UserSubsystem r, Member GalleyAPIAccess r) =>
+  Local UserId ->
+  [Public.UserProfile] ->
+  Handler r [Public.UserProfile]
+enrichContactStatus lself profiles = do
+  let localProfiles = filter ((== tDomain lself) . qDomain . Public.profileQualifiedId) profiles
+  if null localProfiles
+    then pure profiles
+    else do
+      serverMLS <- isMLSEnabled
+      (mlsAvailable, allowedCipherSuites) <-
+        if not serverMLS
+          then pure (False, Set.empty)
+          else do
+            requesterFeatures <- lift . liftSem $ GalleyAPIAccess.getAllTeamFeaturesForUser (Just (tUnqualified lself))
+            let mlsConfig = Feature.npProject @Feature.MLSConfig requesterFeatures
+            pure
+              ( serverMLS
+                  && mlsConfig.status == Feature.FeatureStatusEnabled
+                  && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols,
+                Set.fromList mlsConfig.config.mlsAllowedCipherSuites
+              )
+      let localUserIds = qUnqualified . Public.profileQualifiedId <$> localProfiles
+      clients <- lift . liftSem $ ClientStore.lookupClientsBulk localUserIds
+      let users =
+            Map.fromList
+              [ (uid, (profile.profileSupportedProtocols, fromMaybe Set.empty (Map.lookup uid (Public.userMap clients))))
+              | profile <- localProfiles,
+                let uid = qUnqualified profile.profileQualifiedId
+              ]
+      contactability <- lift . liftSem $ User.isUsersContactable users mlsAvailable allowedCipherSuites
+      for profiles $ enrichProfile contactability
+  where
+    enrichProfile contactability profile
+      -- the federated case is not checked, yet
+      | qDomain profile.profileQualifiedId /= tDomain lself = pure profile
+      | otherwise = do
+          let uid = qUnqualified profile.profileQualifiedId
+              contactable = Map.findWithDefault False uid contactability
+          pure profile {Public.profileContactStatus = Just (Public.ContactStatus (if contactable then Public.Contactable else Public.NonContactable))}
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

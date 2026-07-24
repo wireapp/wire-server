@@ -91,6 +91,13 @@ handleClientStore = \case
           ]
   LookupPrekeyIds uid cid ->
     gets $ maybe [] (map (.prekeyId) . (.prekeys)) . Map.lookup cid . Map.findWithDefault mempty uid . (.byUser)
+  LookupPrekeyPresenceBulk pairs ->
+    gets $ \st ->
+      Set.fromList
+        [ (uid, cid)
+        | (uid, cid) <- pairs,
+          maybe False (not . null . (.prekeys)) (Map.lookup cid (Map.findWithDefault mempty uid st.byUser))
+        ]
   GetActivityTimestamps uid ->
     gets $ map (.client.clientLastActive) . Map.elems . Map.findWithDefault mempty uid . (.byUser)
   UpdatePrekeys uid cid prekeys ->

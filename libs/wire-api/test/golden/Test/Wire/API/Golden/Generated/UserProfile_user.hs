@@ -54,7 +54,8 @@ testObject_UserProfile_user_1 =
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeRegular,
       profileApp = Nothing,
-      profileSearchable = True
+      profileSearchable = True,
+      profileContactStatus = Nothing
     }
 
 testObject_UserProfile_user_2 :: UserProfile
@@ -92,5 +93,6 @@ testObject_UserProfile_user_2 =
             { category = Category "other",
               description = unsafeRange "bloob"
             },
-      profileSearchable = True
+      profileSearchable = True,
+      profileContactStatus = Nothing
     }

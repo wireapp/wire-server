@@ -120,6 +120,7 @@ import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationStore
+import Wire.MlsKeyPackageSubsystem
 import Wire.MockInterpreters
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore
@@ -275,6 +276,7 @@ type MiniBackendLowerEffects =
      GalleyAPIAccess,
      SparAPIAccess,
      ClientStore,
+     MlsKeyPackageSubsystem,
      InvitationStore,
      PasswordStore,
      ActivationCodeStore,
@@ -348,6 +350,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryActivationCodeStoreInterpreter
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
+    . mockMlsKeyPackageSubsystem
     . runInMemoryClientStoreInterpreter
     . miniSparAPIAccess
     . miniGalleyAPIAccess teams galleyConfigs
@@ -378,6 +381,11 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     mockConversationSubsystem :: forall r'. InterpreterFor ConversationSubsystem r'
     mockConversationSubsystem = interpretH $ \case
       _ -> error "Unimplemented ConversationSubsystem operation in mock"
+    mockMlsKeyPackageSubsystem :: forall r'. InterpreterFor MlsKeyPackageSubsystem r'
+    mockMlsKeyPackageSubsystem = interpret $ \case
+      HasMlsKeyPackages {} -> pure False
+      HasMlsKeyPackagesBulk {} -> pure mempty
+      _ -> error "Unimplemented MlsKeyPackageSubsystem operation in mock"
 
 type StateEffects =
   '[ State [Push],

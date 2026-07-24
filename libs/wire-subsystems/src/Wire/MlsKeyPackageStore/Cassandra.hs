@@ -19,10 +19,13 @@ module Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra
 
 import Cassandra as C hiding (Client)
 import Data.Id
+import Data.List.Extra (chunksOf)
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Embed
-import UnliftIO.Async (pooledForConcurrentlyN_)
+import UnliftIO.Async (pooledForConcurrentlyN_, pooledMapConcurrentlyN)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage (KeyPackageData, KeyPackageRef)
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore (..))
@@ -33,6 +36,7 @@ interpretMlsKeyPackageStoreToCassandra cas =
     runEmbedded (runClient cas) . \case
       InsertKeyPackages u c ps -> embed $ insertKeyPackages u c ps
       LookupKeyPackages u c s -> embed $ lookupKeyPackages u c s
+      LookupKeyPackagesBulk requests -> embed $ lookupKeyPackagesBulk requests
       DeleteKeyPackages u c s rs -> embed $ deleteKeyPackages u c s rs
       DeleteAllKeyPackages u c ss -> embed $ deleteAllKeyPackages u c ss
       DeleteKeyPackage u c s r -> embed $ deleteKeyPackage u c s r
@@ -45,6 +49,18 @@ insertKeyPackages u c ps = retry x5 . batch $ do
 
 lookupKeyPackages :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> m [(KeyPackageRef, KeyPackageData)]
 lookupKeyPackages u c s = retry x1 $ query lookupQuery (params LocalQuorum (u, c, s))
+
+lookupKeyPackagesBulk :: (MonadClient m, MonadUnliftIO m) => [(UserId, ClientId, CipherSuiteTag)] -> m (Map (UserId, ClientId, CipherSuiteTag) [(KeyPackageRef, KeyPackageData)])
+lookupKeyPackagesBulk requests =
+  Map.fromListWith (<>) . concat
+    <$> pooledMapConcurrentlyN 16 lookupClient (Map.toList grouped)
+  where
+    grouped = Map.fromListWith Set.union [((u, c), Set.singleton s) | (u, c, s) <- requests]
+
+    lookupClient ((u, c), suites) =
+      fmap concat . for (chunksOf 8 (Set.toList suites)) $ \suiteChunk -> do
+        rows <- retry x1 $ query lookupBulkQuery (params LocalQuorum (u, c, suiteChunk))
+        pure [((u, c, suite), [(ref, packageData)]) | (suite, ref, packageData) <- rows]
 
 deleteKeyPackages :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> m ()
 deleteKeyPackages u c s rs = retry x5 $ write deleteQuery (params LocalQuorum (u, c, s, rs))
@@ -61,6 +77,9 @@ insertQuery = "INSERT INTO mls_key_packages (user, client, cipher_suite, data, r
 
 lookupQuery :: PrepQuery R (UserId, ClientId, CipherSuiteTag) (KeyPackageRef, KeyPackageData)
 lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ?"
+
+lookupBulkQuery :: PrepQuery R (UserId, ClientId, [CipherSuiteTag]) (CipherSuiteTag, KeyPackageRef, KeyPackageData)
+lookupBulkQuery = "SELECT cipher_suite, ref, data FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite IN ?"
 
 deleteQuery :: PrepQuery W (UserId, ClientId, CipherSuiteTag, [KeyPackageRef]) ()
 deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ? AND ref IN ?"
