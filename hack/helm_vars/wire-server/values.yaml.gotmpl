@@ -317,6 +317,13 @@ galley:
       disabledAPIVersions: []
       meetings:
         validityPeriod: "5s"
+        email:
+          from: meetings@example.com
+          replyTo: noreply@example.com
+          useSES: true
+          aws:
+            sesQueue: integration-galley-meetings-events
+            sesEndpoint: http://fake-aws-ses:4569
 
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.

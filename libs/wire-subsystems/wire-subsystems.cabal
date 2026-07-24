@@ -319,6 +319,7 @@ library
     Wire.DomainVerificationChallengeStore.DualWrite
     Wire.DomainVerificationChallengeStore.Postgres
     Wire.EmailSending
+    Wire.EmailSending.Options
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
     Wire.EmailSubsystem

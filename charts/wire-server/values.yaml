@@ -141,6 +141,24 @@ galley:
 
       meetings:
         validityPeriod: "48h"
+        # Optional. When set, meeting invitation emails are sent with this
+        # sender over the configured transport (SES xor SMTP). `useSES` selects
+        # the transport; `aws` is used when true, `smtp` when false (mirrors
+        # brig.config.useSES). The ConfigMap renders these into the nested
+        # `transport:` object that Galley parses.
+        # email:
+        #   from: meetings@example.com          # required when email present
+        #   replyTo: noreply@example.com        # optional
+        #   useSES: true
+        #   aws:                                # used when useSES: true
+        #     sesQueue: wire-meetings-email-feedback
+        #     sesEndpoint: https://email.us-east-1.amazonaws.com
+        #   smtp:                               # used when useSES: false
+        #     host: smtp.example.com
+        #     port: 587
+        #     connType: tls
+        #     username: meetings                # optional; enables smtpCredentials
+        #     passwordFile: /etc/wire/galley/secrets/smtp-password.txt
 
       # To disable proteus for new federated conversations:
       # federationProtocols: ["mls"]
@@ -338,6 +356,10 @@ galley:
     annotations: {}
     automountServiceAccountToken: true
 
+  # Optional secret keys (see templates/galley/secret.yaml):
+  #   smtpPassword: <smtp-password>  # mounted at /etc/wire/galley/secrets/smtp-password.txt;
+  #                                 # consumed via settings.meetings.email.smtp.passwordFile
+  #                                 # (mirrors brig's smtp.passwordFile)
   secrets: {}
 
   podSecurityContext:
