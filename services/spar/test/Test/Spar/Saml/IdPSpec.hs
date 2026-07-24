@@ -34,8 +34,6 @@ import Spar.Options (CertFingerprintAllowlist (CertFingerprintAllowlist))
 import qualified Spar.Options
 import Spar.Sem.AReqIDStore (AReqIDStore (..))
 import Spar.Sem.AssIDStore (AssIDStore (..))
-import Spar.Sem.IdPRawMetadataStore
-import Spar.Sem.IdPRawMetadataStore.Mem
 import Spar.Sem.SAML2 (SAML2 (..))
 import Spar.Sem.SAMLUserStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
@@ -66,6 +64,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import qualified Wire.GalleyAPIAccess
 import Wire.IdPConfigStore
 import Wire.IdPConfigStore.Mem
+import Wire.IdPRawMetadataStore
+import Wire.IdPRawMetadataStore.Mem
 import Wire.Reporter (Reporter (..))
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)

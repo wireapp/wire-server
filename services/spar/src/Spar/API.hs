@@ -98,8 +98,6 @@ import Spar.Orphans ()
 import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
-import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -129,6 +127,8 @@ import qualified Wire.DefaultSsoStore as DefaultSsoCode
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.IdPRawMetadataStore (IdPRawMetadataStore)
+import qualified Wire.IdPRawMetadataStore as IdPRawMetadataStore
 import Wire.IdPSubsystem (IdPSubsystem)
 import qualified Wire.IdPSubsystem as IdPSubsystem
 import Wire.Reporter (Reporter)

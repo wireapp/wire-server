@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdPRawMetadataStore.Cassandra
+module Wire.IdPRawMetadataStore.Cassandra
   ( idpRawMetadataStoreToCassandra,
   )
 where
@@ -27,10 +27,9 @@ import Cassandra as Cas
 import Control.Lens
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
-import Spar.Data.Instances ()
-import Spar.Sem.IdPRawMetadataStore
+import SAML2.WebSSO qualified as SAML
 import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
+import Wire.IdPRawMetadataStore
 
 idpRawMetadataStoreToCassandra ::
   forall m r a.

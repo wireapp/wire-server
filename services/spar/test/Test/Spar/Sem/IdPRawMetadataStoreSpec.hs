@@ -22,11 +22,11 @@ module Test.Spar.Sem.IdPRawMetadataStoreSpec where
 import Arbitrary ()
 import Imports
 import Polysemy
-import qualified Spar.Sem.IdPRawMetadataStore as E
-import Spar.Sem.IdPRawMetadataStore.Mem
 import Spar.Sem.IdPRawMetadataStore.Spec
 import Test.Hspec
 import Test.Hspec.QuickCheck
+import qualified Wire.IdPRawMetadataStore as E
+import Wire.IdPRawMetadataStore.Mem
 
 testInterpreter :: Sem '[E.IdPRawMetadataStore] a -> IO (RawState, a)
 testInterpreter = pure . run . idpRawMetadataStoreToMem

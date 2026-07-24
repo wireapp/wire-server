@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdPRawMetadataStore
+module Wire.IdPRawMetadataStore
   ( IdPRawMetadataStore (..),
     store,
     get,
@@ -28,7 +28,7 @@ where
 import Imports
 import Polysemy
 import Polysemy.Check (deriveGenericK)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 
 data IdPRawMetadataStore m a where
   Store :: SAML.IdPId -> Text -> IdPRawMetadataStore m ()
