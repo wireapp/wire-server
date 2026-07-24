@@ -21,6 +21,8 @@ import Control.Concurrent qualified as C
 import Control.Error (atMay)
 import Control.Monad.Random (randomRIO)
 import Data.Id
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime)
 import Data.Time.Clock.POSIX
 import Imports
@@ -38,6 +40,7 @@ interpretMlsKeyPackageSubsystem configuredLifetime lock = interpret $ \case
   InsertMlsKeyPackages u c ps -> insertMlsKeyPackages u c ps
   ClaimMlsKeyPackage u c s -> claimMlsKeyPackage configuredLifetime lock u c s
   HasMlsKeyPackages u c s -> hasMlsKeyPackages configuredLifetime u c s
+  HasMlsKeyPackagesBulk requests -> hasMlsKeyPackagesBulk configuredLifetime requests
   CountMlsKeyPackages u c s -> countMlsKeyPackages configuredLifetime u c s
   DeleteMlsKeyPackages u c s rs -> deleteMlsKeyPackages u c s rs
   DeleteAllMlsKeyPackages u c ss -> deleteAllMlsKeyPackages u c ss
@@ -50,6 +53,22 @@ hasMlsKeyPackages maxLifetime u c s = do
   rows <- Store.lookupKeyPackages u c s
   now <- embed getPOSIXTime
   pure . any (isUsable now maxLifetime) $ mapMaybe decode rows
+  where
+    decode :: (KeyPackageRef, KeyPackageData) -> Maybe KeyPackage
+    decode (_, packageData) = do
+      package <- either (const Nothing) Just (decodeMLS' (kpData packageData) :: Either Text (RawMLS KeyPackage))
+      pure package.value
+
+    isUsable now configuredLifetime package =
+      case package.leafNode.source of
+        LeafNodeSourceKeyPackage lifetime -> isRight (validateKeyPackageLifetime now configuredLifetime lifetime)
+        _ -> False
+
+hasMlsKeyPackagesBulk :: (Member Store.MlsKeyPackageStore r, Member (Embed IO) r) => Maybe NominalDiffTime -> [(UserId, ClientId, CipherSuiteTag)] -> Sem r (Set (UserId, ClientId, CipherSuiteTag))
+hasMlsKeyPackagesBulk maxLifetime requests = do
+  rows <- Store.lookupKeyPackagesBulk requests
+  now <- embed getPOSIXTime
+  pure . Set.fromList . map fst . filter (any (isUsable now maxLifetime) . mapMaybe decode . snd) $ Map.toList rows
   where
     decode :: (KeyPackageRef, KeyPackageData) -> Maybe KeyPackage
     decode (_, packageData) = do

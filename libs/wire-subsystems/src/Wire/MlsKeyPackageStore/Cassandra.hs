@@ -19,10 +19,11 @@ module Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra
 
 import Cassandra as C hiding (Client)
 import Data.Id
+import Data.Map qualified as Map
 import Imports
 import Polysemy
 import Polysemy.Embed
-import UnliftIO.Async (pooledForConcurrentlyN_)
+import UnliftIO.Async (pooledForConcurrentlyN_, pooledMapConcurrentlyN)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage (KeyPackageData, KeyPackageRef)
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore (..))
@@ -33,6 +34,7 @@ interpretMlsKeyPackageStoreToCassandra cas =
     runEmbedded (runClient cas) . \case
       InsertKeyPackages u c ps -> embed $ insertKeyPackages u c ps
       LookupKeyPackages u c s -> embed $ lookupKeyPackages u c s
+      LookupKeyPackagesBulk requests -> embed $ lookupKeyPackagesBulk requests
       DeleteKeyPackages u c s rs -> embed $ deleteKeyPackages u c s rs
       DeleteAllKeyPackages u c ss -> embed $ deleteAllKeyPackages u c ss
       DeleteKeyPackage u c s r -> embed $ deleteKeyPackage u c s r
@@ -45,6 +47,10 @@ insertKeyPackages u c ps = retry x5 . batch $ do
 
 lookupKeyPackages :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> m [(KeyPackageRef, KeyPackageData)]
 lookupKeyPackages u c s = retry x1 $ query lookupQuery (params LocalQuorum (u, c, s))
+
+lookupKeyPackagesBulk :: (MonadClient m, MonadUnliftIO m) => [(UserId, ClientId, CipherSuiteTag)] -> m (Map (UserId, ClientId, CipherSuiteTag) [(KeyPackageRef, KeyPackageData)])
+lookupKeyPackagesBulk requests =
+  Map.fromList <$> pooledMapConcurrentlyN 16 (\request@(u, c, s) -> (request,) <$> lookupKeyPackages u c s) requests
 
 deleteKeyPackages :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> m ()
 deleteKeyPackages u c s rs = retry x5 $ write deleteQuery (params LocalQuorum (u, c, s, rs))

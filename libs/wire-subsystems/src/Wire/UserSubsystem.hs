@@ -169,7 +169,7 @@ data UserSubsystem m a where
     Maybe (Range 1 500 Int32) ->
     Maybe [UserTypeFilter] ->
     UserSubsystem m (SearchResult Contact)
-  IsUserContactable :: UserId -> Set BaseProtocolTag -> Bool -> Set CipherSuiteTag -> Set Client -> UserSubsystem m Bool
+  IsUsersContactable :: Map UserId (Set BaseProtocolTag, Set Client) -> Bool -> Set CipherSuiteTag -> UserSubsystem m (Map UserId Bool)
   BrowseTeam ::
     UserId ->
     BrowseTeamFilters ->

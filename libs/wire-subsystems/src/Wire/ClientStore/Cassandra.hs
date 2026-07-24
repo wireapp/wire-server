@@ -62,6 +62,7 @@ interpretClientStoreCassandra env =
       LookupClientsBulk uids -> runCasClient $ lookupClientsBulkImpl uids
       LookupPubClientsBulk uids -> runCasClient $ lookupPubClientsBulkImpl uids
       LookupPrekeyIds uid cid -> runCasClient $ lookupPrekeyIdsImpl uid cid
+      LookupPrekeyPresenceBulk pairs -> runCasClient $ lookupPrekeyPresenceBulkImpl pairs
       GetActivityTimestamps uid -> runCasClient $ getActivityTimestampsImpl uid
       -- Proteus
       UpdatePrekeys uid cid prekeys -> runCasClient $ updatePrekeysImpl uid cid prekeys
@@ -141,6 +142,11 @@ lookupPrekeyIdsImpl :: (MonadClient m) => UserId -> ClientId -> m [PrekeyId]
 lookupPrekeyIdsImpl u c =
   map runIdentity
     <$> retry x1 (query selectPrekeyIds (params LocalQuorum (u, c)))
+
+lookupPrekeyPresenceBulkImpl :: (MonadClient m, MonadUnliftIO m) => [(UserId, ClientId)] -> m (Set.Set (UserId, ClientId))
+lookupPrekeyPresenceBulkImpl pairs =
+  Set.fromList . map fst . filter (not . null . snd)
+    <$> pooledMapConcurrentlyN 16 (\pair@(u, c) -> (pair,) <$> lookupPrekeyIdsImpl u c) pairs
 
 getActivityTimestampsImpl :: (MonadClient m) => UserId -> m [Maybe UTCTime]
 getActivityTimestampsImpl uid = do

@@ -27,7 +27,7 @@ where
 import Cassandra.Util (Writetime (Writetime))
 import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
-import Control.Monad.Extra (anyM, partitionM)
+import Control.Monad.Extra (partitionM)
 import Control.Monad.Trans.Maybe
 import Data.CaseInsensitive qualified as CI
 import Data.Domain
@@ -193,8 +193,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         updateTeamSearchVisibilityInboundImpl status
       SearchUsers luid query mDomain mMaxResults mTypes ->
         searchUsersImpl luid query mDomain mMaxResults mTypes
-      IsUserContactable uid protocols mlsAvailable allowedCipherSuites clients ->
-        isUserContactableImpl uid protocols mlsAvailable allowedCipherSuites clients
+      IsUsersContactable users mlsAvailable allowedCipherSuites ->
+        isUsersContactableImpl users mlsAvailable allowedCipherSuites
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
       InternalUpdateSearchIndex uid ->
@@ -209,48 +209,51 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
 
-isUserContactableImpl ::
+isUsersContactableImpl ::
   forall r.
   (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
-  UserId ->
-  Set BaseProtocolTag ->
+  Map UserId (Set BaseProtocolTag, Set UserClient.Client) ->
   Bool ->
   Set CipherSuiteTag ->
-  Set UserClient.Client ->
-  Sem r Bool
-isUserContactableImpl uid supportedProtocols mlsAvailable allowedCipherSuites clients = do
-  proteusReady <-
-    if Set.member BaseProtocolProteusTag supportedProtocols
-      then clientHasPrekeys
-      else pure False
-  mlsReady <-
-    if mlsAvailable && Set.member BaseProtocolMLSTag supportedProtocols
-      then clientHasKeyPackages
-      else pure False
-  pure (proteusReady || mlsReady)
+  Sem r (Map UserId Bool)
+isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
+  let prekeyRequests =
+        [ (uid, client.clientId)
+        | (uid, (protocols, clients)) <- Map.toList users,
+          Set.member BaseProtocolProteusTag protocols,
+          client <- Set.toList clients
+        ]
+      mlsRequests =
+        [ (uid, client.clientId, ciphersuite)
+        | (uid, (protocols, clients)) <- Map.toList users,
+          mlsAvailable,
+          Set.member BaseProtocolMLSTag protocols,
+          client <- Set.toList clients,
+          ciphersuite <- Set.toList allowedCipherSuites,
+          Map.member (csSignatureScheme ciphersuite) client.clientMLSPublicKeys
+        ]
+  prekeyPresence <- ClientStore.lookupPrekeyPresenceBulk prekeyRequests
+  mlsPresence <- Mls.hasMlsKeyPackagesBulk mlsRequests
+  pure $ Map.mapWithKey (isContactable prekeyPresence mlsPresence) users
   where
-    clientHasPrekeys :: Sem r Bool
-    clientHasPrekeys =
-      anyM
-        ( \client -> do
-            prekeys <- ClientStore.lookupPrekeyIds uid client.clientId
-            pure (not (null prekeys))
-        )
-        (Set.toList clients)
-
-    clientHasKeyPackages :: Sem r Bool
-    clientHasKeyPackages =
-      anyM
-        ( \client ->
-            anyM
-              ( \ciphersuite ->
-                  if Map.member (csSignatureScheme ciphersuite) client.clientMLSPublicKeys
-                    then Mls.hasMlsKeyPackages uid client.clientId ciphersuite
-                    else pure False
-              )
-              (Set.toList allowedCipherSuites)
-        )
-        (Set.toList clients)
+    isContactable prekeyPresence mlsPresence uid (protocols, clients) =
+      let proteusReady =
+            Set.member BaseProtocolProteusTag protocols
+              && any (\client -> Set.member (uid, client.clientId) prekeyPresence) clients
+          mlsReady =
+            mlsAvailable
+              && Set.member BaseProtocolMLSTag protocols
+              && any
+                ( \client ->
+                    any
+                      ( \ciphersuite ->
+                          Map.member (csSignatureScheme ciphersuite) client.clientMLSPublicKeys
+                            && Set.member (uid, client.clientId, ciphersuite) mlsPresence
+                      )
+                      allowedCipherSuites
+                )
+                clients
+       in proteusReady || mlsReady
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do

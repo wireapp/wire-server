@@ -1135,7 +1135,7 @@ listUsersByIdsOrHandles self includeContactStatus q = do
       r' <- Handle.filterHandleResults lself r
       pure (l, r')
   foundUsers' <-
-    if includeContactStatus = Just True
+    if includeContactStatus == Just True
       then enrichContactStatus lself foundUsers
       else pure foundUsers
   pure $ ListUsersById foundUsers' $ fst <$$> nonEmpty errors
@@ -1161,15 +1161,21 @@ enrichContactStatus lself profiles = do
       allowedCipherSuites = Set.fromList mlsConfig.config.mlsAllowedCipherSuites
       mlsAvailable = serverMLS && mlsConfig.status == Feature.FeatureStatusEnabled && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols
   clients <- lift . liftSem $ ClientStore.lookupClientsBulk localUserIds
-  for profiles $ enrichProfile clients mlsAvailable allowedCipherSuites
+  let users =
+        Map.fromList
+          [ (uid, (profile.profileSupportedProtocols, fromMaybe Set.empty (Map.lookup uid (Public.userMap clients))))
+          | profile <- localProfiles,
+            let uid = qUnqualified profile.profileQualifiedId
+          ]
+  contactability <- lift . liftSem $ User.isUsersContactable users mlsAvailable allowedCipherSuites
+  for profiles $ enrichProfile contactability
   where
-    enrichProfile clients mls css profile
+    enrichProfile contactability profile
       -- the federated case is not checked, yet
       | qDomain profile.profileQualifiedId /= tDomain lself = pure profile
       | otherwise = do
           let uid = qUnqualified profile.profileQualifiedId
-              uClients = fromMaybe Set.empty (Map.lookup uid (Public.userMap clients))
-          contactable <- lift . liftSem $ User.isUserContactable uid profile.profileSupportedProtocols mls css uClients
+              contactable = Map.findWithDefault False uid contactability
           pure profile {Public.profileContactStatus = Just (Public.ContactStatus (if contactable then Public.Contactable else Public.NonContactable))}
 
 newtype GetActivationCodeResp

@@ -384,6 +384,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     mockMlsKeyPackageSubsystem :: forall r'. InterpreterFor MlsKeyPackageSubsystem r'
     mockMlsKeyPackageSubsystem = interpret $ \case
       HasMlsKeyPackages {} -> pure False
+      HasMlsKeyPackagesBulk {} -> pure mempty
       _ -> error "Unimplemented MlsKeyPackageSubsystem operation in mock"
 
 type StateEffects =
