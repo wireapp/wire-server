@@ -544,6 +544,7 @@ testListUsersContactStatus = do
     assertContactStatus profiles proteusUser "contactable"
     assertContactStatus profiles mlsUser "contactable"
   where
+    assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
     assertContactStatus profiles user expected = do
       uid <- user %. "id"
       profile <- findM (fmap (== Just uid) . flip lookupField "id") profiles
