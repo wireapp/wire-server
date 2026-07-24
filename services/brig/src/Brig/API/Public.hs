@@ -1153,22 +1153,33 @@ enrichContactStatus ::
   [Public.UserProfile] ->
   Handler r [Public.UserProfile]
 enrichContactStatus lself profiles = do
-  serverMLS <- isMLSEnabled
-  requesterFeatures <- lift . liftSem $ GalleyAPIAccess.getAllTeamFeaturesForUser (Just (tUnqualified lself))
   let localProfiles = filter ((== tDomain lself) . qDomain . Public.profileQualifiedId) profiles
-      localUserIds = qUnqualified . Public.profileQualifiedId <$> localProfiles
-      mlsConfig = Feature.npProject @Feature.MLSConfig requesterFeatures
-      allowedCipherSuites = Set.fromList mlsConfig.config.mlsAllowedCipherSuites
-      mlsAvailable = serverMLS && mlsConfig.status == Feature.FeatureStatusEnabled && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols
-  clients <- lift . liftSem $ ClientStore.lookupClientsBulk localUserIds
-  let users =
-        Map.fromList
-          [ (uid, (profile.profileSupportedProtocols, fromMaybe Set.empty (Map.lookup uid (Public.userMap clients))))
-          | profile <- localProfiles,
-            let uid = qUnqualified profile.profileQualifiedId
-          ]
-  contactability <- lift . liftSem $ User.isUsersContactable users mlsAvailable allowedCipherSuites
-  for profiles $ enrichProfile contactability
+  if null localProfiles
+    then pure profiles
+    else do
+      serverMLS <- isMLSEnabled
+      (mlsAvailable, allowedCipherSuites) <-
+        if not serverMLS
+          then pure (False, Set.empty)
+          else do
+            requesterFeatures <- lift . liftSem $ GalleyAPIAccess.getAllTeamFeaturesForUser (Just (tUnqualified lself))
+            let mlsConfig = Feature.npProject @Feature.MLSConfig requesterFeatures
+            pure
+              ( serverMLS
+                  && mlsConfig.status == Feature.FeatureStatusEnabled
+                  && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols,
+                Set.fromList mlsConfig.config.mlsAllowedCipherSuites
+              )
+      let localUserIds = qUnqualified . Public.profileQualifiedId <$> localProfiles
+      clients <- lift . liftSem $ ClientStore.lookupClientsBulk localUserIds
+      let users =
+            Map.fromList
+              [ (uid, (profile.profileSupportedProtocols, fromMaybe Set.empty (Map.lookup uid (Public.userMap clients))))
+              | profile <- localProfiles,
+                let uid = qUnqualified profile.profileQualifiedId
+              ]
+      contactability <- lift . liftSem $ User.isUsersContactable users mlsAvailable allowedCipherSuites
+      for profiles $ enrichProfile contactability
   where
     enrichProfile contactability profile
       -- the federated case is not checked, yet
