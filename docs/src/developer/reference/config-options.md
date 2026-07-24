@@ -280,7 +280,7 @@ points at the path where the SMTP password is read, and
 `galley.secrets.smtpPassword` holds the value (mounted at
 `/etc/wire/galley/secrets/smtp-password.txt`). The Galley ConfigMap injects that
 path into `transport.smtpCredentials.smtpPassword`, the same pattern Brig uses
-for `smtp.passwordFile`. Email sending itself lands in a follow-up.
+for `smtp.passwordFile`.
 
 ### Meetings Premium (deprecated)
 

@@ -456,7 +456,6 @@ galley:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
     pgPassword: posty-the-gres
-    smtpPassword: dummy-smtp-password
   {{- if .Values.uploadXml }}
   tests:
     config:
