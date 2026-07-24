@@ -22,7 +22,6 @@ import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
-import Brig.Effects.PublicKeyBundle
 import Brig.IO.Intra (runEvents)
 import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
@@ -259,7 +258,6 @@ type BrigLowerLevelEffects =
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
-     PublicKeyBundle,
      JwtTools,
      BlockListStore,
      UserPendingActivationStore InternalPaging,
@@ -447,7 +445,6 @@ runBrigToIO e (AppT ma) = do
               . userPendingActivationStoreToCassandra
               . interpretBlockListStoreToCassandra e.casClient
               . interpretJwtTools
-              . interpretPublicKeyBundle
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
