@@ -145,8 +145,12 @@ lookupPrekeyIdsImpl u c =
 
 lookupPrekeyPresenceBulkImpl :: (MonadClient m, MonadUnliftIO m) => [(UserId, ClientId)] -> m (Set.Set (UserId, ClientId))
 lookupPrekeyPresenceBulkImpl pairs =
-  Set.fromList . map fst . filter (not . null . snd)
-    <$> pooledMapConcurrentlyN 16 (\pair@(u, c) -> (pair,) <$> lookupPrekeyIdsImpl u c) pairs
+  Set.fromList . map fst . filter snd
+    <$> pooledMapConcurrentlyN 16 (\pair@(u, c) -> (pair,) <$> lookupPrekeyPresenceImpl u c) pairs
+
+lookupPrekeyPresenceImpl :: (MonadClient m) => UserId -> ClientId -> m Bool
+lookupPrekeyPresenceImpl u c =
+  isJust <$> retry x1 (query1 selectPrekeyPresence (params LocalQuorum (u, c)))
 
 getActivityTimestampsImpl :: (MonadClient m) => UserId -> m [Maybe UTCTime]
 getActivityTimestampsImpl uid = do
@@ -324,6 +328,9 @@ userPrekeys = "SELECT key, data FROM prekeys where user = ? and client = ?"
 
 selectPrekeyIds :: PrepQuery R (UserId, ClientId) (Identity PrekeyId)
 selectPrekeyIds = "SELECT key FROM prekeys where user = ? and client = ?"
+
+selectPrekeyPresence :: PrepQuery R (UserId, ClientId) (Identity PrekeyId)
+selectPrekeyPresence = "SELECT key FROM prekeys where user = ? and client = ? LIMIT 1"
 
 removePrekey :: PrepQuery W (UserId, ClientId, PrekeyId) ()
 removePrekey = "DELETE FROM prekeys where user = ? and client = ? and key = ?"

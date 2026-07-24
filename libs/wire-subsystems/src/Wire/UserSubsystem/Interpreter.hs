@@ -225,12 +225,14 @@ isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
         ]
       mlsRequests =
         [ (uid, client.clientId, ciphersuite)
-        | (uid, (protocols, clients)) <- Map.toList users,
-          mlsAvailable,
+        | mlsAvailable,
+          (uid, (protocols, clients)) <- Map.toList users,
           Set.member BaseProtocolMLSTag protocols,
           client <- Set.toList clients,
           ciphersuite <- Set.toList allowedCipherSuites,
-          Map.member (csSignatureScheme ciphersuite) client.clientMLSPublicKeys
+          Map.member
+            (csSignatureScheme ciphersuite)
+            client.clientMLSPublicKeys
         ]
   prekeyPresence <- ClientStore.lookupPrekeyPresenceBulk prekeyRequests
   mlsPresence <- Mls.hasMlsKeyPackagesBulk mlsRequests
