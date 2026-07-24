@@ -17,19 +17,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimExternalIdStore.Mem
+module Wire.ScimExternalIdStore.Mem
   ( scimExternalIdStoreToMem,
   )
 where
 
 import Data.Id (TeamId, UserId)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State
-import Spar.Scim.Types (ScimUserCreationStatus)
-import Spar.Sem.ScimExternalIdStore
-import Wire.API.User.Scim (ValidScimId (..))
+import Wire.API.User.Scim (ScimUserCreationStatus, ValidScimId (..))
+import Wire.ScimExternalIdStore
 
 scimExternalIdStoreToMem ::
   Sem (ScimExternalIdStore ': r) a ->
