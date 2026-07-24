@@ -79,8 +79,6 @@ library
     Spar.Sem.IdPRawMetadataStore.Spec
     Spar.Sem.SAML2
     Spar.Sem.SAML2.Library
-    Spar.Sem.SamlProtocolSettings
-    Spar.Sem.SamlProtocolSettings.Servant
     Spar.Sem.SAMLUserStore
     Spar.Sem.SAMLUserStore.Cassandra
     Spar.Sem.SAMLUserStore.Mem

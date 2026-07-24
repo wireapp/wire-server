@@ -40,8 +40,6 @@ import Spar.Sem.SAML2 (SAML2 (..))
 import Spar.Sem.SAMLUserStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem
-import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
-import Spar.Sem.SamlProtocolSettings.Servant (sparRouteToServant)
 import Spar.Sem.ScimTokenStore
 import Spar.Sem.ScimTokenStore.Mem
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
@@ -69,6 +67,8 @@ import qualified Wire.GalleyAPIAccess
 import Wire.IdPConfigStore
 import Wire.IdPConfigStore.Mem
 import Wire.Reporter (Reporter (..))
+import Wire.SamlProtocolSettings (SamlProtocolSettings)
+import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.Sem.Logger (discardLogs)
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
 import Wire.Sem.Random

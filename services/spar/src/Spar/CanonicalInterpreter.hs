@@ -49,8 +49,6 @@ import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
-import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
-import Spar.Sem.SamlProtocolSettings.Servant (sparRouteToServant)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
@@ -77,6 +75,8 @@ import Wire.Reporter (Reporter)
 import Wire.Reporter.Wai (reporterToTinyLogWai)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.RpcException
+import Wire.SamlProtocolSettings (SamlProtocolSettings)
+import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)

@@ -106,8 +106,6 @@ import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
-import qualified Spar.Sem.SamlProtocolSettings as SamlProtocolSettings
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -136,6 +134,8 @@ import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.IdPSubsystem (IdPSubsystem)
 import qualified Wire.IdPSubsystem as IdPSubsystem
 import Wire.Reporter (Reporter)
+import Wire.SamlProtocolSettings (SamlProtocolSettings)
+import qualified Wire.SamlProtocolSettings as SamlProtocolSettings
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger

@@ -417,6 +417,8 @@ library
     Wire.RpcException
     Wire.SAMLEmailSubsystem
     Wire.SAMLEmailSubsystem.Interpreter
+    Wire.SamlProtocolSettings
+    Wire.SamlProtocolSettings.Servant
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter

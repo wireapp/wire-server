@@ -1,5 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,19 +17,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.SamlProtocolSettings.Servant
-  ( sparRouteToServant,
+module Wire.SamlProtocolSettings
+  ( SamlProtocolSettings (..),
+    spIssuer,
+    responseURI,
+    contactPersons,
   )
 where
 
+import Data.Domain
+import Data.Id (TeamId)
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
-import Spar.Sem.SamlProtocolSettings
-import Wire.API.Routes.Public.Spar
+import SAML2.WebSSO.Types qualified as SAML
+import URI.ByteString qualified as URI
 
-sparRouteToServant :: SAML.Config -> Sem (SamlProtocolSettings ': r) a -> Sem r a
-sparRouteToServant cfg = interpret $ \case
-  SpIssuer mitlt mbDomain -> pure $ sparSPIssuer mitlt mbDomain cfg
-  ResponseURI mitlt mbDomain -> pure $ sparResponseURI mitlt mbDomain cfg
-  ContactPersons mbDomain -> pure $ getContactPersons mbDomain cfg
+data SamlProtocolSettings m a where
+  SpIssuer :: Maybe TeamId -> Maybe Domain -> SamlProtocolSettings m (Maybe SAML.Issuer)
+  ResponseURI :: Maybe TeamId -> Maybe Domain -> SamlProtocolSettings m (Maybe URI.URI)
+  ContactPersons :: Maybe Domain -> SamlProtocolSettings m ([SAML.ContactPerson])
+
+makeSem ''SamlProtocolSettings
