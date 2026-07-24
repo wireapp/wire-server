@@ -102,7 +102,6 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
-import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -136,6 +135,7 @@ import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.IdPSubsystem (IdPSubsystem)
 import qualified Wire.IdPSubsystem as IdPSubsystem
+import Wire.Reporter (Reporter)
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger

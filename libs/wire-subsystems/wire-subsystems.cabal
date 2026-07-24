@@ -405,6 +405,8 @@ library
     Wire.ProposalStore.Cassandra
     Wire.RateLimit
     Wire.RateLimit.Interpreter
+    Wire.Reporter
+    Wire.Reporter.Wai
     Wire.Rpc
     Wire.RpcException
     Wire.SAMLEmailSubsystem
