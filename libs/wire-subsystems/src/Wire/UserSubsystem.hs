@@ -43,6 +43,7 @@ import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.Routes.Internal.Brig (GetBy (..), getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
@@ -50,6 +51,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Client (Client)
 import Wire.API.User.IdentityProvider hiding (domain, team)
 import Wire.API.User.Search
 import Wire.ActivationCodeStore
@@ -167,6 +169,7 @@ data UserSubsystem m a where
     Maybe (Range 1 500 Int32) ->
     Maybe [UserTypeFilter] ->
     UserSubsystem m (SearchResult Contact)
+  IsUserContactable :: UserId -> Set BaseProtocolTag -> Bool -> Set CipherSuiteTag -> Set Client -> UserSubsystem m Bool
   BrowseTeam ::
     UserId ->
     BrowseTeamFilters ->

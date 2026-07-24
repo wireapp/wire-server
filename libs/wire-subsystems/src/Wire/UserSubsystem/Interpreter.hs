@@ -27,7 +27,7 @@ where
 import Cassandra.Util (Writetime (Writetime))
 import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
-import Control.Monad.Extra (partitionM)
+import Control.Monad.Extra (anyM, partitionM)
 import Control.Monad.Trans.Maybe
 import Data.CaseInsensitive qualified as CI
 import Data.Domain
@@ -57,6 +57,7 @@ import Wire.API.EnterpriseLogin
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Collaborator
@@ -69,6 +70,7 @@ import Wire.API.Team.Role (Role, defaultRole, permissionsToRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size
 import Wire.API.User as User
+import Wire.API.User.Client qualified as UserClient
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
@@ -78,6 +80,8 @@ import Wire.AppSubsystem
 import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem)
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.DeleteQueue
@@ -91,6 +95,8 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
 import Wire.InvitationStore
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -115,6 +121,8 @@ runUserSubsystem ::
   ( Member TeamCollaboratorsSubsystem r,
     Member AppStore r,
     Member UserStore r,
+    Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
@@ -185,6 +193,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         updateTeamSearchVisibilityInboundImpl status
       SearchUsers luid query mDomain mMaxResults mTypes ->
         searchUsersImpl luid query mDomain mMaxResults mTypes
+      IsUserContactable uid protocols mlsAvailable allowedCipherSuites clients ->
+        isUserContactableImpl uid protocols mlsAvailable allowedCipherSuites clients
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
       InternalUpdateSearchIndex uid ->
@@ -198,6 +208,49 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
       CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+
+isUserContactableImpl ::
+  forall r.
+  (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
+  UserId ->
+  Set BaseProtocolTag ->
+  Bool ->
+  Set CipherSuiteTag ->
+  Set UserClient.Client ->
+  Sem r Bool
+isUserContactableImpl uid supportedProtocols mlsAvailable allowedCipherSuites clients = do
+  proteusReady <-
+    if Set.member BaseProtocolProteusTag supportedProtocols
+      then clientHasPrekeys
+      else pure False
+  mlsReady <-
+    if mlsAvailable && Set.member BaseProtocolMLSTag supportedProtocols
+      then clientHasKeyPackages
+      else pure False
+  pure (proteusReady || mlsReady)
+  where
+    clientHasPrekeys :: Sem r Bool
+    clientHasPrekeys =
+      anyM
+        ( \client -> do
+            prekeys <- ClientStore.lookupPrekeyIds uid client.clientId
+            pure (not (null prekeys))
+        )
+        (Set.toList clients)
+
+    clientHasKeyPackages :: Sem r Bool
+    clientHasKeyPackages =
+      anyM
+        ( \client ->
+            anyM
+              ( \ciphersuite ->
+                  if Map.member (csSignatureScheme ciphersuite) client.clientMLSPublicKeys
+                    then Mls.hasMlsKeyPackages uid client.clientId ciphersuite
+                    else pure False
+              )
+              (Set.toList allowedCipherSuites)
+        )
+        (Set.toList clients)
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
