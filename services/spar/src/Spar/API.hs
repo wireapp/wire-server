@@ -102,8 +102,6 @@ import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
@@ -140,6 +138,8 @@ import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Wire.VerdictFormatStore (VerdictFormatStore)
+import qualified Wire.VerdictFormatStore as VerdictFormatStore
 
 app :: Env -> Application
 app ctx0 req cont = do

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -18,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.VerdictFormatStore.Cassandra
+module Wire.VerdictFormatStore.Cassandra
   ( verdictFormatStoreToCassandra,
   )
 where
@@ -28,13 +29,42 @@ import Control.Lens
 import Data.Time
 import Imports
 import Polysemy
-import Spar.Data
-import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import Spar.Sem.VerdictFormatStore
 import URI.ByteString
 import Wire.API.User.Auth
 import Wire.API.User.Saml
 import Wire.IdPConfigStore.Orphans ()
+import Wire.VerdictFormatStore
+
+-- Duplicated from Spar.Data (Wire cannot depend on Spar); Spar.Data keeps its
+-- own copy for mkTTLNDT.
+nominalDiffToSeconds :: NominalDiffTime -> Int32
+nominalDiffToSeconds = round @Double . realToFrac
+
+-- Moved from Spar.Data.Instances: row codec for the @verdict@ table.
+type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI, Maybe CookieLabel)
+
+data VerdictFormatCon = VerdictFormatConWeb | VerdictFormatConMobile
+
+instance Cql VerdictFormatCon where
+  ctype = Tagged IntColumn
+
+  toCql VerdictFormatConWeb = CqlInt 0
+  toCql VerdictFormatConMobile = CqlInt 1
+
+  fromCql (CqlInt i) = case i of
+    0 -> pure VerdictFormatConWeb
+    1 -> pure VerdictFormatConMobile
+    n -> Left $ "unexpected VerdictFormatCon: " ++ show n
+  fromCql _ = Left "member-status: int expected"
+
+fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
+fromVerdictFormat (VerdictFormatWeb mlabel) = (VerdictFormatConWeb, Nothing, Nothing, mlabel)
+fromVerdictFormat (VerdictFormatMobile succredir errredir mlabel) = (VerdictFormatConMobile, Just succredir, Just errredir, mlabel)
+
+toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
+toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing, mlabel) = Just $ VerdictFormatWeb mlabel
+toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir, mlabel) = Just $ VerdictFormatMobile succredir errredir mlabel
+toVerdictFormat _ = Nothing
 
 verdictFormatStoreToCassandra ::
   forall m r a.
