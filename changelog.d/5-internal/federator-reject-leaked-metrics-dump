@@ -1,0 +1,6 @@
+The federator now rejects a leaked Prometheus metrics dump returned by a remote
+federator in response to a federation RPC (Content-Type
+`text/plain; version=0.0.4`) and surfaces it as a retryable
+`federation-remote-error` (533) instead of forwarding it as a success body.
+This fixes an intermittent failure where a `/i/metrics` response desynchronized
+onto a federation connection and was proxied back to the caller.

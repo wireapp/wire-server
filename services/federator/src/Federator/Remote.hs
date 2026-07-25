@@ -23,6 +23,7 @@ module Federator.Remote
     RemoteError (..),
     interpretRemote,
     discoverAndCall,
+    isPrometheusMetricsDump,
   )
 where
 
@@ -87,6 +88,15 @@ data Remote m a where
 
 makeSem ''Remote
 
+-- | True when the response carries the Prometheus exposition content-type
+-- (@text/plain; version=0.0.4@), emitted solely by
+-- @wai-middleware-prometheus@'s @respondWithMetrics@ for @GET \/i\/metrics@.
+-- A federation response is never such a dump, so the 'interpretRemote' guard
+-- surfaces it as a retryable remote error rather than a fake-success body.
+isPrometheusMetricsDump :: Foldable f => f HTTP.Header -> Bool
+isPrometheusMetricsDump =
+  any (\(n, v) -> n == HTTP.hContentType && v == "text/plain; version=0.0.4")
+
 interpretRemote ::
   ( Member (Embed (Codensity IO)) r,
     Member DiscoverFederator r,
@@ -131,6 +141,16 @@ interpretRemote = interpret $ \case
             E.Handler $ k . Left . FederatorClientHTTP2Exception,
             E.Handler $ k . Left . FederatorClientConnectionError
           ]
+
+    -- Safe to throw without draining: the body came over a single-use HTTP/2
+    -- connection (withHTTP2RequestOnSingleUseConnWithHook), torn down after.
+    when (isPrometheusMetricsDump (responseHeaders resp)) $
+      throw $
+        RemoteErrorResponse
+          target
+          pathT
+          (responseStatusCode resp)
+          "received prometheus metrics dump instead of a federation response"
 
     unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $ do
       bdy <- embed @(Codensity IO) . liftIO $ streamingResponseStrictBody resp

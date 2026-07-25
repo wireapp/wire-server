@@ -27,7 +27,7 @@ import Federator.Options
 import Federator.Remote
 import Federator.Run (mkTLSSettingsOrThrow)
 import Imports
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types (hContentType, status200)
 import Network.Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Handler.WarpTLS qualified as Warp
@@ -52,7 +52,8 @@ tests =
     "Federator.Remote"
     [ testValidatesCertificateSuccess,
       testValidatesCertificateWrongHostname,
-      testConnectionError
+      testConnectionError,
+      testIsPrometheusMetricsDump
     ]
 
 settings :: RunSettings
@@ -165,6 +166,18 @@ testConnectionError = testCase "connection failures are reported correctly" $ do
     Left (RemoteError _ _ (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
     Right _ -> assertFailure "Expected connection with the server to fail"
+
+testIsPrometheusMetricsDump :: TestTree
+testIsPrometheusMetricsDump =
+  testGroup
+    "isPrometheusMetricsDump"
+    [ testCase "matches the prometheus exposition content-type" $
+        isPrometheusMetricsDump [(hContentType, "text/plain; version=0.0.4")] @?= True,
+      testCase "does not match a normal federation content-type" $
+        isPrometheusMetricsDump [(hContentType, "application/json")] @?= False,
+      testCase "does not match when content-type is absent" $
+        isPrometheusMetricsDump [] @?= False
+    ]
 
 certForLocalhost :: Warp.TLSSettings
 certForLocalhost = Warp.tlsSettings "test/resources/unit/localhost.pem" "test/resources/unit/localhost-key.pem"
