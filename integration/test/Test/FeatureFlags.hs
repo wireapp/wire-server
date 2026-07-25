@@ -91,5 +91,12 @@ testNonMemberAccess :: (HasCallStack) => Feature -> App ()
 testNonMemberAccess (Feature featureName) = do
   (_, tid, _) <- createTeam OwnDomain 0
   nonMember <- randomUser OwnDomain def
-  Public.getTeamFeature nonMember tid featureName
-    >>= assertForbidden
+  -- meetingsPremium's public per-feature GET is version-gated at v17
+  -- (WPB-26771): it 404s there. Hit it at v16 so the non-member-access
+  -- authz check (403 no-team-member) is still exercised.
+  let getFeature = Public.getTeamFeature nonMember tid featureName
+  resp <-
+    if featureName == "meetingsPremium"
+      then withAPIVersion 16 getFeature
+      else getFeature
+  assertForbidden resp

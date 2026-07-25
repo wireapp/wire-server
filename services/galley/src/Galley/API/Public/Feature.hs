@@ -84,7 +84,8 @@ featureAPI =
     <@> mkNamedAPI @'("get", StealthUsersConfig) getFeature
     <@> mkNamedAPI @'("get", CellsInternalConfig) getFeature
     <@> featureAPIGetPut @MeetingsConfig
-    <@> featureAPIGetPut @MeetingsPremiumConfig
+    <@> mkNamedAPI @'("get", MeetingsPremiumConfig) getFeature
+    <@> mkNamedAPI @'("put", MeetingsPremiumConfig) setFeature
     <@> featureAPIGetPut @BackgroundEffectsConfig
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects

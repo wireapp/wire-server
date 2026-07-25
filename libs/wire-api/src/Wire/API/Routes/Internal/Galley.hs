@@ -99,7 +99,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut SimplifiedUserConnectionRequestQRCodeConfig
     :<|> IFeatureStatusLockStatusPut StealthUsersConfig
     :<|> IFeatureStatusLockStatusPut MeetingsConfig
-    :<|> IFeatureStatusLockStatusPut MeetingsPremiumConfig
+    :<|> Until 'V17 ::> IFeatureStatusLockStatusPut MeetingsPremiumConfig
     :<|> IFeatureStatusLockStatusPut BackgroundEffectsConfig
     -- all feature configs
     :<|> Named

@@ -286,15 +286,19 @@ for `smtp.passwordFile`.
 
 > **Deprecated (WPB-26771).** The `meetingsPremium` feature flag no longer
 > affects meeting behaviour. Team meetings are always non-trial regardless of
-> this flag's value. The flag, its data type and its public/internal endpoints
-> are retained for backward compatibility and are scheduled for removal in a
-> future release.
+> this flag's value. The flag and its data type are retained for backward
+> compatibility.
 
 The flag now defaults to **enabled and locked** and the Helm configuration
 override has been removed (operators can no longer change it via Helm). The
-`MeetingsPremiumConfig` type carries a `DEPRECATED` pragma. Existing
-`GET/PUT /teams/:tid/features/meetingsPremium` and internal lock-status
-endpoints remain available but have no behavioural effect.
+`MeetingsPremiumConfig` type carries a `DEPRECATED` pragma. The public
+`GET/PUT /teams/:tid/features/meetingsPremium` endpoints and the internal
+lock-status endpoints have no behavioural effect and now return 404 at API
+version v17; they remain available through v16.
+
+The aggregate list endpoints (`GET /feature-configs`,
+`GET /teams/:tid/features`) continue to include `meetingsPremium` at all API
+versions, including v17.
 
 ### Background Effects
 
