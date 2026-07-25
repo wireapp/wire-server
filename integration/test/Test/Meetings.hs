@@ -127,39 +127,6 @@ testMeetingGetNotFound = do
 
   getMeeting owner "example.com" fakeMeetingId >>= assertLabel 404 "meeting-not-found"
 
--- Test that personal (non-team) users create trial meetings
-testMeetingCreatePersonalUserTrial :: (HasCallStack) => App ()
-testMeetingCreatePersonalUserTrial = do
-  personalUser <- randomUser OwnDomain def
-  now <- liftIO getCurrentTime
-  let startTime = addUTCTime 3600 now
-      endTime = addUTCTime 7200 now
-      newMeeting = defaultMeetingJson "Personal Meeting" startTime endTime []
-
-  r <- postMeetings personalUser newMeeting
-  assertSuccess r
-
-  meeting <- getJSON 201 r
-  meeting %. "trial" `shouldMatch` True
-
--- | Test that team members create non-trial meetings. The deprecated
--- `meetingsPremium` flag no longer affects this; team meetings are always
--- non-trial (see WPB-26771).
-testMeetingCreateTeamNonTrial :: (HasCallStack) => App ()
-testMeetingCreateTeamNonTrial = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
-
-  now <- liftIO getCurrentTime
-  let startTime = addUTCTime 3600 now
-      endTime = addUTCTime 7200 now
-      newMeeting = defaultMeetingJson "Team Meeting" startTime endTime []
-
-  r <- postMeetings owner newMeeting
-  assertSuccess r
-
-  meeting <- getJSON 201 r
-  meeting %. "trial" `shouldMatch` False
-
 -- Test that disabled MeetingsConfig feature blocks creation
 testMeetingsConfigDisabledBlocksCreate :: (HasCallStack) => App ()
 testMeetingsConfigDisabledBlocksCreate = do

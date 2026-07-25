@@ -397,7 +397,6 @@ storedMeetingToMeeting domain sm =
       API.recurrence = sm.recurrence,
       API.conversationId = Qualified sm.conversationId domain,
       API.invitedEmails = sm.invitedEmails,
-      API.trial = sm.trial,
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt
     }

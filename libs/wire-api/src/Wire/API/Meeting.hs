@@ -18,6 +18,7 @@
 module Wire.API.Meeting where
 
 import Control.Lens ((?~))
+import Data.Aeson (toJSON)
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
@@ -30,6 +31,8 @@ import Deriving.Aeson
 import Imports
 import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned (Versioned (..))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -43,7 +46,6 @@ data Meeting = Meeting
     recurrence :: Maybe Recurrence,
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
-    trial :: Bool,
     createdAt :: UTCTime,
     updatedAt :: UTCTime
   }
@@ -62,13 +64,39 @@ meetingObject =
     <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
     <*> (.conversationId) .= field "qualified_conversation" schema
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
-    <*> (.trial) .= field "trial" schema
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
 
+-- | 'meetingObject' for a given API version. Legacy versions (< V17) additionally
+-- render the deprecated @trial@ field (always 'False'); V17 and later omit it.
+meetingObjectVersioned :: Maybe Version -> ObjectSchema SwaggerDoc Meeting
+meetingObjectVersioned v
+  | maybe False (< V17) v =
+      meetingObject
+        <* ( const ()
+               .= fieldWithDocModifier
+                 "trial"
+                 (description ?~ "Deprecated. Always false; team meetings are never trial.")
+                 (c (False :: Bool))
+           )
+  | otherwise = meetingObject
+  where
+    -- Constant schema that always encodes @val@ and decodes to @()@, cf. the
+    -- @managed@ field of 'Wire.API.Conversation.ConvTeamInfo'.
+    c :: (ToJSON a) => a -> ValueSchema SwaggerDoc ()
+    c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
+
+-- | Swagger-named ('ValueSchema') form of 'meetingObjectVersioned', used by the
+-- plain 'ToSchema' instance and the versioned 'Versioned' instances.
+meetingSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Meeting
+meetingSchema v =
+  versionedObjectWithDocModifier v (description ?~ "A scheduled meeting") (meetingObjectVersioned v)
+
 instance ToSchema Meeting where
-  schema =
-    objectWithDocModifier (description ?~ "A scheduled meeting") meetingObject
+  schema = meetingSchema Nothing
+
+instance ToSchema (Versioned 'V15 Meeting) where
+  schema = Versioned <$> unVersioned .= meetingSchema (Just V15)
 
 -- | A 'Meeting' extended with the full 'Conversation' associated with it, as
 -- returned when creating or updating a meeting. The underlying 'Meeting' is
@@ -83,12 +111,32 @@ data MeetingWithConversation = MeetingWithConversation
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversation)
   deriving (Arbitrary) via (GenericUniform MeetingWithConversation)
 
+meetingWithConversationObject :: Maybe Version -> ObjectSchema SwaggerDoc MeetingWithConversation
+meetingWithConversationObject v =
+  MeetingWithConversation
+    <$> (.meeting) .= meetingObjectVersioned v
+    <*> (.conversation) .= field "conversation" schema
+
+meetingWithConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc MeetingWithConversation
+meetingWithConversationSchema v =
+  versionedObjectWithDocModifier
+    v
+    (description ?~ "A scheduled meeting with its associated conversation")
+    (meetingWithConversationObject v)
+
 instance ToSchema MeetingWithConversation where
+  schema = meetingWithConversationSchema Nothing
+
+instance ToSchema (Versioned 'V15 MeetingWithConversation) where
+  schema = Versioned <$> unVersioned .= meetingWithConversationSchema (Just V15)
+
+-- | Legacy 'Meeting' list (V16) still renders the deprecated @trial@ field
+-- (always 'False') for backwards compatibility.
+instance {-# OVERLAPPING #-} ToSchema (Versioned 'V16 [Meeting]) where
   schema =
-    objectWithDocModifier (description ?~ "A scheduled meeting with its associated conversation") $
-      MeetingWithConversation
-        <$> (.meeting) .= meetingObject
-        <*> (.conversation) .= field "conversation" schema
+    Versioned
+      <$> unVersioned
+        .= named "MeetingListV16" (array (meetingSchema (Just V16)))
 
 -- | Request to create a new meeting
 data NewMeeting = NewMeeting

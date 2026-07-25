@@ -1,0 +1,1 @@
+The meetings endpoints (POST /meetings, PUT /meetings/{domain}/{id}, GET /meetings/{domain}/{id}, GET /meetings/list) drop the deprecated `trial` field from the `Meeting` response starting at API version V17. On V15–V16 the field is still present but always returns `false` (team meetings are never trial; see WPB-26771). The underlying storage is unchanged.

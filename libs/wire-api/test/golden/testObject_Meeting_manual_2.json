@@ -1,0 +1,24 @@
+{
+    "created_at": "2018-01-01T00:00:00Z",
+    "end_time": "2018-01-02T01:30:00Z",
+    "invited_emails": [],
+    "qualified_conversation": {
+        "domain": "example.com",
+        "id": "00000006-0000-0000-0000-000000000006"
+    },
+    "qualified_creator": {
+        "domain": "example.com",
+        "id": "00000005-0000-0000-0000-000000000005"
+    },
+    "qualified_id": {
+        "domain": "example.com",
+        "id": "00000004-0000-0000-0000-000000000004"
+    },
+    "recurrence": {
+        "frequency": "weekly",
+        "interval": 1
+    },
+    "start_time": "2018-01-02T00:00:00Z",
+    "title": "Sprint Planning",
+    "updated_at": "2018-01-01T00:00:00Z"
+}
