@@ -485,10 +485,10 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser1 ongoingMeeting
-          -- Advance the clock 3000s: startTime (now+100) is now in the past, so
+          -- Advance the clock 3000s: startTime (now+100s) is now in the past, so
           -- the meeting has started. It stays editable because isAlive is
-          -- endTime-based and endTime (now+7200) is still well past the
-          -- alive-cutoff (now+3000-3600 = now-600).
+          -- endTime-based and endTime (now+7200s) is still well past the
+          -- alive-cutoff (now+3000s-3600s = now-600s).
           passTime 3000
           let update =
                 API.UpdateMeeting
