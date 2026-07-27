@@ -129,7 +129,13 @@ gateway:
 # account-pages routes (mirrors the legacy nginx-ingress-services behaviour).
 #
 # config.dns and config.domains are mutually exclusive; config.domains wins.
-# federator is single-domain and always attaches to the primary domain.
+#
+# Multi-ingress is ALSO mutually exclusive with federation: you cannot enable
+# federator.enabled together with config.domains. Multi-ingress is the special
+# case (a single customer serving one backend on several unrelated domains);
+# federation is the common case. Pick one — federation with a single backend
+# domain via config.dns, or multi-ingress via config.domains with the federator
+# disabled. Setting both fails template rendering with a clear error.
 #
 # config:
 #   domains:

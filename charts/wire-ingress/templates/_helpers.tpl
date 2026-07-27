@@ -97,6 +97,16 @@ primary (bool), csp (bool).
 {{- $fullname := include "wire-ingress.fullname" . -}}
 {{- $out := list -}}
 {{- if .Values.config.domains -}}
+  {{/*
+  Multi-ingress and federation are mutually exclusive. Multi-ingress serves one
+  backend on several unrelated domains to obfuscate client relationships; the
+  federator, by contrast, is single-domain and identifies the backend to other
+  backends. Supporting both at once is out of scope, so fail fast rather than
+  render a half-working federator on top of a multi-ingress deployment.
+  */}}
+  {{- if .Values.federator.enabled -}}
+    {{- fail "config.domains (multi-ingress) is mutually exclusive with federator.enabled (federation). Choose one: federation with a single backend domain via config.dns, OR multi-ingress via config.domains with federator.enabled=false." -}}
+  {{- end -}}
   {{- range $i, $domain := .Values.config.domains -}}
     {{- $primary := eq $i 0 -}}
     {{- $name := required "each config.domains entry requires a 'name'" $domain.name -}}

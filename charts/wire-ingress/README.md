@@ -251,7 +251,12 @@ config:
 First entry = primary (listener `https`, un-suffixed names, no injected CSP — apps set their own).
 Each additional entry gets its own listener `https-<name>`, cert/secret, suffixed routes, and an
 injected per-domain CSP header on the webapp/team-settings/account-pages routes (opt out with
-`renderCSP: false`). `federator` stays single-domain on the primary listener.
+`renderCSP: false`).
+
+Multi-ingress is mutually exclusive with federation: `config.domains` cannot be
+combined with `federator.enabled: true`. Use federation with a single backend
+domain (`config.dns`), or multi-ingress (`config.domains`) with the federator
+disabled — setting both fails template rendering with a clear error.
 
 ### HTTP01 certificate challenges
 
