@@ -112,6 +112,16 @@ primary (bool), csp (bool).
     {{- else -}}{{- $secretName = printf "%s-%s-tls-certificate" $fullname $name -}}{{- end -}}
     {{- $cspFlag := true -}}
     {{- if hasKey $domain "renderCSP" -}}{{- $cspFlag = $domain.renderCSP -}}{{- end -}}
+    {{/*
+    Additional domains cannot share the single wildcard secret created by
+    secret.yaml, and no cert-manager Certificate is rendered when
+    tls.useCertManager is false. Without a per-domain tls.secretName the Gateway
+    listener would reference a Secret that nothing ever creates, silently
+    failing TLS at runtime. Fail fast instead.
+    */}}
+    {{- if and (not $primary) (not $root.Values.tls.useCertManager) (not $tls.secretName) -}}
+      {{- fail (printf "config.domains[%d] (%s): additional domains need their own TLS secret, but tls.useCertManager is false and no config.domains[%d].tls.secretName is set. Either enable cert-manager (tls.useCertManager: true) or point tls.secretName at a pre-created kubernetes.io/tls Secret for this domain." $i $name $i) -}}
+    {{- end -}}
     {{- $entry := dict
         "suffix" $suffix
         "section" $section
