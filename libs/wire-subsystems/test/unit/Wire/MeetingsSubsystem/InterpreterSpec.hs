@@ -428,6 +428,62 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Left InvalidTimes
 
+    it "allows editing an already-started (ongoing) meeting, including its start time" $ do
+      let ongoingMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Ongoing Meeting",
+                startTime = addUTCTime 100 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          meeting <- createMeeting zUser1 ongoingMeeting
+          -- Advance the clock 3000s: startTime (now+100s) is now in the past, so
+          -- the meeting has started. It stays editable because isAlive is
+          -- endTime-based and endTime (now+7200s) is still well past the
+          -- alive-cutoff (now+3000s-3600s = now-600s).
+          passTime 3000
+          let update =
+                API.UpdateMeeting
+                  { -- Original start time, which is now in the past.
+                    startTime = Just (addUTCTime 100 now),
+                    endTime = Nothing,
+                    title = Just (unsafeRange "Edited While Ongoing"),
+                    recurrence = Nothing
+                  }
+          updateMeeting zUser1 meeting.meeting.id update
+      case result of
+        Left err ->
+          fail $ "Expected the ongoing meeting to be editable, got: " <> show err
+        Right Nothing -> fail "Expected the update to be applied"
+        Right (Just updated) ->
+          updated.meeting.title `shouldBe` unsafeRange "Edited While Ongoing"
+
+    it "still throws InvalidTimes when editing an ongoing meeting to startTime >= endTime" $ do
+      let ongoingMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Ongoing Meeting",
+                startTime = addUTCTime 100 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          meeting <- createMeeting zUser1 ongoingMeeting
+          passTime 3000
+          let update =
+                API.UpdateMeeting
+                  { startTime = Just (addUTCTime 8000 now),
+                    endTime = Nothing,
+                    title = Nothing,
+                    recurrence = Nothing
+                  }
+          updateMeeting zUser1 meeting.meeting.id update
+      result `shouldBe` Left InvalidTimes
+
     it "returns Nothing for expired meeting" $ do
       let newMeeting =
             API.NewMeeting

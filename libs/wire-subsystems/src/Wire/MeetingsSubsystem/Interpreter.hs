@@ -237,9 +237,14 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
     when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
         throw InvalidTimes
-    -- Validate that the updated start time (if provided) is not in the past
+    -- Reject moving the start time into the past, but only while the meeting is
+    -- still upcoming. A meeting that has already started may still be edited --
+    -- its start time is naturally in the past -- so clients can keep updating an
+    -- ongoing meeting (title, end time, recurrence, or even the start time)
+    -- without being blocked by the past-start check (WPB-27465).
+    let pastCutoff = addUTCTime (negate startTimeTolerance) now
     for_ update.startTime $ \t ->
-      when (t < addUTCTime (negate startTimeTolerance) now) $
+      when (meeting.startTime >= pastCutoff && t < pastCutoff) $
         lift $
           throw InvalidTimes
 
