@@ -163,6 +163,7 @@ common common-all
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postgresql-connection-string
     , profunctors
     , prometheus-client
     , proto-lens

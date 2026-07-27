@@ -2267,6 +2267,20 @@ contains meeting cleanup jobs, and `conversations`, which contains adminless
 reminder and deletion jobs. Each queue has its own Arbiter worker pool. The
 `workerThreads` value applies independently to both pools.
 
+Both worker pools share the configured `postgresqlPool`; no connection is
+reserved permanently for an individual queue or worker pool. An active
+transactional job temporarily holds one connection, so concurrent jobs can
+borrow multiple connections from the shared pool. Short-lived dispatcher,
+heartbeat, and reaper operations also borrow connections as needed. For
+example, with two queues and `workerThreads: 3`, up to six active job
+transactions may need connections concurrently, in addition to these internal
+operations. Size `postgresqlPool.size` and PostgreSQL `max_connections` for
+the expected concurrency.
+
+The job runner uses polling rather than LISTEN/NOTIFY. It therefore does not
+open a separate listener connection; new jobs are discovered according to
+`jobs.pollInterval`.
+
 `backgroundJobs` and `jobs` configure different job systems. The
 `backgroundJobs` consumer receives immediate user-group synchronization jobs
 from RabbitMQ and controls their in-process concurrency, timeout, and retry
@@ -2283,17 +2297,15 @@ federationDomain: example.org
 
 ### Job runner PostgreSQL connections
 
-Each `background-worker` instance that runs Arbiter jobs uses one additional
-PostgreSQL connection for Arbiter scheduler and notification coordination. This
-connection is in addition to the connections configured by `postgresqlPool`,
-and should be included when sizing PostgreSQL's `max_connections` and the
-service's connection budget.
+Background-worker runs Arbiter jobs through its configured PostgreSQL pool.
+Choose the pool size and `jobs.workerThreads` to provide sufficient capacity for
+the expected job workload, and size PostgreSQL's `max_connections` accordingly.
 
-`jobs.workerThreads` controls how many jobs may be processed
-in parallel; it does not allocate one PostgreSQL connection per thread. The
-threads share the job worker's database resources, so increasing the
-thread count increases possible job and database workload, but not the number
-of connections opened by the job worker.
+At startup, each service that runs the Arbiter migrations briefly opens a
+separate PostgreSQL connection to acquire the migration advisory lock. Include
+this transient connection in the PostgreSQL connection budget and startup
+headroom. It remains open for the migration and related index setup, then is
+released and closed after the advisory lock is released.
 
 The `migrationOptions.timeout` setting limits how long a single migration
 attempt may run after it has acquired the migration lock. If the timeout is
@@ -2319,3 +2331,5 @@ Notes
 - `jobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
 - `jobs.pollInterval` controls how often the background worker wakes up to check for due jobs.
 - `jobs.workerThreads` controls the number of worker threads in each job queue. The default is `1`; increasing it allows jobs in that queue to run in parallel when their group keys permit it.
+- Both job queues share the same PostgreSQL pool. Increasing `jobs.workerThreads` can increase the number of connections needed when more jobs run concurrently, but it does not create a permanently dedicated connection per thread or queue.
+- The job runner is poll-only and does not require an additional PostgreSQL listener connection.

@@ -74,7 +74,7 @@ scheduleAdminlessSetupJob JobSubsystemConfig {..} lusr teamId = do
           { ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessSetupJobDedupKey teamId,
             ArbiterCore.maxAttempts = Just 3
           }
-  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter JobRegistry) @JobRegistry @ConversationsJobPayload arbiterJob
+  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @ConversationsJobPayload @(WireArbiter JobRegistry) arbiterJob
 
 scheduleAdminlessDeletionJob ::
   forall r.
@@ -99,7 +99,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" convId,
             ArbiterCore.maxAttempts = Just 3
           }
-  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter JobRegistry) @JobRegistry @ConversationsJobPayload arbiterJob
+  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @ConversationsJobPayload @(WireArbiter JobRegistry) arbiterJob
 
 scheduleAdminlessReminderJob ::
   forall r.
@@ -126,7 +126,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey convId reminderTimeout,
             ArbiterCore.maxAttempts = Just 3
           }
-  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter JobRegistry) @JobRegistry @ConversationsJobPayload arbiterJob
+  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @ConversationsJobPayload @(WireArbiter JobRegistry) arbiterJob
 
 cancelAdminlessJobsForTeam ::
   forall r.
@@ -144,9 +144,11 @@ cancelAdminlessJobsForTeam JobSubsystemConfig {..} teamId = do
       ArbiterCore.withDbTransaction $ do
         jobIds <-
           ArbiterCore.executeQuery
-            (adminlessJobsForTeamQuery schemaName conversationsQueueName)
-            [pval CText (idToText teamId)]
-            (col "id" CInt8)
+            ( ArbiterCore.Query
+                (adminlessJobsForTeamQuery schemaName conversationsQueueName)
+                [pval CText (idToText teamId)]
+                (col "id" CInt8)
+            )
         unless (null jobIds) $
           void $
             ArbiterOperations.cancelJobsBatch schemaName conversationsQueueName jobIds

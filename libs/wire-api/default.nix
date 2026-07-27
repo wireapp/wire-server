@@ -8,6 +8,7 @@
 , aeson-pretty
 , aeson-qq
 , amqp
+, arbiter-core
 , async
 , attoparsec
 , barbies
@@ -132,6 +133,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    arbiter-core
     attoparsec
     barbies
     base

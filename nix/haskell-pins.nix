@@ -67,6 +67,7 @@ let
         arbiter-simple = "arbiter-simple";
         arbiter-test-common = "arbiter-test-common";
         arbiter-worker = "arbiter-worker";
+        arbiter-worker-testkit = "arbiter-worker-testkit";
       };
     };
 

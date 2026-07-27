@@ -91,6 +91,7 @@
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, postgresql-connection-string
 , postgresql-error-codes
 , profunctors
 , prometheus-client
@@ -232,6 +233,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postgresql-connection-string
     postgresql-error-codes
     profunctors
     prometheus-client
@@ -364,6 +366,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postgresql-connection-string
     profunctors
     prometheus-client
     proto-lens
