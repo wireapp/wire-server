@@ -1068,7 +1068,7 @@ deleteGroupManagedInternalH tid gid managedBy = do
   pure NoContent
 
 deleteAppH :: (Member AppSubsystem r) => TeamId -> UserId -> Handler r NoContent
-deleteAppH tid uid = lift . liftSem $ AppSubsystem.deleteApp tid uid >> pure NoContent
+deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> pure NoContent
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
