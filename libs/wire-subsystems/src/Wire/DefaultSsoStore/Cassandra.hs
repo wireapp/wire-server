@@ -28,7 +28,6 @@ import Cassandra
 import Imports
 import Polysemy
 import SAML2.WebSSO.Types qualified as SAML
-{- instance Cql SAML.IdPId -}
 import Wire.DefaultSsoStore
 import Wire.DomainRegistrationStore.Cassandra ()
 
