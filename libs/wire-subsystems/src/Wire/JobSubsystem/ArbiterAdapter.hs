@@ -13,9 +13,9 @@ module Wire.JobSubsystem.ArbiterAdapter where
 
 import Arbiter.Core.Codec (Params, RowCodec)
 import Arbiter.Core.Exceptions (throwInternal)
-import Arbiter.Core.HasArbiterSchema (HasArbiterSchema (..))
-import Arbiter.Core.MonadArbiter (MonadArbiter (..))
+import Arbiter.Core.MonadArbiter (MonadArbiter (..), Query (..))
 import Arbiter.Core.QueueRegistry (JobPayloadRegistry)
+import Arbiter.Core.Sql.Query (numberPlaceholders)
 import Arbiter.Hasql.Decode qualified as Decode
 import Arbiter.Hasql.Encode qualified as Encode
 import Control.Exception (mask, onException, try)
@@ -66,23 +66,22 @@ newtype WireArbiter (registry :: JobPayloadRegistry) a = WireArbiter
 runWireArbiter :: WireArbiterEnv -> WireArbiter registry a -> IO a
 runWireArbiter env (WireArbiter action) = runReaderT action env
 
-instance HasArbiterSchema (WireArbiter registry) registry where
+instance MonadArbiter (WireArbiter registry) where
+  type RegistryOf (WireArbiter registry) = registry
+  type Handler (WireArbiter registry) jobs result = HasqlConn.Connection -> jobs -> WireArbiter registry result
   getSchema = asks schemaName
 
-instance MonadArbiter (WireArbiter registry) where
-  type Handler (WireArbiter registry) jobs result = HasqlConn.Connection -> jobs -> WireArbiter registry result
-
-  executeQuery sql params codec = do
+  executeQuery (Query sql params codec) = do
     env <- ask
     withConn env $ \conn ->
       runQueryStatement False conn sql params codec
 
-  executeQueryPrepared sql params codec = do
+  executeQueryPrepared (Query sql params codec) = do
     env <- ask
     withConn env $ \conn ->
       runQueryStatement True conn sql params codec
 
-  executeStatement sql params = do
+  executeStatement (Query sql params _) = do
     env <- ask
     withConn env $ \conn ->
       runExecStatement conn sql params
@@ -101,6 +100,11 @@ instance MonadArbiter (WireArbiter registry) where
     case activeConn env of
       Just conn -> handler conn jobs
       Nothing -> throwInternal "runHandlerWithConnection: no active connection"
+
+  -- Wire's shared pool is already used for all Arbiter database work. Keep
+  -- workers poll-only so they do not pin an additional PostgreSQL connection
+  -- for LISTEN/NOTIFY.
+  getListener = pure Nothing
 
 withConn :: WireArbiterEnv -> (HasqlConn.Connection -> IO a) -> WireArbiter registry a
 withConn env f =
@@ -134,7 +138,7 @@ runQueryStatement prepare conn sql params codec = do
   let mk = if prepare then Statement.preparable else Statement.unpreparable
       stmt =
         mk
-          (Encode.convertPlaceholders sql)
+          (numberPlaceholders sql)
           (Encode.buildEncoder params)
           (Decode.hasqlRowDecoder codec)
   result <- HasqlConn.use conn (Session.statement () stmt)

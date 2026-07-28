@@ -19,15 +19,17 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.JobSubsystem.Migrations
-  ( runJobMigrations,
+  ( mkArbiterConnectionString,
+    runJobMigrations,
   )
 where
 
 import Arbiter.Migrations qualified as ArbiterMigrations
 import Control.Exception (bracket, bracket_, throwIO)
 import Data.Hashable qualified as Hashable
+import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
-import Data.Secret (SecretText, revealSecretText)
+import Data.Secret (SecretText, revealSecretText, secretText)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
 import Hasql.Connection qualified as HasqlConnection
@@ -38,9 +40,20 @@ import Hasql.Session qualified as HasqlSession
 import Hasql.Statement qualified as HasqlStatement
 import Hasql.TH
 import Imports
+import PostgresqlConnectionString qualified
 import System.IO.Error (userError)
 import System.Timeout (timeout)
+import Util.Options (FilePathSecrets, initCredentials)
 import Wire.API.Jobs (JobRegistry, conversationsQueueName)
+
+-- | Build the secret-bearing connection string used by the Arbiter migration
+-- lock and migration runner.
+mkArbiterConnectionString :: Map Text Text -> Maybe FilePathSecrets -> IO SecretText
+mkArbiterConnectionString pgConfig mFpSecrets = do
+  mPw <- for mFpSecrets initCredentials
+  let pgConfig' = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
+  pure . secretText . PostgresqlConnectionString.toKeyValueString $
+    PostgresqlConnectionString.fromKeyValueParams pgConfig'
 
 -- | Apply all migrations for the job registry before constructing any worker
 -- pools or accepting jobs.
@@ -93,6 +106,7 @@ runJobMigrations connStr schemaName =
 -- | Serialize Arbiter schema migrations across all service instances that can
 -- schedule or execute jobs. The lock is held on the same dedicated connection
 -- for the whole migration because PostgreSQL advisory locks are session-scoped.
+-- The connection is released and closed after the lock is released.
 withArbiterMigrationLock :: SecretText -> Text -> (HasqlConnection.Connection -> IO a) -> IO a
 withArbiterMigrationLock connStr schemaName action = do
   bracket acquireConnection HasqlConnection.release $ \lockConnection -> do

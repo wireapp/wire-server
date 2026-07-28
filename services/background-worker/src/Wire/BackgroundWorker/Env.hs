@@ -51,6 +51,7 @@ import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Team.Feature (LegalholdConfig, npProject)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackgroundWorker.Options
+import Wire.JobSubsystem.Migrations (mkArbiterConnectionString)
 import Wire.Options.Galley (GuestLinkTTLSeconds, conversationCodeURISettings)
 import Wire.Options.Galley qualified as Galley
 import Wire.Options.Keys (loadAllMLSKeys)
@@ -193,7 +194,7 @@ mkEnv opts galleyOpts = do
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
-  arbiterConnStr <- postgresqlConnectionStringWithPassword galleyOpts._postgresql galleyOpts._postgresqlPassword
+  arbiterConnStr <- mkArbiterConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword
   Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $

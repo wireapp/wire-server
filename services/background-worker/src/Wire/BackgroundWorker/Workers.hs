@@ -1,7 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,20 +22,14 @@
 module Wire.BackgroundWorker.Workers (startWorker) where
 
 import Arbiter.Core qualified as ArbiterCore
-import Arbiter.Core.Job.Types (JobRead, RegistryAdmissionPolicies)
-import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
 import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
 import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
 import Control.Exception (throwIO)
 import Data.Misc (Duration, duration)
-import Data.Proxy (Proxy (..))
 import Data.Range (fromRange)
-import Data.Secret (SecretText, revealSecretText)
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (NominalDiffTime)
-import GHC.TypeLits (KnownSymbol)
 import Imports
 import System.Cron (CronSchedule, serializeCronSchedule)
 import System.IO.Error (userError)
@@ -75,8 +68,6 @@ data JobWorkerSettings = JobWorkerSettings
 data JobRunnerConfig registry = JobRunnerConfig
   { jobRunnerLogger :: Log.Logger,
     jobRunnerSchedule :: CronSchedule,
-    -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
-    jobRunnerArbiterConnStr :: SecretText,
     jobRunnerSchemaName :: Text,
     jobRunnerSettings :: JobWorkerSettings
   }
@@ -109,10 +100,6 @@ startWorker scheduledConfig meetingsCleanupConfig = do
         JobRunnerConfig
           { jobRunnerLogger = env.logger,
             jobRunnerSchedule = meetingsCleanupConfig.schedule,
-            -- Arbiter still uses the connection string for LISTEN/NOTIFY.
-            -- The actual job DB access goes through the shared Hasql pool
-            -- passed from the background-worker environment.
-            jobRunnerArbiterConnStr = env.arbiterConnStr,
             jobRunnerSchemaName = ArbiterCore.defaultSchemaName,
             jobRunnerSettings = workerSettings
           } ::
@@ -137,19 +124,12 @@ toJobJitter = \case
 -- multi-pool runner, so they share the process lifecycle without sharing a
 -- payload type or queue.
 runJobRunner ::
-  forall registry.
-  ( RegistryTables registry,
-    RegistryAdmissionPolicies registry,
-    KnownSymbol (TableForPayload MeetingsJobPayload registry),
-    KnownSymbol (TableForPayload ConversationsJobPayload registry)
-  ) =>
   Env ->
   ExtEnv ->
-  JobRunnerConfig registry ->
+  JobRunnerConfig JobRegistry ->
   CleanupConfig ->
   IO (IO ())
 runJobRunner env extEnv runnerConfig cleanupConfig = do
-  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.jobRunnerArbiterConnStr)
   Log.info runnerConfig.jobRunnerLogger $
     Log.msg (Log.val "Starting job worker")
       . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
@@ -188,28 +168,24 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
     Right job -> pure job
 
   meetingsWorkerConfig <-
-    ( ArbiterWorker.defaultWorkerConfig
-        arbiterConnStr
+    ( ArbiterWorker.transactionalWorkerConfig
         runnerConfig.jobRunnerSettings.jobWorkerThreads
         meetingsWorkerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
-              (WireArbiter registry)
+              (WireArbiter JobRegistry)
               MeetingsJobPayload
-              ()
           )
     )
 
   conversationsWorkerConfig <-
-    ( ArbiterWorker.defaultWorkerConfig
-        arbiterConnStr
+    ( ArbiterWorker.transactionalWorkerConfig
         runnerConfig.jobRunnerSettings.jobWorkerThreads
         conversationsWorkerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
-              (WireArbiter registry)
+              (WireArbiter JobRegistry)
               ConversationsJobPayload
-              ()
           )
     )
 
@@ -227,21 +203,14 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
         [ ArbiterWorker.namedWorkerPool meetingsWorkerConfig',
           ArbiterWorker.namedWorkerPool conversationsWorkerConfig'
         ]
-      shutdownWorkerPools _ = do
-        ArbiterWorker.shutdownWorker meetingsWorkerConfig'
-        ArbiterWorker.shutdownWorker conversationsWorkerConfig'
 
   workerAsync <-
     Async.async $
       runWireArbiter arbiterEnv $
-        ArbiterWorker.runWorkerPools
-          (Proxy @registry)
-          workerPools
-          shutdownWorkerPools
+        ArbiterWorker.runWorkerPools workerPools
 
   pure $ do
-    ArbiterWorker.shutdownWorker meetingsWorkerConfig'
-    ArbiterWorker.shutdownWorker conversationsWorkerConfig'
+    runWireArbiter arbiterEnv $ ArbiterWorker.shutdownPools workerPools
     Async.cancel workerAsync
 
 meetingsJobPayloadTypeName :: MeetingsJobPayload -> Text
@@ -254,7 +223,7 @@ conversationsJobPayloadTypeName = \case
   AdminlessDeletion _ -> "adminless_deletion"
   AdminlessReminder _ -> "adminless_reminder"
 
-mapJobPayload :: (a -> b) -> JobRead a -> JobRead b
+mapJobPayload :: (a -> b) -> ArbiterCore.JobRead a -> ArbiterCore.JobRead b
 mapJobPayload f job =
   ArbiterCore.Job
     { ArbiterCore.primaryKey = job.primaryKey,
@@ -274,13 +243,14 @@ mapJobPayload f job =
       ArbiterCore.parentState = job.parentState,
       ArbiterCore.suspended = job.suspended,
       ArbiterCore.claimedBy = job.claimedBy,
+      ArbiterCore.archiveFor = job.archiveFor,
       ArbiterCore.admission = job.admission
     }
 
 applyExplicitDefaults ::
   JobWorkerSettings ->
-  ArbiterWorker.WorkerConfig m payload result ->
-  ArbiterWorker.WorkerConfig m payload result
+  ArbiterWorker.WorkerConfig m payload ->
+  ArbiterWorker.WorkerConfig m payload
 applyExplicitDefaults settings cfg =
   cfg
     { -- How often the dispatcher wakes up to look for newly visible jobs.
