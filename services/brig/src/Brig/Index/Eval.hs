@@ -132,7 +132,7 @@ runSem :: SemDeps -> UserStorageLocation -> Endpoint -> Logger -> Sem BrigIndexE
 runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) userStorage galleyEndpoint logger action = do
   let userStoreInterpreter = case userStorage.userStorageLocation of
         CassandraStorage -> interpretUserStoreCassandra casClient
-        MigrationToPostgresql -> error "Migration not implemented for user"
+        MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres casClient
         PostgresqlStorage -> interpretUserStorePostgres
   runFinal
     . embedToFinal

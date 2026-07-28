@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.UserStore.Cassandra (interpretUserStoreCassandra) where
+module Wire.UserStore.Cassandra (interpretUserStoreCassandra, interpretUserStoreToCassandraAndPostgres) where
 
 import Cassandra
 import Cassandra.Exec (prepared)
@@ -78,6 +78,9 @@ interpretUserStoreCassandra casClient =
       DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
       LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid (paginationStateCassandra =<< mPagingState)
       LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid (paginationStateCassandra =<< mPagingState)
+
+interpretUserStoreToCassandraAndPostgres :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
+interpretUserStoreToCassandraAndPostgres = interpretUserStoreCassandra
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
