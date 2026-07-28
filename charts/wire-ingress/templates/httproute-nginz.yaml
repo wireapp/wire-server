@@ -1,24 +1,28 @@
+{{- $root := . -}}
+{{- $domains := include "wire-ingress.domains" . | fromJsonArray -}}
+{{- range $domain := $domains }}
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ include "wire-ingress.fullname" . }}-nginz
-  namespace: {{ .Release.Namespace }}
-  {{- with .Values.httpRoute.annotations }}
+  name: {{ include "wire-ingress.fullname" $root }}-nginz{{ $domain.suffix }}
+  namespace: {{ $root.Release.Namespace }}
+  {{- with $root.Values.httpRoute.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+    chart: "{{ $root.Chart.Name }}-{{ $root.Chart.Version }}"
+    release: "{{ $root.Release.Name }}"
+    heritage: "{{ $root.Release.Service }}"
 spec:
   parentRefs:
-    - name: {{ include "wire-ingress.gatewayName" . | quote }}
-      namespace: {{ .Release.Namespace | quote }}
+    - name: {{ include "wire-ingress.gatewayName" $root | quote }}
+      namespace: {{ $root.Release.Namespace | quote }}
       kind: Gateway
-      sectionName: https
+      sectionName: {{ $domain.section }}
   hostnames:
-    - {{ required "config.dns.https is required" .Values.config.dns.https | quote }}
+    - {{ required "config.dns.https is required" $domain.https | quote }}
   rules:
     - matches:
         - path:
@@ -26,5 +30,6 @@ spec:
             value: /
       backendRefs:
         - name: nginz
-          port: {{ .Values.service.nginz.httpPort }}
+          port: {{ $root.Values.service.nginz.httpPort }}
           kind: Service
+{{- end }}

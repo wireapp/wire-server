@@ -1,45 +1,50 @@
 {{- if .Values.tls.useCertManager -}}
+{{- $root := . -}}
+{{- $domains := include "wire-ingress.domains" . | fromJsonArray -}}
+{{- range $domain := $domains }}
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: "{{ include "wire-ingress.zone" . | replace "." "-" }}-csr"
-  namespace: {{ .Release.Namespace }}
+  name: "{{ $domain.certName }}"
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+    chart: "{{ $root.Chart.Name }}-{{ $root.Chart.Version }}"
+    release: "{{ $root.Release.Name }}"
+    heritage: "{{ $root.Release.Service }}"
 spec:
   issuerRef:
-    name: {{ include "wire-ingress.issuerName" . | quote }}
-    kind: {{ .Values.tls.issuer.kind }}
+    name: {{ $domain.issuerName | quote }}
+    kind: {{ $domain.issuerKind }}
   usages:
     - server auth
   duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
   renewBefore: 360h   # 15d
   isCA: false
-  secretName: {{ include "wire-ingress.certificateSecretName" . | quote }}
+  secretName: {{ $domain.secretName | quote }}
 
   privateKey:
-    algorithm: {{ .Values.tls.privateKey.algorithm }}
-    size: {{ .Values.tls.privateKey.size }}
+    algorithm: {{ $root.Values.tls.privateKey.algorithm }}
+    size: {{ $root.Values.tls.privateKey.size }}
     encoding: PKCS1
-    rotationPolicy: {{ .Values.tls.privateKey.rotationPolicy }}
+    rotationPolicy: {{ $root.Values.tls.privateKey.rotationPolicy }}
 
   dnsNames:
-    - {{ .Values.config.dns.https }}
-    {{- if .Values.websockets.enabled }}
-    - {{ .Values.config.dns.ssl }}
+    - {{ $domain.https }}
+    {{- if and $root.Values.websockets.enabled $domain.ssl }}
+    - {{ $domain.ssl }}
     {{- end }}
-    {{- if .Values.webapp.enabled }}
-    - {{ .Values.config.dns.webapp }}
+    {{- if and $root.Values.webapp.enabled $domain.webapp }}
+    - {{ $domain.webapp }}
     {{- end }}
-    {{- if .Values.fakeS3.enabled }}
-    - {{ .Values.config.dns.fakeS3 }}
+    {{- if and $root.Values.fakeS3.enabled $domain.fakeS3 }}
+    - {{ $domain.fakeS3 }}
     {{- end }}
-    {{- if .Values.teamSettings.enabled }}
-    - {{ .Values.config.dns.teamSettings }}
+    {{- if and $root.Values.teamSettings.enabled $domain.teamSettings }}
+    - {{ $domain.teamSettings }}
     {{- end }}
-    {{- if .Values.accountPages.enabled }}
-    - {{ .Values.config.dns.accountPages }}
+    {{- if and $root.Values.accountPages.enabled $domain.accountPages }}
+    - {{ $domain.accountPages }}
     {{- end }}
+{{- end }}
 {{- end -}}
