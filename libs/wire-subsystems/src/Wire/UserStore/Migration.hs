@@ -28,7 +28,7 @@ import Polysemy.Resource
 import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
-import System.Logger.Message qualified as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Password
 import Wire.API.PostgresMarshall
 import Wire.API.User
@@ -37,8 +37,58 @@ import Wire.Migration
 import Wire.MigrationLock
 import Wire.Postgres
 import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
+import Wire.Sem.Logger
+import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.UserStore.Migration.Types
 import Wire.UserStore.Postgres
+
+migrateUsersLoop ::
+  MigrationOptions ->
+  ClientState ->
+  Pool ->
+  Log.Logger ->
+  Prometheus.Counter ->
+  Prometheus.Counter ->
+  Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  IO ()
+migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
+  migrationLoop
+    logger
+    "users"
+    migFinished
+    migFailed
+    (interpreter cassClient pgPool logger "users")
+    (migrateAllUsers migOpts migCounter migDuration)
+
+type EffectStack =
+  [ State Int,
+    Input ClientState,
+    Input Pool,
+    Resource,
+    Async,
+    Race,
+    TinyLog,
+    Embed IO,
+    Concurrency 'Unsafe,
+    Final IO
+  ]
+
+interpreter :: ClientState -> Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
+interpreter cassClient pgPool logger name =
+  runFinal
+    . unsafelyPerformConcurrency
+    . embedToFinal
+    . loggerToTinyLog logger
+    . mapLogger (Log.field "migration" name .)
+    . raiseUnder
+    . interpretRace
+    . asyncToIOFinal
+    . resourceToIOFinal
+    . runInputConst pgPool
+    . runInputConst cassClient
+    . runState 0
 
 migrateAllUsers ::
   ( Member TinyLog r,
@@ -111,15 +161,14 @@ getUserData uid = do
       \expires, feature_conference_calling, handle, language, managed_by, \
       \name, password, provider, searchable, service,\
       \sso_id, status, supported_protocols, team, text_status,\
-      \user_type, write_time_bumper, accent, assets, picture,\
-      \writetime(activated)\
+      \user_type, assets, picture, writetime(activated)\
       \FROM user WHERE id = ?"
 
     selectServiceConv :: PrepQuery R (ProviderId, ServiceId, UserId) (TupleType ServiceConv)
     selectServiceConv = "SELECT conv, team FROM service_user WHERE provider = ? AND service = ? AND user = ?"
 
     selectHandleClaim :: PrepQuery R (Identity Handle) (Identity UserId)
-    selectHandleClaim = "SELECT user FROM handle WHERE handle = ?"
+    selectHandleClaim = "SELECT user FROM user_handle WHERE handle = ?"
 
     selectRichInfo :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
     selectRichInfo = "SELECT json FROM rich_info where user = ?"
