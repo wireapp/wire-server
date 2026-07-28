@@ -450,7 +450,7 @@ getLocalAppProfilesImpl self tid = do
       throw UserSubsystemProfileNotFound
 
   let ltid = qualifyAs self tid
-  apps :: [AppStore.StoredApp] <- AppStore.getApps tid
+  apps <- AppStore.getApps tid
   profiles <- getUserProfilesLocalPart Nothing (ltid $> map (.id) apps)
   let appsMap :: Map UserId AppStore.StoredApp
       appsMap = Map.fromList ((\app -> (app.id, app)) <$> apps)

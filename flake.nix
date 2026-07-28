@@ -110,7 +110,7 @@
     };
 
     arbiter = {
-      url = "github:velveteer/arbiter?rev=296034ea3a15b5c10f42cc0ea46d2dfc48e9493f";
+      url = "github:velveteer/arbiter?rev=b9c57eb1f8277d97616aa449bea471fe9ce14eda";
       flake = false;
     };
   };

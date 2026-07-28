@@ -1192,10 +1192,49 @@ spec = describe "UserSubsystem.Interpreter" do
                     ]
                 result :: ([UserId], [UserId]) =
                   runNoFederationStack localBackend teams config $ do
-                    let f tid caller =
+                    let getAppId tid caller =
                           qUnqualified . (.profileQualifiedId)
                             <$$> getLocalAppProfiles caller tid
                      in (,)
-                          <$> f teamAId teamAOwnerId
-                          <*> f teamBId teamBOwnerId
+                          <$> getAppId teamAId teamAOwnerId
+                          <*> getAppId teamBId teamBOwnerId
              in result === ([appUser.id], [appUser.id])
+
+    prop "denies access when the caller's own team is not the requested team" . withMaxSuccess 1 $
+      \(NotPendingStoredUser caller_)
+       (NotPendingStoredUser appUser_)
+       (callerTeamId :: TeamId)
+       (targetTeamId :: TeamId)
+       config ->
+          callerTeamId /= targetTeamId ==>
+            let localDomain = Domain "localdomain"
+                caller = caller_ {teamId = Just callerTeamId} :: StoredUser
+                callerId = toLocalUnsafe localDomain caller.id
+                appUser = appUser_ {userType = Just UserTypeApp, teamId = Just targetTeamId} :: StoredUser
+                storedApp =
+                  AppStore.StoredApp
+                    { id = appUser.id,
+                      teamId = targetTeamId,
+                      meta = mempty,
+                      category = Category "other",
+                      description = unsafeRange "test app",
+                      creator = appUser.id
+                    }
+                localBackend =
+                  def
+                    { users = [caller, appUser],
+                      apps = [storedApp]
+                    }
+                teams =
+                  Map.fromList
+                    [ ( callerTeamId,
+                        [mkTeamMember caller.id fullPermissions Nothing defUserLegalHoldStatus]
+                      ),
+                      ( targetTeamId,
+                        [mkTeamMember appUser.id fullPermissions Nothing defUserLegalHoldStatus]
+                      )
+                    ]
+                result :: Either UserSubsystemError [UserProfile] =
+                  runNoFederationStackUserSubsystemErrorEither localBackend teams config $
+                    getLocalAppProfiles callerId targetTeamId
+             in result === Left UserSubsystemProfileNotFound

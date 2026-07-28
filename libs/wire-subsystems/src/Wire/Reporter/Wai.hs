@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,19 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Reporter
-  ( Reporter (..),
-    report,
+module Wire.Reporter.Wai
+  ( reporterToTinyLogWai,
   )
 where
 
 import Imports
-import qualified Network.Wai as Wai
-import Network.Wai.Utilities.Error (Error)
+import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
+import Polysemy.Input
+import System.Logger qualified as TinyLog
+import Wire.Reporter
 
-data Reporter m a where
-  Report :: Maybe Wai.Request -> Error -> Reporter m ()
-
--- TODO(sandy): Inline this definition --- no TH
-makeSem ''Reporter
+reporterToTinyLogWai ::
+  ( Member (Embed IO) r,
+    Member (Input TinyLog.Logger) r
+  ) =>
+  Sem (Reporter ': r) a ->
+  Sem r a
+reporterToTinyLogWai = interpret $ \case
+  Report req err -> do
+    logger <- input
+    embed @IO $ Wai.logError logger req err

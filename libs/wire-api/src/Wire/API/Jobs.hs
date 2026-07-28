@@ -23,6 +23,7 @@
 
 module Wire.API.Jobs where
 
+import Arbiter.Core.QueueRegistry (Queue)
 import Control.Arrow ((&&&))
 import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
@@ -248,6 +249,6 @@ instance Arbitrary ConversationsJobPayload where
 
 -- | Registry for the jobs we expose via Arbiter.
 type JobRegistry =
-  '[ '(MeetingsQueueName, MeetingsJobPayload),
-     '(ConversationsQueueName, ConversationsJobPayload)
+  '[ Queue MeetingsQueueName MeetingsJobPayload,
+     Queue ConversationsQueueName ConversationsJobPayload
    ]

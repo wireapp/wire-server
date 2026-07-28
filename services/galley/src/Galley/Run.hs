@@ -46,7 +46,7 @@ import Galley.Cassandra
 import Galley.Env
 import Galley.Monad
 import Galley.Queue qualified as Q
-import Hasql.Pool.Extended (postgresqlConnectionStringWithPassword, rawPool)
+import Hasql.Pool.Extended (rawPool)
 import Imports
 import Network.HTTP.Media.RenderHeader qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -68,7 +68,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.AWS (awsEnv)
-import Wire.JobSubsystem.Migrations (runJobMigrations)
+import Wire.JobSubsystem.Migrations (mkArbiterConnectionString, runJobMigrations)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.Options.Galley
 import Wire.PostgresMigrations (runAllMigrations)
@@ -80,7 +80,7 @@ run opts = lowerCodensity do
   lift $ runAllMigrations env._hasqlPool.rawPool env._applog
   arbiterConnStr <-
     lift $
-      postgresqlConnectionStringWithPassword
+      mkArbiterConnectionString
         (opts ^. postgresql)
         (opts ^. postgresqlPassword)
   lift $ runJobMigrations arbiterConnStr ArbiterCore.defaultSchemaName

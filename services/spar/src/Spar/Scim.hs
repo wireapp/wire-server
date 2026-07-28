@@ -83,7 +83,6 @@ import Spar.Options
 import Spar.Scim.Auth
 import Spar.Scim.Group ()
 import Spar.Scim.User
-import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
@@ -101,6 +100,7 @@ import Wire.API.User.Scim
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.IdPConfigStore (IdPConfigStore)
+import Wire.Reporter (Reporter)
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)
