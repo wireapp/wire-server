@@ -75,8 +75,6 @@ import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.Reporter (Reporter)
-import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -100,6 +98,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import qualified Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.Reporter (Reporter)
+import qualified Wire.Reporter as Reporter
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
