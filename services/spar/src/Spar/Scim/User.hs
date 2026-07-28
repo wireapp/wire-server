@@ -83,8 +83,6 @@ import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import qualified System.Logger.Class as Log
 import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
@@ -114,6 +112,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import qualified Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)

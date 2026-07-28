@@ -53,8 +53,6 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import Spar.Sem.Utils
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
@@ -79,6 +77,8 @@ import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
+import Wire.ScimUserTimesStore (ScimUserTimesStore)
+import Wire.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
