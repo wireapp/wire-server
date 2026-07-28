@@ -145,11 +145,10 @@ testUserMigrationToPostgres = do
                   waitForMigration domainM userMigrationFinishedCounterName
         runPhase 1
         runPhase 2
+        runPhase 3
+        runPhase 4
+        runPhase 5
   where
-    -- runPhase 3
-    -- runPhase 4
-    -- runPhase 5
-
     parallelism = 64
 
     n = 5
