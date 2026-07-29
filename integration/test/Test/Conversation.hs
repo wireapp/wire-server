@@ -1323,14 +1323,14 @@ testMeetingGroupConvTypeHiddenInLegacy = do
   bindResponse (getConversationsVersioned (ExplicitVersion 2) owner convIdStr) $ \resp -> do
     resp.status `shouldMatchInt` 200
     found <- resp.json %. "conversations" & asList
-    length (found :: [Value]) `shouldMatchInt` 0
+    shouldBeEmpty found
 
   -- listConversations: V15 (legacy) excludes meeting conversations from found,
   -- V16+ includes them.
   bindResponse (listConversationsVersioned (ExplicitVersion 15) owner [convQid]) $ \resp -> do
     resp.status `shouldMatchInt` 200
     found <- resp.json %. "found" & asList
-    length (found :: [Value]) `shouldMatchInt` 0
+    shouldBeEmpty found
 
   bindResponse (listConversations owner [convQid]) $ \resp -> do
     resp.status `shouldMatchInt` 200
