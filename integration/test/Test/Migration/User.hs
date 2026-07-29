@@ -25,6 +25,7 @@ import API.Spar
 import Control.Applicative
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
@@ -268,7 +269,10 @@ testUserMigrationToPostgres = do
         newScimUser0 <- randomScimUser
         newScimUser <-
           if shouldCreateRichInfo
-            then setField "rich_info" "very arbitrary" newScimUser0 -- TODO: Actually generate rich info
+            then
+              -- TODO: Actually generate rich info
+              modifyObject (KeyMap.insert (fromString "urn:ietf:params:scim:schemas:extension:wire:1.0:User") (object ["rich_info_1" .= "so arbitrary"]))
+                =<< setField "schemas" ["urn:ietf:params:scim:schemas:core:2.0:User", "urn:ietf:params:scim:schemas:extension:wire:1.0:User"] newScimUser0
             else pure newScimUser0
         email <- asString $ newScimUser %. "emails.0.value"
         inactiveScimUser <- createScimUser domain tok newScimUser >>= getJSON 201
