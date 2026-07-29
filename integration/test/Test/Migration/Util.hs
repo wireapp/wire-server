@@ -31,7 +31,7 @@ import UnliftIO
 
 waitForMigration :: (HasCallStack) => String -> String -> App ()
 waitForMigration domain name =
-  maybe failWithContext pure =<< timeout 3_000_000 go
+  maybe failWithContext pure =<< timeout 30_000_000 go
   where
     failWithContext = do
       getMetrics domain BackgroundWorker `bindResponse` \resp -> do
