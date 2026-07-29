@@ -245,6 +245,27 @@ testAdminlessReplaceMembersAddsAdmin = do
     memberIds <- traverse (%. "qualified_id") members
     memberIds `shouldMatchSet` [bobId]
 
+testAdminlessReplaceMembersAddsEligibleMember :: (HasCallStack) => App ()
+testAdminlessReplaceMembersAddsEligibleMember = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
+  conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [], newUsersRole = "wire_member"}) >>= getJSON 201
+  bobId <- bob %. "qualified_id"
+
+  -- V17 rejects a replacement that removes the only admin even when the
+  -- eligible member is added by the same request.
+  bindResponse
+    (replaceMembers alice conv def {users = [bobId], role = Just "wire_member", version = Just 17})
+    $ \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "adminless-conversation"
+      eligibleMembers <- resp.json %. "eligible_members" & asList
+      eligibleMembers `shouldMatchSet` [bobId]
+
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+
 testAdminlessSetupSystemMemberUpdate :: (HasCallStack) => App ()
 testAdminlessSetupSystemMemberUpdate = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2

@@ -1014,7 +1014,7 @@ replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) =
   -- Apply the same adminless protection as DELETE to the complete removal
   -- set. The guard is a preflight so V16+ cannot partially apply a replacement
   -- before returning AdminlessConversation.
-  guardPreventAdminlessGroupsFor responseMode lcnv lusr toRemove addedAdmins
+  guardPreventAdminlessGroupsFor responseMode lcnv lusr toRemove addedAdmins toAdd
 
   -- If both sets are empty, return Unchanged
   unless (Set.null toRemove && Set.null toAdd) $ do
@@ -1237,7 +1237,7 @@ guardPreventAdminlessGroups ::
   Qualified UserId ->
   Sem r ()
 guardPreventAdminlessGroups responseMode lcnv lusr victim =
-  guardPreventAdminlessGroupsFor responseMode lcnv lusr (Set.singleton victim) Set.empty
+  guardPreventAdminlessGroupsFor responseMode lcnv lusr (Set.singleton victim) Set.empty Set.empty
 
 guardPreventAdminlessGroupsFor ::
   ( Member ConversationStore r,
@@ -1262,8 +1262,9 @@ guardPreventAdminlessGroupsFor ::
   Local UserId ->
   Set (Qualified UserId) ->
   Set (Qualified UserId) ->
+  Set (Qualified UserId) ->
   Sem r ()
-guardPreventAdminlessGroupsFor responseMode lcnv lusr victims addedAdmins = do
+guardPreventAdminlessGroupsFor responseMode lcnv lusr victims addedAdmins addedMembers = do
   conv <- getConversationWithError lcnv
   when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
@@ -1281,7 +1282,10 @@ guardPreventAdminlessGroupsFor responseMode lcnv lusr victims addedAdmins = do
               )
             && not (any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers)
     when (feature.status == FeatureStatusEnabled && removingLastAdmin) $ do
-      eligibleMembers <- eligibleAdminFallbackMembersFor lcnv victims' conv
+      let addedMembersForEligibility = case responseMode of
+            RemoveMemberLegacyResponse -> Set.empty
+            RemoveMemberEligibleMembersResponse -> addedMembers
+      eligibleMembers <- eligibleAdminFallbackMembersFor lcnv victims' addedMembersForEligibility conv
       case (responseMode, eligibleMembers) of
         (RemoveMemberLegacyResponse, x : xs) -> do
           seed <- randomWord64
@@ -1519,22 +1523,34 @@ eligibleAdminFallbackMembers ::
   StoredConversation ->
   Sem r [(Qualified UserId, User.Name)]
 eligibleAdminFallbackMembers lcnv mLeavingUser conv = do
-  eligibleAdminFallbackMembersFor lcnv (maybe Set.empty Set.singleton mLeavingUser) conv
+  eligibleAdminFallbackMembersFor lcnv (maybe Set.empty Set.singleton mLeavingUser) Set.empty conv
 
 eligibleAdminFallbackMembersFor ::
   (Member BrigAPIAccess r) =>
   Local ConvId ->
   Set UserId ->
+  Set (Qualified UserId) ->
   StoredConversation ->
   Sem r [(Qualified UserId, User.Name)]
-eligibleAdminFallbackMembersFor lcnv leavingUsers conv = do
-  users <- Brig.getUsers (map (.id_) (filter (\member -> Set.notMember member.id_ leavingUsers) conv.localMembers))
+eligibleAdminFallbackMembersFor lcnv leavingUsers addedUsers conv = do
+  let existingCandidates =
+        [ (Qualified member.id_ (tDomain lcnv), member.id_)
+        | member <- conv.localMembers,
+          Set.notMember member.id_ leavingUsers
+        ]
+      addedLocalCandidates =
+        [ (user, qUnqualified user)
+        | user <- Set.toList addedUsers,
+          qDomain user == tDomain lcnv
+        ]
+      candidates = existingCandidates <> addedLocalCandidates
+      candidateIds = Set.toList (Set.fromList (map snd candidates))
+  users <- Brig.getUsers candidateIds
   let usersById = Map.fromList [(User.userId u, u) | u <- users]
   pure
-    [ (tUntagged (qualifyAs lcnv member.id_), u.userDisplayName)
-    | member <- conv.localMembers,
-      Set.notMember member.id_ leavingUsers,
-      Just u <- [Map.lookup member.id_ usersById],
+    [ (qualifiedId, u.userDisplayName)
+    | (qualifiedId, candidateId) <- candidates,
+      Just u <- [Map.lookup candidateId usersById],
       isEligibleUser u
     ]
   where
