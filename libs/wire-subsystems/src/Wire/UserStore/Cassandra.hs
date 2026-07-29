@@ -136,9 +136,11 @@ interpretUserStoreToCassandraAndPostgres casClient =
       interpretUserStorePostgres action >>= \case
         Nothing -> interpretUserStoreCassandra casClient action
         Just user -> pure $ Just user
-    GlimpseHandle _hdl ->
-      -- runAppropriateInterpreter casClient uid $ UserStore.glimpseHandle hdl
-      undefined
+    GlimpseHandle hdl -> do
+      let action = UserStore.glimpseHandle hdl
+      interpretUserStorePostgres action >>= \case
+        Nothing -> interpretUserStoreCassandra casClient action
+        Just uid -> pure $ Just uid
     UpdateUserHandleEither uid update ->
       runAppropriateInterpreter casClient uid $ UserStore.updateUserHandleEither uid update
     UpdateSSOId uid ssoId ->
