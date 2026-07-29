@@ -239,7 +239,7 @@ newRequestId = do
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
   reqIdNum <- newRequestId
-  testName <- fromMaybe "not_test" <$> asks (.currentTestName)
+  testName <- asks (fromMaybe "not_test" . (.currentTestName))
   let reqId = testName <> "__" <> method <> "_" <> cs (HTTP.path req0) <> "__" <> show reqIdNum
   let request =
         (req0 & addHeader "Request-Id" reqId)
