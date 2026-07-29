@@ -647,32 +647,46 @@ phase1Overrides =
     <> def
       { brigCfg = setField "postgresMigration.user" "cassandra",
         galleyCfg = setField "postgresMigration.user" "cassandra",
-        backgroundWorkerCfg = setField "migrateUsers" False
+        backgroundWorkerCfg =
+          setField "postgresMigration.user" "cassandra"
+            >=> setField "migrateUsers" False
       }
 phase2Overrides =
   commonOverrides
-    { brigCfg = commonOverrides.brigCfg >=> setField "postgresMigration.user" "migration-to-postgresql",
-      galleyCfg = setField "postgresMigration.user" "migration-to-postgresql",
-      backgroundWorkerCfg = setField "migrateUsers" False
-    }
+    <> def
+      { brigCfg = setField "postgresMigration.user" "migration-to-postgresql",
+        galleyCfg = setField "postgresMigration.user" "migration-to-postgresql",
+        backgroundWorkerCfg =
+          setField "postgresMigration.user" "migration-to-postgresql"
+            >=> setField "migrateUsers" False
+      }
 phase3Overrides =
   commonOverrides
-    { brigCfg = commonOverrides.brigCfg >=> setField "postgresMigration.user" "migration-to-postgresql",
-      galleyCfg = setField "postgresMigration.user" "migration-to-postgresql",
-      backgroundWorkerCfg = setField "migrateUsers" True
-    }
+    <> def
+      { brigCfg = setField "postgresMigration.user" "migration-to-postgresql",
+        galleyCfg = setField "postgresMigration.user" "migration-to-postgresql",
+        backgroundWorkerCfg =
+          setField "postgresMigration.user" "migration-to-postgresql"
+            >=> setField "migrateUsers" True
+      }
 phase4Overrides =
   commonOverrides
-    { brigCfg = commonOverrides.brigCfg >=> setField "postgresMigration.user" "migration-to-postgresql",
-      galleyCfg = setField "postgresMigration.user" "migration-to-postgresql",
-      backgroundWorkerCfg = setField "migrateUsers" False
-    }
+    <> def
+      { brigCfg = setField "postgresMigration.user" "migration-to-postgresql",
+        galleyCfg = setField "postgresMigration.user" "migration-to-postgresql",
+        backgroundWorkerCfg =
+          setField "postgresMigration.user" "migration-to-postgresql"
+            >=> setField "migrateUsers" False
+      }
 phase5Overrides =
   commonOverrides
-    { brigCfg = commonOverrides.brigCfg >=> setField "postgresMigration.user" "postgresql",
-      galleyCfg = setField "postgresMigration.user" "postgresql",
-      backgroundWorkerCfg = setField "migrateUsers" False
-    }
+    <> def
+      { brigCfg = setField "postgresMigration.user" "postgresql",
+        galleyCfg = setField "postgresMigration.user" "postgresql",
+        backgroundWorkerCfg =
+          setField "postgresMigration.user" "postgresql"
+            >=> setField "migrateUsers" False
+      }
 
 phaseOverrides :: IntMap ServiceOverrides
 phaseOverrides =
