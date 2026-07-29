@@ -135,6 +135,7 @@ import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Notify qualified as Notify
 import Wire.ConversationSubsystem.Query qualified as Query
@@ -482,7 +483,7 @@ addCodeUnqualified ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
-    Member (ErrorS 'CreateConversationCodeConflict) r,
+    Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -511,7 +512,7 @@ addCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
-    Member (ErrorS 'CreateConversationCodeConflict) r,
+    Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member HashPassword r,
     Member NotificationSubsystem r,
@@ -549,7 +550,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       pure $ CodeAdded event
     -- In case conversation already has a code this case covers the allowed no-ops
     Just (code, mPw) -> do
-      when (isJust mPw || isJust (mReq >>= (.password))) $ throwS @'CreateConversationCodeConflict
+      when (isJust mPw || isJust (mReq >>= (.password))) $ throw ConversationSubsystemErrorCreateConversationCodeConflict
       pure $ CodeAlreadyExisted (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri)
   where
     ensureGuestsOrNonTeamMembersAllowed :: StoredConversation -> Sem r ()
@@ -639,7 +640,7 @@ checkReusableCode ::
     Member FeaturesConfigSubsystem r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
+    Member (Error ConversationSubsystemError) r,
     Member HashPassword r,
     Member RateLimit r
   ) =>
@@ -744,7 +745,7 @@ joinConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -961,7 +962,7 @@ replaceMembers ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (ErrorS 'ConvMemberNotFound) r,
-    Member (Error AdminlessConversation) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member E.ExternalAccess r,
@@ -1084,7 +1085,7 @@ updateOtherMemberLocalConv ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'InvalidTarget) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
@@ -1102,7 +1103,7 @@ updateOtherMemberLocalConv ::
   Sem r ()
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap lcuEvent $ do
   when (tUntagged lusr == qvictim) $
-    throwS @'InvalidTarget
+    throw ConversationSubsystemErrorInvalidTarget
   updateLocalConversationMemberUpdate lcnv (tUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
 
@@ -1110,7 +1111,7 @@ updateOtherMember ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'InvalidTarget) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
@@ -1144,7 +1145,7 @@ removeMemberQualified ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member BrigAPIAccess r,
-    Member (Error AdminlessConversation) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
@@ -1208,7 +1209,7 @@ setupAdminlessGroupsCleanup mUsr tid = do
 
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
-    Member (Error AdminlessConversation) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -1244,7 +1245,7 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
             updateLocalConversationMemberUpdate lcnv (tUntagged lusr) Nothing $
               ConversationMemberUpdate candidate (OtherMemberUpdate (Just roleNameWireAdmin))
         (RemoveMemberEligibleMembersResponse, _ : _) ->
-          throw $ AdminlessConversation (fmap fst eligibleMembers)
+          throw $ ConversationSubsystemErrorAdminlessConversation (AdminlessConversation (fmap fst eligibleMembers))
         (RemoveMemberLegacyResponse, []) ->
           scheduleDeletion lcnv (Just lusr) tid feature
         (RemoveMemberEligibleMembersResponse, []) ->
@@ -1492,7 +1493,7 @@ eligibleAdminFallbackMembers lcnv mLeavingUser conv = do
 deleteUserFromTeamConversationsImpl ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
-    Member (Error AdminlessConversation) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -1614,7 +1615,7 @@ removeMemberFromLocalConv ::
     Member (Input ConversationSubsystemConfig) r,
     Member (ErrorS (ActionDenied ModifyOtherConversationMember)) r,
     Member (ErrorS ConvMemberNotFound) r,
-    Member (Error AdminlessConversation) r,
+    Member (Error ConversationSubsystemError) r,
     Member FeaturesConfigSubsystem r,
     Member BrigAPIAccess r,
     Member JobSubsystem r
@@ -1714,7 +1715,7 @@ postProteusBroadcast ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
     Member (Input FeatureFlags) r,
@@ -1798,7 +1799,7 @@ postOtrBroadcastUnqualified ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
     Member (Input FeatureFlags) r,

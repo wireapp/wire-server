@@ -44,6 +44,7 @@ import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.ConversationStore (ConversationStore (..))
 import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Update (removeMemberQualified)
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem (..))
@@ -98,7 +99,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                 ]
               result =
                 run
-                  . runError @AdminlessConversation
+                  . runError @ConversationSubsystemError
                   . runError @(Tagged ('ActionDenied 'RemoveConversationMember) ())
                   . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
                   . runError @(Tagged 'ConvMemberNotFound ())
@@ -129,10 +130,10 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   $ removeMemberQualified RemoveMemberEligibleMembersResponse lusr connId qcnv qvictim
           pure $
             case result of
-              Left err ->
-                err === AdminlessConversation {eligibleMembers = expectedEligible}
-              Right _ ->
-                counterexample ("expected adminless-conversation, got " <> show result) False
+              Right _ -> counterexample "expected adminless-conversation, got success" False
+              Left (ConversationSubsystemErrorAdminlessConversation ac) ->
+                ac === AdminlessConversation {eligibleMembers = expectedEligible}
+              Left _ -> counterexample "expected adminless-conversation, got different error" False
 
 data MemberInputs = MemberInputs
   { localUserIds :: [UserId],

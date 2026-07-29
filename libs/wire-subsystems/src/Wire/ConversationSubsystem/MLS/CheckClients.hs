@@ -42,13 +42,14 @@ import Wire.API.MLS.LeafNode
 import Wire.API.User.Client
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.FederationAPIAccess (FederationAPIAccess)
 
 checkClients ::
   ( Member BrigAPIAccess r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS MLSClientMismatch) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error MLSProtocolError) r
   ) =>
@@ -98,7 +99,7 @@ checkClients lConvOrSub ciphersuite newCM = do
             )
             $
             -- FUTUREWORK: turn this error into a proper response
-            throwS @'MLSClientMismatch
+            throw ConversationSubsystemErrorMLSClientMismatch
 
           pure False
 

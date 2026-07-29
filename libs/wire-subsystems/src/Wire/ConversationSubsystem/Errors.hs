@@ -187,15 +187,11 @@ type ConversationSubsystemErrorEffects =
      ErrorS OperationDenied,
      ErrorS 'NotConnected,
      ErrorS 'MLSNotEnabled,
-     ErrorS 'MLSNonEmptyMemberList,
      ErrorS 'MissingLegalholdConsent,
      ErrorS 'NonBindingTeam,
-     ErrorS 'NoBindingTeamMembers,
      ErrorS 'TeamNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
-     ErrorS 'ChannelsNotEnabled,
-     ErrorS 'NotAnMlsConversation,
      ErrorS 'MLSLegalholdIncompatible,
      ErrorS 'MLSIdentityMismatch,
      ErrorS 'MLSUnsupportedMessage,
@@ -206,9 +202,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSSubConvClientNotInParent,
      ErrorS 'MLSInvalidLeafNodeSignature,
-     ErrorS 'MLSClientMismatch,
-     ErrorS 'MLSInvalidLeafNodeIndex,
-     ErrorS 'MLSUnsupportedProposal,
      ErrorS 'GroupIdVersionNotSupported,
      ErrorS 'ConvMemberNotFound,
      ErrorS 'HistoryNotSupported,
@@ -216,19 +209,13 @@ type ConversationSubsystemErrorEffects =
      ErrorS ('ActionDenied ConvRole.LeaveConversation),
      ErrorS ('ActionDenied ConvRole.RemoveConversationMember),
      ErrorS ('ActionDenied ConvRole.DeleteConversation),
-     ErrorS 'BroadcastLimitExceeded,
-     ErrorS 'MLSFederatedResetNotSupported,
      ErrorS 'MLSSubConvUnsupportedConvType,
      ErrorS 'TeamMemberNotFound,
      ErrorS 'AccessDenied,
      ErrorS 'MLSMissingGroupInfo,
      ErrorS 'CodeNotFound,
-     ErrorS 'InvalidConversationPassword,
      ErrorS 'GuestLinksDisabled,
-     ErrorS 'MLSFederatedOne2OneNotSupported,
      ErrorS 'TooManyMembers,
-     ErrorS 'CreateConversationCodeConflict,
-     ErrorS 'InvalidTarget,
      ErrorS 'MLSReadReceiptsNotAllowed,
      ErrorS 'InvalidTargetAccess,
      ErrorS 'ConvInvalidProtocolTransition,
@@ -248,7 +235,6 @@ type ConversationSubsystemErrorEffects =
      Error MLSProtocolError,
      Error GroupInfoDiagnostics,
      Error MLSOutOfSyncError,
-     Error AdminlessConversation,
      Error MLSProposalFailure,
      Error NonFederatingBackends,
      Error UnreachableBackendsLegacy,
@@ -268,7 +254,6 @@ mapErrors =
     . mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
     . mapError (ConversationSubsystemErrorNonFederatingBackends)
     . interpretServerEffect
-    . mapError (ConversationSubsystemErrorAdminlessConversation)
     . mapError (ConversationSubsystemErrorMLSOutOfSyncError)
     . mapError (ConversationSubsystemErrorGroupInfoDiagnostics)
     . mapError (ConversationSubsystemErrorMLSProtocolError)
@@ -288,19 +273,13 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorConvInvalidProtocolTransition)
     . mapError (const ConversationSubsystemErrorInvalidTargetAccess)
     . mapError (const ConversationSubsystemErrorMLSReadReceiptsNotAllowed)
-    . mapError (const ConversationSubsystemErrorInvalidTarget)
-    . mapError (const ConversationSubsystemErrorCreateConversationCodeConflict)
     . mapError (const ConversationSubsystemErrorTooManyMembers)
-    . mapError (const ConversationSubsystemErrorMLSFederatedOne2OneNotSupported)
     . mapError (const ConversationSubsystemErrorGuestLinksDisabled)
-    . mapError (const ConversationSubsystemErrorInvalidConversationPassword)
     . mapError (const ConversationSubsystemErrorCodeNotFound)
     . mapError (const ConversationSubsystemErrorMLSMissingGroupInfo)
     . mapError (const ConversationSubsystemErrorAccessDenied)
     . mapError (const ConversationSubsystemErrorTeamMemberNotFound)
     . mapError (const ConversationSubsystemErrorMLSSubConvUnsupportedConvType)
-    . mapError (const ConversationSubsystemErrorMLSFederatedResetNotSupported)
-    . mapError (const ConversationSubsystemErrorBroadcastLimitExceeded)
     . mapError (const ConversationSubsystemErrorActionDeniedDeleteConversation)
     . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
     . mapError (const ConversationSubsystemErrorActionDeniedLeaveConversation)
@@ -308,9 +287,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorHistoryNotSupported)
     . mapError (const ConversationSubsystemErrorConvMemberNotFound)
     . mapError (const ConversationSubsystemErrorGroupIdVersionNotSupported)
-    . mapError (const ConversationSubsystemErrorMLSUnsupportedProposal)
-    . mapError (const ConversationSubsystemErrorMLSInvalidLeafNodeIndex)
-    . mapError (const ConversationSubsystemErrorMLSClientMismatch)
     . mapError (const ConversationSubsystemErrorMLSInvalidLeafNodeSignature)
     . mapError (const ConversationSubsystemErrorMLSSubConvClientNotInParent)
     . mapError (const ConversationSubsystemErrorMLSClientSenderUserMismatch)
@@ -321,15 +297,11 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorMLSUnsupportedMessage)
     . mapError (const ConversationSubsystemErrorMLSIdentityMismatch)
     . mapError (const ConversationSubsystemErrorMLSLegalholdIncompatible)
-    . mapError (const ConversationSubsystemErrorNotAnMlsConversation)
-    . mapError (const ConversationSubsystemErrorChannelsNotEnabled)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
     . mapError (const ConversationSubsystemErrorTeamNotFound)
-    . mapError (const ConversationSubsystemErrorNoBindingTeamMembers)
     . mapError (const ConversationSubsystemErrorNonBindingTeam)
     . mapError (const ConversationSubsystemErrorMissingLegalholdConsent)
-    . mapError (const ConversationSubsystemErrorMLSNonEmptyMemberList)
     . mapError (const ConversationSubsystemErrorMLSNotEnabled)
     . mapError (const ConversationSubsystemErrorNotConnected)
     . mapError (const ConversationSubsystemErrorperationDenied)

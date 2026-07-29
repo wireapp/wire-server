@@ -63,6 +63,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Conversation
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Proposal
@@ -82,10 +83,9 @@ type HasProposalActionEffects r =
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientMismatch) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (Error MLSProtocolError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,

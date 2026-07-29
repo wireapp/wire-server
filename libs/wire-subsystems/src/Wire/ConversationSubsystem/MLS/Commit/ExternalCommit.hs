@@ -46,6 +46,7 @@ import Wire.API.MLS.ProposalTag
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Proposal
@@ -61,8 +62,7 @@ getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   ClientIdentity ->

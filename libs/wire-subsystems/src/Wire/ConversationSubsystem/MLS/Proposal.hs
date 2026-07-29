@@ -66,6 +66,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess (FederationAPIAccess)
@@ -129,9 +130,7 @@ type HasProposalEffects r =
     Member (Error FederationError) r,
     Member (Error MLSProposalFailure) r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
@@ -147,8 +146,7 @@ type HasProposalEffects r =
 
 derefOrCheckProposal ::
   ( Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member ProposalStore r,
     Member (State IndexMap) r,
     Member (ErrorS 'MLSProposalNotFound) r,
@@ -169,8 +167,7 @@ derefOrCheckProposal _epoch ciphersuite _ (Inline p) = do
 
 checkProposal ::
   ( Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   CipherSuiteTag ->
@@ -181,7 +178,7 @@ checkProposal ciphersuite im p = void $ evalState im $ applyProposal ciphersuite
 
 addProposedClient ::
   ( Member (State IndexMap) r,
-    Member (ErrorS MLSUnsupportedProposal) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Either GroupMember KeyPackage ->
   Sem r ProposalAction
@@ -199,8 +196,7 @@ addProposedClient cidOrKp = do
 applyProposals ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   CipherSuiteTag ->
@@ -214,8 +210,7 @@ applyProposals ciphersuite =
 applyProposal ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   CipherSuiteTag ->
@@ -236,7 +231,7 @@ applyProposal ciphersuite (AddProposal kp) = do
   addProposedClient (Right kp.value)
 applyProposal _ciphersuite (RemoveProposal idx) = do
   im <- get
-  (cid, im') <- noteS @'MLSInvalidLeafNodeIndex $ imRemoveClient im idx
+  (cid, im') <- note ConversationSubsystemErrorMLSInvalidLeafNodeIndex $ imRemoveClient im idx
   put im'
   pure (paRemoveClient cid idx)
 applyProposal _activeData _ = pure mempty
@@ -282,11 +277,11 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
           }
 
 getKeyPackageIdentity ::
-  (Member (ErrorS 'MLSUnsupportedProposal) r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   KeyPackage ->
   Sem r GroupMember
 getKeyPackageIdentity =
-  either (\_ -> throwS @'MLSUnsupportedProposal) pure
+  either (\_ -> throw ConversationSubsystemErrorMLSUnsupportedProposal) pure
     . keyPackageIdentity
 
 isExternal :: Sender -> Bool
@@ -296,7 +291,7 @@ isExternal _ = True
 -- check owner/subject of the key package exists and belongs to the user
 checkExternalProposalUser ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Input (Local ())) r
   ) =>
   Qualified UserId ->
@@ -312,16 +307,16 @@ checkExternalProposalUser qusr prop = do
           case groupMember of
             RegularClient (ClientIdentity {ciUser, ciClient}) -> do
               -- requesting user must match key package owner
-              when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
+              when (tUnqualified lusr /= ciUser) $ throw ConversationSubsystemErrorMLSUnsupportedProposal
               -- client referenced in key package must be one of the user's clients
               UserClients {userClients} <- lookupClients [ciUser]
               maybe
-                (throwS @'MLSUnsupportedProposal)
-                (flip when (throwS @'MLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
+                (throw ConversationSubsystemErrorMLSUnsupportedProposal)
+                (flip when (throw ConversationSubsystemErrorMLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
                 $ userClients Map.!? ciUser
             -- We currently do not support history-client adds in external proposals/commits.
-            HistoryClient _ -> throwS @'MLSUnsupportedProposal
-        _ -> throwS @'MLSUnsupportedProposal
+            HistoryClient _ -> throw ConversationSubsystemErrorMLSUnsupportedProposal
+        _ -> throw ConversationSubsystemErrorMLSUnsupportedProposal
     )
     (const $ pure ()) -- FUTUREWORK: check external proposals from remote backends
     qusr

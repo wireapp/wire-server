@@ -45,6 +45,7 @@ import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationSubsystem.CreateInternal
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess (FederationAPIAccess)
@@ -70,10 +71,8 @@ createLegacyGroupConversation ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
     Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
@@ -108,10 +107,8 @@ createGroupOwnConversation ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
     Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
@@ -151,10 +148,8 @@ createGroupConversation ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
     Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
@@ -210,7 +205,7 @@ createOne2OneConversation ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'NoBindingTeamMembers) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
