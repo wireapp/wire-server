@@ -22,20 +22,30 @@ import Cassandra.Exec (prepared)
 import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
-import Database.CQL.Protocol
+import Data.Map qualified as Map
+import Database.CQL.Protocol hiding (Error)
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Conc (Race)
 import Polysemy.Embed
 import Polysemy.Error
+import Polysemy.Resource (Resource)
+import Polysemy.Time
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SetSearchable (SetSearchable))
+import Wire.MigrationLock
+import Wire.Postgres (PGConstraints)
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserStore qualified as UserStore
 import Wire.UserStore.IndexUser hiding (userId)
+import Wire.UserStore.Postgres (interpretUserStorePostgres)
 import Wire.UserStore.Unique
 
 interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
@@ -79,8 +89,109 @@ interpretUserStoreCassandra casClient =
       LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid (paginationStateCassandra =<< mPagingState)
       LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid (paginationStateCassandra =<< mPagingState)
 
-interpretUserStoreToCassandraAndPostgres :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
-interpretUserStoreToCassandraAndPostgres = interpretUserStoreCassandra
+interpretUserStoreToCassandraAndPostgres ::
+  ( PGConstraints r,
+    Member Async r,
+    Member TinyLog r,
+    Member Race r,
+    Member Resource r,
+    Member (Error MigrationLockError) r
+  ) =>
+  ClientState -> InterpreterFor UserStore r
+interpretUserStoreToCassandraAndPostgres casClient =
+  interpret $ \case
+    CreateUser new mbConv ->
+      runAppropriateInterpreter casClient new.id $ UserStore.createUser new mbConv
+    ActivateUser uid identity ->
+      runAppropriateInterpreter casClient uid $ UserStore.activateUser uid identity
+    DeactivateUser uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.deactivateUser uid
+    GetUsers uids ->
+      withMigrationLocks LockShared (Seconds 2) uids $ do
+        let indexByUserId = foldr (\storedUser -> Map.insert storedUser.id storedUser) Map.empty
+        cassUsers <- indexByUserId <$> interpretUserStoreCassandra casClient (UserStore.getUsers uids)
+        pgUsers <- indexByUserId <$> interpretUserStorePostgres (UserStore.getUsers uids)
+        pure $ mapMaybe (\uid -> Map.lookup uid pgUsers <|> Map.lookup uid cassUsers) uids
+    DoesUserExist uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.doesUserExist uid
+    GetIndexUser uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getIndexUser uid
+    GetIndexUsersPaginated _pageSize _mPagingState ->
+      -- runAppropriateInterpreter casClient uid $ UserStore.getIndexUsersPaginated pageSize mPagingState
+      undefined
+    UpdateUser uid update ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateUser uid update
+    UpdateEmail uid email ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateEmail uid email
+    DeleteEmail uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.deleteEmail uid
+    UpdateEmailUnvalidated uid email ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateEmailUnvalidated uid email
+    DeleteEmailUnvalidated uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.deleteEmailUnvalidated uid
+    LookupName uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupName uid
+    LookupHandle hdl -> do
+      let action = UserStore.lookupHandle hdl
+      interpretUserStorePostgres action >>= \case
+        Nothing -> interpretUserStoreCassandra casClient action
+        Just user -> pure $ Just user
+    GlimpseHandle _hdl ->
+      -- runAppropriateInterpreter casClient uid $ UserStore.glimpseHandle hdl
+      undefined
+    UpdateUserHandleEither uid update ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateUserHandleEither uid update
+    UpdateSSOId uid ssoId ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateSSOId uid ssoId
+    UpdateManagedBy uid managedBy ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateManagedBy uid managedBy
+    UpdateAccountStatus uid accountStatus ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateAccountStatus uid accountStatus
+    UpdateRichInfo uid richInfo ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateRichInfo uid richInfo
+    UpdateFeatureConferenceCalling uid feat ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateFeatureConferenceCalling uid feat
+    LookupFeatureConferenceCalling uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupFeatureConferenceCalling uid
+    DeleteUser user ->
+      runAppropriateInterpreter casClient (userId user) $ UserStore.deleteUser user
+    LookupStatus uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupStatus uid
+    IsActivated uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.isActivated uid
+    LookupLocale uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupLocale uid
+    GetUserTeam uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getUserTeam uid
+    UpdateUserTeam uid tid ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateUserTeam uid tid
+    GetRichInfo uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getRichInfo uid
+    UpsertHashedPassword uid pw ->
+      runAppropriateInterpreter casClient uid $ UserStore.upsertHashedPassword uid pw
+    LookupHashedPassword uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupHashedPassword uid
+    GetUserAuthenticationInfo uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getUserAuthenticationInfo uid
+    SetUserSearchable uid searchable ->
+      runAppropriateInterpreter casClient uid $ UserStore.setUserSearchable uid searchable
+    _ -> undefined
+
+runAppropriateInterpreter ::
+  ( PGConstraints r,
+    Member TinyLog r,
+    Member (Error MigrationLockError) r,
+    Member Async r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  ClientState -> UserId -> InterpreterFor UserStore r
+runAppropriateInterpreter casClient uid action =
+  withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+    isUserInPg <- interpretUserStorePostgres $ UserStore.doesUserExist uid
+    if isUserInPg
+      then interpretUserStorePostgres action
+      else interpretUserStoreCassandra casClient action
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do

@@ -86,6 +86,8 @@ data MigrationLockError = TimedOutAcquiringLock
 instance APIError MigrationLockError where
   toResponse = waiErrorToJSONResponse . migrationLockErrorToWai
 
+instance Exception MigrationLockError
+
 migrationLockErrorToHttpError :: MigrationLockError -> HttpError
 migrationLockErrorToHttpError = StdError . migrationLockErrorToWai
 
