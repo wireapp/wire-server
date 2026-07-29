@@ -17,33 +17,46 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.MeetingMembersAdded
-  ( MeetingMembersAdded,
+module Wire.MeetingNotifier
+  ( MeetingNotifier (NotifyMeetingMembersAdded, NotifyMeetingEvent),
     notifyMeetingMembersAdded,
+    notifyMeetingEvent,
     newLocalMeetingMembers,
-    discardMeetingMembersAdded,
+    discardMeetingNotifier,
   )
 where
 
 import Data.Id
-import Data.Qualified (Qualified)
-import Data.Set (Set)
+import Data.Qualified (Local, Qualified)
 import Data.Set qualified as Set
 import Imports
 import Polysemy
+import Wire.API.Event.Meeting qualified as MeetingEvent
+import Wire.StoredConversation (LocalMember)
 
--- | Post-commit hook for notifying users who became members of an MLS meeting
--- conversation. Keeping this effect narrow avoids a dependency from the
--- conversation subsystem onto the meetings subsystem.
-data MeetingMembersAdded m a where
+-- | Seam for all meeting notifications. 'NotifyMeetingMembersAdded' covers the
+-- post-commit member-add hook (delivered fire-and-forget), while
+-- 'NotifyMeetingEvent' covers the create/update/delete lifecycle events
+-- (delivered synchronously). Routing both through one effect avoids a
+-- dependency from the conversation subsystem onto the meetings subsystem.
+data MeetingNotifier m a where
   NotifyMeetingMembersAdded ::
     Qualified UserId ->
     Qualified ConvId ->
     Maybe TeamId ->
     [UserId] ->
-    MeetingMembersAdded m ()
+    MeetingNotifier m ()
+  NotifyMeetingEvent ::
+    Local UserId ->
+    Maybe ConnId ->
+    [LocalMember] ->
+    Qualified ConvId ->
+    Maybe TeamId ->
+    MeetingEvent.EventType ->
+    Qualified MeetingId ->
+    MeetingNotifier m ()
 
-makeSem ''MeetingMembersAdded
+makeSem ''MeetingNotifier
 
 -- | Find users who were absent before the commit, are present afterwards, and
 -- belong to the local backend. Adding another client for an existing user does
@@ -55,7 +68,8 @@ newLocalMeetingMembers ::
 newLocalMeetingMembers before after =
   Set.toList (Set.difference after before)
 
--- | Interpreter for runtimes which expose no MLS write endpoints.
-discardMeetingMembersAdded :: InterpreterFor MeetingMembersAdded r
-discardMeetingMembersAdded = interpret $ \case
+-- | Interpreter for runtimes which expose no meeting write endpoints.
+discardMeetingNotifier :: InterpreterFor MeetingNotifier r
+discardMeetingNotifier = interpret $ \case
   NotifyMeetingMembersAdded {} -> pure ()
+  NotifyMeetingEvent {} -> pure ()

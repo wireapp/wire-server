@@ -59,7 +59,6 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   PushNotifications ps -> runInputConst cfg $ pushImpl ps
   PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
   PushNotificationAsync ps -> runInputConst cfg $ pushAsyncImpl ps
-  PushNotificationBestEffort ps -> runInputConst cfg $ pushBestEffortImpl ps
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid

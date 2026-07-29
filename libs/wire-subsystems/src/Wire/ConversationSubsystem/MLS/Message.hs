@@ -93,7 +93,7 @@ import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
 import Wire.FederationSubsystem
-import Wire.MeetingMembersAdded
+import Wire.MeetingNotifier
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
@@ -167,7 +167,7 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundle ::
-  ( Member MeetingMembersAdded r,
+  ( Member MeetingNotifier r,
     Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -203,7 +203,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle =
       qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
-  ( Member MeetingMembersAdded r,
+  ( Member MeetingNotifier r,
     Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -240,7 +240,7 @@ postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundleToLocalConv ::
-  ( Member MeetingMembersAdded r,
+  ( Member MeetingNotifier r,
     Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -400,7 +400,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   pure events
 
 notifyNewMeetingMembers ::
-  (Member MeetingMembersAdded r) =>
+  (Member MeetingNotifier r) =>
   Qualified UserId ->
   Local ConvOrSubConv ->
   Local ConvOrSubConv ->

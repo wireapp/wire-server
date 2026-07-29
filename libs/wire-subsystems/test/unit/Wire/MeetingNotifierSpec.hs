@@ -15,8 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.MeetingMembersAddedSpec (spec) where
+module Wire.MeetingNotifierSpec (spec) where
 
+import Control.Concurrent.Async qualified as A
 import Data.Aeson (Result (..), Value (Object), fromJSON)
 import Data.Domain (Domain (..))
 import Data.Id
@@ -31,9 +32,9 @@ import Polysemy.State
 import Polysemy.TinyLog (TinyLog)
 import Test.Hspec
 import Wire.API.Event.Meeting qualified as MeetingEvent
-import Wire.MeetingMembersAdded
+import Wire.MeetingNotifier
+import Wire.MeetingNotifier.Interpreter
 import Wire.MeetingsStore qualified as Store
-import Wire.MeetingsSubsystem.MemberAdded
 import Wire.MockInterpreters.Now (interpretNowConst)
 import Wire.NotificationSubsystem
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
@@ -45,14 +46,14 @@ spec = do
     it "returns only users absent from the previous local membership set" $ do
       let existingUser = Id $ read "00000000-0000-0000-0000-000000000001"
           newLocalUser = Id $ read "00000000-0000-0000-0000-000000000002"
-          before = Set.singleton existingUser
-          after =
+          beforeSet = Set.singleton existingUser
+          afterSet =
             Set.fromList
               [ existingUser,
                 newLocalUser
               ]
 
-      newLocalMeetingMembers before after `shouldBe` [newLocalUser]
+      newLocalMeetingMembers beforeSet afterSet `shouldBe` [newLocalUser]
 
     it "returns no users when only client membership changes" $ do
       let existingUser = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -60,7 +61,7 @@ spec = do
 
       newLocalMeetingMembers members members `shouldBe` []
 
-  describe "interpretMeetingMembersAdded" $ do
+  describe "interpretMeetingNotifier" $ do
     it "pushes a member-add event for each alive meeting" $ do
       let now = UTCTime (ModifiedJulianDay 60000) 0
           actor = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -109,7 +110,7 @@ runMemberAdded ::
   UTCTime ->
   [Store.StoredMeeting] ->
   Sem
-    '[ MeetingMembersAdded,
+    '[ MeetingNotifier,
        Store.MeetingsStore,
        NotificationSubsystem,
        Now,
@@ -126,14 +127,14 @@ runMemberAdded now meetings =
     . interpretNowConst now
     . captureNotifications
     . interpretMeetingsStore meetings
-    . interpretMeetingMembersAdded
+    . interpretMeetingNotifier
 
 captureNotifications ::
-  (Member (State [Push]) r) =>
+  (Member (State [Push]) r, Member (Embed IO) r) =>
   InterpreterFor NotificationSubsystem r
 captureNotifications = interpret $ \case
-  PushNotificationBestEffort push ->
-    modify (<> [push])
+  PushNotificationAsync push ->
+    modify (<> [push]) >> embed (A.async (pure (Just ())))
   _ -> error "unexpected notification operation"
 
 interpretMeetingsStore ::

@@ -15,38 +15,40 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.MeetingsSubsystem.MemberAdded
-  ( interpretMeetingMembersAdded,
+module Wire.MeetingNotifier.Interpreter
+  ( interpretMeetingNotifier,
   )
 where
 
 import Data.ByteString.Conversion (toByteString')
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), tDomain, tUnqualified)
 import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
 import Wire.API.Event.Meeting qualified as MeetingEvent
-import Wire.MeetingMembersAdded
+import Wire.MeetingNotifier
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem.Notification
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 
--- | Resolve each alive meeting for the conversation and notify only the users
--- added by the successful membership commit. Best-effort delivery waits for
--- each push before continuing, preserving its ordering before MLS Welcome,
--- while the notification interpreter logs and suppresses delivery failures.
-interpretMeetingMembersAdded ::
+-- | Interpret 'MeetingNotifier'. Member-add notifications are delivered
+-- fire-and-forget via 'pushNotificationAsync': we resolve each alive meeting
+-- for the conversation and notify only the users added by the successful
+-- membership commit, logging when no alive meeting is found. The
+-- create/update/delete lifecycle events are delivered synchronously via
+-- 'pushNotifications'.
+interpretMeetingNotifier ::
   ( Member Store.MeetingsStore r,
     Member NotificationSubsystem r,
     Member Now r,
     Member TinyLog r
   ) =>
-  InterpreterFor MeetingMembersAdded r
-interpretMeetingMembersAdded = interpret $ \case
+  InterpreterFor MeetingNotifier r
+interpretMeetingNotifier = interpret $ \case
   NotifyMeetingMembersAdded qUser qConvId mTeamId users -> do
     now <- Now.get
     meetings <- Store.listMeetingsByConversation (qUnqualified qConvId) now
@@ -55,7 +57,7 @@ interpretMeetingMembersAdded = interpret $ \case
         Log.msg ("alive meeting not found for meeting member-add event" :: ByteString)
           . Log.field "conversationId" (toByteString' (qUnqualified qConvId))
     for_ meetings $ \meeting ->
-      pushNotificationBestEffort $
+      pushNotificationAsync $
         mkMeetingEventPush
           now
           qUser
@@ -65,3 +67,16 @@ interpretMeetingMembersAdded = interpret $ \case
           mTeamId
           MeetingEvent.MemberAdd
           (Qualified meeting.id (qDomain qConvId))
+  NotifyMeetingEvent lUser conn members qConvId mTeamId meetingType qMeetingId -> do
+    now <- Now.get
+    pushNotifications
+      [ mkMeetingEventPush
+          now
+          (Qualified (tUnqualified lUser) (tDomain lUser))
+          conn
+          (map localMemberToRecipient members)
+          qConvId
+          mTeamId
+          meetingType
+          qMeetingId
+      ]
