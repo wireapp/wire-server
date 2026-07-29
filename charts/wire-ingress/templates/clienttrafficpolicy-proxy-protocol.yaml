@@ -9,10 +9,14 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
+  {{/* Envoy Gateway v1.8.x rejects ListenerSet as a ClientTrafficPolicy
+       targetRef (only Gateway is allowed). Targeting the parent Gateway with
+       no sectionName applies PROXY protocol to every listener on the Gateway,
+       including the ones contributed by the ListenerSet. */}}
   targetRefs:
     - group: gateway.networking.k8s.io
-      kind: ListenerSet
-      name: {{ include "wire-ingress.listenerSetName" . | quote }}
+      kind: Gateway
+      name: {{ include "wire-ingress.gatewayName" . | quote }}
   proxyProtocol:
     optional: {{ .Values.gateway.proxyProtocol.optional }}
 {{- end }}

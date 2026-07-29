@@ -69,7 +69,9 @@ gateway:
     annotations: {}
   # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
   # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
-  # ClientTrafficPolicy targeting the ListenerSet.
+  # ClientTrafficPolicy targeting the parent Gateway (which applies to the
+  # ListenerSet listeners; Envoy Gateway does not allow targeting a ListenerSet
+  # directly).
   proxyProtocol:
     enabled: false
     # If true, connections without a PROXY protocol header are also accepted.
@@ -103,7 +105,9 @@ gateway:
   # ALPN configuration for HTTP/2 support with multiple listeners.
   # When using multiple listeners with overlapping certificate SANs,
   # Envoy Gateway may downgrade to HTTP/1.1. This ClientTrafficPolicy
-  # explicitly configures ALPN on the ListenerSet.
+  # explicitly configures ALPN. It targets the parent Gateway, which applies
+  # to every listener including those contributed by the ListenerSet (Envoy
+  # Gateway does not allow targeting a ListenerSet directly).
   alpn:
     enabled: true
     protocols:
