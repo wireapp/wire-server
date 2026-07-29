@@ -1302,23 +1302,35 @@ testMeetingGroupConvTypeHiddenInLegacy = do
     postConversation owner (defProteus {team = Just tid, groupConvType = Just "meeting"})
       >>= getJSON 201
   convQid <- conv %. "qualified_id"
+  convIdStr <- convQid %. "id" & asString
 
-  -- getConversation: V15 (legacy) omits group_conv_type for meetings,
-  -- V16+ exposes it.
+  -- getConversation: V15 (legacy) hides meeting conversations entirely (404);
+  -- V9 (legacy, OwnConversation-shaped response) hides them too; V16+ exposes them.
   bindResponse (getConversationVersioned (ExplicitVersion 15) owner conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "group_conv_type" `shouldMatch` Null
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` ("no-conversation" :: String)
+
+  bindResponse (getConversationVersioned (ExplicitVersion 9) owner conv) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` ("no-conversation" :: String)
 
   bindResponse (getConversation owner conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "group_conv_type" `shouldMatch` ("meeting" :: String)
+
+  -- getConversations (legacy V1/V2 batch GET by ids): meeting conversations are
+  -- filtered out of the returned list, consistent with the single-GET hide.
+  bindResponse (getConversationsVersioned (ExplicitVersion 2) owner convIdStr) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    found <- resp.json %. "conversations" & asList
+    shouldBeEmpty found
 
   -- listConversations: V15 (legacy) excludes meeting conversations from found,
   -- V16+ includes them.
   bindResponse (listConversationsVersioned (ExplicitVersion 15) owner [convQid]) $ \resp -> do
     resp.status `shouldMatchInt` 200
     found <- resp.json %. "found" & asList
-    length (found :: [Value]) `shouldMatchInt` 0
+    shouldBeEmpty found
 
   bindResponse (listConversations owner [convQid]) $ \resp -> do
     resp.status `shouldMatchInt` 200
