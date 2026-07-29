@@ -92,6 +92,10 @@ data NotificationSubsystem m a where
   --
   -- See 'Polysemy.Async' to know more about the 'Maybe'
   PushNotificationAsync :: Push -> NotificationSubsystem m (Async (Maybe ()))
+  -- | Push one notification synchronously, but log and suppress delivery
+  -- failures. Use this when ordering matters after an already committed
+  -- operation and notification failure must not fail the request.
+  PushNotificationBestEffort :: Push -> NotificationSubsystem m ()
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]

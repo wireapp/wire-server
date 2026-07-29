@@ -10,7 +10,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import MLS.Util
-import Notifications (isConvCreateMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingUpdateNotif)
+import Notifications (isConvCreateMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -73,9 +73,27 @@ testMeetingMLSAddParticipant = do
   convId <- objConvId conv
   createGroup def alice1 convId
 
-  -- Before the fix, this add commit fails with 403 access-denied at the
-  -- server (getJSON 201 below throws). After the fix it succeeds.
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  memberAddNotif <-
+    withWebSocket bob $ \ws -> do
+      void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+      let isMeetingAddSequenceNotif notif = do
+            isMemberJoin <- isMemberJoinNotif notif
+            isMeetingMemberAdd <- isMeetingMemberAddNotif notif
+            isWelcome <- isWelcomeNotif notif
+            pure $ isMemberJoin || isMeetingMemberAdd || isWelcome
+      sequenceNotifs <- replicateM 3 (awaitMatch isMeetingAddSequenceNotif ws)
+      sequenceTypes <- for sequenceNotifs $ \notif -> notif %. "payload.0.type" >>= asString
+      sequenceTypes
+        `shouldMatch` [ "conversation.member-join",
+                        "meeting.member-add",
+                        "conversation.mls-welcome"
+                      ]
+      case sequenceNotifs of
+        [_, notif, _] -> pure notif
+        _ -> error "expected exactly three meeting-add sequence notifications"
+
+  assertMeetingNotif memberAddNotif (meeting %. "qualified_id")
+  memberAddNotif %. "payload.0.qualified_conversation" `shouldMatch` convQid
 
   bindResponse (getConversation alice convQid) $ \res -> do
     res.status `shouldMatchInt` 200

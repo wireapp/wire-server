@@ -29,6 +29,7 @@ inMemoryNotificationSubsystemInterpreter = interpret \case
   PushNotifications ps -> modify (ps <>) $> ()
   PushNotificationsSlowly {} -> error "PushNotificationsSlowly: Implement on demand"
   PushNotificationAsync {} -> error "PushNotificationAsync: Implement on demand"
+  PushNotificationBestEffort p -> modify ([p] <>)
   CleanupUser {} -> error "CleanupUser: Implement on demand"
   UnregisterPushClient {} -> error "UnregisterPushClient: Implement on demand"
   GetPushTokens {} -> error "GetPushTokens: Implement on demand"

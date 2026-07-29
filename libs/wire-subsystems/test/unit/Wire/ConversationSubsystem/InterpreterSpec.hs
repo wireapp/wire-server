@@ -232,6 +232,7 @@ interpretNotificationSubsystem =
     PushNotifications _ -> pure ()
     PushNotificationsSlowly _ -> pure ()
     PushNotificationAsync _ -> error "unexpected NotificationSubsystem call in test"
+    PushNotificationBestEffort _ -> error "unexpected NotificationSubsystem call in test"
     CleanupUser _ -> pure ()
     UnregisterPushClient _ _ -> pure ()
     GetPushTokens _ -> pure []

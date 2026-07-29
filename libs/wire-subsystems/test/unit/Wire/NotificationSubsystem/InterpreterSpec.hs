@@ -236,6 +236,34 @@ spec = describe "NotificationSubsystem.Interpreter" do
       map fst logs `shouldBe` [Error]
       cs (head (map snd logs)) `shouldContain` "error=TestException"
 
+  describe "pushBestEffortImpl" do
+    it "logs errors without failing the caller" do
+      let mockConfig =
+            NotificationSubsystemConfig
+              { fanoutLimit = toRange $ Proxy @30,
+                chunkSize = 12,
+                slowPushDelay = 1,
+                requestId = RequestId defRequestId
+              }
+
+      user1 <- generate arbitrary
+      payload1 <- generate $ resize 1 arbitrary
+      clients1 <- generate $ resize 3 arbitrary
+      let push1 =
+            def
+              { transient = True,
+                route = V2.RouteDirect,
+                recipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
+                json = payload1
+              }
+      (_, attemptedPushes, logs) <-
+        runMiniStackAsync mockConfig $
+          pushBestEffortImpl push1
+
+      attemptedPushes `shouldBe` [[toV2Push push1]]
+      map fst logs `shouldBe` [Error]
+      cs (head (map snd logs)) `shouldContain` "error=TestException"
+
   describe "toV2Push" do
     it "does the transformation correctly" $ property \(pushToUser :: Push) ->
       let v2Push = toV2Push pushToUser

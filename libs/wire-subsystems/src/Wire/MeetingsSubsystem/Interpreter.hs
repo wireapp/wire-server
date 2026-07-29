@@ -27,7 +27,6 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
-import Data.Json.Util (toJSONObject)
 import Data.Map qualified as Map
 import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
@@ -44,7 +43,6 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
-import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
@@ -53,6 +51,7 @@ import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
+import Wire.MeetingsSubsystem.Notification
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -369,25 +368,16 @@ pushMeetingEvent ::
   Sem r ()
 pushMeetingEvent lUser conn members qConvId mTeamId meetingType qMeetingId = do
   now <- Now.get
-  let evt =
-        MeetingEvent.Event
-          { evtType = meetingType,
-            evtMeeting = qMeetingId,
-            evtConv = qConvId,
-            evtFrom =
-              MeetingEvent.EventFromUser
-                (Qualified (tUnqualified lUser) (tDomain lUser)),
-            evtTime = now,
-            evtTeam = mTeamId
-          }
   pushNotifications
-    [ def
-        { origin = Just (tUnqualified lUser),
-          json = toJSONObject evt,
-          recipients = map localMemberToRecipient members,
-          route = PushV2.RouteDirect,
-          conn
-        }
+    [ mkMeetingEventPush
+        now
+        (Qualified (tUnqualified lUser) (tDomain lUser))
+        conn
+        (map localMemberToRecipient members)
+        qConvId
+        mTeamId
+        meetingType
+        qMeetingId
     ]
 
 -- Helper function to convert StoredMeeting to API.Meeting

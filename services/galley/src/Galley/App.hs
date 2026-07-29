@@ -135,10 +135,12 @@ import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
   )
+import Wire.MeetingMembersAdded (MeetingMembersAdded)
 import Wire.MeetingsStore (MeetingsStore)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem (MeetingsSubsystem)
 import Wire.MeetingsSubsystem.Interpreter qualified as Meeting
+import Wire.MeetingsSubsystem.MemberAdded qualified as MeetingMemberAdded
 import Wire.MigrationLock
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
@@ -194,6 +196,7 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     MeetingMembersAdded,
      JobSubsystem,
      Input RequestId,
      FederationSubsystem,
@@ -559,6 +562,7 @@ evalGalley e =
           JobSubsystemConfig
             { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
             }
+        . MeetingMemberAdded.interpretMeetingMembersAdded
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
   where

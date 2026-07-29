@@ -96,6 +96,7 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MeetingMembersAdded (MeetingMembersAdded, discardMeetingMembersAdded)
 import Wire.MigrationLock (MigrationLockError)
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter
@@ -191,6 +192,7 @@ makeVerifiedRequestFreshManagerIO logger fpr url reqBuilder = do
 
 type BackgroundWorkerEffects =
   '[ ConversationSubsystem,
+     MeetingMembersAdded,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
      FeaturesConfigSubsystem,
@@ -365,6 +367,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runFeaturesConfigSubsystem
     . runInputSem getAllTeamFeaturesForServer
     . interpretTeamCollaboratorsSubsystem
+    . discardMeetingMembersAdded
     . interpretConversationSubsystem
   where
     interpretTeamFeatureStore = case env.postgresMigration.teamFeatures of

@@ -59,6 +59,7 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   PushNotifications ps -> runInputConst cfg $ pushImpl ps
   PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
   PushNotificationAsync ps -> runInputConst cfg $ pushAsyncImpl ps
+  PushNotificationBestEffort ps -> runInputConst cfg $ pushBestEffortImpl ps
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
@@ -91,7 +92,19 @@ pushAsyncImpl ::
   ) =>
   Push ->
   Sem r (Async (Maybe ()))
-pushAsyncImpl p = async $ do
+pushAsyncImpl p = async $ pushBestEffortImpl p
+
+pushBestEffortImpl ::
+  forall r.
+  ( Member GundeckAPIAccess r,
+    Member (Input NotificationSubsystemConfig) r,
+    Member P.Async r,
+    Member (Final IO) r,
+    Member P.TinyLog r
+  ) =>
+  Push ->
+  Sem r ()
+pushBestEffortImpl p = do
   reqId <- inputs requestId
   errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl [p]) >>= \case
     Left e ->
