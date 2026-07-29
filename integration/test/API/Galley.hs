@@ -311,6 +311,11 @@ listConversationsVersioned version user cnvs = do
     $ req
     & addJSONObject ["qualified_ids" .= cnvs]
 
+getConversationsVersioned :: (MakesValue user) => Versioned -> user -> String -> App Response
+getConversationsVersioned version user ids = do
+  req <- baseRequest user Galley version "/conversations"
+  submit "GET" $ addQueryParams [("ids", ids)] req
+
 getMLSPublicKeys :: (HasCallStack, MakesValue user) => user -> App Response
 getMLSPublicKeys user = do
   req <- baseRequest user Galley Versioned "/mls/public-keys"

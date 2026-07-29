@@ -20,7 +20,10 @@ module Galley.API.Public.Conversation where
 import Data.Qualified
 import Galley.App
 import Imports
-import Wire.API.Conversation
+import Polysemy
+import Wire.API.Conversation hiding (Member)
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.ConversationStore.MLS.Types
@@ -28,19 +31,19 @@ import Wire.ConversationSubsystem
 
 conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =
-  mkNamedAPI @"get-unqualified-conversation" (\lusr cnv -> toLegacyOwnConversation <$> getUnqualifiedOwnConversation lusr cnv)
-    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" (\lusr cnv -> toLegacyOwnConversation <$> getUnqualifiedOwnConversation lusr cnv)
-    <@> mkNamedAPI @"get-conversation@v2" (\lusr cnv -> toLegacyOwnConversation <$> getOwnConversation lusr cnv)
-    <@> mkNamedAPI @"get-conversation@v5" (\lusr cnv -> toLegacyOwnConversation <$> getOwnConversation lusr cnv)
-    <@> mkNamedAPI @"get-conversation@v9" (\lusr cnv -> toLegacyOwnConversation <$> getOwnConversation lusr cnv)
-    <@> mkNamedAPI @"get-conversation@v15" (\lusr cnv -> toLegacyConversation <$> getConversation lusr cnv)
+  mkNamedAPI @"get-unqualified-conversation" (\lusr cnv -> legacyOwnConversation =<< getUnqualifiedOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" (\lusr cnv -> legacyOwnConversation =<< getUnqualifiedOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v2" (\lusr cnv -> legacyOwnConversation =<< getOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v5" (\lusr cnv -> legacyOwnConversation =<< getOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v9" (\lusr cnv -> legacyOwnConversation =<< getOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v15" (\lusr cnv -> legacyConversation =<< getConversation lusr cnv)
     <@> mkNamedAPI @"get-conversation" getConversation
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
     <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPaginated DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
-    <@> mkNamedAPI @"get-conversations" (\lusr mids mstart msize -> (\cl -> ConversationList (map toLegacyOwnConversation cl.convList) cl.convHasMore) <$> getPaginatedConversations lusr mids mstart msize)
+    <@> mkNamedAPI @"get-conversations" (\lusr mids mstart msize -> (\cl -> ConversationList (map toLegacyOwnConversation (filter (not . isMeetingConversation) cl.convList)) cl.convHasMore) <$> getPaginatedConversations lusr mids mstart msize)
     <@> mkNamedAPI @"list-conversations@v1" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
     <@> mkNamedAPI @"list-conversations@v2" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
     <@> mkNamedAPI @"list-conversations@v5" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
@@ -115,3 +118,23 @@ toLegacyCGRV9 ::
 toLegacyCGRV9 = \case
   GroupConversationExistedV9 conv -> GroupConversationExistedV9 (toLegacyOwnConversation conv)
   GroupConversationCreatedV9 cgoc -> GroupConversationCreatedV9 (toLegacyCreateGroupOwnConversation cgoc)
+
+-- | Convert an own-conversation to the legacy (< V16) wire type, hiding meeting
+-- conversations entirely (they have no legacy representation): a meeting yields
+-- 'ConvNotFound' (404) rather than leaking @group_conv_type: null@. (WPB-26626)
+legacyOwnConversation ::
+  (Member (ErrorS 'ConvNotFound) r) =>
+  OwnConversation GroupConvType ->
+  Sem r (OwnConversation GroupConvTypeLegacy)
+legacyOwnConversation conv = do
+  when (isMeetingConversation conv) $ throwS @'ConvNotFound
+  pure (toLegacyOwnConversation conv)
+
+-- | As 'legacyOwnConversation', for the full 'Conversation' view (V10-V15 routes).
+legacyConversation ::
+  (Member (ErrorS 'ConvNotFound) r) =>
+  Conversation GroupConvType ->
+  Sem r (Conversation GroupConvTypeLegacy)
+legacyConversation conv = do
+  when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $ throwS @'ConvNotFound
+  pure (toLegacyConversation conv)
