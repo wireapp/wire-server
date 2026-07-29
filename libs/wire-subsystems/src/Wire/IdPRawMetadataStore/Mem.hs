@@ -17,14 +17,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdPRawMetadataStore.Mem (idpRawMetadataStoreToMem, RawState) where
+module Wire.IdPRawMetadataStore.Mem (idpRawMetadataStoreToMem, RawState) where
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State (State, gets, modify, runState)
-import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.IdPRawMetadataStore
+import SAML2.WebSSO.Types qualified as SAML
+import Wire.IdPRawMetadataStore
 
 type RawState = Map SAML.IdPId Text
 

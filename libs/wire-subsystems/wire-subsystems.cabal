@@ -363,6 +363,9 @@ library
     Wire.IdPConfigStore.Cassandra
     Wire.IdPConfigStore.Mem
     Wire.IdPConfigStore.Orphans
+    Wire.IdPRawMetadataStore
+    Wire.IdPRawMetadataStore.Cassandra
+    Wire.IdPRawMetadataStore.Mem
     Wire.IdPSubsystem
     Wire.IdPSubsystem.Interpreter
     Wire.IndexedUserStore
