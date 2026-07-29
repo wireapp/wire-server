@@ -69,9 +69,6 @@ library
     Spar.Sem.AssIDStore
     Spar.Sem.AssIDStore.Cassandra
     Spar.Sem.AssIDStore.Mem
-    Spar.Sem.DefaultSsoCode
-    Spar.Sem.DefaultSsoCode.Cassandra
-    Spar.Sem.DefaultSsoCode.Mem
     Spar.Sem.DefaultSsoCode.Spec
     Spar.Sem.IdPRawMetadataStore
     Spar.Sem.IdPRawMetadataStore.Cassandra
