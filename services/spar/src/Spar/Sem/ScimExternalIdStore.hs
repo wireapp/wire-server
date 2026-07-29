@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ScimExternalIdStore
+module Spar.Sem.ScimExternalIdStore
   ( ScimExternalIdStore (..),
     insert,
     lookup,
@@ -32,6 +32,7 @@ import Data.Text
 import Imports (Maybe, Show)
 import Polysemy
 import Polysemy.Check (deriveGenericK)
+import Spar.Scim.Types
 import Wire.API.User.Scim
 
 data ScimExternalIdStore m a where

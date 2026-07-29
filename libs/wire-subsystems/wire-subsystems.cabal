@@ -426,9 +426,6 @@ library
     Wire.SAMLEmailSubsystem.Interpreter
     Wire.SamlProtocolSettings
     Wire.SamlProtocolSettings.Servant
-    Wire.ScimExternalIdStore
-    Wire.ScimExternalIdStore.Cassandra
-    Wire.ScimExternalIdStore.Mem
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter

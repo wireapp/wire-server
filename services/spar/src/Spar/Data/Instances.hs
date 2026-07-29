@@ -38,6 +38,7 @@ import Data.Functor.Alt (Alt ((<!>)))
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
+import Spar.Scim.Types (ScimUserCreationStatus (..))
 import URI.ByteString
 import Wire.API.User.Auth
 import Wire.API.User.Saml
@@ -89,3 +90,15 @@ instance Cql ScimTokenLookupKey where
     (ScimTokenLookupKeyHashed <$> fromCql s)
       <!> (ScimTokenLookupKeyPlaintext <$> fromCql s)
   fromCql _ = Left "ScimTokenLookupKey: expected CqlText"
+
+instance Cql ScimUserCreationStatus where
+  ctype = Tagged IntColumn
+
+  toCql ScimUserCreated = CqlInt 0
+  toCql ScimUserCreating = CqlInt 1
+
+  fromCql (CqlInt i) = case i of
+    0 -> pure ScimUserCreated
+    1 -> pure ScimUserCreating
+    n -> Left $ "unexpected ScimUserCreationStatus: " ++ show n
+  fromCql _ = Left "int expected"

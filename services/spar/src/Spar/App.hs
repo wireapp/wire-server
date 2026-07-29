@@ -77,6 +77,8 @@ import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
@@ -98,8 +100,6 @@ import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.Reporter (Reporter)
 import qualified Wire.Reporter as Reporter
-import Wire.ScimExternalIdStore (ScimExternalIdStore)
-import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger

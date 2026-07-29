@@ -45,6 +45,8 @@ import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.Utils
@@ -73,8 +75,6 @@ import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.RpcException
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
-import Wire.ScimExternalIdStore (ScimExternalIdStore)
-import Wire.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
 import Wire.ScimUserTimesStore (ScimUserTimesStore)

@@ -102,6 +102,7 @@ import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
@@ -133,7 +134,6 @@ import qualified Wire.IdPSubsystem as IdPSubsystem
 import Wire.Reporter (Reporter)
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import qualified Wire.SamlProtocolSettings as SamlProtocolSettings
-import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimSubsystem
 import Wire.ScimUserTimesStore (ScimUserTimesStore)
 import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
