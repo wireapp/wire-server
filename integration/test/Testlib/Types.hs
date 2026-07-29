@@ -252,6 +252,7 @@ stopQueueWatcher watcher = void $ tryPutMVar watcher.doneVar ()
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
+    requestIdCounter :: IORef Int,
     domain1 :: String,
     domain2 :: String,
     integrationTestHostName :: String,

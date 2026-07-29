@@ -231,9 +231,20 @@ zType = addHeader "Z-Type"
 zHost :: String -> HTTP.Request -> HTTP.Request
 zHost = addHeader "Z-Host"
 
+newRequestId :: App Int
+newRequestId = do
+  counter <- asks (.requestIdCounter)
+  liftIO . atomicModifyIORef counter $ \x -> (x + 1, x + 1)
+
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
-  let request = req0 {HTTP.method = T.encodeUtf8 (T.pack method)}
+  reqIdNum <- newRequestId
+  testName <- fromMaybe "not_test" <$> asks (.currentTestName)
+  let reqId = testName <> "__" <> method <> "_" <> cs (HTTP.path req0) <> "__" <> show reqIdNum
+  let request =
+        (req0 & addHeader "Request-Id" reqId)
+          { HTTP.method = T.encodeUtf8 (T.pack method)
+          }
   manager <- asks (.manager)
   response <- liftIO $ HTTP.httpLbs request manager
   let json = Aeson.decode (HTTP.responseBody response)
