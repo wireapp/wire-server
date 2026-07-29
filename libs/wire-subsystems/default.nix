@@ -81,6 +81,7 @@
 , lrucaching
 , mime
 , mime-mail
+, mmzk-typeid
 , MonadRandom
 , mtl
 , network
@@ -223,6 +224,7 @@ mkDerivation {
     lrucaching
     mime
     mime-mail
+    mmzk-typeid
     MonadRandom
     mtl
     network
@@ -357,6 +359,7 @@ mkDerivation {
     lrucaching
     mime
     mime-mail
+    mmzk-typeid
     MonadRandom
     network
     network-conduit-tls
