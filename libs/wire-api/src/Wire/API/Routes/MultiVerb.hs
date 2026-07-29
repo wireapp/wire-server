@@ -40,6 +40,7 @@ module Wire.API.Routes.MultiVerb
     GenericAsUnion (..),
     ResponseType,
     IsResponse (..),
+    IsWaiBody (..),
     IsSwaggerResponse (..),
     IsSwaggerResponseList (..),
     simpleResponseSwagger,
@@ -74,6 +75,7 @@ import Generics.SOP as GSOP
 import Imports
 import Network.HTTP.Media qualified as M
 import Network.HTTP.Types (hContentType)
+import Network.HTTP.Types.Header (hTransferEncoding)
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Status
 import Network.Wai qualified as Wai
@@ -767,6 +769,20 @@ instance
               . toList
       refResps = S.Inline . addMime <$> resps
 
+-- | Drop the hop-by-hop framing headers ('Content-Length',
+-- 'Transfer-Encoding') from a response header list.
+--
+-- Streaming responses ('Wai.responseStream') are re-framed (chunked) by Warp.
+-- Forwarding an upstream 'Content-Length' makes Warp serve the streamed body
+-- under that declared length instead; any mismatch between the declared length
+-- and the bytes actually streamed then desynchronises the caller's keep-alive
+-- connection (the client reads past the response boundary into the next
+-- response). Stripping the framing headers lets Warp frame exactly what is
+-- streamed. See also @Federator.Response.streamingResponseToWai@.
+stripFramingHeaders :: [HTTP.Header] -> [HTTP.Header]
+stripFramingHeaders =
+  filter (\(hName, _) -> hName /= HTTP.hContentLength && hName /= hTransferEncoding)
+
 class (Typeable a) => IsWaiBody a where
   responseToWai :: ResponseF a -> Wai.Response
 
@@ -788,7 +804,7 @@ instance IsWaiBody (SourceIO ByteString) where
   responseToWai r =
     Wai.responseStream
       (responseStatusCode r)
-      (toList (responseHeaders r))
+      (stripFramingHeaders (toList (responseHeaders r)))
       $ \output flush -> do
         foreach
           (const (pure ()))

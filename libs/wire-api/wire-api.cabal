@@ -724,6 +724,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Roundtrip.PostgresMarshall
     Test.Wire.API.Routes
+    Test.Wire.API.Routes.Streaming
     Test.Wire.API.Routes.Version
     Test.Wire.API.Routes.Version.Wai
     Test.Wire.API.Run
@@ -764,6 +765,7 @@ test-suite wire-api-tests
     , random
     , schema-profunctor
     , servant
+    , servant-client-core
     , servant-server
     , string-conversions
     , tasty
@@ -777,6 +779,7 @@ test-suite wire-api-tests
     , uuid
     , vector
     , wai
+    , wai-extra
     , wire-api
 
   ghc-options:

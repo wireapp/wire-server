@@ -275,6 +275,7 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     servant
+    servant-client-core
     servant-server
     string-conversions
     tasty
@@ -289,6 +290,7 @@ mkDerivation {
     uuid
     vector
     wai
+    wai-extra
     wire-message-proto-lens
   ];
   license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";

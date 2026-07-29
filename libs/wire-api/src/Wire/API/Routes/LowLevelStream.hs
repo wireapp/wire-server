@@ -31,6 +31,7 @@ import GHC.TypeLits
 import Imports
 import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types
+import Network.HTTP.Types.Header (hTransferEncoding)
 import Network.Wai
 import Servant.API
 import Servant.API.ContentTypes
@@ -44,6 +45,15 @@ import Wire.API.Routes.Version
 -- | Used as the return type of a streaming handler. The 'Codensity' wrapper
 -- makes it possible to add finalisation logic to the streaming action.
 type LowLevelStreamingBody = Codensity IO StreamingBody
+
+-- | Drop the hop-by-hop framing headers ('Content-Length',
+-- 'Transfer-Encoding') from a response header list. The streamed body is
+-- re-framed (chunked) by Warp, so forwarding a type-level 'Content-Length'
+-- would let a length mismatch desync the caller's keep-alive connection. See
+-- also @Federator.Response.streamingResponseToWai@.
+stripFramingHeaders :: [(HeaderName, ByteString)] -> [(HeaderName, ByteString)]
+stripFramingHeaders =
+  Imports.filter (\(hName, _) -> hName /= hContentLength && hName /= hTransferEncoding)
 
 -- FUTUREWORK: make it possible to generate headers at runtime
 data LowLevelStream method status (headers :: [(Symbol, Symbol)]) desc ctype
@@ -94,7 +104,7 @@ instance
                 Left e -> respond $ FailFatal e
                 Right getStreamingBody -> lowerCodensity $ do
                   body <- getStreamingBody
-                  let resp = responseStream status (contentHeader : extraHeaders) body
+                  let resp = responseStream status (stripFramingHeaders (contentHeader : extraHeaders)) body
                   lift $ respond $ Route resp
             Fail e -> respond $ Fail e
             FailFatal e -> respond $ FailFatal e
