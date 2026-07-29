@@ -1001,14 +1001,17 @@ replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) =
             permissionCheck JoinRegularConversations . Just
 
   ugs <- getUserGroupsForConv conv.id_
-  -- Get current members (excluding the requesting user)
-  let currentMembers = Set.fromList $ map (\m -> Qualified m.id_ (tDomain lcnv)) (toList conv.localMembers)
+  -- Removals apply only to local members. Additions must account for remote
+  -- members too, because re-inviting an existing remote member does not change
+  -- their role and must not be treated as adding an admin.
+  let currentLocalMembers = Set.fromList $ map (\m -> Qualified m.id_ (tDomain lcnv)) (toList conv.localMembers)
+      currentRemoteMembers = Set.fromList $ map (tUntagged . (.id_)) conv.remoteMembers
       invitedMembersSet = Set.fromList $ toList invitedUsers
       ugMembers = concatMap (fmap (flip Qualified (tDomain lusr)) . V.toList . runIdentity . (.members)) (V.toList ugs)
       -- the invited users plus all user group members should stay
       allUsersThatShouldStay = Set.fromList $ toList $ appendList invitedUsers ugMembers
-      toRemove = Set.difference currentMembers allUsersThatShouldStay
-      toAdd = Set.difference invitedMembersSet currentMembers
+      toRemove = Set.difference currentLocalMembers allUsersThatShouldStay
+      toAdd = Set.difference invitedMembersSet (currentLocalMembers <> currentRemoteMembers)
       addedAdmins = if role == roleNameWireAdmin then toAdd else Set.empty
 
   -- Apply the same adminless protection as DELETE to the complete removal
