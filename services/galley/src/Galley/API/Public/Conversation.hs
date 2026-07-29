@@ -78,7 +78,8 @@ conversationAPI =
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (\lusr con cnv invite -> addMembers lusr con (tUntagged (qualifyAs lusr cnv)) (InviteQualified (fmap (tUntagged . qualifyAs lusr) (invUsers invite)) (invRoleName invite)))
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addQualifiedMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation" addMembers
-    <@> mkNamedAPI @"replace-members-in-conversation" replaceMembers
+    <@> mkNamedAPI @"replace-members-in-conversation@v16" (replaceMembers RemoveMemberLegacyResponse)
+    <@> mkNamedAPI @"replace-members-in-conversation" (replaceMembers RemoveMemberEligibleMembersResponse)
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" joinConversationById
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" joinConversationByReusableCode
     <@> mkNamedAPI @"code-check" checkReusableCode

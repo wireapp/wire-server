@@ -981,12 +981,13 @@ replaceMembers ::
     Member JobSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
+  RemoveMemberResponseMode ->
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
   Sem r ()
-replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
+replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
 
@@ -1008,6 +1009,12 @@ replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
       allUsersThatShouldStay = Set.fromList $ toList $ appendList invitedUsers ugMembers
       toRemove = Set.difference currentMembers allUsersThatShouldStay
       toAdd = Set.difference invitedMembersSet currentMembers
+      addedAdmins = if role == roleNameWireAdmin then toAdd else Set.empty
+
+  -- Apply the same adminless protection as DELETE to the complete removal
+  -- set. The guard is a preflight so V16+ cannot partially apply a replacement
+  -- before returning AdminlessConversation.
+  guardPreventAdminlessGroupsFor responseMode lcnv lusr toRemove addedAdmins
 
   -- If both sets are empty, return Unchanged
   unless (Set.null toRemove && Set.null toAdd) $ do
@@ -1229,13 +1236,52 @@ guardPreventAdminlessGroups ::
   Local UserId ->
   Qualified UserId ->
   Sem r ()
-guardPreventAdminlessGroups responseMode lcnv lusr victim = do
+guardPreventAdminlessGroups responseMode lcnv lusr victim =
+  guardPreventAdminlessGroupsFor responseMode lcnv lusr (Set.singleton victim) Set.empty
+
+guardPreventAdminlessGroupsFor ::
+  ( Member ConversationStore r,
+    Member (Error AdminlessConversation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvMemberNotFound) r,
+    Member (Error FederationError) r,
+    Member BrigAPIAccess r,
+    Member Random r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r,
+    Member BackendNotificationQueueAccess r,
+    Member FeaturesConfigSubsystem r,
+    Member TeamSubsystem r,
+    Member JobSubsystem r
+  ) =>
+  RemoveMemberResponseMode ->
+  Local ConvId ->
+  Local UserId ->
+  Set (Qualified UserId) ->
+  Set (Qualified UserId) ->
+  Sem r ()
+guardPreventAdminlessGroupsFor responseMode lcnv lusr victims addedAdmins = do
   conv <- getConversationWithError lcnv
   when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
     -- we cannot use the onAdminless helper here because this check happens _before_ removing the potential admin
-    when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
-      eligibleMembers <- eligibleAdminFallbackMembers lcnv (Just (qUnqualified victim)) conv
+    let victims' = Set.map qUnqualified victims
+        removingLastAdmin =
+          Set.null addedAdmins
+            && any
+              (\member -> member.convRoleName == roleNameWireAdmin && Set.member member.id_ victims')
+              conv.localMembers
+            && not
+              ( any
+                  (\member -> member.convRoleName == roleNameWireAdmin && Set.notMember member.id_ victims')
+                  conv.localMembers
+              )
+            && not (any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers)
+    when (feature.status == FeatureStatusEnabled && removingLastAdmin) $ do
+      eligibleMembers <- eligibleAdminFallbackMembersFor lcnv victims' conv
       case (responseMode, eligibleMembers) of
         (RemoveMemberLegacyResponse, x : xs) -> do
           seed <- randomWord64
@@ -1473,12 +1519,21 @@ eligibleAdminFallbackMembers ::
   StoredConversation ->
   Sem r [(Qualified UserId, User.Name)]
 eligibleAdminFallbackMembers lcnv mLeavingUser conv = do
-  users <- Brig.getUsers (map (.id_) (filter ((/= mLeavingUser) . Just . (.id_)) conv.localMembers))
+  eligibleAdminFallbackMembersFor lcnv (maybe Set.empty Set.singleton mLeavingUser) conv
+
+eligibleAdminFallbackMembersFor ::
+  (Member BrigAPIAccess r) =>
+  Local ConvId ->
+  Set UserId ->
+  StoredConversation ->
+  Sem r [(Qualified UserId, User.Name)]
+eligibleAdminFallbackMembersFor lcnv leavingUsers conv = do
+  users <- Brig.getUsers (map (.id_) (filter (\member -> Set.notMember member.id_ leavingUsers) conv.localMembers))
   let usersById = Map.fromList [(User.userId u, u) | u <- users]
   pure
     [ (tUntagged (qualifyAs lcnv member.id_), u.userDisplayName)
     | member <- conv.localMembers,
-      Just member.id_ /= mLeavingUser,
+      Set.notMember member.id_ leavingUsers,
       Just u <- [Map.lookup member.id_ usersById],
       isEligibleUser u
     ]

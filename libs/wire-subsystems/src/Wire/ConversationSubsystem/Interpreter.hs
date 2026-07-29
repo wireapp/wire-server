@@ -269,8 +269,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.addQualifiedMembersUnqualified lusr con cnv invite
   AddMembers lusr zcon qcnv invite ->
     mapErrors $ Update.addMembers lusr zcon qcnv invite
-  ReplaceMembers lusr zcon qcnv invite ->
-    mapErrors $ Update.replaceMembers lusr zcon qcnv invite
+  ReplaceMembers responseMode lusr zcon qcnv invite ->
+    mapErrors $ Update.replaceMembers responseMode lusr zcon qcnv invite
   JoinConversationById lusr con cnv ->
     mapErrors $ Update.joinConversationById lusr con cnv
   JoinConversationByReusableCode lusr con req ->
