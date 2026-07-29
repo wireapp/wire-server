@@ -639,6 +639,7 @@ commonOverrides =
           >=> setField @_ @Int "optSettings.setVerificationTimeout" 3600
           >=> setField @_ @Int "optSettings.setTeamInvitationTimeout" 3600
           >=> setField @_ @Int "optSettings.setUserCookieRenewAge" 1209600
+          >=> setField @_ @Int "postgresqlPool.size" 200
           >=> removeField "optSettings.setSuspendInactiveUsers"
     }
 phase1Overrides =
