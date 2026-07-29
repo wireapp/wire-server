@@ -290,7 +290,17 @@ services:
       POSTGRES_PASSWORD: "posty-the-gres"
       POSTGRES_USER: "wire-server"
       POSTGRES_DB: "backendA"
-    command: postgres -c max_connections=150
+    command: postgres -c max_connections=150 -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all
+
+  postgres-exporter:
+    container_name: demo_wire_postgres_exporter
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: "postgresql://wire-server:posty-the-gres@postgres:5432/backendA?sslmode=disable"
+    depends_on:
+      - postgres
+    networks:
+      - demo_wire
 
   cassandra:
     container_name: demo_wire_cassandra
@@ -427,6 +437,22 @@ services:
       - "3100:3100"
       - "4317:4317"
       - "4318:4318"
+    volumes:
+      - ./docker/grafana-dashboards/postgres-exporter.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/postgres-exporter.json:ro
+      - ./docker/grafana-dashboards/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+    networks:
+      - demo_wire
+
+  otel-collector:
+    container_name: demo_wire_otel_collector
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    depends_on:
+      - postgres
+      - postgres-exporter
+      - grafana-lgtm
     networks:
       - demo_wire
 
