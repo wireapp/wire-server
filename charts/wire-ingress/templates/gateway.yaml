@@ -36,6 +36,14 @@ spec:
     {{- end }}
   {{- end }}
   listeners:
+    {{/* Placeholder HTTPS listener. The real listeners live on the ListenerSet;
+         the Gateway API still requires the parent Gateway to declare at least
+         one listener. It is non-routable (allowedRoutes.namespaces.from: Same
+         but no route targets its section) and reuses the primary domain's
+         TLS secret, which is always created (secret.yaml or certificate.yaml)
+         — unlike a hardcoded certificateSecretName, which a primary domain that
+         overrides its own tls.secretName would leave uncreated. */}}
+    {{- $primaryDomain := index (include "wire-ingress.domains" . | fromJsonArray) 0 }}
     - name: gateway
       port: {{ .Values.gateway.listeners.https.port }}
       protocol: HTTPS
@@ -46,7 +54,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: {{ include "wire-ingress.certificateSecretName" . | quote }}
+          - name: {{ $primaryDomain.secretName | quote }}
             kind: Secret
     {{- if .Values.gateway.listeners.http.enabled }}
     - name: http

@@ -84,7 +84,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.create` | `true` | If `false`, no `Gateway` resource is created. The chart still creates a ListenerSet and you must set `gateway.name` and, if needed, `gateway.namespace` to reference the parent Gateway. Useful when sharing a Gateway across multiple releases. |
 | `gateway.className` | `""` | **Required.** Name of the `GatewayClass` installed by the Envoy Gateway controller (e.g. `envoy`). Must match the `GatewayClass` object whose `spec.controllerName` is `gateway.envoyproxy.io/gatewayclass-controller`. |
 | `gateway.namespace` | `""` | Namespace of the parent Gateway. Defaults to the release namespace when empty. Only needed when `gateway.create: false` points at a Gateway in another namespace. |
-| `gateway.alpn.enabled` | `true` | Enables ALPN configuration via `ClientTrafficPolicy` on the ListenerSet to support HTTP/2 despite overlapping certificate SANs across multiple service listeners. When disabled, ALPN defaults to HTTP/1.1 only. |
+| `gateway.alpn.enabled` | `true` | Enables ALPN configuration via a `ClientTrafficPolicy` on the parent Gateway (which Envoy Gateway applies to the ListenerSet's listeners) to support HTTP/2 despite overlapping certificate SANs across multiple service listeners. When disabled, ALPN defaults to HTTP/1.1 only. |
 | `gateway.alpn.protocols` | `[h2, http/1.1]` | List of ALPN protocols to advertise to clients. Defaults to HTTP/2 with HTTP/1.1 fallback. |
 | `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80 on the parent Gateway. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver. When enabled, the chart annotates the generated Certificate so cert-manager can fall back to the parent Gateway for the ACME HTTPRoute. The parent Gateway must allow HTTPRoutes from the release namespace. See [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
@@ -93,7 +93,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.manageServiceType` | `true` | Shorthand that sets `envoyService.type` to `gateway.serviceType`. Disable when managing the service type via `gateway.envoyProxy.spec` directly. |
 | `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
 | `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
-| `gateway.proxyProtocol.enabled` | `false` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on the ListenerSet. Required when the upstream load balancer is configured to send PROXY protocol headers. |
+| `gateway.proxyProtocol.enabled` | `false` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on the parent Gateway (which Envoy Gateway applies to the ListenerSet's listeners). Required when the upstream load balancer is configured to send PROXY protocol headers. |
 | `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
 | `gateway.patchPolicies.targetGatewayClass` | `false` | When `true`, `EnvoyPatchPolicy` targets the `GatewayClass` instead of the `Gateway`. **Required when `gateway.envoyProxy.spec.mergeGateways: true`**: with merged Gateways, policies targeting a `Gateway` are not applied — they must target the `GatewayClass`. Leave `false` for single-Gateway deployments (e.g. integration tests). |
 | `gateway.controllerNamespace` | `envoy-gateway-system` | Can be ignored, relevant only for integration tests. Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
@@ -177,8 +177,12 @@ used where the standard Gateway API has gaps. These resources are clearly marked
 The chart always creates one `ListenerSet` per release. Chart-managed `HTTPRoute`s attach to that
 ListenerSet.
 
-Envoy Gateway `ClientTrafficPolicy` resources attach to the `ListenerSet`, while chart-managed
-`HTTPRoute`s attach to that same ListenerSet.
+Chart-managed `HTTPRoute`s attach to the ListenerSet. Envoy Gateway `ClientTrafficPolicy`
+resources instead target the parent `Gateway`, because Envoy Gateway v1.8.x does not allow a
+`ClientTrafficPolicy` to target a `ListenerSet`. Envoy Gateway merges the ListenerSet's listeners
+into the parent Gateway before policy translation, so a Gateway-scoped policy still applies to
+them; where a policy must affect only one listener (federator mTLS) it is narrowed with
+`sectionName`.
 
 When `gateway.create: true`, the chart also creates the parent `Gateway` in the release namespace
 and configures it to accept ListenerSets from the same namespace. The Gateway keeps a placeholder
@@ -378,8 +382,8 @@ This allows HTTP/2 to be negotiated while maintaining support for older clients 
 
 Federator mTLS is implemented using:
 
-- `ClientTrafficPolicy` to configure TLS settings on the federator ListenerSet listener (client
-  certificate validation, verify depth)
+- `ClientTrafficPolicy` targeting the parent Gateway, scoped via `sectionName` to the federator
+  listener, to configure TLS settings (client certificate validation, verify depth)
 - A separate ListenerSet listener for the federator so that mTLS settings apply only to that
   listener
 - `X-SSL-Certificate` header forwarding is handled via an `EnvoyExtensionPolicy` with an inline
