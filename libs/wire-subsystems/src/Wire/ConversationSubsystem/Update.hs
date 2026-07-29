@@ -1328,21 +1328,20 @@ adminlessTryAutopromote mlusr lcnv altAction = do
             update = OtherMemberUpdate (Just roleNameWireAdmin)
         for_ autopromotionCandidates $ \candidate -> do
           E.setOtherMember lcnv candidate update
-        case mlusr of
-          Just lusr ->
-            void $
-              sendConversationActionNotifications
-                (sing @'ConversationMemberUpdateTag)
-                (tUntagged lusr)
-                False
-                Nothing
-                (qualifyAs lcnv conv)
-                (convBotsAndMembers conv)
-                (ConversationMemberUpdate (tUntagged lusr) update)
-                def
-          Nothing -> do
-            now <- Now.get
-            for_ autopromotionCandidates $ \candidate ->
+          case mlusr of
+            Just lusr ->
+              void $
+                sendConversationActionNotifications
+                  (sing @'ConversationMemberUpdateTag)
+                  (tUntagged lusr)
+                  False
+                  Nothing
+                  (qualifyAs lcnv conv)
+                  (convBotsAndMembers conv)
+                  (ConversationMemberUpdate candidate update)
+                  def
+            Nothing -> do
+              now <- Now.get
               Notify.pushSystemEvent
                 Nothing
                 ( SystemEvent
