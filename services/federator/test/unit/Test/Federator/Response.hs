@@ -15,34 +15,33 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Local reproduction harness for the "federation RPC comes back as a 200 with
--- a non-JSON body" flake.
+-- | Reproduction + regression harness for the "federation RPC comes back as a
+-- 200 with a non-JSON body" flake.
 --
--- The federation @/rpc@ and @/federation@ endpoints are served over the same
--- keep-alive HTTP/1.1 port as @/i/metrics@. The observed failure is a @POST
--- /rpc/…@ returning a 200 whose body is an unrelated @/i/metrics@ page — i.e. a
--- response the connection should never have produced for that request. That only
--- happens if a response mis-frames the connection (leaving bytes behind) so a
--- later request on the reused connection reads them.
+-- The federator serves @/rpc@, @/federation@ and @/i/metrics@ over the same
+-- keep-alive HTTP/1.1 port, and the integration suite hits them through a single
+-- shared 'http-client' 'Manager' (connection pooling on). The observed failure
+-- is a @POST /rpc/…@ returning a 200 whose body is an unrelated @/i/metrics@
+-- page. That can only happen if a response mis-frames the connection, so the
+-- client reads past the response boundary into the next response on a reused
+-- connection.
 --
--- Two angles are exercised here:
+-- 'testForwardedContentLengthDesync' pins the actual cause: the outward HTTP/2
+-- response carries a @Content-Length@ header, and
+-- 'Federator.Response.streamingResponseToWai' forwards it verbatim into a
+-- 'Wai.responseStream'. Warp then HONOURS that length instead of chunking the
+-- body it actually streams. If the declared length does not match the streamed
+-- bytes (a truncated cold-start upstream, a reset mid-stream, a stale
+-- @Content-Length@), the client reads the declared number of bytes and runs
+-- straight into the following response. This test drives the REAL
+-- 'streamingResponseToWai' and a byte-exact HTTP/1.1 client (which frames
+-- exactly like 'http-client'): before the fix the RPC response is poisoned with
+-- the next response's bytes; after the fix (strip framing headers, let Warp
+-- frame the streamed body) the connection stays in sync.
 --
---   1. 'testEmptyChunkDoesNotTruncate' drives the ACTUAL
---      'Federator.Response.streamingResponseToWai' with an upstream body that
---      yields an empty chunk in the middle of the stream (which a streamed HTTP/2
---      upstream legitimately can). If Warp turned that into a premature chunked
---      terminator, the response body would be truncated and the next pipelined
---      request would desync. This pins down whether the streaming path can poison
---      a keep-alive connection.
---
---   2. 'testConcurrentSharedManagerStaysInSync' stands up a federator-mimic (a
---      chunked @/i/metrics@ and an @/rpc@ served through 'streamingResponseToWai')
---      and hammers it through a SINGLE shared 'http-client' 'Manager' with a small
---      connection pool — the same setup the integration suite uses — mixing metric
---      scrapes and RPCs concurrently. It asserts no RPC response is ever poisoned
---      by connection reuse. It is a control: if well-formed responses never
---      desync here, the trigger must be a genuine mis-framing (see angle 1) rather
---      than the shared Manager alone.
+-- 'testEmptyChunkDoesNotTruncate' and 'testConcurrentSharedManagerStaysInSync'
+-- are controls: well-framed streamed responses never desync, so the shared
+-- Manager / connection pool is not itself the bug.
 module Test.Federator.Response (tests) where
 
 import Control.Concurrent.Async (forConcurrently)
@@ -73,6 +72,9 @@ tests =
   testGroup
     "Response.streamingResponseToWai / keep-alive framing"
     [ testCase
+        "forwarding an upstream Content-Length must not desync the reused connection"
+        testForwardedContentLengthDesync,
+      testCase
         "empty upstream chunk does not truncate the streamed response or desync the connection"
         testEmptyChunkDoesNotTruncate,
       testCase
@@ -96,36 +98,98 @@ jsonUpstream chunks =
       responseBody = source chunks
     }
 
---------------------------------------------------------------------------------
--- Angle 1: empty chunk in the middle of a streamed body.
+-- | Like 'jsonUpstream', but also carrying a @Content-Length@ header — exactly
+-- what the real outward HTTP/2 response carries. @declaredLen@ is what the
+-- header claims; @chunks@ is what actually gets streamed. In production these
+-- can diverge (truncated/cold-start upstream); here we set them apart on purpose
+-- to model that.
+jsonUpstreamWithContentLength :: Int -> [ByteString] -> StreamingResponse
+jsonUpstreamWithContentLength declaredLen chunks =
+  Response
+    { responseStatusCode = HTTP.ok200,
+      responseHeaders =
+        Seq.fromList
+          [ (HTTP.hContentType, "application/json"),
+            (HTTP.hContentLength, BS8.pack (show declaredLen))
+          ],
+      responseHttpVersion = HTTP.http20,
+      responseBody = source chunks
+    }
 
--- | The upstream yields ["{\"a\":", "", "1}"] — an empty chunk between two
--- non-empty ones. A conforming server must still deliver the concatenation
--- ("{\"a\":1}") and keep the connection framed correctly.
+--------------------------------------------------------------------------------
+-- The reproduction: a forwarded, mismatching Content-Length desyncs the
+-- connection so the RPC request receives the *next* response (a metrics page).
+
+-- | A recognisable @/i/metrics@-style page, served the way the prometheus
+-- middleware serves it (its own framing, on the same keep-alive port).
+metricsPage :: ByteString
+metricsPage =
+  "# HELP net_errors Number of exceptions caught by catchErrors middleware\n"
+    <> "# TYPE net_errors counter\n"
+    <> "net_errors 276.0\n"
+
+-- | @/first@ is the federation RPC (served via the real 'streamingResponseToWai'
+-- from an upstream that over-declares its Content-Length); @/second@ is a metrics
+-- page. These are the two things multiplexed over one keep-alive connection.
+desyncApp :: Wai.Application
+desyncApp req respond =
+  case Wai.rawPathInfo req of
+    "/first" ->
+      -- Upstream claims 100 bytes but only streams the (29-byte) body: a
+      -- truncated cold-start response. This is the RPC the probe issues.
+      respond (streamingResponseToWai (jsonUpstreamWithContentLength 100 [realFederationBody]))
+    _ ->
+      respond $
+        Wai.responseBuilder
+          HTTP.ok200
+          [(HTTP.hContentType, "text/plain; version=0.0.4")]
+          (byteString metricsPage)
+
+testForwardedContentLengthDesync :: Assertion
+testForwardedContentLengthDesync =
+  Warp.testWithApplication (pure desyncApp) $ \port -> do
+    (r1, r2) <- pipelineTwo port
+    putStrLn $
+      unlines
+        [ "",
+          "===== forwarded Content-Length desync =====",
+          "RPC (/first) response: " <> show r1,
+          "metrics (/second) response: " <> show r2
+        ]
+    -- The RPC response must be exactly the JSON body the upstream streamed —
+    -- never contaminated with bytes from the following (metrics) response.
+    assertEqual "RPC response status" 200 (hrStatus r1)
+    assertEqual "RPC response content-type" (Just "application/json") (hrContentType r1)
+    assertBool
+      ( "RPC response body was poisoned by the next response on the reused connection: "
+          <> show (hrBody r1)
+      )
+      (not ("# HELP" `BS.isInfixOf` hrBody r1) && not ("HTTP/1.1" `BS.isInfixOf` hrBody r1))
+    assertEqual
+      "RPC response body must be exactly the streamed body (no over-read)"
+      realFederationBody
+      (hrBody r1)
+    -- ...and the following request's response must still be intact.
+    assertEqual "pipelined metrics response status" 200 (hrStatus r2)
+    assertEqual "pipelined metrics response content-type" (Just "text/plain; version=0.0.4") (hrContentType r2)
+    assertEqual "pipelined metrics response body" metricsPage (hrBody r2)
+
+--------------------------------------------------------------------------------
+-- Control 1: empty chunk in the middle of a streamed body.
+
 emptyChunkUpstream :: StreamingResponse
 emptyChunkUpstream = jsonUpstream ["{\"a\":", "", "1}"]
 
 testEmptyChunkDoesNotTruncate :: Assertion
 testEmptyChunkDoesNotTruncate =
   Warp.testWithApplication (pure (mkApp (streamingResponseToWai emptyChunkUpstream))) $ \port -> do
-    raw <- singleRequestRaw port "/first"
     (r1, r2) <- pipelineTwo port
-    putStrLn $
-      unlines
-        [ "",
-          "===== empty-chunk framing =====",
-          "raw bytes of GET /first: " <> show raw,
-          "parsed 1st response: " <> show r1,
-          "parsed 2nd response: " <> show r2
-        ]
     assertEqual "first response body must be the full concatenation of all chunks" "{\"a\":1}" (hrBody r1)
     assertEqual "second (pipelined) response must be intact (connection not desynced)" legitSecond r2
 
 --------------------------------------------------------------------------------
--- Angle 2: shared Manager under concurrency (control).
+-- Control 2: shared Manager under concurrency (well-framed responses).
 
--- | A metrics page big enough to span several chunks, framed chunked (no
--- Content-Length) just like the prometheus middleware serves @/i/metrics@.
 metricsBody :: ByteString
 metricsBody =
   "# HELP http_request_duration_seconds The HTTP request latencies in seconds.\n"
@@ -149,8 +213,6 @@ federatorMimicApp req respond =
 testConcurrentSharedManagerStaysInSync :: Assertion
 testConcurrentSharedManagerStaysInSync =
   Warp.testWithApplication (pure federatorMimicApp) $ \port -> do
-    -- One shared Manager with a small pool, so RPC and metric requests are forced
-    -- to reuse the same handful of keep-alive connections (as in the suite).
     mgr <- HTTP.newManager HTTP.defaultManagerSettings {HTTP.managerConnCount = 4}
     let n = 400 :: Int
         base = "http://127.0.0.1:" <> show port
@@ -170,14 +232,6 @@ testConcurrentSharedManagerStaysInSync =
                   then Nothing
                   else Just (i, status, ct, body)
     poisoned <- catMaybes <$> forConcurrently [1 .. n] oneRequest
-    putStrLn $
-      "\n===== shared-Manager concurrency ====="
-        <> "\nRPC calls: "
-        <> show (length (filter odd [1 .. n]))
-        <> ", metric scrapes: "
-        <> show (length (filter even [1 .. n]))
-        <> ", poisoned RPC responses: "
-        <> show (length poisoned)
     for_ poisoned $ \p -> putStrLn ("  POISONED: " <> show p)
     assertBool
       ("expected no RPC response to be poisoned by connection reuse, but got: " <> show poisoned)
@@ -186,8 +240,6 @@ testConcurrentSharedManagerStaysInSync =
 --------------------------------------------------------------------------------
 -- Test server plumbing.
 
--- | Serve the given (already-rendered) response on @/first@; a distinct, plain
--- JSON response on anything else (the "next request" whose integrity we check).
 mkApp :: Wai.Response -> Wai.Application
 mkApp firstResp req respond =
   case Wai.rawPathInfo req of
@@ -209,8 +261,9 @@ legitSecond =
 
 --------------------------------------------------------------------------------
 -- A minimal, conforming HTTP/1.1 client over a raw socket. It follows exactly
--- the framing the server advertises (Content-Length, else chunked), which is
--- where a mis-framed response bites a reused connection.
+-- the framing the server advertises (Content-Length, else chunked) — the same
+-- choice 'http-client' makes — which is where a mis-framed response bites a
+-- reused connection.
 
 data HttpResponse = HttpResponse
   { hrStatus :: Int,
@@ -220,7 +273,7 @@ data HttpResponse = HttpResponse
   deriving (Eq, Show)
 
 -- | Pipeline two requests on one keep-alive connection, then parse both
--- responses in order (deterministic byte interleaving).
+-- responses in order (deterministic byte interleaving — no timing races).
 pipelineTwo :: Int -> IO (HttpResponse, HttpResponse)
 pipelineTwo port = do
   addr <- resolve port
@@ -233,21 +286,6 @@ pipelineTwo port = do
     r2 <- parseResponse buf
     pure (r1, r2)
 
--- | Single request on a fresh connection; slurp bytes until the socket is idle
--- (keep-alive means no EOF). Evidence only.
-singleRequestRaw :: Int -> ByteString -> IO ByteString
-singleRequestRaw port path = do
-  addr <- resolve port
-  bracket (open addr) close $ \sock -> do
-    sendAll sock $ "GET " <> path <> " HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
-    slurp sock mempty
-  where
-    slurp sock acc = do
-      mchunk <- timeout 400_000 (recv sock 4096)
-      case mchunk of
-        Just chunk | not (BS.null chunk) -> slurp sock (acc <> chunk)
-        _ -> pure acc
-
 data Buf = Buf Socket (IORef ByteString)
 
 newBuf :: Socket -> IO Buf
@@ -255,8 +293,10 @@ newBuf s = Buf s <$> newIORef mempty
 
 fill :: Buf -> IO Bool
 fill (Buf s ref) = do
-  more <- recv s 4096
-  if BS.null more then pure False else True <$ modifyIORef' ref (<> more)
+  mmore <- timeout 1_000_000 (recv s 4096)
+  case mmore of
+    Just more | not (BS.null more) -> True <$ modifyIORef' ref (<> more)
+    _ -> pure False
 
 readLineB :: Buf -> IO ByteString
 readLineB buf@(Buf _ ref) = go
@@ -332,10 +372,10 @@ readChunked buf acc = do
   sizeLine <- readLineB buf
   let sizeHex = BS8.takeWhile (/= ';') sizeLine
   case readHex (BS8.unpack sizeHex) of
-    [(0 :: Int, _)] -> acc <$ readLineB buf -- consume trailing CRLF after last chunk
+    [(0 :: Int, _)] -> acc <$ readLineB buf
     [(n, _)] -> do
       chunk <- readNB buf n
-      _ <- readNB buf 2 -- trailing CRLF after the chunk
+      _ <- readNB buf 2
       readChunked buf (acc <> chunk)
     _ -> pure acc
 
