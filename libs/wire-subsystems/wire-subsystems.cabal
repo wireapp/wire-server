@@ -155,6 +155,7 @@ common common-all
     , lrucaching
     , mime
     , mime-mail
+    , mmzk-typeid
     , MonadRandom
     , network
     , network-conduit-tls
@@ -349,6 +350,8 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
+    Wire.FanInNotificationsStore
+    Wire.FanInNotificationsStore.Postgres
     Wire.FeaturesConfigSubsystem
     Wire.FeaturesConfigSubsystem.Interpreter
     Wire.FeaturesConfigSubsystem.Types
