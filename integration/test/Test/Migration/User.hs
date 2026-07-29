@@ -94,7 +94,7 @@ testUserMigrationToPostgres = do
     newUsersRef <- newIORef mempty
     updatedUsersRef <- newIORef mempty
     updates <- fmap IntMap.fromList . for [1 .. 5] $ \phase -> do
-      (phase,) <$> liftIO (generate (arbitraryPhaseUpdates n))
+      (phase,) <$> liftIO (generate (arbitraryPhaseUpdates nUpdates))
 
     addUsersToFailureContext [("mel", mel)]
       -- \$ addJSONToFailureContext "updates" updates
@@ -125,7 +125,7 @@ testUserMigrationToPostgres = do
                           botsInPersonalConvs = mempty
                         }
 
-                newUsers <- createTestUsers domainM mel
+                newUsers <- createTestUsers domainM mel nNew
                 modifyIORef newUsersRef (IntMap.insert phase newUsers)
                 modifyIORef updatedUsersRef (IntMap.insert phase updatedUsers)
 
@@ -152,13 +152,16 @@ testUserMigrationToPostgres = do
   where
     parallelism = 64
 
-    n = 5
+    -- Number of users of each type
+    nUpdates = 5
+    nDeletes = 1
+    nNew = 1
 
     seedTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> App TestUsersByOperations
     seedTestUsers domain mel =
       fmap mconcat . for [(1 :: Int) .. 5] $ \phase -> do
-        updates <- IntMap.singleton phase <$> createTestUsers domain mel
-        deletes <- IntMap.singleton phase <$> createTestUsers domain mel
+        updates <- IntMap.singleton phase <$> createTestUsers domain mel nUpdates
+        deletes <- IntMap.singleton phase <$> createTestUsers domain mel nDeletes
         pure TestUsersByOperations {..}
 
     tombstone :: String -> String -> Maybe String -> Value
@@ -243,15 +246,15 @@ testUserMigrationToPostgres = do
         <> map fst (Map.elems testUserList.personalUsersWithHandle)
         <> map fst (Map.elems testUserList.personalUsersWithoutHandle)
 
-    createTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> App TestUserList
-    createTestUsers domain mel = runConcurrently $ do
-      scimUsersWithRichInfo <- Concurrently $ createScimUsers domain True True
-      scimUsersWithoutRichInfo <- Concurrently $ createScimUsers domain True True
-      pendingScimUsers <- Concurrently $ createScimUsers domain False False
-      ssoUsers <- Concurrently $ createSsoUsers domain
-      passwordTeamUsers <- Concurrently $ createPasswordTeamUsers domain
-      personalUsersWithoutHandle <- Concurrently $ createPersonalUsers domain mel False
-      personalUsersWithHandle <- Concurrently $ createPersonalUsers domain mel True
+    createTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> Int -> App TestUserList
+    createTestUsers domain mel n = runConcurrently $ do
+      scimUsersWithRichInfo <- Concurrently $ createScimUsers domain n True True
+      scimUsersWithoutRichInfo <- Concurrently $ createScimUsers domain n True True
+      pendingScimUsers <- Concurrently $ createScimUsers domain n False False
+      ssoUsers <- Concurrently $ createSsoUsers domain n
+      passwordTeamUsers <- Concurrently $ createPasswordTeamUsers domain n
+      personalUsersWithoutHandle <- Concurrently $ createPersonalUsers domain mel n False
+      personalUsersWithHandle <- Concurrently $ createPersonalUsers domain mel n True
       botsInTeamConvs <- Concurrently $ createBotsInTeamConvs domain
       botsInPersonalConvs <- Concurrently $ createBotsInPersonalConvs domain
       pure TestUserList {..}
@@ -261,8 +264,8 @@ testUserMigrationToPostgres = do
       let quid = object ["domain" .= domain, "id" .= uid]
       Map.singleton uid <$> (getSelf quid >>= getJSON 200)
 
-    createScimUsers :: (HasCallStack) => String -> Bool -> Bool -> App TestScimUsers
-    createScimUsers domain shouldCreateRichInfo shouldAcceptInvite = do
+    createScimUsers :: (HasCallStack) => String -> Int -> Bool -> Bool -> App TestScimUsers
+    createScimUsers domain n shouldCreateRichInfo shouldAcceptInvite = do
       (owner, tid, _) <- createTeam domain 1
       tok <- createScimToken owner def >>= \resp -> resp.json %. "token" >>= asString
       users <- fmap Map.unions . pooledReplicateConcurrentlyN 16 n $ do
@@ -392,8 +395,8 @@ testUserMigrationToPostgres = do
             updatePendingScimUserAndCheck domain testScimUsers.token (scimUser, pw, inv) updateUser
       pure (testScimUsers {users = updatedUsers} :: TestScimUsers)
 
-    createSsoUsers :: (HasCallStack) => String -> App TestTeamUsers
-    createSsoUsers domain = do
+    createSsoUsers :: (HasCallStack) => String -> Int -> App TestTeamUsers
+    createSsoUsers domain n = do
       (owner, tid, _) <- createTeam domain 1
       I.setTeamFeatureStatus owner tid "sso" "enabled" >>= assertSuccess
       (createIdpResp, (idpMeta, privcreds)) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -407,8 +410,8 @@ testUserMigrationToPostgres = do
         (,Nothing) <$$> getUnqualifiedUser domain uid
       pure $ TestTeamUsers {..}
 
-    createPasswordTeamUsers :: (HasCallStack) => String -> App TestTeamUsers
-    createPasswordTeamUsers domain = do
+    createPasswordTeamUsers :: (HasCallStack) => String -> Int -> App TestTeamUsers
+    createPasswordTeamUsers domain n = do
       (owner, _tid, usersWithoutPassword) <- createTeam domain n
 
       users <- fmap Map.unions . pooledForConcurrentlyN 64 usersWithoutPassword $ \user -> do
@@ -473,8 +476,8 @@ testUserMigrationToPostgres = do
               pure $ Map.singleton uid user
           pure $ (,mPassword) <$> updatedUser
 
-    createPersonalUsers :: (HasCallStack, MakesValue mel) => String -> mel -> Bool -> App (Map String (Value, Maybe String))
-    createPersonalUsers domain mel claimHandle =
+    createPersonalUsers :: (HasCallStack, MakesValue mel) => String -> mel -> Int -> Bool -> App (Map String (Value, Maybe String))
+    createPersonalUsers domain mel n claimHandle =
       fmap Map.unions . pooledReplicateConcurrentlyN parallelism n $ do
         user <- randomUser domain def
         connectTwoUsers mel user
