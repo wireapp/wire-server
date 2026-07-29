@@ -84,7 +84,6 @@ data BrigAPIAccess m a where
   GetUsers :: [UserId] -> BrigAPIAccess m [User]
   DeleteUser :: UserId -> BrigAPIAccess m ()
   GetContactList :: UserId -> BrigAPIAccess m [UserId]
-  GetRichInfoMultiUser :: [UserId] -> BrigAPIAccess m [(UserId, RichInfo)]
   GetSize :: TeamId -> BrigAPIAccess m TeamSize
   LookupClients :: [UserId] -> BrigAPIAccess m UserClients
   LookupClientsFull :: [UserId] -> BrigAPIAccess m UserClientsFull

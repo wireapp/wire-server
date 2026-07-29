@@ -291,7 +291,6 @@ accountAPI =
     :<|> Named @"iPutHandle" updateHandleH
     :<|> Named @"iPutUserName" updateUserNameH
     :<|> Named @"iGetRichInfo" getRichInfoH
-    :<|> Named @"iGetRichInfoMulti" getRichInfoMultiH
     :<|> Named @"iHeadHandle" checkHandleInternalH
     :<|> Named @"iConnectionUpdate" updateConnectionInternalH
     :<|> Named @"iListClients" internalListClientsH
@@ -965,10 +964,6 @@ getRichInfoH :: (Member UserStore r) => UserId -> Handler r RichInfo
 getRichInfoH uid =
   RichInfo . fromMaybe mempty
     <$> lift (liftSem $ UserStore.getRichInfo uid)
-
-getRichInfoMultiH :: (Member UserStore r) => Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
-getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
-  lift $ liftSem $ BrigIRoutes.GetRichInfoMultiResponse <$> UserStore.lookupRichInfos uids
 
 updateHandleH ::
   (Member UserSubsystem r) =>

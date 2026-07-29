@@ -139,7 +139,6 @@ inMemoryUserStoreInterpreter = interpret $ \case
       map
         (\u -> if u.id == uid then u {teamId = Just tid} :: StoredUser else u)
   GetRichInfo _ -> error "GetRichInfo: not implemented"
-  LookupRichInfos _ -> error "LookupRichInfos: not implemented"
   UpdateRichInfo {} -> error "UpdateRichInfo: Not implemented"
   UpsertHashedPassword uid pw ->
     modify $ Map.insert uid pw

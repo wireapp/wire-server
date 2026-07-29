@@ -580,13 +580,6 @@ type AccountAPI =
                :> Get '[Servant.JSON] RichInfo
            )
     :<|> Named
-           "iGetRichInfoMulti"
-           ( "users"
-               :> "rich-info"
-               :> QueryParam' '[Optional, Strict] "ids" (CommaSeparatedList UserId)
-               :> Get '[Servant.JSON] GetRichInfoMultiResponse
-           )
-    :<|> Named
            "iHeadHandle"
            ( CanThrow 'InvalidHandle
                :> "handles"
