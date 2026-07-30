@@ -58,9 +58,8 @@ testScimInvitationThenManualInvitationNoSaml = withModifiedBackend scimInvitatio
   (owner, _tid, _) <- createTeam testDomain 1
   token <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
   (email, scid) <- createScimInvitationUser testDomain token
-  -- This test backend uses a 2-second invitation TTL. Cross that boundary,
-  -- then immediately send the manual invitation before cleanup can run.
-  liftIO $ threadDelay 2_100_000
+  -- wait for invitation to expire
+  liftIO $ threadDelay 1_100_000
   iid <- acceptManualInvitation testDomain owner email
   users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
   case users of
@@ -104,7 +103,7 @@ scimInvitationTestOverrides :: ServiceOverrides
 scimInvitationTestOverrides =
   def
     { brigCfg =
-        setField "optSettings.setTeamInvitationTimeout" (2 :: Int)
+        setField "optSettings.setTeamInvitationTimeout" (1 :: Int)
           . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
     }
 
