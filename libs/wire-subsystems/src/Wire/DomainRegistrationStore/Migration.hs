@@ -27,7 +27,6 @@ import Data.Conduit.List qualified as C
 import Data.Domain
 import Data.Id
 import Database.CQL.Protocol (Record (asRecord), TupleType)
-import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as Hasql
 import Imports hiding (lookup)
 import Polysemy
@@ -175,24 +174,3 @@ selectAllRegistrations =
 selectAllChallenges :: PrepQuery R () (ChallengeId, Domain, Token, DnsVerificationToken, Int32)
 selectAllChallenges =
   "SELECT id, domain, challenge_token_hash, dns_verification_token, ttl(challenge_token_hash) FROM domain_registration_challenge"
-
-handleRegistrationErrors ::
-  ( Member (State Int) r,
-    Member TinyLog r
-  ) =>
-  ByteString ->
-  (Sem (Error MigrationLockError : Error UsageError : r) ()) ->
-  Sem r ()
-handleRegistrationErrors key action = do
-  eithErr <- runError (runError action)
-  case eithErr of
-    Right (Right _) -> pure ()
-    Right (Left e) -> logError (show e)
-    Left e -> logError (show e)
-  where
-    logError e = do
-      warn $
-        Log.msg (Log.val "error occurred during migration")
-          . Log.field "key" (show key)
-          . Log.field "error" e
-      modify (+ 1)
