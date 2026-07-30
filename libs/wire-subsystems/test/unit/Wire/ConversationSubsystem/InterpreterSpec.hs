@@ -65,38 +65,19 @@ import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem (..))
 
 spec :: Spec
-spec = describe "ConversationSubsystem.Interpreter" do
-  prop "guardPreventAdminlessGroupsFor promotes an eligible member and emits a targeted update" $
+spec = focus $ describe "ConversationSubsystem.Interpreter" do
+  prop "guardPreventAdminlessGroupsFor promotes an eligible member and emits a targeted update [legacy]" $
     \domain teamId convId leaving eligible1 eligible2 ->
       ioProperty $ do
-        user1 <- mkUserWithName "Alice" domain UserTypeRegular eligible1
-        user2 <- mkUserWithName "Bob" domain UserTypeRegular eligible2
-        let users = [user1, user2]
-            lusr = toLocalUnsafe domain leaving
-            lcnv = toLocalUnsafe domain convId
-            qvictim = Qualified leaving domain
-            localMembers =
-              [ newMemberWithRole (leaving, roleNameWireAdmin),
-                newMemberWithRole (eligible1, roleNameWireMember),
-                newMemberWithRole (eligible2, roleNameWireMember)
-              ]
-            conv =
-              StoredConversation
-                { id_ = convId,
-                  localMembers = localMembers,
-                  remoteMembers = [],
-                  metadata = (defConversationMetadata (Just leaving)) {cnvmTeam = Just teamId},
-                  protocol = ProtocolMLS (ConversationMLSData (GroupId "mock-group-id") Nothing)
-                }
-            features = npUpdate @PreventAdminlessGroupsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
-            expectedTarget = Qualified eligible1 domain
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let expectedTarget = head fx.fixtureEligibleMembers
             (pushes, (updatedTargets, result)) =
-              runAdminlessGroupsTest users features (Map.singleton convId conv) $
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures fx.fixtureConversations $
                 guardPreventAdminlessGroupsFor
                   RemoveMemberLegacyResponse
-                  lcnv
-                  lusr
-                  (Set.singleton qvictim)
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
                   Set.empty
                   Set.empty
         pure $
@@ -107,6 +88,30 @@ spec = describe "ConversationSubsystem.Interpreter" do
                 [ updatedTargets === [expectedTarget],
                   assertMemberUpdatePush expectedTarget pushes
                 ]
+
+  prop "guardPreventAdminlessGroupsFor reports eligible members for the V17 response" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let expectedEligible = fx.fixtureEligibleMembers
+            (pushes, (updatedTargets, result)) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberEligibleMembersResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err ->
+              conjoin
+                [ err === AdminlessConversation {eligibleMembers = expectedEligible},
+                  updatedTargets === [],
+                  length pushes === 0
+                ]
+            Right _ -> counterexample "expected adminless-conversation error" False
 
   prop "removeMemberQualified returns adminless-conversation error" $
     \convDomain
@@ -206,6 +211,43 @@ spec = describe "ConversationSubsystem.Interpreter" do
         . runRandomPure
         . noopLogger
         $ testCode
+
+data AdminlessGroupsFixture = AdminlessGroupsFixture
+  { fixtureUsers :: [User],
+    fixtureLocalUser :: Local UserId,
+    fixtureLocalConversation :: Local ConvId,
+    fixtureVictim :: Qualified UserId,
+    fixtureEligibleMembers :: [Qualified UserId],
+    fixtureConversations :: Map.Map ConvId StoredConversation,
+    fixtureFeatures :: AllTeamFeatures
+  }
+
+mkAdminlessGroupsFixture :: Domain -> TeamId -> ConvId -> UserId -> UserId -> UserId -> IO AdminlessGroupsFixture
+mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2 = do
+  user1 <- mkUserWithName "Alice" domain UserTypeRegular eligible1
+  user2 <- mkUserWithName "Bob" domain UserTypeRegular eligible2
+  let conv =
+        StoredConversation
+          { id_ = convId,
+            localMembers =
+              [ newMemberWithRole (leaving, roleNameWireAdmin),
+                newMemberWithRole (eligible1, roleNameWireMember),
+                newMemberWithRole (eligible2, roleNameWireMember)
+              ],
+            remoteMembers = [],
+            metadata = (defConversationMetadata (Just leaving)) {cnvmTeam = Just teamId},
+            protocol = ProtocolMLS (ConversationMLSData (GroupId "mock-group-id") Nothing)
+          }
+  pure
+    AdminlessGroupsFixture
+      { fixtureUsers = [user1, user2],
+        fixtureLocalUser = toLocalUnsafe domain leaving,
+        fixtureLocalConversation = toLocalUnsafe domain convId,
+        fixtureVictim = Qualified leaving domain,
+        fixtureEligibleMembers = [Qualified eligible1 domain, Qualified eligible2 domain],
+        fixtureConversations = Map.singleton convId conv,
+        fixtureFeatures = npUpdate @PreventAdminlessGroupsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+      }
 
 data MemberInputs = MemberInputs
   { localUserIds :: [UserId],
