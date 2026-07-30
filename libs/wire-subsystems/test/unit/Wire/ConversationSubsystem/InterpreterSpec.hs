@@ -89,6 +89,37 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
                   assertMemberUpdatePush expectedTarget pushes
                 ]
 
+  prop "guardPreventAdminlessGroupsFor promotes all eligible members [legacy]" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let features =
+              npUpdate @PreventAdminlessGroupsConfig
+                ( LockableFeature
+                    FeatureStatusEnabled
+                    LockStatusUnlocked
+                    ((def :: PreventAdminlessGroupsConfig) {promotionStrategy = PromotionStrategyAll})
+                )
+                def
+            expectedTargets = fx.fixtureEligibleMembers
+            (pushes, (updatedTargets, result)) =
+              runAdminlessGroupsTest fx.fixtureUsers features fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Right _ ->
+              conjoin
+                [ Set.fromList updatedTargets === Set.fromList expectedTargets,
+                  assertMemberUpdatePushes expectedTargets pushes
+                ]
+
   prop "guardPreventAdminlessGroupsFor reports eligible members for the V17 response" $
     \domain teamId convId leaving eligible1 eligible2 ->
       ioProperty $ do
@@ -108,6 +139,35 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
             Left err ->
               conjoin
                 [ err === AdminlessConversation {eligibleMembers = expectedEligible},
+                  updatedTargets === [],
+                  length pushes === 0
+                ]
+            Right _ -> counterexample "expected adminless-conversation error" False
+
+  prop "guardPreventAdminlessGroupsFor includes newly added eligible members in the V17 response" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let newlyAdded = head fx.fixtureEligibleMembers
+            conversations =
+              Map.adjust
+                (\conv -> conv {localMembers = [newMemberWithRole (leaving, roleNameWireAdmin)]})
+                convId
+                fx.fixtureConversations
+            (pushes, (updatedTargets, result)) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberEligibleMembersResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  (Set.singleton newlyAdded)
+        pure $
+          case result of
+            Left err ->
+              conjoin
+                [ err === AdminlessConversation {eligibleMembers = [newlyAdded]},
                   updatedTargets === [],
                   length pushes === 0
                 ]
@@ -284,17 +344,24 @@ instance Arbitrary MemberInputs where
         }
 
 assertMemberUpdatePush :: Qualified UserId -> [Push] -> Property
-assertMemberUpdatePush expectedTarget = \case
-  [push] ->
-    case A.fromJSON @(Event) (A.Object push.json) of
-      A.Success Event {evtData = EdMemberUpdate update} ->
-        conjoin
-          [ update.misTarget === expectedTarget,
-            update.misConvRoleName === Just roleNameWireAdmin
-          ]
-      A.Success event -> counterexample ("unexpected event: " <> show event) False
-      A.Error err -> counterexample ("failed to decode push: " <> err) False
-  pushes -> counterexample ("expected one push, got: " <> show pushes) False
+assertMemberUpdatePush expectedTarget = assertMemberUpdatePushes [expectedTarget]
+
+assertMemberUpdatePushes :: [Qualified UserId] -> [Push] -> Property
+assertMemberUpdatePushes expectedTargets pushes =
+  case traverse decodeMemberUpdate pushes of
+    Left err -> counterexample err False
+    Right updates ->
+      conjoin
+        [ length pushes === length expectedTargets,
+          Set.fromList (map (.misTarget) updates) === Set.fromList expectedTargets,
+          conjoin [update.misConvRoleName === Just roleNameWireAdmin | update <- updates]
+        ]
+  where
+    decodeMemberUpdate push =
+      case A.fromJSON @(Event) (A.Object push.json) of
+        A.Success Event {evtData = EdMemberUpdate update} -> Right update
+        A.Success event -> Left ("unexpected event: " <> show event)
+        A.Error err -> Left ("failed to decode push: " <> err)
 
 -- Build one lazy infinite pool of distinct IDs and slice it into categories.
 -- Using position in the stream, rather than per-category prefixes, makes the
