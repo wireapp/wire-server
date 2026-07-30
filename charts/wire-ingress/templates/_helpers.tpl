@@ -120,7 +120,7 @@ primary (bool), csp (bool).
     {{- if $tls.secretName -}}{{- $secretName = $tls.secretName -}}
     {{- else if $primary -}}{{- $secretName = include "wire-ingress.certificateSecretName" $root -}}
     {{- else -}}{{- $secretName = printf "%s-%s-tls-certificate" $fullname $name -}}{{- end -}}
-    {{- $cspFlag := true -}}
+    {{- $cspFlag := not $primary -}}
     {{- if hasKey $domain "renderCSP" -}}{{- $cspFlag = $domain.renderCSP -}}{{- end -}}
     {{/*
     Additional domains cannot share the single wildcard secret created by
@@ -148,7 +148,7 @@ primary (bool), csp (bool).
         "issuerName" ($issuer.name | default $root.Values.tls.issuer.name)
         "issuerKind" ($issuer.kind | default $root.Values.tls.issuer.kind)
         "primary" $primary
-        "csp" (and (not $primary) $cspFlag) -}}
+        "csp" $cspFlag -}}
     {{- $out = append $out $entry -}}
   {{- end -}}
 {{- else -}}
