@@ -91,6 +91,21 @@ testScimInvitationThenManualInvitationSamlEmailValidation = withModifiedBackend 
         id1 `shouldMatch` id2
     _ -> fail "more than 2 users not expected"
 
+testScimSamlEmailVerificationExpiryThenManualInvitation :: (HasCallStack) => App ()
+testScimSamlEmailVerificationExpiryThenManualInvitation = withModifiedBackend samlEmailVerificationExpiryOverrides $ \testDomain -> do
+  (owner, tid, _) <- createTeam testDomain 1
+  token <- createSamlScimToken owner tid True
+  (email, scid) <- createScimInvitationUser testDomain token
+
+  -- wait until email verification expires
+  eventually $ getActivationCode testDomain email >>= assertStatus 404
+
+  iid <- acceptManualInvitation testDomain owner email
+  users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
+  -- this leads to 2 active accounts with the same email,
+  -- but the SSO account's email stays unvalidated
+  printJSON users
+
 testScimInvitationThenManualInvitationSamlEmailAutoActivation :: (HasCallStack) => App ()
 testScimInvitationThenManualInvitationSamlEmailAutoActivation = withModifiedBackend scimInvitationTestOverrides $ \testDomain -> do
   (owner, tid, _) <- createTeam testDomain 1
@@ -104,6 +119,14 @@ scimInvitationTestOverrides =
   def
     { brigCfg =
         setField "optSettings.setTeamInvitationTimeout" (1 :: Int)
+          . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
+    }
+
+samlEmailVerificationExpiryOverrides :: ServiceOverrides
+samlEmailVerificationExpiryOverrides =
+  def
+    { brigCfg =
+        setField "optSettings.setActivationTimeout" (1 :: Int)
           . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
     }
 
