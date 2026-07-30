@@ -860,12 +860,12 @@ createNewIndex = do
     ExitFailure _ -> assertFailure $ prefix <> "failed to create index"
     ExitSuccess -> pure indexName
 
-reindexUsers :: (HasCallStack) => BackendResource -> Int -> App ()
-reindexUsers ber pageSize = do
+reindexUsers :: (HasCallStack) => BackendResource -> ServiceOverrides -> Int -> App ()
+reindexUsers ber serviceOverrides pageSize = do
   testName <- asks (fromMaybe "NoTest" . (.currentTestName))
   let indexName = ber.berElasticsearchIndex
   let prefix = "[reindex-users:" <> indexName <> ":" <> testName <> "] "
-  getBrigConfig <- readAndUpdateConfig (defaultOverrides ber) ber Brig
+  getBrigConfig <- readAndUpdateConfig (defaultOverrides ber <> serviceOverrides) ber Brig
   brigConfig <- liftIO $ getBrigConfig
   esServer <- brigConfig %. "elasticsearch.url" & asString
   esCredentials <- brigConfig %. "elasticsearch.credentials" & asString

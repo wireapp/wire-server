@@ -23,6 +23,7 @@ import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
 import Data.Map qualified as Map
+import Data.UUID qualified as UUID
 import Database.CQL.Protocol hiding (Error)
 import Imports
 import Polysemy
@@ -116,9 +117,22 @@ interpretUserStoreToCassandraAndPostgres casClient =
       runAppropriateInterpreter casClient uid $ UserStore.doesUserExist uid
     GetIndexUser uid ->
       runAppropriateInterpreter casClient uid $ UserStore.getIndexUser uid
-    GetIndexUsersPaginated _pageSize _mPagingState ->
-      -- runAppropriateInterpreter casClient uid $ UserStore.getIndexUsersPaginated pageSize mPagingState
-      undefined
+    GetIndexUsersPaginated pageSize mPagingState -> do
+      let getPageFromCassandra = do
+            page <- interpretUserStoreCassandra casClient $ UserStore.getIndexUsersPaginated pageSize mPagingState
+            if pwsHasMore page
+              then pure page
+              else do
+                let casSize = fromIntegral (length page.pwsResults)
+                    remainingSize = pageSize - casSize
+                if remainingSize > 0
+                  then getPageFromPostgres remainingSize Nothing
+                  else pure $ page {pwsState = Just (PaginationStatePostgres . PagingExitingUsers $ Id UUID.nil)}
+          getPageFromPostgres remainingSize mPgMarker =
+            interpretUserStorePostgres $ UserStore.getIndexUsersPaginated remainingSize (PaginationStatePostgres <$> mPgMarker)
+      case mPagingState of
+        Just (PaginationStatePostgres pgMarker) -> getPageFromPostgres pageSize (Just pgMarker)
+        _ -> getPageFromCassandra
     UpdateUser uid update ->
       runAppropriateInterpreter casClient uid $ UserStore.updateUser uid update
     UpdateEmail uid email ->

@@ -693,7 +693,7 @@ testReindexAllUsers = do
           assertCannotFind alice user (user %. "name") domain
 
         -- Reindex users using a small page size so pagination gets excersiced
-        reindexUsers testBackend 5
+        reindexUsers testBackend def 5
         BrigI.refreshIndex domain
 
         -- Now things should work as expected

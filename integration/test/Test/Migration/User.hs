@@ -37,6 +37,7 @@ import Notifications
 import SetupHelpers hiding (deleteUser)
 import Test.Migration.Util
 import Test.QuickCheck
+import Test.Search
 import Testlib.Prelude
 import Testlib.ResourcePool
 import UnliftIO
@@ -501,6 +502,64 @@ testUserMigrationToPostgres = do
 
     createBotsInPersonalConvs :: (HasCallStack) => String -> App (Map String (Value, Value))
     createBotsInPersonalConvs _ = pure mempty
+
+-- | This test creates users in PG and Cassandra separately to simulate a
+-- situation where there are users in both DBs. Then tries to index them into ES
+-- to make sure the pagination over these users works.
+testReindexingUsersDuringMigration :: (HasCallStack) => App ()
+testReindexingUsersDuringMigration = do
+  resourcePool <- asks (.resourcePool)
+
+  runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
+    let domain = backend.berDomain
+    -- Create users in cassandra using 'phase1Overrides'
+    (casSearcher, casExistingUsers, casDeletedUsers) <-
+      runCodensity (startDynamicBackend backend phase1Overrides)
+        $ \_ -> setupUsers domain
+
+    -- Create users in postgres using 'phase5Overrides'
+    (pgSearcher, pgExistingUsers, pgDeletedUsers) <-
+      runCodensity (startDynamicBackend backend phase5Overrides)
+        $ \_ -> setupUsers domain
+
+    -- Test that searching in the already existing index works with in
+    -- 'phase2Overrides', which should work with data in cassandra and postgres
+    runCodensity (startDynamicBackend backend phase2Overrides) $ \_ -> do
+      I.refreshIndex domain
+      checkSearchWorks domain casSearcher casExistingUsers casDeletedUsers
+      checkSearchWorks domain pgSearcher pgExistingUsers pgDeletedUsers
+
+    newIndex <- createNewIndex
+    let backendWithNewIndex = backend {berElasticsearchIndex = newIndex}
+    runCodensity (startDynamicBackend backendWithNewIndex phase2Overrides) $ \_ -> do
+      reindexUsers backendWithNewIndex phase2Overrides 5
+      I.refreshIndex domain
+      checkSearchWorks domain casSearcher casExistingUsers casDeletedUsers
+      checkSearchWorks domain pgSearcher pgExistingUsers pgDeletedUsers
+  where
+    n = 5
+    parallelism = 16
+
+    setupUsers :: (HasCallStack) => String -> App (Value, [Value], [Value])
+    setupUsers domain = do
+      searcher <- randomUser domain def
+      existingUsers <- pooledReplicateConcurrentlyN parallelism n $ randomUser domain def
+      deletedUsers <- pooledReplicateConcurrentlyN parallelism n $ do
+        u <- randomUser domain def
+        connectTwoUsers searcher u
+        pure u
+      withWebSocket searcher $ \ws -> do
+        pooledForConcurrentlyN_ parallelism deletedUsers deleteUser
+        awaitNMatches n isDeleteUserNotif ws
+      pure (searcher, existingUsers, deletedUsers)
+
+    checkSearchWorks :: (HasCallStack) => String -> Value -> [Value] -> [Value] -> App ()
+    checkSearchWorks domain searcher existingUsers deletedUsers = do
+      pooledForConcurrentlyN_ parallelism existingUsers $ \u ->
+        assertCanFind searcher u (u %. "name") domain
+
+      pooledForConcurrentlyN_ parallelism deletedUsers $ \u ->
+        assertCannotFind searcher u (u %. "name") domain
 
 -- * Test Helpers
 
