@@ -1,0 +1,21 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+APP GELÖSCHT
+${actor} hat eine App Ihres Team gelöscht.
+
+App-Name: ${app_name}
+Datum: ${date}
+
+Team-Name: ${team_name}
+Team-ID: ${team_id}
+
+Team-Management öffnen [${url}]Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
+
+
+--------------------------------------------------------------------------------
+
+Datenschutzrichtlinien und Nutzungsbedingungen [${legal}] · Missbrauch melden
+[${misuse}]
+${copyright}. ALLE RECHTE VORBEHALTEN.

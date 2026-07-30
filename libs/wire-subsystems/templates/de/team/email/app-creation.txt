@@ -1,0 +1,28 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+NEUE APP ERSTELLT
+${actor} hat eine App in Ihrem Team erstellt.
+
+App-Name: ${app_name}
+Datum: ${date}
+
+Team-Name: ${team_name}
+Team-ID: ${team_id}
+
+Berechtigungen:
+
+
+ * 
+
+
+
+Team-Management öffnen [${url}]Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
+
+
+--------------------------------------------------------------------------------
+
+Datenschutzrichtlinien und Nutzungsbedingungen [${legal}] · Missbrauch melden
+[${misuse}]
+${copyright}. ALLE RECHTE VORBEHALTEN.
