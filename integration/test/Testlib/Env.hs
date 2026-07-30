@@ -171,11 +171,13 @@ mkEnv currentTestName ge = do
     pks <- newIORef (zip [1 ..] somePrekeys)
     lpks <- newIORef someLastPrekeys
     curlTrace <- newIORef []
+    reqId <- newIORef 0
     pure
       Env
         { serviceMap = gServiceMap ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
+          requestIdCounter = reqId,
           integrationTestHostName = gIntegrationTestHostName ge,
           federationV0Domain = gFederationV0Domain ge,
           federationV1Domain = gFederationV1Domain ge,
