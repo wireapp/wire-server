@@ -182,6 +182,7 @@ library
     Test.Migration.DomainRegistration
     Test.Migration.TeamFeatures
     Test.Migration.Util
+    Test.MixedConversationReproducer
     Test.MLS
     Test.MLS.Clients
     Test.MLS.History
