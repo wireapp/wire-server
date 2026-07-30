@@ -65,7 +65,7 @@ import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem (..))
 
 spec :: Spec
-spec = focus $ describe "ConversationSubsystem.Interpreter" do
+spec = describe "ConversationSubsystem.Interpreter" do
   prop "guardPreventAdminlessGroupsFor promotes an eligible member and emits a targeted update [legacy]" $
     \domain teamId convId leaving eligible1 eligible2 ->
       ioProperty $ do
