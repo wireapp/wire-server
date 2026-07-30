@@ -43,8 +43,9 @@ testAppsInternal = do
 testPatchApps :: (HasCallStack) => App ()
 testPatchApps = checkPatch OwnDomain "apps" disabled
 
--- | Disabling the apps feature for a team suspends all app users in that team.
--- Re-enabling it restores them to active.  Regular team members are unaffected.
+-- | Disabling the apps feature for a team suspends all app users in
+-- that team.  Re-enabling it does NOT restore them to active, since
+-- they may have been suspended for other reasons earlier.
 testAppsSuspendOnDisable :: (HasCallStack) => App ()
 testAppsSuspendOnDisable = do
   (owner, tid, [regularMember]) <- createTeam OwnDomain 2
@@ -84,9 +85,9 @@ testAppsSuspendOnDisable = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "active"
 
-  -- Re-enable the apps feature: app users should be active again
+  -- Re-enable the apps feature: app users must NOT be re-activated
   setFeature InternalAPI owner tid "apps" enabled >>= assertSuccess
 
   BrigI.getAccountStatus app `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "status" `shouldMatch` "active"
+    resp.json %. "status" `shouldMatch` "suspended"
