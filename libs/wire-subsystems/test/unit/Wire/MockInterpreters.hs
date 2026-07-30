@@ -27,6 +27,7 @@ import Wire.MockInterpreters.BackgroundJobPublisher as MockInterpreters
 import Wire.MockInterpreters.BlockListStore as MockInterpreters
 import Wire.MockInterpreters.ClientStore as MockInterpreters
 import Wire.MockInterpreters.ConversationSubsystem as MockInterpreters
+import Wire.MockInterpreters.ConversationStore as MockInterpreters
 import Wire.MockInterpreters.CryptoSign as MockInterpreters
 import Wire.MockInterpreters.DomainRegistrationStore as MockInterpreters
 import Wire.MockInterpreters.DomainVerificationChallengeStore as MockInterpreters

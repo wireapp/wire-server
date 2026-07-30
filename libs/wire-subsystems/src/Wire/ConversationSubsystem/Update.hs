@@ -54,6 +54,8 @@ module Wire.ConversationSubsystem.Update
     updateOtherMember,
     eligibleAdminFallbackMembers,
     isLeavingLastConversationAdmin,
+    guardPreventAdminlessGroups,
+    guardPreventAdminlessGroupsFor,
     removeMemberQualified,
     deleteUserFromTeamConversationsImpl,
     removeMemberFromLocalConv,

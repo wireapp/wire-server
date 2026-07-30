@@ -17,41 +17,48 @@
 
 module Wire.ConversationSubsystem.InterpreterSpec (spec) where
 
+import Data.Aeson qualified as A
 import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified
+import Data.Set qualified as Set
 import Data.Tagged (Tagged)
 import Data.UUID qualified as UUID
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.State
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Arbitrary (..), Gen, arbitrary, chooseInt, counterexample, generate, ioProperty, vectorOf, (===))
+import Test.QuickCheck (Arbitrary (..), Gen, Property, arbitrary, chooseInt, conjoin, counterexample, generate, ioProperty, vectorOf, (===))
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol (ConversationMLSData (..), Protocol (..))
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.Error.Galley (AdminlessConversation (..), GalleyError (..))
+import Wire.API.Event.Conversation (Event (..), EventData (..), MemberUpdateData (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error (FederationError)
-import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), LockStatus (..), LockableFeature (..), PreventAdminlessGroupsConfig, npProject, npUpdate)
-import Wire.API.User (AccountStatus (..), User (..), UserType (..), userId)
+import Wire.API.Team.Feature
+import Wire.API.User
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.ConversationStore (ConversationStore (..))
 import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
-import Wire.ConversationSubsystem.Update (removeMemberQualified)
+import Wire.ConversationSubsystem.Update (guardPreventAdminlessGroupsFor, removeMemberQualified)
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem (..))
 import Wire.FederationAPIAccess (FederationAPIAccess (..))
 import Wire.JobSubsystem (JobSubsystem (..))
+import Wire.MockInterpreters.ConversationStore (inMemoryConversationStoreInterpreter)
+import Wire.MockInterpreters.NotificationSubsystem (inMemoryNotificationSubsystemInterpreter)
 import Wire.MockInterpreters.Now (defaultTime, interpretNowConst)
+import Wire.MockInterpreters.Random (runRandomPure)
 import Wire.MockInterpreters.TinyLog (noopLogger)
-import Wire.NotificationSubsystem (NotificationSubsystem (..))
+import Wire.NotificationSubsystem (NotificationSubsystem (..), Push (..))
 import Wire.ProposalStore (ProposalStore (..))
 import Wire.Sem.Random (Random (..))
 import Wire.StoredConversation
@@ -59,6 +66,48 @@ import Wire.TeamSubsystem (TeamSubsystem (..))
 
 spec :: Spec
 spec = describe "ConversationSubsystem.Interpreter" do
+  prop "guardPreventAdminlessGroupsFor promotes an eligible member and emits a targeted update" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        user1 <- mkUserWithName "Alice" domain UserTypeRegular eligible1
+        user2 <- mkUserWithName "Bob" domain UserTypeRegular eligible2
+        let users = [user1, user2]
+            lusr = toLocalUnsafe domain leaving
+            lcnv = toLocalUnsafe domain convId
+            qvictim = Qualified leaving domain
+            localMembers =
+              [ newMemberWithRole (leaving, roleNameWireAdmin),
+                newMemberWithRole (eligible1, roleNameWireMember),
+                newMemberWithRole (eligible2, roleNameWireMember)
+              ]
+            conv =
+              StoredConversation
+                { id_ = convId,
+                  localMembers = localMembers,
+                  remoteMembers = [],
+                  metadata = (defConversationMetadata (Just leaving)) {cnvmTeam = Just teamId},
+                  protocol = ProtocolMLS (ConversationMLSData (GroupId "mock-group-id") Nothing)
+                }
+            features = npUpdate @PreventAdminlessGroupsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+            expectedTarget = Qualified eligible1 domain
+            (pushes, (updatedTargets, result)) =
+              runAdminlessGroupsTest users features (Map.singleton convId conv) $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  lcnv
+                  lusr
+                  (Set.singleton qvictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Right _ ->
+              conjoin
+                [ updatedTargets === [expectedTarget],
+                  assertMemberUpdatePush expectedTarget pushes
+                ]
+
   prop "removeMemberQualified returns adminless-conversation error" $
     \convDomain
      teamId
@@ -133,6 +182,30 @@ spec = describe "ConversationSubsystem.Interpreter" do
                 err === AdminlessConversation {eligibleMembers = expectedEligible}
               Right _ ->
                 counterexample ("expected adminless-conversation, got " <> show result) False
+  where
+    runAdminlessGroupsTest users features conversations testCode =
+      run
+        . runState @[Push] []
+        . runState @[Qualified UserId] []
+        . runError @AdminlessConversation
+        . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
+        . runError @(Tagged 'ConvMemberNotFound ())
+        . runError @(Tagged 'ConvNotFound ())
+        . runError @(Tagged 'InvalidOperation ())
+        . runError @FederationError
+        . inMemoryConversationStoreInterpreter conversations
+        . interpretBrig users
+        . interpretFeatures features
+        . interpretBackendNotificationQueueAccess
+        . interpretFederation
+        . interpretExternalAccess
+        . inMemoryNotificationSubsystemInterpreter
+        . interpretTeamSubsystem
+        . interpretJobSubsystem
+        . interpretNowConst defaultTime
+        . runRandomPure
+        . noopLogger
+        $ testCode
 
 data MemberInputs = MemberInputs
   { localUserIds :: [UserId],
@@ -167,6 +240,19 @@ instance Arbitrary MemberInputs where
             | (dom, uid) <- zip remoteDomains remotePool
             ]
         }
+
+assertMemberUpdatePush :: Qualified UserId -> [Push] -> Property
+assertMemberUpdatePush expectedTarget = \case
+  [push] ->
+    case A.fromJSON @(Event) (A.Object push.json) of
+      A.Success Event {evtData = EdMemberUpdate update} ->
+        conjoin
+          [ update.misTarget === expectedTarget,
+            update.misConvRoleName === Just roleNameWireAdmin
+          ]
+      A.Success event -> counterexample ("unexpected event: " <> show event) False
+      A.Error err -> counterexample ("failed to decode push: " <> err) False
+  pushes -> counterexample ("expected one push, got: " <> show pushes) False
 
 -- Build one lazy infinite pool of distinct IDs and slice it into categories.
 -- Using position in the stream, rather than per-category prefixes, makes the
@@ -242,6 +328,8 @@ interpretBackendNotificationQueueAccess ::
   Sem r a
 interpretBackendNotificationQueueAccess =
   interpret $ \case
+    EnqueueNotificationsConcurrently _ remotes _ ->
+      if null remotes then pure (Right []) else error "unexpected remote notification in guard test"
     _ -> error "unexpected BackendNotificationQueueAccess call in test"
 
 interpretProposalStore ::
@@ -260,6 +348,7 @@ interpretTeamSubsystem ::
   Sem r a
 interpretTeamSubsystem =
   interpret $ \case
+    InternalGetTeamMember _ _ -> pure Nothing
     _ -> error "unexpected TeamSubsystem call in test"
 
 interpretJobSubsystem ::
@@ -300,4 +389,16 @@ mkUser domain utype uid = do
         userType = utype,
         userStatus = Active,
         userService = Nothing
+      }
+
+mkUserWithName :: Text -> Domain -> UserType -> UserId -> IO User
+mkUserWithName name domain utype uid = do
+  base <- generate arbitrary
+  pure
+    base
+      { userQualifiedId = Qualified uid domain,
+        userType = utype,
+        userStatus = Active,
+        userService = Nothing,
+        userDisplayName = Name name
       }
