@@ -713,6 +713,7 @@ test-suite wire-api-tests
     Paths_wire_api
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
+    Test.Wire.API.Message
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
     Test.Wire.API.OAuth

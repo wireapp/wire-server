@@ -56,6 +56,10 @@ module Wire.API.Message
     UserClients (..),
     ReportMissing (..),
     IgnoreMissing (..),
+
+    -- * Only exported for tests
+    parseMap,
+    parseMapMerge,
   )
 where
 
