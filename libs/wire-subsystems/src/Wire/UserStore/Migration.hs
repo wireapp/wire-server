@@ -13,7 +13,7 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Misc
 import Data.Time
 import Database.CQL.Protocol (Record (..), TupleType)
-import Hasql.Pool
+import Hasql.Pool.Extended
 import Hasql.Statement qualified as Hasql
 import Hasql.TH (resultlessStatement)
 import Hasql.Transaction qualified as Transaction
