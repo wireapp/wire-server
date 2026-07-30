@@ -26,6 +26,7 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import qualified API.Nginz as Nginz
 import API.Spar
 import API.SparInternal
+import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -51,6 +52,85 @@ import qualified Time.System as Hourglass
 
 ----------------------------------------------------------------------
 -- scim stuff
+
+testScimInvitationThenManualInvitationNoSaml :: (HasCallStack) => App ()
+testScimInvitationThenManualInvitationNoSaml = withModifiedBackend scimInvitationTestOverrides $ \testDomain -> do
+  (owner, _tid, _) <- createTeam testDomain 1
+  token <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  (email, scid) <- createScimInvitationUser testDomain token
+  -- This test backend uses a 2-second invitation TTL. Cross that boundary,
+  -- then immediately send the manual invitation before cleanup can run.
+  liftIO $ threadDelay 2_100_000
+  iid <- acceptManualInvitation testDomain owner email
+  users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
+  case users of
+    [_] -> pure ()
+    [user1, user2] -> do
+      email1 <- user1 %. "email" >>= asString
+      email2 <- user2 %. "email" >>= asString
+      when (email1 == email2) $ do
+        id1 <- user1 %. "id" >>= asString
+        id2 <- user2 %. "id" >>= asString
+        id1 `shouldMatch` id2
+    _ -> fail "more than 2 users not expected"
+
+testScimInvitationThenManualInvitationSamlEmailValidation :: (HasCallStack) => App ()
+testScimInvitationThenManualInvitationSamlEmailValidation = withModifiedBackend scimInvitationTestOverrides $ \testDomain -> do
+  (owner, tid, _) <- createTeam testDomain 1
+  token <- createSamlScimToken owner tid True
+  (email, scid) <- createScimInvitationUser testDomain token
+  iid <- acceptManualInvitation testDomain owner email
+  users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
+  case users of
+    [_] -> pure ()
+    [user1, user2] -> do
+      email1 <- user1 %. "email" >>= asString
+      email2 <- user2 %. "email" >>= asString
+      when (email1 == email2) $ do
+        id1 <- user1 %. "id" >>= asString
+        id2 <- user2 %. "id" >>= asString
+        id1 `shouldMatch` id2
+    _ -> fail "more than 2 users not expected"
+
+testScimInvitationThenManualInvitationSamlEmailAutoActivation :: (HasCallStack) => App ()
+testScimInvitationThenManualInvitationSamlEmailAutoActivation = withModifiedBackend scimInvitationTestOverrides $ \testDomain -> do
+  (owner, tid, _) <- createTeam testDomain 1
+  token <- createSamlScimToken owner tid False
+  (email, _) <- createScimInvitationUser testDomain token
+  -- account is auto activated so the team invitation is not possible
+  postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+scimInvitationTestOverrides :: ServiceOverrides
+scimInvitationTestOverrides =
+  def
+    { brigCfg =
+        setField "optSettings.setTeamInvitationTimeout" (2 :: Int)
+          . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
+    }
+
+createSamlScimToken :: (HasCallStack, MakesValue user) => user -> String -> Bool -> App String
+createSamlScimToken user team validateEmails = do
+  assertSuccess =<< setTeamFeatureStatus user team "sso" "enabled"
+  assertSuccess =<< setTeamFeatureStatus user team "validateSAMLemails" (if validateEmails then "enabled" else "disabled")
+  (idp, _) <- registerTestIdPWithMetaWithPrivateCreds user
+  idpId <- asString $ idp.json %. "id"
+  createScimToken user (def {idp = Just idpId}) >>= getJSON 200 >>= (%. "token") >>= asString
+
+createScimInvitationUser :: (HasCallStack, MakesValue domain) => domain -> String -> App (String, String)
+createScimInvitationUser testDomain token = do
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scimUserId <- createScimUser testDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  pure (email, scimUserId)
+
+acceptManualInvitation :: (HasCallStack, MakesValue domain, MakesValue user) => domain -> user -> String -> App String
+acceptManualInvitation testDomain inviter email = do
+  invitation <- postInvitation inviter (def {email = Just email}) >>= getJSON 201
+  invitationId <- invitation %. "id" >>= asString
+  code <- getInvitationCode inviter invitation >>= getJSON 200 >>= (%. "code") >>= asString
+  registerUserWith testDomain email code "Alice" >>= assertStatus 201
+  pure invitationId
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
