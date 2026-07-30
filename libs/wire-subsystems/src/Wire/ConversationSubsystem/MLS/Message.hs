@@ -408,7 +408,7 @@ notifyNewMeetingMembers ::
 notifyNewMeetingMembers qUser before after =
   case (tUnqualified before, tUnqualified after) of
     (Conv beforeConv, Conv afterConv)
-      | afterConv.mcMetadata.cnvmGroupConvType == Just MeetingConversation -> do
+      | isMeetingConv afterConv -> do
           let beforeUsers = Set.fromList (map (.id_) beforeConv.mcLocalMembers)
               afterUsers = Set.fromList (map (.id_) afterConv.mcLocalMembers)
               addedUsers = newLocalMeetingMembers beforeUsers afterUsers
@@ -419,6 +419,11 @@ notifyNewMeetingMembers qUser before after =
               afterConv.mcMetadata.cnvmTeam
               addedUsers
     _ -> pure ()
+  where
+    isMeetingConv conv =
+      conv.mcMetadata.cnvmGroupConvType == Just MeetingConversation
+    newLocalMeetingMembers prev curr =
+      Set.toList (Set.difference curr prev)
 
 handleGroupInfoMismatch ::
   (Member (Error GroupInfoDiagnostics) r) =>

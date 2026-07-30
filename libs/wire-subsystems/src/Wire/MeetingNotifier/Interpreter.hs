@@ -21,7 +21,8 @@ module Wire.MeetingNotifier.Interpreter
 where
 
 import Data.ByteString.Conversion (toByteString')
-import Data.Qualified (Qualified (..), tDomain, tUnqualified)
+import Data.Id
+import Data.Qualified (Local, Qualified (..), tDomain, tUnqualified)
 import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
@@ -34,13 +35,9 @@ import Wire.MeetingsSubsystem.Notification
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation (LocalMember)
 
--- | Interpret 'MeetingNotifier'. Member-add notifications are delivered
--- fire-and-forget via 'pushNotificationAsync': we resolve each alive meeting
--- for the conversation and notify only the users added by the successful
--- membership commit, logging when no alive meeting is found. The
--- create/update/delete lifecycle events are delivered synchronously via
--- 'pushNotifications'.
+-- | Interpret 'MeetingNotifier'.
 interpretMeetingNotifier ::
   ( Member Store.MeetingsStore r,
     Member NotificationSubsystem r,
@@ -49,34 +46,65 @@ interpretMeetingNotifier ::
   ) =>
   InterpreterFor MeetingNotifier r
 interpretMeetingNotifier = interpret $ \case
-  NotifyMeetingMembersAdded qUser qConvId mTeamId users -> do
-    now <- Now.get
-    meetings <- Store.listMeetingsByConversation (qUnqualified qConvId) now
-    when (null meetings) $
-      TinyLog.warn $
-        Log.msg ("alive meeting not found for meeting member-add event" :: ByteString)
-          . Log.field "conversationId" (toByteString' (qUnqualified qConvId))
-    for_ meetings $ \meeting ->
-      pushNotificationAsync $
-        mkMeetingEventPush
-          now
-          qUser
-          Nothing
-          (map userRecipient users)
-          qConvId
-          mTeamId
-          MeetingEvent.MemberAdd
-          (Qualified meeting.id (qDomain qConvId))
-  NotifyMeetingEvent lUser conn members qConvId mTeamId meetingType qMeetingId -> do
-    now <- Now.get
-    pushNotifications
-      [ mkMeetingEventPush
-          now
-          (Qualified (tUnqualified lUser) (tDomain lUser))
-          conn
-          (map localMemberToRecipient members)
-          qConvId
-          mTeamId
-          meetingType
-          qMeetingId
-      ]
+  NotifyMeetingMembersAdded qUser qConvId mTeamId users ->
+    notifyMeetingMembersAddedImpl qUser qConvId mTeamId users
+  NotifyMeetingEvent lUser conn members qConvId mTeamId meetingType qMeetingId ->
+    notifyMeetingEventImpl lUser conn members qConvId mTeamId meetingType qMeetingId
+
+-- | Deliver @meeting.member-add@ notifications fire-and-forget via 'pushNotificationAsync'. Resolve each alive meeting for the conversation and notify only the users added by the successful membership commit, logging a warning when no alive meeting is found.
+notifyMeetingMembersAddedImpl ::
+  ( Member Store.MeetingsStore r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
+  Qualified UserId ->
+  Qualified ConvId ->
+  Maybe TeamId ->
+  [UserId] ->
+  Sem r ()
+notifyMeetingMembersAddedImpl qUser qConvId mTeamId users = do
+  now <- Now.get
+  meetings <- Store.listMeetingsByConversation (qUnqualified qConvId) now
+  when (null meetings) $
+    TinyLog.warn $
+      Log.msg ("alive meeting not found for meeting member-add event" :: ByteString)
+        . Log.field "conversationId" (toByteString' (qUnqualified qConvId))
+  for_ meetings $ \meeting ->
+    pushNotificationAsync $
+      mkMeetingEventPush
+        now
+        qUser
+        Nothing
+        (map userRecipient users)
+        qConvId
+        mTeamId
+        MeetingEvent.MemberAdd
+        (Qualified meeting.id (qDomain qConvId))
+
+-- | Deliver a create/update/delete lifecycle event synchronously via 'pushNotifications'.
+notifyMeetingEventImpl ::
+  ( Member NotificationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  [LocalMember] ->
+  Qualified ConvId ->
+  Maybe TeamId ->
+  MeetingEvent.EventType ->
+  Qualified MeetingId ->
+  Sem r ()
+notifyMeetingEventImpl lUser conn members qConvId mTeamId meetingType qMeetingId = do
+  now <- Now.get
+  pushNotifications
+    [ mkMeetingEventPush
+        now
+        (Qualified (tUnqualified lUser) (tDomain lUser))
+        conn
+        (map localMemberToRecipient members)
+        qConvId
+        mTeamId
+        meetingType
+        qMeetingId
+    ]

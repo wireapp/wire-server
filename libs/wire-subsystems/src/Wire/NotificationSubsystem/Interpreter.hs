@@ -91,9 +91,9 @@ pushAsyncImpl ::
   ) =>
   Push ->
   Sem r (Async (Maybe ()))
-pushAsyncImpl p = async $ pushBestEffortImpl p
+pushAsyncImpl p = async $ pushBestEffort p
 
-pushBestEffortImpl ::
+pushBestEffort ::
   forall r.
   ( Member GundeckAPIAccess r,
     Member (Input NotificationSubsystemConfig) r,
@@ -103,7 +103,7 @@ pushBestEffortImpl ::
   ) =>
   Push ->
   Sem r ()
-pushBestEffortImpl p = do
+pushBestEffort p = do
   reqId <- inputs requestId
   errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl [p]) >>= \case
     Left e ->

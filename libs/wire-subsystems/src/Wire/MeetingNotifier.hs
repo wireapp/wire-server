@@ -21,31 +21,30 @@ module Wire.MeetingNotifier
   ( MeetingNotifier (NotifyMeetingMembersAdded, NotifyMeetingEvent),
     notifyMeetingMembersAdded,
     notifyMeetingEvent,
-    newLocalMeetingMembers,
-    discardMeetingNotifier,
   )
 where
 
 import Data.Id
 import Data.Qualified (Local, Qualified)
-import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.StoredConversation (LocalMember)
 
--- | Seam for all meeting notifications. 'NotifyMeetingMembersAdded' covers the
--- post-commit member-add hook (delivered fire-and-forget), while
--- 'NotifyMeetingEvent' covers the create/update/delete lifecycle events
--- (delivered synchronously). Routing both through one effect avoids a
--- dependency from the conversation subsystem onto the meetings subsystem.
+-- | Interface for all meeting notifications. Routing both the post-commit
+-- member-add hook and the create/update/delete lifecycle events through one
+-- effect avoids a dependency from the conversation subsystem onto the meetings
+-- subsystem.
 data MeetingNotifier m a where
+  -- | Post-commit member-add hook: notify the users added by a successful
+  -- membership commit to a meeting conversation. Delivered fire-and-forget.
   NotifyMeetingMembersAdded ::
     Qualified UserId ->
     Qualified ConvId ->
     Maybe TeamId ->
     [UserId] ->
     MeetingNotifier m ()
+  -- | Create/update/delete lifecycle event. Delivered synchronously.
   NotifyMeetingEvent ::
     Local UserId ->
     Maybe ConnId ->
@@ -57,19 +56,3 @@ data MeetingNotifier m a where
     MeetingNotifier m ()
 
 makeSem ''MeetingNotifier
-
--- | Find users who were absent before the commit, are present afterwards, and
--- belong to the local backend. Adding another client for an existing user does
--- not change either membership set and therefore produces no result.
-newLocalMeetingMembers ::
-  Set UserId ->
-  Set UserId ->
-  [UserId]
-newLocalMeetingMembers before after =
-  Set.toList (Set.difference after before)
-
--- | Interpreter for runtimes which expose no meeting write endpoints.
-discardMeetingNotifier :: InterpreterFor MeetingNotifier r
-discardMeetingNotifier = interpret $ \case
-  NotifyMeetingMembersAdded {} -> pure ()
-  NotifyMeetingEvent {} -> pure ()

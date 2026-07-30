@@ -386,6 +386,7 @@ library
     Wire.ListItems.Team.Cassandra
     Wire.MeetingNotifier
     Wire.MeetingNotifier.Interpreter
+    Wire.MeetingNotifier.NoOpInterpreter
     Wire.MeetingsStore
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem

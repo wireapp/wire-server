@@ -236,7 +236,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       map fst logs `shouldBe` [Error]
       cs (head (map snd logs)) `shouldContain` "error=TestException"
 
-  describe "pushBestEffortImpl" do
+  describe "pushBestEffort" do
     it "logs errors without failing the caller" do
       let mockConfig =
             NotificationSubsystemConfig
@@ -258,7 +258,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               }
       (_, attemptedPushes, logs) <-
         runMiniStackAsync mockConfig $
-          pushBestEffortImpl push1
+          pushBestEffort push1
 
       attemptedPushes `shouldBe` [[toV2Push push1]]
       map fst logs `shouldBe` [Error]

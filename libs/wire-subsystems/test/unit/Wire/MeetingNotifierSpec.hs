@@ -23,7 +23,6 @@ import Data.Domain (Domain (..))
 import Data.Id
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
-import Data.Set qualified as Set
 import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock (UTCTime (..), addUTCTime)
 import Imports
@@ -42,25 +41,6 @@ import Wire.Sem.Now (Now)
 
 spec :: Spec
 spec = do
-  describe "newLocalMeetingMembers" $ do
-    it "returns only users absent from the previous local membership set" $ do
-      let existingUser = Id $ read "00000000-0000-0000-0000-000000000001"
-          newLocalUser = Id $ read "00000000-0000-0000-0000-000000000002"
-          beforeSet = Set.singleton existingUser
-          afterSet =
-            Set.fromList
-              [ existingUser,
-                newLocalUser
-              ]
-
-      newLocalMeetingMembers beforeSet afterSet `shouldBe` [newLocalUser]
-
-    it "returns no users when only client membership changes" $ do
-      let existingUser = Id $ read "00000000-0000-0000-0000-000000000001"
-          members = Set.singleton existingUser
-
-      newLocalMeetingMembers members members `shouldBe` []
-
   describe "interpretMeetingNotifier" $ do
     it "pushes a member-add event for each alive meeting" $ do
       let now = UTCTime (ModifiedJulianDay 60000) 0
@@ -70,6 +50,15 @@ spec = do
           meetingId = Id $ read "00000000-0000-0000-0000-000000000004"
           domain = Domain "local.example.com"
           meeting = storedMeeting meetingId convId now (addUTCTime 60 now)
+          expectedEvent =
+            MeetingEvent.Event
+              { evtType = MeetingEvent.MemberAdd,
+                evtMeeting = Qualified meetingId domain,
+                evtConv = Qualified convId domain,
+                evtFrom = MeetingEvent.EventFromUser (Qualified actor domain),
+                evtTime = now,
+                evtTeam = Nothing
+              }
 
       pushes <-
         runMemberAdded now [meeting] $
@@ -84,10 +73,7 @@ spec = do
       push.recipients `shouldBe` [userRecipient addedUser]
       case fromJSON (Object push.json) :: Result MeetingEvent.Event of
         Error err -> expectationFailure err
-        Success event -> do
-          event.evtType `shouldBe` MeetingEvent.MemberAdd
-          event.evtMeeting `shouldBe` Qualified meetingId domain
-          event.evtConv `shouldBe` Qualified convId domain
+        Success event -> event `shouldBe` expectedEvent
 
     it "does not push when no alive meeting exists" $ do
       let now = UTCTime (ModifiedJulianDay 60000) 0
@@ -98,6 +84,26 @@ spec = do
 
       pushes <-
         runMemberAdded now [] $
+          notifyMeetingMembersAdded
+            (Qualified actor domain)
+            (Qualified convId domain)
+            Nothing
+            [addedUser]
+
+      pushes `shouldBe` []
+
+    it "does not push when the alive meeting belongs to a different conversation" $ do
+      let now = UTCTime (ModifiedJulianDay 60000) 0
+          actor = Id $ read "00000000-0000-0000-0000-000000000001"
+          addedUser = Id $ read "00000000-0000-0000-0000-000000000002"
+          convId = Id $ read "00000000-0000-0000-0000-000000000003"
+          otherConvId = Id $ read "00000000-0000-0000-0000-000000000005"
+          meetingId = Id $ read "00000000-0000-0000-0000-000000000004"
+          domain = Domain "local.example.com"
+          meeting = storedMeeting meetingId otherConvId now (addUTCTime 60 now)
+
+      pushes <-
+        runMemberAdded now [meeting] $
           notifyMeetingMembersAdded
             (Qualified actor domain)
             (Qualified convId domain)
@@ -141,7 +147,8 @@ interpretMeetingsStore ::
   [Store.StoredMeeting] ->
   InterpreterFor Store.MeetingsStore r
 interpretMeetingsStore meetings = interpret $ \case
-  Store.ListMeetingsByConversation _ _ -> pure meetings
+  Store.ListMeetingsByConversation convId _ ->
+    pure (filter ((== convId) . Store.conversationId) meetings)
   _ -> error "unexpected meetings store operation"
 
 storedMeeting ::

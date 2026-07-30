@@ -30,7 +30,7 @@ import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.NotificationSubsystem
 
--- | Build the common push envelope used by all meeting lifecycle events.
+-- | Build the common push event structure used by all meeting lifecycle events.
 mkMeetingEventPush ::
   UTCTime ->
   Qualified UserId ->
