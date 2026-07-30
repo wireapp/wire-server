@@ -71,7 +71,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
       ioProperty $ do
         fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
         let expectedTarget = head fx.fixtureEligibleMembers
-            (pushes, (updatedTargets, result)) =
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
               runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures fx.fixtureConversations $
                 guardPreventAdminlessGroupsFor
                   RemoveMemberLegacyResponse
@@ -86,6 +86,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
             Right _ ->
               conjoin
                 [ updatedTargets === [expectedTarget],
+                  scheduledJobs === [],
                   assertMemberUpdatePush expectedTarget pushes
                 ]
 
@@ -102,7 +103,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
                 )
                 def
             expectedTargets = fx.fixtureEligibleMembers
-            (pushes, (updatedTargets, result)) =
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
               runAdminlessGroupsTest fx.fixtureUsers features fx.fixtureConversations $
                 guardPreventAdminlessGroupsFor
                   RemoveMemberLegacyResponse
@@ -117,6 +118,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
             Right _ ->
               conjoin
                 [ Set.fromList updatedTargets === Set.fromList expectedTargets,
+                  scheduledJobs === [],
                   assertMemberUpdatePushes expectedTargets pushes
                 ]
 
@@ -125,7 +127,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
       ioProperty $ do
         fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
         let expectedEligible = fx.fixtureEligibleMembers
-            (pushes, (updatedTargets, result)) =
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
               runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures fx.fixtureConversations $
                 guardPreventAdminlessGroupsFor
                   RemoveMemberEligibleMembersResponse
@@ -140,6 +142,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
               conjoin
                 [ err === AdminlessConversation {eligibleMembers = expectedEligible},
                   updatedTargets === [],
+                  scheduledJobs === [],
                   length pushes === 0
                 ]
             Right _ -> counterexample "expected adminless-conversation error" False
@@ -154,7 +157,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
                 (\conv -> conv {localMembers = [newMemberWithRole (leaving, roleNameWireAdmin)]})
                 convId
                 fx.fixtureConversations
-            (pushes, (updatedTargets, result)) =
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
               runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
                 guardPreventAdminlessGroupsFor
                   RemoveMemberEligibleMembersResponse
@@ -169,9 +172,45 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
               conjoin
                 [ err === AdminlessConversation {eligibleMembers = [newlyAdded]},
                   updatedTargets === [],
+                  scheduledJobs === [],
                   length pushes === 0
                 ]
             Right _ -> counterexample "expected adminless-conversation error" False
+
+  prop "guardPreventAdminlessGroupsFor schedules deletion when no eligible members exist" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let users =
+              [ user {userType = UserTypeApp}
+              | user <- fx.fixtureUsers
+              ]
+            features =
+              npUpdate @PreventAdminlessGroupsConfig
+                ( LockableFeature
+                    FeatureStatusEnabled
+                    LockStatusUnlocked
+                    ((def :: PreventAdminlessGroupsConfig) {reminderTimeouts = []})
+                )
+                def
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest users features fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Right _ ->
+              conjoin
+                [ updatedTargets === [],
+                  length pushes === 0,
+                  scheduledJobs === [ScheduledAdminlessDeletion]
+                ]
 
   prop "removeMemberQualified returns adminless-conversation error" $
     \convDomain
@@ -212,6 +251,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
                 ]
               result =
                 run
+                  . runState @[ScheduledAdminlessJob] []
                   . runError @AdminlessConversation
                   . runError @(Tagged ('ActionDenied 'RemoveConversationMember) ())
                   . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
@@ -242,7 +282,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
                   . noopLogger
                   $ removeMemberQualified RemoveMemberEligibleMembersResponse lusr connId qcnv qvictim
           pure $
-            case result of
+            case snd result of
               Left err ->
                 err === AdminlessConversation {eligibleMembers = expectedEligible}
               Right _ ->
@@ -252,6 +292,7 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
       run
         . runState @[Push] []
         . runState @[Qualified UserId] []
+        . runState @[ScheduledAdminlessJob] []
         . runError @AdminlessConversation
         . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
         . runError @(Tagged 'ConvMemberNotFound ())
@@ -460,7 +501,13 @@ interpretTeamSubsystem =
     InternalGetTeamMember _ _ -> pure Nothing
     _ -> error "unexpected TeamSubsystem call in test"
 
+data ScheduledAdminlessJob
+  = ScheduledAdminlessDeletion
+  | ScheduledAdminlessReminder
+  deriving stock (Eq, Show)
+
 interpretJobSubsystem ::
+  (Member (State [ScheduledAdminlessJob]) r) =>
   Sem (JobSubsystem ': r) a ->
   Sem r a
 interpretJobSubsystem =
@@ -468,9 +515,9 @@ interpretJobSubsystem =
     ScheduleAdminlessSetupJob {} ->
       pure ()
     ScheduleAdminlessDeletionJob {} ->
-      pure ()
+      modify @[ScheduledAdminlessJob] (<> [ScheduledAdminlessDeletion])
     ScheduleAdminlessReminderJob {} ->
-      pure ()
+      modify @[ScheduledAdminlessJob] (<> [ScheduledAdminlessReminder])
     CancelAdminlessJobsForTeam {} ->
       pure ()
 
