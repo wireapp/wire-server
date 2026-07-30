@@ -215,6 +215,36 @@ testAdminlessSetupSystemMemberUpdate = do
       resp.status `shouldMatchInt` 200
       resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
 
+testAdminlessSetupMemberUpdateAfterAdminLeaves :: (HasCallStack) => App ()
+testAdminlessSetupMemberUpdateAfterAdminLeaves = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+  conv <-
+    postConversation
+      alice
+      (defProteus {team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"})
+      >>= getJSON 201
+
+  -- Alice leaves while the feature is disabled. Enabling the feature through
+  -- the public endpoint then reconciles the now-adminless conversation
+  bindResponse (removeMember alice conv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  withWebSockets [bob] $ \[wsBob] -> do
+    setTeamFeatureConfigVersioned (ExplicitVersion 17) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "10s" []) >>= assertSuccess
+
+    notif <- awaitMatchFor 20 isMemberUpdateNotif wsBob
+    notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    notif %. "payload.0.data.qualified_target" `shouldMatch` objQidObject bob
+    notif %. "payload.0.data.conversation_role" `shouldMatch` "wire_admin"
+
+    bindResponse (getConversation bob conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+
 testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
 testAdminlessJobsCancelledOnFeatureDisable = do
   (alice, tid, _) <- createTeam OwnDomain 1
