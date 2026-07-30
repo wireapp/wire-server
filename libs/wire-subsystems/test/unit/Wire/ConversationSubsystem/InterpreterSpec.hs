@@ -237,14 +237,14 @@ spec = focus $ describe "ConversationSubsystem.Interpreter" do
         fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
         let conversations =
               Map.adjust
-                (\conv ->
-                  conv
-                    { localMembers =
-                        [ newMemberWithRole (leaving, roleNameWireAdmin),
-                          newMemberWithRole (eligible1, roleNameWireAdmin),
-                          newMemberWithRole (eligible2, roleNameWireMember)
-                        ]
-                    }
+                ( \conv ->
+                    conv
+                      { localMembers =
+                          [ newMemberWithRole (leaving, roleNameWireAdmin),
+                            newMemberWithRole (eligible1, roleNameWireAdmin),
+                            newMemberWithRole (eligible2, roleNameWireMember)
+                          ]
+                      }
                 )
                 convId
                 fx.fixtureConversations

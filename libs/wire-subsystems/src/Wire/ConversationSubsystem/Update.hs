@@ -1273,7 +1273,6 @@ guardPreventAdminlessGroupsFor responseMode lcnv lusr victims addedAdmins addedM
   conv <- getConversationWithError lcnv
   when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
-    -- we cannot use the onAdminless helper here because this check happens _before_ removing the potential admin
     let victims' = Set.map qUnqualified victims
         removingLastAdmin =
           Set.null addedAdmins
@@ -1340,24 +1339,6 @@ scheduleDeletion lcnv mlusr tid feature = do
     timeoutToNominalDiffTime =
       realToFrac . duration . durationLiteralValue . preventAdminlessTimeoutLiteral
 
-onAdminless ::
-  ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member BrigAPIAccess r,
-    Member FeaturesConfigSubsystem r
-  ) =>
-  Local ConvId ->
-  (StoredConversation -> LockableFeature PreventAdminlessGroupsConfig -> [(Qualified UserId, User.Name)] -> Sem r ()) ->
-  Sem r ()
-onAdminless lcnv action = do
-  conv <- getConversationWithError lcnv
-  when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
-    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
-    let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
-    when (feature.status == FeatureStatusEnabled && not adminExists) $ do
-      eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
-      action conv feature eligibleMembers
-
 adminlessTryAutopromote ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1375,39 +1356,44 @@ adminlessTryAutopromote ::
   (StoredConversation -> LockableFeature PreventAdminlessGroupsConfig -> [(Qualified UserId, User.Name)] -> Sem r ()) ->
   Sem r ()
 adminlessTryAutopromote mlusr lcnv altAction = do
-  onAdminless lcnv $ \conv feature eligibleMembers -> do
-    case eligibleMembers of
-      x : xs -> do
-        seed <- randomWord64
-        let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
-            update = OtherMemberUpdate (Just roleNameWireAdmin)
-        for_ autopromotionCandidates $ \candidate -> do
-          E.setOtherMember lcnv candidate update
-          case mlusr of
-            Just lusr ->
-              void $
-                sendConversationActionNotifications
-                  (sing @'ConversationMemberUpdateTag)
-                  (tUntagged lusr)
-                  False
-                  Nothing
-                  (qualifyAs lcnv conv)
-                  (convBotsAndMembers conv)
-                  (ConversationMemberUpdate candidate update)
-                  def
-            Nothing -> do
-              now <- Now.get
-              Notify.pushSystemEvent
-                Nothing
-                ( SystemEvent
-                    (tUntagged lcnv)
+  conv <- getConversationWithError lcnv
+  when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
+    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
+    when (feature.status == FeatureStatusEnabled && not adminExists) $ do
+      eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
+      case eligibleMembers of
+        x : xs -> do
+          seed <- randomWord64
+          let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
+              update = OtherMemberUpdate (Just roleNameWireAdmin)
+          for_ autopromotionCandidates $ \candidate -> do
+            E.setOtherMember lcnv candidate update
+            case mlusr of
+              Just lusr ->
+                void $
+                  sendConversationActionNotifications
+                    (sing @'ConversationMemberUpdateTag)
+                    (tUntagged lusr)
+                    False
                     Nothing
-                    now
-                    conv.metadata.cnvmTeam
-                    (EdSystemMemberUpdate (memberUpdateData candidate update))
-                )
-                (Set.fromList (map (.id_) conv.localMembers))
-      [] -> altAction conv feature eligibleMembers
+                    (qualifyAs lcnv conv)
+                    (convBotsAndMembers conv)
+                    (ConversationMemberUpdate candidate update)
+                    def
+              Nothing -> do
+                now <- Now.get
+                Notify.pushSystemEvent
+                  Nothing
+                  ( SystemEvent
+                      (tUntagged lcnv)
+                      Nothing
+                      now
+                      conv.metadata.cnvmTeam
+                      (EdSystemMemberUpdate (memberUpdateData candidate update))
+                  )
+                  (Set.fromList (map (.id_) conv.localMembers))
+        [] -> altAction conv feature eligibleMembers
   where
     memberUpdateData candidate memberUpdate' =
       MemberUpdateData
