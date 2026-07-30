@@ -276,6 +276,7 @@ accountAPI =
     :<|> Named @"iPutUserStatus" changeAccountStatusH
     :<|> Named @"iGetUserStatus" getAccountStatusH
     :<|> Named @"iGetUsersByVariousKeys" listActivatedAccountsH
+    :<|> Named @"iGetUsersRaw" listUsersRawH
     :<|> Named @"iGetUserContacts" getContactListH
     :<|> Named @"iGetUserActivationCode" getActivationCode
     :<|> Named @"iGetUserPasswordResetCode" getPasswordResetCodeH
@@ -761,6 +762,36 @@ listActivatedAccountsH
                 getByHandle = handles
               }
       pure $ filter (\u -> u.userStatus /= Deleted) $ others <> byEmails
+
+-- | Diagnostic lookup of user records without the normal status, identity, or expired-invitation filtering.
+listUsersRawH ::
+  ( Member (Input (Local ())) r,
+    Member UserSubsystem r
+  ) =>
+  Maybe (CommaSeparatedList UserId) ->
+  Maybe (CommaSeparatedList Handle) ->
+  Maybe (CommaSeparatedList EmailAddress) ->
+  Handler r [User]
+listUsersRawH
+  (maybe [] fromCommaSeparatedList -> uids)
+  (maybe [] fromCommaSeparatedList -> handles)
+  (maybe [] fromCommaSeparatedList -> emails) = do
+    when (length uids + length handles + length emails == 0) $ do
+      throwStd (notFound "no user keys")
+    lift $ liftSem do
+      loc <- input
+      byEmails <- getAccountsByEmailNoFilter $ loc $> emails
+      ( getAccountsBy $
+          loc
+            $> def
+              { includePendingInvitations = WithPendingInvitations,
+                includeUsersWithExpiredInvitations = True,
+                includeUsersWithoutIdentity = True,
+                getByUserId = uids,
+                getByHandle = handles
+              }
+        )
+        <&> (<> byEmails)
 
 getActivationCode ::
   ( Member ActivationCodeStore r,
