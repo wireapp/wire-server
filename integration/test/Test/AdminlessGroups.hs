@@ -186,6 +186,86 @@ testAdminlessSetupOnFeatureEnable = do
     bindResponse (GalleyI.getConversation conv) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
+testAdminlessReplaceMembers :: (HasCallStack) => App ()
+testAdminlessReplaceMembers = do
+  testVersion 16 $ \alice bob conv version -> do
+    bobId <- bob %. "qualified_id"
+    -- V16 retains the legacy behavior and autopromotes the remaining eligible member.
+    bindResponse (replaceMembers alice conv def {users = [bobId], version = Just version}) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    bindResponse (getConversation bob conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+      members <- resp.json %. "members.others" & asList
+      shouldBeEmpty members
+
+  testVersion 17 $ \alice bob conv version -> do
+    bobId <- bob %. "qualified_id"
+    -- V17 rejects a replacement that would remove the last admin while leaving
+    -- only eligible non-admin members.
+    bindResponse (replaceMembers alice conv def {users = [bobId], version = Just version}) $ \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "adminless-conversation"
+      eligibleMembers <- resp.json %. "eligible_members" & asList
+      eligibleMembers `shouldMatchSet` [bobId]
+
+    -- The rejected replacement does not mutate membership: Bob is still a
+    -- member and Alice is still the admin.
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+      members <- resp.json %. "members.others" & asList
+      memberIds <- traverse (%. "qualified_id") members
+      memberIds `shouldMatchSet` [bobId]
+  where
+    testVersion version assertResult = do
+      (alice, tid, [bob]) <- createTeam OwnDomain 2
+      configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
+      conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"}) >>= getJSON 201
+      assertResult alice bob conv version
+
+testAdminlessReplaceMembersAddsAdmin :: (HasCallStack) => App ()
+testAdminlessReplaceMembersAddsAdmin = do
+  (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
+  conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"}) >>= getJSON 201
+  bobId <- bob %. "qualified_id"
+  charlieId <- charlie %. "qualified_id"
+
+  -- V17 accepts replacing the existing admin when the same request adds a new
+  -- admin, because the resulting conversation is not adminless.
+  bindResponse (replaceMembers alice conv def {users = [bobId, charlieId], role = Just "wire_admin", version = Just 17}) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (getConversation charlie conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+    members <- resp.json %. "members.others" & asList
+    memberIds <- traverse (%. "qualified_id") members
+    memberIds `shouldMatchSet` [bobId]
+
+testAdminlessReplaceMembersAddsEligibleMember :: (HasCallStack) => App ()
+testAdminlessReplaceMembersAddsEligibleMember = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
+  conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [], newUsersRole = "wire_member"}) >>= getJSON 201
+  bobId <- bob %. "qualified_id"
+
+  -- V17 rejects a replacement that removes the only admin even when the
+  -- eligible member is added by the same request.
+  bindResponse
+    (replaceMembers alice conv def {users = [bobId], role = Just "wire_member", version = Just 17})
+    $ \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "adminless-conversation"
+      eligibleMembers <- resp.json %. "eligible_members" & asList
+      eligibleMembers `shouldMatchSet` [bobId]
+
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+
 testAdminlessSetupSystemMemberUpdate :: (HasCallStack) => App ()
 testAdminlessSetupSystemMemberUpdate = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2

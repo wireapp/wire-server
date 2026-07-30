@@ -17,41 +17,48 @@
 
 module Wire.ConversationSubsystem.InterpreterSpec (spec) where
 
+import Data.Aeson qualified as A
 import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified
+import Data.Set qualified as Set
 import Data.Tagged (Tagged)
 import Data.UUID qualified as UUID
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.State
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Arbitrary (..), Gen, arbitrary, chooseInt, counterexample, generate, ioProperty, vectorOf, (===))
+import Test.QuickCheck (Arbitrary (..), Gen, Property, arbitrary, chooseInt, conjoin, counterexample, generate, ioProperty, vectorOf, (===))
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol (ConversationMLSData (..), Protocol (..))
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.Error.Galley (AdminlessConversation (..), GalleyError (..))
+import Wire.API.Event.Conversation (Event (..), EventData (..), MemberUpdateData (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error (FederationError)
-import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), LockStatus (..), LockableFeature (..), PreventAdminlessGroupsConfig, npProject, npUpdate)
-import Wire.API.User (AccountStatus (..), User (..), UserType (..), userId)
+import Wire.API.Team.Feature
+import Wire.API.User
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.ConversationStore (ConversationStore (..))
 import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
-import Wire.ConversationSubsystem.Update (removeMemberQualified)
+import Wire.ConversationSubsystem.Update (guardPreventAdminlessGroupsFor, removeMemberQualified)
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem (..))
 import Wire.FederationAPIAccess (FederationAPIAccess (..))
 import Wire.JobSubsystem (JobSubsystem (..))
+import Wire.MockInterpreters.ConversationStore (inMemoryConversationStoreInterpreter)
+import Wire.MockInterpreters.NotificationSubsystem (inMemoryNotificationSubsystemInterpreter)
 import Wire.MockInterpreters.Now (defaultTime, interpretNowConst)
+import Wire.MockInterpreters.Random (runRandomPure)
 import Wire.MockInterpreters.TinyLog (noopLogger)
-import Wire.NotificationSubsystem (NotificationSubsystem (..))
+import Wire.NotificationSubsystem (NotificationSubsystem (..), Push (..))
 import Wire.ProposalStore (ProposalStore (..))
 import Wire.Sem.Random (Random (..))
 import Wire.StoredConversation
@@ -59,6 +66,253 @@ import Wire.TeamSubsystem (TeamSubsystem (..))
 
 spec :: Spec
 spec = describe "ConversationSubsystem.Interpreter" do
+  prop "guardPreventAdminlessGroupsFor promotes an eligible member and emits a targeted update [legacy]" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let expectedTarget = head fx.fixtureEligibleMembers
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Right _ ->
+              conjoin
+                [ updatedTargets === [expectedTarget],
+                  scheduledJobs === [],
+                  assertMemberUpdatePush expectedTarget pushes
+                ]
+
+  prop "guardPreventAdminlessGroupsFor promotes all eligible members [legacy]" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let features =
+              npUpdate @PreventAdminlessGroupsConfig
+                ( LockableFeature
+                    FeatureStatusEnabled
+                    LockStatusUnlocked
+                    ((def :: PreventAdminlessGroupsConfig) {promotionStrategy = PromotionStrategyAll})
+                )
+                def
+            expectedTargets = fx.fixtureEligibleMembers
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers features fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Right _ ->
+              conjoin
+                [ Set.fromList updatedTargets === Set.fromList expectedTargets,
+                  scheduledJobs === [],
+                  assertMemberUpdatePushes expectedTargets pushes
+                ]
+
+  prop "guardPreventAdminlessGroupsFor reports eligible members for the V17 response" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let expectedEligible = fx.fixtureEligibleMembers
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberEligibleMembersResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err ->
+              conjoin
+                [ err === AdminlessConversation {eligibleMembers = expectedEligible},
+                  updatedTargets === [],
+                  scheduledJobs === [],
+                  length pushes === 0
+                ]
+            Right _ -> counterexample "expected adminless-conversation error" False
+
+  prop "guardPreventAdminlessGroupsFor includes newly added eligible members in the V17 response" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let newlyAdded = head fx.fixtureEligibleMembers
+            conversations =
+              Map.adjust
+                (\conv -> conv {localMembers = [newMemberWithRole (leaving, roleNameWireAdmin)]})
+                convId
+                fx.fixtureConversations
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberEligibleMembersResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  (Set.singleton newlyAdded)
+        pure $
+          case result of
+            Left err ->
+              conjoin
+                [ err === AdminlessConversation {eligibleMembers = [newlyAdded]},
+                  updatedTargets === [],
+                  scheduledJobs === [],
+                  length pushes === 0
+                ]
+            Right _ -> counterexample "expected adminless-conversation error" False
+
+  prop "guardPreventAdminlessGroupsFor schedules deletion when no eligible members exist" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let users =
+              [ user {userType = UserTypeApp}
+              | user <- fx.fixtureUsers
+              ]
+            features =
+              npUpdate @PreventAdminlessGroupsConfig
+                ( LockableFeature
+                    FeatureStatusEnabled
+                    LockStatusUnlocked
+                    ((def :: PreventAdminlessGroupsConfig) {reminderTimeouts = []})
+                )
+                def
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest users features fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Right _ ->
+              conjoin
+                [ updatedTargets === [],
+                  length pushes === 0,
+                  scheduledJobs === [ScheduledAdminlessDeletion]
+                ]
+
+  prop "guardPreventAdminlessGroupsFor does nothing when the feature is disabled" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let features =
+              npUpdate @PreventAdminlessGroupsConfig
+                (LockableFeature FeatureStatusDisabled LockStatusUnlocked def)
+                def
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers features fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $ assertNoAdminlessAction pushes updatedTargets scheduledJobs result
+
+  prop "guardPreventAdminlessGroupsFor does nothing when another local admin remains" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let conversations =
+              Map.adjust
+                ( \conv ->
+                    conv
+                      { localMembers =
+                          [ newMemberWithRole (leaving, roleNameWireAdmin),
+                            newMemberWithRole (eligible1, roleNameWireAdmin),
+                            newMemberWithRole (eligible2, roleNameWireMember)
+                          ]
+                      }
+                )
+                convId
+                fx.fixtureConversations
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $ assertNoAdminlessAction pushes updatedTargets scheduledJobs result
+
+  prop "guardPreventAdminlessGroupsFor does nothing when a remote admin remains" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let remoteAdmin =
+              RemoteMember
+                { id_ = toRemoteUnsafe domain eligible1,
+                  convRoleName = roleNameWireAdmin
+                }
+            conversations =
+              Map.adjust (withRemoteMembers [remoteAdmin]) convId fx.fixtureConversations
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $ assertNoAdminlessAction pushes updatedTargets scheduledJobs result
+
+  prop "guardPreventAdminlessGroupsFor does nothing when an admin is being added" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures fx.fixtureConversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  (Set.singleton (head fx.fixtureEligibleMembers))
+                  Set.empty
+        pure $ assertNoAdminlessAction pushes updatedTargets scheduledJobs result
+
+  prop "guardPreventAdminlessGroupsFor ignores non-regular and channel conversations" $
+    \domain teamId convId leaving eligible1 eligible2 outOfScopeChannel ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let conversations =
+              Map.adjust (withOutOfScopeMetadata outOfScopeChannel) convId fx.fixtureConversations
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $ assertNoAdminlessAction pushes updatedTargets scheduledJobs result
+
   prop "removeMemberQualified returns adminless-conversation error" $
     \convDomain
      teamId
@@ -98,6 +352,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                 ]
               result =
                 run
+                  . runState @[ScheduledAdminlessJob] []
                   . runError @AdminlessConversation
                   . runError @(Tagged ('ActionDenied 'RemoveConversationMember) ())
                   . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
@@ -128,11 +383,73 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   . noopLogger
                   $ removeMemberQualified RemoveMemberEligibleMembersResponse lusr connId qcnv qvictim
           pure $
-            case result of
+            case snd result of
               Left err ->
                 err === AdminlessConversation {eligibleMembers = expectedEligible}
               Right _ ->
                 counterexample ("expected adminless-conversation, got " <> show result) False
+  where
+    runAdminlessGroupsTest users features conversations testCode =
+      run
+        . runState @[Push] []
+        . runState @[Qualified UserId] []
+        . runState @[ScheduledAdminlessJob] []
+        . runError @AdminlessConversation
+        . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
+        . runError @(Tagged 'ConvMemberNotFound ())
+        . runError @(Tagged 'ConvNotFound ())
+        . runError @(Tagged 'InvalidOperation ())
+        . runError @FederationError
+        . inMemoryConversationStoreInterpreter conversations
+        . interpretBrig users
+        . interpretFeatures features
+        . interpretBackendNotificationQueueAccess
+        . interpretFederation
+        . interpretExternalAccess
+        . inMemoryNotificationSubsystemInterpreter
+        . interpretTeamSubsystem
+        . interpretJobSubsystem
+        . interpretNowConst defaultTime
+        . runRandomPure
+        . noopLogger
+        $ testCode
+
+data AdminlessGroupsFixture = AdminlessGroupsFixture
+  { fixtureUsers :: [User],
+    fixtureLocalUser :: Local UserId,
+    fixtureLocalConversation :: Local ConvId,
+    fixtureVictim :: Qualified UserId,
+    fixtureEligibleMembers :: [Qualified UserId],
+    fixtureConversations :: Map.Map ConvId StoredConversation,
+    fixtureFeatures :: AllTeamFeatures
+  }
+
+mkAdminlessGroupsFixture :: Domain -> TeamId -> ConvId -> UserId -> UserId -> UserId -> IO AdminlessGroupsFixture
+mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2 = do
+  user1 <- mkUserWithName "Alice" domain UserTypeRegular eligible1
+  user2 <- mkUserWithName "Bob" domain UserTypeRegular eligible2
+  let conv =
+        StoredConversation
+          { id_ = convId,
+            localMembers =
+              [ newMemberWithRole (leaving, roleNameWireAdmin),
+                newMemberWithRole (eligible1, roleNameWireMember),
+                newMemberWithRole (eligible2, roleNameWireMember)
+              ],
+            remoteMembers = [],
+            metadata = (defConversationMetadata (Just leaving)) {cnvmTeam = Just teamId},
+            protocol = ProtocolMLS (ConversationMLSData (GroupId "mock-group-id") Nothing)
+          }
+  pure
+    AdminlessGroupsFixture
+      { fixtureUsers = [user1, user2],
+        fixtureLocalUser = toLocalUnsafe domain leaving,
+        fixtureLocalConversation = toLocalUnsafe domain convId,
+        fixtureVictim = Qualified leaving domain,
+        fixtureEligibleMembers = [Qualified eligible1 domain, Qualified eligible2 domain],
+        fixtureConversations = Map.singleton convId conv,
+        fixtureFeatures = npUpdate @PreventAdminlessGroupsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+      }
 
 data MemberInputs = MemberInputs
   { localUserIds :: [UserId],
@@ -167,6 +484,59 @@ instance Arbitrary MemberInputs where
             | (dom, uid) <- zip remoteDomains remotePool
             ]
         }
+
+assertMemberUpdatePush :: Qualified UserId -> [Push] -> Property
+assertMemberUpdatePush expectedTarget = assertMemberUpdatePushes [expectedTarget]
+
+assertMemberUpdatePushes :: [Qualified UserId] -> [Push] -> Property
+assertMemberUpdatePushes expectedTargets pushes =
+  case traverse decodeMemberUpdate pushes of
+    Left err -> counterexample err False
+    Right updates ->
+      conjoin
+        [ length pushes === length expectedTargets,
+          Set.fromList (map (.misTarget) updates) === Set.fromList expectedTargets,
+          conjoin [update.misConvRoleName === Just roleNameWireAdmin | update <- updates]
+        ]
+  where
+    decodeMemberUpdate push =
+      case A.fromJSON @(Event) (A.Object push.json) of
+        A.Success Event {evtData = EdMemberUpdate update} -> Right update
+        A.Success event -> Left ("unexpected event: " <> show event)
+        A.Error err -> Left ("failed to decode push: " <> err)
+
+assertNoAdminlessAction ::
+  [Push] ->
+  [Qualified UserId] ->
+  [ScheduledAdminlessJob] ->
+  Either AdminlessConversation a ->
+  Property
+assertNoAdminlessAction pushes updatedTargets scheduledJobs result =
+  case result of
+    Left err -> counterexample ("unexpected adminless error: " <> show err) False
+    Right _ ->
+      conjoin
+        [ updatedTargets === [],
+          length pushes === 0,
+          scheduledJobs === []
+        ]
+
+withRemoteMembers :: [RemoteMember] -> StoredConversation -> StoredConversation
+withRemoteMembers members (StoredConversation convId localMembers _ metadata protocol) =
+  StoredConversation convId localMembers members metadata protocol
+
+withOutOfScopeMetadata :: Bool -> StoredConversation -> StoredConversation
+withOutOfScopeMetadata outOfScopeChannel (StoredConversation convId localMembers remoteMembers metadata protocol) =
+  StoredConversation
+    convId
+    localMembers
+    remoteMembers
+    ( metadata
+        { cnvmType = if outOfScopeChannel then RegularConv else One2OneConv,
+          cnvmGroupConvType = if outOfScopeChannel then Just Channel else Just GroupConversation
+        }
+    )
+    protocol
 
 -- Build one lazy infinite pool of distinct IDs and slice it into categories.
 -- Using position in the stream, rather than per-category prefixes, makes the
@@ -242,6 +612,8 @@ interpretBackendNotificationQueueAccess ::
   Sem r a
 interpretBackendNotificationQueueAccess =
   interpret $ \case
+    EnqueueNotificationsConcurrently _ remotes _ ->
+      if null remotes then pure (Right []) else error "unexpected remote notification in guard test"
     _ -> error "unexpected BackendNotificationQueueAccess call in test"
 
 interpretProposalStore ::
@@ -260,9 +632,16 @@ interpretTeamSubsystem ::
   Sem r a
 interpretTeamSubsystem =
   interpret $ \case
+    InternalGetTeamMember _ _ -> pure Nothing
     _ -> error "unexpected TeamSubsystem call in test"
 
+data ScheduledAdminlessJob
+  = ScheduledAdminlessDeletion
+  | ScheduledAdminlessReminder
+  deriving stock (Eq, Show)
+
 interpretJobSubsystem ::
+  (Member (State [ScheduledAdminlessJob]) r) =>
   Sem (JobSubsystem ': r) a ->
   Sem r a
 interpretJobSubsystem =
@@ -270,9 +649,9 @@ interpretJobSubsystem =
     ScheduleAdminlessSetupJob {} ->
       pure ()
     ScheduleAdminlessDeletionJob {} ->
-      pure ()
+      modify @[ScheduledAdminlessJob] (<> [ScheduledAdminlessDeletion])
     ScheduleAdminlessReminderJob {} ->
-      pure ()
+      modify @[ScheduledAdminlessJob] (<> [ScheduledAdminlessReminder])
     CancelAdminlessJobsForTeam {} ->
       pure ()
 
@@ -300,4 +679,16 @@ mkUser domain utype uid = do
         userType = utype,
         userStatus = Active,
         userService = Nothing
+      }
+
+mkUserWithName :: Text -> Domain -> UserType -> UserId -> IO User
+mkUserWithName name domain utype uid = do
+  base <- generate arbitrary
+  pure
+    base
+      { userQualifiedId = Qualified uid domain,
+        userType = utype,
+        userStatus = Active,
+        userService = Nothing,
+        userDisplayName = Name name
       }

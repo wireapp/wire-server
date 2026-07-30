@@ -482,6 +482,7 @@ data ConversationSubsystem m a where
     InviteQualified ->
     ConversationSubsystem m (UpdateResult Event)
   ReplaceMembers ::
+    RemoveMemberResponseMode ->
     Local UserId ->
     ConnId ->
     Qualified ConvId ->

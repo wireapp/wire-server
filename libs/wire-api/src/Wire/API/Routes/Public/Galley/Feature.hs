@@ -91,7 +91,7 @@ type FeatureAPI =
 type VersionedFeatureAPIPut named reqBodyVersion cfg =
   Named
     named
-    ( Description (FeatureAPIDesc cfg)
+    ( Description (VersionedFeatureAPIDesc reqBodyVersion cfg)
         :> ZUser
         :> Summary (AppendSymbol "Put config for " (FeatureSymbol cfg))
         :> CanThrow OperationDenied

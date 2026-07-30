@@ -955,7 +955,7 @@ type ConversationAPI =
     -- - MemberJoin event for added members
     -- - MemberLeave event for removed members
     :<|> Named
-           "replace-members-in-conversation"
+           "replace-members-in-conversation@v16"
            ( Summary "Replace the members of a conversation."
                :> Description
                     "This will add any members not already in the conversation, \
@@ -964,9 +964,42 @@ type ConversationAPI =
                     \The roles of already existing members will not be changed \
                     \even if these members are included in the request body and their role differs from the role provided in this request."
                :> From 'V13
+               :> Until 'V17
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'GroupIdVersionNotSupported
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "members"
+               :> ReqBody '[Servant.JSON] InviteQualified
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Conversation members replaced")
+           )
+    :<|> Named
+           "replace-members-in-conversation"
+           ( Summary "Replace the members of a conversation."
+               :> Description
+                    "This will add any members not already in the conversation, \
+                    \and remove any members not in the provided list except users that are associated via a user group. \
+                    \The given role in the request body will be applied to all added members. \
+                    \The roles of already existing members will not be changed \
+                    \even if these members are included in the request body and their role differs from the role provided in this request."
+               :> From 'V17
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow AdminlessConversation
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'TooManyMembers
