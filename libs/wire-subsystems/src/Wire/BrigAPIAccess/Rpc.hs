@@ -100,8 +100,6 @@ interpretBrigAccess brigEndpoint =
         deleteUser uid
       GetContactList uid -> do
         getContactList uid
-      GetRichInfoMultiUser uids -> do
-        getRichInfoMultiUser uids
       GetUserExportData uid -> do
         getUserExportData uid
       GetSize tid -> do
@@ -371,20 +369,6 @@ getContactList uid = do
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
   cUsers <$> decodeBodyOrThrow "brig" r
-
--- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser ::
-  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
-  [UserId] ->
-  Sem r [(UserId, RichInfo)]
-getRichInfoMultiUser = chunkify $ \uids -> do
-  resp <-
-    brigRequest $
-      method GET
-        . paths ["/i/users/rich-info"]
-        . queryItem "ids" (toByteString' (List uids))
-        . expect2xx
-  decodeBodyOrThrow "brig" resp
 
 -- | Calls 'Brig.API.Internal.getUserExportDataH'
 getUserExportData ::
