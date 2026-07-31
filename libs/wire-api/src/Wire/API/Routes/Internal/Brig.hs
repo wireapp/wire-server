@@ -448,10 +448,8 @@ type AccountAPI =
            "iGetUsersRaw"
            ( "users"
                :> "raw"
-               :> QueryParam' [Optional, Strict] "ids" (CommaSeparatedList UserId)
-               :> QueryParam' [Optional, Strict] "handles" (CommaSeparatedList Handle)
-               :> QueryParam' [Optional, Strict] "email" (CommaSeparatedList EmailAddress)
-               :> Get '[Servant.JSON] [User]
+               :> QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId)
+               :> Get '[Servant.JSON] [RawUser]
            )
     :<|> Named
            "iGetUserContacts"

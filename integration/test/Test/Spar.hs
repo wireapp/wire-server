@@ -66,12 +66,13 @@ testScimInvitationThenManualInvitationNoSaml = withModifiedBackend scimInvitatio
   case users of
     [_] -> pure ()
     [user1, user2] -> do
+      -- The SAML/SCIM account remains active because it has an SSO identity.
+      -- Its email is only stored as `email_unvalidated`; neither an active nor
+      -- an expired email activation code claims the email key.  Consequently,
+      -- the manual account can claim the email and both accounts exist.
       email1 <- user1 %. "email" >>= asString
-      email2 <- user2 %. "email" >>= asString
-      when (email1 == email2) $ do
-        id1 <- user1 %. "id" >>= asString
-        id2 <- user2 %. "id" >>= asString
-        id1 `shouldMatch` id2
+      email2 <- user2 %. "email_unvalidated" >>= asString
+      email1 `shouldMatch` email2
     _ -> fail "more than 2 users not expected"
 
 testScimInvitationThenManualInvitationSamlEmailValidation :: (HasCallStack) => App ()
@@ -94,14 +95,13 @@ testScimInvitationThenManualInvitationSamlEmailValidation = withModifiedBackend 
     _ -> fail "more than 2 users not expected"
 
 testScimSamlEmailVerificationExpiryThenManualInvitation :: (HasCallStack) => App ()
-testScimSamlEmailVerificationExpiryThenManualInvitation =  do
+testScimSamlEmailVerificationExpiryThenManualInvitation = do
   let settings =
         def
           { brigCfg =
               setField "optSettings.setActivationTimeout" (1 :: Int)
                 . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
           }
-
 
   withModifiedBackend settings $ \testDomain -> do
     (owner, tid, _) <- createTeam testDomain 1
@@ -113,22 +113,24 @@ testScimSamlEmailVerificationExpiryThenManualInvitation =  do
 
     iid <- sendAndAcceptManualInvitation testDomain owner email
     users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
-    -- this leads to 2 active accounts with the same email,
-    -- but the SSO account's email stays unvalidated
-    -- note: we should also test what happens if the verification is still active
+    -- The email activation code has expired, but this does not deactivate the
+    -- SAML/SCIM account.  It remains active because of its SSO identity, while
+    -- the email remains unvalidated.  Since an activation code does not claim
+    -- the email key, the manual account can claim it and both accounts exist.
     printJSON users
 
 testScimSamlEmailVerificationThenManualInvitation :: (HasCallStack) => App ()
-testScimSamlEmailVerificationThenManualInvitation = do 
+testScimSamlEmailVerificationThenManualInvitation = do
   let testDomain = OwnDomain
   (owner, tid, _) <- createTeam testDomain 1
   token <- createSamlScimToken owner tid True
   (email, scid) <- createScimInvitationUser testDomain token
   iid <- sendAndAcceptManualInvitation testDomain owner email
   users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
-  -- this leads to 2 active accounts with the same email,
-  -- but the SSO account's email stays unvalidated
-  -- note: we should also test what happens if the verification is still active
+  -- The SAML/SCIM account remains active because of its SSO identity, but its
+  -- email is only stored as `email_unvalidated`.  Even while the activation
+  -- code is still valid, it does not claim the email key.  The manual account
+  -- can therefore claim the email and both accounts exist.
   printJSON users
 
 testScimInvitationThenManualInvitationSamlEmailAutoActivation :: (HasCallStack) => App ()

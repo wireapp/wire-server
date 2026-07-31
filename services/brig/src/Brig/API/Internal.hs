@@ -42,6 +42,7 @@ import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
 import Control.Lens.Extras (is)
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -129,7 +130,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
-import Wire.StoredUser (StoredUser (emailUnvalidated))
+import Wire.StoredUser (StoredUser (..))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
@@ -765,33 +766,26 @@ listActivatedAccountsH
 
 -- | Diagnostic lookup of user records without the normal status, identity, or expired-invitation filtering.
 listUsersRawH ::
-  ( Member (Input (Local ())) r,
-    Member UserSubsystem r
-  ) =>
-  Maybe (CommaSeparatedList UserId) ->
-  Maybe (CommaSeparatedList Handle) ->
-  Maybe (CommaSeparatedList EmailAddress) ->
-  Handler r [User]
-listUsersRawH
-  (maybe [] fromCommaSeparatedList -> uids)
-  (maybe [] fromCommaSeparatedList -> handles)
-  (maybe [] fromCommaSeparatedList -> emails) = do
-    when (length uids + length handles + length emails == 0) $ do
-      throwStd (notFound "no user keys")
-    lift $ liftSem do
-      loc <- input
-      byEmails <- getAccountsByEmailNoFilter $ loc $> emails
-      ( getAccountsBy $
-          loc
-            $> def
-              { includePendingInvitations = WithPendingInvitations,
-                includeUsersWithExpiredInvitations = True,
-                includeUsersWithoutIdentity = True,
-                getByUserId = uids,
-                getByHandle = handles
-              }
-        )
-        <&> (<> byEmails)
+  (Member UserStore r) =>
+  CommaSeparatedList UserId ->
+  Handler r [RawUser]
+listUsersRawH (fromCommaSeparatedList -> uids) =
+  lift . liftSem $ catMaybes <$> traverse (fmap (fmap rawUserFromStored) . UserStore.getUser) uids
+
+rawUserFromStored :: StoredUser -> RawUser
+rawUserFromStored user =
+  RawUser
+    { rawUserId = user.id,
+      rawUserName = user.name,
+      rawUserEmail = user.email,
+      rawUserEmailUnvalidated = user.emailUnvalidated,
+      rawUserSSOId = A.toJSON <$> user.ssoId,
+      rawUserActivated = user.activated,
+      rawUserStatus = user.status,
+      rawUserHandle = user.handle,
+      rawUserTeamId = user.teamId,
+      rawUserManagedBy = user.managedBy
+    }
 
 getActivationCode ::
   ( Member ActivationCodeStore r,
