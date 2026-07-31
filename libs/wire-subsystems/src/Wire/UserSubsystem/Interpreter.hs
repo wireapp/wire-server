@@ -462,12 +462,7 @@ getLocalAppProfilesImpl self tid = do
               Just app -> profile {profileApp = Just (storedAppToAppInfo app)}
               Nothing -> profile
 
-  collaboratingApps :: [UserProfile] <- do
-    allIds <- (.gUser) <$$> getAllTeamCollaborators self tid
-    allProfiles <- getUserProfilesLocalPart (Just self) (qualifyAs self allIds)
-    pure (filter (isJust . (.profileApp)) allProfiles)
-
-  pure ((injectPreloadedApp <$> profiles) <> collaboratingApps)
+  pure (injectPreloadedApp <$> profiles)
 
 getUserProfilesFromDomain ::
   ( Member (Error FederationError) r,

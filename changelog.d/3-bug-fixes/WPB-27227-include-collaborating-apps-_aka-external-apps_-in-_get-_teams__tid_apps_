@@ -1,1 +1,0 @@
-Include collaborating apps (aka external apps) in "GET /teams/:tid/apps".  (Drive-by improvement: move access control for UserSubsystem.GetLocalAppProfiles from brig into wire-subsystems.)
