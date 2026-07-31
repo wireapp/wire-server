@@ -237,7 +237,13 @@ newRequestId = do
   liftIO . atomicModifyIORef counter $ \x -> (x + 1, x + 1)
 
 submit :: String -> HTTP.Request -> App Response
-submit method req0 = do
+submit method req0 = submitWithManager (.manager) method req0
+
+submitProbe :: String -> HTTP.Request -> App Response
+submitProbe method req0 = submitWithManager (.probeManager) method req0
+
+submitWithManager :: (Env -> HTTP.Manager) -> String -> HTTP.Request -> App Response
+submitWithManager getManager method req0 = do
   reqIdNum <- newRequestId
   testName <- asks (fromMaybe "not_test" . (.currentTestName))
   let reqId = testName <> "__" <> method <> "_" <> cs (HTTP.path req0) <> "__" <> show reqIdNum
@@ -245,7 +251,7 @@ submit method req0 = do
         (req0 & addHeader "Request-Id" reqId)
           { HTTP.method = T.encodeUtf8 (T.pack method)
           }
-  manager <- asks (.manager)
+  manager <- asks getManager
   response <- liftIO $ HTTP.httpLbs request manager
   let json = Aeson.decode (HTTP.responseBody response)
       body = L.toStrict (HTTP.responseBody response)

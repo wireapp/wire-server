@@ -459,7 +459,7 @@ checkFederationIngress origin target = do
         . (addHeader "Connection" "close")
         . (addJSONObject [])
   checkStatus <- appToIO $ do
-    submit "POST" req `bindResponse` \res -> do
+    submitProbe "POST" req `bindResponse` \res -> do
       let is200 = res.status == 200
       mInner <- lookupField res.json "inner"
       isFedDenied <- case mInner of
@@ -525,11 +525,11 @@ checkServiceIsUp domain srv = do
       Just . addHeader "Connection" "close" <$> externalRequest extUrl
     _ -> pure Nothing
   checkStatus <- appToIO $ do
-    res <- submit "GET" req
+    res <- submitProbe "GET" req
     if res.status `elem` [200, 204]
       then case mExtReq of
         Just extReq -> do
-          extRes <- submit "GET" extReq
+          extRes <- submitProbe "GET" extReq
           pure (extRes.status `elem` [200, 204])
         Nothing -> pure True
       else pure False

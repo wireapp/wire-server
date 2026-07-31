@@ -89,6 +89,7 @@ mkGlobalEnv cfgFile = do
           intConfig.cassandra.cassTlsCa
 
   manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+  probeManager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings {HTTP.managerIdleConnectionCount = 0}
 
   mbCassCertFilePath <- liftIO $ getCassCertFilePath
   mbSSLContext <- liftIO $ createSSLContext mbCassCertFilePath
@@ -136,6 +137,7 @@ mkGlobalEnv cfgFile = do
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 17,
         gManager = manager,
+        gProbeManager = probeManager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
@@ -194,6 +196,7 @@ mkEnv currentTestName ge = do
                 (gFederationV2Domain ge, 8)
               ],
           manager = gManager ge,
+          probeManager = gProbeManager ge,
           servicesCwdBase = gServicesCwdBase ge,
           prekeys = pks,
           lastPrekeys = lpks,
