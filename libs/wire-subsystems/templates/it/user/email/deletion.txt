@@ -2,16 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-DELETE YOUR ACCOUNT
-We’ve received a request to delete your ${brand} account. Click the button below
-within 10 minutes to delete all your conversations, content and connections.
+ELIMINA IL TUO ACCOUNT
+Abbiamo ricevuto una richiesta per eliminare il tuo account ${brand}. Clicca sul
+pulsante qui sotto entro 10 minuti per eliminare tutte le conversazioni, i
+contenuti e le connessioni.
 
-Delete account [${url}]If you can’t select the button, copy and paste this link
+Elimina account [${url}]If you can’t select the button, copy and paste this link
 to your browser:
 
 ${url}
 
-If you didn’t request this, reset your password [${forgot}].
+Se non lo hai richiesto, reimposta la password [${forgot}].
 
 Se hai domande, per favore contattaci [${support}].
 

@@ -1,1 +1,1 @@
-${code} is your ${brand} verification code
+${code} là mã xác nhận ${brand} của bạn

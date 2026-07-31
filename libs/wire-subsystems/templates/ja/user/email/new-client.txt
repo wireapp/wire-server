@@ -2,21 +2,20 @@
 
 ${brand_label_url} [${brand_url}]
 
-NEW DEVICE
-Your ${brand} account was used on:
+新しいデバイス
+あなたの ${brand} アカウントが使用されました:
 
 ${date}
 
 ${model}
 
-You may have installed ${brand} on a new device or installed it again on an
-existing one. If that was not the case, go to ${brand} Settings, remove the
-device and reset your password [${forgot}].
+新しいデバイスに ${brand} がインストールされたか、既存のデバイスに再インストールされました。 この操作をあなたが行っていない場合は、 ${brand}
+の設定に移動し、デバイスを削除し、パスワードをリセット [${forgot}]してください。
 
-If you have any questions, please contact us [${support}].
+ご不明な点がございましたら、 こちら [${support}] から私たちにご連絡ください。
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+プライバシーポリシーと利用規約 [${legal}] · 不具合を報告する [${misuse}]
 ${copyright}. ALL RIGHTS RESERVED.

@@ -3,11 +3,11 @@
 ${brand_label_url} [${brand_url}]
 
 VERIFICA IL TUO INDIRIZZO E-MAIL
-${email} was registered as your new email address on ${brand}. Click the button
-below to verify your address.
+${email} è stato registrato come tuo nuovo indirizzo email su ${brand}. Clicca
+il pulsante sotto per verificare il tuo indirizzo.
 
-Verify [${url}]If you can’t select the button, copy and paste this link to your
-browser:
+Verifica [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

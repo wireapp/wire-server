@@ -2,19 +2,20 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY YOUR EMAIL
-${email} was registered as your new email address on ${brand}. Click the button
-below to verify your address.
+POTWIERDŹ SWÓJ ADRES EMAIL
+${email} został zarejestrowany jako Twój nowy adres e-mail na ${brand}. Kliknij
+poniższy przycisk, aby zweryfikować swój adres.
 
-Verify [${url}]If you can’t select the button, copy and paste this link to your
-browser:
+Zweryfikuj [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
+[${misuse}]
+${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.

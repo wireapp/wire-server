@@ -2,13 +2,14 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY LOGIN
-${email} was used to log in to your ${brand} account. Enter this code to verify
-your email and log in.
+ПОДТВЕРДИТЬ ВХОД
+${email} был использован для входа в ${brand}. Введите этот код для
+подтверждения электронной почты и авторизации в вашем аккаунте.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Если у вас возникли вопросы или нужна помощь, пожалуйста свяжитесь с нами
+[${support}].
 
 
 --------------------------------------------------------------------------------

@@ -2,16 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY YOUR EMAIL
-${email} was used to register on ${brand}.
-Click the button to verify your address.
+ПОДТВЕРДИТЕ ВАШ EMAIL
+${email} был использован для регистрации в ${brand}.
+Нажмите на кнопку для подтверждения вашего email адреса.
 
-Verify [${url}]If you can’t select the button, copy and paste this link to your
-browser:
+Подтвердить [${url}]Если вам не удается нажать на кнопку, скопируйте и вставьте
+эту ссылку в свой браузер:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Если у вас возникли вопросы или нужна помощь, пожалуйста свяжитесь с нами
+[${support}].
 
 
 --------------------------------------------------------------------------------

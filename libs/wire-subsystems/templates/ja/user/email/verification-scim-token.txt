@@ -8,10 +8,10 @@ and create the token.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+ご不明な点がございましたら、 こちら [${support}] から私たちにご連絡ください。
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+プライバシーポリシーと利用規約 [${legal}] · 不具合を報告する [${misuse}]
 ${copyright}. ALL RIGHTS RESERVED.

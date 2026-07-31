@@ -2,18 +2,20 @@
 
 ${brand_label_url} [${brand_url}]
 
-DELETE YOUR ACCOUNT
-We’ve received a request to delete your ${brand} account. Click the button below
-within 10 minutes to delete all your conversations, content and connections.
+HESABINI SIL
+${brand} hesabınızı silmek için bir istek aldık. Tüm konuşmalarınızı,
+içeriğinizi ve bağlantılarınızı silmek için 10 dakika içinde aşağıdaki düğmeyi
+tıklayın.
 
-Delete account [${url}]If you can’t select the button, copy and paste this link
-to your browser:
+Hesabı Sil [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 
-If you didn’t request this, reset your password [${forgot}].
+Bunu istemediyseniz, şifrenizi sıfırlayın [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
 
 
 --------------------------------------------------------------------------------

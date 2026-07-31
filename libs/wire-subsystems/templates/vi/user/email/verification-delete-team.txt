@@ -2,16 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY TEAM DELETION
-${email} was used to delete your ${brand} team. Enter this code to verify your
-email and delete the team.
+XÁC MINH VIỆC XÓA NHÓM
+${email} đã được sử dụng để xóa nhóm ${brand} của bạn. Nhập đoạn mã này để xác
+nhận email của bạn và xóa nhóm.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
+[${misuse}]
+${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.

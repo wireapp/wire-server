@@ -2,16 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY YOUR EMAIL
-${email} was registered as your new email address on ${brand}. Click the button
-below to verify your address.
+E-POSTANIZI DOĞRULAYIN
+${email}, ${brand}'daki yeni e-posta adresiniz olarak kaydedildi. Adresinizi
+doğrulamak için aşağıdaki düğmeye tıklayın.
 
-Verify [${url}]If you can’t select the button, copy and paste this link to your
+Doğrula [${url}]If you can’t select the button, copy and paste this link to your
 browser:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
 
 
 --------------------------------------------------------------------------------

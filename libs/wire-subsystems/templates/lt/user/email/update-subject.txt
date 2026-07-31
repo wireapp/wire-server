@@ -1,1 +1,1 @@
-Your new email address on ${brand}
+Jūsų naujas „${brand}“ el. pašto adresas

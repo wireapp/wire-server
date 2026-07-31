@@ -8,10 +8,11 @@ email and delete the team.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
+[${misuse}]
+${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.

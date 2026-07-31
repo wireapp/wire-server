@@ -3,18 +3,19 @@
 ${brand_label_url} [${brand_url}]
 
 VERIFIQUE SEU E-MAIL
-${email} was used to register on ${brand}.
-Click the button to verify your address.
+${email} foi usado para se registrar no ${brand}.
+Clique no botão para verificar seu e-mail.
 
-Verificar [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verificar [${url}]Se você não conseguir selecionar o botão, copie e cole este
+link no seu navegador:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
+[${misuse}]
+${copyright}. TODOS OS DIREITOS RESERVADOS.

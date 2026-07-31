@@ -2,16 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY LOGIN
-${email} was used to log in to your ${brand} account. Enter this code to verify
-your email and log in.
+XÁC MINH ĐĂNG NHẬP
+${email} đã được sử dụng để đưng nhập vào tài khoản ${brand} của bạn. Nhập đoạn
+mã này để xác thực email của bạn và đăng nhập.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
+[${misuse}]
+${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.

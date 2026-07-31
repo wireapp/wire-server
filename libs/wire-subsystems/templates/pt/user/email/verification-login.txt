@@ -2,16 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY LOGIN
-${email} was used to log in to your ${brand} account. Enter this code to verify
-your email and log in.
+VERIFICAR LOGIN
+${email} foi usado para iniciar sessão em sua conta do ${brand}. Insira este
+código para verificar seu e-mail e iniciar sessão.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
+[${misuse}]
+${copyright}. TODOS OS DIREITOS RESERVADOS.

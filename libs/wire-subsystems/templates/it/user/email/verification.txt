@@ -2,9 +2,9 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFICA IL TUO INDIRIZZO E-MAIL
-${email} was used to register on ${brand}. Enter this code to verify your email
-and create your account.
+VERIFICA LA TUA EMAIL
+${email} è stato usato per registrare su ${brand}. Inserisci questo codice per
+verificare la tua email e creare il tuo profilo.
 
 ${code}
 

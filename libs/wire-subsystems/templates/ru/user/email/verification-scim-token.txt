@@ -2,13 +2,14 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY SCIM TOKEN CREATION
-${email} was used to generate a SCIM token. Enter this code to verify your email
-and create the token.
+ПОДТВЕРДИТЬ СОЗДАНИЕ ТОКЕНА SCIM
+${email} был использован для создания токена SCIM. Введите этот код для
+подтверждения электронной почты и создания токена SCIM.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Если у вас возникли вопросы или нужна помощь, пожалуйста свяжитесь с нами
+[${support}].
 
 
 --------------------------------------------------------------------------------

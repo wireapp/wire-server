@@ -1,1 +1,1 @@
-${code} is your ${brand} verification code
+あなたの ${brand} の認証コードは ${code} です

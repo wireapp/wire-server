@@ -1,1 +1,1 @@
-${brand} Account
+Ваша учетная запись ${brand}

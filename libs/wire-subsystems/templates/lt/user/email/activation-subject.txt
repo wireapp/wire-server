@@ -1,1 +1,1 @@
-Your ${brand} Account
+Jūsų „${brand}“ paskyra

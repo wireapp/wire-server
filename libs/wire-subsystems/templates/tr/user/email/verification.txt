@@ -2,13 +2,14 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY YOUR EMAIL
-${email} was used to register on ${brand}. Enter this code to verify your email
-and create your account.
+E-POSTANIZI DOĞRULAYIN
+${brand} 'a kaydolmak için ${email} kullanıldı. E-postanızı doğrulayıp hesap
+oluşturmak için kodu girin.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
 
 
 --------------------------------------------------------------------------------

@@ -2,16 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY YOUR EMAIL
-${email} was used to register on ${brand}.
-Click the button to verify your address.
+E-POSTANIZI DOĞRULAYIN
+${brand}} a kaydolmak için ${email} kullanıldı.
+Adresinizi doğrulamak için düğmeyi tıklayın.
 
-Verify [${url}]If you can’t select the button, copy and paste this link to your
+Doğrula [${url}]If you can’t select the button, copy and paste this link to your
 browser:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
 
 
 --------------------------------------------------------------------------------

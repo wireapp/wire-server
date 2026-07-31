@@ -2,21 +2,21 @@
 
 ${brand_label_url} [${brand_url}]
 
-DELETE YOUR ACCOUNT
-We’ve received a request to delete your ${brand} account. Click the button below
-within 10 minutes to delete all your conversations, content and connections.
+アカウントを削除
+あなたの ${brand} アカウントの削除リクエストを受け付けました。
+あなたのすべての会話、コンテンツ、友人を削除するには10分以内に下記のリンクをクリックしてください。
 
-Delete account [${url}]If you can’t select the button, copy and paste this link
-to your browser:
+アカウント削除 [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
-If you didn’t request this, reset your password [${forgot}].
+あなたがこのリクエスト行っていない場合は、パスワードをリセット [${forgot}]してください。
 
-If you have any questions, please contact us [${support}].
+ご不明な点がございましたら、 こちら [${support}] から私たちにご連絡ください。
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+プライバシーポリシーと利用規約 [${legal}] · 不具合を報告する [${misuse}]
 ${copyright}. ALL RIGHTS RESERVED.

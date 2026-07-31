@@ -2,15 +2,17 @@
 
 ${brand_label_url} [${brand_url}]
 
-YOUR NEW ACCOUNT ON ${brand}
-A new ${brand} team was created with ${email}. Please verify your email.
+${brand}'DA YENI HESABINIZ
+${email} ile yeni bir ${brand} takımı oluşturuldu. Lütfen e-postanızı
+doğrulayın.
 
-Verify [${url}]If you can’t select the button, copy and paste this link to your
+Doğrula [${url}]If you can’t select the button, copy and paste this link to your
 browser:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
 
 
 --------------------------------------------------------------------------------

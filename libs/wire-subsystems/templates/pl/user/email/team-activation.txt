@@ -2,18 +2,20 @@
 
 ${brand_label_url} [${brand_url}]
 
-YOUR NEW ACCOUNT ON ${brand}
-A new ${brand} team was created with ${email}. Please verify your email.
+TWOJE NOWE KONTO NA ${brand}
+Nowy zespół ${brand} został utworzony z ${email}. Prosimy, zweryfikuj swój adres
+email.
 
-Verify [${url}]If you can’t select the button, copy and paste this link to your
-browser:
+Zweryfikuj [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
+[${misuse}]
+${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.

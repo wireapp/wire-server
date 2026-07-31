@@ -2,9 +2,9 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY SCIM TOKEN CREATION
-${email} was used to generate a SCIM token. Enter this code to verify your email
-and create the token.
+VÉRIFIER LA CRÉATION DU JETON SCIM
+${email} a été utilisé pour générer un jeton SCIM. Entrez ce code pour vérifier
+votre adresse courriel et créer le jeton.
 
 ${code}
 
@@ -13,5 +13,6 @@ Si vous avez des questions, veuillez nous contacter [${support}].
 
 --------------------------------------------------------------------------------
 
-Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Règles de confidentialité et conditions d'utilisation [${legal}] · Signaler un
+abus [${misuse}]
+${copyright}. TOUS DROITS RÉSERVÉS.
