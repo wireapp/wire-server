@@ -5,7 +5,7 @@ wire.example.com [https://wire.example.com]
 ÄNDERUNG IN DER KONFIGURATION IHRES IDENTITY PROVIDERS
 Etwas hat sich in der IdP-Konfiguration für Ihr Team geändert.
 
-Team-ID:
+Team ID:
 99f552d8-9dad-60c1-4be9-c88fb532893a
 
 Benutzer-ID:
@@ -16,7 +16,7 @@ Benutzer-ID:
 
 Details:
 
-IdP-ID:
+IdP ID:
 574ddfb0-4e50-2bff-e924-33ee2b9f7064
 
 Neuer IdP-Aussteller:

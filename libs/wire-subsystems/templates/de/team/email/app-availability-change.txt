@@ -1,0 +1,24 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+ÄNDERUNG DER VERFÜGBARKEIT EINER APP
+${actor} hat die Details einer App Ihres Teams geändert.
+
+App-Name: ${app_name}
+Datum: ${date}
+
+Vorherige Verfügbarkeit: ${previous_availability}
+Neue Verfügbarkeit: ${new_availability}
+
+Team-Name: ${team_name}
+Team-ID: ${team_id}
+
+Team-Management öffnen [${url}]Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
+
+
+--------------------------------------------------------------------------------
+
+Datenschutzrichtlinien und Nutzungsbedingungen [${legal}] · Missbrauch melden
+[${misuse}]
+${copyright}. ALLE RECHTE VORBEHALTEN.
