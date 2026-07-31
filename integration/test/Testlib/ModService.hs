@@ -456,6 +456,7 @@ checkFederationIngress origin target = do
       Unversioned
       ("/rpc/" <> target <> "/brig/api-version")
       <&> (addHeader "Wire-Origin-Domain" origin)
+        . (addHeader "Connection" "close")
         . (addJSONObject [])
   checkStatus <- appToIO $ do
     submit "POST" req `bindResponse` \res -> do
@@ -515,13 +516,13 @@ waitUntilServiceIsUp mDebug domain srv = do
 checkServiceIsUp :: String -> Service -> App Bool
 checkServiceIsUp _ Nginz = pure True
 checkServiceIsUp domain srv = do
-  req <- baseRequest domain srv Unversioned "/i/status"
+  req <- baseRequest domain srv Unversioned "/i/status" <&> addHeader "Connection" "close"
   mExtReq <- case srv of
     FederatorInternal -> do
       sMap <- getServiceMap domain
       let extHostPort = sMap.federatorExternal
           extUrl = "http://" <> extHostPort.host <> ":" <> show extHostPort.port <> "/i/status"
-      Just <$> externalRequest extUrl
+      Just . addHeader "Connection" "close" <$> externalRequest extUrl
     _ -> pure Nothing
   checkStatus <- appToIO $ do
     res <- submit "GET" req
