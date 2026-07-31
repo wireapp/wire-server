@@ -516,9 +516,22 @@ checkServiceIsUp :: String -> Service -> App Bool
 checkServiceIsUp _ Nginz = pure True
 checkServiceIsUp domain srv = do
   req <- baseRequest domain srv Unversioned "/i/status"
+  mExtReq <- case srv of
+    FederatorInternal -> do
+      sMap <- getServiceMap domain
+      let extHostPort = sMap.federatorExternal
+          extUrl = "http://" <> extHostPort.host <> ":" <> show extHostPort.port <> "/i/status"
+      Just <$> externalRequest extUrl
+    _ -> pure Nothing
   checkStatus <- appToIO $ do
     res <- submit "GET" req
-    pure (res.status `elem` [200, 204])
+    if res.status `elem` [200, 204]
+      then case mExtReq of
+        Just extReq -> do
+          extRes <- submit "GET" extReq
+          pure (extRes.status `elem` [200, 204])
+        Nothing -> pure True
+      else pure False
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
