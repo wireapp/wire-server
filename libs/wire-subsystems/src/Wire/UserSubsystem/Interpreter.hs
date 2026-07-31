@@ -60,7 +60,6 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
-import Wire.API.Team.Collaborator
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -103,7 +102,6 @@ import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
@@ -118,8 +116,7 @@ import Wire.UserSubsystem.UserSubsystemConfig
 import Witherable (wither)
 
 runUserSubsystem ::
-  ( Member TeamCollaboratorsSubsystem r,
-    Member AppStore r,
+  ( Member AppStore r,
     Member UserStore r,
     Member ClientStore r,
     Member MlsKeyPackageSubsystem r,
@@ -438,7 +435,6 @@ getLocalAppProfilesImpl ::
     Member (Concurrency Unsafe) r,
     Member (Input (Local any)) r,
     Member AppSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
