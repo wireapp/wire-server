@@ -60,8 +60,9 @@ testScimInvitationThenManualInvitationNoSaml = withModifiedBackend scimInvitatio
   (email, scid) <- createScimInvitationUser testDomain token
   -- wait for invitation to expire
   liftIO $ threadDelay 1_100_000
-  iid <- acceptManualInvitation testDomain owner email
+  iid <- sendAndAcceptManualInvitation testDomain owner email
   users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
+  printJSON users
   case users of
     [_] -> pure ()
     [user1, user2] -> do
@@ -78,8 +79,9 @@ testScimInvitationThenManualInvitationSamlEmailValidation = withModifiedBackend 
   (owner, tid, _) <- createTeam testDomain 1
   token <- createSamlScimToken owner tid True
   (email, scid) <- createScimInvitationUser testDomain token
-  iid <- acceptManualInvitation testDomain owner email
+  iid <- sendAndAcceptManualInvitation testDomain owner email
   users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
+  printJSON users
   case users of
     [_] -> pure ()
     [user1, user2] -> do
@@ -92,18 +94,41 @@ testScimInvitationThenManualInvitationSamlEmailValidation = withModifiedBackend 
     _ -> fail "more than 2 users not expected"
 
 testScimSamlEmailVerificationExpiryThenManualInvitation :: (HasCallStack) => App ()
-testScimSamlEmailVerificationExpiryThenManualInvitation = withModifiedBackend samlEmailVerificationExpiryOverrides $ \testDomain -> do
+testScimSamlEmailVerificationExpiryThenManualInvitation =  do
+  let settings =
+        def
+          { brigCfg =
+              setField "optSettings.setActivationTimeout" (1 :: Int)
+                . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
+          }
+
+
+  withModifiedBackend settings $ \testDomain -> do
+    (owner, tid, _) <- createTeam testDomain 1
+    token <- createSamlScimToken owner tid True
+    (email, scid) <- createScimInvitationUser testDomain token
+
+    -- wait until email verification expires
+    eventually $ getActivationCode testDomain email >>= assertStatus 404
+
+    iid <- sendAndAcceptManualInvitation testDomain owner email
+    users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
+    -- this leads to 2 active accounts with the same email,
+    -- but the SSO account's email stays unvalidated
+    -- note: we should also test what happens if the verification is still active
+    printJSON users
+
+testScimSamlEmailVerificationThenManualInvitation :: (HasCallStack) => App ()
+testScimSamlEmailVerificationThenManualInvitation = do 
+  let testDomain = OwnDomain
   (owner, tid, _) <- createTeam testDomain 1
   token <- createSamlScimToken owner tid True
   (email, scid) <- createScimInvitationUser testDomain token
-
-  -- wait until email verification expires
-  eventually $ getActivationCode testDomain email >>= assertStatus 404
-
-  iid <- acceptManualInvitation testDomain owner email
+  iid <- sendAndAcceptManualInvitation testDomain owner email
   users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
   -- this leads to 2 active accounts with the same email,
   -- but the SSO account's email stays unvalidated
+  -- note: we should also test what happens if the verification is still active
   printJSON users
 
 testScimInvitationThenManualInvitationSamlEmailAutoActivation :: (HasCallStack) => App ()
@@ -119,14 +144,6 @@ scimInvitationTestOverrides =
   def
     { brigCfg =
         setField "optSettings.setTeamInvitationTimeout" (1 :: Int)
-          . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
-    }
-
-samlEmailVerificationExpiryOverrides :: ServiceOverrides
-samlEmailVerificationExpiryOverrides =
-  def
-    { brigCfg =
-        setField "optSettings.setActivationTimeout" (1 :: Int)
           . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
     }
 
@@ -146,8 +163,8 @@ createScimInvitationUser testDomain token = do
   scimUserId <- createScimUser testDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   pure (email, scimUserId)
 
-acceptManualInvitation :: (HasCallStack, MakesValue domain, MakesValue user) => domain -> user -> String -> App String
-acceptManualInvitation testDomain inviter email = do
+sendAndAcceptManualInvitation :: (HasCallStack, MakesValue domain, MakesValue user) => domain -> user -> String -> App String
+sendAndAcceptManualInvitation testDomain inviter email = do
   invitation <- postInvitation inviter (def {email = Just email}) >>= getJSON 201
   invitationId <- invitation %. "id" >>= asString
   code <- getInvitationCode inviter invitation >>= getJSON 200 >>= (%. "code") >>= asString
