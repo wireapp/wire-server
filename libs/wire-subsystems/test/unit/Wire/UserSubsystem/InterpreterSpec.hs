@@ -1145,7 +1145,7 @@ spec = describe "UserSubsystem.Interpreter" do
               pure $ result.searchResults === [expectedContact | fromMaybe True searchee.searchable]
 
   describe "getLocalAppProfiles" $ do
-    prop "includes apps that are collaborators from other teams" $
+    prop "does *not* include apps that are collaborators from other teams" $
       \(NotPendingStoredUser appUser_)
        (NotPendingStoredUser ownerA_)
        (NotPendingStoredUser ownerB_)
@@ -1198,7 +1198,7 @@ spec = describe "UserSubsystem.Interpreter" do
                      in (,)
                           <$> getAppId teamAId teamAOwnerId
                           <*> getAppId teamBId teamBOwnerId
-             in result === ([appUser.id], [appUser.id])
+             in result === ([], [appUser.id])
 
     prop "denies access when the caller's own team is not the requested team" . withMaxSuccess 1 $
       \(NotPendingStoredUser caller_)
