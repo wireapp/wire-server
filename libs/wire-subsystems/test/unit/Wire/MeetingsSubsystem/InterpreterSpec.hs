@@ -52,6 +52,8 @@ import Wire.API.Team.Permission (fullPermissions)
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.MeetingNotifier (MeetingNotifier)
+import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
@@ -66,6 +68,7 @@ import Wire.TeamSubsystem.GalleyAPI
 
 type TestStack =
   '[ MeetingsSubsystem,
+     MeetingNotifier,
      Store.MeetingsStore,
      ConversationSubsystem,
      TeamSubsystem,
@@ -133,6 +136,7 @@ runTestStack now gen teams configs =
     . interpretTeamSubsystemToGalleyAPI
     . inMemoryConversationSubsystemInterpreter
     . inMemoryMeetingsStoreInterpreter
+    . interpretMeetingNotifier
     . interpretMeetingsSubsystem 3600
 
 -- | Decode all 'Push' payloads that are meeting lifecycle events. Any push that

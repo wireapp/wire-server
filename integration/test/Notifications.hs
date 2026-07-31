@@ -203,6 +203,10 @@ isMeetingCreateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isMeetingCreateNotif n =
   fieldEquals n "payload.0.type" "meeting.create"
 
+isMeetingMemberAddNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingMemberAddNotif n =
+  fieldEquals n "payload.0.type" "meeting.member-add"
+
 isMeetingUpdateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isMeetingUpdateNotif n =
   fieldEquals n "payload.0.type" "meeting.update"

@@ -387,10 +387,14 @@ library
     Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.ListItems.Team.Cassandra
+    Wire.MeetingNotifier
+    Wire.MeetingNotifier.Interpreter
+    Wire.MeetingNotifier.NoOpInterpreter
     Wire.MeetingsStore
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem
     Wire.MeetingsSubsystem.Interpreter
+    Wire.MeetingsSubsystem.Notification
     Wire.Migration
     Wire.MigrationLock
     Wire.MlsKeyPackageStore
@@ -619,6 +623,7 @@ test-suite wire-subsystems-tests
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec
+    Wire.MeetingNotifierSpec
     Wire.MeetingsSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters

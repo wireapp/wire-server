@@ -73,6 +73,7 @@ import Wire.FireAndForget (FireAndForget)
 import Wire.HashPassword (HashPassword)
 import Wire.JobSubsystem (JobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.NotificationSubsystem as NS
 import Wire.Options.Galley (GuestLinkTTLSeconds)
 import Wire.ProposalStore (ProposalStore)
@@ -86,7 +87,8 @@ import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 
 interpretConversationSubsystem ::
-  ( Member (Error ConversationSubsystemError) r,
+  ( Member MeetingNotifier r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error JSONResponse) r,
     Member (Error DynError) r,
     Member UserGroupStore r,

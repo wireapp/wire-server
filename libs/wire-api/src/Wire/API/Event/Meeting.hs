@@ -42,7 +42,7 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 --------------------------------------------------------------------------------
 -- EventType
 
-data EventType = Create | Update | Delete
+data EventType = Create | Update | Delete | MemberAdd
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -53,7 +53,8 @@ instance ToSchema EventType where
       mconcat
         [ element "meeting.create" Create,
           element "meeting.update" Update,
-          element "meeting.delete" Delete
+          element "meeting.delete" Delete,
+          element "meeting.member-add" MemberAdd
         ]
 
 --------------------------------------------------------------------------------
