@@ -176,6 +176,7 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   user: postgresql
+  blockList: postgresql
 
 optSettings:
   setActivationTimeout: 4
