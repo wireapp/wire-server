@@ -45,7 +45,6 @@ import Galley.App qualified as App
 import Galley.Cassandra
 import Galley.Env
 import Galley.Monad
-import Galley.Queue qualified as Q
 import Hasql.Pool.Extended (rawPool)
 import Imports
 import Network.HTTP.Media.RenderHeader qualified as HTTPMedia
@@ -68,6 +67,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.AWS (awsEnv)
+import Wire.BoundedQueue.STM qualified as Q
 import Wire.JobSubsystem.Migrations (mkArbiterConnectionString, runJobMigrations)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.Options.Galley

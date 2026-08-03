@@ -17,8 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.Queue
-  ( Queue (..),
+module Wire.BoundedQueue
+  ( BoundedQueue (..),
     tryPush,
     pop,
   )
@@ -27,8 +27,8 @@ where
 import Imports
 import Polysemy
 
-data Queue a m x where
-  TryPush :: a -> Queue a m Bool
-  Pop :: Queue a m a
+data BoundedQueue a m x where
+  TryPush :: a -> BoundedQueue a m Bool
+  Pop :: BoundedQueue a m a
 
-makeSem ''Queue
+makeSem ''BoundedQueue

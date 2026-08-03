@@ -116,6 +116,7 @@
 , sop-core
 , ssl-util
 , statistics
+, stm
 , stomp-queue
 , string-conversions
 , tagged
@@ -256,6 +257,7 @@ mkDerivation {
     sop-core
     ssl-util
     statistics
+    stm
     stomp-queue
     tagged
     template
@@ -392,6 +394,7 @@ mkDerivation {
     sop-core
     ssl-util
     statistics
+    stm
     stomp-queue
     string-conversions
     tagged

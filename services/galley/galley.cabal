@@ -98,12 +98,10 @@ library
     Galley.API.Teams.Notifications
     Galley.App
     Galley.Cassandra
-    Galley.Effects.Queue
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
     Galley.Monad
-    Galley.Queue
     Galley.Run
     Galley.Schema.Run
     Galley.Schema.V100_OutOfSync
@@ -239,7 +237,6 @@ library
     , singletons
     , split                                 >=0.2
     , ssl-util                              >=0.1
-    , stm                                   >=2.4
     , text                                  >=0.11
     , time                                  >=1.4
     , tinylog                               >=0.10

@@ -54,12 +54,9 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Monad (runApp)
-import Galley.Queue
-import Galley.Queue qualified as Q
 import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
@@ -99,6 +96,9 @@ import Wire.API.Team.FeatureFlags
 import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
+import Wire.BoundedQueue (BoundedQueue)
+import Wire.BoundedQueue.STM
+import Wire.BoundedQueue.STM qualified as Q
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc
 import Wire.CodeStore (CodeStore)
@@ -248,7 +248,7 @@ type GalleyEffects =
      Input Opts,
      Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Now,
-     GE.Queue DeleteItem,
+     BoundedQueue DeleteItem,
      Error Meeting.MeetingError,
      Error DynError,
      Error RateLimitExceeded,
@@ -507,7 +507,7 @@ evalGalley e =
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
         . mapError meetingError
-        . interpretQueue (e ^. deleteQueue)
+        . interpretBoundedQueue (e ^. deleteQueue)
         . nowToIO
         . runInputConst (e ^. convCodeURI)
         . runInputConst (e ^. options)
