@@ -241,6 +241,9 @@ library
     Wire.BackgroundJobsRunner.Interpreter
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
+    Wire.BlockListStore.DualWrite
+    Wire.BlockListStore.Migration
+    Wire.BlockListStore.Postgres
     Wire.BoundedQueue
     Wire.BoundedQueue.STM
     Wire.BrigAPIAccess

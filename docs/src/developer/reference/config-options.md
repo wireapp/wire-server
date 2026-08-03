@@ -2092,12 +2092,14 @@ galley:
       teamFeatures: postgresql
       domainRegistration: postgresql
       user: postgresql
+      blockList: postgresql
 background-worker:
   config:
     migrateConversations: false
     migrateConversationCodes: false
     migrateTeamFeatures: false
     migrateDomainRegistration: false
+    migrateBlockList: false
 ```
 
 #### Migration for existing installations
@@ -2129,6 +2131,7 @@ The current settings and their background-worker flags are:
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
+- `blockList` -> `migrateBlockList`
 
 **Migration pattern per migration setting**
 
@@ -2149,6 +2152,7 @@ The current settings and their background-worker flags are:
          teamFeatures: migration-to-postgresql
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
+         blockList: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2156,6 +2160,7 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: false
        migrateDomainRegistration: false
        migrateUsers: false
+       migrateBlockList: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2171,6 +2176,7 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: true
        migrateDomainRegistration: true
        migrateUsers: true
+       migrateBlockList: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2196,6 +2202,7 @@ The current settings and their background-worker flags are:
    > to be saved, the operator must insert some value as `name` and/or
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
+   - `blockList`: `wire_block_list_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2210,6 +2217,7 @@ The current settings and their background-worker flags are:
          teamFeatures: postgresql
          domainRegistration: postgresql
          user: postgresql
+         blockList: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2217,6 +2225,7 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: false
        migrateDomainRegistration: false
        migrateUsers: false
+       migrateBlockList: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2305,6 +2314,7 @@ migrateConversations: false
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
+migrateBlockList: false
 
 # migration settings
 migrationOptions:

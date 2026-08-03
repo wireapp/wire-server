@@ -68,6 +68,8 @@ import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.BlockListStore.DualWrite
+import Wire.BlockListStore.Postgres
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
 import Wire.ClientStore (ClientStore)
@@ -219,6 +221,7 @@ type BrigLowerLevelEffects =
      UserGroupStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
+     BlockListStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -261,7 +264,6 @@ type BrigLowerLevelEffects =
      FederationConfigStore,
      Jwk,
      JwtTools,
-     BlockListStore,
      BudgetStore,
      UserPendingActivationStore InternalPaging,
      Now,
@@ -410,6 +412,11 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
 
+      blockListStore = case e.postgresMigration.blockList of
+        CassandraStorage -> interpretBlockListStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretBlockListStoreToPostgres
+        MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -447,7 +454,6 @@ runBrigToIO e (AppT ma) = do
               . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
               . budgetStoreToCassandra @Cas.Client
-              . interpretBlockListStoreToCassandra e.casClient
               . interpretJwtTools
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
@@ -490,6 +496,7 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . blockListStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
