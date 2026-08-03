@@ -42,7 +42,6 @@ import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
-import Testlib.Prekeys
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.Read (readMaybe)
@@ -168,8 +167,6 @@ mkEnv :: Maybe String -> GlobalEnv -> Codensity IO Env
 mkEnv currentTestName ge = do
   mls <- liftIO . newIORef =<< mkMLSState
   liftIO $ do
-    pks <- newIORef (zip [1 ..] somePrekeys)
-    lpks <- newIORef someLastPrekeys
     curlTrace <- newIORef []
     reqId <- newIORef 0
     pure
@@ -195,8 +192,6 @@ mkEnv currentTestName ge = do
               ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
-          prekeys = pks,
-          lastPrekeys = lpks,
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,

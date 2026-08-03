@@ -261,6 +261,7 @@ library
     , bytestring
     , bytestring-conversion
     , case-insensitive
+    , cborg
     , containers
     , cookie
     , cql
