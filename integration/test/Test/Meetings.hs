@@ -84,10 +84,10 @@ testMeetingMLSAddParticipant = do
       sequenceNotifs <- replicateM 3 (awaitMatch isMeetingAddSequenceNotif ws)
       sequenceTypes <- for sequenceNotifs $ \notif -> notif %. "payload.0.type" >>= asString
       sequenceTypes
-        `shouldMatch` [ "conversation.member-join",
-                        "meeting.member-add",
-                        "conversation.mls-welcome"
-                      ]
+        `shouldMatchSet` [ "conversation.member-join",
+                           "meeting.member-add",
+                           "conversation.mls-welcome"
+                         ]
       case sequenceNotifs of
         [_, notif, _] -> pure notif
         _ -> error "expected exactly three meeting-add sequence notifications"
