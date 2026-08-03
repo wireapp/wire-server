@@ -34,7 +34,6 @@ import Brig.API.User qualified as API
 import Brig.App as App
 import Brig.Data.Activation
 import Brig.Data.Connection qualified as Data
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
@@ -135,6 +134,7 @@ import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User

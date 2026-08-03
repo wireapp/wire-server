@@ -17,12 +17,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Effects.UserPendingActivationStore.Cassandra
+module Wire.UserPendingActivationStore.Cassandra
   ( userPendingActivationStoreToCassandra,
   )
 where
 
-import Brig.Effects.UserPendingActivationStore
 import Cassandra
 import Data.Id (UserId)
 import Data.Time (UTCTime)
@@ -30,6 +29,7 @@ import Imports
 import Polysemy
 import Polysemy.Internal.Tactics
 import Wire.Sem.Paging.Cassandra qualified as PC
+import Wire.UserPendingActivationStore
 
 userPendingActivationStoreToCassandra ::
   forall r a.

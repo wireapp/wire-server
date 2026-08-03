@@ -114,8 +114,6 @@ library
     Brig.Effects.JwtTools
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
-    Brig.Effects.UserPendingActivationStore
-    Brig.Effects.UserPendingActivationStore.Cassandra
     Brig.Index.Eval
     Brig.Index.Options
     Brig.Index.Types
