@@ -1429,6 +1429,13 @@ All formats must be exactly 40 hex digits (20 bytes).
 Invalid hex or wrong length (anything not exactly 20 bytes / 40 hex digits) causes
 the configuration to fail at startup with a clear error message.
 
+!!! danger Multi-ingress cross-IdP SSO fallback
+
+  This feature enables multi-ingress cross-IdP authentication in multi-ingress
+  scenarios. I.e. multiple IdPs can be used to authenticate the same account.
+  This can be a security issue if IdPs are not configured for this! See
+  [Multi-ingress cross-IdP SSO(fallback)](#multi-ingress-cross-idp-sso-fallback).
+
 ### SCIM
 
 In Helm:
@@ -1705,6 +1712,15 @@ migration when multi-ingress is configured:
 
 It must be ensured that email `NameID`s are unique across IdPs by IdP
 administrators. Otherwise, users may be logged into other users' accounts!
+
+!!! danger
+  This fallback feature breaks the 1:1 relationship between users and IdPs. To
+  use it safely, all user accounts must be consistent across all IdPs. Also note,
+  that this increases the attack surface as you have to secure and maintain
+  multiple IdPs; while a successful attack on one of them breaks security for all
+  accounts of a team with that IdP configured.
+
+  **If in doubt, please contact customer support!**
 
 ### Webapp
 

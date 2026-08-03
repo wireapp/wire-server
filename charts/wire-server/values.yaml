@@ -865,6 +865,11 @@ spar:
     # Example:
     # idpCertFingerprintAllowlist:
     #   - "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD"
+    #
+    # WARNING - In a multi-ingress setup, this enables the multi-ingress
+    # cross-IdP fallback with severe security implications. Refer to the
+    # documentation of this feature ('Multi-ingress cross-IdP SSO (fallback)')
+    # to understand what this means.
     idpCertFingerprintAllowlist: []
 
     logLevel: Info
