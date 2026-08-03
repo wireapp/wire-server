@@ -105,6 +105,17 @@ CREATE TABLE public.asset (
 ALTER TABLE public.asset OWNER TO "wire-server";
 
 --
+-- Name: blacklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.blacklist (
+    key text NOT NULL
+);
+
+
+ALTER TABLE public.blacklist OWNER TO "wire-server";
+
+--
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -487,6 +498,13 @@ ALTER TABLE public.wire_user OWNER TO "wire-server";
 
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
+
+--
+-- Name: blacklist blacklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.blacklist
+    ADD CONSTRAINT blacklist_pkey PRIMARY KEY (key);
 
 
 --

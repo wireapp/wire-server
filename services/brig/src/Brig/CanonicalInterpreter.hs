@@ -69,6 +69,8 @@ import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.BlockListStore.DualWrite
+import Wire.BlockListStore.Postgres
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
@@ -218,6 +220,7 @@ type BrigLowerLevelEffects =
      UserGroupStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
+     BlockListStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -261,7 +264,6 @@ type BrigLowerLevelEffects =
      Jwk,
      PublicKeyBundle,
      JwtTools,
-     BlockListStore,
      UserPendingActivationStore InternalPaging,
      Now,
      Delay,
@@ -409,6 +411,11 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
 
+      blockListStore = case e.postgresMigration.blockList of
+        CassandraStorage -> interpretBlockListStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretBlockListStoreToPostgres
+        MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -445,7 +452,6 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
-              . interpretBlockListStoreToCassandra e.casClient
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
@@ -489,6 +495,7 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . blockListStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres

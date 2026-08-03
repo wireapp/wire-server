@@ -17,6 +17,7 @@
 
 module Wire.BlockListStore.Cassandra
   ( interpretBlockListStoreToCassandra,
+    selectAllBlacklist,
   )
 where
 
@@ -60,3 +61,6 @@ keySelect = "SELECT key FROM blacklist WHERE key = ?"
 
 keyDelete :: PrepQuery W (Identity Text) ()
 keyDelete = "DELETE FROM blacklist WHERE key = ?"
+
+selectAllBlacklist :: PrepQuery R () (Identity Text)
+selectAllBlacklist = "SELECT key FROM blacklist"

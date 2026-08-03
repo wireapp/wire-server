@@ -23,6 +23,7 @@ import System.Logger qualified as Log
 import UnliftIO
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
+import Wire.BlockListStore.Migration
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
 import Wire.DomainRegistrationStore.Migration
@@ -106,4 +107,22 @@ domainRegistration migOpts = do
   Log.info logger $ Log.msg (Log.val "started domain registration migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
+    cancel migrationLoop
+
+blockList :: MigrationOptions -> AppT IO CleanupAction
+blockList migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting blacklist migration")
+  count <- register $ counter $ Prometheus.Info "wire_block_list_migrated_to_pg" "Number of blacklist keys migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_block_list_migration_finished" "Whether the blacklist migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_block_list_migration_failed" "Whether the blacklist migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_block_list_migration_duration_seconds" "Duration of blacklist migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateBlacklistLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started blacklist migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling blacklist migration")
     cancel migrationLoop
