@@ -74,6 +74,7 @@
 , imports
 , iproute
 , iso639
+, jwt-tools
 , kan-extensions
 , lens
 , lens-aeson
@@ -219,6 +220,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    jwt-tools
     kan-extensions
     lens
     lens-aeson
@@ -355,6 +357,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    jwt-tools
     kan-extensions
     lens
     lens-aeson

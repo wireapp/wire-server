@@ -22,7 +22,6 @@ import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
-import Brig.Effects.JwtTools
 import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.IO.Intra (runEvents)
@@ -110,6 +109,7 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)

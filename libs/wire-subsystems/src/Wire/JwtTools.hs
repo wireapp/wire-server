@@ -17,9 +17,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Effects.JwtTools where
+-- | DPoP access-token generation effect.
+--
+-- Note: 'CertEnrollmentError' lives here (not in @wire-api@) because its
+-- 'RustError' constructor references 'Data.Jwt.Tools.DPoPTokenGenerationError'
+-- from the @jwt-tools@ FFI library; moving it to @wire-api@ would pull the
+-- @rusty_jwt_tools_ffi@ native library into the pure types package. brig keeps
+-- importing it from here unchanged.
+module Wire.JwtTools
+  ( JwtTools (..),
+    generateDPoPAccessToken,
+    interpretJwtTools,
+    CertEnrollmentError (..),
+  )
+where
 
-import Brig.API.Types (CertEnrollmentError (..))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Data.Handle (Handle, fromHandle)
@@ -38,6 +50,18 @@ import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (Epoch (..))
 import Wire.API.User.Client.DPoPAccessToken (DPoPAccessToken (..), Proof (..))
 import Wire.API.User.Profile (Name (..))
+
+-- | Moved from "Brig.API.Types": kept the exact constructors. @RustError@
+-- wraps the FFI error type from "Data.Jwt.Tools".
+data CertEnrollmentError
+  = NonceNotFound
+  | RustError Jwt.DPoPTokenGenerationError
+  | KeyBundleError
+  | MisconfiguredRequestUrl
+  | ClientIdSyntaxError
+  | NotATeamUser
+  | MissingHandle
+  | MissingName
 
 data JwtTools m a where
   GenerateDPoPAccessToken ::

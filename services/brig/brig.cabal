@@ -111,7 +111,6 @@ library
     Brig.DeleteQueue.Interpreter
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
-    Brig.Effects.JwtTools
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
     Brig.Index.Eval

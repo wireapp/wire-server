@@ -45,7 +45,6 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Effects.ConnectionStore
-import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
 import Brig.Options hiding (internalEvents)
@@ -184,6 +183,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
+import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
