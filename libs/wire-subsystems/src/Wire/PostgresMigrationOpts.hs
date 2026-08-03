@@ -56,7 +56,8 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     conversationCodes :: StorageLocation,
     teamFeatures :: StorageLocation,
     domainRegistration :: StorageLocation,
-    user :: StorageLocation
+    user :: StorageLocation,
+    blockList :: StorageLocation
   }
   deriving (Show)
 
@@ -68,3 +69,4 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "teamFeatures"
       <*> o .: "domainRegistration"
       <*> o .: "user"
+      <*> o .: "blockList"
