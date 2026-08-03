@@ -253,11 +253,13 @@ testLHClaimKeys approvedOrPending testmode = do
       LHApproved -> approveLegalHoldDevice ltid (lmem %. "qualified_id") defPassword >>= assertSuccess
       LHPending -> pure ()
 
+    pks <- getPrekeys 10
+    lpk <- getLastPrekey
     let addc caps = addClient pmem (settings caps) >>= assertSuccess
         settings caps =
           def
-            { prekeys = Just $ take 10 somePrekeysRendered,
-              lastPrekey = Just $ head someLastPrekeysRendered,
+            { prekeys = Just pks,
+              lastPrekey = Just lpk,
               acapabilities = caps
             }
      in addc $ Just ["legalhold-implicit-consent"]

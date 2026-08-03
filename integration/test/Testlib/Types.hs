@@ -264,8 +264,6 @@ data Env = Env
     apiVersionByDomain :: Map String Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
-    prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMqAdminOpts,
