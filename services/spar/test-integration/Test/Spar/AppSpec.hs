@@ -175,7 +175,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
           then SAML.AccessGranted uref
           else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
   outcome <- do
-    runSpar $ Spar.verdictHandler (authnresp ^. rspPayload) verdict idp
+    runSpar $ Spar.verdictHandler (authnresp ^. rspPayload) verdict idp Nothing
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)

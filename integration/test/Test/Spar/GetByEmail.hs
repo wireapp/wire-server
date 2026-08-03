@@ -99,10 +99,10 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
           [] -> assertFailure "Expected at least one email"
 
       let idpTokenConfig = if isIdPScimToken then (def {idp = Just idpIdErnie}) else def
-      scimTok <- createScimToken owner idpTokenConfig
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner idpTokenConfig
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       if isIdPScimToken
         then when requireExternalEmailVerification $ do
@@ -157,10 +157,10 @@ testGetSsoCodeByEmailRegular (TaggedBool requireExternalEmailVerification) (Tagg
           [] -> assertFailure "Expected at least one email"
 
       let idpTokenConfig = if isIdPScimToken then (def {idp = Just idpId}) else def
-      scimTok <- createScimToken owner idpTokenConfig
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner idpTokenConfig
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       if isIdPScimToken
         then when requireExternalEmailVerification $ do
@@ -222,10 +222,10 @@ testGetSsoCodeByEmailDisabledRegular = do
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
 
-      scimTok <- createScimToken owner def {idp = Just idpId}
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner def {idp = Just idpId}
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       -- Activate the email so the user can be found by email
       activateEmail domain userEmail
@@ -288,10 +288,10 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
 
-      scimTok <- createScimToken owner def {idp = Just idpIdErnie}
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner def {idp = Just idpIdErnie}
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       -- Activate the email so the user can be found by email
       activateEmail domain userEmail
