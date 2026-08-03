@@ -46,7 +46,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Effects.ConnectionStore
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
-import Brig.Effects.SFT
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
@@ -189,6 +188,7 @@ import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
+import Wire.SFT
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Metrics (Metrics)

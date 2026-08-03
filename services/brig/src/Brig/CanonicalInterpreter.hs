@@ -23,7 +23,6 @@ import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.Effects.PublicKeyBundle
-import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.IO.Intra (runEvents)
 import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
@@ -132,6 +131,7 @@ import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.SAMLEmailSubsystem
 import Wire.SAMLEmailSubsystem.Interpreter
+import Wire.SFT (SFT, interpretSFT)
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay

@@ -112,7 +112,6 @@ library
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.PublicKeyBundle
-    Brig.Effects.SFT
     Brig.Index.Eval
     Brig.Index.Options
     Brig.Index.Types
