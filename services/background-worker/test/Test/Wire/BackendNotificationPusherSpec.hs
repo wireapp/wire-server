@@ -496,7 +496,8 @@ spec = do
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
                 domainRegistration = CassandraStorage,
-                user = CassandraStorage
+                user = CassandraStorage,
+                service = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -560,7 +561,8 @@ spec = do
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
                 domainRegistration = CassandraStorage,
-                user = CassandraStorage
+                user = CassandraStorage,
+                service = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
