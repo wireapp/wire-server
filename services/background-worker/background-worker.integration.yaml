@@ -64,6 +64,7 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
+migrateActivationKeys: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -98,6 +99,7 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   passwordReset: postgresql
+  activationKeys: postgresql
   user: postgresql
   blockList: postgresql
   customBackend: postgresql
