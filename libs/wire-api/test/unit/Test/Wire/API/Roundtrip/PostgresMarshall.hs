@@ -47,6 +47,8 @@ import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.Connection qualified as Connection
+import Wire.API.MLS.Proposal (Proposal, ProposalOrigin, ProposalRef)
+import Wire.API.MLS.Serialisation (RawMLS)
 import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
@@ -66,7 +68,10 @@ tests =
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
       testRoundTrip @Int32 @Connection.RelationWithHistory,
-      testRoundTrip @A.Value @DbConfig
+      testRoundTrip @A.Value @DbConfig,
+      testRoundTrip @ByteString @ProposalRef,
+      testRoundTrip @Int32 @ProposalOrigin,
+      testRoundTrip @ByteString @(RawMLS Proposal)
     ]
 
 testRoundTrip ::
