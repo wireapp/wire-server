@@ -164,6 +164,8 @@ import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO
 import Wire.ServiceStore (ServiceStore)
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
+import Wire.ServiceStore.DualWrite (interpretServiceStoreToCassandraAndPostgres)
+import Wire.ServiceStore.Postgres (interpretServiceStoreToPostgres)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
@@ -423,6 +425,11 @@ evalGalley e =
           CassandraStorage -> interpretTeamFeatureStoreToCassandra
           MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
+      serviceStoreInterpreter =
+        case (e ^. options . postgresMigration).service of
+          CassandraStorage -> interpretServiceStoreToCassandra (e ^. cstate)
+          MigrationToPostgresql -> interpretServiceStoreToCassandraAndPostgres (e ^. cstate)
+          PostgresqlStorage -> interpretServiceStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -528,7 +535,7 @@ evalGalley e =
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra
-        . interpretServiceStoreToCassandra (e ^. cstate)
+        . serviceStoreInterpreter
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
         . interpretLegalHoldStoreToCassandra lh

@@ -2106,12 +2106,14 @@ galley:
       teamFeatures: postgresql
       domainRegistration: postgresql
       user: postgresql
+      service: postgresql
 background-worker:
   config:
     migrateConversations: false
     migrateConversationCodes: false
     migrateTeamFeatures: false
     migrateDomainRegistration: false
+    migrateService: false
 ```
 
 #### Migration for existing installations
@@ -2142,6 +2144,7 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
+- `service` -> `migrateService`
 
 **Migration pattern per migration setting**
 
@@ -2161,12 +2164,14 @@ The current settings and their background-worker flags are:
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
          domainRegistration: cassandra
+         service: cassandra
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migrateService: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2181,6 +2186,7 @@ The current settings and their background-worker flags are:
        migrateConversationCodes: true
        migrateTeamFeatures: true
        migrateDomainRegistration: true
+       migrateService: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2196,6 +2202,7 @@ The current settings and their background-worker flags are:
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
+   - `service`: `wire_service_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2209,12 +2216,14 @@ The current settings and their background-worker flags are:
          conversationCodes: postgresql
          teamFeatures: postgresql
          domainRegistration: cassandra
+         service: postgresql
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migrateService: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2303,6 +2312,7 @@ migrateConversations: false
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
+migrateService: false
 
 # migration settings
 migrationOptions:
