@@ -360,6 +360,8 @@ acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?
 
 releaseCommitLock :: PrepQuery W (GroupId, Epoch) ()
 releaseCommitLock = "delete from mls_commit_locks where group_id = ? and epoch = ?"
+selectAllCommitLocks :: PrepQuery R () (GroupId, Epoch)
+selectAllCommitLocks = "select group_id, epoch from mls_commit_locks"
 
 -- Bots ---------------------------------------------------------------------
 
