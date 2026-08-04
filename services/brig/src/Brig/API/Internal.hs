@@ -631,6 +631,7 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserStore r,
     Member TinyLog r,
     Member UserKeyStore r,

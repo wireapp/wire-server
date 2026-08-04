@@ -89,16 +89,19 @@ testTeamInvitationWhenScimInvitationExpired = do
     -- The handle previously held by the SCIM account is available again.
     putHandle user handle >>= assertSuccess
 
-    -- Only the active manual account remains; it owns both the email and handle.
-    users <- getUsersIdRaw domain [manualUserId, scid] >>= getJSON 200 >>= asList
-    rawUser <- assertOne users
-    rawUser %. "id" `shouldMatch` manualUserId
-    rawUser %. "email" `shouldMatch` email
-    rawUser %. "handle" `shouldMatch` handle
-    rawUser %. "managed_by" `shouldMatch` "wire"
-    rawUser %. "status" `shouldMatch` "active"
-    activated <- rawUser %. "activated" >>= asBool
+    -- The raw endpoint also returns the tombstone for the deleted SCIM account.
+    manualUser <- getUsersIdRaw domain [manualUserId] >>= getJSON 200 >>= asList >>= assertOne
+    manualUser %. "id" `shouldMatch` manualUserId
+    manualUser %. "email" `shouldMatch` email
+    manualUser %. "handle" `shouldMatch` handle
+    manualUser %. "managed_by" `shouldMatch` "wire"
+    manualUser %. "status" `shouldMatch` "active"
+    activated <- manualUser %. "activated" >>= asBool
     activated `shouldMatch` True
+
+    deletedScimUser <- getUsersIdRaw domain [scid] >>= getJSON 200 >>= asList >>= assertOne
+    deletedScimUser %. "id" `shouldMatch` scid
+    deletedScimUser %. "status" `shouldMatch` "deleted"
 
 testTeamInvitationWhenScimInvitationPending :: (HasCallStack) => App ()
 testTeamInvitationWhenScimInvitationPending = do

@@ -1511,6 +1511,7 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserStore r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
@@ -1532,6 +1533,7 @@ deleteSelfUser lu body = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserStore r,
     Member TinyLog r,
     Member UserKeyStore r,
