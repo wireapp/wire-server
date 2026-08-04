@@ -40,7 +40,6 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem
 import Spar.Sem.ScimTokenStore
 import Spar.Sem.ScimTokenStore.Mem
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.FilePath ((</>))
 import System.Logger (Msg)
 import System.Logger.Class (Level (..))
@@ -75,6 +74,7 @@ import Wire.Sem.Logger (discardLogs)
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
 import Wire.Sem.Random
 import Wire.Sem.Random.Null
+import qualified Wire.VerdictFormatStore as VerdictFormatStore
 
 spec :: Spec
 spec =

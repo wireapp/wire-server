@@ -509,6 +509,9 @@ library
     Wire.UserSubsystem.Interpreter
     Wire.UserSubsystem.UserSubsystemConfig
     Wire.Util
+    Wire.VerdictFormatStore
+    Wire.VerdictFormatStore.Cassandra
+    Wire.VerdictFormatStore.Mem
     Wire.VerificationCode
     Wire.VerificationCodeGen
     Wire.VerificationCodeStore

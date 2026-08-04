@@ -48,8 +48,6 @@ import Spar.Sem.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.Utils
-import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
-import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.User.Saml (TTLError)
@@ -84,6 +82,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
+import Wire.VerdictFormatStore (VerdictFormatStore)
+import Wire.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 
 type CanonicalEffs =
   '[IdPSubsystem, ScimSubsystem]

@@ -80,9 +80,6 @@ library
     Spar.Sem.ScimTokenStore.Cassandra
     Spar.Sem.ScimTokenStore.Mem
     Spar.Sem.Utils
-    Spar.Sem.VerdictFormatStore
-    Spar.Sem.VerdictFormatStore.Cassandra
-    Spar.Sem.VerdictFormatStore.Mem
 
   other-modules:      Paths_spar
   hs-source-dirs:     src

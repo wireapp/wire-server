@@ -20,16 +20,7 @@
 
 -- | 'Cql' instances for Spar types, as well as conversion functions used in "Spar.Data"
 -- (which does the actual database work).
-module Spar.Data.Instances
-  ( -- * Raw database types
-    VerdictFormatRow,
-    VerdictFormatCon (..),
-
-    -- ** Conversions
-    fromVerdictFormat,
-    toVerdictFormat,
-  )
-where
+module Spar.Data.Instances () where
 
 import Cassandra as Cas
 import Data.ByteString (toStrict)
@@ -38,35 +29,7 @@ import Data.Functor.Alt (Alt ((<!>)))
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
-import URI.ByteString
-import Wire.API.User.Auth
-import Wire.API.User.Saml
 import Wire.API.User.Scim
-
-type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI, Maybe CookieLabel)
-
-data VerdictFormatCon = VerdictFormatConWeb | VerdictFormatConMobile
-
-instance Cql VerdictFormatCon where
-  ctype = Tagged IntColumn
-
-  toCql VerdictFormatConWeb = CqlInt 0
-  toCql VerdictFormatConMobile = CqlInt 1
-
-  fromCql (CqlInt i) = case i of
-    0 -> pure VerdictFormatConWeb
-    1 -> pure VerdictFormatConMobile
-    n -> Left $ "unexpected VerdictFormatCon: " ++ show n
-  fromCql _ = Left "member-status: int expected"
-
-fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
-fromVerdictFormat (VerdictFormatWeb mlabel) = (VerdictFormatConWeb, Nothing, Nothing, mlabel)
-fromVerdictFormat (VerdictFormatMobile succredir errredir mlabel) = (VerdictFormatConMobile, Just succredir, Just errredir, mlabel)
-
-toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
-toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing, mlabel) = Just $ VerdictFormatWeb mlabel
-toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir, mlabel) = Just $ VerdictFormatMobile succredir errredir mlabel
-toVerdictFormat _ = Nothing
 
 deriving instance Cql ScimToken
 

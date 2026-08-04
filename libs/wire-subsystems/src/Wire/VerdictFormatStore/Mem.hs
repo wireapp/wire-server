@@ -17,21 +17,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.VerdictFormatStore.Mem
+module Wire.VerdictFormatStore.Mem
   ( verdictFormatStoreToMem,
   )
 where
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State hiding (Get)
 import SAML2.WebSSO (addTime)
-import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.VerdictFormatStore
+import SAML2.WebSSO.Types qualified as SAML
 import Wire.API.User.Saml (AReqId, VerdictFormat)
 import Wire.Sem.Now (Now, boolTTL)
-import qualified Wire.Sem.Now as Now
+import Wire.Sem.Now qualified as Now
+import Wire.VerdictFormatStore
 
 verdictFormatStoreToMem ::
   (Member Now r) =>
