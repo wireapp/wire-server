@@ -19,6 +19,7 @@ conversationCodesStore: {{ $preferredStore }}
 teamFeaturesStore: {{ $preferredStore }}
 domainRegistration: {{ $preferredStore }}
 userStore: {{ $preferredStore }}
+proposalsStore: {{ $preferredStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

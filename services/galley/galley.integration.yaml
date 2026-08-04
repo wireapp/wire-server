@@ -266,3 +266,4 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   user: postgresql
+  proposals: postgresql

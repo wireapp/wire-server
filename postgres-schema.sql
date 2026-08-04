@@ -343,6 +343,22 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
+-- Name: mls_proposal_refs; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.mls_proposal_refs (
+    group_id bytea NOT NULL,
+    epoch bigint NOT NULL,
+    ref bytea NOT NULL,
+    origin integer,
+    proposal bytea NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.mls_proposal_refs OWNER TO "wire-server";
+
+--
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -602,6 +618,14 @@ ALTER TABLE ONLY public.mls_history_client
 
 
 --
+-- Name: mls_proposal_refs mls_proposal_refs_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.mls_proposal_refs
+    ADD CONSTRAINT mls_proposal_refs_pkey PRIMARY KEY (group_id, epoch, ref);
+
+
+--
 -- Name: remote_conversation_local_member remote_conversation_local_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -804,6 +828,13 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: mls_proposal_refs_group_epoch_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX mls_proposal_refs_group_epoch_expires_at_idx ON public.mls_proposal_refs USING btree (group_id, epoch, expires_at);
 
 
 --
