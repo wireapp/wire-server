@@ -89,6 +89,7 @@ galley:
       conversationCodes: cassandra
       teamFeatures: cassandra
       domainRegistration: cassandra
+      activationKeys: cassandra
       user: cassandra
     settings:
       httpPoolSize: 128
@@ -1026,6 +1027,7 @@ background-worker:
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.
     migrateDomainRegistration: false
+    migrateActivationKeys: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

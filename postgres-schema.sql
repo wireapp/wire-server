@@ -685,6 +685,34 @@ SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
+
+--
+-- Name: activation_keys; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.activation_keys (
+    key text NOT NULL,
+    key_type text NOT NULL,
+    key_text text NOT NULL,
+    code text NOT NULL,
+    "user" uuid,
+    retries integer NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: activation_keys activation_keys_key_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX activation_keys_key_expires_at_idx ON public.activation_keys USING btree (key, expires_at);
+
+
+--
+-- Name: activation_keys activation_keys_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX activation_keys_expires_at_idx ON public.activation_keys USING btree (expires_at);
 --
 -- Name: arbiter_concurrency; Type: TABLE; Schema: arbiter; Owner: wire-server
 --

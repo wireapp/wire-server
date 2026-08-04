@@ -1578,7 +1578,8 @@ activate ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member ActivationCodeStore r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1595,13 +1596,14 @@ activateKey ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member UserStore r,
-    Member UserKeyStore r
+  Member UserKeyStore r,
+  Member ActivationCodeStore r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
-      (emailKey, _) <- wrapClientE (API.preverify tgt code) !>> actError
+      (emailKey, _) <- API.preverify tgt code !>> actError
       lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
       pure ActivationRespDryRun
   | otherwise = do

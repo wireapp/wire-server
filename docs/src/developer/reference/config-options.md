@@ -2150,6 +2150,7 @@ galley:
       conversationCodes: postgresql
       teamFeatures: postgresql
       domainRegistration: postgresql
+      activationKeys: postgresql
       user: postgresql
 background-worker:
   config:
@@ -2157,6 +2158,7 @@ background-worker:
     migrateConversationCodes: false
     migrateTeamFeatures: false
     migrateDomainRegistration: false
+    migrateActivationKeys: false
 ```
 
 #### Migration for existing installations
@@ -2187,6 +2189,7 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
+- `activationKeys` -> `migrateActivationKeys`
 
 **Migration pattern per migration setting**
 
@@ -2205,13 +2208,15 @@ The current settings and their background-worker flags are:
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
-         domainRegistration: cassandra
-   background-worker:
-     config:
-       migrateConversations: false
-       migrateConversationCodes: false
-       migrateTeamFeatures: false
-       migrateDomainRegistration: false
+        domainRegistration: cassandra
+        activationKeys: migration-to-postgresql
+  background-worker:
+    config:
+      migrateConversations: false
+      migrateConversationCodes: false
+      migrateTeamFeatures: false
+      migrateDomainRegistration: false
+      migrateActivationKeys: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2225,7 +2230,8 @@ The current settings and their background-worker flags are:
        migrateConversations: true
        migrateConversationCodes: true
        migrateTeamFeatures: true
-       migrateDomainRegistration: true
+      migrateDomainRegistration: true
+      migrateActivationKeys: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2241,6 +2247,7 @@ The current settings and their background-worker flags are:
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
+  - `activationKeys`: `wire_activation_keys_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2273,6 +2280,7 @@ The current settings and their background-worker flags are:
 - Some settings cover multiple Cassandra tables. For example,
   `postgresMigration.domainRegistration` covers `domain_registration`,
   `domain_registration_by_team`, and `domain_registration_challenge`.
+  `postgresMigration.activationKeys` covers the `activation_keys` table.
 
 ## Configure Cells
 

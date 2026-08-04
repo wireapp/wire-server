@@ -26,6 +26,7 @@ import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
 import Wire.DomainRegistrationStore.Migration
+import Wire.ActivationCodeStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.TeamFeatureStore.Migration
 
@@ -106,4 +107,20 @@ domainRegistration migOpts = do
   Log.info logger $ Log.msg (Log.val "started domain registration migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
+    cancel migrationLoop
+
+activationKeys :: MigrationOptions -> AppT IO CleanupAction
+activationKeys migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting activation keys migration")
+  count <- register $ counter $ Prometheus.Info "wire_activation_keys_migrated_to_pg" "Number of activation keys migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_activation_keys_migration_finished" "Whether the activation keys migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_activation_keys_migration_failed" "Whether the activation keys migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_activation_keys_migration_duration_seconds" "Duration of activation key migration attempts") defaultBuckets
+  migrationLoop <- async . lift $ migrateActivationKeysLoop migOpts cassClient pgPool logger count finished failed duration
+  Log.info logger $ Log.msg (Log.val "started activation keys migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling activation keys migration")
     cancel migrationLoop

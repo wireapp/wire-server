@@ -58,6 +58,7 @@ migrationOptions:
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
+migrateActivationKeys: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -91,4 +92,5 @@ postgresMigration:
   conversationCodes: postgresql
   teamFeatures: postgresql
   domainRegistration: postgresql
+  activationKeys: postgresql
   user: postgresql
