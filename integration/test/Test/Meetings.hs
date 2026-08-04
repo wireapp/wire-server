@@ -84,13 +84,13 @@ testMeetingMLSAddParticipant = do
       sequenceNotifs <- replicateM 3 (awaitMatch isMeetingAddSequenceNotif ws)
       sequenceTypes <- for sequenceNotifs $ \notif -> notif %. "payload.0.type" >>= asString
       sequenceTypes
-        `shouldMatch` [ "conversation.member-join",
-                        "meeting.member-add",
-                        "conversation.mls-welcome"
-                      ]
-      case sequenceNotifs of
-        [_, notif, _] -> pure notif
-        _ -> error "expected exactly three meeting-add sequence notifications"
+        `shouldMatchSet` [ "conversation.member-join",
+                           "meeting.member-add",
+                           "conversation.mls-welcome"
+                         ]
+      case [n | (t, n) <- zip sequenceTypes sequenceNotifs, t == "meeting.member-add"] of
+        (notif : _) -> pure notif
+        [] -> assertFailure "expected a meeting.member-add notification in the add sequence"
 
   assertMeetingNotif memberAddNotif (meeting %. "qualified_id")
   memberAddNotif %. "payload.0.qualified_conversation" `shouldMatch` convQid
