@@ -56,10 +56,13 @@ testFederatorNumRequestsMetrics = do
   outgoingBefore <- getMetric parseOutgoingRequestCount OwnDomain OtherDomain
   bindResponse (searchContacts u1 (u2 %. "name") OtherDomain) $ \resp ->
     resp.status `shouldMatchInt` 200
-  incomingAfter <- getMetric parseIncomingRequestCount OtherDomain OwnDomain
-  outgoingAfter <- getMetric parseOutgoingRequestCount OwnDomain OtherDomain
-  assertBool "Incoming requests count should have increased by at least 2" $ incomingAfter >= incomingBefore + 2
-  assertBool "Outgoing requests count should have increased by at least 2" $ outgoingAfter >= outgoingBefore + 2
+  -- Metrics are updated asynchronously in the federator, so we need to
+  -- poll until they reflect the requests triggered by searchContacts.
+  eventually $ do
+    incomingAfter <- getMetric parseIncomingRequestCount OtherDomain OwnDomain
+    outgoingAfter <- getMetric parseOutgoingRequestCount OwnDomain OtherDomain
+    assertBool "Incoming requests count should have increased by at least 2" $ incomingAfter >= incomingBefore + 2
+    assertBool "Outgoing requests count should have increased by at least 2" $ outgoingAfter >= outgoingBefore + 2
   where
     getMetric :: (Text -> Parser Integer) -> Domain -> Domain -> App Integer
     getMetric p domain origin = do
