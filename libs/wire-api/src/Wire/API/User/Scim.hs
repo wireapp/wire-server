@@ -70,7 +70,7 @@ import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (Gen)
+import Test.QuickCheck (Gen, elements)
 import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
@@ -515,3 +515,9 @@ newtype ScimTokenName = ScimTokenName {fromScimTokenName :: Text}
 
 instance ToSchema ScimTokenName where
   schema = object $ ScimTokenName <$> fromScimTokenName .= field "name" schema
+
+data ScimUserCreationStatus = ScimUserCreating | ScimUserCreated
+  deriving (Eq, Show, Generic)
+
+instance Arbitrary ScimUserCreationStatus where
+  arbitrary = elements [ScimUserCreating, ScimUserCreated]
