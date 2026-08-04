@@ -74,7 +74,10 @@ randomBytes :: Int -> App ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n randomIO
 
 randomString :: Int -> App String
-randomString n = liftIO $ replicateM n randomIO
+randomString n = liftIO $ replicateM n pick
+  where
+    chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
 
 randomJSON :: App Value
 randomJSON = do
