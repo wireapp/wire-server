@@ -42,7 +42,6 @@ import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
 import Control.Lens.Extras (is)
-import Data.Aeson qualified as A
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -277,7 +276,6 @@ accountAPI =
     :<|> Named @"iPutUserStatus" changeAccountStatusH
     :<|> Named @"iGetUserStatus" getAccountStatusH
     :<|> Named @"iGetUsersByVariousKeys" listActivatedAccountsH
-    :<|> Named @"iGetUsersRaw" listUsersRawH
     :<|> Named @"iGetUserContacts" getContactListH
     :<|> Named @"iGetUserActivationCode" getActivationCode
     :<|> Named @"iGetUserPasswordResetCode" getPasswordResetCodeH
@@ -764,29 +762,6 @@ listActivatedAccountsH
                 getByHandle = handles
               }
       pure $ filter (\u -> u.userStatus /= Deleted) $ others <> byEmails
-
--- | Diagnostic lookup of user records without the normal status, identity, or expired-invitation filtering.
-listUsersRawH ::
-  (Member UserStore r) =>
-  CommaSeparatedList UserId ->
-  Handler r [RawUser]
-listUsersRawH (fromCommaSeparatedList -> uids) =
-  lift . liftSem $ catMaybes <$> traverse (fmap (fmap rawUserFromStored) . UserStore.getUser) uids
-
-rawUserFromStored :: StoredUser -> RawUser
-rawUserFromStored user =
-  RawUser
-    { rawUserId = user.id,
-      rawUserName = user.name,
-      rawUserEmail = user.email,
-      rawUserEmailUnvalidated = user.emailUnvalidated,
-      rawUserSSOId = A.toJSON <$> user.ssoId,
-      rawUserActivated = user.activated,
-      rawUserStatus = user.status,
-      rawUserHandle = user.handle,
-      rawUserTeamId = user.teamId,
-      rawUserManagedBy = user.managedBy
-    }
 
 getActivationCode ::
   ( Member ActivationCodeStore r,

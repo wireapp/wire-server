@@ -445,13 +445,6 @@ type AccountAPI =
                :> Get '[Servant.JSON] [User]
            )
     :<|> Named
-           "iGetUsersRaw"
-           ( "users"
-               :> "raw"
-               :> QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId)
-               :> Get '[Servant.JSON] [RawUser]
-           )
-    :<|> Named
            "iGetUserContacts"
            ( "users"
                :> Capture "uid" UserId

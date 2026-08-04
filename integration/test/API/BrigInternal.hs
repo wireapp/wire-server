@@ -76,10 +76,15 @@ getUsersId domain ids = do
   req <- baseRequest domain Brig Unversioned "/i/users"
   submit "GET" $ req & addQueryParams [("ids", intercalate "," ids)]
 
-getUsersIdRaw :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
-getUsersIdRaw domain ids = do
-  req <- baseRequest domain Brig Unversioned "/i/users/raw"
-  submit "GET" $ req & addQueryParams [("ids", intercalate "," ids)]
+getUsersIdIncludingPending :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
+getUsersIdIncludingPending domain ids = do
+  req <- baseRequest domain Brig Unversioned "/i/users"
+  submit "GET" $
+    req
+      & addQueryParams
+        [ ("ids", intercalate "," ids),
+          ("includePendingInvitations", "true")
+        ]
 
 getUsersByEmail :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
 getUsersByEmail domain emails = do

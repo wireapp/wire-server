@@ -89,19 +89,16 @@ testTeamInvitationWhenScimInvitationExpired = do
     -- The handle previously held by the SCIM account is available again.
     putHandle user handle >>= assertSuccess
 
-    -- The raw endpoint also returns the tombstone for the deleted SCIM account.
-    manualUser <- getUsersIdRaw domain [manualUserId] >>= getJSON 200 >>= asList >>= assertOne
+    manualUser <- getUsersId domain [manualUserId] >>= getJSON 200 >>= asList >>= assertOne
     manualUser %. "id" `shouldMatch` manualUserId
     manualUser %. "email" `shouldMatch` email
     manualUser %. "handle" `shouldMatch` handle
     manualUser %. "managed_by" `shouldMatch` "wire"
     manualUser %. "status" `shouldMatch` "active"
-    activated <- manualUser %. "activated" >>= asBool
-    activated `shouldMatch` True
 
-    deletedScimUser <- getUsersIdRaw domain [scid] >>= getJSON 200 >>= asList >>= assertOne
-    deletedScimUser %. "id" `shouldMatch` scid
-    deletedScimUser %. "status" `shouldMatch` "deleted"
+    -- The regular internal users API filters deleted records, so it cannot
+    -- distinguish a deleted SCIM account from an account that is not found.
+    shouldBeEmpty $ getUsersId domain [scid] >>= getJSON 200 >>= asList
 
 testTeamInvitationWhenScimInvitationPending :: (HasCallStack) => App ()
 testTeamInvitationWhenScimInvitationPending = do
@@ -124,14 +121,12 @@ testTeamInvitationWhenScimInvitationPending = do
   -- pending SCIM invitation could be used for an email-registration DoS.
   postInvitation otherOwner (def {email = Just email}) >>= assertStatus 201
 
-  users <- getUsersIdRaw OwnDomain [scid] >>= getJSON 200 >>= asList
+  users <- getUsersIdIncludingPending OwnDomain [scid] >>= getJSON 200 >>= asList
   user <- assertOne users
   user %. "email" `shouldMatch` email
   user %. "handle" `shouldMatch` handle
   user %. "managed_by" `shouldMatch` "scim"
   user %. "status" `shouldMatch` "pending-invitation"
-  activated <- user %. "activated" >>= asBool
-  activated `shouldMatch` True
 
 testTeamInvitationWhenScimAccountExists :: (HasCallStack) => App ()
 testTeamInvitationWhenScimAccountExists = do
@@ -152,14 +147,12 @@ testTeamInvitationWhenScimAccountExists = do
   -- for the same email must therefore be rejected with a conflict.
   postInvitation owner (def {email = Just email}) >>= assertStatus 409
 
-  users <- getUsersIdRaw OwnDomain [scid] >>= getJSON 200 >>= asList
+  users <- getUsersId OwnDomain [scid] >>= getJSON 200 >>= asList
   user <- assertOne users
   user %. "email" `shouldMatch` email
   user %. "handle" `shouldMatch` handle
   user %. "managed_by" `shouldMatch` "scim"
   user %. "status" `shouldMatch` "active"
-  activated <- user %. "activated" >>= asBool
-  activated `shouldMatch` True
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do

@@ -36,7 +36,6 @@ module Wire.API.User
     SelfProfile (..),
     -- User (should not be here)
     User (..),
-    RawUser (..),
     UserType (..),
     isSamlUser,
     userId,
@@ -727,40 +726,6 @@ userObjectSchema =
     <*> userSupportedProtocols .= supportedProtocolsObjectSchema
     <* (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
     <*> userSearchable .= (fromMaybe True <$> optField "searchable" schema)
-
--- | Stored account data exposed by the diagnostic users endpoint.
---
--- This intentionally keeps the storage-level activation flag separate from
--- 'AccountStatus' and from the derived 'UserIdentity'.
-data RawUser = RawUser
-  { rawUserId :: UserId,
-    rawUserName :: Name,
-    rawUserEmail :: Maybe EmailAddress,
-    rawUserEmailUnvalidated :: Maybe EmailAddress,
-    rawUserSSOId :: Maybe A.Value,
-    rawUserActivated :: Bool,
-    rawUserStatus :: Maybe AccountStatus,
-    rawUserHandle :: Maybe Handle,
-    rawUserTeamId :: Maybe TeamId,
-    rawUserManagedBy :: Maybe ManagedBy
-  }
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema RawUser)
-
-instance ToSchema RawUser where
-  schema =
-    object $
-      RawUser
-        <$> rawUserId .= field "id" schema
-        <*> rawUserName .= field "name" schema
-        <*> rawUserEmail .= maybe_ (optField "email" schema)
-        <*> rawUserEmailUnvalidated .= maybe_ (optField "email_unvalidated" schema)
-        <*> rawUserSSOId .= maybe_ (optField "sso_id" schema)
-        <*> rawUserActivated .= field "activated" schema
-        <*> rawUserStatus .= maybe_ (optField "status" schema)
-        <*> rawUserHandle .= maybe_ (optField "handle" schema)
-        <*> rawUserTeamId .= maybe_ (optField "team" schema)
-        <*> rawUserManagedBy .= maybe_ (optField "managed_by" schema)
 
 userEmail :: User -> Maybe EmailAddress
 userEmail = emailIdentity <=< userIdentity
