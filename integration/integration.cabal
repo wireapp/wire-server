@@ -180,6 +180,7 @@ library
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
+    Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
     Test.Migration.Util
     Test.MLS

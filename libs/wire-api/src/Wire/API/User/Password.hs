@@ -48,12 +48,15 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Range (Ranged (..))
 import Data.Schema as Schema
 import Data.Text.Ascii
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Tuple.Extra
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.User.EmailAddress
 import Wire.API.User.Phone
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.PostgresMarshall (PostgresMarshall (postgresMarshall), PostgresUnmarshall (postgresUnmarshall))
 
 --------------------------------------------------------------------------------
 -- NewPasswordReset
@@ -205,6 +208,18 @@ newtype PasswordResetCode = PasswordResetCode
   deriving (Arbitrary) via (Ranged 6 1024 AsciiBase64Url)
 
 deriving instance C.Cql PasswordResetCode
+
+instance PostgresMarshall Text PasswordResetKey where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
+
+instance PostgresMarshall Text PasswordResetCode where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
+
+instance PostgresUnmarshall Text PasswordResetKey where
+  postgresUnmarshall = mapLeft Text.pack . runParser parser . Text.encodeUtf8
+
+instance PostgresUnmarshall Text PasswordResetCode where
+  postgresUnmarshall = mapLeft Text.pack . runParser parser . Text.encodeUtf8
 
 --------------------------------------------------------------------------------
 -- DEPRECATED

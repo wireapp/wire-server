@@ -35,12 +35,15 @@ import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature
 import Wire.Arbitrary qualified as Arbitrary ()
+import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
 
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "PostgresMarshall roundtrip tests" $
     [ testRoundTrip @Text @Code.Key,
       testRoundTrip @Text @Code.Value,
+      testRoundTrip @Text @PasswordResetKey,
+      testRoundTrip @Text @PasswordResetCode,
       testRoundTrip @ByteString @Password.Password,
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
