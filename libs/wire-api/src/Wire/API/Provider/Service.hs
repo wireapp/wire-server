@@ -55,6 +55,7 @@ import Cassandra.CQL hiding (Set)
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
+import Data.Bifunctor (first)
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
@@ -71,6 +72,7 @@ import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
 import Imports
+import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.Routes.MultiVerb
 import Wire.API.User.Profile (Asset, Name)
@@ -283,6 +285,12 @@ instance S.ToSchema ServiceToken where
       tok = "sometoken"
 
 deriving instance Cql ServiceToken
+
+instance PostgresMarshall ByteString ServiceToken where
+  postgresMarshall = toByteString'
+
+instance PostgresUnmarshall ByteString ServiceToken where
+  postgresUnmarshall = first Text.pack . runParser parser
 
 --------------------------------------------------------------------------------
 -- ServiceProfile

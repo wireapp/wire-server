@@ -275,3 +275,4 @@ postgresMigration:
   customBackend: postgresql
   budget: postgresql
   connections: postgresql
+  service: postgresql
