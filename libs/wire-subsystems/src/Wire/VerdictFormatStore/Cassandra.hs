@@ -40,7 +40,6 @@ import Wire.VerdictFormatStore
 nominalDiffToSeconds :: NominalDiffTime -> Int32
 nominalDiffToSeconds = round @Double . realToFrac
 
--- Moved from Spar.Data.Instances: row codec for the @verdict@ table.
 type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI, Maybe CookieLabel)
 
 data VerdictFormatCon = VerdictFormatConWeb | VerdictFormatConMobile
