@@ -58,6 +58,7 @@ migrationOptions:
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
+migrateBlockList: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -92,3 +93,4 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   user: postgresql
+  blockList: postgresql

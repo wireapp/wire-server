@@ -343,6 +343,21 @@ getPasswordResetCode domain email = do
   req <- baseRequest domain Brig Unversioned "i/users/password-reset-code"
   submit "GET" $ req & addQueryParams [("email", email)]
 
+addBlacklist :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+addBlacklist domain email = do
+  req <- baseRequest domain Brig Unversioned "i/users/blacklist"
+  submit "POST" $ req & addQueryParams [("email", email)]
+
+deleteBlacklist :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+deleteBlacklist domain email = do
+  req <- baseRequest domain Brig Unversioned "i/users/blacklist"
+  submit "DELETE" $ req & addQueryParams [("email", email)]
+
+checkBlacklist :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+checkBlacklist domain email = do
+  req <- baseRequest domain Brig Unversioned "i/users/blacklist"
+  submit "GET" $ req & addQueryParams [("email", email)]
+
 data PutSSOId = PutSSOId
   { scimExternalId :: Maybe String,
     subject :: Maybe String,
