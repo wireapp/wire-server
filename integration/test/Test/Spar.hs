@@ -103,6 +103,7 @@ testTeamInvitationWhenScimInvitationExpired = do
 testTeamInvitationWhenScimInvitationPending :: (HasCallStack) => App ()
 testTeamInvitationWhenScimInvitationPending = do
   (owner, _tid, _) <- createTeam OwnDomain 1
+  (otherOwner, _otherTid, _) <- createTeam OwnDomain 1
   token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
 
   -- Create a SCIM user; this sends a SCIM invitation that remains pending.
@@ -113,8 +114,12 @@ testTeamInvitationWhenScimInvitationPending = do
   handle <- scimUser %. "userName" >>= asString
 
   -- The SCIM invitation is still pending. A second team invitation for the
-  -- same email must be rejected with a conflict.
+  -- same email and team must be rejected with a conflict.
   postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+  -- The email must still be invit-able by a different team; otherwise a
+  -- pending SCIM invitation could be used for an email-registration DoS.
+  postInvitation otherOwner (def {email = Just email}) >>= assertStatus 201
 
   users <- getUsersIdRaw OwnDomain [scid] >>= getJSON 200 >>= asList
   user <- assertOne users
