@@ -140,6 +140,41 @@ testTeamInvitationWhenScimInvitationPending = do
   activated <- user %. "activated" >>= asBool
   activated `shouldMatch` True
 
+-- Given:
+-- - SCIM invitation created for email
+-- - SCIM invitation accepted
+-- When:
+-- - Team invitation is created for same email
+-- Then:
+-- - The request will be rejected with a conflict
+testTeamInvitationWhenScimAccountExists :: (HasCallStack) => App ()
+testTeamInvitationWhenScimAccountExists = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- create a SCIM user, SCIM invitation will be sent
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scid <- createScimUser OwnDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  handle <- scimUser %. "userName" >>= asString
+
+  -- Accept the SCIM invitation so the SCIM-managed account is active.
+  registerInvitedUser OwnDomain tid email
+
+  -- An active SCIM account already owns the email, so a second team
+  -- invitation for the same email must be rejected.
+  postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+  users <- getUsersIdRaw OwnDomain [scid] >>= getJSON 200 >>= asList
+  user <- assertOne users
+  user %. "email" `shouldMatch` email
+  user %. "handle" `shouldMatch` handle
+  user %. "managed_by" `shouldMatch` "scim"
+  user %. "status" `shouldMatch` "active"
+  activated <- user %. "activated" >>= asBool
+  activated `shouldMatch` True
+
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
   (owner, tid, _) <- createTeam OwnDomain 1
