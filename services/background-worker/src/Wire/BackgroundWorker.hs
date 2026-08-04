@@ -78,12 +78,12 @@ run opts galleyOpts = do
           withNamedLogger "migrate-domain-registration" $
             Migrations.domainRegistration opts.migrationOptions
       else pure $ pure ()
-  cleanupUsersMigration <-
-    if opts.migrateUsers
+  cleanupMLSLocksMigration <-
+    if opts.migrateMLSCommitLocks
       then
         runAppT env $
-          withNamedLogger "migrate-users" $
-            Migrations.users opts.migrationOptions
+          withNamedLogger "migrate-mls-commit-locks" $
+            Migrations.mlsCommitLocks opts.migrationOptions
       else pure $ pure ()
 
   cleanupBlockListMigration <-
@@ -132,7 +132,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,,,,)
+            (,,,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -145,6 +145,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
+              <*> Concurrently cleanupMLSLocksMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
