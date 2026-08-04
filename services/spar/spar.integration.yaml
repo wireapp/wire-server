@@ -31,6 +31,25 @@ cassandra:
   keyspace: spar_test
   filterNodesByDatacentre: datacenter1
 
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  user: wire-server
+  dbname: backendA
+  password: posty-the-gres
+
+postgresqlPool:
+  size: 20
+  acquisitionTimeout: 10s
+  idlenessTimeout: 10m
+
+postgresMigration:
+  conversation: cassandra
+  conversationCodes: cassandra
+  teamFeatures: cassandra
+  domainRegistration: cassandra
+  user: cassandra
+
 # Wire/AWS specific, optional
 # discoUrl: "https://"
 
