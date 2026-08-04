@@ -1525,6 +1525,20 @@ CREATE TABLE public.presence (
 
 
 ALTER TABLE public.presence OWNER TO "wire-server";
+-- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.password_reset (
+    key text NOT NULL,
+    code text NOT NULL,
+    "user" uuid NOT NULL,
+    retries integer,
+    timeout timestamp with time zone,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.password_reset OWNER TO "wire-server";
 
 --
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -1988,6 +2002,11 @@ ALTER TABLE ONLY public.mls_history_client
 
 ALTER TABLE ONLY public.presence
     ADD CONSTRAINT presence_pkey PRIMARY KEY (user_id, conn_id);
+-- Name: password_reset password_reset_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.password_reset
+    ADD CONSTRAINT password_reset_pkey PRIMARY KEY (key);
 
 
 --
