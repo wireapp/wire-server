@@ -158,6 +158,8 @@ import Wire.Options.Keys
 import Wire.ParseException
 import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra
+import Wire.ProposalStore.DualWrite
+import Wire.ProposalStore.Postgres
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
@@ -453,6 +455,11 @@ evalGalley e =
           CassandraStorage -> interpretCustomBackendStoreToCassandra
           MigrationToPostgresql -> interpretCustomBackendStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCustomBackendStoreToPostgres
+      proposalStoreInterpreter =
+        case (e ^. options . postgresMigration).proposals of
+          CassandraStorage -> interpretProposalStoreToCassandra
+          MigrationToPostgresql -> interpretProposalStoreToCassandraAndPostgres
+          PostgresqlStorage -> interpretProposalStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -573,7 +580,7 @@ evalGalley e =
         . randomToIO
         . runHashPassword e._options._settings._passwordHashingOptions
         . interpretRateLimit e._passwordHashingRateLimitEnv
-        . interpretProposalStoreToCassandra
+        . proposalStoreInterpreter
         . convCodesStoreInterpreter
         . interpretUserClientIndexStoreToCassandra (e ^. cstate)
         . interpretMeetingsStoreToPostgres
