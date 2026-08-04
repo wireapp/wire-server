@@ -72,18 +72,18 @@ testTeamInvitationWhenScimInvitationExpired = do
           { brigCfg =
               -- timeout for both SCIM and team invitations
               setField "optSettings.setTeamInvitationTimeout" (2 :: Int)
-                -- controls when asynchronous cleanup removes expired SCIM pending accounts
+                -- controls when asynchronous cleanup removes expired SCIM pending accountsts
                 . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
           }
-  withModifiedBackend settings $ \testDomain -> do
-    (owner, _tid, _) <- createTeam testDomain 1
+  withModifiedBackend settings $ \domain -> do
+    (owner, _tid, _) <- createTeam domain 1
     token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
 
     -- create a SCIM user, SCIM invitation will be sent
     email <- randomEmail
     externalId <- randomExternalId
     scimUser <- randomScimUserWithEmail externalId email
-    scid <- createScimUser testDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+    scid <- createScimUser domain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
     handle <- scimUser %. "userName" >>= asString
 
     -- wait for the SCIM invitation to expire
@@ -92,13 +92,13 @@ testTeamInvitationWhenScimInvitationExpired = do
     -- create a manual inivitation
     invitation <- postInvitation owner (def {email = Just email}) >>= getJSON 201
     code <- getInvitationCode owner invitation >>= getJSON 200 >>= (%. "code") >>= asString
-    registerUserWith testDomain email code "Alice" >>= assertStatus 201
-    user <- getUsersByEmail testDomain [email] >>= getJSON 200 >>= asList >>= assertOne
+    registerUserWith domain email code "Alice" >>= assertStatus 201
+    user <- getUsersByEmail domain [email] >>= getJSON 200 >>= asList >>= assertOne
     manualUserId <- user %. "id" >>= asString
 
     putHandle user handle >>= assertSuccess
 
-    users <- getUsersIdRaw testDomain [manualUserId, scid] >>= getJSON 200 >>= asList
+    users <- getUsersIdRaw domain [manualUserId, scid] >>= getJSON 200 >>= asList
     rawUser <- assertOne users
     rawUser %. "id" `shouldMatch` manualUserId
     rawUser %. "email" `shouldMatch` email
@@ -107,6 +107,38 @@ testTeamInvitationWhenScimInvitationExpired = do
     rawUser %. "status" `shouldMatch` "active"
     activated <- rawUser %. "activated" >>= asBool
     activated `shouldMatch` True
+
+-- Given:
+-- - SCIM invitation created for email
+-- - SCIM invitation stays in pending
+-- When:
+-- - Team invitation is created for same email
+-- Then:
+-- - The request will be rejected with a conflict
+testTeamInvitationWhenScimInvitationPending :: (HasCallStack) => App ()
+testTeamInvitationWhenScimInvitationPending = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- create a SCIM user, SCIM invitation will be sent
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scid <- createScimUser OwnDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  handle <- scimUser %. "userName" >>= asString
+
+  -- The SCIM invitation is still pending, so creating a second team
+  -- invitation for the same email must be rejected.
+  postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+  users <- getUsersIdRaw OwnDomain [scid] >>= getJSON 200 >>= asList
+  user <- assertOne users
+  user %. "email" `shouldMatch` email
+  user %. "handle" `shouldMatch` handle
+  user %. "managed_by" `shouldMatch` "scim"
+  user %. "status" `shouldMatch` "pending-invitation"
+  activated <- user %. "activated" >>= asBool
+  activated `shouldMatch` True
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
