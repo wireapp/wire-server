@@ -1,0 +1,1 @@
+Release a handle claimed after a SCIM invitation expired, before cleanup, preventing a subsequent team invitation from using that handle.
