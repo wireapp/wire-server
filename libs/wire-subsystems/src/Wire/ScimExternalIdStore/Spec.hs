@@ -27,7 +27,7 @@ import Polysemy.Check
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Wire.API.User.Scim (ScimUserCreationStatus)
+import Wire.API.User.Scim (ScimUserCreationStatus, ValidScimId)
 import Wire.ScimExternalIdStore qualified as E
 
 propsForInterpreter ::
@@ -45,14 +45,15 @@ propsForInterpreter interpreter extract lower = do
     prop "insert/delete" $ prop_insertDelete Nothing lower
     prop "insert/lookup" $ prop_insertLookup (Just $ show . void . extract) lower
     prop "insert/insert" $ prop_insertInsert (Just $ show . void . extract) lower
-
--- FUTUREWORK: Add prop tests for missing operations
+    prop "insertStatus/lookupStatus" $ prop_insertStatusLookupStatus (Just $ show . void . extract) lower
+    prop "insertStatus/insertStatus" $ prop_insertStatusInsertStatus (Just $ show . void . extract) lower
+    prop "lookupStatus/insertStatus" $ prop_lookupStatusInsertStatus Nothing lower
 
 -- | All the constraints we need to generalize properties in this module.
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Arbitrary UserId, CoArbitrary UserId, Arbitrary ScimUserCreationStatus, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
+  (Arbitrary UserId, CoArbitrary UserId, Arbitrary ValidScimId, Arbitrary ScimUserCreationStatus, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 instance
@@ -188,6 +189,83 @@ prop_insertInsert shrinkFn lower =
             ( do
                 E.insert tid email uid'
                 E.lookup tid email
+            )
+    )
+    shrinkFn
+    (lowerAsLaw lower)
+
+prop_insertStatusLookupStatus ::
+  (PropConstraints r f) =>
+  Maybe (f (Maybe (UserId, ScimUserCreationStatus)) -> String) ->
+  (forall a. Sem r a -> IO (f a)) ->
+  Property
+prop_insertStatusLookupStatus shrinkFn lower =
+  prepropLaw @'[E.ScimExternalIdStore]
+    ( do
+        tid <- arbitrary
+        veid <- arbitrary
+        uid <- arbitrary
+        status <- arbitrary
+        pure $
+          simpleLaw
+            ( do
+                E.insertStatus tid veid uid status
+                E.lookupStatus tid veid
+            )
+            ( do
+                E.insertStatus tid veid uid status
+                pure (Just (uid, status))
+            )
+    )
+    shrinkFn
+    (lowerAsLaw lower)
+
+prop_insertStatusInsertStatus ::
+  (PropConstraints r f) =>
+  Maybe (f (Maybe (UserId, ScimUserCreationStatus)) -> String) ->
+  (forall a. Sem r a -> IO (f a)) ->
+  Property
+prop_insertStatusInsertStatus shrinkFn lower =
+  prepropLaw @'[E.ScimExternalIdStore]
+    ( do
+        tid <- arbitrary
+        veid <- arbitrary
+        uid1 <- arbitrary
+        status1 <- arbitrary
+        uid2 <- arbitrary
+        status2 <- arbitrary
+        pure $
+          simpleLaw
+            ( do
+                E.insertStatus tid veid uid1 status1
+                E.insertStatus tid veid uid2 status2
+                E.lookupStatus tid veid
+            )
+            ( do
+                E.insertStatus tid veid uid2 status2
+                pure (Just (uid2, status2))
+            )
+    )
+    shrinkFn
+    (lowerAsLaw lower)
+
+prop_lookupStatusInsertStatus ::
+  (PropConstraints r f) =>
+  Maybe (f () -> String) ->
+  (forall a. Sem r a -> IO (f a)) ->
+  Property
+prop_lookupStatusInsertStatus shrinkFn lower =
+  prepropLaw @'[E.ScimExternalIdStore]
+    ( do
+        tid <- arbitrary
+        veid <- arbitrary
+        pure $
+          simpleLaw
+            ( do
+                E.lookupStatus tid veid >>= maybe (pure ()) (uncurry (E.insertStatus tid veid))
+            )
+            ( do
+                pure ()
             )
     )
     shrinkFn

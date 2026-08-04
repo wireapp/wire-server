@@ -31,8 +31,8 @@ import Polysemy
 import Wire.API.User.Scim (ScimUserCreationStatus (..), ValidScimId (..))
 import Wire.ScimExternalIdStore (ScimExternalIdStore (..))
 
--- Moved from Spar.Data.Instances: this is the only consumer of the
--- @scim_external.creation_status@ column, so the Cql instance lives here.
+-- This is the only consumer of the @scim_external.creation_status@ column,
+-- so the Cql instance lives here.
 instance Cql ScimUserCreationStatus where
   ctype = Tagged IntColumn
 
