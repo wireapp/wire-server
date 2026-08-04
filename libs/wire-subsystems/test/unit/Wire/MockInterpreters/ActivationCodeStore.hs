@@ -55,3 +55,4 @@ inMemoryActivationCodeStoreInterpreter =
           c = emailKeyToCode ek
       modify (insert ek (uid, c)) $> Activation key c
     DeleteActivationCode ek -> modify (delete ek)
+    VerifyActivationCode _ _ -> pure Nothing

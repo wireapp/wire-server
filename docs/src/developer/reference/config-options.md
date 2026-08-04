@@ -2091,6 +2091,7 @@ galley:
       conversationCodes: postgresql
       teamFeatures: postgresql
       domainRegistration: postgresql
+      activationKeys: postgresql
       user: postgresql
 background-worker:
   config:
@@ -2098,6 +2099,7 @@ background-worker:
     migrateConversationCodes: false
     migrateTeamFeatures: false
     migrateDomainRegistration: false
+    migrateActivationKeys: false
 ```
 
 #### Migration for existing installations
@@ -2129,6 +2131,7 @@ The current settings and their background-worker flags are:
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
+- `activationKeys` -> `migrateActivationKeys`
 
 **Migration pattern per migration setting**
 
@@ -2156,6 +2159,9 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: false
        migrateDomainRegistration: false
        migrateUsers: false
+        activationKeys: migration-to-postgresql
+  background-worker:
+      migrateActivationKeys: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2171,6 +2177,7 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: true
        migrateDomainRegistration: true
        migrateUsers: true
+      migrateActivationKeys: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2196,6 +2203,7 @@ The current settings and their background-worker flags are:
    > to be saved, the operator must insert some value as `name` and/or
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
+  - `activationKeys`: `wire_activation_keys_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2230,6 +2238,7 @@ The current settings and their background-worker flags are:
 - Some settings cover multiple Cassandra tables. For example,
   `postgresMigration.domainRegistration` covers `domain_registration`,
   `domain_registration_by_team`, and `domain_registration_challenge`.
+  `postgresMigration.activationKeys` covers the `activation_keys` table.
 
 ## Configure Cells
 

@@ -175,6 +175,7 @@ postgresMigration:
   conversationCodes: postgresql
   teamFeatures: postgresql
   domainRegistration: postgresql
+  activationKeys: postgresql
   user: postgresql
 
 optSettings:
