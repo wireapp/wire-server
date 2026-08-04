@@ -334,7 +334,7 @@ services:
       - demo_wire
 
   init_vhosts:
-    image: alpine/curl:3.14
+    image: alpine/curl:8.21.0
     environment:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}

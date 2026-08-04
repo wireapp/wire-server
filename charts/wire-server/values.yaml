@@ -518,6 +518,14 @@ cannon:
     repository: quay.io/wire/nginz
     tag: do-not-use
     pullPolicy: IfNotPresent
+  # Image for the cannon-configurator initContainer, which only runs a
+  # single `echo` into a shared volume. Override repository to pull from a
+  # mirror registry, e.g. my-mirror.example/library/alpine
+  # renovate: datasource=docker depName=alpine
+  configuratorImage:
+    repository: alpine
+    tag: "3.24.1"
+    pullPolicy: IfNotPresent
   config:
     logLevel: Info
     logFormat: StructuredJSON
