@@ -245,6 +245,8 @@ library
     Wire.BoundedQueue.STM
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.BudgetStore
+    Wire.BudgetStore.Cassandra
     Wire.ClientStore
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB
