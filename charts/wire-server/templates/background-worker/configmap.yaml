@@ -84,7 +84,7 @@ data:
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
-    migrateUsers: {{ .migrateUsers }}
+    migrateMLSCommitLocks: {{ .migrateMLSCommitLocks }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
