@@ -72,7 +72,7 @@ testTeamInvitationWhenScimInvitationExpired = do
           { brigCfg =
               -- timeout for both SCIM and team invitations
               setField "optSettings.setTeamInvitationTimeout" (2 :: Int)
-              -- controls when asynchronous cleanup removes expired SCIM pending accounts
+                -- controls when asynchronous cleanup removes expired SCIM pending accounts
                 . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
           }
   withModifiedBackend settings $ \testDomain -> do
@@ -91,15 +91,22 @@ testTeamInvitationWhenScimInvitationExpired = do
 
     -- create a manual inivitation
     invitation <- postInvitation owner (def {email = Just email}) >>= getJSON 201
-    iid <- invitation %. "id" >>= asString
     code <- getInvitationCode owner invitation >>= getJSON 200 >>= (%. "code") >>= asString
     registerUserWith testDomain email code "Alice" >>= assertStatus 201
     user <- getUsersByEmail testDomain [email] >>= getJSON 200 >>= asList >>= assertOne
+    manualUserId <- user %. "id" >>= asString
 
     putHandle user handle >>= assertSuccess
 
-    users <- getUsersIdRaw testDomain [iid, scid] >>= getJSON 200 >>= asList
-    undefined "make assertions" users
+    users <- getUsersIdRaw testDomain [manualUserId, scid] >>= getJSON 200 >>= asList
+    rawUser <- assertOne users
+    rawUser %. "id" `shouldMatch` manualUserId
+    rawUser %. "email" `shouldMatch` email
+    rawUser %. "handle" `shouldMatch` handle
+    rawUser %. "managed_by" `shouldMatch` "wire"
+    rawUser %. "status" `shouldMatch` "active"
+    activated <- rawUser %. "activated" >>= asBool
+    activated `shouldMatch` True
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
