@@ -218,7 +218,7 @@ runLocalErrors = fmap toLocalErrors . runError . runError . runError
 
 spec :: Spec
 spec = do
-  focus $ describe "InviteUser" $ do
+  describe "InviteUser" $ do
     prop "rejects a manual invitation when a matching SCIM invitation is pending" $
       \(tid :: TeamId)
        (inviter0 :: StoredUser)
