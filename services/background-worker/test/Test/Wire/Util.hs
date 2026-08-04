@@ -44,6 +44,7 @@ testEnv = do
   let cassandra = undefined
       cassandraGalley = undefined
       cassandraBrig = undefined
+      cassandraSpar = undefined
       postgresMigration =
         PostgresMigrationOpts
           { conversation = CassandraStorage,

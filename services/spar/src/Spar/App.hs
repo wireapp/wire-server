@@ -61,6 +61,7 @@ import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
 import qualified Data.X509 as X509
 import Data.X509.Extended
+import qualified Hasql.Pool.Extended as HasqlPoolExt
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -127,7 +128,8 @@ data Env = Env
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
     sparCtxRequestId :: RequestId,
-    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig,
+    sparCtxHasqlPool :: HasqlPoolExt.Pool
   }
 
 -- | Get a user by UserRef, no matter what the team.

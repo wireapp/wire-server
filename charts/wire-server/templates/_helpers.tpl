@@ -39,6 +39,14 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "sparTlsSecretRef" -}}
+{{- if .cassandraSpar.tlsCaSecretRef -}}
+{{ .cassandraSpar.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "background-worker-cassandra-spar" "key" "ca.pem" | toYaml -}}
+{{- end -}}
+{{- end -}}
+
 {{/* BRIG */}}
 {{- define "brig.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
