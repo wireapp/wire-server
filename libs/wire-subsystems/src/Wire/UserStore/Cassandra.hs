@@ -33,7 +33,8 @@ import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Resource (Resource)
 import Polysemy.Time
-import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog (TinyLog, warn)
+import System.Logger.Message qualified as Log
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature (FeatureStatus)
@@ -118,21 +119,12 @@ interpretUserStoreToCassandraAndPostgres casClient =
     GetIndexUser uid ->
       runAppropriateInterpreter casClient uid $ UserStore.getIndexUser uid
     GetIndexUsersPaginated pageSize mPagingState -> do
-      let getPageFromCassandra = do
-            page <- interpretUserStoreCassandra casClient $ UserStore.getIndexUsersPaginated pageSize mPagingState
-            if pwsHasMore page
-              then pure page
-              else do
-                let casSize = fromIntegral (length page.pwsResults)
-                    remainingSize = pageSize - casSize
-                if remainingSize > 0
-                  then getPageFromPostgres remainingSize Nothing
-                  else pure $ page {pwsState = Just (PaginationStatePostgres . PagingExitingUsers $ Id UUID.nil)}
-          getPageFromPostgres remainingSize mPgMarker =
-            interpretUserStorePostgres $ UserStore.getIndexUsersPaginated remainingSize (PaginationStatePostgres <$> mPgMarker)
-      case mPagingState of
-        Just (PaginationStatePostgres pgMarker) -> getPageFromPostgres pageSize (Just pgMarker)
-        _ -> getPageFromCassandra
+      paginateOverCassandraAndPostgres
+        (\size state -> interpretUserStoreCassandra casClient $ UserStore.getIndexUsersPaginated size state)
+        (\size state -> interpretUserStorePostgres $ UserStore.getIndexUsersPaginated size state)
+        (PagingExitingUsers $ Id UUID.nil)
+        pageSize
+        mPagingState
     UpdateUser uid update ->
       runAppropriateInterpreter casClient uid $ UserStore.updateUser uid update
     UpdateEmail uid email ->
@@ -191,7 +183,28 @@ interpretUserStoreToCassandraAndPostgres casClient =
       runAppropriateInterpreter casClient uid $ UserStore.getUserAuthenticationInfo uid
     SetUserSearchable uid searchable ->
       runAppropriateInterpreter casClient uid $ UserStore.setUserSearchable uid searchable
-    _ -> undefined
+    DeleteServiceUser pid sid bid ->
+      runAppropriateInterpreter casClient (botUserId bid) $ UserStore.deleteServiceUser pid sid bid
+    LookupServiceUsers pid sid mPagingState ->
+      -- Ignoring the size paramter here makes us potentially return upto 199
+      -- bots instead of 100, but this is ok as this is temporary and the
+      -- callers are not doing anything wrong with a longer list.
+      paginateOverCassandraAndPostgres
+        (\_size state -> interpretUserStoreCassandra casClient $ UserStore.lookupServiceUsers pid sid state)
+        (\_size state -> interpretUserStorePostgres $ UserStore.lookupServiceUsers pid sid state)
+        (BotId $ Id UUID.nil)
+        100
+        mPagingState
+    LookupServiceUsersForTeam pid sid tid mPagingState ->
+      -- Ignoring the size paramter here makes us potentially return upto 199
+      -- bots instead of 100, but this is ok as this is temporary and the
+      -- callers are not doing anything wrong with a longer list.
+      paginateOverCassandraAndPostgres
+        (\_size state -> interpretUserStoreCassandra casClient $ UserStore.lookupServiceUsersForTeam pid sid tid state)
+        (\_size state -> interpretUserStorePostgres $ UserStore.lookupServiceUsersForTeam pid sid tid state)
+        (BotId $ Id UUID.nil)
+        100
+        mPagingState
 
 runAppropriateInterpreter ::
   ( PGConstraints r,
@@ -208,6 +221,45 @@ runAppropriateInterpreter casClient uid action =
     if isUserInPg
       then interpretUserStorePostgres action
       else interpretUserStoreCassandra casClient action
+
+paginateOverCassandraAndPostgres ::
+  (Member TinyLog r) =>
+  (Int32 -> Maybe (GeneralPaginationState pgMarker) -> Sem r (PageWithState pgMarker pageItem)) ->
+  (Int32 -> Maybe (GeneralPaginationState pgMarker) -> Sem r (PageWithState pgMarker pageItem)) ->
+  pgMarker ->
+  Int32 ->
+  Maybe (GeneralPaginationState pgMarker) ->
+  Sem r (PageWithState pgMarker pageItem)
+paginateOverCassandraAndPostgres getCasPage getPgPage pgStartingMarker pageSize mPagingState = do
+  let getPageFromCassandra = do
+        casPage <- getCasPage pageSize mPagingState
+        warn $
+          Log.msg (Log.val "-------------> Got cas page")
+            . Log.field "size" (show $ length casPage.pwsResults)
+            . Log.field "hasMore" (pwsHasMore casPage)
+        if pwsHasMore casPage
+          then pure casPage
+          else do
+            let casSize = fromIntegral (length casPage.pwsResults)
+                remainingSize = pageSize - casSize
+            if remainingSize > 0
+              then do
+                pgPage <- getPageFromPostgres remainingSize Nothing
+                warn $
+                  Log.msg (Log.val "-------------> Got pg page")
+                    . Log.field "size" (show $ length pgPage.pwsResults)
+                    . Log.field "hasMore" (pwsHasMore pgPage)
+                pure
+                  PageWithState
+                    { pwsResults = casPage.pwsResults <> pgPage.pwsResults,
+                      pwsState = pgPage.pwsState
+                    }
+              else pure $ casPage {pwsState = Just (PaginationStatePostgres pgStartingMarker)}
+      getPageFromPostgres remainingSize mPgMarker =
+        getPgPage remainingSize (PaginationStatePostgres <$> mPgMarker)
+  case mPagingState of
+    Just (PaginationStatePostgres pgMarker) -> getPageFromPostgres pageSize (Just pgMarker)
+    _ -> getPageFromCassandra
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
