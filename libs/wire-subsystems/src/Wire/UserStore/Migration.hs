@@ -214,15 +214,19 @@ saveToPostgres :: (PGConstraints r) => UserRowPG -> Maybe ServiceConv -> Sem r (
 saveToPostgres user mServiceConv =
   runTransactionWithRetry ReadCommitted Write $ do
     case user.status of
-      Just Deleted ->
-        Transaction.statement (user.id_, user.teamId, user.createdAt) insertDeleted
+      -- bots are deleted by just updating their status to deleted and deleting
+      -- the rows in service_user and service_team tables.
+      Just Deleted
+        | user.userType /= UserTypeBot ->
+            Transaction.statement (user.id_, user.teamId, user.createdAt) insertDeleted
       _ -> do
         Transaction.statement (userRowPGToTuple user) insertUser
         for_ user.assets $ \assets -> do
           Transaction.statement user.id_ deleteAssetsStatement
           Transaction.statement (mkAssetRows user.id_ assets) insertAssetsStatement
-        for_ mServiceConv $ \serviceConv ->
-          Transaction.statement (user.id_, serviceConv.convId, serviceConv.teamId) insertBotConv
+        when (user.status /= Just Deleted) $ do
+          for_ mServiceConv $ \serviceConv ->
+            Transaction.statement (user.id_, serviceConv.convId, serviceConv.teamId) insertBotConv
     Transaction.statement user.id_ markPendingDelete
   where
     insertDeleted :: Hasql.Statement (UserId, Maybe TeamId, UTCTime) ()
