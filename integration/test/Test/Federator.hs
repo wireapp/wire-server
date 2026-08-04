@@ -50,21 +50,22 @@ testFederatorMetricsExternal = runFederatorMetrics federatorExternal
 
 testFederatorNumRequestsMetrics :: (HasCallStack) => App ()
 testFederatorNumRequestsMetrics = do
-  u1 <- randomUser OwnDomain def
-  u2 <- randomUser OtherDomain def
-  incomingBefore <- getMetric parseIncomingRequestCount OtherDomain OwnDomain
-  outgoingBefore <- getMetric parseOutgoingRequestCount OwnDomain OtherDomain
-  bindResponse (searchContacts u1 (u2 %. "name") OtherDomain) $ \resp ->
-    resp.status `shouldMatchInt` 200
-  -- Metrics are updated asynchronously in the federator, so we need to
-  -- poll until they reflect the requests triggered by searchContacts.
-  eventually $ do
-    incomingAfter <- getMetric parseIncomingRequestCount OtherDomain OwnDomain
-    outgoingAfter <- getMetric parseOutgoingRequestCount OwnDomain OtherDomain
-    assertBool "Incoming requests count should have increased by at least 2" $ incomingAfter >= incomingBefore + 2
-    assertBool "Outgoing requests count should have increased by at least 2" $ outgoingAfter >= outgoingBefore + 2
+  startDynamicBackends [def, def] $ \[d1, d2] -> do
+    u1 <- randomUser d1 def
+    u2 <- randomUser d2 def
+    incomingBefore <- getMetric parseIncomingRequestCount d2 d1
+    outgoingBefore <- getMetric parseOutgoingRequestCount d1 d2
+    bindResponse (searchContacts u1 (u2 %. "name") d2) $ \resp ->
+      resp.status `shouldMatchInt` 200
+    -- Metrics are updated asynchronously in the federator, so we need to
+    -- poll until they reflect the requests triggered by searchContacts.
+    eventually $ do
+      incomingAfter <- getMetric parseIncomingRequestCount d2 d1
+      outgoingAfter <- getMetric parseOutgoingRequestCount d1 d2
+      assertBool "Incoming requests count should have increased by at least 2" $ incomingAfter >= incomingBefore + 2
+      assertBool "Outgoing requests count should have increased by at least 2" $ outgoingAfter >= outgoingBefore + 2
   where
-    getMetric :: (Text -> Parser Integer) -> Domain -> Domain -> App Integer
+    getMetric :: (Text -> Parser Integer) -> String -> String -> App Integer
     getMetric p domain origin = do
       m <- getMetrics domain federatorInternal
       d <- cs <$> asString origin
