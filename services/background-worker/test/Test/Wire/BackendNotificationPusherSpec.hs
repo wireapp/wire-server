@@ -504,6 +504,7 @@ spec = do
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
                 connections = CassandraStorage
+                mlsCommitLocks = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -575,6 +576,7 @@ spec = do
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
                 connections = CassandraStorage
+                mlsCommitLocks = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
