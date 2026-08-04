@@ -269,3 +269,4 @@ postgresMigration:
   domainRegistration: postgresql
   user: postgresql
   blockList: postgresql
+  passwordReset: postgresql
