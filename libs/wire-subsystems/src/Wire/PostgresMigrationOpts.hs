@@ -59,7 +59,8 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     user :: StorageLocation,
     blockList :: StorageLocation,
     passwordReset :: StorageLocation,
-    customBackend :: StorageLocation
+    customBackend :: StorageLocation,
+    activationKeys :: StorageLocation
   }
   deriving (Show)
 
@@ -73,4 +74,5 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "user"
       <*> o .: "blockList"
       <*> o .: "passwordReset"
-      <*> o .: "customBackend"
+      <*<*> o .: "customBackend"
+      <*> o .: "activationKeys"

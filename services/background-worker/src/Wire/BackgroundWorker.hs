@@ -106,6 +106,12 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-custom-backend" $
             Migrations.customBackend opts.migrationOptions
+  cleanupActivationKeysMigration <-
+    if opts.migrateActivationKeys
+      then
+        runAppT env $
+          withNamedLogger "migrate-activation-keys" $
+            Migrations.activationKeys opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
@@ -128,7 +134,8 @@ run opts galleyOpts = do
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupBlockListMigration
               <*> Concurrently cleanupPasswordResetMigration
-              <*> Concurrently cleanupCustomBackendMigration
+              <*<*> Concurrently cleanupCustomBackendMigration
+              <*> Concurrently cleanupActivationKeysMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
