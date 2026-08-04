@@ -45,44 +45,6 @@ import Testlib.Prelude
 import Testlib.ResourcePool
 import UnliftIO
 
--- | User types:
--- - SCIM + Rich Info
--- - SCIM + No rich info
--- - Non SCIM Team user
--- - Personal + No Handle
--- - Personal + Handle
--- - Bot in team conv
--- - Bot in non team conv
--- - Team SSO users
--- - Users with passwords
---
--- Weird cases:
--- - Users without a name
--- - Users without activated
--- - Users with unclaimed handles
---
--- Data modifications to test:
--- 1. Account creation
---    - create account by registering
---    - create team
---    - accept invite into a team
---    - sso
---    - scim
--- 2. Updates
---    - profile info
---    - email
---    - password
---    - handle claim (fresh handle, no collisions)
---    - handle claim (existing, yes collisions)
--- 3. Deletes
---    - user delete
---    - team delete
---
--- Queries to test
--- 1. Search
--- 2. Get by id
--- 3. Get by handle
--- 4. Get by email
 testUserMigrationToPostgres :: App ()
 testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \(botHost, botPort) _botChan -> do
   resourcePool <- asks (.resourcePool)
@@ -106,13 +68,14 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
 
       seedUsers <- seedTestUsers domainM mel pid sid
       pure (mel, pid, sid, seedUsers)
+
     newUsersRef <- newIORef mempty
     updatedUsersRef <- newIORef mempty
     updates <- fmap IntMap.fromList . for [1 .. 5] $ \phase -> do
       (phase,) <$> liftIO (generate (arbitraryPhaseUpdates nUpdates))
 
     addUsersToFailureContext [("mel", mel)]
-      -- \$ addJSONToFailureContext "updates" updates
+      $ addJSONToFailureContext "updates" updates
       $ addJSONToFailureContext "seed users" seedUsers do
         let runPhase :: (HasCallStack) => Int -> App ()
             runPhase phase = do
