@@ -827,6 +827,15 @@ addBot user providerId serviceId convId = do
       & zType "access"
       & addJSONObject ["provider" .= providerId, "service" .= serviceId]
 
+rmBotSelf :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+rmBotSelf domain bid cid = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["bot", "self"]
+  submit "DELETE" $
+    req
+      & zType "bot"
+      & addHeader "Z-Bot" bid
+      & addHeader "Z-Conversation" cid
+
 setProperty :: (MakesValue user, ToJSON val) => user -> String -> val -> App Response
 setProperty user propName val = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]

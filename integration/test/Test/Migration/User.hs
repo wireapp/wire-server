@@ -30,14 +30,17 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
 import qualified Data.Map as Map
+import Data.String.Conversions
 import Data.Tuple.Extra
 import qualified Data.Vector as Vector
 import GHC.Stack
 import Notifications
 import SetupHelpers hiding (deleteUser)
+import Test.Bot (mkBotService)
 import Test.Migration.Util
 import Test.QuickCheck
 import Test.Search
+import Testlib.MockIntegrationService (MockServerSettings (..), withMockServer)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import UnliftIO
@@ -81,17 +84,28 @@ import UnliftIO
 -- 3. Get by handle
 -- 4. Get by email
 testUserMigrationToPostgres :: App ()
-testUserMigrationToPostgres = do
+testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \(botHost, botPort) _botChan -> do
   resourcePool <- asks (.resourcePool)
 
   runCodensity (acquireResources 1 resourcePool) $ \[migratingBackend] -> do
     let domainM = migratingBackend.berDomain
-    (mel, seedUsers) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+    (mel, pid, sid, seedUsers) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
       -- mel exists to connect with all the personal users, so we can wait for a
       -- notification for their deletion
       mel <- randomUser domainM def
-      seedUsers <- seedTestUsers domainM mel
-      pure (mel, seedUsers)
+
+      pid <- setupProvider domainM def {newProviderPassword = Just defPassword} %. "id" & asString
+      service <-
+        newService domainM pid
+          $ def
+            { newServiceUrl = "https://" <> botHost <> ":" <> show botPort,
+              newServiceKey = cs botServiceSettings.publicKey
+            }
+      sid <- service %. "id" & asString
+      updateServiceConn domainM pid sid (object ["password" .= defPassword, "enabled" .= True])
+
+      seedUsers <- seedTestUsers domainM mel pid sid
+      pure (mel, pid, sid, seedUsers)
     newUsersRef <- newIORef mempty
     updatedUsersRef <- newIORef mempty
     updates <- fmap IntMap.fromList . for [1 .. 5] $ \phase -> do
@@ -122,11 +136,12 @@ testUserMigrationToPostgres = do
                           passwordTeamUsers = toBeUpdated.passwordTeamUsers {users = updatedPasswordTeamUsers} :: TestTeamUsers,
                           personalUsersWithoutHandle = updatedPersonalUsersWithoutHandle,
                           personalUsersWithHandle = updatedPersonalUsersWithHandle,
-                          botsInTeamConvs = mempty,
-                          botsInPersonalConvs = mempty
+                          -- Bots don't have any updates
+                          botsInTeamConvs = toBeUpdated.botsInTeamConvs,
+                          botsInPersonalConvs = toBeUpdated.botsInPersonalConvs
                         }
 
-                newUsers <- createTestUsers domainM mel nNew
+                newUsers <- createTestUsers domainM mel pid sid nNew
                 modifyIORef newUsersRef (IntMap.insert phase newUsers)
                 modifyIORef updatedUsersRef (IntMap.insert phase updatedUsers)
 
@@ -139,6 +154,8 @@ testUserMigrationToPostgres = do
                 deleteTeamUsers toBeDeleted.passwordTeamUsers
                 deletePersonalUsers mel toBeDeleted.personalUsersWithoutHandle
                 deletePersonalUsers mel toBeDeleted.personalUsersWithHandle
+                deleteBotsTeam toBeDeleted.botsInTeamConvs pid sid
+                deleteBotConvs mel toBeDeleted.botsInPersonalConvs
 
                 checkAllDeletionsWorked domainM mel seedUsers.deletes phase
                 checkUnaffectedUsers domainM seedUsers.deletes seedUsers.updates phase
@@ -158,11 +175,13 @@ testUserMigrationToPostgres = do
     nDeletes = 1
     nNew = 1
 
-    seedTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> App TestUsersByOperations
-    seedTestUsers domain mel =
+    botServiceSettings = def
+
+    seedTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> String -> String -> App TestUsersByOperations
+    seedTestUsers domain mel pid sid =
       fmap mconcat . for [(1 :: Int) .. 5] $ \phase -> do
-        updates <- IntMap.singleton phase <$> createTestUsers domain mel nUpdates
-        deletes <- IntMap.singleton phase <$> createTestUsers domain mel nDeletes
+        updates <- IntMap.singleton phase <$> createTestUsers domain mel pid sid nUpdates
+        deletes <- IntMap.singleton phase <$> createTestUsers domain mel pid sid nDeletes
         pure TestUsersByOperations {..}
 
     tombstone :: String -> String -> Maybe String -> Value
@@ -210,6 +229,19 @@ testUserMigrationToPostgres = do
           resp.status `shouldMatchInt` 200
           resp.json `shouldMatch` tombstone domain uid mTid
 
+      let bots =
+            concatMap
+              ( \testUsers ->
+                  map fst (Map.elems testUsers.botsInTeamConvs.users)
+                    <> map fst (Map.elems testUsers.botsInPersonalConvs)
+              )
+              (IntMap.elems deletedSoFar)
+      pooledForConcurrentlyN_ parallelism bots $ \botUser -> do
+        botTombstone <- setField "status" "deleted" =<< setField "deleted" True botUser
+        getSelf botUser `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json `shouldMatch` botTombstone
+
     checkUnaffectedUsers :: (HasCallStack) => String -> IntMap TestUserList -> IntMap TestUserList -> Int -> App ()
     checkUnaffectedUsers domain seedUsersToBeUpdated seedUsersToBeDeleted phase = do
       let upcomingPhases = IntSet.fromList [(phase + 1) .. 5]
@@ -247,8 +279,8 @@ testUserMigrationToPostgres = do
         <> map fst (Map.elems testUserList.personalUsersWithHandle)
         <> map fst (Map.elems testUserList.personalUsersWithoutHandle)
 
-    createTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> Int -> App TestUserList
-    createTestUsers domain mel n = runConcurrently $ do
+    createTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> String -> String -> Int -> App TestUserList
+    createTestUsers domain mel pid sid n = runConcurrently $ do
       scimUsersWithRichInfo <- Concurrently $ createScimUsers domain n True True
       scimUsersWithoutRichInfo <- Concurrently $ createScimUsers domain n True True
       pendingScimUsers <- Concurrently $ createScimUsers domain n False False
@@ -256,8 +288,8 @@ testUserMigrationToPostgres = do
       passwordTeamUsers <- Concurrently $ createPasswordTeamUsers domain n
       personalUsersWithoutHandle <- Concurrently $ createPersonalUsers domain mel n False
       personalUsersWithHandle <- Concurrently $ createPersonalUsers domain mel n True
-      botsInTeamConvs <- Concurrently $ createBotsInTeamConvs domain
-      botsInPersonalConvs <- Concurrently $ createBotsInPersonalConvs domain
+      botsInTeamConvs <- Concurrently $ createTeamBots domain pid sid n
+      botsInPersonalConvs <- Concurrently $ createConvsAndAddBot domain mel Nothing pid sid n
       pure TestUserList {..}
 
     getUnqualifiedUser :: String -> String -> App (Map String Value)
@@ -415,7 +447,7 @@ testUserMigrationToPostgres = do
     createPasswordTeamUsers domain n = do
       (owner, _tid, usersWithoutPassword) <- createTeam domain n
 
-      users <- fmap Map.unions . pooledForConcurrentlyN 64 usersWithoutPassword $ \user -> do
+      users <- fmap Map.unions . pooledForConcurrentlyN parallelism usersWithoutPassword $ \user -> do
         p <- randomPassword
         putPassword user defPassword p >>= assertSuccess
         uid <- user %. "qualified_id.id" & asString
@@ -497,11 +529,35 @@ testUserMigrationToPostgres = do
           deleteUserWithPassword user mPw
         void $ awaitNMatches (Map.size users) isDeleteUserNotif wsMel
 
-    createBotsInTeamConvs :: (HasCallStack) => String -> App (Map String (Value, Value))
-    createBotsInTeamConvs _ = pure mempty
+    createConvsAndAddBot :: (HasCallStack, MakesValue user) => String -> user -> Maybe String -> String -> String -> Int -> App (Map String (Value, Value))
+    createConvsAndAddBot domain user tid pid sid n = do
+      fmap Map.unions . pooledReplicateConcurrentlyN parallelism n $ do
+        conv <- postConversation user (defProteus {team = tid}) >>= getJSON 201
+        convId <- conv %. "qualified_id" & objId
+        addBotResp <- addBot user pid sid convId >>= getJSON 201
+        botId <- addBotResp %. "id" & asString
+        (,conv) <$$> getUnqualifiedUser domain botId
 
-    createBotsInPersonalConvs :: (HasCallStack) => String -> App (Map String (Value, Value))
-    createBotsInPersonalConvs _ = pure mempty
+    createTeamBots :: (HasCallStack) => String -> String -> String -> Int -> App TestTeamUsers
+    createTeamBots domain pid sid n = do
+      (owner, tid, _) <- createTeam domain 1
+      postServiceWhitelist owner tid (object ["id" .= sid, "provider" .= pid, "whitelisted" .= True])
+        >>= assertSuccess
+      TestTeamUsers owner . fmap (\(x, _) -> (x, Nothing)) <$> createConvsAndAddBot domain owner (Just tid) pid sid n
+
+    deleteBotsTeam :: (HasCallStack) => TestTeamUsers -> String -> String -> App ()
+    deleteBotsTeam testTeam pid sid = do
+      tid <- testTeam.owner %. "team" & asString
+      withWebSocket testTeam.owner $ \ws -> do
+        postServiceWhitelist testTeam.owner tid (object ["id" .= sid, "provider" .= pid, "whitelisted" .= False]) >>= assertSuccess
+        void $ awaitNMatches (Map.size testTeam.users) isConvLeaveNotif ws
+
+    deleteBotConvs :: (HasCallStack) => Value -> Map String (Value, Value) -> App ()
+    deleteBotConvs mel botConvs = do
+      pooledForConcurrentlyN_ parallelism (Map.elems botConvs) $ \(bot, conv) -> do
+        cid <- conv %. "qualified_id.id" & asString
+        bid <- bot %. "qualified_id.id" & asString
+        rmBotSelf mel bid cid >>= assertSuccess
 
 -- | This test creates users in PG and Cassandra separately to simulate a
 -- situation where there are users in both DBs. Then tries to index them into ES
@@ -594,8 +650,8 @@ data TestUserList = TestUserList
     passwordTeamUsers :: TestTeamUsers,
     personalUsersWithoutHandle :: Map String (Value, Maybe String),
     personalUsersWithHandle :: Map String (Value, Maybe String),
-    -- | {Id -> {User, BotConv}}
-    botsInTeamConvs :: Map String (Value, Value),
+    botsInTeamConvs :: TestTeamUsers,
+    -- UserId -> (User, Conv)
     botsInPersonalConvs :: Map String (Value, Value)
   }
   deriving (Show, Eq)
@@ -625,7 +681,7 @@ instance ToJSON TestUserList where
         fromString "passwordTeamUsers" .= Map.keys userList.passwordTeamUsers.users,
         fromString "personalUsersWithoutHandle" .= Map.keys userList.personalUsersWithoutHandle,
         fromString "personalUsersWithHandle" .= Map.keys userList.personalUsersWithHandle,
-        fromString "botsInTeamConvs" .= Map.keys userList.botsInTeamConvs,
+        fromString "botsInTeamConvs" .= Map.keys userList.botsInTeamConvs.users,
         fromString "botsInPersonalConvs" .= Map.keys userList.botsInPersonalConvs
       ]
 
