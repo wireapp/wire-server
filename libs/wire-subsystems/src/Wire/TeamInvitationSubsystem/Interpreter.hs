@@ -54,10 +54,13 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
+import Wire.StoredUser (StoredUser (managedBy, status, teamId))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamSubsystem
 import Wire.UserKeyStore
+import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfProfile, isBlocked)
 
 data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
@@ -75,6 +78,7 @@ runTeamInvitationSubsystem ::
     Member UserSubsystem r,
     Member Random r,
     Member InvitationStore r,
+    Member UserStore r,
     Member Now r,
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
@@ -100,13 +104,16 @@ inviteUserImpl ::
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
     Member TeamSubsystem r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Local UserId ->
   TeamId ->
   InvitationRequest ->
   Sem r (Invitation, InvitationLocation)
 inviteUserImpl luid tid request = do
+  guardPendingScimInvitation request.inviteeEmail
+
   let inviteeRole = fromMaybe defaultRole request.role
 
   let inviteePerms = Teams.rolePermissions inviteeRole
@@ -130,6 +137,26 @@ inviteUserImpl luid tid request = do
     loc :: Invitation -> InvitationLocation
     loc inv =
       InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' inv.invitationId
+
+    guardPendingScimInvitation email = do
+      invitations <- Store.lookupInvitationsByEmail email
+      pendingScim <- or <$> traverse isPendingScimInvitation invitations
+      when pendingScim $ throw TeamInvitationEmailTaken
+      where
+        isPendingScimInvitation inv
+          | inv.teamId /= tid = pure False
+          | otherwise = do
+              -- The invitation store also contains ordinary team invitations, which do not
+              -- create a user until they are accepted. Check the user to distinguish those
+              -- invitations from a pending SCIM invitation, whose user already exists with
+              -- the invitation ID, managedBy = scim, and status = pending-invitation.
+              mUser <- UserStore.getUser (invitationIdToUserId inv.invitationId)
+              pure $ case mUser of
+                Just user ->
+                  user.teamId == Just tid
+                    && user.managedBy == Just ManagedByScim
+                    && user.status == Just PendingInvitation
+                Nothing -> False
 
 createInvitation' ::
   ( Member GalleyAPIAccess r,
