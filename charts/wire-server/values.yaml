@@ -106,6 +106,7 @@ galley:
       budget: cassandra
       nonce: cassandra
       connections: cassandra
+      activationKeys: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1067,6 +1068,7 @@ background-worker:
     # It's important to set `settings.postgresMigration.connections` to `migration-to-postgresql`
     # before starting the migration.
     migrateConnections: false
+    migrateActivationKeys: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.

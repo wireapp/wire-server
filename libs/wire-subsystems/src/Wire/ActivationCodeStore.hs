@@ -33,13 +33,31 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ActivationCodeStore where
+module Wire.ActivationCodeStore
+  ( ActivationCodeStore (..),
+    lookupActivationCode,
+    newActivationCode,
+    deleteActivationCode,
+    verifyActivationCode,
+    mkActivationKey,
+    genActivationCode,
+    maxAttempts,
+    mkActivationScope,
+  )
+where
 
 import Data.Id
+import Data.Text (pack)
+import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as T
 import Imports
+import OpenSSL.BN (randIntegerZeroToNMinusOne)
+import OpenSSL.EVP.Digest
 import Polysemy
+import Text.Printf (printf)
 import Util.Timeout
 import Wire.API.User.Activation
+import Wire.API.User.EmailAddress
 import Wire.UserKeyStore
 
 data ActivationCodeStore :: Effect where
@@ -60,5 +78,47 @@ data ActivationCodeStore :: Effect where
   DeleteActivationCode ::
     EmailKey ->
     ActivationCodeStore m ()
+  -- | Verify an activation code against the stored value for the given key.
+  -- On a match, returns the associated 'EmailKey' and 'UserId'.  On a
+  -- mismatch with remaining retries, decrements the retry counter (preserving
+  -- the remaining TTL).  On exhaustion, deletes the row.  Returns 'Nothing'
+  -- for any non-matching outcome (the caller treats this as an invalid code).
+  VerifyActivationCode ::
+    ActivationKey ->
+    ActivationCode ->
+    ActivationCodeStore m (Maybe (EmailKey, Maybe UserId))
 
 makeSem ''ActivationCodeStore
+
+--------------------------------------------------------------------------------
+-- Shared utilities (used by Cassandra, Postgres, DualWrite interpreters)
+
+-- | Compute the opaque 'ActivationKey' (SHA-256 hash, base64url-encoded) for
+-- a given 'EmailKey'.  Moved here from the Cassandra interpreter so that all
+-- interpreters share a single definition.
+mkActivationKey :: EmailKey -> IO ActivationKey
+mkActivationKey k = do
+  d <- getDigestByName "SHA256"
+  d' <- maybe (fail "SHA256 not found") pure d
+  let bs = digestBS d' (T.encodeUtf8 $ emailKeyUniq k)
+  pure . ActivationKey $ Ascii.encodeBase64Url bs
+
+-- | Generate a fresh random 6-digit 'ActivationCode'.
+genActivationCode :: IO ActivationCode
+genActivationCode =
+  ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
+    <$> randIntegerZeroToNMinusOne 1000000
+
+-- | Maximum number of activation attempts per 'ActivationKey'.
+maxAttempts :: Int32
+maxAttempts = 3
+
+-- | Reconstruct an activation scope from the stored key type/text.
+-- Returns 'Just' if the key type is @"email"@ and the text parses as an
+-- email address; 'Nothing' otherwise.
+mkActivationScope :: Text -> Text -> Maybe UserId -> Maybe (EmailKey, Maybe UserId)
+mkActivationScope "email" keyText mUser =
+  case emailAddressText keyText of
+    Just e -> Just (mkEmailKey e, mUser)
+    Nothing -> Nothing
+mkActivationScope _ _ _ = Nothing
