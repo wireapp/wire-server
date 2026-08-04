@@ -29,10 +29,6 @@ import Data.Functor.Alt (Alt ((<!>)))
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
-import Spar.Scim.Types (ScimUserCreationStatus (..))
-import URI.ByteString
-import Wire.API.User.Auth
-import Wire.API.User.Saml
 import Wire.API.User.Scim
 
 deriving instance Cql ScimToken
