@@ -74,7 +74,13 @@ randomBytes :: Int -> App ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n randomIO
 
 randomString :: Int -> App String
-randomString n = liftIO $ replicateM n pick
+randomString n = liftIO $ replicateM n randomIO
+
+-- Transport-safe alphabet ([A-Za-z0-9]): use for values sent both as a JSON
+-- body and a URL query param. Full-range 'randomString' can emit surrogates
+-- that 'Text.pack' and percent-encoding map differently, breaking round-trips.
+randomAlphaString :: Int -> App String
+randomAlphaString n = liftIO $ replicateM n pick
   where
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
     pick = (chars !) <$> randomRIO (Array.bounds chars)
