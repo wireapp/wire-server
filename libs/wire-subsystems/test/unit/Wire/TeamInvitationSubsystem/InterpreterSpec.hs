@@ -75,6 +75,7 @@ type AllEffects =
     UserKeyStore,
     State (Map (TeamId, InvitationId) StoredInvitation),
     State (Map (InvitationCode) StoredInvitation),
+    State (Map (TeamId, EmailAddress) [UserId]),
     Now,
     State UTCTime,
     Error TeamInvitationSubsystemError,
@@ -105,6 +106,7 @@ runAllEffects args =
     . runLocalErrors
     . evalState defaultTime
     . interpretNowAsState
+    . evalState mempty
     . evalState mempty
     . evalState mempty
     . (evalState mempty . inMemoryUserKeyStoreInterpreter . raiseUnder)

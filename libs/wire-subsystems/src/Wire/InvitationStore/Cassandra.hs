@@ -44,6 +44,9 @@ interpretInvitationStoreToCassandra casClient =
       InsertInvitation newInv timeout -> embed $ insertInvitationImpl newInv timeout
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
       LookupInvitationsByEmail email -> embed $ lookupInvitationsByEmailImpl email
+      InsertPendingScimUser tid email uid -> embed $ insertPendingScimUserImpl tid email uid
+      LookupPendingScimUsers tid email -> embed $ lookupPendingScimUsersImpl tid email
+      DeletePendingScimUser tid email uid -> embed $ deletePendingScimUserImpl tid email uid
       LookupInvitationByCode code -> embed $ lookupInvitationByCodeImpl code
       LookupInvitationsPaginated mSize tid miid -> embed $ lookupInvitationsPaginatedImpl mSize tid miid
       CountInvitations tid -> embed $ countInvitationsImpl tid
@@ -150,6 +153,36 @@ lookupInvitationsByEmailImpl email = do
     cqlMain =
       [sql|
       SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?
+      |]
+
+insertPendingScimUserImpl :: TeamId -> EmailAddress -> UserId -> Client ()
+insertPendingScimUserImpl team email uid =
+  retry x5 $ write cql (params LocalQuorum (team, email, uid))
+  where
+    cql :: PrepQuery W (TeamId, EmailAddress, UserId) ()
+    cql =
+      [sql|
+        INSERT INTO team_scim_pending_user_email (team, email, user) VALUES (?, ?, ?)
+      |]
+
+lookupPendingScimUsersImpl :: TeamId -> EmailAddress -> Client [UserId]
+lookupPendingScimUsersImpl team email =
+  map runIdentity <$> retry x1 (query cql (params LocalQuorum (team, email)))
+  where
+    cql :: PrepQuery R (TeamId, EmailAddress) (Identity UserId)
+    cql =
+      [sql|
+        SELECT user FROM team_scim_pending_user_email WHERE team = ? AND email = ?
+      |]
+
+deletePendingScimUserImpl :: TeamId -> EmailAddress -> UserId -> Client ()
+deletePendingScimUserImpl team email uid =
+  retry x5 $ write cql (params LocalQuorum (team, email, uid))
+  where
+    cql :: PrepQuery W (TeamId, EmailAddress, UserId) ()
+    cql =
+      [sql|
+        DELETE FROM team_scim_pending_user_email WHERE team = ? AND email = ? AND user = ?
       |]
 
 lookupInvitationImpl :: TeamId -> InvitationId -> Client (Maybe StoredInvitation)
