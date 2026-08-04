@@ -691,6 +691,17 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
             when (oldValidScimUser.externalId /= newValidScimUser.externalId) $
               updateVsuUref stiTeam uid (oldValidScimUser.externalId) (newValidScimUser.externalId)
 
+            -- An email-only change does not alter the externalId, so
+            -- 'updateVsuUref' (above, which only runs on an externalId change)
+            -- would not propagate the new email to Brig. Validate it here in
+            -- that case; when the externalId changes too, 'updateVsuUref' has
+            -- already validated the email, so we skip it here to avoid a
+            -- duplicate call.
+            when
+              ( oldValidScimUser.externalId == newValidScimUser.externalId
+                  && vsUserEmail oldValidScimUser /= vsUserEmail newValidScimUser
+              )
+              $ forM_ (vsUserEmail newValidScimUser) (Spar.App.validateEmail (Just stiTeam) uid)
             when (newValidScimUser.name /= oldValidScimUser.name) $
               BrigAPIAccess.setName uid (newValidScimUser.name)
 

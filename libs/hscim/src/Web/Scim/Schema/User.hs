@@ -77,19 +77,30 @@ import Data.Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.List ((\\))
+import Data.Maybe (fromMaybe)
 import Data.Text (Text, pack)
 import qualified Data.Text as Text
+import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics (Generic)
 import Lens.Micro
+import qualified Text.Email.Validate as EmailValidate
 import Web.Scim.AttrName
-import Web.Scim.Filter (AttrPath (..))
+import Web.Scim.Filter
+  ( AttrPath (..),
+    CompValue (..),
+    CompareOp (..),
+    Filter (..),
+    SubAttr (..),
+    ValuePath (..),
+    compareStr,
+  )
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error
 import Web.Scim.Schema.PatchOp
 import Web.Scim.Schema.Schema (Schema (..), getSchemaUri)
 import Web.Scim.Schema.User.Address (Address)
 import Web.Scim.Schema.User.Certificate (Certificate)
-import Web.Scim.Schema.User.Email (Email)
+import Web.Scim.Schema.User.Email (Email (Email, primary, typ), EmailAddress (..))
 import Web.Scim.Schema.User.Entitlement (Entitlement)
 import Web.Scim.Schema.User.IM (IM)
 import Web.Scim.Schema.User.Name (Name)
@@ -321,8 +332,16 @@ applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema a
     "roles" ->
       (\x -> user {roles = x}) <$> resultToScimError (fromJSON value)
     _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active, roles"))
-applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
-  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+applyUserOperation user (Operation Replace (Just (IntoValuePath vp mSub)) (Just val)) =
+  case vp of
+    ValuePath (AttrPath _ attr _) _
+      | attr == "emails" -> replaceEmailsValuePath user vp mSub val
+      | otherwise ->
+          throwError
+            ( badRequest
+                InvalidPath
+                (Just "multi-valued PATCH is only supported for 'emails'")
+            )
 applyUserOperation user (Operation Replace Nothing (Just value)) = do
   case value of
     Object hm | null ((AttrName . Key.toText <$> KeyMap.keys hm) \\ ["username", "displayname", "externalid", "active", "roles"]) -> do
@@ -346,8 +365,154 @@ applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema at
     "active" -> pure $ user {active = Nothing}
     "roles" -> pure $ user {roles = []}
     _ -> pure user
-applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
-  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+applyUserOperation user (Operation Remove (Just (IntoValuePath vp _mSub)) _) =
+  case vp of
+    ValuePath (AttrPath _ attr _) _
+      | attr == "emails" -> pure user {emails = removeMatchingEmails vp (emails user)}
+      | otherwise ->
+          throwError
+            ( badRequest
+                InvalidPath
+                (Just "multi-valued PATCH is only supported for 'emails'")
+            )
+
+----------------------------------------------------------------------------
+-- Multi-valued 'emails' value-path PATCH
+--
+-- Previously any value-path target (e.g. @emails[type eq "work"].value@) was
+-- rejected with "can not lens into multi-valued attributes yet". We now support
+-- value-path PATCH for the @emails@ attribute only -- the single multi-valued
+-- attribute that Spar persists. Other multi-valued attributes
+-- (@phoneNumbers@, @ims@, ...) remain unsupported and still fail as before.
+--
+-- NOTE on "create on absent": RFC 7644 §3.5.2.3 says a @Replace@ value-path
+-- that matches nothing is a no-op. Entra, however, emits an @Add@ (rewritten to
+-- @Replace@ in 'applyUserOperation') against @emails[type eq "work"].value@ to
+-- provision the address, expecting the entry to be created if absent. Every
+-- mainstream SCIM client/validator expects this create-on-absent behaviour for
+-- the email value-path, so we deviate from the RFC here: when the filter is
+-- @type eq <s>@ and no entry matches, we append
+-- @Email { typ = Just s, value = newVal, primary = Nothing }@.
+
+-- | The 'Filter' embedded in a 'ValuePath'.
+valuePathFilter :: ValuePath -> Filter
+valuePathFilter (ValuePath _ flt) = flt
+
+-- | Textual form of an 'Email' address, for string comparison.
+emailValueText :: Email -> Text
+emailValueText (Email _ addr _) =
+  decodeUtf8 (EmailValidate.toByteString (unEmailAddress addr))
+
+-- | Does this 'Email' satisfy the given single-attribute 'Filter'? Supports the
+-- sub-attributes Entra and the spec use: @type@, @value@, @primary@. Any
+-- operator in 'compareStr's domain works for @type@\/@value@; @primary@ only
+-- supports @eq@\/@ne@. Unknown sub-attributes or a mismatched 'CompValue' type
+-- mean "no match".
+emailMatches :: Filter -> Email -> Bool
+emailMatches (FilterAttrCompare (AttrPath _ attr _) op cval) email
+  | attr == "type" = case cval of
+      ValString s -> compareStr op (fromMaybe "" (typ email)) s
+      _ -> False
+  | attr == "value" = case cval of
+      ValString s -> compareStr op (emailValueText email) s
+      _ -> False
+  | attr == "primary" = case cval of
+      ValBool b -> primaryMatches op b (primary email)
+      _ -> False
+  | otherwise = False
+
+-- | Compare a @primary@ filter value. Only @eq@\/@ne@ are meaningful.
+primaryMatches :: CompareOp -> Bool -> Maybe ScimBool -> Bool
+primaryMatches op b mp = case op of
+  OpEq -> mp == Just (ScimBool b)
+  OpNe -> mp /= Just (ScimBool b)
+  _ -> False
+
+-- | If the filter is @type eq <s>@, return @Just s@; otherwise 'Nothing'.
+-- Drives create-on-absent for the @.value@ sub-attribute (see note above).
+filterTypeEq :: Filter -> Maybe Text
+filterTypeEq (FilterAttrCompare (AttrPath _ attr _) OpEq (ValString s))
+  | attr == "type" = Just s
+filterTypeEq _ = Nothing
+
+-- | Apply an update to each matching email. Never creates new entries.
+setEmailField :: Filter -> (Email -> Email) -> [Email] -> [Email]
+setEmailField flt update = map (\e -> if emailMatches flt e then update e else e)
+
+-- | Set the address of an 'Email'. Uses positional construction to avoid the
+-- bare 'value' selector, which is ambiguous (shared by 'Email', 'WithId' and
+-- 'Operation').
+setEmailAddress :: EmailAddress -> Email -> Email
+setEmailAddress newAddr (Email t _ p) = Email t newAddr p
+
+-- | Replace the @.value@ of every matching email. When nothing matches and the
+-- filter is @type eq <s>@, append a new entry (create-on-absent; see note).
+replaceEmailValue :: Filter -> EmailAddress -> [Email] -> [Email]
+replaceEmailValue flt newAddr es
+  | any (emailMatches flt) es = setEmailField flt (setEmailAddress newAddr) es
+  | otherwise =
+      case filterTypeEq flt of
+        Just t -> es <> [Email (Just t) newAddr Nothing]
+        Nothing -> es
+
+-- | Replace each whole matching email with a new one; append if none match.
+--
+-- NOTE: every entry that matches the filter is overwritten with the same
+-- @newEmail@, so a filter matching several entries (e.g. two with
+-- @type eq "work"@, which Spar does not prevent) collapses them into
+-- duplicates. In practice each @type@ has at most one entry (the only mapping
+-- Entra uses), so this does not arise.
+replaceEmailEntry :: Filter -> Email -> [Email] -> [Email]
+replaceEmailEntry flt newEmail es
+  | any (emailMatches flt) es = setEmailField flt (const newEmail) es
+  | otherwise = es <> [newEmail]
+
+-- | Decode the operation value as one or more emails. A bare object is treated
+-- as a single-element list; an array is decoded as-is.
+decodeEmails :: (MonadError ScimError m) => Value -> m [Email]
+decodeEmails val = case fromJSON val of
+  Success (es' :: [Email]) -> pure es'
+  _ -> (: []) <$> resultToScimError (fromJSON val)
+
+-- | Handle a @Replace@ on an @emails[...]@ value-path.
+replaceEmailsValuePath ::
+  (MonadError ScimError m) =>
+  User tag ->
+  ValuePath ->
+  Maybe SubAttr ->
+  Value ->
+  m (User tag)
+replaceEmailsValuePath user vp mSub val =
+  let flt = valuePathFilter vp
+      es = emails user
+   in case mSub of
+        Just (SubAttr sub)
+          | sub == "value" -> do
+              newAddr <- resultToScimError (fromJSON val)
+              pure user {emails = replaceEmailValue flt newAddr es}
+          | sub == "type" -> do
+              t <- resultToScimError (fromJSON val)
+              pure user {emails = setEmailField flt (\e -> e {typ = Just t}) es}
+          | sub == "primary" -> do
+              b <- resultToScimError (fromJSON val)
+              pure user {emails = setEmailField flt (\e -> e {primary = Just b}) es}
+          | otherwise ->
+              throwError
+                ( badRequest
+                    InvalidPath
+                    (Just "only the 'value', 'type' and 'primary' sub-attributes of 'emails' can be patched")
+                )
+        Nothing -> do
+          newEmails <- decodeEmails val
+          pure user {emails = foldr (replaceEmailEntry flt) es newEmails}
+
+-- | Drop every email matching the value-path filter (used by @Remove@).
+--
+-- NOTE: a sub-attribute on the path (e.g. @emails[type eq "work"].value@) is
+-- ignored -- @Remove@ always drops the whole matching entry. (Clearing just the
+-- @.value@ is infeasible anyway, since 'Email.value' is non-nullable.)
+removeMatchingEmails :: ValuePath -> [Email] -> [Email]
+removeMatchingEmails vp = filter (not . emailMatches (valuePathFilter vp))
 
 instance (UserTypes tag, FromJSON (User tag), Patchable (UserExtra tag)) => Patchable (User tag) where
   applyOperation user op@(Operation _ (Just (NormalPath (AttrPath schema _ _))) _)

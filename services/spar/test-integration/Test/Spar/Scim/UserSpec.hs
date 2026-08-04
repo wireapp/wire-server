@@ -2151,6 +2151,30 @@ specPatchUser = do
       let user'' = Scim.value . Scim.thing $ storedUser'
       liftIO $ Scim.User.externalId user'' `shouldBe` externalId
 
+    it "can update a user's email via the multi-valued 'emails' value-path" $ do
+      (tok, (_, tid, _idp)) <- registerIdPAndScimToken
+      -- Disable email verification so the patched email is activated directly,
+      -- without a separate activation step.
+      setSamlEmailValidation tid Feature.FeatureStatusDisabled
+      newEmail <- randomEmail
+      user <- randomScimUser
+      storedUser <- createUser tok user
+      let userid = scimUserId storedUser
+      let Right p = PatchOp.parsePath userSchemas "emails[type eq \"work\"].value"
+          operation =
+            PatchOp.Operation
+              PatchOp.Replace
+              (Just p)
+              (Just (toJSON (fromEmail newEmail)))
+      _ <- patchUser tok userid (PatchOp.PatchOp [operation])
+      -- the email propagated all the way to Brig and is reflected on a fresh GET
+      eventually $ do
+        storedUser'' <- getUser tok userid
+        liftIO $
+          Scim.Email.scimEmailsToEmailAddress
+            (Scim.User.emails (Scim.value (Scim.thing storedUser'')))
+            `shouldBe` Just newEmail
+        checkEmail userid (Just newEmail)
     it "replace role works" $ testPatchRole replaceAttrib
 
     it "add role works" $ testPatchRole addAttrib

@@ -155,6 +155,85 @@ spec = do
       let patchOp = PatchOp [operation]
       User.extra <$> User.applyPatch user patchOp `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
 
+  describe "applyPatch (emails value-path)" $ do
+    let mkEmail typ' raw = case validate raw of
+          Right a -> Email.Email (Just typ') (Email.EmailAddress a) Nothing
+          Left _ -> error $ "invalid email in test: " <> show raw
+        mkEmailPrimary typ' raw b = case validate raw of
+          Right a -> Email.Email (Just typ') (Email.EmailAddress a) (Just (ScimBool b))
+          Left _ -> error $ "invalid email in test: " <> show raw
+        mkUser :: [Email.Email] -> User PatchTag
+        mkUser es = (User.empty [] "hello" KeyMap.empty :: User PatchTag) {emails = es}
+        emailValuePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].value"
+    it "creates a work email when none matches (Entra payload)" $ do
+      let Right p = emailValuePath
+          operation = Operation Replace (Just p) (Just (String "x@y.com"))
+          result = User.applyPatch (mkUser []) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "x@y.com"]
+    it "updates an existing matching email's value" $ do
+      let Right p = emailValuePath
+          operation = Operation Replace (Just p) (Just (String "new@example.com"))
+          result = User.applyPatch (mkUser [mkEmail "work" "old@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      length (emails patched) `shouldBe` 1
+      emails patched `shouldBe` [mkEmail "work" "new@example.com"]
+    it "fails when no value is provided" $ do
+      let Right p = emailValuePath
+          operation = Operation Replace (Just p) Nothing
+          result = User.applyPatch (mkUser []) (PatchOp [operation])
+      result `shouldSatisfy` isLeft
+    it "removes the whole matching email entry" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"]"
+          operation = Operation Remove (Just p) Nothing
+          result = User.applyPatch (mkUser [mkEmail "work" "w@example.com", mkEmail "home" "h@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "home" "h@example.com"]
+    it "is case-insensitive in the path" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "EMAILS[TYPE EQ \"work\"].VALUE"
+          operation = Operation Replace (Just p) (Just (String "ci@example.com"))
+          result = User.applyPatch (mkUser []) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "ci@example.com"]
+    it "still rejects unsupported multi-valued attributes" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "phoneNumbers[type eq \"x\"].value"
+          operation = Operation Replace (Just p) (Just (String "+15555550100"))
+          result = User.applyPatch (mkUser []) (PatchOp [operation])
+      result `shouldSatisfy` isLeft
+    it "updates the 'type' sub-attribute of matching emails" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].type"
+          operation = Operation Replace (Just p) (Just (String "custom"))
+          result = User.applyPatch (mkUser [mkEmail "work" "a@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "custom" "a@example.com"]
+    it "updates the 'primary' sub-attribute of matching emails" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].primary"
+          operation = Operation Replace (Just p) (Just (Bool True))
+          result = User.applyPatch (mkUser [mkEmail "work" "a@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmailPrimary "work" "a@example.com" True]
+    it "replaces a whole matching email entry from an object value" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"]"
+          newVal = object ["value" .= String "new@example.com", "type" .= String "work"]
+          operation = Operation Replace (Just p) (Just newVal)
+          result = User.applyPatch (mkUser [mkEmail "work" "old@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "new@example.com"]
+    it "replaces a whole matching email entry from an array value" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"]"
+          newVal = toJSON [object ["value" .= String "arr@example.com", "type" .= String "work"]]
+          operation = Operation Replace (Just p) (Just newVal)
+          result = User.applyPatch (mkUser [mkEmail "work" "old@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "arr@example.com"]
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
