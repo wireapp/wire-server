@@ -18,6 +18,9 @@ import Data.X509 (SignedCertificate)
 import Data.X509.Extended (renderFingerprintHex)
 import qualified Data.X509.Extended as X509E
 import Imports
+import Data.Misc (unsafeParseDuration)
+import Hasql.Pool.Extended (PoolConfig (..))
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 import Polysemy
 import qualified Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
@@ -1016,7 +1019,19 @@ defaultTestOpts =
       disabledAPIVersions = mempty,
       scimBaseUri = [uri|http://localhost:8088/scim/v2|],
       enableIdPByEmailDiscovery = False,
-      idpCertFingerprintAllowlist = Nothing
+      idpCertFingerprintAllowlist = Nothing,
+      -- Postgres fields are placeholders; only the allowlist is read here.
+      postgresql = mempty,
+      postgresqlPool = PoolConfig 1 (unsafeParseDuration "10s") (unsafeParseDuration "10m"),
+      postgresMigration =
+        PostgresMigrationOpts
+          { conversation = CassandraStorage,
+            conversationCodes = CassandraStorage,
+            teamFeatures = CassandraStorage,
+            domainRegistration = CassandraStorage,
+            user = CassandraStorage
+          },
+      postgresqlPassword = Nothing
     }
 
 galleyAccessMock :: Sem (GalleyAPIAccess ': r) a -> Sem r a

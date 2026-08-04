@@ -583,6 +583,21 @@ spar:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
     {{- end }}
+    postgresql:
+      host: postgresql
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
+    postgresMigration:
+      conversation: {{ .Values.conversationStore }}
+      conversationCodes: {{ .Values.conversationCodesStore }}
+      teamFeatures: {{ .Values.teamFeaturesStore }}
+      domainRegistration: {{ .Values.domainRegistration }}
+      user: {{ .Values.userStore }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
@@ -682,6 +697,14 @@ background-worker:
           key: "ca.crt"
       {{- end }}
     cassandraBrig:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
+      {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+      {{- end }}
+    cassandraSpar:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
       {{- if .Values.useK8ssandraSSL.enabled }}
