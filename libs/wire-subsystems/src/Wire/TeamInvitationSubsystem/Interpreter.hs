@@ -161,13 +161,13 @@ inviteUserImpl luid tid request = do
 
     classifyScimUser requestedEmail invitations uid = do
       mStoredUser <- UserStore.getUser uid
-      case mStoredUser of
-        Nothing -> pure $ ScimInvitationStale uid
+      pure $ case mStoredUser of
+        Nothing -> ScimInvitationStale uid
         Just storedUser
           | storedUser.teamId /= Just tid
               || storedUser.email /= Just requestedEmail
               || storedUser.managedBy /= Just ManagedByScim -> do
-              pure $ ScimInvitationStale uid
+              ScimInvitationStale uid
           | otherwise ->
               case storedUser.status of
                 Just PendingInvitation ->
@@ -175,15 +175,15 @@ inviteUserImpl luid tid request = do
                     then
                       -- Only a matching pending SCIM account can be cleaned
                       -- up when its invitation has expired.
-                      pure $ ScimInvitationExpired uid
+                      ScimInvitationExpired uid
                     else
                       -- The SCIM invitation is still usable, so the existing
                       -- pending account must not be deleted or replaced.
-                      pure ScimInvitationConflict
+                      ScimInvitationConflict
                 _ ->
                   -- An active SCIM account must continue to block a manual
                   -- invitation, even if the index was not removed on activation.
-                  pure ScimInvitationConflict
+                  ScimInvitationConflict
 
     invitationIsLive uid inv =
       inv.teamId == tid
