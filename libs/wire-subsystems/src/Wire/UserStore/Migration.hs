@@ -133,7 +133,8 @@ migrateUser migTimeout migCounter migDuration uid =
           Left e -> warn $ Log.msg (Log.val "Invalid user found, skipping") . Log.field "id" (idToText cassData.id) . Log.field "error" (show e)
           Right pgRow -> do
             saveToPostgres pgRow cassData.serviceConv
-            runClient cState $ deleteFromCassandra pgRow.id_ pgRow.handle ((,) <$> pgRow.providerId <*> pgRow.serviceId)
+            let mServiceTeam = (.teamId) =<< cassData.serviceConv
+            runClient cState $ deleteFromCassandra pgRow.id_ pgRow.handle ((,,mServiceTeam) <$> pgRow.providerId <*> pgRow.serviceId)
             markDeletionComplete pgRow.id_
             liftIO $ Prometheus.incCounter migCounter
 
@@ -278,12 +279,12 @@ markDeletionComplete uid =
     stmt :: Hasql.Statement UserId ()
     stmt = lmapPG [resultlessStatement|DELETE FROM user_migration_pending_deletes WHERE id = $1 :: uuid|]
 
-deleteFromCassandra :: UserId -> Maybe Handle -> Maybe (ProviderId, ServiceId) -> Client ()
+deleteFromCassandra :: UserId -> Maybe Handle -> Maybe (ProviderId, ServiceId, Maybe TeamId) -> Client ()
 deleteFromCassandra uid mHandle mService = do
   for_ mHandle $ \handle -> write deleteHandle (params LocalQuorum (Identity handle))
-  for_ mService $ \(pid, sid) -> do
-    write deleteServiceUser (params LocalQuorum (pid, sid))
-    write deleteServiceTeam (params LocalQuorum (pid, sid))
+  for_ mService $ \(pid, sid, mTid) -> do
+    write deleteServiceUser (params LocalQuorum (pid, sid, uid))
+    for_ mTid $ \tid -> write deleteServiceTeam (params LocalQuorum (pid, sid, tid, uid))
   write deleteRichInfo (params LocalQuorum (Identity uid))
   write deleteUser (params LocalQuorum (Identity uid))
   where
@@ -293,11 +294,11 @@ deleteFromCassandra uid mHandle mService = do
     deleteHandle :: PrepQuery W (Identity Handle) ()
     deleteHandle = "DELETE FROM user_handle WHERE handle = ?"
 
-    deleteServiceUser :: PrepQuery W (ProviderId, ServiceId) ()
-    deleteServiceUser = "DELETE FROM service_user WHERE provider = ? AND service = ?"
+    deleteServiceUser :: PrepQuery W (ProviderId, ServiceId, UserId) ()
+    deleteServiceUser = "DELETE FROM service_user WHERE provider = ? AND service = ? AND user = ?"
 
-    deleteServiceTeam :: PrepQuery W (ProviderId, ServiceId) ()
-    deleteServiceTeam = "DELETE FROM service_team WHERE provider = ? AND service = ?"
+    deleteServiceTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, UserId) ()
+    deleteServiceTeam = "DELETE FROM service_team WHERE provider = ? AND service = ? AND team = ? AND user = ?"
 
     deleteRichInfo :: PrepQuery W (Identity UserId) ()
     deleteRichInfo = "DELETE FROM rich_info WHERE user = ?"
