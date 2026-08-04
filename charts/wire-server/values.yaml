@@ -95,6 +95,7 @@ galley:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
+      activationKeys: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1042,6 +1043,7 @@ background-worker:
     # It's important to set `settings.postgresMigration.passwordReset` to `migration-to-postgresql`
     # before starting the migration.
     migratePasswordReset: false
+    migrateActivationKeys: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

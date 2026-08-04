@@ -56,6 +56,8 @@ import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Team.Collaborator
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
+import Wire.ActivationCodeStore.DualWrite (interpretActivationCodeStoreToCassandraAndPostgres)
+import Wire.ActivationCodeStore.Postgres (interpretActivationCodeStoreToPostgres)
 import Wire.AppStore
 import Wire.AppStore.Postgres
 import Wire.AppSubsystem
@@ -226,6 +228,7 @@ type BrigLowerLevelEffects =
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
      BlockListStore,
+     ActivationCodeStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -250,7 +253,6 @@ type BrigLowerLevelEffects =
      SessionStore,
      PasswordStore,
      VerificationCodeStore,
-     ActivationCodeStore,
      InvitationStore,
      PropertyStore,
      SFT,
@@ -417,6 +419,10 @@ runBrigToIO e (AppT ma) = do
         CassandraStorage -> interpretDomainRegistrationStoreToCassandra e.casClient
         PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
+      activationCodeStoreInterpreter = case e.postgresMigration.activationKeys of
+        CassandraStorage -> interpretActivationCodeStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretActivationCodeStoreToPostgres
+        MigrationToPostgresql -> interpretActivationCodeStoreToCassandraAndPostgres e.casClient
 
       blockListStore = case e.postgresMigration.blockList of
         CassandraStorage -> interpretBlockListStoreToCassandra e.casClient
@@ -498,7 +504,6 @@ runBrigToIO e (AppT ma) = do
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
-              . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
@@ -524,6 +529,7 @@ runBrigToIO e (AppT ma) = do
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
               . blockListStore
+              . activationCodeStoreInterpreter
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres

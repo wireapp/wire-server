@@ -178,6 +178,7 @@ library
     Test.Meetings
     Test.MessageTimer
     Test.Migration.BlockList
+    Test.Migration.ActivationKeys
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
