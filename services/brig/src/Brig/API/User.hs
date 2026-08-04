@@ -75,7 +75,6 @@ import Brig.Effects.ConnectionStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
 import Brig.User.Auth.Cookie qualified as Auth
-import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens (preview, to, (^.), _Just)
 import Control.Monad.Catch
@@ -117,7 +116,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
-import Wire.ActivationCodeStore
+import Wire.ActivationCodeStore hiding (mkActivationKey)
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BackendNotificationQueueAccess
@@ -769,7 +768,8 @@ activate ::
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member UserKeyStore r
+  Member UserKeyStore r,
+  Member ActivationCodeStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -785,7 +785,8 @@ activateNoVerifyEmailDomain ::
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member UserKeyStore r
+  Member UserKeyStore r,
+  Member ActivationCodeStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -801,7 +802,8 @@ activateWithCurrency ::
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member UserKeyStore r
+  Member UserKeyStore r,
+  Member ActivationCodeStore r
   ) =>
   Bool ->
   ActivationTarget ->
@@ -812,13 +814,13 @@ activateWithCurrency ::
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppT r) ActivationResult
 activateWithCurrency verifyEmailDomain tgt code usr cur = do
-  key <- wrapClientE $ mkActivationKey tgt
+  key <- mkActivationKey tgt
   lift . liftSem . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
   when verifyEmailDomain $ do
-    (emailKey, _) <- wrapClientE (Data.verifyCode key code)
+    (emailKey, _) <- Data.verifyCode key code
     lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
   event <- Data.activateKey key code usr
   case event of
@@ -835,12 +837,11 @@ activateWithCurrency verifyEmailDomain tgt code usr cur = do
       for_ tid $ \t -> liftSem $ GalleyAPIAccess.changeTeamStatus t Team.Active cur
 
 preverify ::
-  ( MonadClient m,
-    MonadReader Env m
+  ( Member ActivationCodeStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
-  ExceptT ActivationError m (EmailKey, Maybe UserId)
+  ExceptT ActivationError (AppT r) (EmailKey, Maybe UserId)
 preverify tgt code = do
   key <- mkActivationKey tgt
   Data.verifyCode key code
@@ -958,7 +959,7 @@ sendActivationCode email loc = do
       when (domain `elem` blocked) $
         Polysemy.Error.throw UserSubsystemBlockedDomain
 
-mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
+mkActivationKey :: (MonadIO m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
 mkActivationKey (ActivateKey k) = pure k
 mkActivationKey (ActivateEmail e) =
   liftIO $ Data.mkActivationKey (mkEmailKey e)

@@ -221,6 +221,9 @@ library
   exposed-modules:
     Wire.ActivationCodeStore
     Wire.ActivationCodeStore.Cassandra
+    Wire.ActivationCodeStore.DualWrite
+    Wire.ActivationCodeStore.Migration
+    Wire.ActivationCodeStore.Postgres
     Wire.AppStore
     Wire.AppStore.Postgres
     Wire.AppSubsystem

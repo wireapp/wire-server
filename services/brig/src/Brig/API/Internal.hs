@@ -610,7 +610,8 @@ createUserNoVerifySpar ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserStore r,
-    Member UserKeyStore r
+  Member UserKeyStore r,
+  Member ActivationCodeStore r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
