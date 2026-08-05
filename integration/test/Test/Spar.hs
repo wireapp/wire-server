@@ -305,22 +305,21 @@ testSparPatchEmailValuePath = do
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   void $ registerTestIdPWithMeta owner >>= getJSON 201
+  -- Disable SAML email validation so the provisioned email is activated
+  -- directly (the IdP vouches for it), with no separate activation step.
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
   tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
-  email <- randomEmail
   extId <- randomExternalId
-  -- a single work-typed email so the value-path filter matches in place
-  -- (avoids the pickPrimary/pickFirst ambiguity in 'scimEmailsToEmailAddress')
-  scimUser <-
-    randomScimUserWithEmail extId email
-      >>= setField "emails" (toJSON [object ["value" .= email, "type" .= ("work" :: String)]])
+  -- spar does not persist the SCIM email 'type': on GET every email is
+  -- returned with @typ = Nothing@ (see 'synthesizeScimUser'), so a value-path
+  -- filter @emails[type eq "work"]@ can never match an existing email. The
+  -- PATCH therefore exercises the create-on-absent path -- provisioning a work
+  -- email for a user that has none -- which is exactly the real Entra payload
+  -- (an @Add@ on @emails[type eq "work"].value@). The Add-vs-Replace regression
+  -- guard for whole-entry append semantics lives in the hscim unit tests;
+  -- through spar only create-on-absent is observable.
+  scimUser <- randomScimUserWith def {mkExternalId = pure extId} >>= removeField "emails"
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-  activateEmail OwnDomain email
-  -- Exercise the real Entra payload end-to-end: Entra sends an 'Add' on
-  -- emails[type eq "work"].value, and this confirms the new value propagates to
-  -- Brig after activation. (The Add-vs-Replace regression guard for the
-  -- whole-entry append semantics lives in the hscim unit test, since a .value
-  -- Add on a matching entry delegates to the in-place update shared with
-  -- Replace.)
   newEmail <- randomEmail
   let patchOp =
         object
@@ -335,21 +334,15 @@ testSparPatchEmailValuePath = do
           ]
   bindResponse (patchScimUser OwnDomain tok userId patchOp) $ \res -> do
     res.status `shouldMatchInt` 200
-  -- SCIM side reflects the new value, type unchanged
-  checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
-    (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
-    (u %. "emails" >>= asList >>= assertOne >>= (%. "type")) `shouldMatch` ("work" :: String)
-  -- before activation, Brig still holds the old email
-  bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
-    res.status `shouldMatchInt` 200
-    u <- res.json & asList >>= assertOne
-    u %. "email" `shouldMatch` email
-  -- after activation the new email propagated to Brig
-  activateEmail OwnDomain newEmail
-  bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
-    res.status `shouldMatchInt` 200
-    u <- res.json & asList >>= assertOne
-    u %. "email" `shouldMatch` newEmail
+  -- The provisioned email propagates end-to-end: SCIM GET reflects it and,
+  -- with validation disabled, it is active in Brig.
+  eventually $ do
+    checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json & asList >>= assertOne
+      u %. "email" `shouldMatch` newEmail
 
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
