@@ -166,7 +166,7 @@ inviteUserImpl luid tid request = do
         Just storedUser
           | storedUser.teamId /= Just tid
               || storedUser.email /= Just requestedEmail
-              || storedUser.managedBy /= Just ManagedByScim -> do
+              || storedUser.managedBy /= Just ManagedByScim ->
               ScimInvitationStale uid
           | otherwise ->
               case storedUser.status of

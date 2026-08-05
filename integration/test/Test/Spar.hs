@@ -26,7 +26,6 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import qualified API.Nginz as Nginz
 import API.Spar
 import API.SparInternal
-import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -44,6 +43,7 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
 import qualified SAML2.WebSSO.XML as SAMLXML
 import SetupHelpers
+import Testlib.Assertions
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
@@ -75,8 +75,11 @@ testTeamInvitationWhenScimInvitationExpired = do
     scid <- createScimUser domain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
     handle <- scimUser %. "userName" >>= asString
 
+    -- assert that the SCIM handle is claimed
+    putHandle owner handle >>= assertStatus 409
+
     -- Wait until the SCIM invitation has expired.
-    liftIO $ threadDelay 2_100_000
+    eventually $ getInvitationByEmail domain email >>= assertStatus 404
 
     -- Create and accept a manual team invitation for the same email. This is
     -- expected to succeed after the expired SCIM account has been cleaned up.
