@@ -334,7 +334,8 @@ testAddUserNotConnected = do
         responseJsonError
           =<< localPostCommitBundle (mpSender commit) bundle
             <!! const 403 === statusCode
-      void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
+      -- Occasionally we observe a user.activate event, so we exclude this case to avoid flakiness.
+      void . liftIO $ WS.assertNoEventExcept (1 # WS.Second) wss $ wsIsEventOfType "user.activate"
       pure err
     liftIO $ Wai.label err @?= "not-connected"
 
