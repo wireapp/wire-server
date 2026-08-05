@@ -234,6 +234,28 @@ spec = do
       result `shouldSatisfy` isRight
       let Right patched = result
       emails patched `shouldBe` [mkEmail "work" "arr@example.com"]
+    it "Add on .value updates an existing matching email" $ do
+      let Right p = emailValuePath
+          operation = Operation Add (Just p) (Just (String "new@example.com"))
+          result = User.applyPatch (mkUser [mkEmail "work" "old@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "new@example.com"]
+    it "Add on .value creates a work email when none matches" $ do
+      let Right p = emailValuePath
+          operation = Operation Add (Just p) (Just (String "x@y.com"))
+          result = User.applyPatch (mkUser []) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "x@y.com"]
+    it "Add on a whole emails entry appends without overwriting" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"]"
+          newVal = object ["value" .= String "added@example.com", "type" .= String "work"]
+          operation = Operation Add (Just p) (Just newVal)
+          result = User.applyPatch (mkUser [mkEmail "work" "keep@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "keep@example.com", mkEmail "work" "added@example.com"]
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip

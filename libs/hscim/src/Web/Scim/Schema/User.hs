@@ -318,6 +318,16 @@ applyUserOperation ::
   User tag ->
   Operation ->
   m (User tag)
+applyUserOperation user (Operation Add (Just (IntoValuePath vp mSub)) (Just val)) =
+  case vp of
+    ValuePath (AttrPath _ attr _) _
+      | attr == "emails" -> addEmailsValuePath user vp mSub val
+      | otherwise ->
+          throwError
+            ( badRequest
+                InvalidPath
+                (Just "multi-valued PATCH is only supported for 'emails'")
+            )
 applyUserOperation user (Operation Add path value) = applyUserOperation user (Operation Replace path value)
 applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) =
   case attr of
@@ -385,18 +395,16 @@ applyUserOperation user (Operation Remove (Just (IntoValuePath vp _mSub)) _) =
 -- attribute that Spar persists. Other multi-valued attributes
 -- (@phoneNumbers@, @ims@, ...) remain unsupported and still fail as before.
 --
--- NOTE on "create on absent": RFC 7644 §3.5.2.3 says a @Replace@ value-path
--- that matches nothing is a no-op. Entra, however, emits an @Add@ (rewritten to
--- @Replace@ in 'applyUserOperation') against @emails[type eq "work"].value@ to
--- provision the address, expecting the entry to be created if absent. Every
--- mainstream SCIM client/validator expects this create-on-absent behaviour for
--- the email value-path, so we deviate from the RFC here: when the filter is
--- @type eq <s>@ and no entry matches, we append
+-- NOTE on "create on absent": RFC 7644 §3.5.2.3 says a value-path @Replace@
+-- that matches nothing is a no-op. Microsoft Entra ID, however, provisions the
+-- email address with an @Add@ against @emails[type eq "work"].value@ (Entra uses
+-- @Add@ for both insert and update -- see
+-- <https://learn.microsoft.com/en-us/answers/questions/1693075/why-is-entra-id-sending-add-operations-instead-of>),
+-- expecting the entry to be created if absent. Both 'addEmailsValuePath' and the
+-- @Replace@ path therefore route the @.value@ sub-attribute through
+-- 'replaceEmailValue', which deviates from the RFC: when the filter is
+-- @type eq <s>@ and no entry matches, it appends
 -- @Email { typ = Just s, value = newVal, primary = Nothing }@.
-
--- | The 'Filter' embedded in a 'ValuePath'.
-valuePathFilter :: ValuePath -> Filter
-valuePathFilter (ValuePath _ flt) = flt
 
 -- | Textual form of an 'Email' address, for string comparison.
 emailValueText :: Email -> Text
@@ -473,6 +481,30 @@ decodeEmails :: (MonadError ScimError m) => Value -> m [Email]
 decodeEmails val = case fromJSON val of
   Success (es' :: [Email]) -> pure es'
   _ -> (: []) <$> resultToScimError (fromJSON val)
+
+-- | Handle an @Add@ on an @emails[...]@ value-path.
+--
+-- For the single-valued email sub-attributes (@.value@, @.type@, @.primary@) an
+-- @Add@ coincides with a @Replace@ (RFC 7644 §3.5.2.3): it sets the
+-- sub-attribute and, for @.value@, creates the entry on absent via
+-- 'replaceEmailValue'. For a whole-entry @Add@ (no sub-attribute) the value-path
+-- filter is intentionally ignored and the new entries are /appended/ rather than
+-- overwriting matches -- the concat semantics that distinguish @Add@ from
+-- @Replace@ for multi-valued attributes (where @Replace@ narrows the target set
+-- via the filter).
+addEmailsValuePath ::
+  (MonadError ScimError m) =>
+  User tag ->
+  ValuePath ->
+  Maybe SubAttr ->
+  Value ->
+  m (User tag)
+addEmailsValuePath user vp mSub val =
+  case mSub of
+    Just _ -> replaceEmailsValuePath user vp mSub val
+    Nothing -> do
+      newEmails <- decodeEmails val
+      pure user {emails = emails user <> newEmails}
 
 -- | Handle a @Replace@ on an @emails[...]@ value-path.
 replaceEmailsValuePath ::
