@@ -72,11 +72,11 @@ testCreateOne2OneWithMembers memberRole = do
     ( retrying
         (constantDelay 500_000 <> limitRetries 10)
         (\_ resp -> pure (resp.status /= 201))
-        (const (postOne2OneConversation owner teamMember tid ""))
+        (const (postOne2OneConversation owner teamMember tid "chit-chat"))
     )
     $ \resp -> resp.status `shouldMatchInt` 201
   -- Recreating the one2one is a no-op and returns 200.
-  bindResponse (postOne2OneConversation owner teamMember tid "") $ \resp ->
+  bindResponse (postOne2OneConversation owner teamMember tid "chit-chat") $ \resp ->
     resp.status `shouldMatchInt` 200
 
 -- | Two owners each create their own binding team. Attempting to create a
@@ -87,5 +87,5 @@ testCreateOne2OneFailForNonTeamMembers :: (HasCallStack) => App ()
 testCreateOne2OneFailForNonTeamMembers = do
   (owner1, tid1, []) <- createTeam OwnDomain 1
   (owner2, _tid2, []) <- createTeam OwnDomain 1
-  postOne2OneConversation owner1 owner2 tid1 ""
+  postOne2OneConversation owner1 owner2 tid1 "chit-chat"
     >>= assertLabel 403 "non-binding-team-members"
