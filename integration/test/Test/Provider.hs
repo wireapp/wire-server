@@ -120,7 +120,7 @@ testProviderSearchWhitelist =
       (owner, tid, [user]) <- createTeam domain 2
       provider <- setupProvider owner def {newProviderPassword = Just defPassword}
       pid <- asString $ provider %. "id"
-      namePrefix <- randomString 10
+      namePrefix <- randomAlphaString 10
 
       services <-
         forM (taggedServiceNames namePrefix) $ \(name, tags) -> do
