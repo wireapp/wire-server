@@ -197,6 +197,7 @@ library
     Test.NginxZAuthModule
     Test.Notifications
     Test.OAuth
+    Test.One2OneTeamConv
     Test.PasswordReset
     Test.Presence
     Test.Property

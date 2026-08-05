@@ -106,9 +106,6 @@ tests s =
         [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
       test s "enable/disable Custom Search Visibility" testEnableTeamSearchVisibilityPerTeam,
-      test s "create 1-1 conversation between non-team members (fail)" testCreateOne2OneFailForNonTeamMembers,
-      test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
-      test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner),
       test s "poll team-level event queue" testTeamQueue,
       test s "add new team member internal" testAddTeamMemberInternal,
       test s "remove aka delete team member (binding, owner has passwd)" (testRemoveBindingTeamMember True),
@@ -379,46 +376,6 @@ testEnableTeamSearchVisibilityPerTeam = do
   Util.putTeamSearchVisibilityAvailableInternal tid FeatureStatusDisabled
   getSearchVisibilityCheck SearchVisibilityStandard
 
-testCreateOne2OneFailForNonTeamMembers :: TestM ()
-testCreateOne2OneFailForNonTeamMembers = do
-  owner <- Util.randomUser
-  let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
-  let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
-  mem1 <- newTeamMember' p1 <$> Util.randomUser
-  mem2 <- newTeamMember' p2 <$> Util.randomUser
-  Util.connectUsers owner ((mem1 ^. userId) :| [mem2 ^. userId])
-  -- Both have a binding team but not the same team
-  owner1 <- Util.randomUser
-  tid1 <- Util.createBindingTeamInternal "foo" owner1
-  assertTeamActivate "create team" tid1
-  owner2 <- Util.randomUser
-  tid2 <- Util.createBindingTeamInternal "foo" owner2
-  assertTeamActivate "create another team" tid2
-  Util.createOne2OneTeamConv owner1 owner2 Nothing tid1 !!! do
-    const 403 === statusCode
-    const "non-binding-team-members" === (Error.label . responseJsonUnsafeWithMsg "error label")
-
-testCreateOne2OneWithMembers ::
-  (HasCallStack) =>
-  -- | Role of the team member added to the team
-  Role ->
-  TestM ()
-testCreateOne2OneWithMembers role = do
-  c <- view tsCannon
-  (owner, tid) <- Util.createBindingTeam
-  mem1 <-
-    WS.bracketR c owner $ \wsOwner -> do
-      mem <- Util.addUserToTeamWithRole (Just role) owner tid
-      checkTeamMemberJoin tid (mem ^. userId) wsOwner
-      assertTeamUpdate "team member join" tid 2 [owner]
-      pure mem
-  void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv owner (mem1 ^. userId) Nothing tid)
-  -- Recreating a One2One is a no-op, returns a 200
-  Util.createOne2OneTeamConv owner (mem1 ^. userId) Nothing tid !!! const 200 === statusCode
-  where
-    repeatIf :: ResponseLBS -> Bool
-    repeatIf r = statusCode r /= 201
-
 -- | At the time of writing this test, the only event sent to this queue is 'MemberJoin'.
 testTeamQueue :: TestM ()
 testTeamQueue = do
@@ -485,7 +442,13 @@ testAddTeamMemberInternal = do
   let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
   mem1 <- newTeamMember' p1 <$> Util.randomUser
   WS.bracketRN c [owner, mem1 ^. userId] $ \[wsOwner, wsMem1] -> do
-    Util.addTeamMemberInternal tid (mem1 ^. userId) (mem1 ^. permissions) (mem1 ^. invitation)
+    g <- viewGalley
+    post
+      ( g
+          . paths ["i", "teams", toByteString' tid, "members"]
+          . json (Member.mkNewTeamMember (mem1 ^. userId) (mem1 ^. permissions) (mem1 ^. invitation))
+      )
+      !!! const 200 === statusCode
     liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1 ^. userId)) [wsOwner, wsMem1]
     assertTeamUpdate "team member join" tid 2 [owner]
   void $ Util.getTeamMemberInternal tid (mem1 ^. userId)
@@ -737,29 +700,26 @@ testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do
   personalUser <- Util.randomUser
   (ownerT1, qOwnerT1) <- Util.randomUserTuple
-  let p = Util.symmPermissions [AddRemoveConvMember]
-  mem1T1 <- Util.randomUser
-  qMem1T1 <- Qualified mem1T1 <$> viewFederationDomain
-  mem2T1 <- Util.randomUser
-  qMem2T1 <- Qualified mem2T1 <$> viewFederationDomain
-
-  let pEmpty = Util.symmPermissions []
-  mem3T1 <- Util.randomUser
-  qMem3T1 <- Qualified mem3T1 <$> viewFederationDomain
-
-  mem4T1 <- newTeamMember' pEmpty <$> Util.randomUser
-  qMem4T1 <- Qualified (mem4T1 ^. userId) <$> viewFederationDomain
   (ownerT2, qOwnerT2) <- Util.randomUserTuple
-  mem1T2 <- newTeamMember' p <$> Util.randomUser
-  qMem1T2 <- Qualified (mem1T2 ^. userId) <$> viewFederationDomain
-  Util.connectUsers ownerT1 (mem1T1 :| [mem2T1, mem3T1, ownerT2, personalUser])
   tidT1 <- createBindingTeamInternal "foo" ownerT1
-  do
-    Util.addTeamMemberInternal tidT1 mem1T1 p Nothing
-    Util.addTeamMemberInternal tidT1 mem2T1 p Nothing
-    Util.addTeamMemberInternal tidT1 mem3T1 pEmpty Nothing
+  let p = Util.symmPermissions [AddRemoveConvMember]
+      pEmpty = Util.symmPermissions []
+  mem1T1 <- addMemberWithPermissions ownerT1 tidT1 p
+  qMem1T1 <- Qualified mem1T1 <$> viewFederationDomain
+  mem2T1 <- addMemberWithPermissions ownerT1 tidT1 p
+  qMem2T1 <- Qualified mem2T1 <$> viewFederationDomain
+  mem3T1 <- addMemberWithPermissions ownerT1 tidT1 pEmpty
+  qMem3T1 <- Qualified mem3T1 <$> viewFederationDomain
+  mem4T1 <- Util.randomUser
+  qMem4T1 <- Qualified mem4T1 <$> viewFederationDomain
   tidT2 <- Util.createBindingTeamInternal "foo" ownerT2
-  Util.addTeamMemberInternal tidT2 (mem1T2 ^. userId) (mem1T2 ^. permissions) (mem1T2 ^. invitation)
+  mem1T2 <- addMemberWithPermissions ownerT2 tidT2 p
+  qMem1T2 <- Qualified mem1T2 <$> viewFederationDomain
+  -- ownerT1 is connected across teams to ownerT2 and personally to
+  -- personalUser. Same-team members (mem1T1/mem2T1/mem3T1) need no explicit
+  -- connection: same-binding-team connection requests are rejected (403), and
+  -- every assertion involving them is satisfied by the same-team condition.
+  Util.connectUsers ownerT1 (ownerT2 :| [personalUser])
   -- Team owners create new regular team conversation:
   cidT1 <- Util.createTeamConv ownerT1 tidT1 [] (Just "blaa") Nothing Nothing
   qcidT1 <- Qualified cidT1 <$> viewFederationDomain
@@ -792,7 +752,7 @@ testAddTeamMemberToConv = do
   Util.assertConvMember qMem1T2 cidT1
   -- Still, they cannot add random members without a connection from T1, despite the conversation being "hosted" there
   Util.postMembers ownerT2 (pure qMem4T1) qcidT1 !!! const 403 === statusCode
-  Util.assertNotConvMember (mem4T1 ^. userId) cidT1
+  Util.assertNotConvMember mem4T1 cidT1
   -- Now let's look at convs hosted on team2
   -- ownerT2 *is* connected to ownerT1
   Util.postMembers ownerT2 (pure qOwnerT1) qcidT2 !!! const 200 === statusCode
@@ -800,7 +760,7 @@ testAddTeamMemberToConv = do
   -- and mem1T2 is on the same team, but mem1T1 is *not*
   Util.postMembers ownerT2 (qMem1T2 :| [qMem1T1]) qcidT2 !!! const 403 === statusCode
   Util.assertNotConvMember mem1T1 cidT2
-  Util.assertNotConvMember (mem1T2 ^. userId) cidT2
+  Util.assertNotConvMember mem1T2 cidT2
   -- mem1T2 is on the same team, so that is fine too
   Util.postMembers ownerT2 (pure qMem1T2) qcidT2 !!! const 200 === statusCode
   Util.assertConvMember qMem1T2 cidT2
@@ -824,6 +784,12 @@ testAddTeamMemberToConv = do
   -- Users *can* add across teams if *connected*
   Util.postMembers ownerT1 (pure qOwnerT2) qcidPersonal !!! const 200 === statusCode
   Util.assertConvMember qOwnerT2 cidPersonal
+  where
+    addMemberWithPermissions :: UserId -> TeamId -> Permissions -> TestM UserId
+    addMemberWithPermissions inviter tid perms = do
+      mem <- Util.addUserToTeamWithRole (Just RoleMember) inviter tid
+      Util.updateTeamMemberPermissions inviter mem tid perms
+      pure (mem ^. userId)
 
 testUpdateTeamConv ::
   -- | Team role of the user who creates the conversation
@@ -1146,9 +1112,9 @@ testDeleteTeamConv = do
   (tid, owner, _) <- Util.createBindingTeamWithMembers 2
   qOwner <- Qualified owner <$> viewFederationDomain
   let p = Util.symmPermissions [P.DeleteConversation]
-  member <- newTeamMember' p <$> Util.randomUser
+  member <- Util.addUserToTeamWithRole (Just RoleMember) owner tid
   qMember <- Qualified (member ^. userId) <$> viewFederationDomain
-  Util.addTeamMemberInternal tid (member ^. userId) (member ^. permissions) Nothing
+  Util.updateTeamMemberPermissions owner member tid p
   let members = [qOwner, qMember]
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
