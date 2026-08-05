@@ -400,17 +400,18 @@ testCreateOne2OneFailForNonTeamMembers = do
 
 testCreateOne2OneWithMembers ::
   (HasCallStack) =>
-  -- | Role of the user who creates the conversation
+  -- | Role of the team member added to the team
   Role ->
   TestM ()
-testCreateOne2OneWithMembers (rolePermissions -> perms) = do
+testCreateOne2OneWithMembers role = do
   c <- view tsCannon
   (owner, tid) <- Util.createBindingTeam
-  mem1 <- newTeamMember' perms <$> Util.randomUser
-  WS.bracketR c (mem1 ^. userId) $ \wsMem1 -> do
-    Util.addTeamMemberInternal tid (mem1 ^. userId) (mem1 ^. permissions) (mem1 ^. invitation)
-    checkTeamMemberJoin tid (mem1 ^. userId) wsMem1
-    assertTeamUpdate "team member join" tid 2 [owner]
+  mem1 <-
+    WS.bracketR c owner $ \wsOwner -> do
+      mem <- Util.addUserToTeamWithRole (Just role) owner tid
+      checkTeamMemberJoin tid (mem ^. userId) wsOwner
+      assertTeamUpdate "team member join" tid 2 [owner]
+      pure mem
   void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv owner (mem1 ^. userId) Nothing tid)
   -- Recreating a One2One is a no-op, returns a 200
   Util.createOne2OneTeamConv owner (mem1 ^. userId) Nothing tid !!! const 200 === statusCode
