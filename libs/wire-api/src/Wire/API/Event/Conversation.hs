@@ -52,6 +52,7 @@ module Wire.API.Event.Conversation
     _EdConvReceiptModeUpdate,
     _EdConvRename,
     _EdConvDelete,
+    _EdConvDeleteMeeting,
     _EdConvAccessUpdate,
     _EdConvMessageTimerUpdate,
     _EdConvCodeUpdate,
@@ -195,6 +196,7 @@ data EventType
   | ConvCreateMeeting
   | ConvConnect
   | ConvDelete
+  | ConvDeleteMeeting
   | ConvReset
   | ConvReceiptModeUpdate
   | OtrMessageAdd
@@ -225,6 +227,7 @@ instance ToSchema EventType where
           element "conversation.create" ConvCreate,
           element "conversation.create-meeting" ConvCreateMeeting,
           element "conversation.delete" ConvDelete,
+          element "conversation.delete-meeting" ConvDeleteMeeting,
           element "conversation.mls-reset" ConvReset,
           element "conversation.connect-request" ConvConnect,
           element "conversation.typing" Typing,
@@ -244,6 +247,7 @@ data EventData
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
   | EdConvDelete
+  | EdConvDeleteMeeting
   | EdConvReset ConversationReset
   | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
@@ -281,6 +285,7 @@ genEventData = \case
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
+  ConvDeleteMeeting -> pure EdConvDeleteMeeting
   ConvReset -> EdConvReset <$> arbitrary
   ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
   AddPermissionUpdate -> EdAddPermissionUpdate <$> arbitrary
@@ -305,6 +310,7 @@ eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
+eventDataType EdConvDeleteMeeting = ConvDeleteMeeting
 eventDataType (EdConvReset _) = ConvReset
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
@@ -327,6 +333,7 @@ isCellsConversationEvent eventType =
     ConvCreate -> True
     ConvCreateMeeting -> True
     ConvDelete -> True
+    ConvDeleteMeeting -> True
     ConvReset -> False
     ConvCodeDelete -> False
     ConvAccessUpdate -> False
@@ -646,6 +653,7 @@ taggedEventDataSchema =
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
+      ConvDeleteMeeting -> tag _EdConvDeleteMeeting null_
       ConvReset -> tag _EdConvReset (unnamed schema)
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
       AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)

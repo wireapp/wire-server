@@ -70,7 +70,14 @@ notifyConversationActionImpl tag eventFrom notifyOrigDomain con lconv targetsLoc
   let lcnv = fmap (.id_) lconv
       conv = tUnqualified lconv
       tid = conv.metadata.cnvmTeam
-      e = conversationActionToEvent tag now eventFrom (tUntagged lcnv) extraData Nothing tid action
+      -- Meeting conversations emit `conversation.delete-meeting` instead of
+      -- `conversation.delete`, mirroring `conversation.create-meeting` (#5302).
+      eBase = conversationActionToEvent tag now eventFrom (tUntagged lcnv) extraData Nothing tid action
+      e
+        | eBase.evtData == EdConvDelete
+            && conv.metadata.cnvmGroupConvType == Just MeetingConversation =
+            eBase {evtData = EdConvDeleteMeeting}
+        | otherwise = eBase
       quid = eventFromUserId eventFrom
       mkUpdate uids =
         ConversationUpdate

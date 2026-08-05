@@ -10,7 +10,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import MLS.Util
-import Notifications (isConvCreateMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
+import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -505,6 +505,7 @@ testMeetingDelete = do
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   withWebSocket owner $ \ws -> do
     deleteMeeting owner domain meetingId >>= assertStatus 200
+    void $ awaitMatch isConvDeleteMeetingNotif ws
     deleteNotif <- awaitMatch isMeetingDeleteNotif ws
     assertMeetingNotif deleteNotif (object ["id" .= meetingId, "domain" .= domain])
   getMeeting owner domain meetingId >>= assertStatus 404

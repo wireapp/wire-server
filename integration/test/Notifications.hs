@@ -199,6 +199,10 @@ isConvCreateMeetingNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateMeetingNotif n =
   fieldEquals n "payload.0.type" "conversation.create-meeting"
 
+isConvDeleteMeetingNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvDeleteMeetingNotif n =
+  fieldEquals n "payload.0.type" "conversation.delete-meeting"
+
 isMeetingCreateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isMeetingCreateNotif n =
   fieldEquals n "payload.0.type" "meeting.create"
