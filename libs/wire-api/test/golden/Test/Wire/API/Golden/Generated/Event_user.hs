@@ -422,3 +422,13 @@ testObject_Event_user_18 =
     (read "1864-05-22 09:51:07.104 UTC")
     (Just (Id (fromJust (UUID.fromString "90eda181-bb05-4525-a5cc-d0038deda9b7"))))
     EdConvDeleteMeeting
+
+testObject_Event_user_19 :: Event
+testObject_Event_user_19 =
+  Event
+    (Qualified (Id (fromJust (UUID.fromString "00005d81-0000-0d71-0000-1d8f00007d32"))) (Domain "faraway.example.com"))
+    Nothing
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))) (Domain "faraway.example.com")))
+    (read "1864-05-22 09:51:07.104 UTC")
+    Nothing
+    EdConvDeleteMeeting

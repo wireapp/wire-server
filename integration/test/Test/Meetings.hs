@@ -508,6 +508,10 @@ testMeetingDelete = do
     void $ awaitMatch isConvDeleteMeetingNotif ws
     deleteNotif <- awaitMatch isMeetingDeleteNotif ws
     assertMeetingNotif deleteNotif (object ["id" .= meetingId, "domain" .= domain])
+    -- A meeting conversation must emit `conversation.delete-meeting`, never the
+    -- plain `conversation.delete` (EdConvDelete). After the two events above the
+    -- socket should be quiet; any leaked delete would surface here.
+    assertNoEvent 1 ws
   getMeeting owner domain meetingId >>= assertStatus 404
 
 testMeetingDeleteNotFound :: (HasCallStack) => App ()
