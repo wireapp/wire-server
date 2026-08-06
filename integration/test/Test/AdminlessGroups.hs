@@ -326,12 +326,44 @@ testAdminlessSetupMemberUpdateAfterAdminLeaves = do
       resp.status `shouldMatchInt` 200
       resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
 
+testAdminlessSetupDeletesWithOriginAndRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupDeletesWithOriginAndRemoteMembers = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+  conv <-
+    postConversation
+      alice
+      (defProteus {team = Just tid, qualifiedUsers = [remoteUser], newUsersRole = "wire_member"})
+      >>= getJSON 201
+  convQid <- objQidObject conv
+
+  removeMember alice conv alice >>= assertSuccess
+
+  eventually $ bindResponse (listConversationIds remoteUser def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    conversationIds <- resp.json %. "qualified_conversations" & asList
+    conversationIds `shouldContain` [convQid]
+
+  withWebSockets [remoteUser] $ \[wsRemoteUser] -> do
+    setTeamFeatureConfigVersioned (ExplicitVersion 17) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "1s" []) >>= assertSuccess
+
+    deleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsRemoteUser
+    deleteNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+    eventually $ bindResponse (listConversationIds remoteUser def) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      conversationIds <- resp.json %. "qualified_conversations" & asList
+      conversationIds `shouldNotContain` [convQid]
+
 testAdminlessSetupSkipsDeletionForRemoteMembers :: (HasCallStack) => App ()
 testAdminlessSetupSkipsDeletionForRemoteMembers = do
-  -- this tests that the adminless clean up actions are skipped
-  -- when remote members are present
-  -- because remote backends do not support a system delete/member-update event, yet
-  -- to prevent a state drift
+  -- Senderless deletion is skipped when remote members are present because
+  -- remote backends do not support the system delete event yet.
   (alice, tid, _) <- createTeam OwnDomain 1
   remoteUser <- randomUser OtherDomain def
   connectTwoUsers alice remoteUser
@@ -356,12 +388,11 @@ testAdminlessSetupSkipsDeletionForRemoteMembers = do
   bindResponse (GalleyI.getConversation conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-testAdminlessSetupSkipsAutopromotionForRemoteMembers :: (HasCallStack) => App ()
-testAdminlessSetupSkipsAutopromotionForRemoteMembers = do
-  -- this tests that the adminless clean up actions are skipped
-  -- when remote members are present
-  -- because remote backends do not support a system delete/member-update event, yet
-  -- to prevent a state drift
+testAdminlessSetupAutopromotesWithRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupAutopromotesWithRemoteMembers = do
+  -- Autopromotion is safe with remote members because the owning backend is
+  -- authoritative for roles, even though remote clients do not receive the
+  -- senderless system member-update event yet.
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   remoteUser <- randomUser OtherDomain def
   connectTwoUsers alice remoteUser
@@ -376,7 +407,7 @@ testAdminlessSetupSkipsAutopromotionForRemoteMembers = do
   conv <- createTeamMLSConversation alice tid alice1 [bob, remoteUser]
 
   -- Create an adminless conversation while the feature is disabled. Enabling
-  -- the feature later would normally promote Bob through a system action.
+  -- the feature later promotes Bob through a system action.
   removeMember alice conv alice >>= assertSuccess
 
   configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
@@ -384,7 +415,7 @@ testAdminlessSetupSkipsAutopromotionForRemoteMembers = do
   liftIO $ threadDelay 2_000_000
   bindResponse (getConversation bob conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
 
 testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
 testAdminlessJobsCancelledOnFeatureDisable = do
