@@ -17,6 +17,9 @@ galley:
 gundeck:
   host: 127.0.0.1
   port: 8086
+spar:
+  host: 127.0.0.1
+  port: 8088
 
 cassandra:
   endpoint:
@@ -36,15 +39,21 @@ postgresqlPool:
   agingTimeout: 1d
   idlenessTimeout: 10m
 
+# Points at toxiproxy (deploy/dockerephemeral/docker-compose.yaml) instead
+# of directly at rabbitmq, so a RabbitMQ outage can be injected for the
+# backend-notification-pusher repro (see analysis.md,
+# deploy/dockerephemeral/toxiproxy-outage.sh) without touching the rabbitmq
+# container itself. toxiproxy passes TLS traffic straight through to
+# rabbitmq:5671 / rabbitmq:15671, so TLS config below is unchanged.
 rabbitmq:
   host: 127.0.0.1
-  port: 5671
+  port: 15673
   vHost: /
   adminHost: 127.0.0.1
-  adminPort: 15671
-  enableTls: true
-  caCert: test/resources/rabbitmq-ca.pem
-  insecureSkipVerifyTls: false
+  adminPort: 15674
+  #  enableTls: true
+  #  caCert: test/resources/rabbitmq-ca.pem
+  # insecureSkipVerifyTls: false
 
 backendNotificationPusher:
   pushBackoffMinWait: 1000 # 1ms

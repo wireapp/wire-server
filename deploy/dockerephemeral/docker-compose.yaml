@@ -333,6 +333,21 @@ services:
     networks:
       - demo_wire
 
+  toxiproxy:
+    container_name: toxiproxy
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy-config.json"]
+    ports:
+      - "127.0.0.1:8474:8474" # toxiproxy control API
+      - "127.0.0.1:15673:15673" # -> rabbitmq:5671 (AMQP, TLS)
+      - "127.0.0.1:15674:15674" # -> rabbitmq:15671 (management/admin API, TLS)
+    volumes:
+      - ./toxiproxy-config.json:/config/toxiproxy-config.json
+    depends_on:
+      - rabbitmq
+    networks:
+      - demo_wire
+
   init_vhosts:
     image: alpine/curl:3.14
     environment:

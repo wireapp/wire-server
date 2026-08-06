@@ -1,0 +1,14 @@
+[
+  {
+    "name": "amqp_proxy",
+    "listen": "0.0.0.0:15673",
+    "upstream": "rabbitmq:5672",
+    "enabled": true
+  },
+  {
+    "name": "admin_proxy",
+    "listen": "0.0.0.0:15674",
+    "upstream": "rabbitmq:15672",
+    "enabled": true
+  }
+]
