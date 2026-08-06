@@ -151,6 +151,7 @@ createInvitationViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member InvitationStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member TeamInvitationSubsystem r,
