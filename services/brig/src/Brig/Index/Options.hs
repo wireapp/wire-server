@@ -37,7 +37,7 @@ module Brig.Index.Options
     PostgresSettings (..),
     UserStorageLocation (..),
     localElasticSettings,
-    brigOptsToPostgresSettings,
+    wireConfigToPostgresSettings,
     localCassandraSettings,
     commandParser,
     mkCreateIndexSettings,
@@ -50,7 +50,6 @@ module Brig.Index.Options
 where
 
 import Brig.Index.Types (CreateIndexSettings (..))
-import Brig.Options qualified as Opts
 import Cassandra qualified as C
 import Control.Lens
 import Data.Aeson as Aeson
@@ -72,6 +71,7 @@ import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ
 import Util.Options (CassandraOpts (..), Endpoint (..), FilePathSecrets)
+import Wire.Options qualified as Opts
 import Wire.PostgresMigrationOpts
 
 data Command
@@ -173,12 +173,12 @@ localElasticSettings =
       _esDeleteTemplate = Nothing
     }
 
-brigOptsToPostgresSettings :: Opts.Opts -> PostgresSettings
-brigOptsToPostgresSettings opts =
+wireConfigToPostgresSettings :: Opts.WireConfig -> PostgresSettings
+wireConfigToPostgresSettings opts =
   PostgresSettings
-    { pool = opts.postgresqlPool,
-      passwordFile = opts.postgresqlPassword,
-      settings = opts.postgresql
+    { pool = opts.externalServices.postgresqlPool,
+      passwordFile = opts.externalServices.postgresqlPassword,
+      settings = opts.externalServices.postgresql
     }
 
 localCassandraSettings :: CassandraSettings

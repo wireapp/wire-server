@@ -35,7 +35,7 @@ import Bilge hiding (header, host, port)
 import Bilge qualified
 import Brig.AWS qualified as AWS
 import Brig.App (initHttpManagerWithTLSConfig)
-import Brig.Options qualified as Opts
+import Wire.Options qualified as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson

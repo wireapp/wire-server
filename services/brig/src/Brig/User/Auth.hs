@@ -36,7 +36,6 @@ where
 import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
-import Brig.Options qualified as Opt
 import Brig.User.Auth.Cookie
 import Control.Error hiding (bool)
 import Data.ByteString.Conversion (toByteString)
@@ -75,6 +74,7 @@ import Wire.ClientStore qualified as ClientStore
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.Options qualified as Opt
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)

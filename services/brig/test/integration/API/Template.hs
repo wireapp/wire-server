@@ -1,7 +1,7 @@
 module API.Template (tests) where
 
 import Bilge
-import Brig.Options
+import Wire.Options
 import Brig.Team.Template (loadTeamTemplatesWithBrigOpts)
 import Brig.Template
 import Brig.User.Template (loadUserTemplates)

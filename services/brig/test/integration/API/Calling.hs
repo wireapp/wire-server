@@ -22,7 +22,7 @@ module API.Calling where
 
 import Bilge
 import Bilge.Assert
-import Brig.Options qualified as Opts
+import Wire.Options qualified as Opts
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch)
 import Data.Bifunctor (Bifunctor (first))

@@ -31,8 +31,8 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
 import Brig.App
-import Brig.Options (Settings (..))
-import Brig.Options qualified as Opt
+import Wire.Options (Settings (..))
+import Wire.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email

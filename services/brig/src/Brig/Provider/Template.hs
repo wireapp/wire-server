@@ -25,7 +25,6 @@ module Brig.Provider.Template
   )
 where
 
-import Brig.Options
 import Data.ByteString.Conversion (fromByteString)
 import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
@@ -34,6 +33,7 @@ import Imports
 import Wire.API.User.Identity
 import Wire.EmailSubsystem.Template hiding (readTemplate, readText)
 import Wire.EmailSubsystem.Templates.User
+import Wire.Options
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,
@@ -62,7 +62,7 @@ data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
     approvalConfirmEmailHomeUrl :: !HttpsUrl
   }
 
-loadProviderTemplates :: Opts -> IO (Localised ProviderTemplates)
+loadProviderTemplates :: WireConfig -> IO (Localised ProviderTemplates)
 loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provider" $ \fp ->
   ProviderTemplates
     <$> ( ActivationEmailTemplate activationUrl'
@@ -104,9 +104,9 @@ loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provi
         )
   where
     maybeUrl = fromByteString . encodeUtf8 $ pOptions.homeUrl
-    gOptions = o.emailSMS.general
-    pOptions = o.emailSMS.provider
-    defLocale = defaultTemplateLocale o.settings
+    gOptions = o.settings.email.general
+    pOptions = o.settings.email.provider
+    defLocale = fromMaybe defaultLocale o.settings.users.defaultTemplateLocale
     readTemplate = readTemplateWithDefault gOptions.templateDir defLocale "provider"
     readText = readTextWithDefault gOptions.templateDir defLocale "provider"
     -- URL templates

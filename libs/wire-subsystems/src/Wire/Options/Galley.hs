@@ -239,7 +239,7 @@ data Opts = Opts
     _federator :: !(Maybe Endpoint),
     -- | RabbitMQ settings, required when federation is enabled.
     _rabbitmq :: !(Maybe AmqpEndpoint),
-    -- | Disco URL
+    -- | Disco URL. TODO: Remove
     _discoUrl :: !(Maybe Text),
     -- | Other settings
     _settings :: !Settings,

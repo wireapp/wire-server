@@ -17,13 +17,14 @@
 
 module Brig.User.Template (loadUserTemplates) where
 
-import Brig.Options qualified as Opt
 import Data.Text.Template
 import Imports
 import Wire.EmailSubsystem.Template hiding (readTemplate, readText)
 import Wire.EmailSubsystem.Templates.User
+import Wire.Options ()
+import Wire.Options qualified as Opt
 
-loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
+loadUserTemplates :: Opt.WireConfig -> IO (Localised UserTemplates)
 loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
   UserTemplates
     <$> ( VerificationEmailTemplate activationUrl
@@ -97,15 +98,15 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <*> readText fp "email/sender.txt"
         )
   where
-    gOptions = o.emailSMS.general
-    uOptions = o.emailSMS.user
-    tOptions = o.emailSMS.team
+    gOptions = o.settings.email.general
+    uOptions = o.settings.email.user
+    tOptions = o.settings.email.team
     emailSender = gOptions.emailSender
     activationUrl = template uOptions.activationUrl
     teamActivationUrl = template tOptions.tActivationUrl
     passwordResetUrl = template uOptions.passwordResetUrl
     deletionUserUrl = template uOptions.deletionUrl
-    defLocale = Opt.defaultTemplateLocale o.settings
+    defLocale = fromMaybe Opt.defaultLocale o.settings.users.defaultTemplateLocale
     templateDir = gOptions.templateDir
     readTemplate = readTemplateWithDefault templateDir defLocale "user"
     readText = readTextWithDefault templateDir defLocale "user"

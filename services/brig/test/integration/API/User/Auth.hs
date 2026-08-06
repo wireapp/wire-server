@@ -28,7 +28,9 @@ import API.Team.Util
 import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
-import Brig.Options qualified as Opts
+import Cassandra hiding (Client, Value)
+import Cassandra qualified as DB
+import Control.Arrow ((&&&))
 import Control.Retry
 import Data.Aeson as Aeson
 import Data.ByteString qualified as BS
@@ -66,6 +68,7 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.Options qualified as Opts
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO
 import Wire.Sem.Random (Random)

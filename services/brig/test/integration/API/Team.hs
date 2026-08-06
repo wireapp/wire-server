@@ -28,7 +28,7 @@ import API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge qualified
 import Bilge.Assert
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)

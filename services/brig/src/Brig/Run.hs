@@ -29,7 +29,6 @@ import Brig.App
 import Brig.Calling qualified as Calling
 import Brig.CanonicalInterpreter
 import Brig.InternalEvent.Process qualified as Internal
-import Brig.Options hiding (internalEvents)
 import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
@@ -70,6 +69,7 @@ import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.OpenTelemetry (withTracer)
+import Wire.Options hiding (internalEvents, sesQueue)
 import Wire.PostgresMigrations
 import Wire.Sem.Paging qualified as P
 import Wire.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)

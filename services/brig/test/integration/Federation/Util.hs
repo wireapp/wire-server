@@ -24,7 +24,7 @@ module Federation.Util where
 
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (finally, throwIO)
 import Control.Lens ((.~), (?~), (^.))

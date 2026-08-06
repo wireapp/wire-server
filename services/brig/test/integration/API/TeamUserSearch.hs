@@ -22,7 +22,7 @@ import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeSta
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (initiateEmailUpdateAutoActivate)
 import Bilge (Manager, MonadHttp)
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
 import Data.ByteString.Conversion (toByteString)

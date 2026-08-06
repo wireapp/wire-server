@@ -29,7 +29,7 @@ import Brig.API.User qualified as API
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.IO.Intra (notify)
-import Brig.Options
+import Wire.Options
 import Brig.User.API.Handle
 import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util

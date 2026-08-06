@@ -23,7 +23,6 @@ where
 
 import Amazonka.SQS.Lens
 import Brig.AWS qualified as AWS
-import Brig.Queue.Stomp qualified as Stomp
 import Control.Exception (ErrorCall (..))
 import Control.Lens
 import Data.Aeson
@@ -40,10 +39,7 @@ import Wire.DeleteQueue
 import Wire.InternalEvent
 import Wire.Sem.Logger
 
--- | The queue environment constructed from `QueueOpts`.
-data QueueEnv
-  = StompQueueEnv Stomp.Broker Text
-  | SqsQueueEnv AWS.Env Int Text
+data QueueEnv = SqsQueueEnv AWS.Env Int Text
 
 runDeleteQueue ::
   ( Member (Embed IO) r,
@@ -70,8 +66,6 @@ enqueue ::
   QueueEnv ->
   a ->
   Sem r ()
-enqueue (StompQueueEnv broker queue) message =
-  embed @IO $ Stomp.enqueue broker queue message
 enqueue (SqsQueueEnv awsEnv _ queue) message = do
   let body = encode message
   md5 <- embed @IO $ getDigestByName "MD5"

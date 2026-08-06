@@ -108,11 +108,7 @@ import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
 import Brig.DeleteQueue.Interpreter
-import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
-import Brig.Options qualified as Opt
 import Brig.Provider.Template
-import Brig.Queue.Stomp qualified as Stomp
-import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
 import Brig.Template (InvitationUrlTemplates (..), genTemplateBranding, genTemplateBrandingMap)
@@ -174,6 +170,8 @@ import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
+import Wire.Options (ElasticSearchOpts, WireConfig, WireSettings)
+import Wire.Options qualified as Opt
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
@@ -210,7 +208,7 @@ data Env = Env
     httpManager :: Manager,
     http2Manager :: Http2Manager,
     extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
-    settings :: Settings,
+    settings :: WireSettings,
     publicKeyBundle :: Maybe PEMKeys,
     fsWatcher :: FS.WatchManager,
     turnEnv :: Calling.TurnEnv,
@@ -250,7 +248,7 @@ loadPublicKeyBundle lgr path = case path of
           pure Nothing
         Just keys -> pure $ Just keys
 
-newEnv :: Opts -> IO Env
+newEnv :: WireConfig -> IO Env
 newEnv opts = do
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
@@ -263,59 +261,51 @@ newEnv opts = do
   utp <- loadUserTemplates opts
   ptp <- loadProviderTemplates opts
   ttp <- loadTeamTemplatesWithBrigOpts opts
-  let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
-      brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
-  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
-  aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
+  let branding = genTemplateBranding opts.settings.email.general.templateBranding
+      brandingAsMap = genTemplateBrandingMap opts.settings.email.general.templateBranding
+  (emailAWSOpts, emailSMTP) <- emailConn lgr opts.externalServices.email
+  aws <- AWS.mkEnv lgr opts.externalServices.sqs (opts.externalServices.prekeySelection ^? Opt._DynamoDBPrekeySelection) emailAWSOpts mgr
   zau <- initZAuth opts
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
   w <-
     FS.startManagerConf $
       FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
-  let turnOpts = Opt.turn opts
+  let turnOpts = opts.settings.calling.turn
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
   turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
-  eventsQueue :: QueueEnv <- case opts.internalEvents.internalEventsQueue of
-    StompQueueOpts q -> do
-      stomp :: Stomp.Env <- case (opts.stompOptions, opts.settings.stomp) of
-        (Just s, Just c) -> Stomp.mkEnv s <$> initCredentials c
-        (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
-        (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
-        (Nothing, Nothing) -> error "stomp is selected for internal events, but not configured in 'setStomp', STOMP"
-      pure (StompQueueEnv (Stomp.broker stomp) q)
-    SqsQueueOpts q -> do
-      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis opts.settings.sqsThrottleMillis
-      SqsQueueEnv aws throttleMillis <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
-  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft opts
-  prekeyLocalLock <- case Opt.randomPrekeys opts of
-    Just True -> do
+  eventsQueue :: QueueEnv <- do
+    let throttleMillis = fromMaybe Opt.defSqsThrottleMillis opts.settings.users.sqsThrottleMillis
+    SqsQueueEnv aws throttleMillis <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) opts.externalServices.sqs.internalEventsQueue
+  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ opts.settings.calling.sft
+  prekeyLocalLock <- case opts.externalServices.prekeySelection of
+    Opt.RandomPrekeySelection -> do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: active")
       Just <$> newMVar ()
     _ -> do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
+  rabbitChan <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.externalServices.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
-  idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
-  rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
-  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
-  amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
+  idxEnv <- mkIndexEnv opts.externalServices.elasticsearch lgr opts.internalServices.galley mgr
+  rateLimitEnv <- newRateLimitEnv opts.settings.auth.passwordHashingRateLimit
+  hasqlPool <- initPostgresPool opts.externalServices.postgresqlPool opts.externalServices.postgresql opts.externalServices.postgresqlPassword
+  amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.externalServices.rabbitmq
   pubKeyBundle <- loadPublicKeyBundle lgr opts.settings.publicKeyBundle
   pure $!
     Env
-      { cargohold = mkEndpoint $ opts.cargohold,
-        galley = mkEndpoint $ opts.galley,
-        galleyEndpoint = opts.galley,
-        sparEndpoint = opts.spar,
-        gundeckEndpoint = opts.gundeck,
-        cargoholdEndpoint = opts.cargohold,
-        federator = opts.federatorInternal,
-        wireServerEnterpriseEndpoint = opts.wireServerEnterprise,
+      { cargohold = mkEndpoint $ opts.internalServices.cargohold,
+        galley = mkEndpoint $ opts.internalServices.galley,
+        galleyEndpoint = opts.internalServices.galley,
+        sparEndpoint = opts.internalServices.spar,
+        gundeckEndpoint = opts.internalServices.gundeck,
+        cargoholdEndpoint = opts.internalServices.cargohold,
+        federator = opts.internalServices.federatorInternal,
+        wireServerEnterpriseEndpoint = opts.internalServices.wireServerEnterprise,
         casClient = cas,
         hasqlPool = hasqlPool,
         smtpEnv = emailSMTP,
-        emailSender = opts.emailSMS.general.emailSender,
+        emailSender = opts.settings.email.general.emailSender,
         awsEnv = aws, -- used by `journalEvent` directly
         appLogger = lgr,
         internalEvents = (eventsQueue :: QueueEnv),
@@ -342,10 +332,10 @@ newEnv opts = do
         keyPackageLocalLock = kpLock,
         rabbitmqChannel = rabbitChan,
         disabledVersions = allDisabledVersions,
-        enableSFTFederation = opts.multiSFT,
+        enableSFTFederation = opts.settings.calling.multiSFT,
         rateLimitEnv,
         amqpJobsPublisherChannel,
-        postgresMigration = opts.postgresMigration
+        postgresMigration = opts.settings.postgresMigration
       }
   where
     emailConn _ (EmailOpt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -387,11 +377,11 @@ mkIndexEnv esOpts logger galleyEp rpcHttpManager = do
         idxCredentials = mEsCreds
       }
 
-initZAuth :: Opts -> IO ZAuthEnv
+initZAuth :: WireConfig -> IO ZAuthEnv
 initZAuth o = do
-  let zOpts = Opt.zauth o
-      privateKeys = Opt.privateKeys zOpts
-      publicKeys = Opt.publicKeys zOpts
+  let zOpts = o.settings.auth.zauth
+      privateKeys = zOpts.privateKeys
+      publicKeys = zOpts.publicKeys
   sk <- AuthenticationSubsystem.readKeys privateKeys
   pk <- AuthenticationSubsystem.readKeys publicKeys
   case (sk, pk) of
@@ -456,16 +446,16 @@ initExtGetManager = do
   extEnv <- initExtEnv disableTlsV1
   pure $ extEnv.extGetManager
 
-initLogger :: Opts -> IO Logger
+initLogger :: WireConfig -> IO Logger
 initLogger opts =
-  Log.mkLogger opts.logLevel opts.logNetStrings opts.logFormat
+  Log.mkLogger opts.settings.logs.logLevel Nothing (Last <$> opts.settings.logs.logFormat)
 
-initCassandra :: Opts -> Logger -> IO Cas.ClientState
+initCassandra :: WireConfig -> Logger -> IO Cas.ClientState
 initCassandra o g =
   initCassandraForService
-    (Opt.cassandra o)
+    o.externalServices.cassandraBrig
     "brig"
-    (Opt.discoUrl o)
+    Nothing
     (Just schemaVersion)
     g
 
@@ -668,7 +658,7 @@ adhocSessionStoreInterpreter action = do
 -- Federation
 
 viewFederationDomain :: (MonadReader Env m) => m Domain
-viewFederationDomain = asks (.settings.federationDomain)
+viewFederationDomain = asks (.settings.federation.federationDomain)
 
 -- FUTUREWORK: rename to 'qualifyLocalMtl'
 qualifyLocal :: (MonadReader Env m) => a -> m (Local a)

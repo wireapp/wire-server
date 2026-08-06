@@ -34,7 +34,6 @@ import Brig.API.User qualified as API
 import Brig.App as App
 import Brig.Data.Activation
 import Brig.Data.Connection qualified as Data
-import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.User.EJPD qualified
@@ -120,6 +119,7 @@ import Wire.InvitationStore
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.NotificationSubsystem
+import Wire.Options hiding (internalEvents)
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit

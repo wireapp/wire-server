@@ -22,7 +22,6 @@ where
 
 import Brig.App
 import Brig.Data.Nonce as Nonce
-import Brig.Options qualified as Opt
 import Control.Error
 import Control.Monad.Trans.Except (except)
 import Data.ByteString (toStrict)
@@ -44,6 +43,7 @@ import Wire.API.User
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.JwtTools (CertEnrollmentError (..), JwtTools)
 import Wire.JwtTools qualified as JwtTools
+import Wire.Options qualified as Opt
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)

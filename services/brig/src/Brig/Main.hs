@@ -17,7 +17,7 @@
 
 module Brig.Main where
 
-import Brig.Options (Opts (postgresql))
+import Wire.Options (Opts (postgresql))
 import Brig.Run
 import Data.Map qualified as Map
 import Data.Yaml qualified as Yaml

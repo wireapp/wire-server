@@ -28,7 +28,7 @@ import Bilge.Assert
 import Brig.AWS.Types
 import Brig.App (Env (..))
 import Brig.Calling as Calling
-import Brig.Options as Opt
+import Wire.Options as Opt
 import Brig.Run qualified as Run
 import Control.Concurrent.Async
 import Control.Exception (throw)

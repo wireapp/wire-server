@@ -26,7 +26,7 @@ import Servant.OpenApi.Internal.Orphans ()
 import Test.QuickCheck
 import Wire.Arbitrary
 
--- | Subset of `Brig.Options.Settings` that is safe to be shown in public.
+-- | Subset of `Wire.Options.Settings` that is safe to be shown in public.
 --
 -- Used to expose settings via the @/system/settings/unauthorized@ endpoint.
 -- ALWAYS CHECK WITH SECURITY IF YOU WANT TO ADD SETTINGS HERE.

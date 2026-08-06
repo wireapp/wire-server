@@ -45,7 +45,6 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Effects.ConnectionStore
-import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Template (InvitationUrlTemplates)
@@ -185,6 +184,7 @@ import Wire.InvitationStore
 import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
+import Wire.Options hiding (internalEvents)
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit

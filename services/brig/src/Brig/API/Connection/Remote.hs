@@ -28,7 +28,7 @@ import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.IO.Intra qualified as Intra
-import Brig.Options
+import Wire.Options
 import Control.Comonad
 import Control.Error.Util ((??))
 import Control.Monad.Trans.Except

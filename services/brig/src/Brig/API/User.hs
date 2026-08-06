@@ -73,7 +73,7 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.User
 import Brig.Effects.ConnectionStore
 import Brig.IO.Intra qualified as Intra
-import Brig.Options hiding (internalEvents)
+import Wire.Options hiding (internalEvents)
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra hiding (Set)
 import Control.Error

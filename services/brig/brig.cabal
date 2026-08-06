@@ -119,7 +119,6 @@ library
     Brig.IO.Journal
     Brig.IO.Logging
     Brig.Main
-    Brig.Options
     Brig.Provider.API
     Brig.Provider.DB
     Brig.Provider.Email
@@ -127,7 +126,6 @@ library
     Brig.Provider.Tag
     Brig.Provider.Template
     Brig.Queue
-    Brig.Queue.Stomp
     Brig.Queue.Types
     Brig.RPC
     Brig.Run
@@ -251,19 +249,16 @@ library
     , imports
     , insert-ordered-containers
     , iproute                               >=1.5
-    , iso639                                >=0.1
     , jose
     , jwt-tools
     , lens                                  >=3.8
     , metrics-core                          >=0.3
     , metrics-wai                           >=0.3
-    , mime
     , mime-mail                             >=0.4
     , mmorph
     , MonadRandom                           >=0.5
     , mtl                                   >=2.1
     , network                               >=2.4
-    , network-conduit-tls
     , openapi3
     , optparse-applicative                  >=0.11
     , polysemy
@@ -285,7 +280,6 @@ library
     , servant-server
     , servant-swagger-ui
     , ssl-util
-    , stomp-queue                           >=0.3
     , template                              >=0.2
     , template-haskell
     , text                                  >=0.11

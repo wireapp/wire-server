@@ -23,7 +23,7 @@ where
 
 import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
 import Brig.Index.Options as IxOpts
-import Brig.Options as Opt
+import Wire.Options as Opt
 import Brig.User.Search.Index
 import Cassandra (ClientState)
 import Cassandra.Options

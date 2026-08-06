@@ -63,7 +63,6 @@
 , imports
 , insert-ordered-containers
 , iproute
-, iso639
 , jose
 , jwt-tools
 , lens
@@ -77,7 +76,6 @@
 , MonadRandom
 , mtl
 , network
-, network-conduit-tls
 , network-uri
 , openapi3
 , optparse-applicative
@@ -110,7 +108,6 @@
 , servant-swagger-ui
 , spar
 , ssl-util
-, stomp-queue
 , streaming-commons
 , string-conversions
 , tasty
@@ -204,19 +201,16 @@ mkDerivation {
     imports
     insert-ordered-containers
     iproute
-    iso639
     jose
     jwt-tools
     lens
     metrics-core
     metrics-wai
-    mime
     mime-mail
     mmorph
     MonadRandom
     mtl
     network
-    network-conduit-tls
     openapi3
     optparse-applicative
     polysemy
@@ -238,7 +232,6 @@ mkDerivation {
     servant-server
     servant-swagger-ui
     ssl-util
-    stomp-queue
     template
     template-haskell
     text

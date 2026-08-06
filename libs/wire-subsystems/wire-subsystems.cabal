@@ -34,7 +34,7 @@ common common-all
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   default-extensions:
     AllowAmbiguousTypes
@@ -81,137 +81,6 @@ common common-all
     TypeOperators
     UndecidableInstances
     ViewPatterns
-
-  build-depends:
-    , aeson
-    , aeson-pretty
-    , amazonka
-    , amazonka-core
-    , amazonka-dynamodb
-    , amazonka-ses
-    , amazonka-sqs
-    , amqp
-    , arbiter-core
-    , arbiter-hasql
-    , arbiter-migrations
-    , async
-    , attoparsec
-    , base
-    , base16-bytestring
-    , base64-bytestring
-    , bilge
-    , bloodhound
-    , bytestring
-    , bytestring-conversion
-    , case-insensitive
-    , cassandra-util
-    , comonad
-    , conduit
-    , constraints
-    , containers
-    , contravariant
-    , cookie
-    , cql
-    , cron
-    , crypton
-    , crypton-asn1-encoding
-    , crypton-asn1-types
-    , crypton-pem
-    , currency-codes
-    , data-default
-    , data-timeout
-    , email-validate
-    , errors
-    , exceptions
-    , extended
-    , extra
-    , file-embed
-    , galley-types
-    , generics-sop
-    , hashable
-    , HaskellNet
-    , HaskellNet-SSL
-    , hasql
-    , hasql-migration
-    , hasql-resource-pool
-    , hasql-th
-    , hasql-transaction
-    , hex
-    , hscim
-    , HsOpenSSL
-    , hspec
-    , html-entities
-    , http-client
-    , http-client-openssl
-    , http-types
-    , http2-manager
-    , imports
-    , iproute
-    , iso639
-    , jwt-tools
-    , kan-extensions
-    , lens
-    , lens-aeson
-    , lrucaching
-    , mime
-    , mime-mail
-    , MonadRandom
-    , network
-    , network-conduit-tls
-    , network-uri
-    , polysemy
-    , polysemy-check
-    , polysemy-conc
-    , polysemy-plugin
-    , polysemy-time
-    , polysemy-wire-zoo
-    , postgresql-connection-string
-    , profunctors
-    , prometheus-client
-    , proto-lens
-    , QuickCheck
-    , ram
-    , raw-strings-qq
-    , resource-pool
-    , resourcet
-    , retry
-    , saml2-web-sso
-    , schema-profunctor
-    , servant
-    , servant-client-core
-    , servant-server
-    , singletons
-    , sodium-crypto-sign
-    , sop-core
-    , ssl-util
-    , statistics
-    , stm
-    , stomp-queue
-    , tagged
-    , template
-    , text
-    , text-icu-translit
-    , time
-    , time-out
-    , time-units
-    , tinylog
-    , token-bucket
-    , transformers
-    , types-common
-    , types-common-journal
-    , unliftio
-    , unordered-containers
-    , uri-bytestring
-    , utf8-string
-    , uuid
-    , vector
-    , wai
-    , wai-utilities
-    , wire-api
-    , wire-api-federation
-    , wire-otel
-    , witherable
-    , zauth
 
 library
   import:          common-all
@@ -410,6 +279,7 @@ library
     Wire.MlsKeyPackageSubsystem.Interpreter
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.Options
     Wire.Options.Galley
     Wire.Options.Keys
     Wire.PaginationState
@@ -525,12 +395,16 @@ library
     , aeson-pretty
     , amazonka
     , amazonka-core
+    , amazonka-dynamodb
     , amazonka-ses
+    , amazonka-sqs
     , amqp
+    , arbiter-core
+    , arbiter-hasql
+    , arbiter-migrations
     , async
     , attoparsec
     , base
-    , base16-bytestring
     , base64-bytestring
     , bilge
     , bimap
@@ -539,49 +413,73 @@ library
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , comonad
     , conduit
+    , constraints
     , containers
+    , cookie
     , cql
     , crypton
+    , crypton-asn1-encoding
+    , crypton-asn1-types
+    , crypton-pem
     , crypton-x509
     , currency-codes
     , data-default
     , data-timeout
+    , dns
     , email-validate
     , errors
     , exceptions
     , extended
     , extra
+    , file-embed
+    , galley-types
     , hashable
     , HaskellNet
     , HaskellNet-SSL
+    , hasql
+    , hasql-migration
+    , hasql-resource-pool
+    , hasql-th
+    , hasql-transaction
     , hex
+    , hscim
     , HsOpenSSL
     , hspec
     , html-entities
     , http-api-data
     , http-client
+    , http-client-openssl
     , http-types
     , http2-manager
     , imports
     , iproute
     , iso639
+    , jwt-tools
+    , kan-extensions
     , lens
+    , lens-aeson
     , lrucaching
-    , mime
     , mime-mail
+    , MonadRandom
     , mtl
     , network
-    , network-conduit-tls
+    , network-uri
     , polysemy
     , polysemy-check
+    , polysemy-conc
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postgresql-connection-string
     , postgresql-error-codes
+    , profunctors
     , prometheus-client
+    , proto-lens
     , QuickCheck
     , ram
+    , raw-strings-qq
     , resource-pool
     , resourcet
     , retry
@@ -589,9 +487,14 @@ library
     , schema-profunctor
     , servant
     , servant-client-core
+    , servant-server
+    , singletons
     , sodium-crypto-sign
+    , sop-core
+    , ssl-util
     , statistics
-    , stomp-queue
+    , stm
+    , tagged
     , template
     , text
     , text-icu-translit
@@ -603,15 +506,17 @@ library
     , token-bucket
     , transformers
     , types-common
+    , types-common-journal
     , unliftio
     , unordered-containers
     , uri-bytestring
+    , utf8-string
     , uuid
     , vector
+    , wai
     , wai-utilities
     , wire-api
     , wire-api-federation
-    , wire-otel
     , witherable
     , zauth
 
@@ -701,14 +606,51 @@ test-suite wire-subsystems-tests
     build-tool-depends: hspec-discover:hspec-discover
 
   build-depends:
-    , crypton-x509
+    , aeson
+    , async
+    , base
+    , bloodhound
+    , bytestring
+    , containers
+    , crypton
     , crypton-x509-store
+    , data-default
+    , email-validate
+    , errors
+    , extended
+    , extra
     , filepath
+    , hscim
     , hspec
+    , imports
+    , iproute
+    , iso639
+    , lens
+    , mime-mail
+    , network-uri
+    , polysemy
+    , polysemy-plugin
+    , polysemy-wire-zoo
     , QuickCheck
     , quickcheck-instances
     , random
+    , saml2-web-sso
     , scientific
+    , servant-client-core
+    , sodium-crypto-sign
     , string-conversions
-    , wai
+    , tagged
+    , text
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , utf8-string
+    , uuid
+    , vector
+    , wire-api
+    , wire-api-federation
     , wire-subsystems
+    , zauth

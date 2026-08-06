@@ -26,7 +26,7 @@ module Brig.Data.User
 where
 
 import Brig.App
-import Brig.Options
+import Wire.Options
 import Control.Error
 import Data.Handle (Handle)
 import Data.Id

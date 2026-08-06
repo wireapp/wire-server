@@ -48,8 +48,6 @@ module Brig.Calling
   )
 where
 
-import Brig.Options (SFTOptions (..), defSftListLength, defSftServiceName, defSrvDiscoveryIntervalSeconds)
-import Brig.Options qualified as Opts
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
@@ -79,6 +77,8 @@ import UnliftIO.Async qualified as Async
 import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
+import Wire.Options (SFTOptions (..), defSftListLength, defSftServiceName, defSrvDiscoveryIntervalSeconds)
+import Wire.Options qualified as Opts
 import Wire.Sem.Delay
 import Wire.Sem.Logger.TinyLog
 

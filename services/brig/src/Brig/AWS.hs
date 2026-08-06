@@ -48,7 +48,6 @@ import Amazonka.DynamoDB qualified as DDB
 import Amazonka.SES qualified as SES
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
-import Brig.Options qualified as Opt
 import Control.Exception.Lens
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -70,12 +69,13 @@ import UnliftIO.Exception
 import Util.Options
 import Wire.AWS (canRetry, sendCatch)
 import Wire.EmailSending.Options qualified as EmailOpt
+import Wire.Options qualified as Opt
 
 data Env = Env
   { _logger :: !Logger,
     _sesQueue :: !(Maybe Text),
     _userJournalQueue :: !(Maybe Text),
-    _prekeyTable :: !Text,
+    _prekeyTable :: !(Maybe Text),
     _amazonkaEnv :: !AWS.Env
   }
 
@@ -100,20 +100,26 @@ newtype Amazon a = Amazon
 instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
 
-mkEnv :: Logger -> Opt.AWSOpts -> Maybe EmailOpt.EmailAWSOpts -> Manager -> IO Env
-mkEnv lgr opts emailOpts mgr = do
+mkEnv ::
+  Logger ->
+  Opt.SqsOpts ->
+  Maybe Opt.DynamoDBPrekeySelectionOpts ->
+  Maybe EmailOpt.EmailAWSOpts ->
+  Manager ->
+  IO Env
+mkEnv lgr sqsOpts dynamoDBOpts emailOpts mgr = do
   let g = Logger.clone (Just "aws.brig") lgr
-  let pk = Opt.prekeyTable opts
+  let pk = Opt.tableName <$> dynamoDBOpts
   let sesEndpoint = mkEndpoint SES.defaultService . EmailOpt.sesEndpoint <$> emailOpts
-  let dynamoEndpoint = mkEndpoint DDB.defaultService <$> Opt.dynamoDBEndpoint opts
+  let dynamoEndpoint = mkEndpoint DDB.defaultService . Opt.dynamoDBEndpoint <$> dynamoDBOpts
   e <-
     mkAwsEnv
       g
       sesEndpoint
       dynamoEndpoint
-      (mkEndpoint SQS.defaultService (Opt.sqsEndpoint opts))
+      (mkEndpoint SQS.defaultService (Opt.sqsEndpoint sqsOpts))
   sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . EmailOpt.sesQueue) emailOpts
-  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
+  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue sqsOpts)
   pure (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc

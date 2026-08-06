@@ -36,8 +36,6 @@ import Brig.App
 import Brig.Calling
 import Brig.Calling qualified as Calling
 import Brig.Calling.Internal
-import Brig.Options (ListAllSFTServers (..))
-import Brig.Options qualified as Opt
 import Control.Error (hush, throwE)
 import Control.Lens
 import Crypto.Hash qualified as Crypto
@@ -63,6 +61,8 @@ import Wire.API.Team.Feature
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getAllTeamFeaturesForUser)
 import Wire.Network.DNS.SRV (srvTarget)
+import Wire.Options (ListAllSFTServers (..))
+import Wire.Options qualified as Opt
 import Wire.SFT
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)

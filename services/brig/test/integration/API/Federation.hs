@@ -38,7 +38,7 @@ module API.Federation where
 import API.Search.Util (refreshIndex)
 import Bilge hiding (head)
 import Bilge.Assert
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson

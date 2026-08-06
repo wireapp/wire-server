@@ -25,7 +25,7 @@ import API.Team.Util
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Control.Lens hiding (from, (#))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson

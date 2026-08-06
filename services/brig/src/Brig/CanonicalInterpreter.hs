@@ -23,15 +23,12 @@ import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.IO.Intra (runEvents)
-import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
-import Brig.Options qualified as Opt
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
-import Control.Lens (to, (^.), _Just)
+import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
-import Data.Coerce (coerce)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
@@ -117,6 +114,7 @@ import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
+import Wire.Options qualified as Opt
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
@@ -315,20 +313,11 @@ runRecursiveEffects = runClient . runApp . runUser . runAuth
 
 runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
-  let blockedDomains =
-        e
-          ^. ( App.settingsLens
-                 . Opt.customerExtensionsLens
-                 . _Just
-                 . to
-                   ( coerce {- safely drop newtype wrapper -}
-                       Opt.domainsBlockedForRegistration
-                   )
-             )
+  let blockedDomains = e.settings.users.domainsBlockedForRegistration
       userSubsystemConfig =
         UserSubsystemConfig
           { emailVisibilityConfig = e.settings.emailVisibility,
-            defaultLocale = Opt.defaultUserLocale e.settings,
+            defaultLocale = fromMaybe Opt.defaultLocale e.settings.users.defaultUserLocale,
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
             maxTeamSize = e.settings.maxTeamSize,
             activationCodeTimeout = e.settings.activationTimeout,

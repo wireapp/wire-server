@@ -23,17 +23,17 @@ module Brig.Team.Template
   )
 where
 
-import Brig.Options
 import Imports
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.Templates.Team
+import Wire.Options
 
 -- FUTUREWORK: This can be inlined once the `API.Template` have been migrated
 -- to wire-subsystem unit tests.
-loadTeamTemplatesWithBrigOpts :: Opts -> IO (Localised TeamTemplates)
+loadTeamTemplatesWithBrigOpts :: WireConfig -> IO (Localised TeamTemplates)
 loadTeamTemplatesWithBrigOpts o =
   loadTeamTemplates
-    o.emailSMS.team
-    o.emailSMS.general.templateDir
-    (defaultTemplateLocale o.settings)
-    (emailSender o.emailSMS.general)
+    o.settings.email.team
+    o.settings.email.general.templateDir
+    (fromMaybe defaultLocale o.settings.users.defaultTemplateLocale)
+    o.settings.email.general.emailSender
