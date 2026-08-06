@@ -362,6 +362,19 @@ The settings mean:
 - `deletionTimeoutDuration`: how long to keep an adminless conversation before it is deleted.
 - `reminderTimeoutDurations`: when before deletion reminder notifications should be sent.
 
+In federated conversations, the automatic system-triggered action is skipped
+when the conversation contains remote members. This applies both when the
+feature is enabled and existing conversations are scanned, and when a
+previously scheduled autopromotion, deletion, or reminder job runs. This
+prevents the backend from changing or deleting a conversation when the
+corresponding system event cannot yet be safely sent to the remote backend.
+The action is logged at info level. User-triggered behavior is unchanged.
+
+As a result, an adminless federated conversation with remote members is not
+automatically promoted, deleted, or sent deletion reminders by this feature.
+It must be handled after compatible federation support or an appropriate
+reconciliation mechanism is available.
+
 Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`. It is **not** recommended or supported to set these below a day in production environments.
 
 Feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`, and `GET /teams/:tid/features/preventAdminlessGroups`, include the duration fields:
