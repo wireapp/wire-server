@@ -334,6 +334,14 @@ applyUserOperation user (Operation Add (Just (IntoValuePath vp mSub)) (Just val)
                 InvalidPath
                 (Just "multi-valued PATCH is only supported for 'emails'")
             )
+-- Catch-all: for single-valued 'NormalPath' attributes (username, displayname,
+-- externalid, active) an @Add@ coincides with a @Replace@ (RFC 7644 §3.5.2.1:
+-- a single-valued target has its value replaced). @roles@ is multi-valued
+-- (@[Text]@), so the rewrite turns an RFC-mandated append into an overwrite --
+-- a known deviation, acceptable while no client relies on append semantics for
+-- @roles@. Multi-valued value-path @Add@ is intercepted above; any future
+-- complex or multi-valued attribute added to 'NormalPath' must not rely on
+-- this rewrite.
 applyUserOperation user (Operation Add path value) = applyUserOperation user (Operation Replace path value)
 applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) =
   case attr of

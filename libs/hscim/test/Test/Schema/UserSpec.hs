@@ -179,7 +179,7 @@ spec = do
         mkUser :: [Email.Email] -> User PatchTag
         mkUser es = (User.empty [] "hello" KeyMap.empty :: User PatchTag) {emails = es}
         emailValuePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].value"
-    it "creates a work email when none matches (Entra payload)" $ do
+    it "creates a work email via Replace when none matches" $ do
       let Right p = emailValuePath
           operation = Operation Replace (Just p) (Just (String "x@y.com"))
           result = User.applyPatch (mkUser []) (PatchOp [operation])
