@@ -31,7 +31,6 @@ import Brig.API.User (createUserInviteViaScim)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
-import Brig.Data.User (invitationIdToUserId)
 import Brig.Template
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
@@ -147,6 +146,7 @@ createInvitationViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member InvitationStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member TeamInvitationSubsystem r,

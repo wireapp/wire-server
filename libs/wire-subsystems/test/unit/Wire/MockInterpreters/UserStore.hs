@@ -51,7 +51,16 @@ inMemoryUserStoreInterpreter ::
     Member (State (Map UserId Password)) r
   ) =>
   InterpreterFor UserStore r
-inMemoryUserStoreInterpreter = interpret $ \case
+inMemoryUserStoreInterpreter = inMemoryUserStoreInterpreterWithDeleteHook (const $ pure ())
+
+inMemoryUserStoreInterpreterWithDeleteHook ::
+  forall r.
+  ( Member (State [StoredUser]) r,
+    Member (State (Map UserId Password)) r
+  ) =>
+  (UserId -> Sem r ()) ->
+  InterpreterFor UserStore r
+inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
   CreateUser new _ -> do
     modify (newStoredUserToStoredUser new :)
     forM_ new.password $ modify . Map.insert new.id
@@ -127,7 +136,9 @@ inMemoryUserStoreInterpreter = interpret $ \case
         us <- get
         us' <- f us
         put us'
-  DeleteUser user -> modify @[StoredUser] $ filter (\u -> u.id /= User.userId user)
+  DeleteUser user -> do
+    onDelete (User.userId user)
+    modify @[StoredUser] $ filter (\u -> u.id /= User.userId user)
   LookupName uid -> (.name) <$$> gets @[StoredUser] (find $ \u -> u.id == uid)
   LookupHandle h -> lookupHandleImpl h
   GlimpseHandle h -> lookupHandleImpl h

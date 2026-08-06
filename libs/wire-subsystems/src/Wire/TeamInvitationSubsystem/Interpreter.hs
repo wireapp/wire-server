@@ -54,11 +54,14 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
+import Wire.StoredUser (StoredUser (email, managedBy, status, teamId))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamSubsystem
 import Wire.UserKeyStore
-import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfProfile, isBlocked)
+import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
+import Wire.UserSubsystem (UserSubsystem, getAccountNoFilter, getLocalUserAccountByUserKey, getSelfProfile, isBlocked)
 
 data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
   { maxTeamSize :: Word32,
@@ -75,6 +78,7 @@ runTeamInvitationSubsystem ::
     Member UserSubsystem r,
     Member Random r,
     Member InvitationStore r,
+    Member UserStore r,
     Member Now r,
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
@@ -88,6 +92,12 @@ runTeamInvitationSubsystem cfg = interpret $ \case
   InternalCreateInvitation tid mExpectedInvId role mbInviterUid inviterEmail invRequest ->
     runInputConst cfg $ createInvitation' tid mExpectedInvId role mbInviterUid inviterEmail invRequest
 
+data ScimInvitationState
+  = ScimInvitationConflict
+  | ScimInvitationExpired UserId
+  | ScimInvitationStale UserId
+  deriving (Eq, Show)
+
 inviteUserImpl ::
   ( Member (Error TeamInvitationSubsystemError) r,
     Member GalleyAPIAccess r,
@@ -100,7 +110,8 @@ inviteUserImpl ::
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
     Member TeamSubsystem r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -111,6 +122,7 @@ inviteUserImpl luid tid request = do
 
   let inviteePerms = Teams.rolePermissions inviteeRole
   ensurePermissionToAddUser (tUnqualified luid) tid inviteePerms
+  reconcileScimInvitation request.inviteeEmail
 
   inviterEmail <-
     note TeamInvitationNoEmail =<< runMaybeT do
@@ -130,6 +142,63 @@ inviteUserImpl luid tid request = do
     loc :: Invitation -> InvitationLocation
     loc inv =
       InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' inv.invitationId
+
+    reconcileScimInvitation email = do
+      pendingScimUsers <- Store.lookupPendingScimUsers tid email
+      invitations <-
+        if null pendingScimUsers
+          then pure []
+          else Store.lookupInvitationsByEmail email
+      invitationStates <- traverse (classifyScimUser email invitations) pendingScimUsers
+
+      for_ invitationStates $ \case
+        ScimInvitationExpired uid -> cleanupExpiredScimUser email uid
+        ScimInvitationStale uid -> Store.deletePendingScimUser tid email uid
+        ScimInvitationConflict -> pure ()
+
+      when (ScimInvitationConflict `elem` invitationStates) $
+        throw TeamInvitationEmailTaken
+
+    classifyScimUser requestedEmail invitations uid = do
+      mStoredUser <- UserStore.getUser uid
+      pure $ case mStoredUser of
+        Nothing -> ScimInvitationStale uid
+        Just storedUser
+          | storedUser.teamId /= Just tid
+              || storedUser.email /= Just requestedEmail
+              || storedUser.managedBy /= Just ManagedByScim ->
+              ScimInvitationStale uid
+          | otherwise ->
+              case storedUser.status of
+                Just PendingInvitation ->
+                  if (not (any (invitationIsLive uid) invitations))
+                    then
+                      -- Only a matching pending SCIM account can be cleaned
+                      -- up when its invitation has expired.
+                      ScimInvitationExpired uid
+                    else
+                      -- The SCIM invitation is still usable, so the existing
+                      -- pending account must not be deleted or replaced.
+                      ScimInvitationConflict
+                _ ->
+                  -- An active SCIM account must continue to block a manual
+                  -- invitation, even if the index was not removed on activation.
+                  ScimInvitationConflict
+
+    invitationIsLive uid inv =
+      inv.teamId == tid
+        && invitationIdToUserId inv.invitationId == uid
+
+    cleanupExpiredScimUser requestedEmail uid = do
+      -- Delete the account synchronously so UserStore releases its handle before
+      -- the manual invitation is created. Keep the index entry if deletion fails.
+      mUser <- getAccountNoFilter (qualifyAs luid uid)
+      case mUser of
+        Nothing -> pure ()
+        Just user -> do
+          UserStore.deleteUser user
+          deleteKeyForUser uid (mkEmailKey requestedEmail)
+      Store.deletePendingScimUser tid requestedEmail uid
 
 createInvitation' ::
   ( Member GalleyAPIAccess r,

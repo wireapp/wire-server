@@ -129,7 +129,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
-import Wire.StoredUser (StoredUser (emailUnvalidated))
+import Wire.StoredUser (StoredUser (..))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
@@ -629,6 +629,7 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserStore r,
     Member TinyLog r,
     Member UserKeyStore r,

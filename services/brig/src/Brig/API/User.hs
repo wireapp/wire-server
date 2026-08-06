@@ -637,6 +637,7 @@ createUserInviteViaScim ::
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
+    Member InvitationStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Input (Local ())) r
@@ -657,7 +658,9 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
     pure $ addUTCTime (realToFrac ttl) now
   lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
-  lift . liftSem $ UserStore.createUser account Nothing
+  lift . liftSem $ do
+    UserStore.createUser account Nothing
+    InvitationStore.insertPendingScimUser tid email uid
   newStoredUserToUser . Qualified account <$> viewFederationDomain
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
@@ -1012,6 +1015,7 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserStore r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
@@ -1087,6 +1091,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
@@ -1119,6 +1124,7 @@ ensureAccountDeleted ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member InvitationStore r,
     Member UserKeyStore r,
     Member UserStore r,
     Member Events r,
@@ -1172,6 +1178,7 @@ deleteAccount ::
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
+    Member InvitationStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
@@ -1190,6 +1197,9 @@ deleteAccount user = do
 
     PropertySubsystem.onUserDeleted uid
     UserStore.deleteUser user
+    for_ (userEmail user) $ \email ->
+      for_ (userTeam user) $ \tid ->
+        InvitationStore.deletePendingScimUser tid email uid
 
   traverse_ (removeUserFromAllGroups uid) user.userTeam
 
