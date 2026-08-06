@@ -97,6 +97,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Polysemy.TinyLog qualified as P
+import System.Logger qualified as Log
 import Wire.API.Bot hiding (addBot)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
@@ -1195,6 +1197,11 @@ isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
     && maybe True (== GroupConversation) conv.metadata.cnvmGroupConvType
 
+shouldSkipSystemAdminlessAction :: Maybe (Local UserId) -> StoredConversation -> Bool
+shouldSkipSystemAdminlessAction mlusr conv =
+  isNothing mlusr
+    && not (null conv.remoteMembers)
+
 setupAdminlessGroupsCleanup ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1207,7 +1214,8 @@ setupAdminlessGroupsCleanup ::
     Member BackendNotificationQueueAccess r,
     Member FeaturesConfigSubsystem r,
     Member (Input (Local ())) r,
-    Member JobSubsystem r
+    Member JobSubsystem r,
+    Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
   TeamId ->
@@ -1216,7 +1224,14 @@ setupAdminlessGroupsCleanup mUsr tid = do
   teamConvIds <- E.getTeamConversations tid
   for_ teamConvIds $ \cnv -> do
     lcnv <- qualifyLocal cnv
-    adminlessTryAutopromote mUsr lcnv $ \_ feature _ -> scheduleDeletion lcnv mUsr tid feature
+    adminlessTryAutopromote mUsr lcnv $ \conv feature _ ->
+      if null conv.remoteMembers
+        then scheduleDeletion lcnv mUsr tid feature
+        else
+          P.info $
+            Log.msg (Log.val "Skipping adminless cleanup for conversation with remote members")
+              . Log.field "conversation_id" (show conv.id_)
+              . Log.field "team_id" (show tid)
 
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
@@ -1349,7 +1364,8 @@ adminlessTryAutopromote ::
     Member Now r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
@@ -1357,43 +1373,49 @@ adminlessTryAutopromote ::
   Sem r ()
 adminlessTryAutopromote mlusr lcnv altAction = do
   conv <- getConversationWithError lcnv
-  when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
-    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
-    let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
-    when (feature.status == FeatureStatusEnabled && not adminExists) $ do
-      eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
-      case eligibleMembers of
-        x : xs -> do
-          seed <- randomWord64
-          let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
-              update = OtherMemberUpdate (Just roleNameWireAdmin)
-          for_ autopromotionCandidates $ \candidate -> do
-            E.setOtherMember lcnv candidate update
-            case mlusr of
-              Just lusr ->
-                void $
-                  sendConversationActionNotifications
-                    (sing @'ConversationMemberUpdateTag)
-                    (tUntagged lusr)
-                    False
-                    Nothing
-                    (qualifyAs lcnv conv)
-                    (convBotsAndMembers conv)
-                    (ConversationMemberUpdate candidate update)
-                    def
-              Nothing -> do
-                now <- Now.get
-                Notify.pushSystemEvent
-                  Nothing
-                  ( SystemEvent
-                      (tUntagged lcnv)
+  when (isAdminlessCheckCandidate conv) $
+    if shouldSkipSystemAdminlessAction mlusr conv
+      then
+        P.info $
+          Log.msg (Log.val "Skipping system-triggered adminless action for conversation with remote members")
+            . Log.field "conversation_id" (show conv.id_)
+      else for_ conv.metadata.cnvmTeam $ \tid -> do
+        (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+        let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
+        when (feature.status == FeatureStatusEnabled && not adminExists) $ do
+          eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
+          case eligibleMembers of
+            x : xs -> do
+              seed <- randomWord64
+              let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
+                  update = OtherMemberUpdate (Just roleNameWireAdmin)
+              for_ autopromotionCandidates $ \candidate -> do
+                E.setOtherMember lcnv candidate update
+                case mlusr of
+                  Just lusr ->
+                    void $
+                      sendConversationActionNotifications
+                        (sing @'ConversationMemberUpdateTag)
+                        (tUntagged lusr)
+                        False
+                        Nothing
+                        (qualifyAs lcnv conv)
+                        (convBotsAndMembers conv)
+                        (ConversationMemberUpdate candidate update)
+                        def
+                  Nothing -> do
+                    now <- Now.get
+                    Notify.pushSystemEvent
                       Nothing
-                      now
-                      conv.metadata.cnvmTeam
-                      (EdSystemMemberUpdate (memberUpdateData candidate update))
-                  )
-                  (Set.fromList (map (.id_) conv.localMembers))
-        [] -> altAction conv feature eligibleMembers
+                      ( SystemEvent
+                          (tUntagged lcnv)
+                          Nothing
+                          now
+                          conv.metadata.cnvmTeam
+                          (EdSystemMemberUpdate (memberUpdateData candidate update))
+                      )
+                      (Set.fromList (map (.id_) conv.localMembers))
+            [] -> altAction conv feature eligibleMembers
   where
     memberUpdateData candidate memberUpdate' =
       MemberUpdateData
@@ -1419,7 +1441,8 @@ adminlessAutopromoteOrDelete ::
     Member BackendNotificationQueueAccess r,
     Member FeaturesConfigSubsystem r,
     Member ProposalStore r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
@@ -1457,7 +1480,8 @@ adminlessAutopromoteOrSendReminder ::
     Member Now r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
