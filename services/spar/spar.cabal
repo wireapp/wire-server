@@ -539,7 +539,6 @@ test-suite spec
     Test.Spar.Sem.IdPRawMetadataStoreSpec
     Test.Spar.Sem.NowSpec
     Test.Spar.Sem.SamlProtocolSettingsSpec
-    Test.Spar.Sem.ScimExternalIdStoreSpec
     Test.Spar.TypesSpec
 
   hs-source-dirs:     test
