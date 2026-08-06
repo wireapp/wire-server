@@ -386,6 +386,56 @@ testAdminlessSetupSkipsAutopromotionForRemoteMembers = do
     resp.status `shouldMatchInt` 200
     resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
 
+testAdminlessFederatedUserOriginDeletion :: (HasCallStack) => App ()
+testAdminlessFederatedUserOriginDeletion = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  bob <- randomUser OtherDomain def
+  connectTwoUsers alice bob
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "5s" []
+
+  conv <- postConversation alice (defProteus {team = Just tid}) >>= getJSON 201
+  bobId <- bob %. "qualified_id"
+  convQid <- objQidObject conv
+  void $ addMembers alice conv def {role = Just "wire_member", users = [bobId]} >>= getBody 200
+
+  eventually
+    ( bindResponse (listConversationIds bob def) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        conversationIds <- resp.json %. "qualified_conversations" & asList
+        conversationIds `shouldContain` [convQid]
+    )
+
+  withWebSockets [alice, bob] $ \[wsAlice, wsBob] -> do
+    -- Bob is remote and is not an eligible replacement. The admin leave
+    -- therefore schedules deletion with Alice as the origin user.
+    bindResponse (removeMember alice conv alice) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- Consume the leave events before waiting for the delayed deletion.
+    void $ awaitMatchFor 20 isConvLeaveNotif wsAlice
+    void $ awaitMatchFor 20 isConvLeaveNotif wsBob
+    liftIO $ threadDelay 20_000_000
+
+    -- This verifies that the normal, user-originated deletion event reaches
+    -- the remote backend even though Alice has already left the conversation.
+    deleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsBob
+    deleteNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+    --
+    -- The remote backend should still retain the remote conversation ID.
+    bindResponse (listConversationIds bob def) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      conversationIds <- resp.json %. "qualified_conversations" & asList
+      conversationIds `shouldNotContain` [convQid]
+
+    -- If the normal deletion event was authorized and applied remotely, this
+    -- should be empty. If it contains the conversation, the remote backend
+    -- received the event but retained stale conversation state, which is the
+    -- behavior this test is intended to expose.
+    bindResponse (listConversations bob [convQid]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      conversations <- resp.json %. "found" & asList
+      shouldBeEmpty conversations
+
 testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
 testAdminlessJobsCancelledOnFeatureDisable = do
   (alice, tid, _) <- createTeam OwnDomain 1
