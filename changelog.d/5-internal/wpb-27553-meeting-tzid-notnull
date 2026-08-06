@@ -1,0 +1,3 @@
+Internal: `meetings.tzid` is now `NOT NULL`, backfilled to `Europe/Berlin`.
+`end_time` is the source of truth (there are no `duration`/`duration_original`
+columns). (WPB-27553)

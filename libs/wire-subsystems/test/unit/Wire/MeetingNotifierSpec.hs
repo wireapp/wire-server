@@ -31,6 +31,7 @@ import Polysemy.State
 import Polysemy.TinyLog (TinyLog)
 import Test.Hspec
 import Wire.API.Event.Meeting qualified as MeetingEvent
+import Wire.API.Meeting qualified as API
 import Wire.MeetingNotifier
 import Wire.MeetingNotifier.Interpreter
 import Wire.MeetingsStore qualified as Store
@@ -164,6 +165,7 @@ storedMeeting meetingId convId startTime endTime =
       Store.creator = Id $ read "00000000-0000-0000-0000-000000000001",
       Store.startTime = startTime,
       Store.endTime = endTime,
+      Store.tzid = API.defaultLegacyTimeZone,
       Store.recurrence = Nothing,
       Store.conversationId = convId,
       Store.invitedEmails = [],

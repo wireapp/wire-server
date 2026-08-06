@@ -36,7 +36,7 @@ import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Wire.API.Meeting (Recurrence)
+import Wire.API.Meeting (Recurrence, TimeZone)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
 import Wire.API.User.Identity (EmailAddress, fromEmail)
 import Wire.MeetingsStore
@@ -47,10 +47,10 @@ interpretMeetingsStoreToPostgres ::
   InterpreterFor MeetingsStore r
 interpretMeetingsStoreToPostgres =
   interpret $ \case
-    CreateMeeting title creator startTime endTime recurrence convId emails trial ->
-      createMeetingImpl title creator startTime endTime recurrence convId emails trial
-    UpdateMeeting meetingId title startDate endDate schedule ->
-      updateMeetingImpl meetingId title startDate endDate schedule
+    CreateMeeting title creator startTime endTime tzid recurrence convId emails trial ->
+      createMeetingImpl title creator startTime endTime tzid recurrence convId emails trial
+    UpdateMeeting meetingId title startDate endTime schedule ->
+      updateMeetingImpl meetingId title startDate endTime schedule
     DeleteMeeting meetingId ->
       deleteMeetingImpl meetingId
     GetMeeting meetingId ->
@@ -76,12 +76,13 @@ createMeetingImpl ::
   UserId ->
   UTCTime ->
   UTCTime ->
+  TimeZone ->
   Maybe Recurrence ->
   ConvId ->
   [EmailAddress] ->
   Bool ->
   Sem r StoredMeeting
-createMeetingImpl title creator startTime endTime recurrence convId emails trial = do
+createMeetingImpl title creator startTime endTime tzid recurrence convId emails trial = do
   now <- liftIO getCurrentTime
   let sm =
         StoredMeeting
@@ -90,6 +91,7 @@ createMeetingImpl title creator startTime endTime recurrence convId emails trial
             creator = creator,
             startTime = startTime,
             endTime = endTime,
+            tzid = tzid,
             recurrence = recurrence,
             conversationId = convId,
             invitedEmails = emails,
@@ -106,23 +108,23 @@ insertStatement =
       (postgresUnmarshall @StoredMeetingTuple @StoredMeeting)
       [singletonStatement|
         INSERT INTO meetings
-        (title, creator, start_time, end_time,
+        (title, creator, start_time, end_time, tzid,
          recurrence_frequency, recurrence_interval, recurrence_until,
          conversation_id, invited_emails, trial, created_at, updated_at)
         VALUES
-        ($1 :: text, $2 :: uuid, $3 :: timestamptz, $4 :: timestamptz,
-         $5 :: text? :: recurrence_frequency, $6 :: int4?, $7 :: timestamptz?,
-         $8 :: uuid, $9 :: text[], $10 :: boolean, $11 :: timestamptz, $12 :: timestamptz)
+        ($1 :: text, $2 :: uuid, $3 :: timestamptz, $4 :: timestamptz, $5 :: text,
+         $6 :: text? :: recurrence_frequency, $7 :: int4?, $8 :: timestamptz?,
+         $9 :: uuid, $10 :: text[], $11 :: boolean, $12 :: timestamptz, $13 :: timestamptz)
         RETURNING
           id :: uuid, title :: text, creator :: uuid,
-          start_time :: timestamptz, end_time :: timestamptz,
+          start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
           recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
           conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
           created_at :: timestamptz, updated_at :: timestamptz
       |]
   where
-    tupleWithoutId (_, t, c, st, et, rf, ri, ru, ci, ie, tr, ca, ua) =
-      (t, c, st, et, rf, ri, ru, ci, ie, tr, ca, ua)
+    tupleWithoutId (_, t, c, st, et, tz, rf, ri, ru, ci, ie, tr, ca, ua) =
+      (t, c, st, et, tz, rf, ri, ru, ci, ie, tr, ca, ua)
 
 -- * Update
 
@@ -186,12 +188,12 @@ updateMeetingImpl ::
   Maybe UTCTime ->
   Maybe (Maybe Recurrence) ->
   Sem r (Maybe StoredMeeting)
-updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
+updateMeetingImpl meetingId mTitle mStartDate mEndTime mRecurrence = do
   case mRecurrence of
     Nothing ->
-      runStatement (mTitle, mStartDate, mEndDate, meetingId) updateWithoutRecurrenceStatement
+      runStatement (mTitle, mStartDate, mEndTime, meetingId) updateWithoutRecurrenceStatement
     Just recurrence ->
-      runStatement (mTitle, mStartDate, mEndDate, recurrence, meetingId) updateWithRecurrenceStatement
+      runStatement (mTitle, mStartDate, mEndTime, recurrence, meetingId) updateWithRecurrenceStatement
   where
     updateWithRecurrenceStatement :: Statement UpdateMeetingWithRecurrenceTuple (Maybe StoredMeeting)
     updateWithRecurrenceStatement =
@@ -212,7 +214,7 @@ updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
           WHERE id = ($7 :: uuid)
           RETURNING
             id :: uuid, title :: text, creator :: uuid,
-            start_time :: timestamptz, end_time :: timestamptz,
+            start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
@@ -234,7 +236,7 @@ updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
           WHERE id = ($4 :: uuid)
           RETURNING
             id :: uuid, title :: text, creator :: uuid,
-            start_time :: timestamptz, end_time :: timestamptz,
+            start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
@@ -272,7 +274,7 @@ getMeetingStatement =
     [maybeStatement|
       SELECT
         id :: uuid, title :: text, creator :: uuid,
-        start_time :: timestamptz, end_time :: timestamptz,
+        start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
         recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
         conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
         created_at :: timestamptz, updated_at :: timestamptz
@@ -297,7 +299,7 @@ listMeetingsByUserImpl userId cutoffTime = do
         $ [vectorStatement|
           SELECT
             id :: uuid, title :: text, creator :: uuid,
-            start_time :: timestamptz, end_time :: timestamptz,
+            start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
@@ -329,7 +331,7 @@ listMeetingsByConversationImpl convId cutoffTime = do
         $ [vectorStatement|
           SELECT
             id :: uuid, title :: text, creator :: uuid,
-            start_time :: timestamptz, end_time :: timestamptz,
+            start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
@@ -409,7 +411,8 @@ getOldMeetingsImpl cutoffTime batchSize = do
     session :: Session [StoredMeeting]
     session = do
       -- Two separate queries so each branch can use its dedicated partial index:
-      --   * non-recurring  -> idx_meetings_end_time_nonrecurring (end_time)
+      --   * non-recurring  -> idx_meetings_end_time_nonrecurring
+      --                        (end_time)
       --   * recurring      -> idx_meetings_recurrence_eff_end
       --                        (GREATEST(end_time, recurrence_until))
       -- A single OR query would match neither partial index and force a scan.
@@ -426,7 +429,7 @@ getOldMeetingsImpl cutoffTime batchSize = do
         $ [vectorStatement|
           SELECT
             id :: uuid, title :: text, creator :: uuid,
-            start_time :: timestamptz, end_time :: timestamptz,
+            start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
@@ -443,7 +446,7 @@ getOldMeetingsImpl cutoffTime batchSize = do
         $ [vectorStatement|
           SELECT
             id :: uuid, title :: text, creator :: uuid,
-            start_time :: timestamptz, end_time :: timestamptz,
+            start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz

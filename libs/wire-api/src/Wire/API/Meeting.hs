@@ -15,10 +15,42 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Meeting where
+module Wire.API.Meeting
+  ( -- * Time zone
+    TimeZone (..),
+    timeZoneTZ,
+    parseTimeZone,
+    renderTimeZone,
+    defaultLegacyTimeZone,
+
+    -- * Meetings (V17 and later)
+    Meeting (..),
+    MeetingWithConversation (..),
+    NewMeeting (..),
+    UpdateMeeting (..),
+
+    -- * Legacy meetings (V15/V16)
+    MeetingV16 (..),
+    MeetingWithConversationV16 (..),
+    NewMeetingV16 (..),
+    UpdateMeetingV16,
+
+    -- * Conversions
+    toLegacy,
+    fromLegacy,
+    toLegacyWithConv,
+    fromLegacyNewMeeting,
+
+    -- * Misc
+    Recurrence (..),
+    Frequency (..),
+    MeetingEmailsInvitation (..),
+  )
+where
 
 import Control.Lens ((?~))
-import Data.Aeson (toJSON)
+import Data.Aeson (FromJSON, ToJSON, toJSON)
+import Data.ByteString.Char8 qualified as BS
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
@@ -26,18 +58,69 @@ import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Range (Range)
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Time.Clock
-import Deriving.Aeson
+import Data.Time.Zones.All (TZLabel (..), fromTZName, toTZName, tzByLabel)
+import Data.Time.Zones.Types (TZ)
 import Imports
+import Test.QuickCheck (elements)
 import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
-import Wire.API.Routes.Version
-import Wire.API.Routes.Versioned (Versioned (..))
 import Wire.API.User.Identity (EmailAddress)
-import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
--- | Core Meeting type
+-- | An IANA time zone identifier (e.g. @"Europe/Paris"@), backed by the @tz@
+-- package's 'TZLabel'. The loaded 'TZ' is recovered purely via 'timeZoneTZ';
+-- 'TZLabel' itself is what is serialized to JSON and Postgres.
+newtype TimeZone = TimeZone {timeZoneLabel :: TZLabel}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Bounded, Enum)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TimeZone)
+
+timeZoneTZ :: TimeZone -> TZ
+timeZoneTZ = tzByLabel . timeZoneLabel
+
+parseTimeZone :: Text -> Maybe TimeZone
+parseTimeZone = fmap TimeZone . fromTZName . BS.pack . Text.unpack
+
+renderTimeZone :: TimeZone -> Text
+renderTimeZone = Text.pack . BS.unpack . toTZName . timeZoneLabel
+
+-- | Default for legacy operations (helm @meetings.legacyTimeZone@).
+defaultLegacyTimeZone :: TimeZone
+defaultLegacyTimeZone = TimeZone Europe__Berlin
+
+instance ToSchema TimeZone where
+  schema =
+    renderTimeZone
+      .= parsedText "TimeZone" (maybe (Left "invalid IANA tzid") Right . parseTimeZone)
+
+instance Arbitrary TimeZone where
+  arbitrary = TimeZone <$> elements [minBound .. maxBound]
+
+-- | A scheduled meeting (V17 and later). @end_time@ is the source of truth
+-- (there is no @duration@ field); the @tzid@ field carries the IANA time zone.
 data Meeting = Meeting
+  { id :: Qualified MeetingId,
+    title :: Range 1 256 Text,
+    creator :: Qualified UserId,
+    startTime :: UTCTime,
+    endTime :: UTCTime,
+    tzid :: TimeZone,
+    recurrence :: Maybe Recurrence,
+    conversationId :: Qualified ConvId,
+    invitedEmails :: [EmailAddress],
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
+  deriving (Arbitrary) via (GenericUniform Meeting)
+
+-- | A legacy meeting (V15/V16). Carries @end_time@ (the source of truth) but
+-- has no @tzid@ field; the deprecated @trial@ field is injected (always
+-- @false@) in the 'ToSchema' instance and is never stored.
+data MeetingV16 = MeetingV16
   { id :: Qualified MeetingId,
     title :: Range 1 256 Text,
     creator :: Qualified UserId,
@@ -50,12 +133,34 @@ data Meeting = Meeting
     updatedAt :: UTCTime
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
-  deriving (Arbitrary) via (GenericUniform Meeting)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingV16)
+  deriving (Arbitrary) via (GenericUniform MeetingV16)
 
+-- | V17+ object schema. Carries @end_time@ directly (the source of truth) and
+-- the @tzid@ field.
 meetingObject :: ObjectSchema SwaggerDoc Meeting
 meetingObject =
   Meeting
+    <$> (.id) .= field "qualified_id" schema
+    <*> (.title) .= field "title" schema
+    <*> (.creator) .= field "qualified_creator" schema
+    <*> (.startTime) .= field "start_time" utcTimeSchema
+    <*> (.endTime) .= field "end_time" utcTimeSchema
+    <*> (.tzid) .= field "tzid" schema
+    <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+    <*> (.conversationId) .= field "qualified_conversation" schema
+    <*> (.invitedEmails) .= field "invited_emails" (array schema)
+    <*> (.createdAt) .= field "created_at" utcTimeSchema
+    <*> (.updatedAt) .= field "updated_at" utcTimeSchema
+
+instance ToSchema Meeting where
+  schema = objectWithDocModifier (description ?~ "A scheduled meeting") meetingObject
+
+-- | V16 (V15/V16) object schema. Keeps @end_time@ and appends the always-false
+-- @trial@ field (never stored).
+meetingV16Object :: ObjectSchema SwaggerDoc MeetingV16
+meetingV16Object =
+  MeetingV16
     <$> (.id) .= field "qualified_id" schema
     <*> (.title) .= field "title" schema
     <*> (.creator) .= field "qualified_creator" schema
@@ -66,43 +171,24 @@ meetingObject =
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
-
--- | 'meetingObject' for a given API version. Legacy versions (< V17) additionally
--- render the deprecated @trial@ field (always 'False'); V17 and later omit it.
-meetingObjectVersioned :: Maybe Version -> ObjectSchema SwaggerDoc Meeting
-meetingObjectVersioned v
-  | maybe False (< V17) v =
-      meetingObject
-        <* ( const ()
-               .= fieldWithDocModifier
-                 "trial"
-                 (description ?~ "Deprecated. Always false; team meetings are never trial.")
-                 (c (False :: Bool))
-           )
-  | otherwise = meetingObject
+    <* ( const ()
+           .= fieldWithDocModifier
+             "trial"
+             (description ?~ "Deprecated. Always false; team meetings are never trial.")
+             (c (False :: Bool))
+       )
   where
     -- Constant schema that always encodes @val@ and decodes to @()@, cf. the
     -- @managed@ field of 'Wire.API.Conversation.ConvTeamInfo'.
     c :: (ToJSON a) => a -> ValueSchema SwaggerDoc ()
     c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
--- | Swagger-named ('ValueSchema') form of 'meetingObjectVersioned', used by the
--- plain 'ToSchema' instance and the versioned 'Versioned' instances.
-meetingSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Meeting
-meetingSchema v =
-  versionedObjectWithDocModifier v (description ?~ "A scheduled meeting") (meetingObjectVersioned v)
-
-instance ToSchema Meeting where
-  schema = meetingSchema Nothing
-
-instance ToSchema (Versioned 'V15 Meeting) where
-  schema = Versioned <$> unVersioned .= meetingSchema (Just V15)
+instance ToSchema MeetingV16 where
+  schema = objectWithDocModifier (description ?~ "A scheduled meeting") meetingV16Object
 
 -- | A 'Meeting' extended with the full 'Conversation' associated with it, as
--- returned when creating or updating a meeting. The underlying 'Meeting' is
--- reused (no field duplication) and flattened into the JSON object in the
--- 'ToSchema' instance, so that the legacy @qualified_conversation@ field and
--- the full @conversation@ are returned alongside the meeting fields.
+-- returned when creating or updating a meeting. The underlying meeting fields
+-- are flattened into the JSON object (emitted alongside @conversation@).
 data MeetingWithConversation = MeetingWithConversation
   { meeting :: Meeting,
     conversation :: Conversation GroupConvType
@@ -111,37 +197,46 @@ data MeetingWithConversation = MeetingWithConversation
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversation)
   deriving (Arbitrary) via (GenericUniform MeetingWithConversation)
 
-meetingWithConversationObject :: Maybe Version -> ObjectSchema SwaggerDoc MeetingWithConversation
-meetingWithConversationObject v =
+data MeetingWithConversationV16 = MeetingWithConversationV16
+  { meeting :: MeetingV16,
+    conversation :: Conversation GroupConvType
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversationV16)
+  deriving (Arbitrary) via (GenericUniform MeetingWithConversationV16)
+
+-- | The V17+ meeting object is flattened into the parent object (its fields
+-- are emitted alongside @conversation@ rather than nested).
+meetingWithConversationObject :: ObjectSchema SwaggerDoc MeetingWithConversation
+meetingWithConversationObject =
   MeetingWithConversation
-    <$> (.meeting) .= meetingObjectVersioned v
+    <$> (.meeting) .= meetingObject
     <*> (.conversation) .= field "conversation" schema
 
-meetingWithConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc MeetingWithConversation
-meetingWithConversationSchema v =
-  versionedObjectWithDocModifier
-    v
-    (description ?~ "A scheduled meeting with its associated conversation")
-    (meetingWithConversationObject v)
-
 instance ToSchema MeetingWithConversation where
-  schema = meetingWithConversationSchema Nothing
-
-instance ToSchema (Versioned 'V15 MeetingWithConversation) where
-  schema = Versioned <$> unVersioned .= meetingWithConversationSchema (Just V15)
-
--- | Legacy 'Meeting' list (V16) still renders the deprecated @trial@ field
--- (always 'False') for backwards compatibility.
-instance {-# OVERLAPPING #-} ToSchema (Versioned 'V16 [Meeting]) where
   schema =
-    Versioned
-      <$> unVersioned
-        .= named "MeetingListV16" (array (meetingSchema (Just V16)))
+    objectWithDocModifier
+      (description ?~ "A scheduled meeting with its associated conversation")
+      meetingWithConversationObject
 
--- | Request to create a new meeting
+meetingWithConversationV16Object :: ObjectSchema SwaggerDoc MeetingWithConversationV16
+meetingWithConversationV16Object =
+  MeetingWithConversationV16
+    <$> (.meeting) .= meetingV16Object
+    <*> (.conversation) .= field "conversation" schema
+
+instance ToSchema MeetingWithConversationV16 where
+  schema =
+    objectWithDocModifier
+      (description ?~ "A scheduled meeting with its associated conversation")
+      meetingWithConversationV16Object
+
+-- | Request to create a new meeting (V17 and later). Carries @end_time@ (the
+-- source of truth) and the @tzid@ field.
 data NewMeeting = NewMeeting
   { startTime :: UTCTime,
     endTime :: UTCTime,
+    tzid :: TimeZone,
     recurrence :: Maybe Recurrence,
     title :: Range 1 256 Text,
     invitedEmails :: [EmailAddress]
@@ -149,6 +244,39 @@ data NewMeeting = NewMeeting
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeeting)
   deriving (Arbitrary) via (GenericUniform NewMeeting)
+
+-- | Request to create a new meeting (V15/V16). Carries @end_time@ but no @tzid@.
+data NewMeetingV16 = NewMeetingV16
+  { startTime :: UTCTime,
+    endTime :: UTCTime,
+    recurrence :: Maybe Recurrence,
+    title :: Range 1 256 Text,
+    invitedEmails :: [EmailAddress]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeetingV16)
+  deriving (Arbitrary) via (GenericUniform NewMeetingV16)
+
+instance ToSchema NewMeeting where
+  schema =
+    objectWithDocModifier (description ?~ "Request to create a new meeting") $
+      NewMeeting
+        <$> (.startTime) .= field "start_time" utcTimeSchema
+        <*> (.endTime) .= field "end_time" utcTimeSchema
+        <*> (.tzid) .= field "tzid" schema
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+        <*> (.title) .= field "title" schema
+        <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
+
+instance ToSchema NewMeetingV16 where
+  schema =
+    objectWithDocModifier (description ?~ "Request to create a new meeting (V16)") $
+      NewMeetingV16
+        <$> (.startTime) .= field "start_time" utcTimeSchema
+        <*> (.endTime) .= field "end_time" utcTimeSchema
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+        <*> (.title) .= field "title" schema
+        <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
 
 data Recurrence = Recurrence
   { -- | The interval between occurrences, e.g., every 2 weeks for Weekly frequency with interval=2
@@ -175,17 +303,9 @@ instance ToSchema Frequency where
           element "yearly" Yearly
         ]
 
-instance ToSchema NewMeeting where
-  schema =
-    objectWithDocModifier (description ?~ "Request to create a new meeting") $
-      NewMeeting
-        <$> (.startTime) .= field "start_time" utcTimeSchema
-        <*> (.endTime) .= field "end_time" utcTimeSchema
-        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
-        <*> (.title) .= field "title" schema
-        <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
-
--- | Request to update an existing meeting
+-- | Request to update an existing meeting. Updates carry no @tzid@ (it is
+-- immutable after creation); @end_time@ is optional on both eras, so a single
+-- type serves V17 ('UpdateMeeting') and V16 ('UpdateMeetingV16').
 data UpdateMeeting = UpdateMeeting
   { startTime :: Maybe UTCTime,
     endTime :: Maybe UTCTime,
@@ -196,6 +316,8 @@ data UpdateMeeting = UpdateMeeting
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeeting)
   deriving (Arbitrary) via (GenericUniform UpdateMeeting)
+
+type UpdateMeetingV16 = UpdateMeeting
 
 instance ToSchema UpdateMeeting where
   schema =
@@ -213,6 +335,61 @@ instance ToSchema Recurrence where
         <$> (.freq) .= field "frequency" schema
         <*> (.interval) .= (fromMaybe 1 <$> optField "interval" schema)
         <*> (.until) .= maybe_ (optField "until" utcTimeSchema)
+
+-- | Convert a V17 'Meeting' to the legacy 'MeetingV16' shape. Fields are
+-- copied verbatim; @tzid@ is dropped (@end_time@ is preserved, so no duration
+-- needs to be recomputed).
+toLegacy :: Meeting -> MeetingV16
+toLegacy m =
+  MeetingV16
+    { id = m.id,
+      title = m.title,
+      creator = m.creator,
+      startTime = m.startTime,
+      endTime = m.endTime,
+      recurrence = m.recurrence,
+      conversationId = m.conversationId,
+      invitedEmails = m.invitedEmails,
+      createdAt = m.createdAt,
+      updatedAt = m.updatedAt
+    }
+
+-- | Convert a legacy 'MeetingV16' to the V17 'Meeting' shape, injecting the
+-- given 'TimeZone' as @tzid@. All other fields (including @end_time@) are
+-- preserved.
+fromLegacy :: TimeZone -> MeetingV16 -> Meeting
+fromLegacy tz m =
+  Meeting
+    { id = m.id,
+      title = m.title,
+      creator = m.creator,
+      startTime = m.startTime,
+      endTime = m.endTime,
+      tzid = tz,
+      recurrence = m.recurrence,
+      conversationId = m.conversationId,
+      invitedEmails = m.invitedEmails,
+      createdAt = m.createdAt,
+      updatedAt = m.updatedAt
+    }
+
+-- | 'toLegacy' lifted over 'MeetingWithConversation'.
+toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
+toLegacyWithConv mwc =
+  MeetingWithConversationV16 {meeting = toLegacy mwc.meeting, conversation = mwc.conversation}
+
+-- | Convert a V16 'NewMeetingV16' to the V17 'NewMeeting', injecting the given
+-- 'TimeZone' as @tzid@. @end_time@ is preserved (it is the source of truth).
+fromLegacyNewMeeting :: TimeZone -> NewMeetingV16 -> NewMeeting
+fromLegacyNewMeeting tz nm =
+  NewMeeting
+    { startTime = nm.startTime,
+      endTime = nm.endTime,
+      tzid = tz,
+      recurrence = nm.recurrence,
+      title = nm.title,
+      invitedEmails = nm.invitedEmails
+    }
 
 -- | Request to add/remove invited email
 newtype MeetingEmailsInvitation = MeetingEmailsInvitation

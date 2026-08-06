@@ -21,6 +21,10 @@ module Galley.API.Meetings
     deleteMeeting,
     getMeeting,
     listMeetings,
+    createMeetingV16,
+    updateMeetingV16,
+    getMeetingV16,
+    listMeetingsV16,
     addMeetingInvitation,
     removeMeetingInvitation,
     replaceMeetingInvitation,
@@ -57,10 +61,7 @@ updateMeeting ::
   Sem r MeetingWithConversation
 updateMeeting zUser connId domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
-  maybeMeeting <- Meetings.updateMeeting zUser connId qMeetingId update
-  case maybeMeeting of
-    Nothing -> throwS @'MeetingNotFound
-    Just meeting -> pure meeting
+  noteS @'MeetingNotFound =<< Meetings.updateMeeting zUser connId qMeetingId update
 
 deleteMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
@@ -86,16 +87,53 @@ getMeeting ::
   Sem r Meeting
 getMeeting zUser domain meetingId = do
   let qMeetingId = Qualified meetingId domain
-  maybeMeeting <- Meetings.getMeeting zUser qMeetingId
-  case maybeMeeting of
-    Nothing -> throwS @'MeetingNotFound
-    Just meeting -> pure meeting
+  noteS @'MeetingNotFound =<< Meetings.getMeeting zUser qMeetingId
 
 listMeetings ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
   Sem r [Meeting]
 listMeetings lUser = Meetings.listMeetings lUser
+
+createMeetingV16 ::
+  (Member Meetings.MeetingsSubsystem r) =>
+  Local UserId ->
+  ConnId ->
+  NewMeetingV16 ->
+  Sem r MeetingWithConversationV16
+createMeetingV16 lUser connId newMeeting = Meetings.createMeetingV16 lUser connId newMeeting
+
+updateMeetingV16 ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  MeetingId ->
+  UpdateMeetingV16 ->
+  Sem r MeetingWithConversationV16
+updateMeetingV16 zUser connId domain meetingId update = do
+  let qMeetingId = Qualified meetingId domain
+  noteS @'MeetingNotFound =<< Meetings.updateMeetingV16 zUser connId qMeetingId update
+
+getMeetingV16 ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  Domain ->
+  MeetingId ->
+  Sem r MeetingV16
+getMeetingV16 zUser domain meetingId = do
+  let qMeetingId = Qualified meetingId domain
+  noteS @'MeetingNotFound =<< Meetings.getMeetingV16 zUser qMeetingId
+
+listMeetingsV16 ::
+  (Member Meetings.MeetingsSubsystem r) =>
+  Local UserId ->
+  Sem r [MeetingV16]
+listMeetingsV16 lUser = Meetings.listMeetingsV16 lUser
 
 addMeetingInvitation ::
   ( Member Meetings.MeetingsSubsystem r,

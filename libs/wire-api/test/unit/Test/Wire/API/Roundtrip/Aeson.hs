@@ -61,9 +61,7 @@ import Wire.API.Push.Token qualified as Push.Token
 import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
-import Wire.API.Routes.Version (Version (V15, V16))
 import Wire.API.Routes.Version qualified as Routes.Version
-import Wire.API.Routes.Versioned (Versioned (..))
 import Wire.API.SystemSettings qualified as SystemSettings
 import Wire.API.Team qualified as Team
 import Wire.API.Team.Conversation qualified as Team.Conversation
@@ -399,8 +397,8 @@ tests =
       testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest,
       meetingTrialVersioningTests,
       testRoundTripWithSwagger @Meeting.Meeting,
-      testRoundTripWithSwagger @(Versioned 'V15 Meeting.Meeting),
-      testRoundTripWithSwagger @(Versioned 'V16 [Meeting.Meeting]),
+      testRoundTripWithSwagger @Meeting.MeetingV16,
+      testRoundTripWithSwagger @[Meeting.MeetingV16],
       testFeatureFlagsCanonicalJsonRoundtrip
     ]
 
@@ -458,8 +456,8 @@ meetingTrialVersioningTests =
   T.testGroup
     "Meeting trial field versioning"
     [ testProperty "legacy (V15) response renders trial=false" $
-        \(m :: Meeting.Meeting) ->
-          trialField (toJSON (Versioned @'V15 m)) === Just False,
+        \(m :: Meeting.MeetingV16) ->
+          trialField (toJSON m) === Just False,
       testProperty "current (V17) response omits trial" $
         \(m :: Meeting.Meeting) ->
           trialField (toJSON m) === Nothing

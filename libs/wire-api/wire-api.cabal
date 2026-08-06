@@ -377,6 +377,7 @@ library
     , tinylog
     , transformers
     , types-common               >=0.16
+    , tz
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2
     , utf8-string
@@ -713,6 +714,7 @@ test-suite wire-api-tests
     Paths_wire_api
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
+    Test.Wire.API.Meeting
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
     Test.Wire.API.OAuth

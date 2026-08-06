@@ -303,6 +303,7 @@ CREATE TABLE public.meetings (
     trial boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    tzid text NOT NULL,
     CONSTRAINT meetings_recurrence_consistency CHECK ((((recurrence_frequency IS NULL) AND (recurrence_interval IS NULL) AND (recurrence_until IS NULL)) OR ((recurrence_frequency IS NOT NULL) AND (recurrence_interval IS NOT NULL)))),
     CONSTRAINT meetings_title_length CHECK ((length(title) <= 256)),
     CONSTRAINT meetings_title_not_empty CHECK ((length(TRIM(BOTH FROM title)) > 0)),
