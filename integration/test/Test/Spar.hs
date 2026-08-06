@@ -310,14 +310,12 @@ testSparPatchEmailValuePath = do
   void $ setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
   tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
   extId <- randomExternalId
-  -- spar does not persist the SCIM email 'type': on GET every email is
-  -- returned with @typ = Nothing@ (see 'synthesizeScimUser'), so a value-path
-  -- filter @emails[type eq "work"]@ can never match an existing email. The
-  -- PATCH therefore exercises the create-on-absent path -- provisioning a work
-  -- email for a user that has none -- which is exactly the real Entra payload
-  -- (an @Add@ on @emails[type eq "work"].value@). The Add-vs-Replace regression
-  -- guard for whole-entry append semantics lives in the hscim unit tests;
-  -- through spar only create-on-absent is observable.
+  -- Exercise create-on-absent: a SAML user provisioned with no email receives
+  -- its first work email via Entra's @Add@ on @emails[type eq "work"].value@.
+  -- spar echoes @type = "work"@ on stored emails (see 'synthesizeScimUser'), but
+  -- this user has no email yet, so the value-path filter matches nothing and the
+  -- entry is created. In-place update of an existing email is covered by
+  -- 'testSparPatchEmailValuePathInPlace'.
   scimUser <- randomScimUserWith def {mkExternalId = pure extId} >>= removeField "emails"
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   newEmail <- randomEmail
@@ -339,6 +337,49 @@ testSparPatchEmailValuePath = do
   eventually $ do
     checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json & asList >>= assertOne
+      u %. "email" `shouldMatch` newEmail
+
+testSparPatchEmailValuePathInPlace :: (HasCallStack) => App ()
+testSparPatchEmailValuePathInPlace = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMeta owner >>= getJSON 201
+  -- Disable SAML email validation so the updated email is activated directly
+  -- (the IdP vouches for it), with no separate activation step.
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  extId <- randomExternalId
+  email <- randomEmail
+  scimUser <- randomScimUserWithEmail extId email
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  newEmail <- randomEmail
+  let patchOp =
+        object
+          [ "schemas" .= (["urn:ietf:params:scim:api:messages:2.0:PatchOp" :: String]),
+            "Operations"
+              .= [ object
+                     [ "op" .= ("Add" :: String),
+                       "path" .= ("emails[type eq \"work\"].value" :: String),
+                       "value" .= newEmail
+                     ]
+                 ]
+          ]
+  bindResponse (patchScimUser OwnDomain tok userId patchOp) $ \res -> do
+    res.status `shouldMatchInt` 200
+  -- In-place update (not create-on-absent): spar echoes @type = "work"@ on
+  -- stored emails (see 'synthesizeScimUser'), so the value-path filter
+  -- @emails[type eq "work"]@ matches the existing entry and updates its
+  -- @.value@. The proof is the new value and echoed @type = "work"@ below -- a
+  -- create-on-absent append would be collapsed back to the OLD address by
+  -- 'scimEmailsToEmailAddress', failing the value assertion.
+  eventually $ do
+    checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
+      storedEmail <- u %. "emails" >>= asList >>= assertOne
+      storedEmail %. "value" `shouldMatch` newEmail
+      storedEmail %. "type" `shouldMatch` ("work" :: String)
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
       u <- res.json & asList >>= assertOne

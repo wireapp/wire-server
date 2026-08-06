@@ -1117,7 +1117,13 @@ synthesizeScimUser info =
                   ]
               )
               (info.role),
-          Scim.emails = (\e -> Scim.Email.Email Nothing (Scim.Email.EmailAddress e) Nothing) <$> info.emails
+          -- Echo the canonical SCIM email type "work" (RFC 7643 §4.1.2) so Entra's
+          -- value-path filter `emails[type eq "work"]` matches the stored entry for
+          -- an in-place PATCH update; without it the filter never matches and a
+          -- duplicate email is appended. spar/brig store one address with no type.
+          -- Do NOT change it back to `Nothing`. (Okta also filters `primary eq true`;
+          -- echoing `primary` is out of scope.)
+          Scim.emails = (\e -> Scim.Email.Email (Just "work") (Scim.Email.EmailAddress e) Nothing) <$> info.emails
         }
 
 -- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)
