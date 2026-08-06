@@ -526,11 +526,11 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
 
   -- Verify that updating a user with an empty emails does not change the email
   bindResponse (updateScimUser OwnDomain tok userId scimUser) $ \resp -> do
-    resp.json %. "emails" `shouldMatch` (toJSON [object ["value" .= email]])
+    resp.json %. "emails" `shouldMatch` (toJSON [scimWorkEmail email])
     resp.status `shouldMatchInt` 200
 
   newEmail <- if emailUnchanged then pure email else randomEmail
-  let newEmails = (toJSON [object ["value" .= newEmail]])
+  let newEmails = toJSON [scimWorkEmail newEmail]
   updatedScimUser <- setField "emails" newEmails scimUser
   updateScimUser OwnDomain tok userId updatedScimUser `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
@@ -561,6 +561,12 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
   k userByUid
 
   userByUid `shouldMatch` userByIdExtId
+
+-- | Expected SCIM email object. spar synthesizes @type = "work"@ on every stored
+-- email (see 'Spar.Scim.User.synthesizeScimUser'), so assertions comparing the
+-- server's @emails@ must expect it.
+scimWorkEmail :: String -> Value
+scimWorkEmail addr = object ["type" .= ("work" :: String), "value" .= addr]
 
 testSparScimTokenLimit :: (HasCallStack) => App ()
 testSparScimTokenLimit = withModifiedBackend
@@ -1247,7 +1253,7 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool requireExternal
     res.json %. "id" `shouldMatch` uid
     lookupField res.json "emails"
       `shouldMatch` ( if extIdIsEmail
-                        then Just [object ["value" .= oldEmail]]
+                        then Just [scimWorkEmail oldEmail]
                         else Nothing
                     )
 
@@ -1266,11 +1272,11 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool requireExternal
 
   updateScimUser OwnDomain tok uid newScimUser `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail]
 
   getScimUser OwnDomain tok uid `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail]
 
   when requireExternalEmailVerification $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
@@ -1334,7 +1340,7 @@ testScimUpdateEmailAddressAndExternalId = do
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "id" `shouldMatch` brigUserId
-    res.json %. "emails" `shouldMatch` [object ["value" .= extId1]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail extId1]
 
   findUsersByExternalId OwnDomain tok extId1 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1357,11 +1363,11 @@ testScimUpdateEmailAddressAndExternalId = do
   updateScimUser OwnDomain tok brigUserId newScimUser1 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "externalId" `shouldMatch` extId1
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail1]
 
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail1]
 
   findUsersByExternalId OwnDomain tok extId1 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1390,11 +1396,11 @@ testScimUpdateEmailAddressAndExternalId = do
   updateScimUser OwnDomain tok brigUserId newScimUser2 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "externalId" `shouldMatch` newExtId2
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail1]
 
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail1]
 
   findUsersByExternalId OwnDomain tok newExtId2 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1423,11 +1429,11 @@ testScimUpdateEmailAddressAndExternalId = do
   updateScimUser OwnDomain tok brigUserId newScimUser3 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "externalId" `shouldMatch` newEmail3
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail1]
 
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail1]
 
   findUsersByExternalId OwnDomain tok newEmail3 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1639,7 +1645,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
       su <- setField "emails" [object ["value" .= newEmail]] scimUser
       bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
         res.status `shouldMatchInt` 200
-        res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+        res.json %. "emails" `shouldMatch` [scimWorkEmail newEmail]
       activateEmail OwnDomain newEmail
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
