@@ -344,6 +344,24 @@ testSparPatchEmailValuePath = do
       u <- res.json & asList >>= assertOne
       u %. "email" `shouldMatch` newEmail
 
+testSparRejectsMultiplePrimaryEmails :: (HasCallStack) => App ()
+testSparRejectsMultiplePrimaryEmails = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  email1 <- randomEmail
+  email2 <- randomEmail
+  scimUser <-
+    randomScimUserWith def
+      >>= setField
+        "emails"
+        ( toJSON
+            [ object ["value" .= email1, "primary" .= True],
+              object ["value" .= email2, "primary" .= True]
+            ]
+        )
+  bindResponse (createScimUser OwnDomain tok scimUser) $ \res ->
+    res.status `shouldMatchInt` 400
+
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
   (owner, tid, _) <- createTeam OwnDomain 1

@@ -54,6 +54,12 @@
 --  and all the others are either implied 'primary: false' or must be checked
 --  that they're false
 --
+--  (Partially addressed for @emails@: at most one @primary: true@ entry is
+--  now enforced at selection time in
+--  "Web.Scim.Schema.User.Email".'Web.Scim.Schema.User.Email.scimEmailsToEmailAddress',
+--  which rejects a multi-primary @emails@ list instead of silently picking
+--  one. Other multi-valued attributes are not yet validated.)
+--
 --
 -- == Attribute names
 --

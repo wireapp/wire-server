@@ -1,0 +1,4 @@
+SCIM user provisioning now rejects requests (HTTP 400) that mark more than one
+email as `primary`, an RFC 7643 §2.4 violation. Previously spar silently picked
+one primary and dropped the rest, masking client-side misconfiguration. Requests
+with zero or one primary email are unchanged.

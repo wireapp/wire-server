@@ -303,7 +303,9 @@ validateScimUser' ::
   Sem r ST.ValidScimUser
 validateScimUser' errloc midp richInfoLimit user = do
   unless (isNothing $ Scim.password user) $ throw $ badRequest "Setting user passwords is not supported for security reasons."
-  veid <- mkValidScimId midp (Scim.externalId user) (Scim.Email.scimEmailsToEmailAddress $ Scim.emails user)
+  veid <- case Scim.Email.scimEmailsToEmailAddress (Scim.emails user) of
+    Left msg -> throw $ badRequest msg
+    Right mEmail -> mkValidScimId midp (Scim.externalId user) mEmail
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.

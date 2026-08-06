@@ -81,7 +81,7 @@ spec = do
         true = Just (ScimBool True)
 
     it "returns Nothing if empty" $ do
-      scimEmailsToEmailAddress [] `shouldBe` Nothing
+      scimEmailsToEmailAddress [] `shouldBe` Right Nothing
 
     it "returns first primary if it exists" $ do
       scimEmailsToEmailAddress
@@ -89,19 +89,33 @@ spec = do
           Email Nothing (EmailAddress adr2) false2,
           Email (Just "this is ignored") (EmailAddress adr3) true
         ]
-        `shouldBe` Just adr3
+        `shouldBe` Right (Just adr3)
 
     it "returns first entry if no primary exists" $ do
       scimEmailsToEmailAddress
         [ Email Nothing (EmailAddress adr1) false1,
           Email Nothing (EmailAddress adr2) false2
         ]
-        `shouldBe` Just adr1
+        `shouldBe` Right (Just adr1)
       scimEmailsToEmailAddress
         [ Email Nothing (EmailAddress adr1) false2,
           Email Nothing (EmailAddress adr2) false1
         ]
-        `shouldBe` Just adr1
+        `shouldBe` Right (Just adr1)
+
+    it "rejects when more than one email is primary" $ do
+      scimEmailsToEmailAddress
+        [ Email Nothing (EmailAddress adr1) true,
+          Email Nothing (EmailAddress adr2) true
+        ]
+        `shouldBe` Left "More than one email is marked as primary; RFC 7643 §2.4 allows at most one."
+
+    it "does not reject when one primary is true and another is false" $ do
+      scimEmailsToEmailAddress
+        [ Email Nothing (EmailAddress adr1) true,
+          Email Nothing (EmailAddress adr2) false2
+        ]
+        `shouldBe` Right (Just adr1)
 
   describe "applyPatch" $ do
     it "only applies patch for supported fields" $ do
