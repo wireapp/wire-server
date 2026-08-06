@@ -10,7 +10,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import MLS.Util
-import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
+import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingMemberAddNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -32,8 +32,8 @@ testMeetingCreate = do
       assertSuccess resp
       void $ awaitMatch isConvCreateMeetingNotif ws
       m <- getJSON 201 resp
-      createNotif <- awaitMatch isMeetingCreateNotif ws
-      assertMeetingNotif createNotif (m %. "qualified_id")
+      -- meeting.create is not delivered to the initiator (WPB-27857)
+      assertNoEvent 1 ws
       pure m
 
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
@@ -261,8 +261,8 @@ testMeetingRecurrence = do
   r2 <- withWebSocket owner $ \ws -> do
     resp <- putMeeting owner domain meetingId updatedMeeting
     assertSuccess resp
-    updateNotif <- awaitMatch isMeetingUpdateNotif ws
-    assertMeetingNotif updateNotif (object ["id" .= meetingId, "domain" .= domain])
+    -- meeting.update is not delivered to the initiator (WPB-27857)
+    assertNoEvent 1 ws
     pure resp
 
   updated <- getJSON 200 r2
@@ -506,11 +506,9 @@ testMeetingDelete = do
   withWebSocket owner $ \ws -> do
     deleteMeeting owner domain meetingId >>= assertStatus 200
     void $ awaitMatch isConvDeleteMeetingNotif ws
-    deleteNotif <- awaitMatch isMeetingDeleteNotif ws
-    assertMeetingNotif deleteNotif (object ["id" .= meetingId, "domain" .= domain])
-    -- A meeting conversation must emit `conversation.delete-meeting`, never the
-    -- plain `conversation.delete` (EdConvDelete). After the two events above the
-    -- socket should be quiet; any leaked delete would surface here.
+    -- meeting.delete is not delivered to the initiator (WPB-27857). The
+    -- conversation.delete-meeting event above is the only event the
+    -- initiator receives; the socket should be quiet afterwards.
     assertNoEvent 1 ws
   getMeeting owner domain meetingId >>= assertStatus 404
 

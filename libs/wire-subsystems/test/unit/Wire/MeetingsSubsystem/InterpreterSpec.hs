@@ -52,13 +52,13 @@ import Wire.API.Team.Permission (fullPermissions)
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.MeetingNotifier (MeetingNotifier)
+import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
 import Wire.MockInterpreters
-import Wire.NotificationSubsystem (NotificationSubsystem, Push (..))
+import Wire.NotificationSubsystem (NotificationSubsystem, Push (..), Recipient (recipientUserId))
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -1451,6 +1451,25 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       case result of
         Left err -> fail $ "Error: " <> show err
         Right pushes -> extractMeetingEvents pushes `shouldBe` []
+
+    it "does not deliver lifecycle events to the meeting initiator" $ do
+      let members =
+            [ newMember uid1,
+              newMember uid2
+            ]
+          meetingId = Id $ read "00000000-0000-0000-0000-000000000070"
+          convId = Id $ read "00000000-0000-0000-0000-000000000071"
+          qMeetingId = Qualified meetingId (Domain "wire.com")
+          qConvId = Qualified convId (Domain "wire.com")
+      result <-
+        runTestStack now gen Map.empty def $ do
+          _ <- notifyMeetingEvent zUser1 Nothing members qConvId Nothing MeetingEvent.Create qMeetingId
+          get @[Push]
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right pushes -> do
+          let recipientIds = map (.recipientUserId) (concatMap (.recipients) pushes)
+          recipientIds `shouldBe` [uid2]
 
 -- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
 expectedStartTimeTolerance :: NominalDiffTime

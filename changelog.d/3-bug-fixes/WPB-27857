@@ -1,0 +1,1 @@
+Wire Meetings lifecycle events (meeting.create, meeting.update, meeting.delete) are no longer delivered to the user who triggered the action, consistent with how other event types avoid echoing back to the originator. Previously the creator/updater/deleter received their own meeting event.
