@@ -132,6 +132,9 @@ instance Arbitrary Domain where
   arbitrary =
     either (error . ("arbitrary @Domain: " <>)) id . mkDomain . getDomainText <$> arbitrary
 
+instance QC.CoArbitrary Domain where
+  coarbitrary d = QC.coarbitrary (Text.unpack (domainText d))
+
 -- | only for QuickCheck
 newtype DomainText = DomainText {getDomainText :: Text}
   deriving (Eq, Show)

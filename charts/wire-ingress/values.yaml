@@ -1,4 +1,8 @@
 # Default values for wire-ingress
+httpRoute:
+  # Annotations added to every HTTPRoute created by this chart.
+  annotations: {}
+
 gateway:
   # If true, a Gateway resource is created by this chart.
   # If false, set gateway.name to reference an existing Gateway.
@@ -113,6 +117,48 @@ gateway:
 #     certificateDomain: federator.<domain>  # domain to use in the federator CSR
 #     teamSettings: teams.<domain>  # ignored unless teamSettings.enabled == true
 #     accountPages: account.<domain> # ignored unless accountPages.enabled == true
+#
+# MULTI-INGRESS (multiple backend domains from one release)
+# ---------------------------------------------------------
+# To serve the same backend on several domains, set config.domains INSTEAD of
+# config.dns. It is a list; the FIRST entry is the primary (its resources keep
+# the un-suffixed names, and its frontend apps set their own CSP). Every
+# additional entry gets its own Gateway HTTPS listener (`https-<name>`), its own
+# certificate/secret, and — being an "additional ingress" — a per-domain
+# Content-Security-Policy header injected on the webapp/team-settings/
+# account-pages routes (mirrors the legacy nginx-ingress-services behaviour).
+#
+# config.dns and config.domains are mutually exclusive; config.domains wins.
+#
+# Multi-ingress is ALSO mutually exclusive with federation: you cannot enable
+# federator.enabled together with config.domains. Multi-ingress is the special
+# case (a single customer serving one backend on several unrelated domains);
+# federation is the common case. Pick one — federation with a single backend
+# domain via config.dns, or multi-ingress via config.domains with the federator
+# disabled. Setting both fails template rendering with a clear error.
+#
+# config:
+#   domains:
+#     - name: blueberry                      # required; used for resource-name suffix & listener section
+#       base: blueberry.example.com          # required; CSP wildcard (*.base) and default listener hostname (*.base)
+#       # hostname: "*.blueberry.example.com" # optional listener hostname override (defaults to *.base)
+#       dns:
+#         https: nginz-https.blueberry.example.com
+#         ssl: nginz-ssl.blueberry.example.com
+#         webapp: webapp.blueberry.example.com
+#         # teamSettings / accountPages / fakeS3 as needed
+#     - name: red
+#       base: red.example.org
+#       dns:
+#         https: nginz-https.red.example.org
+#         ssl: nginz-ssl.red.example.org
+#         webapp: webapp.red.example.org
+#       # renderCSP: false                   # optional: disable the injected CSP for this domain
+#       tls:
+#         # secretName: ""                   # optional TLS secret name override (defaults to a per-domain name)
+#         issuer:                            # optional per-domain cert-manager issuer override (defaults to tls.issuer)
+#           name: letsencrypt-red
+#           kind: ClusterIssuer
 
 websockets:
   enabled: true
@@ -141,6 +187,9 @@ accountPages:
   enabled: false
 
 service:
+  # Set false to reuse the backend Services owned by nginx-ingress-services
+  # (e.g. during a migration) instead of creating them here.
+  create: true
   webapp:
     externalPort: 8080
   teamSettings:

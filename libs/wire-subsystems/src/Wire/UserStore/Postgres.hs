@@ -68,7 +68,6 @@ interpretUserStorePostgres =
     GetUserTeam uid -> getUserTeamImpl uid
     UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
     GetRichInfo uid -> getRichInfoImpl uid
-    LookupRichInfos uids -> lookupRichInfosImpl uids
     UpsertHashedPassword uid pw -> upsertHashedPasswordImpl uid pw
     LookupHashedPassword uid -> lookupHashedPasswordImpl uid
     GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
@@ -690,15 +689,6 @@ updateRichInfoImpl uid richInfo =
     update =
       dimapPG
         [resultlessStatement|UPDATE wire_user SET rich_info = $2 :: jsonb WHERE id = $1 :: uuid|]
-
-lookupRichInfosImpl :: (PGConstraints r) => [UserId] -> Sem r [(UserId, RichInfo)]
-lookupRichInfosImpl uids =
-  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi) <$> runStatement uids select
-  where
-    select :: Hasql.Statement [UserId] [(UserId, Maybe RichInfoAssocList)]
-    select =
-      dimapPG @(Vector _)
-        [vectorStatement|SELECT id :: uuid, rich_info :: json? FROM wire_user WHERE id = ANY($1 :: uuid[])|]
 
 upsertHashedPasswordImpl :: (PGConstraints r) => UserId -> Password -> Sem r ()
 upsertHashedPasswordImpl uid pw = runStatement (uid, pw) upsert

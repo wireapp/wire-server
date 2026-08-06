@@ -24,10 +24,14 @@ import Wire.API.Routes.Public.Galley.Meetings
 
 meetingsAPI :: API MeetingsAPI GalleyEffects
 meetingsAPI =
-  mkNamedAPI @"create-meeting" Meetings.createMeeting
+  mkNamedAPI @"create-meeting@v15" Meetings.createMeeting
+    <@> mkNamedAPI @"create-meeting" Meetings.createMeeting
+    <@> mkNamedAPI @"update-meeting@v15" Meetings.updateMeeting
     <@> mkNamedAPI @"update-meeting" Meetings.updateMeeting
     <@> mkNamedAPI @"delete-meeting" Meetings.deleteMeeting
+    <@> mkNamedAPI @"get-meeting@v15" Meetings.getMeeting
     <@> mkNamedAPI @"get-meeting" Meetings.getMeeting
+    <@> mkNamedAPI @"list-meetings@v16" Meetings.listMeetings
     <@> mkNamedAPI @"list-meetings" Meetings.listMeetings
     <@> mkNamedAPI @"add-meeting-invitation" Meetings.addMeetingInvitation
     <@> mkNamedAPI @"remove-meeting-invitation" Meetings.removeMeetingInvitation

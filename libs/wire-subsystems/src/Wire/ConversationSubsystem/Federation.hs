@@ -94,6 +94,7 @@ import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget qualified as E
 import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.MeetingNotifier
 import Wire.NotificationSubsystem
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
@@ -575,7 +576,8 @@ handleMLSMessageErrors =
     . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::
-  ( Member BackendNotificationQueueAccess r,
+  ( Member MeetingNotifier r,
+    Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member E.ConversationStore r,
     Member ExternalAccess r,

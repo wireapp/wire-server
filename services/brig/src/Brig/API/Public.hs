@@ -1,6 +1,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
@@ -33,6 +34,7 @@ import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
+import Brig.API.MLS.Util (isMLSEnabled)
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Public.Swagger
 import Brig.API.Types
@@ -43,11 +45,6 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Effects.ConnectionStore
-import Brig.Effects.JwtTools (JwtTools)
-import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
-import Brig.Effects.SFT
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Wire.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Template (InvitationUrlTemplates)
@@ -81,6 +78,7 @@ import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema ()
+import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
@@ -101,6 +99,7 @@ import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
+import Wire.API.Conversation.Protocol (ProtocolTag (..))
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -135,6 +134,7 @@ import Wire.API.Routes.Version
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
+import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError), UserProfile)
@@ -160,6 +160,7 @@ import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore (BlockListStore)
+import Wire.BudgetStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem)
@@ -180,10 +181,14 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
+import Wire.JwtTools (JwtTools)
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
+import Wire.Options hiding (internalEvents)
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
+import Wire.SFT
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Metrics (Metrics)
@@ -192,13 +197,13 @@ import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
@@ -390,7 +395,6 @@ servantSitemap ::
     Member Now r,
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
-    Member PublicKeyBundle r,
     Member SFT r,
     Member TinyLog r,
     Member UserKeyStore r,
@@ -416,14 +420,15 @@ servantSitemap ::
     Member CryptoSign r,
     Member Random r,
     Member UserGroupSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member AppSubsystem r,
     Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
     Member ClientSubsystem r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
-    HasBrigFederationAccess m r
+    HasBrigFederationAccess m r,
+    Member BudgetStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -874,7 +879,6 @@ createClientDPoPAccessToken ::
   forall api endpoint r.
   ( Member JwtTools r,
     Member Now r,
-    Member PublicKeyBundle r,
     IsElem endpoint api,
     HasLink endpoint,
     MkLink endpoint Link ~ (ClientId -> Link),
@@ -1114,11 +1118,12 @@ listUsersByIdsOrHandlesV3 self q = do
 -- using a new return type
 listUsersByIdsOrHandles ::
   forall r.
-  (Member UserSubsystem r, Member UserStore r) =>
+  (Member UserSubsystem r, Member UserStore r, Member ClientStore r, Member GalleyAPIAccess r) =>
   UserId ->
+  Maybe Bool ->
   Public.ListUsersQuery ->
   Handler r ListUsersById
-listUsersByIdsOrHandles self q = do
+listUsersByIdsOrHandles self includeContactStatus q = do
   lself <- qualifyLocal self
   (errors, foundUsers) <- case q of
     Public.ListUsersByIds us ->
@@ -1128,13 +1133,60 @@ listUsersByIdsOrHandles self q = do
       (l, r) <- byIds lself us
       r' <- Handle.filterHandleResults lself r
       pure (l, r')
-  pure $ ListUsersById foundUsers $ fst <$$> nonEmpty errors
+  foundUsers' <-
+    if includeContactStatus == Just True
+      then enrichContactStatus lself foundUsers
+      else pure foundUsers
+  pure $ ListUsersById foundUsers' $ fst <$$> nonEmpty errors
   where
     byIds ::
       Local UserId ->
       [Qualified UserId] ->
       Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
     byIds lself uids = lift (liftSem (getUserProfilesWithErrors lself uids))
+
+enrichContactStatus ::
+  forall r.
+  (Member ClientStore r, Member UserSubsystem r, Member GalleyAPIAccess r) =>
+  Local UserId ->
+  [Public.UserProfile] ->
+  Handler r [Public.UserProfile]
+enrichContactStatus lself profiles = do
+  let localProfiles = filter ((== tDomain lself) . qDomain . Public.profileQualifiedId) profiles
+  if null localProfiles
+    then pure profiles
+    else do
+      serverMLS <- isMLSEnabled
+      (mlsAvailable, allowedCipherSuites) <-
+        if not serverMLS
+          then pure (False, Set.empty)
+          else do
+            requesterFeatures <- lift . liftSem $ GalleyAPIAccess.getAllTeamFeaturesForUser (Just (tUnqualified lself))
+            let mlsConfig = Feature.npProject @Feature.MLSConfig requesterFeatures
+            pure
+              ( serverMLS
+                  && mlsConfig.status == Feature.FeatureStatusEnabled
+                  && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols,
+                Set.fromList mlsConfig.config.mlsAllowedCipherSuites
+              )
+      let localUserIds = qUnqualified . Public.profileQualifiedId <$> localProfiles
+      clients <- lift . liftSem $ ClientStore.lookupClientsBulk localUserIds
+      let users =
+            Map.fromList
+              [ (uid, (profile.profileSupportedProtocols, fromMaybe Set.empty (Map.lookup uid (Public.userMap clients))))
+              | profile <- localProfiles,
+                let uid = qUnqualified profile.profileQualifiedId
+              ]
+      contactability <- lift . liftSem $ User.isUsersContactable users mlsAvailable allowedCipherSuites
+      for profiles $ enrichProfile contactability
+  where
+    enrichProfile contactability profile
+      -- the federated case is not checked, yet
+      | qDomain profile.profileQualifiedId /= tDomain lself = pure profile
+      | otherwise = do
+          let uid = qUnqualified profile.profileQualifiedId
+              contactable = Map.findWithDefault False uid contactability
+          pure profile {Public.profileContactStatus = Just (Public.ContactStatus (if contactable then Public.Contactable else Public.NonContactable))}
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -1809,12 +1861,7 @@ getApp lusr tid uid = lift . liftSem $ do
 
 getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
 getApps lusr tid = lift . liftSem $ do
-  -- Check if requesting user is a member of the team
-  requestingUserTeam <- getUserTeam (tUnqualified lusr)
-  unless (requestingUserTeam == Just tid) $
-    throw UserSubsystemProfileNotFound
-
-  getLocalAppProfiles (qualifyAs lusr tid)
+  getLocalAppProfiles lusr tid
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put

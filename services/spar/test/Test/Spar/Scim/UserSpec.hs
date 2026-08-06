@@ -28,10 +28,6 @@ import Polysemy.TinyLog
 import Spar.Scim.User (deleteScimUser)
 import Spar.Sem.SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem (samlUserStoreToMem)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
-import Spar.Sem.ScimUserTimesStore
-import Spar.Sem.ScimUserTimesStore.Mem (scimUserTimesStoreToMem)
 import System.Logger (Msg)
 import Test.Hspec
 import Test.QuickCheck
@@ -42,6 +38,10 @@ import Wire.BrigAPIAccess
 import Wire.IdPConfigStore
 import Wire.IdPConfigStore.Mem (idPToMem)
 import Wire.IdPConfigStore.Orphans ()
+import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
+import Wire.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
+import Wire.ScimUserTimesStore
+import Wire.ScimUserTimesStore.Mem (scimUserTimesStoreToMem)
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 
 spec :: Spec

@@ -105,7 +105,7 @@ data AWSOpts = AWSOpts
     -- otherwise a 404 is retuned. This option is only useful
     -- in the context of multi-ingress setups where one backend / deployment is
     -- reachable under several domains.
-    multiIngress :: !(Maybe (Map String AWSEndpoint))
+    multiIngress :: !(Maybe (Map Domain AWSEndpoint))
   }
   deriving (Show, Generic)
 

@@ -29,9 +29,10 @@ import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
+import Data.Secret (SecretText)
 import HTTP2.Client.Manager
-import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
+import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
@@ -50,6 +51,7 @@ import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Team.Feature (LegalholdConfig, npProject)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackgroundWorker.Options
+import Wire.JobSubsystem.Migrations (mkArbiterConnectionString)
 import Wire.Options.Galley (GuestLinkTTLSeconds, conversationCodeURISettings)
 import Wire.Options.Galley qualified as Galley
 import Wire.Options.Keys (loadAllMLSKeys)
@@ -89,6 +91,8 @@ data Env = Env
     cassandraGalley :: ClientState,
     cassandraBrig :: ClientState,
     hasqlPool :: Hasql.Pool,
+    -- May contain the PostgreSQL password. Do not unwrap outside the Arbiter boundary.
+    arbiterConnStr :: SecretText,
     -- Dedicated AMQP channels per concern
     amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
@@ -108,7 +112,7 @@ data Env = Env
     guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
     passwordHashingOptions :: !PasswordHashingOptions,
     checkGroupInfo :: !(Maybe Bool),
-    convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
+    convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
     passwordHashingRateLimitEnv :: RateLimitEnv
   }
 
@@ -190,6 +194,7 @@ mkEnv opts galleyOpts = do
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
+  arbiterConnStr <- mkArbiterConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword
   Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $

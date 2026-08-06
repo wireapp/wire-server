@@ -23,7 +23,6 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
 import Data.Bool (bool)
-import Data.IORef
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 import qualified Data.Yaml as Yaml
@@ -37,27 +36,6 @@ import Prelude
 
 failApp :: (HasCallStack) => String -> App a
 failApp msg = throw (AppFailure msg callStack)
-
-getPrekey :: App Value
-getPrekey = App $ do
-  pks <- asks (.prekeys)
-  (i, pk) <- liftIO $ atomicModifyIORef pks getPK
-  pure $ object ["id" .= i, "key" .= pk]
-  where
-    getPK [] = error "Out of prekeys"
-    getPK (k : ks) = (ks, k)
-
-getLastPrekey :: App Value
-getLastPrekey = App $ do
-  pks <- asks (.lastPrekeys)
-  lpk <- liftIO $ atomicModifyIORef pks getPK
-  pure $ object ["id" .= lastPrekeyId, "key" .= lpk]
-  where
-    getPK [] = error "No last prekey left"
-    getPK (k : ks) = (ks, k)
-
-    lastPrekeyId :: Int
-    lastPrekeyId = 65535
 
 readServiceConfig :: Service -> App Value
 readServiceConfig = readServiceConfig' . configName

@@ -57,6 +57,7 @@ import Wire.API.EnterpriseLogin
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Export
@@ -68,6 +69,7 @@ import Wire.API.Team.Role (Role, defaultRole, permissionsToRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size
 import Wire.API.User as User
+import Wire.API.User.Client qualified as UserClient
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
@@ -77,6 +79,8 @@ import Wire.AppSubsystem
 import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem)
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.DeleteQueue
@@ -90,6 +94,8 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
 import Wire.InvitationStore
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -112,6 +118,8 @@ import Witherable (wither)
 runUserSubsystem ::
   ( Member AppStore r,
     Member UserStore r,
+    Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
@@ -148,8 +156,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         getUserProfilesImpl self others
       GetLocalUserProfiles others ->
         getLocalUserProfilesImpl others
-      GetLocalAppProfiles ltid ->
-        getLocalAppProfilesOnlyImpl ltid
+      GetLocalAppProfiles self ltid ->
+        getLocalAppProfilesImpl self ltid
       GetAccountsBy getBy ->
         getAccountsByImpl getBy
       GetAccountsByEmailNoFilter emails ->
@@ -182,6 +190,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         updateTeamSearchVisibilityInboundImpl status
       SearchUsers luid query mDomain mMaxResults mTypes ->
         searchUsersImpl luid query mDomain mMaxResults mTypes
+      IsUsersContactable users mlsAvailable allowedCipherSuites ->
+        isUsersContactableImpl users mlsAvailable allowedCipherSuites
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
       InternalUpdateSearchIndex uid ->
@@ -195,6 +205,54 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
       CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+
+isUsersContactableImpl ::
+  forall r.
+  (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
+  Map UserId (Set BaseProtocolTag, Set UserClient.Client) ->
+  Bool ->
+  Set CipherSuiteTag ->
+  Sem r (Map UserId Bool)
+isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
+  let prekeyRequests =
+        [ (uid, client.clientId)
+        | (uid, (protocols, clients)) <- Map.toList users,
+          Set.member BaseProtocolProteusTag protocols,
+          client <- Set.toList clients
+        ]
+      mlsRequests =
+        [ (uid, client.clientId, ciphersuite)
+        | mlsAvailable,
+          (uid, (protocols, clients)) <- Map.toList users,
+          Set.member BaseProtocolMLSTag protocols,
+          client <- Set.toList clients,
+          ciphersuite <- Set.toList allowedCipherSuites,
+          Map.member
+            (csSignatureScheme ciphersuite)
+            client.clientMLSPublicKeys
+        ]
+  prekeyPresence <- ClientStore.lookupPrekeyPresenceBulk prekeyRequests
+  mlsPresence <- Mls.hasMlsKeyPackagesBulk mlsRequests
+  pure $ Map.mapWithKey (isContactable prekeyPresence mlsPresence) users
+  where
+    isContactable prekeyPresence mlsPresence uid (protocols, clients) =
+      let proteusReady =
+            Set.member BaseProtocolProteusTag protocols
+              && any (\client -> Set.member (uid, client.clientId) prekeyPresence) clients
+          mlsReady =
+            mlsAvailable
+              && Set.member BaseProtocolMLSTag protocols
+              && any
+                ( \client ->
+                    any
+                      ( \ciphersuite ->
+                          Map.member (csSignatureScheme ciphersuite) client.clientMLSPublicKeys
+                            && Set.member (uid, client.clientId, ciphersuite) mlsPresence
+                      )
+                      allowedCipherSuites
+                )
+                clients
+       in proteusReady || mlsReady
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -366,22 +424,29 @@ getLocalUserProfilesImpl ::
   Sem r [UserProfile]
 getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
 
-getLocalAppProfilesOnlyImpl ::
+getLocalAppProfilesImpl ::
   forall r any.
   ( Member AppStore r,
     Member UserStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
+    Member (Error UserSubsystemError) r,
     Member Now r,
     Member (Concurrency Unsafe) r,
     Member (Input (Local any)) r,
     Member AppSubsystem r,
     Member TeamSubsystem r
   ) =>
-  Local TeamId ->
+  Local UserId ->
+  TeamId ->
   Sem r [UserProfile]
-getLocalAppProfilesOnlyImpl ltid = do
-  apps <- AppStore.getApps (tUnqualified ltid)
+getLocalAppProfilesImpl self tid = do
+  UserStore.getUserTeam (tUnqualified self) >>= \requestingUserTeam ->
+    unless (requestingUserTeam == Just tid) $
+      throw UserSubsystemProfileNotFound
+
+  let ltid = qualifyAs self tid
+  apps <- AppStore.getApps tid
   profiles <- getUserProfilesLocalPart Nothing (ltid $> map (.id) apps)
   let appsMap :: Map UserId AppStore.StoredApp
       appsMap = Map.fromList ((\app -> (app.id, app)) <$> apps)

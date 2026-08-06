@@ -1,0 +1,81 @@
+{-# LANGUAGE TemplateHaskell #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Wire.BudgetStore
+  ( BudgetStore (..),
+    lookupBudget,
+    insertBudget,
+    withBudget,
+    checkBudget,
+    Budget (..),
+    BudgetKey (..),
+    Budgeted (..),
+  )
+where
+
+import Cassandra (Cql)
+import Data.Time.Clock (NominalDiffTime)
+import Imports
+import Polysemy
+
+data Budget = Budget
+  { budgetTimeout :: !NominalDiffTime,
+    budgetValue :: !Int32
+  }
+  deriving (Eq, Show, Generic)
+
+data Budgeted a
+  = BudgetExhausted NominalDiffTime
+  | BudgetedValue a Int32
+  deriving (Eq, Show, Generic)
+
+newtype BudgetKey = BudgetKey Text
+  deriving (Eq, Show, Cql)
+
+data BudgetStore m a where
+  LookupBudget :: BudgetKey -> BudgetStore m (Maybe Budget)
+  InsertBudget :: BudgetKey -> Budget -> BudgetStore m ()
+
+makeSem ''BudgetStore
+
+-- | @withBudget (BudgetKey "k") (Budget 30 5) action@ runs @action@ at most 5 times every 30
+-- seconds.  @"k"@ is used for keeping different calls to 'withBudget' apart; use something
+-- there that's unique to your context, like @"login#" <> uid@.
+--
+-- See the docs in "Gundeck.ThreadBudget" for related work.
+withBudget :: (Member BudgetStore r) => BudgetKey -> Budget -> Sem r a -> Sem r (Budgeted a)
+withBudget k b ma = do
+  Budget ttl val <- fromMaybe b <$> lookupBudget k
+  let remaining = val - 1
+  if remaining < 0
+    then pure (BudgetExhausted ttl)
+    else do
+      a <- ma
+      insertBudget k (Budget ttl remaining)
+      pure (BudgetedValue a remaining)
+
+-- | Like 'withBudget', but does not decrease budget, only takes a look.
+checkBudget :: (Member BudgetStore r) => BudgetKey -> Budget -> Sem r (Budgeted ())
+checkBudget k b = do
+  Budget ttl val <- fromMaybe b <$> lookupBudget k
+  let remaining = val - 1
+  pure $
+    if remaining < 0
+      then BudgetExhausted ttl
+      else BudgetedValue () remaining

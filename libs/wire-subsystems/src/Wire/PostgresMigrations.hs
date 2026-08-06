@@ -42,9 +42,16 @@ allMigrations = map (\(name, contentBS) -> MigrationScript name (Text.decodeUtf8
 
 -- | Scripts which cannot be run in a transaction
 nonTransactionMigrations :: Set ScriptName
-nonTransactionMigrations = Set.fromList ["20260428072649-create-conv-parent-index.sql"]
+nonTransactionMigrations =
+  Set.fromList
+    [ "20260428072649-create-conv-parent-index.sql",
+      "20260708090000-meetings-recurrence-eff-end-index.sql",
+      "20260708100000-meetings-end-time-nonrecurring-index.sql"
+    ]
 
-data PostgresMigrationError = PostgresMigrationError MigrationError
+data PostgresMigrationError
+  = PostgresMigrationError MigrationError
+  | PostgresMigrationUsageError UsageError
   deriving (Show)
 
 instance Exception PostgresMigrationError
@@ -71,7 +78,7 @@ runAllMigrations pool logger = do
             Just err -> throw $ PostgresMigrationError err
         Log.info logger $ Log.msg (Log.val "Migrations completed successfully")
 
-  either throwIO pure =<< use pool session
+  either (throwIO . PostgresMigrationUsageError) pure =<< use pool session
   where
     -- We must use `try` instead of blocking on the lock because running `CREATE
     -- INDEX CONCURRENTLY` requires all transactions to be complete and blocking
@@ -120,4 +127,4 @@ resetSchema pool logger = do
   let session = do
         script "DROP SCHEMA IF EXISTS public CASCADE"
         script "CREATE SCHEMA IF NOT EXISTS public"
-  either throwIO pure =<< use pool session
+  either (throwIO . PostgresMigrationUsageError) pure =<< use pool session

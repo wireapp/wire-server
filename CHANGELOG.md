@@ -1,3 +1,87 @@
+# [2026-07-07] (Chart Release 5.34.0)
+
+## Release notes
+
+
+* Breaking change: the `meetings` team feature flag is now disabled and locked by default. (#5292)
+
+
+## API changes
+
+
+* `cellsInternal` in API version `v17` now exposes storage quotas as `totalLimitBytes` and `perUserQuotaBytes`. `totalLimitBytes` is optional for backward compatibility with existing records, any negative value for either field is accepted as unlimited, and unlimited values are returned as `-1`. (#5271)
+
+* - In API version v17 `POST /register` may now return a new `403 managed-by-scim` error when a SCIM-managed pending user changes the display name during registration
+  - The `GET /teams/invitations/info?code=...` response may now include the optional `managed_by` field (#5268)
+
+* In API version `v17`, `preventAdminlessGroups` feature config updates should use
+  duration string fields `deletionTimeoutDuration` and `reminderTimeoutDurations`.
+  Feature config responses include both the new duration fields and the legacy
+  day-based `deletionTimeout` and `reminderTimeouts` fields for backwards
+  compatibility. API versions before `v17` continue to accept the legacy
+  day-based fields. (#5308)
+
+* Added `PUT /meetings/:domain/:id/invitations` to replace the full list of invited emails of a meeting. (#5285)
+
+* Added `MeetingConversation` as a new `GroupConvType`. Conversations can now be
+  created with `group_conv_type: "meeting"`. (#5296)
+
+* Previously, `POST /sso/get-by-email` and `GET /sso/initiate-login` endpoints
+  treated an IdP as globally configured for all domains when there was only one
+  for a team. This led to information leakage and confusion. Now, these endpoints
+  always treat IdPs as bound to a domain when multi-ingress is configured. I.e.
+  IdP domain and request domain must match, otherwise an error is returned.
+
+  To align with the others, this check is also added to the `HEAD /sso/initiate-login`
+  pre-check endpoint. (#5291)
+
+
+## Features
+
+
+* Prevent adminless groups (#5254, #5256, #5260)
+
+* Changed the `backgroundEffects` team feature flag to be disabled by default (still unlocked). (#5269)
+
+* Add `idpCertFingerprintAllowlist` configuration to restrict IdP certificates by
+  fingerprint. This setting only changes the behaviour of wire-server if
+  configured. So, no e.g. migration or action is required as long as this feature
+  is not intended to be used. (#5272)
+
+
+## Bug fixes and other updates
+
+
+* Do not allow changing the profile name during registration for SCIM users (#5268)
+
+* Fix recurring meetings disappearing from `GET /meetings/list` (and
+  `GET/PUT/DELETE /meetings/{id}`, the invitation endpoints, and the background
+  cleanup worker) once the original time slot passed. Expiry and cleanup now
+  account for `recurrence.until`; open-ended recurring meetings (no `until`) never
+  auto-expire. (#5309)
+
+* Bugfix: backgroundEffects feature flag was not configurable at the helm chart level. Now it is. (#5300)
+
+* Fix MLS participant adds on meeting conversations by granting `InviteAccess`
+  alongside `PrivateAccess` when creating the underlying conversation. Without
+  `InviteAccess`, Galley rejects member joins after MLS commits with 403
+  `access-denied`. (#5305)
+
+* Fix CSP headers for SAML endpoints. These were falsely emitted for *versioned* SAML endpoints. (#5288)
+
+
+## Internal changes
+
+
+* Fixed flaky cross-domain integration tests by pre-warming the static federation path (domain1 <-> domain2) once in test setup (#5312)
+
+* Added logging on stale MLS commits in subconversations (#5251)
+
+* Extend the conversation Code store to support meeting access codes in addition to conversation codes. Adds a backwards-compatible `target` column to the `conversation_codes` Postgres table (defaults to `'conv'`); the Cassandra store continues to serve conversation codes only. Foundational work for meeting access codes. (#5281)
+
+* Background worker now builds conversation subsystem config from the loaded Galley config and no longer fetches it over internal Galley RPC. (#5313)
+
+
 # [2026-06-12] (Chart Release 5.33.0)
 
 ## Release notes

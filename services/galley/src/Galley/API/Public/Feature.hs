@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
@@ -83,7 +84,8 @@ featureAPI =
     <@> mkNamedAPI @'("get", StealthUsersConfig) getFeature
     <@> mkNamedAPI @'("get", CellsInternalConfig) getFeature
     <@> featureAPIGetPut @MeetingsConfig
-    <@> featureAPIGetPut @MeetingsPremiumConfig
+    <@> mkNamedAPI @'("get", MeetingsPremiumConfig) getFeature
+    <@> mkNamedAPI @'("put", MeetingsPremiumConfig) setFeature
     <@> featureAPIGetPut @BackgroundEffectsConfig
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects

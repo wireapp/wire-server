@@ -24,10 +24,10 @@ module Test.Spar.Sem.DefaultSsoCodeSpec where
 import Arbitrary ()
 import Imports
 import Polysemy
-import Spar.Sem.DefaultSsoCode.Mem
 import Spar.Sem.DefaultSsoCode.Spec
 import Test.Hspec
 import Test.Hspec.QuickCheck
+import Wire.DefaultSsoStore.Mem (defaultSsoCodeToMem)
 
 spec :: Spec
 spec = modifyMaxSuccess (const 1000) $ do

@@ -1,1 +1,0 @@
-Extend the conversation Code store to support meeting access codes in addition to conversation codes. Adds a backwards-compatible `target` column to the `conversation_codes` Postgres table (defaults to `'conv'`); the Cassandra store continues to serve conversation codes only. Foundational work for meeting access codes.

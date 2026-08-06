@@ -113,7 +113,33 @@ data:
       checkGroupInfo: {{ .settings.checkGroupInfo }}
       {{- end }}
       meetings:
-        {{- toYaml .settings.meetings | nindent 8 }}
+        {{- with .settings.meetings }}
+        {{- if .validityPeriod }}
+        validityPeriod: {{ .validityPeriod }}
+        {{- end }}
+        {{- with .email }}
+        email:
+          from: {{ required "Missing value: galley.config.settings.meetings.email.from" .from | quote }}
+          {{- if .replyTo }}
+          replyTo: {{ .replyTo | quote }}
+          {{- end }}
+          transport:
+          {{- if .useSES }}
+            sesQueue: {{ required "Missing value: galley.config.settings.meetings.email.aws.sesQueue" .aws.sesQueue }}
+            sesEndpoint: {{ .aws.sesEndpoint | quote }}
+          {{- else }}
+            smtpEndpoint:
+              host: {{ .smtp.host }}
+              port: {{ .smtp.port }}
+            smtpConnType: {{ .smtp.connType }}
+            {{- if .smtp.username }}
+            smtpCredentials:
+              smtpUsername: {{ .smtp.username }}
+              smtpPassword: {{ .smtp.passwordFile }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
@@ -229,10 +255,6 @@ data:
         {{- if .settings.featureFlags.meetings }}
         meetings:
           {{- toYaml .settings.featureFlags.meetings | nindent 10 }}
-        {{- end }}
-        {{- if .settings.featureFlags.meetingsPremium }}
-        meetingsPremium:
-          {{- toYaml .settings.featureFlags.meetingsPremium | nindent 10 }}
         {{- end }}
         {{- if .settings.featureFlags.backgroundEffects }}
         backgroundEffects:

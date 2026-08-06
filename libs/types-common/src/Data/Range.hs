@@ -507,7 +507,11 @@ genRangeText ::
   (KnownNat n, KnownNat m, n <= m) =>
   Gen Char ->
   Gen (Range n m Text)
-genRangeText = genRange fromString
+genRangeText genChar = genRange fromString (QC.suchThat genChar isUnicodeScalarValue)
+  where
+    isUnicodeScalarValue c =
+      let codePoint = ord c
+       in codePoint < 0xD800 || codePoint > 0xDFFF
 
 instance
   (AsciiChars c, KnownNat n, KnownNat m, n <= m, Arbitrary (AsciiChar c)) =>

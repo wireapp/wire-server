@@ -34,7 +34,7 @@ import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.User
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit (CookieThrottle)
-import Wire.EmailSending.SMTP (SMTPConnType (..))
+import Wire.EmailSending.Options
 import Wire.EmailSubsystem.Template (TeamOpts)
 import Wire.PostgresMigrationOpts (PostgresMigrationOpts)
 import Wire.RateLimit.Interpreter
@@ -397,45 +397,6 @@ data ElasticSearchOpts = ElasticSearchOpts
   deriving (Show, Generic)
 
 instance FromJSON ElasticSearchOpts
-
-data EmailAWSOpts = EmailAWSOpts
-  { -- | Event feedback queue for SES (e.g. for email bounces and complaints)
-    sesQueue :: !Text,
-    -- | AWS SES endpoint
-    sesEndpoint :: !AWSEndpoint
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailAWSOpts
-
-data EmailSMTPCredentials = EmailSMTPCredentials
-  { smtpUsername :: !Text,
-    smtpPassword :: !FilePathSecrets
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailSMTPCredentials
-
-data EmailSMTPOpts = EmailSMTPOpts
-  { smtpEndpoint :: !Endpoint,
-    smtpCredentials :: !(Maybe EmailSMTPCredentials),
-    smtpConnType :: !SMTPConnType
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailSMTPOpts
-
-data EmailOpts
-  = EmailAWS EmailAWSOpts
-  | EmailSMTP EmailSMTPOpts
-  deriving (Show, Generic)
-
-instance FromJSON EmailOpts where
-  parseJSON o =
-    EmailAWS
-      <$> parseJSON o
-        <|> EmailSMTP
-      <$> parseJSON o
 
 data BrandingOpts = BrandingOpts
   { brand :: !Text,

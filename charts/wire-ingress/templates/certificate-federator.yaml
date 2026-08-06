@@ -1,3 +1,6 @@
+{{- if and .Values.federator.enabled .Values.config.domains -}}
+{{- fail "config.domains (multi-ingress) is mutually exclusive with federator.enabled (federation). Choose one: federation with a single backend domain via config.dns, OR multi-ingress via config.domains with federator.enabled=false." -}}
+{{- end -}}
 {{- if and .Values.federator.enabled .Values.federator.tls.useCertManager }}
 apiVersion: cert-manager.io/v1
 kind: Certificate

@@ -15,6 +15,7 @@ spec:
       labels:
         app: {{ include "outlook.fullname" . }}
     spec:
+      automountServiceAccountToken: false
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"

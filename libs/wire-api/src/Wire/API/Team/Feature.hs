@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -2399,8 +2400,12 @@ instance ToObjectSchema MeetingsConfig where
 --------------------------------------------------------------------------------
 -- MeetingPremium Feature
 --
--- Indicates whether a team has premium meetings features. When enabled, meetings
--- created by team members are not marked as trial. When disabled, meetings are trial.
+-- /Deprecated (WPB-26771)./ This feature flag no longer affects meeting
+-- behaviour: team meetings are always non-trial. It is kept solely for API
+-- compatibility (the public\/internal endpoints still exist) and defaults to
+-- /enabled and locked/. Scheduled for removal in a future release.
+
+{-# DEPRECATED MeetingsPremiumConfig "Deprecated (WPB-26771): no longer affects meeting trial status; kept for API compatibility." #-}
 
 data MeetingsPremiumConfig = MeetingsPremiumConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
@@ -2412,7 +2417,7 @@ instance ToSchema MeetingsPremiumConfig where
   schema = object objectSchema
 
 instance Default (LockableFeature MeetingsPremiumConfig) where
-  def = defLockedFeature
+  def = defLockedFeature {status = FeatureStatusEnabled}
 
 instance IsFeatureConfig MeetingsPremiumConfig where
   type FeatureSymbol MeetingsPremiumConfig = "meetingsPremium"

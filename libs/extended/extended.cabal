@@ -103,7 +103,7 @@ library
     , errors
     , exceptions
     , hasql
-    , hasql-pool
+    , hasql-resource-pool
     , http-client
     , http-client-tls
     , http-types
@@ -127,7 +127,6 @@ library
     , transformers
     , types-common
     , unliftio
-    , uuid
     , wai
 
   default-language:   GHC2021

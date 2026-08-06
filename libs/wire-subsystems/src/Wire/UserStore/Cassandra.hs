@@ -70,7 +70,6 @@ interpretUserStoreCassandra casClient =
       GetUserTeam uid -> getUserTeamImpl uid
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetRichInfo uid -> getRichInfoImpl uid
-      LookupRichInfos uids -> lookupRichInfosImpl uids
       UpsertHashedPassword uid pw -> upsertHashedPasswordImpl uid pw
       LookupHashedPassword uid -> lookupHashedPasswordImpl uid
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
@@ -255,15 +254,6 @@ lookupNameImpl u =
   where
     nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
     nameSelect = "SELECT name FROM user WHERE id = ?"
-
--- | Returned rich infos are in the same order as users
-lookupRichInfosImpl :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
-lookupRichInfosImpl users = do
-  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
-    <$> retry x1 (query richInfoSelectMulti (params LocalQuorum (Identity users)))
-  where
-    richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
-    richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 lookupFeatureConferenceCallingImpl :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
 lookupFeatureConferenceCallingImpl uid = do

@@ -267,8 +267,35 @@ defaultOverrides resource =
     setMlsPrivateKeyPaths :: ServiceOverrides
     setMlsPrivateKeyPaths =
       def
-        { galleyCfg = setField "settings.mlsPrivateKeyPaths" resource.berMlsPrivateKeyPaths
+        { galleyCfg = \cfg -> do
+            paths <- localMlsPrivateKeyPaths resource.berMlsPrivateKeyPaths
+            setField "settings.mlsPrivateKeyPaths" paths cfg
         }
+
+    localMlsPrivateKeyPaths :: Value -> App Value
+    localMlsPrivateKeyPaths paths = do
+      asks
+        ( ( \case
+              Nothing -> paths
+              Just servicesCwdBase ->
+                absolutizeRelativeJsonStrings (servicesCwdBase </> "galley") paths
+          )
+            . ((.servicesCwdBase))
+        )
+
+    -- Galley and background-worker both read this Galley config, but local
+    -- binaries run with different service-specific working directories. Use
+    -- absolute paths locally while leaving external/CI configs untouched.
+    absolutizeRelativeJsonStrings :: FilePath -> Value -> Value
+    absolutizeRelativeJsonStrings base = \case
+      String path
+        | isRelative (Text.unpack path) ->
+            String . Text.pack . normalise $ base </> Text.unpack path
+      Object objectValue ->
+        Object (absolutizeRelativeJsonStrings base <$> objectValue)
+      Array array ->
+        Array (absolutizeRelativeJsonStrings base <$> array)
+      value -> value
 
     setLogLevel :: ServiceOverrides
     setLogLevel =
@@ -812,6 +839,8 @@ replaceUpstreamsInConfig nginxConf sm =
     removeUpstreamBlocks :: Text.Text
     removeUpstreamBlocks =
       replaceAll "" $
+        -- regex-tdfa does unfortunately not support shorthands for character classes.
+        -- regex-tdfa does unfortunately not support shorthands for character classes.
         -- regex-tdfa does unfortunately not support shorthands for character classes.
         nginxConf *=~ [re|upstream[[:blank:]]+[[:word:]]+([[:blank:]]|[[:cntrl:]])+{([^}]|[[:cntrl:]])+}|]
 

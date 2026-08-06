@@ -28,10 +28,7 @@ import Brig.AWS.SesNotification qualified as SesNotification
 import Brig.App
 import Brig.Calling qualified as Calling
 import Brig.CanonicalInterpreter
-import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
-import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Brig.InternalEvent.Process qualified as Internal
-import Wire.Options hiding (internalEvents, sesQueue)
 import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
@@ -45,6 +42,7 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
+import Hasql.Pool.Extended (rawPool)
 import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -71,8 +69,11 @@ import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.OpenTelemetry (withTracer)
+import Wire.Options hiding (internalEvents, sesQueue)
 import Wire.PostgresMigrations
 import Wire.Sem.Paging qualified as P
+import Wire.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import Wire.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Wire.UserStore
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -82,7 +83,7 @@ import Wire.UserStore
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (app, e) <- mkApp opts
-  runAllMigrations e.hasqlPool e.appLogger
+  runAllMigrations e.hasqlPool.rawPool e.appLogger
   let s = Server.newSettings (server e)
   internalEventListener <-
     Async.async $
@@ -113,7 +114,7 @@ run opts = withTracer \tracer -> do
 migratePostgres :: Opts -> Bool -> IO ()
 migratePostgres opts resetFirst = do
   logger <- initLogger opts
-  pool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  pool <- (.rawPool) <$> initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   when resetFirst $ resetSchema pool logger
   runAllMigrations pool logger
   flush logger

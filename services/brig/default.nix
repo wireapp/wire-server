@@ -47,7 +47,7 @@
 , fsnotify
 , galley-types
 , hashable
-, hasql-pool
+, hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , hscim
@@ -189,7 +189,7 @@ mkDerivation {
     fsnotify
     galley-types
     hashable
-    hasql-pool
+    hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     HsOpenSSL

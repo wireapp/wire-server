@@ -41,10 +41,8 @@ createMeeting ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
   NewMeeting ->
-  Sem r Meeting
-createMeeting lUser newMeeting = do
-  (meeting, _conversation) <- Meetings.createMeeting lUser newMeeting
-  pure meeting
+  Sem r MeetingWithConversation
+createMeeting lUser newMeeting = Meetings.createMeeting lUser newMeeting
 
 updateMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
@@ -54,7 +52,7 @@ updateMeeting ::
   Domain ->
   MeetingId ->
   UpdateMeeting ->
-  Sem r Meeting
+  Sem r MeetingWithConversation
 updateMeeting zUser domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
   maybeMeeting <- Meetings.updateMeeting zUser qMeetingId update

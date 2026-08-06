@@ -33,15 +33,18 @@ spec:
     {{- end }}
   {{- end }}
   listeners:
-    - name: https
-      port: {{ .Values.gateway.listeners.https.port }}
+    {{- $domains := include "wire-ingress.domains" . | fromJsonArray }}
+    {{- range $domain := $domains }}
+    - name: {{ $domain.section }}
+      port: {{ $.Values.gateway.listeners.https.port }}
       protocol: HTTPS
-      hostname: {{ required "gateway.listeners.https.hostname is required (see values.yaml for details)" .Values.gateway.listeners.https.hostname | quote }}
+      hostname: {{ required "an HTTPS listener hostname is required (gateway.listeners.https.hostname for single-domain, or config.domains[].base/hostname)" $domain.hostname | quote }}
       tls:
         mode: Terminate
         certificateRefs:
-          - name: {{ include "wire-ingress.certificateSecretName" . | quote }}
+          - name: {{ $domain.secretName | quote }}
             kind: Secret
+    {{- end }}
     {{- if .Values.federator.enabled }}
     - name: federator
       port: {{ .Values.gateway.listeners.https.port }}

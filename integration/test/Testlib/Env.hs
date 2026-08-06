@@ -42,7 +42,6 @@ import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
-import Testlib.Prekeys
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.Read (readMaybe)
@@ -64,14 +63,15 @@ serviceHostPort m WireServerEnterprise = m.wireServerEnterprise
 
 mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 mkGlobalEnv cfgFile = do
-  eith <- liftIO $ Yaml.decodeFileEither cfgFile
+  absCfgFile <- liftIO $ makeAbsolute cfgFile
+  eith <- liftIO $ Yaml.decodeFileEither absCfgFile
   intConfig <- liftIO $ case eith of
     Left err -> do
-      hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
+      hPutStrLn stderr $ "Could not parse " <> absCfgFile <> ": " <> Yaml.prettyPrintParseException err
       exitFailure
     Right (intConfig :: IntegrationConfig) -> pure intConfig
 
-  let devEnvProjectRoot = case splitPath (takeDirectory cfgFile) of
+  let devEnvProjectRoot = case splitPath (takeDirectory absCfgFile) of
         [] -> Nothing
         ps ->
           if last ps == "services"
@@ -167,14 +167,14 @@ mkEnv :: Maybe String -> GlobalEnv -> Codensity IO Env
 mkEnv currentTestName ge = do
   mls <- liftIO . newIORef =<< mkMLSState
   liftIO $ do
-    pks <- newIORef (zip [1 ..] somePrekeys)
-    lpks <- newIORef someLastPrekeys
     curlTrace <- newIORef []
+    reqId <- newIORef 0
     pure
       Env
         { serviceMap = gServiceMap ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
+          requestIdCounter = reqId,
           integrationTestHostName = gIntegrationTestHostName ge,
           federationV0Domain = gFederationV0Domain ge,
           federationV1Domain = gFederationV1Domain ge,
@@ -192,8 +192,6 @@ mkEnv currentTestName ge = do
               ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
-          prekeys = pks,
-          lastPrekeys = lpks,
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,

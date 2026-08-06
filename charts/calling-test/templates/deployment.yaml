@@ -14,6 +14,7 @@ spec:
       labels:
         {{- include "calling-test.selectorLabels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"

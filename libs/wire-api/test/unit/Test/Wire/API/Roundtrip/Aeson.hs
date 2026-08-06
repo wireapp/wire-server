@@ -17,13 +17,17 @@
 
 module Test.Wire.API.Roundtrip.Aeson (tests) where
 
-import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
+import Data.Aeson (FromJSON, Result (..), ToJSON, Value (..), fromJSON, parseJSON, toJSON)
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (parseEither)
+import Data.Default (def)
 import Data.Id (ConvId)
 import Data.Misc
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
+import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
@@ -42,7 +46,9 @@ import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
 import Wire.API.Event.WebSocketProtocol qualified as EventWebSocketProtocol
 import Wire.API.FederationStatus qualified as FederationStatus
+import Wire.API.Jobs qualified as Jobs
 import Wire.API.Locale qualified as Locale
+import Wire.API.Meeting qualified as Meeting
 import Wire.API.Message qualified as Message
 import Wire.API.OAuth qualified as OAuth
 import Wire.API.Properties qualified as Properties
@@ -55,11 +61,14 @@ import Wire.API.Push.Token qualified as Push.Token
 import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
+import Wire.API.Routes.Version (Version (V15, V16))
 import Wire.API.Routes.Version qualified as Routes.Version
+import Wire.API.Routes.Versioned (Versioned (..))
 import Wire.API.SystemSettings qualified as SystemSettings
 import Wire.API.Team qualified as Team
 import Wire.API.Team.Conversation qualified as Team.Conversation
 import Wire.API.Team.Feature qualified as Team.Feature
+import Wire.API.Team.FeatureFlags qualified as Team.FeatureFlags
 import Wire.API.Team.Invitation qualified as Team.Invitation
 import Wire.API.Team.LegalHold qualified as Team.LegalHold
 import Wire.API.Team.LegalHold.External qualified as Team.LegalHold.External
@@ -153,9 +162,17 @@ tests =
       testRoundTrip @Conversation.Role.ConversationRolesList,
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @CustomBackend.CustomBackend,
+      testRoundTrip @Jobs.MeetingsCleanupJob,
+      testRoundTripWithSwagger @Jobs.AdminlessDeletionJob,
+      testRoundTripWithSwagger @Jobs.AdminlessReminderJob,
+      testRoundTripWithSwagger @Jobs.AdminlessSetupJob,
+      testRoundTrip @Jobs.MeetingsJobPayload,
+      testRoundTrip @Jobs.ConversationsJobPayload,
       testRoundTrip @EJPD.EJPDContact,
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
+      testRoundTrip @Event.Conversation.SystemEvent,
+      testRoundTrip @Event.Conversation.SystemEventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.MembersJoin,
       testRoundTrip @Event.Conversation.Connect,
@@ -369,7 +386,7 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
       testRoundTrip @TeamsIntra.TeamName,
-      testRoundTrip @BackgroundJobs.Job,
+      testRoundTrip @BackgroundJobs.BackgroundJob,
       testRoundTrip @User.ManagedByUpdate,
       testRoundTrip @User.Auth.ReAuthUser,
       testRoundTrip @User.RichInfoUpdate,
@@ -379,8 +396,22 @@ tests =
       testRoundTrip @User.UpdateConnectionsInternal,
       testRoundTrip @Team.TeamSize,
       testRoundTrip @Team.LegalHold.Internal.LegalHoldService,
-      testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest
+      testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest,
+      meetingTrialVersioningTests,
+      testRoundTripWithSwagger @Meeting.Meeting,
+      testRoundTripWithSwagger @(Versioned 'V15 Meeting.Meeting),
+      testRoundTripWithSwagger @(Versioned 'V16 [Meeting.Meeting]),
+      testFeatureFlagsCanonicalJsonRoundtrip
     ]
+
+testFeatureFlagsCanonicalJsonRoundtrip :: T.TestTree
+testFeatureFlagsCanonicalJsonRoundtrip =
+  testCase "FeatureFlags accepts its canonical JSON representation" $
+    case fromJSON (toJSON expected) of
+      Error err -> assertFailure $ "Could not decode canonical FeatureFlags JSON: " <> err
+      Success actual -> assertEqual "Roundtrip result should be the same as the original" actual expected
+  where
+    expected = def @Team.FeatureFlags.FeatureFlags
 
 testRoundTrip ::
   forall a.
@@ -418,3 +449,26 @@ testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
             validatePrettyToJSON v
         )
         $ isNothing (validatePrettyToJSON v)
+
+-- | Defends the API versioning contract introduced when dropping the deprecated
+-- @trial@ field: legacy versions (< V17) still render @trial@ as @false@, while
+-- the current version (V17) omits it entirely.
+meetingTrialVersioningTests :: T.TestTree
+meetingTrialVersioningTests =
+  T.testGroup
+    "Meeting trial field versioning"
+    [ testProperty "legacy (V15) response renders trial=false" $
+        \(m :: Meeting.Meeting) ->
+          trialField (toJSON (Versioned @'V15 m)) === Just False,
+      testProperty "current (V17) response omits trial" $
+        \(m :: Meeting.Meeting) ->
+          trialField (toJSON m) === Nothing
+    ]
+
+-- | Extract the @trial@ boolean from a 'Meeting' JSON object, if present.
+trialField :: Value -> Maybe Bool
+trialField = \case
+  Object o -> case KeyMap.lookup (Key.fromString "trial") o of
+    Just (Bool b) -> Just b
+    _ -> Nothing
+  _ -> Nothing

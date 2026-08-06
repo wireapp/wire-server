@@ -81,10 +81,6 @@ import Spar.Scim.Types
 import qualified Spar.Scim.Types as ST
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import qualified System.Logger.Class as Log
 import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
@@ -106,7 +102,7 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
-import Wire.API.User.Scim (ScimTokenInfo (..), ValidScimId (..))
+import Wire.API.User.Scim (ScimTokenInfo (..), ScimUserCreationStatus (..), ValidScimId (..))
 import qualified Wire.API.User.Scim as ST
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
@@ -114,6 +110,10 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import qualified Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.ScimExternalIdStore (ScimExternalIdStore)
+import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
+import Wire.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
@@ -1000,8 +1000,12 @@ synthesizeStoredUser acc veid =
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
             when (isNothing oldAccessTimes) $
               ScimUserTimesStore.write storedUser
-            when (oldManagedBy /= ManagedByScim) $
+            when (oldManagedBy /= ManagedByScim) $ do
               BrigAPIAccess.setManagedBy uid ManagedByScim
+              -- Invalidate any pending email-address update: a SCIM-managed user's
+              -- email can only be changed through SCIM, so the pending update token
+              -- and the unvalidated email must be removed.
+              BrigAPIAccess.deletePendingEmailUpdate uid
             let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
             when (oldRichInfo /= newRichInfo) $
               BrigAPIAccess.setRichInfo uid newRichInfo
@@ -1130,6 +1134,8 @@ getUserById midp stiTeam uid = do
       -- set managed_by
       when (userManagedBy brigUser /= ManagedByScim) do
         lift $ BrigAPIAccess.setManagedBy uid ManagedByScim
+        -- Invalidate any pending email-address update (see comment above).
+        lift $ BrigAPIAccess.deletePendingEmailUpdate uid
       -- remove dangling entry from spar.user_v2 table (cassandra)
       case mbOldVeid of
         Just oldVeid | ST.veidUref newVeid /= ST.veidUref oldVeid -> do

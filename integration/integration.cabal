@@ -211,6 +211,7 @@ library
     Test.Spar
     Test.Spar.CertFingerprintAllowlist
     Test.Spar.GetByEmail
+    Test.Spar.MultiIngressCrossIdpSso
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
     Test.Spar.STM
@@ -261,6 +262,7 @@ library
     , bytestring
     , bytestring-conversion
     , case-insensitive
+    , cborg
     , containers
     , cookie
     , cql

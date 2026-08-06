@@ -20,6 +20,7 @@
 module Wire.CodeStore where
 
 import Data.Code
+import Data.Domain (Domain)
 import Data.Misc
 import Imports
 import Polysemy
@@ -32,6 +33,6 @@ data CodeStore m a where
   DeleteCode :: Key -> CodeStore m ()
   MakeKey :: CodeReferent -> CodeStore m Key
   GenerateCode :: CodeReferent -> Timeout -> CodeStore m Code
-  GetConversationCodeURI :: Maybe Text -> CodeStore m (Maybe HttpsUrl)
+  GetConversationCodeURI :: Maybe Domain -> CodeStore m (Maybe HttpsUrl)
 
 makeSem ''CodeStore

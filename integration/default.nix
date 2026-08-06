@@ -17,6 +17,7 @@
 , bytestring-conversion
 , Cabal
 , case-insensitive
+, cborg
 , containers
 , cookie
 , cql
@@ -123,6 +124,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     case-insensitive
+    cborg
     containers
     cookie
     cql

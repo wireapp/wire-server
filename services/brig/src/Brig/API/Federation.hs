@@ -72,6 +72,7 @@ import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.UserStore
@@ -89,6 +90,7 @@ federationSitemap ::
     Member UserSubsystem r,
     Member UserStore r,
     Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
     Member ClientSubsystem r
   ) =>
   ServerT FederationAPI (Handler r)
@@ -203,7 +205,8 @@ claimMultiPrekeyBundle _ uc = lift $ liftSem $ ClientSubsystem.claimLocalMultiPr
 fedClaimKeyPackages ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member MlsKeyPackageSubsystem r
   ) =>
   Domain ->
   ClaimKeyPackageRequest ->
@@ -283,15 +286,15 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
 getUserClients :: (Member ClientSubsystem r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = lift (liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientErrorToHttpError
 
-getMLSClients :: (Member ClientStore r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
+getMLSClients :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
   Internal.getMLSClientsH mcr.userId mcr.cipherSuite
 
-getMLSClient :: (Member ClientStore r) => Domain -> MLSClientRequest -> Handler r ClientInfo
+getMLSClient :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientRequest -> Handler r ClientInfo
 getMLSClient _domain mcr =
   Internal.getMLSClientH mcr.userId mcr.clientId mcr.cipherSuite
 
-getMLSClientsV0 :: (Member ClientStore r) => Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
+getMLSClientsV0 :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
 getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0)
 
 onUserDeleted ::

@@ -93,6 +93,7 @@ import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
 import Wire.FederationSubsystem
+import Wire.MeetingNotifier
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
@@ -166,7 +167,8 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundle ::
-  ( Member (ErrorS MLSLegalholdIncompatible) r,
+  ( Member MeetingNotifier r,
+    Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
@@ -201,7 +203,8 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle =
       qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
-  ( Member (ErrorS MLSLegalholdIncompatible) r,
+  ( Member MeetingNotifier r,
+    Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
@@ -237,7 +240,8 @@ postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundleToLocalConv ::
-  ( Member (ErrorS MLSLegalholdIncompatible) r,
+  ( Member MeetingNotifier r,
+    Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
@@ -382,6 +386,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       pure lConvOrSub'
     pure (events, newClients, lConvOrSub')
 
+  notifyNewMeetingMembers qusr lConvOrSub lConvOrSub'
+
   -- send welcome messages
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn (cmIdentities newClients) welcome
@@ -392,6 +398,32 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage convOrSub'.members
 
   pure events
+
+notifyNewMeetingMembers ::
+  (Member MeetingNotifier r) =>
+  Qualified UserId ->
+  Local ConvOrSubConv ->
+  Local ConvOrSubConv ->
+  Sem r ()
+notifyNewMeetingMembers qUser before after =
+  case (tUnqualified before, tUnqualified after) of
+    (Conv beforeConv, Conv afterConv)
+      | isMeetingConv afterConv -> do
+          let beforeUsers = Set.fromList (map (.id_) beforeConv.mcLocalMembers)
+              afterUsers = Set.fromList (map (.id_) afterConv.mcLocalMembers)
+              addedUsers = newLocalMeetingMembers beforeUsers afterUsers
+          unless (null addedUsers) $
+            notifyMeetingMembersAdded
+              qUser
+              (Qualified afterConv.mcId (tDomain after))
+              afterConv.mcMetadata.cnvmTeam
+              addedUsers
+    _ -> pure ()
+  where
+    isMeetingConv conv =
+      conv.mcMetadata.cnvmGroupConvType == Just MeetingConversation
+    newLocalMeetingMembers prev curr =
+      Set.toList (Set.difference curr prev)
 
 handleGroupInfoMismatch ::
   (Member (Error GroupInfoDiagnostics) r) =>

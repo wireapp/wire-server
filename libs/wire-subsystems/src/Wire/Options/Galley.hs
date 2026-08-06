@@ -61,6 +61,8 @@ module Wire.Options.Galley
     checkGroupInfo,
     meetings,
     validityPeriod,
+    email,
+    MeetingsEmailConfig (..),
     postgresMigration,
     PostgresMigrationOpts (..),
     StorageLocation (..),
@@ -70,7 +72,7 @@ module Wire.Options.Galley
   )
 where
 
-import Control.Lens hiding (Level, (.=))
+import Control.Lens hiding (Level, from, (.=))
 import Data.Aeson (FromJSON (..))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
@@ -87,6 +89,8 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
+import Wire.API.User.Identity (EmailAddress)
+import Wire.EmailSending.Options (EmailOpts)
 import Wire.Options.Keys (MLSPrivateKeyPaths)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitConfig)
@@ -138,7 +142,7 @@ data Settings = Settings
     --
     -- multiIngress and conversationCodeURI are mutually exclusive. One of
     -- both options need to be configured.
-    _multiIngress :: Maybe (Map Text HttpsUrl),
+    _multiIngress :: Maybe (Map Domain HttpsUrl),
     -- | Throttling: limits to concurrent deletion events
     _concurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion
@@ -176,10 +180,24 @@ data Settings = Settings
 
 data MeetingsConfig = MeetingsConfig
   { -- | Validity period of a meeting. After this time, the meeting is considered expired.
-    _validityPeriod :: !(Maybe Duration)
+    _validityPeriod :: !(Maybe Duration),
+    -- | Email sending configuration for meeting invitations. When unset, no
+    -- meeting invitation emails are sent.
+    _email :: !(Maybe MeetingsEmailConfig)
   }
   deriving (Show, Generic)
 
+data MeetingsEmailConfig = MeetingsEmailConfig
+  { -- | 'From' sender for meeting emails. Required when the block is present.
+    _from :: !EmailAddress,
+    -- | Optional 'Reply-To' address.
+    _replyTo :: !(Maybe EmailAddress),
+    -- | Outbound transport: AWS SES or SMTP ('Wire.EmailSending.Options.EmailOpts').
+    _transport :: !EmailOpts
+  }
+  deriving (Show, Generic)
+
+deriveFromJSON toOptionFieldName ''MeetingsEmailConfig
 deriveFromJSON toOptionFieldName ''MeetingsConfig
 deriveFromJSON toOptionFieldName ''Settings
 
@@ -243,7 +261,7 @@ deriveFromJSON toOptionFieldName ''Opts
 
 makeLenses ''Opts
 
-conversationCodeURISettings :: (Applicative m) => Opts -> m (Either HttpsUrl (Map Text HttpsUrl))
+conversationCodeURISettings :: (Applicative m) => Opts -> m (Either HttpsUrl (Map Domain HttpsUrl))
 conversationCodeURISettings opts =
   case (opts._settings._conversationCodeURI, opts._settings._multiIngress) of
     (Nothing, Nothing) -> error errMsg

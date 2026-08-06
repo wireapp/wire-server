@@ -5,12 +5,11 @@ import API.Spar (createIdpWithZHostV2, updateIdp)
 import Control.Lens ((.~), (^.))
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
-import qualified Data.Text as T
 import Data.X509 (SignedCertificate)
-import qualified Data.X509.Extended as X509E
 import qualified SAML2.WebSSO.Test.Util as SAMLTest
 import qualified SAML2.WebSSO.Types as SAMLTypes
 import SetupHelpers
+import Testlib.Certs (fingerprintHex)
 import Testlib.Prelude
 import qualified Text.XML.DSig as XMLDSig
 
@@ -136,10 +135,6 @@ bogusFingerprint = "0000000000000000000000000000000000000000"
 -- | First cert in the descriptor's @AuthnResponse@ cert list.
 firstCert :: SAMLTypes.IdPMetadata -> SignedCertificate
 firstCert meta = NE.head $ meta ^. SAMLTypes.edCertAuthnResponse
-
--- | Cert's SHA-1 fingerprint in canonical @AA:BB:..@ hex form.
-fingerprintHex :: SignedCertificate -> String
-fingerprintHex = T.unpack . X509E.renderFingerprintHex . X509E.certSha1Fingerprint
 
 -- | First cert's SHA-1, canonical @AA:BB:..@ form.
 firstCertFingerprint :: SAMLTypes.IdPMetadata -> String

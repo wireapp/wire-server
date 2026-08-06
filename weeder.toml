@@ -137,7 +137,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Spar.Sem.AReqIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.AssIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.ScimTokenStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
-         "^Spar.Sem.VerdictFormatStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
+         "^Wire.VerdictFormatStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spec.main$",
          "^Stern.App.runHandler$",
          "^System.Logger.Extended.runWithLogger$",

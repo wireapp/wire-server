@@ -23,7 +23,9 @@ import API.Spar
 import GHC.Stack
 import qualified SAML2.WebSSO.Test.Util as SAML
 import SetupHelpers
+import Testlib.Certs (fingerprintHex)
 import Testlib.Prelude
+import qualified Text.XML.DSig as XMLDSig
 
 -- | Test the /sso/get-by-email endpoint with multi-ingress setup
 testGetSsoCodeByEmailWithMultiIngress ::
@@ -35,6 +37,8 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
 
+  credsWithCertErnie@(_, _, signedCertErnie) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCertBert@(_, _, signedCertBert) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -59,6 +63,9 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
                         ]
                   ]
               )
+            >=> setField
+              "idpCertFingerprintAllowlist"
+              (fingerprintHex <$> [signedCertErnie, signedCertBert])
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
@@ -69,7 +76,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
       assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
       -- Create IdP for ernie domain
-      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertErnie
       idpIdErnie <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -77,7 +84,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
           resp.json %. "id" >>= asString
 
       -- Create IdP for bert domain
-      SAML.SampleIdP idpmetaBert _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaBert _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertBert
       idpIdBert <-
         createIdpWithZHostV2 owner (Just bertZHost) idpmetaBert `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -92,10 +99,10 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
           [] -> assertFailure "Expected at least one email"
 
       let idpTokenConfig = if isIdPScimToken then (def {idp = Just idpIdErnie}) else def
-      scimTok <- createScimToken owner idpTokenConfig
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner idpTokenConfig
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       if isIdPScimToken
         then when requireExternalEmailVerification $ do
@@ -150,10 +157,10 @@ testGetSsoCodeByEmailRegular (TaggedBool requireExternalEmailVerification) (Tagg
           [] -> assertFailure "Expected at least one email"
 
       let idpTokenConfig = if isIdPScimToken then (def {idp = Just idpId}) else def
-      scimTok <- createScimToken owner idpTokenConfig
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner idpTokenConfig
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       if isIdPScimToken
         then when requireExternalEmailVerification $ do
@@ -169,9 +176,9 @@ testGetSsoCodeByEmailRegular (TaggedBool requireExternalEmailVerification) (Tagg
         ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpId
 
--- | Test that non-SCIM users get no SSO code
-testGetSsoCodeByEmailNonScimUser :: (HasCallStack) => App ()
-testGetSsoCodeByEmailNonScimUser = do
+-- | Test that non-SSO users get no SSO code
+testGetSsoCodeByEmailNonSSOUser :: (HasCallStack) => App ()
+testGetSsoCodeByEmailNonSSOUser = do
   withModifiedBackend
     def {sparCfg = setField "enableIdPByEmailDiscovery" True}
     $ \domain -> do
@@ -186,7 +193,7 @@ testGetSsoCodeByEmailNonScimUser = do
       usr <- randomUser domain def {activate = True}
       userEmail <- usr %. "email" & asString
 
-      -- Try to get SSO code for regular (non-SCIM) user - should return 404 with null
+      -- Try to get SSO code for regular (non-SSO) user - should return 404 with null
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
         mbSsoCode <- lookupField resp.json "sso_code"
@@ -215,10 +222,10 @@ testGetSsoCodeByEmailDisabledRegular = do
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
 
-      scimTok <- createScimToken owner def {idp = Just idpId}
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner def {idp = Just idpId}
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       -- Activate the email so the user can be found by email
       activateEmail domain userEmail
@@ -235,6 +242,7 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
 
+  credsWithCertErnie@(_, _, signedCertErnie) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -259,13 +267,14 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
                         ]
                   ]
               )
+            >=> setField "idpCertFingerprintAllowlist" [fingerprintHex signedCertErnie]
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
       -- Create IdP for ernie domain
-      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertErnie
       idpIdErnie <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -279,10 +288,10 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
 
-      scimTok <- createScimToken owner def {idp = Just idpIdErnie}
-      scimToken <- scimTok.json %. "token" & asString
+      scimToken <- createScimToken owner def {idp = Just idpIdErnie}
+      scimTokenStr <- scimToken.json %. "token" & asString
 
-      createScimUser domain scimToken scimUser >>= assertSuccess
+      createScimUser domain scimTokenStr scimUser >>= assertSuccess
 
       -- Activate the email so the user can be found by email
       activateEmail domain userEmail

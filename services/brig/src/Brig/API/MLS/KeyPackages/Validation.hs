@@ -46,6 +46,7 @@ import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.MlsKeyPackageSubsystem qualified as Mls
 
 validateUploadedKeyPackage ::
   (Member ClientStore r) =>
@@ -91,14 +92,7 @@ validateLifetime lt = do
     validateLifetime' now mMaxLifetime lt
 
 validateLifetime' :: POSIXTime -> Maybe NominalDiffTime -> Lifetime -> Either Text ()
-validateLifetime' now mMaxLifetime lt = do
-  when (tsPOSIX (ltNotBefore lt) > now) $
-    Left "Key package not_before date is in the future"
-  when (tsPOSIX (ltNotAfter lt) <= now) $
-    Left "Key package is expired"
-  for_ mMaxLifetime $ \maxLifetime ->
-    when (tsPOSIX (ltNotAfter lt) > now + maxLifetime) $
-      Left "Key package expiration time is too far in the future"
+validateLifetime' = Mls.validateKeyPackageLifetime
 
 mlsProtocolErrorFromValidationError :: ValidationError -> Handler r a
 mlsProtocolErrorFromValidationError InvalidLeafNodeSignature = throwStd (errorToWai @E.MLSInvalidLeafNodeSignature)

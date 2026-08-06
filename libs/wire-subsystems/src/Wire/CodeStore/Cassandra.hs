@@ -22,6 +22,7 @@ where
 
 import Cassandra
 import Data.Code
+import Data.Domain (Domain)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
@@ -39,7 +40,7 @@ import Wire.Util (embedClientInput)
 interpretCodeStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+    Member (Input (Either HttpsUrl (Map Domain HttpsUrl))) r,
     Member (ErrorS 'CodeStoreNotFound) r
   ) =>
   Sem (CodeStore ': r) a ->

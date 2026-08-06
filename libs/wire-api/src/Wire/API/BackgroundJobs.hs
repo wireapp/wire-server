@@ -32,39 +32,39 @@ import Network.AMQP qualified as Q
 import Network.AMQP.Types qualified as QT
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
-data JobPayload
-  = JobSyncUserGroupAndChannel SyncUserGroupAndChannel
-  | JobSyncUserGroup SyncUserGroup
+data BackgroundJobPayload
+  = BackgroundJobSyncUserGroupAndChannel SyncUserGroupAndChannel
+  | BackgroundJobSyncUserGroup SyncUserGroup
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform JobPayload
+  deriving (Arbitrary) via GenericUniform BackgroundJobPayload
 
-jobPayloadLabel :: JobPayload -> Text
-jobPayloadLabel p = case jobPayloadTag p of
-  JobSyncUserGroupAndChannelTag -> "sync-user-group-and-channel"
-  JobSyncUserGroupTag -> "sync-user-group"
+backgroundJobPayloadLabel :: BackgroundJobPayload -> Text
+backgroundJobPayloadLabel p = case backgroundJobPayloadTag p of
+  BackgroundJobSyncUserGroupAndChannelTag -> "sync-user-group-and-channel"
+  BackgroundJobSyncUserGroupTag -> "sync-user-group"
 
-data JobPayloadTag
-  = JobSyncUserGroupAndChannelTag
-  | JobSyncUserGroupTag
+data BackgroundJobPayloadTag
+  = BackgroundJobSyncUserGroupAndChannelTag
+  | BackgroundJobSyncUserGroupTag
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
-  deriving (Arbitrary) via GenericUniform JobPayloadTag
+  deriving (Arbitrary) via GenericUniform BackgroundJobPayloadTag
 
-instance ToSchema JobPayloadTag where
+instance ToSchema BackgroundJobPayloadTag where
   schema =
     enum @Text $
       mconcat
-        [ element "sync-user-group-and-channel" JobSyncUserGroupAndChannelTag,
-          element "sync-user-group" JobSyncUserGroupTag
+        [ element "sync-user-group-and-channel" BackgroundJobSyncUserGroupAndChannelTag,
+          element "sync-user-group" BackgroundJobSyncUserGroupTag
         ]
 
-jobPayloadTag :: JobPayload -> JobPayloadTag
-jobPayloadTag =
+backgroundJobPayloadTag :: BackgroundJobPayload -> BackgroundJobPayloadTag
+backgroundJobPayloadTag =
   \case
-    JobSyncUserGroupAndChannel {} -> JobSyncUserGroupAndChannelTag
-    JobSyncUserGroup {} -> JobSyncUserGroupTag
+    BackgroundJobSyncUserGroupAndChannel {} -> BackgroundJobSyncUserGroupAndChannelTag
+    BackgroundJobSyncUserGroup {} -> BackgroundJobSyncUserGroupTag
 
-jobPayloadTagSchema :: ObjectSchema SwaggerDoc JobPayloadTag
-jobPayloadTagSchema = field "type" schema
+backgroundJobPayloadTagSchema :: ObjectSchema SwaggerDoc BackgroundJobPayloadTag
+backgroundJobPayloadTagSchema = field "type" schema
 
 data SyncUserGroupAndChannel = SyncUserGroupAndChannel
   { teamId :: TeamId,
@@ -102,44 +102,44 @@ instance ToSchema SyncUserGroup where
         <*> (.userGroupId) .= field "user_group_id" schema
         <*> (.actor) .= maybe_ (optField "actor" schema)
 
-makePrisms ''JobPayload
+makePrisms ''BackgroundJobPayload
 
-jobPayloadObjectSchema :: ObjectSchema SwaggerDoc JobPayload
-jobPayloadObjectSchema =
+backgroundJobPayloadObjectSchema :: ObjectSchema SwaggerDoc BackgroundJobPayload
+backgroundJobPayloadObjectSchema =
   snd
-    <$> (jobPayloadTag &&& id)
+    <$> (backgroundJobPayloadTag &&& id)
       .= bind
-        (fst .= jobPayloadTagSchema)
-        (snd .= dispatch jobPayloadDataSchema)
+        (fst .= backgroundJobPayloadTagSchema)
+        (snd .= dispatch backgroundJobPayloadDataSchema)
   where
-    jobPayloadDataSchema :: JobPayloadTag -> ObjectSchema SwaggerDoc JobPayload
-    jobPayloadDataSchema = \case
-      JobSyncUserGroupAndChannelTag -> tag _JobSyncUserGroupAndChannel (field "payload" schema)
-      JobSyncUserGroupTag -> tag _JobSyncUserGroup (field "payload" schema)
+    backgroundJobPayloadDataSchema :: BackgroundJobPayloadTag -> ObjectSchema SwaggerDoc BackgroundJobPayload
+    backgroundJobPayloadDataSchema = \case
+      BackgroundJobSyncUserGroupAndChannelTag -> tag _BackgroundJobSyncUserGroupAndChannel (field "payload" schema)
+      BackgroundJobSyncUserGroupTag -> tag _BackgroundJobSyncUserGroup (field "payload" schema)
 
-instance ToSchema JobPayload where
-  schema = object jobPayloadObjectSchema
+instance ToSchema BackgroundJobPayload where
+  schema = object backgroundJobPayloadObjectSchema
 
-deriving via (Schema JobPayload) instance Aeson.FromJSON JobPayload
+deriving via (Schema BackgroundJobPayload) instance Aeson.FromJSON BackgroundJobPayload
 
-deriving via (Schema JobPayload) instance Aeson.ToJSON JobPayload
+deriving via (Schema BackgroundJobPayload) instance Aeson.ToJSON BackgroundJobPayload
 
-deriving via (Schema JobPayload) instance S.ToSchema JobPayload
+deriving via (Schema BackgroundJobPayload) instance S.ToSchema BackgroundJobPayload
 
 -- | Background job envelope. Payload is a free-form JSON object.
-data Job = Job
+data BackgroundJob = BackgroundJob
   { jobId :: JobId,
     requestId :: RequestId,
-    payload :: JobPayload
+    payload :: BackgroundJobPayload
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform Job
-  deriving (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema) via Schema Job
+  deriving (Arbitrary) via GenericUniform BackgroundJob
+  deriving (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema) via Schema BackgroundJob
 
-instance ToSchema Job where
+instance ToSchema BackgroundJob where
   schema =
     object $
-      Job
+      BackgroundJob
         <$> jobId .= field "id" schema
         <*> requestId .= field "requestId" schema
         <*> payload .= field "payload" schema

@@ -290,7 +290,7 @@ services:
       POSTGRES_PASSWORD: "posty-the-gres"
       POSTGRES_USER: "wire-server"
       POSTGRES_DB: "backendA"
-    command: postgres -c max_connections=50
+    command: postgres -c max_connections=150
 
   cassandra:
     container_name: demo_wire_cassandra
@@ -334,7 +334,7 @@ services:
       - demo_wire
 
   init_vhosts:
-    image: alpine/curl:3.14
+    image: alpine/curl:8.21.0
     environment:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}

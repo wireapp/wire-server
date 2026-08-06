@@ -249,20 +249,56 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
-### Meetings Premium
+### Meetings email sender and transport
 
-The `meetingsPremium` feature flag controls whether a team has premium meetings features. When enabled, meetings created by team members are not marked as trial. When disabled, meetings are trial and limited to 25 minutes. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+The optional `settings.meetings.email` block enables emailing meeting
+invitations to external addresses. `from` is required; `replyTo` is optional.
+`transport` is an AWS SES or SMTP value (the same shape Brig uses for its
+email transport). When the block is absent, no meeting invitation emails are
+sent.
 
 ```yaml
-meetingsPremium:
-  defaults:
-    status: disabled|enabled
-    lockStatus: locked|unlocked
+# galley.yaml
+settings:
+  meetings:
+    email:
+      from: meetings@example.com
+      replyTo: noreply@example.com
+      transport:               # SES:
+        sesQueue: wire-meetings-email-feedback
+        sesEndpoint: https://email.us-east-1.amazonaws.com
+      # transport:             # SMTP (xor SES):
+      #   smtpEndpoint: { host: smtp.example.com, port: 587 }
+      #   smtpConnType: tls
+      #   smtpCredentials:
+      #     smtpUsername: meetings
+      #     smtpPassword: /etc/wire/galley/secrets/smtp-password.txt
 ```
 
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetingsPremium/(un)?locked`).
+For SMTP, the Helm value `galley.config.settings.meetings.email.smtp.passwordFile`
+points at the path where the SMTP password is read, and
+`galley.secrets.smtpPassword` holds the value (mounted at
+`/etc/wire/galley/secrets/smtp-password.txt`). The Galley ConfigMap injects that
+path into `transport.smtpCredentials.smtpPassword`, the same pattern Brig uses
+for `smtp.passwordFile`.
 
-The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+### Meetings Premium (deprecated)
+
+> **Deprecated (WPB-26771).** The `meetingsPremium` feature flag no longer
+> affects meeting behaviour. Team meetings are always non-trial regardless of
+> this flag's value. The flag and its data type are retained for backward
+> compatibility.
+
+The flag now defaults to **enabled and locked** and the Helm configuration
+override has been removed (operators can no longer change it via Helm). The
+`MeetingsPremiumConfig` type carries a `DEPRECATED` pragma. The public
+`GET/PUT /teams/:tid/features/meetingsPremium` endpoints and the internal
+lock-status endpoints have no behavioural effect and now return 404 at API
+version v17; they remain available through v16.
+
+The aggregate list endpoints (`GET /feature-configs`,
+`GET /teams/:tid/features`) continue to include `meetingsPremium` at all API
+versions, including v17.
 
 ### Background Effects
 
@@ -1332,7 +1368,8 @@ Given an email address, the SSO code is looked up by these criteria:
 - The mapping must be unambiguous (there must be exactly one matching IdP).
   In multi-ingress mode, IdPs are always bound to one domain; the request domain
   must match the IdP's configured domain.
-- The user was created via SCIM
+- The user is a SSO user. So it was created via SCIM with SSO enabled (any IdP
+  configured in SCIM token) OR created via SSO (no SCIM involved).
 
 The last condition ensures that team admins cannot get into locked-out
 situations due to misconfigured IdPs.
@@ -1347,16 +1384,19 @@ configured in `nginz`'s Helm chart in the
 
 #### IdP certificate fingerprint allowlist
 
-This optional feature restricts which X.509 certificates can be used in IdP
-metadata. When configured, all certificates in IdP descriptors must have a
-SHA-1 fingerprint present in the allowlist, or IdP creation/update and SAML
+This feature restricts which X.509 certificates can be used in IdP metadata.
+When configured, all certificates in IdP descriptors must have a SHA-1
+fingerprint present in the allowlist, or IdP creation/update and SAML
 AuthnResponse (`/sso/finalize-login`) requests will be rejected.
 
 This limits team admins in their choice of IdPs. E.g. a malicious team admin
 couldn't provision bad IdPs, as possible IdP certificates are restricted by the
 allowlist.
 
-The feature is disabled by default in Helm (the attribute can be left out as well):
+**For multi-ingress setups, this feature is mandatory** to prevent
+security-relevant configuration mistakes. For regular (non-multi-ingress)
+setups, it is optional and disabled by default in Helm (the attribute can be
+left out as well):
 
 ```yaml
 config:
@@ -1388,6 +1428,13 @@ All formats must be exactly 40 hex digits (20 bytes).
 
 Invalid hex or wrong length (anything not exactly 20 bytes / 40 hex digits) causes
 the configuration to fail at startup with a clear error message.
+
+!!! danger Multi-ingress cross-IdP SSO fallback
+
+  This feature enables multi-ingress cross-IdP authentication in multi-ingress
+  scenarios. I.e. multiple IdPs can be used to authenticate the same account.
+  This can be a security issue if IdPs are not configured for this! See
+  [Multi-ingress cross-IdP SSO(fallback)](#multi-ingress-cross-idp-sso-fallback).
 
 ### SCIM
 
@@ -1609,6 +1656,71 @@ There can be at most one IdP per multi-ingress domain and team. Creating more re
 error. Though, IdPs can be reconfigured as long as this invariant holds.
 
 Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP`.
+
+For multi-ingress setups, the [`idpCertFingerprintAllowlist`](#idp-certificate-fingerprint-allowlist)
+must be configured to restrict which X.509 certificates can be used in IdP metadata.
+This restriction was introduced to mitigate risks of
+[Multi-ingress cross-IdP SSO (fallback)](#multi-ingress-cross-idp-sso-fallback).
+
+#### Multi-ingress cross-IdP SSO (fallback)
+
+Terms used below:
+
+- _Authenticating IdP_ — the external identity provider that issued the SAML
+  assertion, identified by the `Issuer` URI inside it.
+- _IdP configuration_ — backend's IdP representation registered via
+  `/identity-providers`, storing the issuer URI, the associated multi-ingress
+  domain, and the team.
+
+In the normal SSO flow spar looks up the authenticating user by their `(issuer,
+NameID)` pair — matching the assertion's issuer against the IdP configuration
+the user was provisioned under.
+
+In a multi-ingress setup each domain has its own IdP configuration with its own
+issuer URI. A user provisioned under domain _A_ has their SSO identity tied to
+issuer _A_'s URI. When that user later authenticates via domain _B_, the IdP
+authentication response's assertion carries issuer _B_'s URI, so the primary
+`(issuer, NameID)` lookup finds nothing. Two IdPs can't have the same Issuer
+ID because those must be globally unique, and each external identity provider
+controls its own issuer URI (spar can't override it).
+
+When this primary lookup finds no user, spar therefore attempts a cross-IdP
+migration when multi-ingress is configured:
+
+1. **NameID must be an email address.** Username-based `NameID`s are rejected
+   to avoid ambiguity across authenticating IdPs.
+2. **The matching IdP configuration is resolved.** Spar looks for an IdP
+   configuration in the team whose issuer URI and configured domain both match
+   the assertion's issuer and the incoming `Z-Host` header (exact match).
+   If this condition is unmet, the login is rejected.
+3. **Team-wide user search.** The authenticating IdP is now known (step 2), but
+   the user may still be registered under a *different* team IdP from an
+   earlier login. Spar therefore searches every IdP configuration in the team,
+   pairing each one's issuer with the assertion's email NameID, and tries the
+   primary `(issuer, NameID)` lookup for each pairing until one matches.
+4. **Migrate or provision:**
+   - _Exactly one match found:_ The user's SSO identity is updated to point to
+     the IdP configuration for the authenticating IdP's issuer, so subsequent
+     logins hit the primary lookup directly. This saves the complexity of the IdP
+     configuration lookup and keeps the backend's representations of the user's
+     SSO data sound.
+   - _No match found:_ A new user account is auto-provisioned under the
+     authenticating IdP's configuration.
+   - _No matching IdP configuration can be resolved:_ Login is rejected.
+
+##### Security considerations
+
+It must be ensured that email `NameID`s are unique across IdPs by IdP
+administrators. Otherwise, users may be logged into other users' accounts!
+
+!!! danger
+  This fallback feature breaks the 1:1 relationship between users and IdPs. To
+  use it safely, all user accounts must be consistent across all IdPs. Also note,
+  that this increases the attack surface as you have to secure and maintain
+  multiple IdPs; while a successful attack on one of them breaks security for all
+  accounts of a team with that IdP configured.
+
+  **If in doubt, please contact customer support!**
 
 ### Webapp
 
@@ -1939,15 +2051,6 @@ config:
     # Connection acquisition timeout.
     acquisitionTimeout: 10s
 
-    # Maximal connection lifetime.
-    #
-    # Determines how long is available for reuse. After the timeout passes and
-    # an active session is finished the connection will be closed releasing a
-    # slot in the pool for a fresh connection to be established.
-    #
-    # This is useful as a healthy measure for resetting the server-side caches.
-    agingTimeout: 1d
-
     # Maximal connection idle time.
     idlenessTimeout: 10m
 secrets:
@@ -1965,7 +2068,6 @@ postgresql:
 postgresqlPool:
   size: 100
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
 ```
@@ -2194,7 +2296,6 @@ postgresql:
 postgresqlPool:
   size: 5
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 
 # Start migration workers when true
@@ -2216,9 +2317,65 @@ backgroundJobs:
   jobTimeout: 60s    # per attempt
   maxAttempts: 3     # total attempts incl. first run
 
+# Jobs
+jobs:
+  pollInterval: 5s   # how often due jobs are discovered
+  workerThreads: 1   # worker threads for each job queue
+  visibilityTimeout: 60s       # how long a claimed job stays invisible
+  jobHeartbeatInterval: 30s    # refresh interval for running jobs
+  workerHeartbeatInterval: 10s # refresh interval for worker liveness
+  backoffBase: 2.0             # exponential retry backoff base
+  backoffCap: 86400s           # maximum exponential retry backoff
+  jitter: equal                # none, full, or equal retry jitter
+  gracefulShutdownTimeout: 30s # maximum shutdown grace period
+  reaperInterval: 300s         # Arbiter reaper interval
+  reaperTimeout: 300s          # maximum duration of one reaper pass
+  workerStaleThreshold: 300s   # worker heartbeat staleness threshold
+
+Jobs are currently split into two domain queues: `meetings`, which
+contains meeting cleanup jobs, and `conversations`, which contains adminless
+reminder and deletion jobs. Each queue has its own Arbiter worker pool. The
+`workerThreads` value applies independently to both pools.
+
+Both worker pools share the configured `postgresqlPool`; no connection is
+reserved permanently for an individual queue or worker pool. An active
+transactional job temporarily holds one connection, so concurrent jobs can
+borrow multiple connections from the shared pool. Short-lived dispatcher,
+heartbeat, and reaper operations also borrow connections as needed. For
+example, with two queues and `workerThreads: 3`, up to six active job
+transactions may need connections concurrently, in addition to these internal
+operations. Size `postgresqlPool.size` and PostgreSQL `max_connections` for
+the expected concurrency.
+
+The job runner uses polling rather than LISTEN/NOTIFY. It therefore does not
+open a separate listener connection; new jobs are discovered according to
+`jobs.pollInterval`.
+
+`backgroundJobs` and `jobs` configure different job systems. The
+`backgroundJobs` consumer receives immediate user-group synchronization jobs
+from RabbitMQ and controls their in-process concurrency, timeout, and retry
+behavior. `jobs` runs Arbiter-backed PostgreSQL jobs that may be
+scheduled for a future time, including recurring jobs, and controls their
+dispatcher, worker-pool, visibility, retry, and reaper behavior. The systems
+are separate because they currently use different transports and execution
+semantics. They could be merged in the future if the user-group jobs are
+migrated to Arbiter.
+
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
+
+### Job runner PostgreSQL connections
+
+Background-worker runs Arbiter jobs through its configured PostgreSQL pool.
+Choose the pool size and `jobs.workerThreads` to provide sufficient capacity for
+the expected job workload, and size PostgreSQL's `max_connections` accordingly.
+
+At startup, each service that runs the Arbiter migrations briefly opens a
+separate PostgreSQL connection to acquire the migration advisory lock. Include
+this transient connection in the PostgreSQL connection budget and startup
+headroom. It remains open for the migration and related index setup, then is
+released and closed after the advisory lock is released.
 
 The `migrationOptions.timeout` setting limits how long a single migration
 attempt may run after it has acquired the migration lock. If the timeout is
@@ -2241,3 +2398,8 @@ Notes
 - The `migrate...` flags control the corresponding PostgreSQL backfill jobs for the current migration settings; leave them `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
+- `jobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
+- `jobs.pollInterval` controls how often the background worker wakes up to check for due jobs.
+- `jobs.workerThreads` controls the number of worker threads in each job queue. The default is `1`; increasing it allows jobs in that queue to run in parallel when their group keys permit it.
+- Both job queues share the same PostgreSQL pool. Increasing `jobs.workerThreads` can increase the number of connections needed when more jobs run concurrently, but it does not create a permanently dedicated connection per thread or queue.
+- The job runner is poll-only and does not require an additional PostgreSQL listener connection.

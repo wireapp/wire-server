@@ -317,6 +317,13 @@ galley:
       disabledAPIVersions: []
       meetings:
         validityPeriod: "5s"
+        email:
+          from: meetings@example.com
+          replyTo: noreply@example.com
+          useSES: true
+          aws:
+            sesQueue: integration-galley-meetings-events
+            sesEndpoint: http://fake-aws-ses:4569
 
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
@@ -411,10 +418,6 @@ galley:
           defaults:
             status: enabled
             lockStatus: unlocked
-        meetingsPremium:
-          defaults:
-            status: disabled
-            lockStatus: locked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -632,6 +635,8 @@ federator:
 
 background-worker:
   replicaCount: 1
+  # Integration backends do not need graceful job shutdown
+  terminationGracePeriodSeconds: 0
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -650,6 +655,19 @@ background-worker:
       concurrency: 8
       jobTimeout: 60s
       maxAttempts: 3
+    jobs:
+      pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests
+      workerThreads: 1
+      visibilityTimeout: 60s
+      jobHeartbeatInterval: 30s
+      workerHeartbeatInterval: 10s
+      backoffBase: 2.0
+      backoffCap: 86400s
+      jitter: equal
+      gracefulShutdownTimeout: 30s
+      reaperInterval: 300s
+      reaperTimeout: 300s
+      workerStaleThreshold: 300s
     meetingsCleanup:
       cleanOlderThanHours: 0.0014
       batchSize: 100

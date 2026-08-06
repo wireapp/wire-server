@@ -5,6 +5,8 @@
 { mkDerivation
 , aeson
 , amqp
+, arbiter-core
+, arbiter-worker
 , base
 , bilge
 , bytestring
@@ -19,7 +21,7 @@
 , extra
 , federator
 , galley-types
-, hasql-pool
+, hasql-resource-pool
 , HsOpenSSL
 , hspec
 , http-client
@@ -66,6 +68,8 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    arbiter-core
+    arbiter-worker
     base
     bilge
     bytestring
@@ -78,7 +82,7 @@ mkDerivation {
     extended
     extra
     galley-types
-    hasql-pool
+    hasql-resource-pool
     HsOpenSSL
     http-client
     http2-manager

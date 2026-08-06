@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Wire.API.Routes.Public.Galley.Feature where
 
@@ -21,6 +22,7 @@ import Data.Id
 import GHC.TypeLits
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.OAuth
@@ -82,13 +84,14 @@ type FeatureAPI =
     :<|> FeatureAPIGet StealthUsersConfig
     :<|> FeatureAPIGet CellsInternalConfig
     :<|> FeatureAPIGetPut MeetingsConfig
-    :<|> FeatureAPIGetPut MeetingsPremiumConfig
+    :<|> Deprecated ::> Until 'V17 ::> FeatureAPIGet MeetingsPremiumConfig
+    :<|> Deprecated ::> Until 'V17 ::> FeatureAPIPut MeetingsPremiumConfig
     :<|> FeatureAPIGetPut BackgroundEffectsConfig
 
 type VersionedFeatureAPIPut named reqBodyVersion cfg =
   Named
     named
-    ( Description (FeatureAPIDesc cfg)
+    ( Description (VersionedFeatureAPIDesc reqBodyVersion cfg)
         :> ZUser
         :> Summary (AppendSymbol "Put config for " (FeatureSymbol cfg))
         :> CanThrow OperationDenied

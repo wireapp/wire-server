@@ -22,6 +22,8 @@ import Galley.API.Teams.Export qualified as Export
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamMember
+import Wire.API.Team.Collaborator
+import Wire.TeamCollaboratorsSubsystem
 
 teamMemberAPI :: API TeamMemberAPI GalleyEffects
 teamMemberAPI =
@@ -33,5 +35,8 @@ teamMemberAPI =
     <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
     <@> mkNamedAPI @"update-team-member" updateTeamMember
     <@> mkNamedAPI @"get-team-members-csv" Export.getTeamMembersCSV
+    <@> mkNamedAPI @"add-team-collaborator"
+      (\zuid tid (NewTeamCollaborator uid perms) -> createTeamCollaborator zuid uid tid perms)
+    <@> mkNamedAPI @"get-team-collaborators" getAllTeamCollaborators
     <@> mkNamedAPI @"update-team-collaborator" updateTeamCollaborator
     <@> mkNamedAPI @"remove-team-collaborator" removeTeamCollaborator

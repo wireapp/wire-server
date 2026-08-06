@@ -69,37 +69,17 @@ library
     Spar.Sem.AssIDStore
     Spar.Sem.AssIDStore.Cassandra
     Spar.Sem.AssIDStore.Mem
-    Spar.Sem.DefaultSsoCode
-    Spar.Sem.DefaultSsoCode.Cassandra
-    Spar.Sem.DefaultSsoCode.Mem
     Spar.Sem.DefaultSsoCode.Spec
-    Spar.Sem.IdPRawMetadataStore
-    Spar.Sem.IdPRawMetadataStore.Cassandra
-    Spar.Sem.IdPRawMetadataStore.Mem
     Spar.Sem.IdPRawMetadataStore.Spec
-    Spar.Sem.Reporter
-    Spar.Sem.Reporter.Wai
     Spar.Sem.SAML2
     Spar.Sem.SAML2.Library
-    Spar.Sem.SamlProtocolSettings
-    Spar.Sem.SamlProtocolSettings.Servant
     Spar.Sem.SAMLUserStore
     Spar.Sem.SAMLUserStore.Cassandra
     Spar.Sem.SAMLUserStore.Mem
-    Spar.Sem.ScimExternalIdStore
-    Spar.Sem.ScimExternalIdStore.Cassandra
-    Spar.Sem.ScimExternalIdStore.Mem
-    Spar.Sem.ScimExternalIdStore.Spec
     Spar.Sem.ScimTokenStore
     Spar.Sem.ScimTokenStore.Cassandra
     Spar.Sem.ScimTokenStore.Mem
-    Spar.Sem.ScimUserTimesStore
-    Spar.Sem.ScimUserTimesStore.Cassandra
-    Spar.Sem.ScimUserTimesStore.Mem
     Spar.Sem.Utils
-    Spar.Sem.VerdictFormatStore
-    Spar.Sem.VerdictFormatStore.Cassandra
-    Spar.Sem.VerdictFormatStore.Mem
 
   other-modules:      Paths_spar
   hs-source-dirs:     src

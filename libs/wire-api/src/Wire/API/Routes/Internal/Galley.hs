@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Wire.API.Routes.Internal.Galley where
 
@@ -98,7 +99,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut SimplifiedUserConnectionRequestQRCodeConfig
     :<|> IFeatureStatusLockStatusPut StealthUsersConfig
     :<|> IFeatureStatusLockStatusPut MeetingsConfig
-    :<|> IFeatureStatusLockStatusPut MeetingsPremiumConfig
+    :<|> Until 'V17 ::> IFeatureStatusLockStatusPut MeetingsPremiumConfig
     :<|> IFeatureStatusLockStatusPut BackgroundEffectsConfig
     -- all feature configs
     :<|> Named

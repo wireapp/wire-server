@@ -68,13 +68,14 @@ inMemoryUserSubsystemInterpreter =
     GetLocalUserProfiles luids ->
       toProfile . mkUserFromStored testDomain testLocale
         <$$> UserStore.getUsers (tUnqualified luids)
-    GetLocalAppProfiles _ ->
+    GetLocalAppProfiles _ _ ->
       error "GetLocalAppProfiles: implement on demand (userSubsystemInterpreter)"
     GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations True True uids []) ->
       mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
     GetAccountsBy (tUnqualified -> GetBy _ _ _ uids []) ->
       mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
+    IsUsersContactable users _ _ -> pure (False <$ users)
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"
     CheckHandle _ -> error "CheckHandle: implement on demand (userSubsystemInterpreter)"
     CheckHandles _ _ -> error "CheckHandles: implement on demand (userSubsystemInterpreter)"

@@ -252,6 +252,7 @@ stopQueueWatcher watcher = void $ tryPutMVar watcher.doneVar ()
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
+    requestIdCounter :: IORef Int,
     domain1 :: String,
     domain2 :: String,
     integrationTestHostName :: String,
@@ -263,8 +264,6 @@ data Env = Env
     apiVersionByDomain :: Map String Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
-    prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMqAdminOpts,

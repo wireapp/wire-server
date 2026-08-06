@@ -30,6 +30,7 @@ module Spar.App
     validateEmail,
     errorPage,
     deleteTeam,
+    assertCertsAllowlisted,
     sparToServerErrorWithLogging,
     renderSparErrorWithLogging,
   )
@@ -39,26 +40,33 @@ import Bilge
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
+import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import Data.ByteString (toStrict)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.CaseInsensitive as CI
+import Data.Domain
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
+import qualified Data.X509 as X509
+import Data.X509.Extended
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( Issuer (..),
@@ -75,16 +83,12 @@ import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.Reporter (Reporter)
-import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
+import System.Logger (Msg)
+import qualified System.Logger as Log
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
@@ -100,11 +104,17 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import qualified Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.Reporter (Reporter)
+import qualified Wire.Reporter as Reporter
+import Wire.ScimExternalIdStore (ScimExternalIdStore)
+import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Wire.VerdictFormatStore (VerdictFormatStore)
+import qualified Wire.VerdictFormatStore as VerdictFormatStore
 
 throwSparSem :: (Member (Error SparError) r) => SparCustomError -> Sem r a
 throwSparSem = throw . SAML.CustomError
@@ -276,26 +286,29 @@ validateEmail _ _ _ = pure ()
 verdictHandler ::
   (HasCallStack) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member AReqIDStore r,
     Member VerdictFormatStore r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member Reporter r,
-    Member SAMLUserStore r
+    Member SAMLUserStore r,
+    Member (Input Opts) r
   ) =>
   NonEmpty SAML.Assertion ->
   SAML.AccessVerdict ->
   IdP ->
+  Maybe Domain ->
   Sem r SAML.ResponseVerdict
-verdictHandler aresp verdict idp = do
+verdictHandler aresp verdict idp mbHost = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
-  Logger.log Logger.Debug $ "entering verdictHandler: " <> show (aresp, verdict)
+  Logger.debug $ Log.msg ("entering verdictHandler" :: String) . Log.field "aresp" (show aresp) . Log.field "verdict" (show verdict)
   reqid <- do
     let xs = SAML.assertionToInResponseTo `mapM` aresp
     case NonEmpty.nub <$> xs of
@@ -305,13 +318,13 @@ verdictHandler aresp verdict idp = do
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just (VerdictFormatWeb mlabel) ->
-      verdictHandlerResult verdict idp mlabel >>= verdictHandlerWeb
+      verdictHandlerResult verdict idp mlabel mbHost >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied mlabel) ->
-      verdictHandlerResult verdict idp mlabel >>= verdictHandlerMobile granted denied
+      verdictHandlerResult verdict idp mlabel mbHost >>= verdictHandlerMobile granted denied
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
-  Logger.log Logger.Debug $ "leaving verdictHandler: " <> show resp
+  Logger.debug $ Log.msg ("leaving verdictHandler" :: String) . Log.field "resp" (show resp)
   pure resp
 
 data VerdictHandlerResult
@@ -323,23 +336,26 @@ data VerdictHandlerResult
 verdictHandlerResult ::
   (HasCallStack) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member Reporter r,
-    Member SAMLUserStore r
+    Member SAMLUserStore r,
+    Member (Input Opts) r
   ) =>
   SAML.AccessVerdict ->
   IdP ->
   Maybe CookieLabel ->
+  Maybe Domain ->
   Sem r VerdictHandlerResult
-verdictHandlerResult verdict idp mlabel = do
-  Logger.log Logger.Debug $ "entering verdictHandlerResult"
-  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel
-  Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
+verdictHandlerResult verdict idp mlabel mbHost = do
+  Logger.debug $ Log.msg ("entering verdictHandlerResult" :: String)
+  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel mbHost
+  Logger.debug $ Log.msg ("leaving verdictHandlerResult" :: String) . Log.field "result" (show result)
   pure result
 
 catchVerdictErrors ::
@@ -399,48 +415,154 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
+  forall r.
   (HasCallStack) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
-    Member SAMLUserStore r
+    Member SAMLUserStore r,
+    Member (Input Opts) r
   ) =>
   IdP ->
   SAML.AccessVerdict ->
   Maybe CookieLabel ->
+  Maybe Domain ->
   Sem r VerdictHandlerResult
-verdictHandlerResultCore idp verdict mlabel = case verdict of
+verdictHandlerResultCore idp verdict mlabel mbHost = case verdict of
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted uref -> do
     uid :: UserId <- do
       let team' = idp ^. idpExtraInfo . team
-          err = SparUserRefInNoOrMultipleTeams . LText.pack . show $ uref
-      getUserByUrefUnsafe uref >>= \case
-        Just usr -> do
-          if userTeam usr == Just team'
-            then pure (userId usr)
-            else throwSparSem err
-        Nothing -> do
-          getUserByUrefViaOldIssuerUnsafe idp uref >>= \case
-            Just (olduref, usr) -> do
-              let uid = userId usr
-              if userTeam usr == Just team'
-                then moveUserToNewIssuer olduref uref uid >> pure uid
-                else throwSparSem err
-            Nothing -> do
-              buid <- Id <$> Random.uuid
-              autoprovisionSamlUser idp buid uref
-              validateSamlEmailIfExists buid uref
-              pure buid
-
-    Logger.log Logger.Debug ("granting sso login for " <> show uid)
+      samlConfig <- input <&> (.saml)
+      findUserWithUref idp team' uref >>= \case
+        Just uid -> pure uid
+        Nothing ->
+          if SAML.isMultiIngressConfig samlConfig
+            then multiIngressFlow team'
+            else provisionNewUser
+    Logger.debug $ Log.msg ("granting sso login" :: String) . Log.field "user" (idToText uid)
     cky <- BrigAPIAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
+    where
+      provisionNewUser :: Sem r UserId
+      provisionNewUser = do
+        buid <- Id <$> Random.uuid
+        autoprovisionSamlUser idp buid uref
+        validateSamlEmailIfExists buid uref
+        pure buid
+
+      -- Try to find a user by UserRef, with fallback to old issuers. Returns
+      -- the UserId if found and in the correct team, Nothing if not found.
+      -- Throws SparUserRefInNoOrMultipleTeams if user is found but in the
+      -- wrong team. Side effect: Old-style users (found via old issuers) are
+      -- migrated to the new issuer.
+      findUserWithUref :: IdP -> TeamId -> SAML.UserRef -> Sem r (Maybe UserId)
+      findUserWithUref idp' team'' uref' = do
+        let err = SparUserRefInNoOrMultipleTeams . LText.pack . show $ uref'
+        getUserByUrefUnsafe uref' >>= \case
+          Just usr -> do
+            if userTeam usr == Just team''
+              then pure (Just (userId usr))
+              else throwSparSem err
+          Nothing -> do
+            getUserByUrefViaOldIssuerUnsafe idp' uref' >>= \case
+              Just (olduref, usr) -> do
+                let uid = userId usr
+                if userTeam usr == Just team''
+                  then moveUserToNewIssuer olduref uref' uid >> pure (Just uid)
+                  else throwSparSem err
+              Nothing -> pure Nothing
+
+      -- In multi-ingress scenarios users can be already assigned to one IdP,
+      -- but try to authenticate with another. This happens when users switch
+      -- the used domain as IdPs are domain-bound. We allow this, when the new
+      -- IdP is configured for the user's team and the used domain.
+      -- Additionally, the provided NameId must be an email address (no
+      -- username) to prevent ambiguities (though, we know this won't be
+      -- guarding against all ambiguity cases).
+      -- When we've found the matching IdP and the user's old one, we migrate
+      -- the user to the new one to not have to run this search again when the
+      -- user logs in with this IdP.
+      multiIngressFlow :: TeamId -> Sem r UserId
+      multiIngressFlow team' =
+        case uref of
+          SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> do
+            teamIdPs <- IdPConfigStore.getConfigsByTeam team'
+            let urefIssuer = uref ^. SAML.uidTenant
+
+            case selectAuthenticatingIdP teamIdPs urefIssuer mbHost of
+              Nothing -> do
+                let issuerText = urefIssuer ^. SAML.fromIssuer . to (TE.decodeUtf8 . URI.serializeURIRef')
+                    domainAsText = maybe "default" domainText mbHost
+                    errorMsg =
+                      "IdP with issuer '"
+                        <> issuerText
+                        <> "' for domain '"
+                        <> domainAsText
+                        <> "' is not configured for this team"
+                throwSparSem $ SparIdPNotFound (LText.fromStrict errorMsg)
+              Just multiIngressIdp -> do
+                assertCertsAllowlisted (multiIngressIdp ^. SAML.idpMetadata)
+                let subject = uref ^. SAML.uidSubject
+                findUserInTeamIdPs team' subject teamIdPs >>= \case
+                  Nothing -> do
+                    logMultiIngressProvisioningNewUser idp uref multiIngressIdp mbHost
+                    provisionNewUser
+                  Just (uid, oldUref) -> do
+                    logMultiIngressMigratingUser idp uid oldUref uref multiIngressIdp mbHost
+                    moveUserToNewIssuer oldUref uref uid
+                    pure uid
+          _userRef ->
+            throwSparSem . SparMultiIngressIdPConfiguration $
+              "Multi-ingress SSO only supports email-based NameIDs for cross-IdP migration. "
+                <> "Username-based NameIDs are not allowed."
+
+      -- Try to authenticate against all IdPs. In case, return the UserId and the old UserRef.
+      findUserInTeamIdPs :: TeamId -> SAML.NameID -> [IdP] -> Sem r (Maybe (UserId, SAML.UserRef))
+      findUserInTeamIdPs team'' subject idps = runMaybeT $ asum $ map tryIdP idps
+        where
+          tryIdP :: IdP -> MaybeT (Sem r) (UserId, SAML.UserRef)
+          tryIdP idp' = do
+            let oldIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
+                oldUref = SAML.UserRef oldIssuer subject
+            uid <- MaybeT $ findUserWithUref idp' team'' oldUref
+            pure (uid, oldUref)
+
+      selectAuthenticatingIdP :: [IdP] -> Issuer -> Maybe Domain -> Maybe IdP
+      selectAuthenticatingIdP teamIdPs issuer mbDomain =
+        find matchesIssuerAndDomain teamIdPs
+        where
+          matchesIssuerAndDomain idp' =
+            idp' ^. SAML.idpMetadata . SAML.edIssuer == issuer
+              && idp' ^. idpExtraInfo . domain == mbDomain
+
+      logMultiIngressProvisioningNewUser :: IdP -> SAML.UserRef -> IdP -> Maybe Domain -> Sem r ()
+      logMultiIngressProvisioningNewUser idp' uref' multiIngressIdp' mbHost' =
+        Logger.info $
+          Log.msg ("Multi-ingress SSO: IdP found but user does not exist, provisioning new user" :: String)
+            . Log.field "team" (idToText (idp' ^. idpExtraInfo . team))
+            . Log.field "issuer" (uref' ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+            . Log.field "multi_ingress_idp" (multiIngressIdp' ^. SAML.idpId . to SAML.fromIdPId . to show)
+            . Log.field "authenticating_idp" (idp' ^. SAML.idpId . to SAML.fromIdPId . to show)
+            . Log.field "domain" (mbHost' & maybe "None" domainText)
+
+      logMultiIngressMigratingUser :: IdP -> UserId -> SAML.UserRef -> SAML.UserRef -> IdP -> Maybe Domain -> Sem r ()
+      logMultiIngressMigratingUser idp' uid' oldUref' uref' multiIngressIdp' mbHost' =
+        Logger.info $
+          Log.msg ("Multi-ingress SSO: user found via different IdP, migrating issuer" :: String)
+            . Log.field "team" (idToText (idp' ^. idpExtraInfo . team))
+            . Log.field "user" (idToText uid')
+            . Log.field "old_issuer" (oldUref' ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+            . Log.field "new_issuer" (uref' ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+            . Log.field "authenticating_idp" (idp' ^. SAML.idpId . to SAML.fromIdPId . to show)
+            . Log.field "multi_ingress_idp" (multiIngressIdp' ^. SAML.idpId . to SAML.fromIdPId . to show)
+            . Log.field "domain" (mbHost' & maybe "None" domainText)
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
@@ -613,6 +735,68 @@ deleteTeam team' = do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
     SAMLUserStore.deleteByIssuer issuer
     IdPConfigStore.deleteConfig idp
+
+-- | Reject IdPs whose cert SHA-1 is not in the configured allowlist.
+--
+-- Empty/absent allowlist is a no-op in the regular case, it short-circuits to
+-- error for multi-ingress setups. I.e. the allowlist is required for
+-- multi-ingress setups.
+assertCertsAllowlisted ::
+  forall r.
+  ( Member (Input Opts) r,
+    Member (Logger (Msg -> Msg)) r,
+    Member (Error SparError) r
+  ) =>
+  SAML.IdPMetadata ->
+  Sem r ()
+assertCertsAllowlisted idpmeta = do
+  mAllow <- inputs idpCertFingerprintAllowlist
+  let certs = idpmeta ^. SAML.edCertAuthnResponse
+      issuerTxt =
+        TE.decodeUtf8 $
+          URI.serializeURIRef' (idpmeta ^. SAML.edIssuer . SAML.fromIssuer)
+  guardMultiIngressCertsAllowlistNotEmpty mAllow certs issuerTxt
+  case mAllow of
+    Nothing -> pure ()
+    Just (CertFingerprintAllowlist allowed)
+      | Set.null allowed -> pure ()
+      | otherwise -> do
+          forM_ certs $ \c -> do
+            let fingerprint = certSha1Fingerprint c
+                fingerprintHex = renderFingerprintHex fingerprint
+            unless (Set.member fingerprint allowed) $ do
+              logCertNotInAllowlist fingerprintHex issuerTxt
+              throwSparSem (SparIdPCertNotAllowed (LText.fromStrict fingerprintHex))
+  where
+    logCertNotInAllowlist fingerprintHex issuerTxt =
+      Logger.warn $
+        Log.msg ("Refusing IdP request: cert fingerprint not in allowlist" :: ByteString)
+          . Log.field "fingerprint" fingerprintHex
+          . Log.field "issuer" issuerTxt
+
+    guardMultiIngressCertsAllowlistNotEmpty ::
+      Maybe CertFingerprintAllowlist ->
+      NonEmpty X509.SignedCertificate ->
+      Text ->
+      Sem r ()
+    guardMultiIngressCertsAllowlistNotEmpty mAllow certs issuerTxt = do
+      samlConfig <- inputs saml
+
+      when (isEmptyAllowList mAllow && SAML.isMultiIngressConfig samlConfig) $ do
+        let fingerprintHex = renderFingerprintHex . certSha1Fingerprint . NonEmpty.head $ certs
+        logMultiIngressEmptyAllowlist fingerprintHex
+        throwSparSem (SparIdPCertNotAllowed (LText.fromStrict fingerprintHex))
+      where
+        logMultiIngressEmptyAllowlist fingerprintHex =
+          Logger.warn $
+            Log.msg ("Refusing IdP request: multi-ingress enabled and allowlist empty" :: ByteString)
+              . Log.field "fingerprint" fingerprintHex
+              . Log.field "issuer" issuerTxt
+
+        isEmptyAllowList :: Maybe CertFingerprintAllowlist -> Bool
+        isEmptyAllowList Nothing = True
+        isEmptyAllowList (Just (CertFingerprintAllowlist allowed)) | Set.null allowed = True
+        isEmptyAllowList (Just _) = False
 
 sparToServerErrorWithLogging :: (Member Reporter r) => SparError -> Sem r ServerError
 sparToServerErrorWithLogging = fmap httpErrorToServerError . renderSparErrorWithLogging

@@ -22,11 +22,6 @@ import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
-import Brig.Effects.JwtTools
-import Brig.Effects.PublicKeyBundle
-import Brig.Effects.SFT (SFT, interpretSFT)
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.IO.Intra (runEvents)
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
@@ -37,7 +32,7 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
@@ -66,10 +61,12 @@ import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq (interpretBackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
-import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher)
-import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
+import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
+import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.BudgetStore
+import Wire.BudgetStore.Cassandra
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
@@ -109,7 +106,12 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.JwtTools
 import Wire.MigrationLock
+import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
+import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.Options qualified as Opt
@@ -128,6 +130,7 @@ import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.SAMLEmailSubsystem
 import Wire.SAMLEmailSubsystem.Interpreter
+import Wire.SFT (SFT, interpretSFT)
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
@@ -159,6 +162,8 @@ import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
+import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
@@ -203,9 +208,11 @@ type BrigLowerLevelEffects =
      Wire.Events.Events,
      NotificationSubsystem,
      BackendNotificationQueueAccess,
-     BackgroundJobsPublisher,
+     BackgroundJobPublisher,
      RateLimit,
      UserKeyStore,
+     MlsKeyPackageSubsystem,
+     MlsKeyPackageStore,
      UserStore,
      UserGroupStore,
      DomainRegistrationStore,
@@ -240,7 +247,7 @@ type BrigLowerLevelEffects =
      SFT,
      ConnectionStore InternalPaging,
      Input Cas.ClientState,
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      Input AppSubsystemConfig,
      Input UserSubsystemConfig,
      Input VerificationCodeThrottleTTL,
@@ -251,9 +258,9 @@ type BrigLowerLevelEffects =
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
-     PublicKeyBundle,
      JwtTools,
      BlockListStore,
+     BudgetStore,
      UserPendingActivationStore InternalPaging,
      Now,
      Delay,
@@ -428,9 +435,9 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
+              . budgetStoreToCassandra @Cas.Client
               . interpretBlockListStoreToCassandra e.casClient
               . interpretJwtTools
-              . interpretPublicKeyBundle
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
@@ -476,9 +483,11 @@ runBrigToIO e (AppT ma) = do
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
+              . interpretMlsKeyPackageStoreToCassandra e.casClient
+              . interpretMlsKeyPackageSubsystem e.settings.keyPackageMaximumLifetime e.keyPackageLocalLock
               . interpretUserKeyStoreCassandra e.casClient
               . interpretRateLimit e.rateLimitEnv
-              . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
+              . interpretBackgroundJobPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
               . interpretBackendNotificationQueueAccess (Just backendNotificationQueueEnv)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents

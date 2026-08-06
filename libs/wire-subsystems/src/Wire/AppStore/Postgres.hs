@@ -24,22 +24,16 @@ where
 
 import Data.Id
 import Data.Range
-import Hasql.Pool
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error)
-import Polysemy.Input
 import Wire.API.PostgresMarshall
 import Wire.API.User qualified as User
 import Wire.AppStore
 import Wire.Postgres
 
 interpretAppStoreToPostgres ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   InterpreterFor AppStore r
 interpretAppStoreToPostgres =
   interpret $ \case
@@ -50,10 +44,7 @@ interpretAppStoreToPostgres =
     DeleteApp userId teamId -> deleteAppImpl userId teamId
 
 createAppImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   StoredApp ->
   Sem r ()
 createAppImpl app =
@@ -64,10 +55,7 @@ createAppImpl app =
         values ($1 :: uuid, $2 :: uuid, $3 :: json, $4 :: text, $5 :: text, $6 :: uuid) |]
 
 getAppImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   UserId ->
   TeamId ->
   Sem r (Maybe StoredApp)
@@ -85,10 +73,7 @@ eraseMetadata :: StoredApp -> StoredApp
 eraseMetadata sap = sap {meta = mempty}
 
 getAppsImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   TeamId ->
   Sem r [StoredApp]
 getAppsImpl tid =
@@ -99,10 +84,7 @@ getAppsImpl tid =
         from apps where team_id = ($1 :: uuid) |]
 
 updateAppImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   TeamId ->
   UserId ->
   StoredAppUpdate ->
@@ -137,10 +119,7 @@ updateAppImpl (toUUID -> teamId) (toUUID -> appId) upd = do
   pure $ maybe (Left NotFound) (\_ -> Right ()) found
 
 deleteAppImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   UserId ->
   TeamId ->
   Sem r ()

@@ -42,14 +42,16 @@ emailKeyToCode =
 inMemoryActivationCodeStoreInterpreter ::
   (Member (State (Map EmailKey (Maybe UserId, ActivationCode))) r) =>
   InterpreterFor ActivationCodeStore r
-inMemoryActivationCodeStoreInterpreter = interpret \case
-  LookupActivationCode ek -> gets (!? ek)
-  NewActivationCode ek _ uid -> do
-    let key =
-          ActivationKey
-            . Ascii.encodeBase64Url
-            . T.encodeUtf8
-            . emailKeyUniq
-            $ ek
-        c = emailKeyToCode ek
-    modify (insert ek (uid, c)) $> Activation key c
+inMemoryActivationCodeStoreInterpreter =
+  interpret \case
+    LookupActivationCode ek -> gets (!? ek)
+    NewActivationCode ek _ uid -> do
+      let key =
+            ActivationKey
+              . Ascii.encodeBase64Url
+              . T.encodeUtf8
+              . emailKeyUniq
+              $ ek
+          c = emailKeyToCode ek
+      modify (insert ek (uid, c)) $> Activation key c
+    DeleteActivationCode ek -> modify (delete ek)

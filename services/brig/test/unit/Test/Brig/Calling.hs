@@ -23,8 +23,6 @@ module Test.Brig.Calling (tests) where
 import Brig.Calling
 import Brig.Calling.API
 import Brig.Calling.Internal
-import Brig.Effects.SFT
-import Wire.Options
 import Control.Concurrent.Timeout qualified as System
 import Control.Lens ((^.))
 import Control.Monad.Catch
@@ -52,6 +50,8 @@ import UnliftIO.Async qualified as Async
 import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
+import Wire.Options
+import Wire.SFT
 import Wire.Sem.Logger.TinyLog
 
 data FakeDNSEnv = FakeDNSEnv

@@ -27,12 +27,14 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 
 type MeetingsAPI =
   Named
-    "create-meeting"
+    "create-meeting@v15"
     ( Summary "Create a new meeting"
         :> From 'V15
+        :> Until 'V17
         :> ZLocalUser
         :> "meetings"
         :> ReqBody '[JSON] NewMeeting
@@ -41,13 +43,29 @@ type MeetingsAPI =
         :> MultiVerb
              'POST
              '[JSON]
-             '[Respond 201 "Meeting created" Meeting]
-             Meeting
+             '[VersionedRespond 'V15 201 "Meeting created" MeetingWithConversation]
+             MeetingWithConversation
     )
     :<|> Named
-           "update-meeting"
+           "create-meeting"
+           ( Summary "Create a new meeting"
+               :> From 'V17
+               :> ZLocalUser
+               :> "meetings"
+               :> ReqBody '[JSON] NewMeeting
+               :> CanThrow 'InvalidOperation
+               :> CanThrow UnreachableBackends
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 201 "Meeting created" MeetingWithConversation]
+                    MeetingWithConversation
+           )
+    :<|> Named
+           "update-meeting@v15"
            ( Summary "Update an existing meeting"
                :> From 'V15
+               :> Until 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
@@ -59,8 +77,26 @@ type MeetingsAPI =
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    '[Respond 200 "Meeting updated" Meeting]
-                    Meeting
+                    '[VersionedRespond 'V15 200 "Meeting updated" MeetingWithConversation]
+                    MeetingWithConversation
+           )
+    :<|> Named
+           "update-meeting"
+           ( Summary "Update an existing meeting"
+               :> From 'V17
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidOperation
+               :> ReqBody '[JSON] UpdateMeeting
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[Respond 200 "Meeting updated" MeetingWithConversation]
+                    MeetingWithConversation
            )
     :<|> Named
            "delete-meeting"
@@ -80,9 +116,24 @@ type MeetingsAPI =
                     ()
            )
     :<|> Named
-           "get-meeting"
+           "get-meeting@v15"
            ( Summary "Get a single meeting by ID"
                :> From 'V15
+               :> Until 'V17
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V15 200 "A single meeting by ID" Meeting)
+           )
+    :<|> Named
+           "get-meeting"
+           ( Summary "Get a single meeting by ID"
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
@@ -91,9 +142,22 @@ type MeetingsAPI =
                :> Get '[JSON] Meeting
            )
     :<|> Named
-           "list-meetings"
+           "list-meetings@v16"
            ( Summary "List all meetings for the authenticated user"
                :> From 'V16
+               :> Until 'V17
+               :> ZLocalUser
+               :> "meetings"
+               :> "list"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V16 200 "List of meetings for the authenticated user" [Meeting])
+           )
+    :<|> Named
+           "list-meetings"
+           ( Summary "List all meetings for the authenticated user"
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> "list"

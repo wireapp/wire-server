@@ -11,6 +11,9 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, arbiter-core
+, arbiter-hasql
+, arbiter-migrations
 , async
 , attoparsec
 , base
@@ -51,7 +54,7 @@
 , HaskellNet-SSL
 , hasql
 , hasql-migration
-, hasql-pool
+, hasql-resource-pool
 , hasql-th
 , hasql-transaction
 , hex
@@ -68,6 +71,7 @@
 , imports
 , iproute
 , iso639
+, jwt-tools
 , kan-extensions
 , lens
 , lens-aeson
@@ -79,10 +83,12 @@
 , network
 , network-uri
 , polysemy
+, polysemy-check
 , polysemy-conc
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, postgresql-connection-string
 , postgresql-error-codes
 , profunctors
 , prometheus-client
@@ -96,6 +102,7 @@
 , resourcet
 , retry
 , saml2-web-sso
+, schema-profunctor
 , scientific
 , servant
 , servant-client-core
@@ -105,6 +112,7 @@
 , sop-core
 , ssl-util
 , statistics
+, stm
 , string-conversions
 , tagged
 , template
@@ -145,6 +153,9 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
+    arbiter-hasql
+    arbiter-migrations
     async
     attoparsec
     base
@@ -183,12 +194,13 @@ mkDerivation {
     HaskellNet-SSL
     hasql
     hasql-migration
-    hasql-pool
+    hasql-resource-pool
     hasql-th
     hasql-transaction
     hex
     hscim
     HsOpenSSL
+    hspec
     html-entities
     http-api-data
     http-client
@@ -198,6 +210,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    jwt-tools
     kan-extensions
     lens
     lens-aeson
@@ -208,10 +221,12 @@ mkDerivation {
     network
     network-uri
     polysemy
+    polysemy-check
     polysemy-conc
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postgresql-connection-string
     postgresql-error-codes
     profunctors
     prometheus-client
@@ -223,6 +238,7 @@ mkDerivation {
     resourcet
     retry
     saml2-web-sso
+    schema-profunctor
     servant
     servant-client-core
     servant-server
@@ -231,6 +247,7 @@ mkDerivation {
     sop-core
     ssl-util
     statistics
+    stm
     tagged
     template
     text

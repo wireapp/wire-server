@@ -64,6 +64,7 @@ import Util.Test.SQS qualified as SQS
 import Web.HttpApiData
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
+import Wire.EmailSending.Options qualified as EmailOpt
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
@@ -187,11 +188,10 @@ runTests iConf brigOpts otherArgs = do
           _ -> s
         latestVersion :: Version
         latestVersion = maxBound
-
-    parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
+    parseEmailAWSOpts :: IO (Maybe EmailOpt.EmailAWSOpts)
     parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
-      (Opts.EmailAWS aws) -> pure (Just aws)
-      (Opts.EmailSMTP _) -> pure Nothing
+      (EmailOpt.EmailAWS aws) -> pure (Just aws)
+      (EmailOpt.EmailSMTP _) -> pure Nothing
 
 main :: IO ()
 main = withOpenSSL $ do

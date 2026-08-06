@@ -84,7 +84,6 @@ data BrigAPIAccess m a where
   GetUsers :: [UserId] -> BrigAPIAccess m [User]
   DeleteUser :: UserId -> BrigAPIAccess m ()
   GetContactList :: UserId -> BrigAPIAccess m [UserId]
-  GetRichInfoMultiUser :: [UserId] -> BrigAPIAccess m [(UserId, RichInfo)]
   GetSize :: TeamId -> BrigAPIAccess m TeamSize
   LookupClients :: [UserId] -> BrigAPIAccess m UserClients
   LookupClientsFull :: [UserId] -> BrigAPIAccess m UserClientsFull
@@ -151,6 +150,7 @@ data BrigAPIAccess m a where
   SetName :: UserId -> Name -> BrigAPIAccess m ()
   SetHandle :: UserId -> Handle -> BrigAPIAccess m ()
   SetManagedBy :: UserId -> ManagedBy -> BrigAPIAccess m ()
+  DeletePendingEmailUpdate :: UserId -> BrigAPIAccess m ()
   SetSSOId :: UserId -> UserSSOId -> BrigAPIAccess m ()
   SetRichInfo :: UserId -> RichInfo -> BrigAPIAccess m ()
   SetLocale :: UserId -> Maybe Locale -> BrigAPIAccess m ()

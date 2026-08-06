@@ -1,0 +1,4 @@
+In multi-domain (multi-ingress) mode, the `wire-ingress` chart now applies the
+`httpRoute.annotations` passthrough to every per-domain HTTPRoute, so external-dns
+weighted-record annotations (set-identifier/aws-weight) work across all backend
+domains. The `service.create` toggle also applies in multi-domain deployments.

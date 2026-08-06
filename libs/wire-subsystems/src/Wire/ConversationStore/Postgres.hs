@@ -34,7 +34,6 @@ import Data.Vector qualified as Vector
 import GHC.Records (HasField)
 import Hasql.Decoders qualified as HD
 import Hasql.Pipeline qualified as Pipeline
-import Hasql.Pool qualified as Hasql
 import Hasql.Session qualified as HasqlSession
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -43,8 +42,6 @@ import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (..))
 import Imports
 import Polysemy
-import Polysemy.Error
-import Polysemy.Input
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Pagination
@@ -1317,10 +1314,7 @@ rawResultToSearchResult r = do
       }
 
 searchConversationsImpl ::
-  ( Member (Input Hasql.Pool) r,
-    Member (Error Hasql.UsageError) r,
-    Member (Embed IO) r
-  ) =>
+  (PGConstraints r) =>
   ConversationSearch ->
   Sem r [ConversationSearchResult]
 searchConversationsImpl req =

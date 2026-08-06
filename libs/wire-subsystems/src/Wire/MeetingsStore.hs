@@ -60,6 +60,20 @@ data StoredMeeting = StoredMeeting
   }
   deriving (Show, Eq)
 
+-- | Effective end time of a meeting for expiry and cleanup decisions.
+--
+-- * No recurrence: the meeting's 'endTime'.
+-- * Bounded recurrence ('until' set): 'max endTime until' -- the meeting is
+--   still alive while its recurrence window is open, even if the original
+--   time slot has passed.
+-- * Open-ended recurrence ('until' = 'Nothing'): 'Nothing' -- the meeting
+--   never auto-expires and is never picked up by the cleanup worker.
+effectiveEndTime :: StoredMeeting -> Maybe UTCTime
+effectiveEndTime sm =
+  case sm.recurrence of
+    Nothing -> Just sm.endTime
+    Just r -> max sm.endTime <$> r.until
+
 type StoredMeetingTuple =
   ( UUID, -- id
     Text, -- title

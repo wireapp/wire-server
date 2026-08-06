@@ -42,26 +42,26 @@ module Galley.App
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Monad (runApp)
-import Galley.Queue
-import Galley.Queue qualified as Q
 import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -96,6 +96,9 @@ import Wire.API.Team.FeatureFlags
 import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
+import Wire.BoundedQueue (BoundedQueue)
+import Wire.BoundedQueue.STM
+import Wire.BoundedQueue.STM qualified as Q
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc
 import Wire.CodeStore (CodeStore)
@@ -122,6 +125,8 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
@@ -130,6 +135,8 @@ import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
   )
+import Wire.MeetingNotifier (MeetingNotifier)
+import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore (MeetingsStore)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem (MeetingsSubsystem)
@@ -189,6 +196,9 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     MeetingNotifier,
+     JobSubsystem,
+     Input RequestId,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -236,9 +246,9 @@ type GalleyEffects =
      Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
      Input (Maybe GroupInfoCheckEnabled),
      Input Opts,
-     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Now,
-     GE.Queue DeleteItem,
+     BoundedQueue DeleteItem,
      Error Meeting.MeetingError,
      Error DynError,
      Error RateLimitExceeded,
@@ -266,7 +276,7 @@ type GalleyEffects =
      ErrorS 'InvalidOperation,
      Error RpcException,
      Input ClientState,
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
      Error MigrationLockError,
@@ -294,7 +304,7 @@ type GalleyEffects =
    ]
 
 -- Define some invariants for the options used
-validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
+validateOptions :: Opts -> IO (Either HttpsUrl (Map Domain HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit settings'._maxTeamSize settings'._maxFanoutSize
@@ -497,7 +507,7 @@ evalGalley e =
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
         . mapError meetingError
-        . interpretQueue (e ^. deleteQueue)
+        . interpretBoundedQueue (e ^. deleteQueue)
         . nowToIO
         . runInputConst (e ^. convCodeURI)
         . runInputConst (e ^. options)
@@ -547,6 +557,12 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . runInputConst (e ^. reqId)
+        . interpretJobSubsystem
+          JobSubsystemConfig
+            { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+            }
+        . interpretMeetingNotifier
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
   where

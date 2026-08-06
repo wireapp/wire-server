@@ -9,6 +9,9 @@ kind: Ingress
 metadata:
   name: federator-ingress
   annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"

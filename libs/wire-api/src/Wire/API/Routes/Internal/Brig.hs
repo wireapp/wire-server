@@ -536,6 +536,19 @@ type AccountAPI =
                :> Put '[Servant.JSON] NoContent
            )
     :<|> Named
+           "iDeletePendingEmailUpdate"
+           ( Summary
+               "Invalidate a pending email-address update for a user. \
+               \Used by spar when a user is put under SCIM control, so that team \
+               \settings no longer offers a 'resend verification' action that cannot \
+               \succeed, and stale activation links cannot change a SCIM-managed \
+               \user's email."
+               :> "users"
+               :> Capture "uid" UserId
+               :> "pending-email-update"
+               :> Delete '[Servant.JSON] NoContent
+           )
+    :<|> Named
            "iPutRichInfo"
            ( "users"
                :> Capture "uid" UserId
@@ -565,13 +578,6 @@ type AccountAPI =
                :> Capture "uid" UserId
                :> "rich-info"
                :> Get '[Servant.JSON] RichInfo
-           )
-    :<|> Named
-           "iGetRichInfoMulti"
-           ( "users"
-               :> "rich-info"
-               :> QueryParam' '[Optional, Strict] "ids" (CommaSeparatedList UserId)
-               :> Get '[Servant.JSON] GetRichInfoMultiResponse
            )
     :<|> Named
            "iHeadHandle"

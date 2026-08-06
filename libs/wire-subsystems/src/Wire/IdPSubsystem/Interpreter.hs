@@ -16,6 +16,7 @@ import Polysemy
 import Polysemy.Error
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User
 import Wire.API.User.IdentityProvider qualified as IP
 import Wire.BrigAPIAccess
@@ -82,7 +83,7 @@ getSsoCodeByEmailImpl ::
     Member GalleyAPIAccess r,
     Member IdPConfigStore r
   ) =>
-  Bool -> Maybe Text -> EmailAddress -> Sem r (Maybe SAML.IdPId)
+  Bool -> Maybe ZHostValue -> EmailAddress -> Sem r (Maybe SAML.IdPId)
 getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
   do
     if not enableIdPByEmailDiscovery
@@ -92,7 +93,7 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
         case users of
           [] -> pure Nothing
           [user] -> do
-            if isScimOrSsoUser user
+            if isSsoUser user
               then do
                 mbTeam <- getTeamId (userId user)
                 case mbTeam of
@@ -111,9 +112,11 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
     userIdToText :: Qualified UserId -> Text
     userIdToText uid = idToText (qUnqualified uid) <> "@" <> domainText (qDomain uid)
 
-    isScimOrSsoUser :: User -> Bool
-    isScimOrSsoUser user =
-      userManagedBy user == ManagedByScim && isJust (userSSOId user)
+    -- This used to check if the user is SCIM AND SSO! The RFC ("2025-05-12
+    -- RFC: Default SSO flow for team by host domain") is ambiguous about this.
+    -- The customer currently provisions non-SCIM, so this fits their usecase.
+    isSsoUser :: User -> Bool
+    isSsoUser = isJust . userSSOId
 
     findIdPByDomain :: (Member (Logger (Log.Msg -> Log.Msg)) r) => [IP.IdP] -> Sem r (Maybe SAML.IdPId)
     findIdPByDomain [] = pure Nothing
@@ -124,6 +127,6 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
       when (length matches > 1) $
         Logger.warn $
           Log.msg @Text "Found more than one IdP config for domain"
-            . Log.field "domain" (fromMaybe "None" mbHost)
+            . Log.field "domain" (maybe "None" domainText mbHost)
             . Log.field "idpIds" (intercalate "," $ (UUID.toString . SAML.fromIdPId) <$> matches)
       pure $ listToMaybe matches

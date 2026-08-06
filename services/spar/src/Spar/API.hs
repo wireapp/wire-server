@@ -61,15 +61,13 @@ import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
-import Data.Domain
+import Data.Domain (Domain, domainText)
 import Data.HavePendingInvitations
 import Data.Id
-import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Proxy
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as TE
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
@@ -98,24 +96,12 @@ import Spar.Orphans ()
 import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
-import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
-import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
-import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
-import qualified Spar.Sem.SamlProtocolSettings as SamlProtocolSettings
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
-import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
@@ -131,17 +117,29 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
+import Wire.DefaultSsoStore (DefaultSsoCode)
+import qualified Wire.DefaultSsoStore as DefaultSsoCode
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.IdPRawMetadataStore (IdPRawMetadataStore)
+import qualified Wire.IdPRawMetadataStore as IdPRawMetadataStore
 import Wire.IdPSubsystem (IdPSubsystem)
 import qualified Wire.IdPSubsystem as IdPSubsystem
+import Wire.Reporter (Reporter)
+import Wire.SamlProtocolSettings (SamlProtocolSettings)
+import qualified Wire.SamlProtocolSettings as SamlProtocolSettings
+import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimSubsystem
+import Wire.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Wire.VerdictFormatStore (VerdictFormatStore)
+import qualified Wire.VerdictFormatStore as VerdictFormatStore
 
 app :: Env -> Application
 app ctx0 req cont = do
@@ -211,6 +209,7 @@ apiSSO ::
     Member VerdictFormatStore r,
     Member AReqIDStore r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member DefaultSsoCode r,
     Member IdPConfigStore r,
     Member IdPSubsystem r,
@@ -295,22 +294,20 @@ getMetadata ::
     Member (Error SparError) r
   ) =>
   Maybe TeamId ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r SAML.SPMetadata
 getMetadata mbTid mbHost = do
   let err :: Sem r any
       err = throwSparSem (SparSPNotFound "")
 
-  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
-
   let iss :: Sem r SAML.Issuer
-      iss = SamlProtocolSettings.spIssuer mbTid mbHostDom >>= maybe err pure
+      iss = SamlProtocolSettings.spIssuer mbTid mbHost >>= maybe err pure
 
       rsp :: Sem r URI.URI
-      rsp = SamlProtocolSettings.responseURI mbTid mbHostDom >>= maybe err pure
+      rsp = SamlProtocolSettings.responseURI mbTid mbHost >>= maybe err pure
 
       contactList :: Sem r [SAML.ContactPerson]
-      contactList = SamlProtocolSettings.contactPersons mbHostDom
+      contactList = SamlProtocolSettings.contactPersons mbHost
 
   SAML2.meta appName iss rsp contactList
 
@@ -324,7 +321,7 @@ authreqPrecheck ::
   Maybe URI.URI ->
   Maybe CookieLabel ->
   SAML.IdPId ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r NoContent
 authreqPrecheck samlConfig msucc merr mlabel idpid mbHost =
   validateAuthreqParams msucc merr mlabel *> do
@@ -352,7 +349,7 @@ authreq ::
   Maybe URI.URI ->
   Maybe CookieLabel ->
   SAML.IdPId ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
 authreq samlConfig authreqttl msucc merr mlabel idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr mlabel
@@ -363,14 +360,13 @@ authreq samlConfig authreqttl msucc merr mlabel idpid mbHost = do
 
     let err :: Sem r any
         err = throwSparSem (SparSPNotFound "")
-    mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
 
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . apiVersion) of
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . team
         iss :: Sem r SAML.Issuer
-        iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
+        iss = SamlProtocolSettings.spIssuer mbtid mbHost >>= maybe err pure
     SAML2.authReq authreqttl iss idpid
   VerdictFormatStore.store authreqttl reqid vformat
   pure form
@@ -380,7 +376,7 @@ checkMultiIngressDomain ::
     Member (Error SparError) r
   ) =>
   SAML.Config ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   IdP ->
   Sem r ()
 checkMultiIngressDomain samlConfig mbHost idp = when (SAML.isMultiIngressConfig samlConfig) $ do
@@ -393,8 +389,8 @@ checkMultiIngressDomain samlConfig mbHost idp = when (SAML.isMultiIngressConfig 
       Logger.debug $
         Log.msg ("Multi-ingress domain guard rejected IdP access" :: ByteString)
           . Log.field "idp" idpIdTxt
-          . Log.field "idp_domain" (fromMaybe "none" idpDomain)
-          . Log.field "request_host" (fromMaybe "none" mbHost)
+          . Log.field "idp_domain" (maybe "None" domainText idpDomain)
+          . Log.field "request_host" (maybe "None" domainText mbHost)
       throwSparSem (SparIdPNotFound idpIdTxt)
 
 idpIdToText :: SAML.IdPId -> T.Text
@@ -430,6 +426,7 @@ authresp ::
     Member VerdictFormatStore r,
     Member AReqIDStore r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member SAML2 r,
     Member SamlProtocolSettings r,
@@ -439,30 +436,28 @@ authresp ::
   ) =>
   Maybe TeamId ->
   SAML.AuthnResponseBody ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r Void
 authresp mbtid arbody mbHost = do
   let err :: Sem r any
       err = throwSparSem (SparSPNotFound "")
 
-  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
-
   let iss :: Sem r SAML.Issuer
-      iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
+      iss = SamlProtocolSettings.spIssuer mbtid mbHost >>= maybe err pure
 
       rsp :: Sem r URI.URI
-      rsp = SamlProtocolSettings.responseURI mbtid mbHostDom >>= maybe err pure
+      rsp = SamlProtocolSettings.responseURI mbtid mbHost >>= maybe err pure
 
   logErrors $ SAML2.authResp mbtid iss rsp go arbody
   where
-    go :: NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
+    go :: NE.NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
     go assertions idp verdict = do
       assertCertsAllowlisted (idp ^. SAML.idpMetadata)
       case verdict of
         SAML.AccessDenied (shouldRedirectToInit -> True) ->
           redirectToInit idp
         _ -> do
-          SAML.ResponseVerdict result <- verdictHandler assertions verdict idp
+          SAML.ResponseVerdict result <- verdictHandler assertions verdict idp mbHost
           throw @SparError $ SAML.CustomServant result
 
     -- Whenever at least one of the denied reasons is `DeniedNoInResponseTo`, try again.
@@ -766,7 +761,7 @@ logIdPAction msg idp zUser additionalFields =
       . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
       . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
       . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
-      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (maybe "None" domainText))
       . Log.field "user" (maybe "None" idToText zUser)
       . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
       . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
@@ -774,7 +769,7 @@ logIdPAction msg idp zUser additionalFields =
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
 filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
-filterMultiIngressZHost (Right domainMap) (Just zHost) | (Domain zHost) `Map.member` domainMap = Just zHost
+filterMultiIngressZHost (Right domainMap) (Just zHost) | zHost `Map.member` domainMap = Just zHost
 filterMultiIngressZHost _ _ = Nothing
 
 idpCreateV7 ::
@@ -815,38 +810,6 @@ idpCreateV7 samlConfig tid zUser idpmeta mReplaces mApiversion mHandle = do
       when (numTokens > 0 && numIdps > 0) $
         throwSparSem $
           SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
-
--- | Reject IdPs whose cert SHA-1 is not in the configured allowlist.
---
--- Empty/absent allowlist is a no-op.  On miss: warn-log fingerprint +
--- issuer, then throw 'SparIdPCertNotAllowed' (HTTP 403).
-assertCertsAllowlisted ::
-  ( Member (Input Opts) r,
-    Member (Logger (Msg -> Msg)) r,
-    Member (Error SparError) r
-  ) =>
-  SAML.IdPMetadata ->
-  Sem r ()
-assertCertsAllowlisted idpmeta = do
-  mAllow <- inputs idpCertFingerprintAllowlist
-  case mAllow of
-    Nothing -> pure ()
-    Just (CertFingerprintAllowlist allowed)
-      | Set.null allowed -> pure ()
-      | otherwise -> do
-          let certs = idpmeta ^. SAML.edCertAuthnResponse
-              issuerTxt =
-                TE.decodeUtf8 $
-                  URI.serializeURIRef' (idpmeta ^. SAML.edIssuer . SAML.fromIssuer)
-          forM_ certs $ \c -> do
-            let fingerprint = certSha1Fingerprint c
-            unless (Set.member fingerprint allowed) $ do
-              let fingerprintHex = renderFingerprintHex fingerprint
-              Logger.warn $
-                Log.msg ("Refusing IdP request: cert fingerprint not in allowlist" :: ByteString)
-                  . Log.field "fingerprint" fingerprintHex
-                  . Log.field "issuer" issuerTxt
-              throwSparSem (SparIdPCertNotAllowed (T.fromStrict fingerprintHex))
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
@@ -1017,7 +980,7 @@ idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog 
                 (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer)
               . logChangeableScalar
                 "domain"
-                (fromMaybe "None")
+                (maybe "None" domainText)
                 (previousIdP ^. SAML.idpExtraInfo . domain)
                 (idp ^. SAML.idpExtraInfo . domain)
               . Log.field "user" (idToText zUsr)
@@ -1044,7 +1007,7 @@ idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog 
           Log.field fieldName ((intercalate ";; " . map certToString) certs)
     logCertField _ _ = id
 
-    compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
+    compareNonEmpty :: (Eq a) => NE.NonEmpty a -> NE.NonEmpty a -> ([a], [a])
     compareNonEmpty xs ys =
       let l = nub . toList $ xs
           r = nub . toList $ ys

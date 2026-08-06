@@ -27,7 +27,8 @@ import Data.Conduit.List qualified as C
 import Data.Domain
 import Data.Id
 import Database.CQL.Protocol (Record (asRecord), TupleType)
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool (UsageError)
+import Hasql.Pool.Extended qualified as Hasql
 import Imports hiding (lookup)
 import Polysemy
 import Polysemy.Async
@@ -180,7 +181,7 @@ handleRegistrationErrors ::
     Member TinyLog r
   ) =>
   ByteString ->
-  (Sem (Error MigrationLockError : Error Hasql.UsageError : r) ()) ->
+  (Sem (Error MigrationLockError : Error UsageError : r) ()) ->
   Sem r ()
 handleRegistrationErrors key action = do
   eithErr <- runError (runError action)
