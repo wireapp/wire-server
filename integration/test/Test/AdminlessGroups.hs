@@ -21,6 +21,7 @@ import API.Brig
 import API.Galley
 import API.GalleyInternal hiding (getConversation)
 import qualified API.GalleyInternal as GalleyI
+import Control.Concurrent (threadDelay)
 import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
@@ -324,6 +325,66 @@ testAdminlessSetupMemberUpdateAfterAdminLeaves = do
     bindResponse (getConversation bob conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+
+testAdminlessSetupSkipsDeletionForRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupSkipsDeletionForRemoteMembers = do
+  -- this tests that the adminless clean up actions are skipped
+  -- when remote members are present
+  -- because remote backends do not support a system delete/member-update event, yet
+  -- to prevent a state drift
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+
+  alice1 <- createMLSClient def alice
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [remoteUser]
+
+  -- Create an adminless conversation while the feature is disabled. Enabling
+  -- the feature later exercises the system-triggered setup path.
+  removeMember alice conv alice >>= assertSuccess
+
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" ["1s"]
+
+  -- The setup job must not schedule deletion or reminders for this
+  -- conversation because it contains a remote member.
+  liftIO $ threadDelay 2_000_000
+  bindResponse (GalleyI.getConversation conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+testAdminlessSetupSkipsAutopromotionForRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupSkipsAutopromotionForRemoteMembers = do
+  -- this tests that the adminless clean up actions are skipped
+  -- when remote members are present
+  -- because remote backends do not support a system delete/member-update event, yet
+  -- to prevent a state drift
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+
+  alice1 <- createMLSClient def alice
+  bob1 <- createMLSClient def bob
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [bob, remoteUser]
+
+  -- Create an adminless conversation while the feature is disabled. Enabling
+  -- the feature later would normally promote Bob through a system action.
+  removeMember alice conv alice >>= assertSuccess
+
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+
+  liftIO $ threadDelay 2_000_000
+  bindResponse (getConversation bob conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
 
 testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
 testAdminlessJobsCancelledOnFeatureDisable = do
