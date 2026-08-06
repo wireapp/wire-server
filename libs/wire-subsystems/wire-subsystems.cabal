@@ -440,7 +440,6 @@ library
     Wire.ScimExternalIdStore
     Wire.ScimExternalIdStore.Cassandra
     Wire.ScimExternalIdStore.Mem
-    Wire.ScimExternalIdStore.Spec
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
@@ -686,6 +685,7 @@ test-suite wire-subsystems-tests
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
     Wire.SAMLEmailSubsystem.InterpreterSpec
+    Wire.ScimExternalIdStore.MemSpec
     Wire.ScimSubsystem.InterpreterSpec
     Wire.StoredConversationSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec

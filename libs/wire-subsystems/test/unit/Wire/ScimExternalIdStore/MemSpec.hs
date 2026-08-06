@@ -1,4 +1,5 @@
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
@@ -18,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ScimExternalIdStore.Spec (propsForInterpreter) where
+module Wire.ScimExternalIdStore.MemSpec (spec) where
 
 import Data.Id
 import Imports
@@ -29,6 +30,25 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.User.Scim (ScimUserCreationStatus, ValidScimId)
 import Wire.ScimExternalIdStore qualified as E
+import Wire.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
+
+spec :: Spec
+spec =
+  modifyMaxSuccess (const 1000) $
+    propsForInterpreter "scimExternalIdStoreToMem" snd $
+      pure . run . scimExternalIdStoreToMem
+
+-- 'CoArbitrary' is required by 'Polysemy.Check' for the argument types of the
+-- effect's operations.  These instances are orphans here (neither the type nor
+-- the class is defined in this package); they mirror
+-- @services/spar/test/Arbitrary.hs@.  Blank instances resolve via QuickCheck's
+-- generic default; both types derive 'Generic' ('UserId' in types-common,
+-- 'ScimUserCreationStatus' in @Wire.API.User.Scim@).  Being in scope here, they
+-- also discharge the matching 'PropConstraints' superclasses, so the instance
+-- head below omits them (stating them would trip @-Wredundant-constraints@).
+instance CoArbitrary UserId
+
+instance CoArbitrary ScimUserCreationStatus
 
 propsForInterpreter ::
   (PropConstraints r f) =>
@@ -57,7 +77,7 @@ class
   PropConstraints r f
 
 instance
-  (CoArbitrary UserId, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
+  (Functor f, Member E.ScimExternalIdStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 -- | Adapt the fully-polymorphic interpreter to the rank-2 position 'prepropLaw'
