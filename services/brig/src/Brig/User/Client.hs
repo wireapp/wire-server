@@ -22,8 +22,6 @@ where
 
 import Brig.App
 import Brig.Data.Nonce as Nonce
-import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
-import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Options qualified as Opt
 import Control.Error
 import Control.Monad.Trans.Except (except)
@@ -52,7 +50,7 @@ import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 
 createClientDPoPAccessToken ::
-  (Member JwtTools r, Member Now r, Member PublicKeyBundle r, Member UserSubsystem r) =>
+  (Member JwtTools r, Member Now r, Member UserSubsystem r) =>
   Local UserId ->
   ClientId ->
   StdMethod ->
@@ -92,9 +90,7 @@ createClientDPoPAccessToken luid cid method link proof = do
   expiresIn <- Opt.dpopTokenExpirationTimeSecs <$> asks (.settings)
   now <- fromUTCTime <$> lift (liftSem Now.get)
   let expiresAt = now & addToEpoch expiresIn
-  pubKeyBundle <- do
-    pathToKeys <- ExceptT (note KeyBundleError <$> asks (.settings.publicKeyBundle))
-    ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
+  pubKeyBundle <- ExceptT (note KeyBundleError <$> asks (.publicKeyBundle))
   token <-
     ExceptT $
       liftSem $

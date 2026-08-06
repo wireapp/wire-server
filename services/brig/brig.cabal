@@ -110,7 +110,6 @@ library
     Brig.DeleteQueue.Interpreter
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
-    Brig.Effects.PublicKeyBundle
     Brig.Index.Eval
     Brig.Index.Options
     Brig.Index.Types

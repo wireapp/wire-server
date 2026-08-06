@@ -58,6 +58,7 @@ module Brig.App
     http2ManagerLens,
     extGetManagerLens,
     settingsLens,
+    publicKeyBundleLens,
     fsWatcherLens,
     turnEnvLens,
     sftEnvLens,
@@ -122,13 +123,17 @@ import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Error
+import Control.Exception qualified as Ex
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
+import Data.ByteString qualified as BS
+import Data.ByteString.Conversion (fromByteString)
 import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
 import Data.Misc
+import Data.PEMKeys (PEMKeys)
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -206,6 +211,7 @@ data Env = Env
     http2Manager :: Http2Manager,
     extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     settings :: Settings,
+    publicKeyBundle :: Maybe PEMKeys,
     fsWatcher :: FS.WatchManager,
     turnEnv :: Calling.TurnEnv,
     sftEnv :: Maybe Calling.SFTEnv,
@@ -225,6 +231,24 @@ data Env = Env
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
+
+-- | Read and parse the DPoP public key bundle once at startup. Returns
+-- 'Nothing' when no path is configured or the file is missing/unparseable; in
+-- the latter case a warning is logged to aid diagnosis.
+loadPublicKeyBundle :: Logger -> Maybe FilePath -> IO (Maybe PEMKeys)
+loadPublicKeyBundle lgr path = case path of
+  Nothing -> pure Nothing
+  Just fp -> do
+    contents :: Either Ex.IOException ByteString <- Ex.try $ BS.readFile fp
+    case contents of
+      Left _ -> do
+        Log.warn lgr (Log.msg ("Failed to read DPoP public key bundle from " <> fp))
+        pure Nothing
+      Right bs -> case fromByteString bs of
+        Nothing -> do
+          Log.warn lgr (Log.msg ("Failed to parse DPoP public key bundle from " <> fp))
+          pure Nothing
+        Just keys -> pure $ Just keys
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
@@ -277,6 +301,7 @@ newEnv opts = do
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
+  pubKeyBundle <- loadPublicKeyBundle lgr opts.settings.publicKeyBundle
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -304,6 +329,7 @@ newEnv opts = do
         http2Manager = h2Mgr,
         extGetManager = ext,
         settings = opts.settings,
+        publicKeyBundle = pubKeyBundle,
         turnEnv = turn,
         sftEnv = mSFTEnv,
         fsWatcher = w,

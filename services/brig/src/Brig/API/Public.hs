@@ -45,7 +45,6 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Effects.ConnectionStore
-import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
@@ -396,7 +395,6 @@ servantSitemap ::
     Member Now r,
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
-    Member PublicKeyBundle r,
     Member SFT r,
     Member TinyLog r,
     Member UserKeyStore r,
@@ -881,7 +879,6 @@ createClientDPoPAccessToken ::
   forall api endpoint r.
   ( Member JwtTools r,
     Member Now r,
-    Member PublicKeyBundle r,
     IsElem endpoint api,
     HasLink endpoint,
     MkLink endpoint Link ~ (ClientId -> Link),
