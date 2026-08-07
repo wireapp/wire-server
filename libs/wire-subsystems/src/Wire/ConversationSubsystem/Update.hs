@@ -1485,11 +1485,11 @@ adminlessAutopromoteOrSendReminder ::
   Local ConvId ->
   UTCTimeMillis ->
   Sem r ()
-adminlessAutopromoteOrSendReminder mlusr lcnv deletiongheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
+adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
     orAlternativelySendReminder conv _ _ =
       if shouldSkipSystemAdminlessDeletion mlusr conv
-        then logSkippedSystemAdminlessDeletion "reminde" conv
+        then logSkippedSystemAdminlessDeletion "reminder" conv
         else do
           now <- Now.get
           case mlusr of
