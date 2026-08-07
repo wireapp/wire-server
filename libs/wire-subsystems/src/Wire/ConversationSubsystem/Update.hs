@@ -1206,7 +1206,7 @@ logSkippedSystemAdminlessDeletion :: (Member TinyLog r) => StoredConversation ->
 logSkippedSystemAdminlessDeletion conv =
   P.info $
     Log.msg (Log.val "Skipping senderless adminless deletion for conversation with remote members")
-      . Log.field "conversation_id" (show conv.id_)
+      . Log.field "conversation_id" (idToText conv.id_)
 
 setupAdminlessGroupsCleanup ::
   ( Member ConversationStore r,
