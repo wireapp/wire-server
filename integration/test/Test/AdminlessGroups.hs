@@ -388,6 +388,38 @@ testAdminlessSetupSkipsDeletionForRemoteMembers = do
   bindResponse (GalleyI.getConversation conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
+testAdminlessSetupSkipsReminderForRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupSkipsReminderForRemoteMembers = do
+  -- A remote member prevents senderless deletion. The remaining local app is
+  -- not eligible for promotion, but would receive a system reminder if one
+  -- were emitted.
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "5s" ["4s"]
+
+  alice1 <- createMLSClient def alice
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [remoteUser]
+  let newApp = def {name = "adminless-federated-reminder-app", description = "not eligible for promotion"}
+  (app, _) <- createAndAddAppMember alice tid alice1 conv newApp
+
+  -- Create an adminless conversation while the feature is disabled. Enabling
+  -- it through the internal path runs senderless setup cleanup.
+  removeMember alice conv alice >>= assertSuccess
+
+  withWebSockets [app] $ \[wsApp] -> do
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "2s" ["1s"]
+
+    reminderResult <- awaitNMatchesResultFor 5 1 isConvSystemAdminlessReminderNotif wsApp
+    reminderResult.success `shouldMatch` False
+
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
 testAdminlessSetupAutopromotesWithRemoteMembers :: (HasCallStack) => App ()
 testAdminlessSetupAutopromotesWithRemoteMembers = do
   -- Autopromotion is safe with remote members because the owning backend is

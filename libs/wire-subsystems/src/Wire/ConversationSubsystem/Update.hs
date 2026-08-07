@@ -97,7 +97,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
 import Wire.API.Bot hiding (addBot)
 import Wire.API.Conversation hiding (Member)
@@ -1202,11 +1201,12 @@ shouldSkipSystemAdminlessDeletion mlusr conv =
   isNothing mlusr
     && not (null conv.remoteMembers)
 
-logSkippedSystemAdminlessDeletion :: (Member TinyLog r) => StoredConversation -> Sem r ()
-logSkippedSystemAdminlessDeletion conv =
-  P.info $
+logSkippedSystemAdminlessDeletion :: (Member TinyLog r) => Text -> StoredConversation -> Sem r ()
+logSkippedSystemAdminlessDeletion action conv =
+  info $
     Log.msg (Log.val "Skipping senderless adminless deletion for conversation with remote members")
       . Log.field "conversation_id" (idToText conv.id_)
+      . Log.field "action" action
 
 setupAdminlessGroupsCleanup ::
   ( Member ConversationStore r,
@@ -1232,7 +1232,7 @@ setupAdminlessGroupsCleanup mUsr tid = do
     lcnv <- qualifyLocal cnv
     adminlessTryAutopromote mUsr lcnv $ \conv feature _ ->
       if shouldSkipSystemAdminlessDeletion mUsr conv
-        then logSkippedSystemAdminlessDeletion conv
+        then logSkippedSystemAdminlessDeletion "schedule_for_deletion" conv
         else scheduleDeletion lcnv mUsr tid feature
 
 guardPreventAdminlessGroups ::
@@ -1446,7 +1446,7 @@ adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orA
   where
     orAlternativelyDeleteConv conv _ _ =
       if shouldSkipSystemAdminlessDeletion mlusr conv
-        then logSkippedSystemAdminlessDeletion conv
+        then logSkippedSystemAdminlessDeletion "deletion" conv
         else do
           removeConversation (qualifyAs lcnv conv)
           case mlusr of
@@ -1485,11 +1485,11 @@ adminlessAutopromoteOrSendReminder ::
   Local ConvId ->
   UTCTimeMillis ->
   Sem r ()
-adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
+adminlessAutopromoteOrSendReminder mlusr lcnv deletiongheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
     orAlternativelySendReminder conv _ _ =
       if shouldSkipSystemAdminlessDeletion mlusr conv
-        then logSkippedSystemAdminlessDeletion conv
+        then logSkippedSystemAdminlessDeletion "reminde" conv
         else do
           now <- Now.get
           case mlusr of
