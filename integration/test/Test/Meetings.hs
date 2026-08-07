@@ -540,14 +540,16 @@ testMeetingLifecycleEventsDeliveredToMembers = do
   createGroup def ownerClient convId
   void $ createAddCommit ownerClient convId [participant] >>= sendAndConsumeCommitBundle
 
-  -- The non-initiator member receives 'meeting.update' (the initiator does not).
+  -- The non-initiator member receives 'meeting.update'; the initiator-exclusion
+  -- half of WPB-27857 is asserted in 'testMeetingRecurrence'.
   updateNotif <-
     withWebSocket participant $ \ws -> do
       putMeeting owner domain meetingId (object ["title" .= "Updated Lifecycle Meeting"]) >>= assertSuccess
       awaitMatch isMeetingUpdateNotif ws
   assertMeetingNotif updateNotif (meeting %. "qualified_id")
 
-  -- The non-initiator member receives 'meeting.delete'.
+  -- The non-initiator member receives 'meeting.delete'. The preceding
+  -- 'conversation.delete-meeting' event is expected and skipped by 'awaitMatch'.
   deleteNotif <-
     withWebSocket participant $ \ws -> do
       deleteMeeting owner domain meetingId >>= assertStatus 200
