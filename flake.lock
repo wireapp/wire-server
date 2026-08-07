@@ -350,16 +350,16 @@
     "postgresql-connection-string": {
       "flake": false,
       "locked": {
-        "lastModified": 1778144330,
-        "narHash": "sha256-w/TFQX7PIsLQTG+Es2yla584Y3T7Q6H1iIlqFap8qUk=",
+        "lastModified": 1786115798,
+        "narHash": "sha256-m5ryILR2bkzqG/L6s6y9yCPU0FghiNgXgVDyWVpJFEE=",
         "owner": "wireapp",
         "repo": "postgresql-connection-string",
-        "rev": "ff98790cb3058545ea978ea143cd57b04360c48c",
+        "rev": "1fd7230d9d2e54fe5eec2f35113837d69639ba1f",
         "type": "github"
       },
       "original": {
         "owner": "wireapp",
-        "ref": "expose-from-key-value-params",
+        "ref": "wire-patches",
         "repo": "postgresql-connection-string",
         "type": "github"
       }
