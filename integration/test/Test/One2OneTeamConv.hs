@@ -20,7 +20,6 @@
 module Test.One2OneTeamConv where
 
 import API.Galley
-import Control.Retry (constantDelay, limitRetries, retrying)
 import Notifications (isTeamMemberJoinNotif)
 import SetupHelpers
 import Testlib.Prelude
@@ -66,15 +65,8 @@ testCreateOne2OneWithMembers memberRole = do
         length members `shouldMatchInt` 2
       pure m
   -- Creating the one2one team conversation is eventually consistent: retry
-  -- while the response is not 201, mirroring @retryWhileN 10 repeatIf@ in the
-  -- original test.
-  bindResponse
-    ( retrying
-        (constantDelay 500_000 <> limitRetries 10)
-        (\_ resp -> pure (resp.status /= 201))
-        (const (postOne2OneConversation owner teamMember tid "chit-chat"))
-    )
-    $ \resp -> resp.status `shouldMatchInt` 201
+  -- until it returns 201.
+  eventually $ postOne2OneConversation owner teamMember tid "chit-chat" >>= assertStatus 201
   -- Recreating the one2one is a no-op and returns 200.
   bindResponse (postOne2OneConversation owner teamMember tid "chit-chat") $ \resp ->
     resp.status `shouldMatchInt` 200

@@ -442,6 +442,11 @@ testAddTeamMemberInternal = do
   let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
   mem1 <- newTeamMember' p1 <$> Util.randomUser
   WS.bracketRN c [owner, mem1 ^. userId] $ \[wsOwner, wsMem1] -> do
+    -- This test directly exercises the internal @POST /i/teams/:tid/members@
+    -- endpoint (formerly @Util.addTeamMemberInternal@). It is intentionally
+    -- inlined rather than exposed as a reusable helper because that endpoint
+    -- bypasses the invitation flow and must not be reused by other tests
+    -- (https://wearezeta.atlassian.net/browse/SQSERVICES-471).
     g <- viewGalley
     post
       ( g
