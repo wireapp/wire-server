@@ -10,7 +10,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import MLS.Util
-import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
+import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -32,8 +32,8 @@ testMeetingCreate = do
       assertSuccess resp
       void $ awaitMatch isConvCreateMeetingNotif ws
       m <- getJSON 201 resp
-      createNotif <- awaitMatch isMeetingCreateNotif ws
-      assertMeetingNotif createNotif (m %. "qualified_id")
+      -- meeting.create is not delivered to the initiator (WPB-27857)
+      assertNoEvent 1 ws
       pure m
 
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
@@ -261,8 +261,8 @@ testMeetingRecurrence = do
   r2 <- withWebSocket owner $ \ws -> do
     resp <- putMeeting owner domain meetingId updatedMeeting
     assertSuccess resp
-    updateNotif <- awaitMatch isMeetingUpdateNotif ws
-    assertMeetingNotif updateNotif (object ["id" .= meetingId, "domain" .= domain])
+    -- meeting.update is not delivered to the initiator (WPB-27857)
+    assertNoEvent 1 ws
     pure resp
 
   updated <- getJSON 200 r2
@@ -506,13 +506,55 @@ testMeetingDelete = do
   withWebSocket owner $ \ws -> do
     deleteMeeting owner domain meetingId >>= assertStatus 200
     void $ awaitMatch isConvDeleteMeetingNotif ws
-    deleteNotif <- awaitMatch isMeetingDeleteNotif ws
-    assertMeetingNotif deleteNotif (object ["id" .= meetingId, "domain" .= domain])
-    -- A meeting conversation must emit `conversation.delete-meeting`, never the
-    -- plain `conversation.delete` (EdConvDelete). After the two events above the
-    -- socket should be quiet; any leaked delete would surface here.
+    -- meeting.delete is not delivered to the initiator (WPB-27857). The
+    -- conversation.delete-meeting event above is the only event the
+    -- initiator receives; the socket should be quiet afterwards.
     assertNoEvent 1 ws
   getMeeting owner domain meetingId >>= assertStatus 404
+
+-- | WPB-27857: the meeting initiator no longer receives its own lifecycle
+-- events, but other members of the meeting conversation still do. At creation
+-- time the conversation's only local member is the creator, so 'meeting.create'
+-- has no other recipient (the multi-member path is covered at the unit level in
+-- "Wire.MeetingsSubsystem.InterpreterSpec"); here we verify that a member who
+-- joined after creation still receives 'meeting.update' and 'meeting.delete'.
+testMeetingLifecycleEventsDeliveredToMembers :: (HasCallStack) => App ()
+testMeetingLifecycleEventsDeliveredToMembers = do
+  (owner, _tid, [participant]) <- createTeam OwnDomain 2
+  ownerClient <- createMLSClient def owner
+  participantClient <- createMLSClient def participant
+  _ <- uploadNewKeyPackage def participantClient
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Lifecycle Meeting" startTime endTime []
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Add the second team member to the meeting conversation via MLS, so that
+  -- they are among the recipients of subsequent lifecycle events.
+  convQid <- meeting %. "qualified_conversation"
+  conv <- getConversation owner convQid >>= getJSON 200
+  convId <- objConvId conv
+  createGroup def ownerClient convId
+  void $ createAddCommit ownerClient convId [participant] >>= sendAndConsumeCommitBundle
+
+  -- The non-initiator member receives 'meeting.update'; the initiator-exclusion
+  -- half of WPB-27857 is asserted in 'testMeetingRecurrence'.
+  updateNotif <-
+    withWebSocket participant $ \ws -> do
+      putMeeting owner domain meetingId (object ["title" .= "Updated Lifecycle Meeting"]) >>= assertSuccess
+      awaitMatch isMeetingUpdateNotif ws
+  assertMeetingNotif updateNotif (meeting %. "qualified_id")
+
+  -- The non-initiator member receives 'meeting.delete'. The preceding
+  -- 'conversation.delete-meeting' event is expected and skipped by 'awaitMatch'.
+  deleteNotif <-
+    withWebSocket participant $ \ws -> do
+      deleteMeeting owner domain meetingId >>= assertStatus 200
+      awaitMatch isMeetingDeleteNotif ws
+  assertMeetingNotif deleteNotif (meeting %. "qualified_id")
 
 testMeetingDeleteNotFound :: (HasCallStack) => App ()
 testMeetingDeleteNotFound = do
