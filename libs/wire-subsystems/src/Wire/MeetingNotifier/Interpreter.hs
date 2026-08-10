@@ -70,6 +70,10 @@ notifyMeetingMembersAddedImpl qUser qConvId mTeamId users = do
     TinyLog.warn $
       Log.msg ("alive meeting not found for meeting member-add event" :: ByteString)
         . Log.field "conversationId" (toByteString' (qUnqualified qConvId))
+  -- `users` are the members added by the commit; the commit creator is already
+  -- a member and never in `users`, so mkMeetingEventPush (which no longer
+  -- filters the originator by UserId) does not echo member-add back to them.
+  -- conn is Nothing: every client connection of each added user should be notified.
   for_ meetings $ \meeting ->
     pushNotificationAsync $
       mkMeetingEventPush

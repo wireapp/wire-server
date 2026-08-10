@@ -40,22 +40,24 @@ import Wire.MeetingsSubsystem qualified as Meetings
 createMeeting ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
+  ConnId ->
   NewMeeting ->
   Sem r MeetingWithConversation
-createMeeting lUser newMeeting = Meetings.createMeeting lUser newMeeting
+createMeeting lUser connId newMeeting = Meetings.createMeeting lUser connId newMeeting
 
 updateMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
+  ConnId ->
   Domain ->
   MeetingId ->
   UpdateMeeting ->
   Sem r MeetingWithConversation
-updateMeeting zUser domain meetingId update = do
+updateMeeting zUser connId domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
-  maybeMeeting <- Meetings.updateMeeting zUser qMeetingId update
+  maybeMeeting <- Meetings.updateMeeting zUser connId qMeetingId update
   case maybeMeeting of
     Nothing -> throwS @'MeetingNotFound
     Just meeting -> pure meeting

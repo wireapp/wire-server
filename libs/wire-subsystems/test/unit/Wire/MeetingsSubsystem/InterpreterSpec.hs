@@ -163,7 +163,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ do
-      meeting <- createMeeting zUser newMeeting
+      meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
       fetched <- getMeeting zUser meeting.meeting.id
       pure (meeting, fetched)
 
@@ -189,7 +189,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ do
-      meeting <- createMeeting zUser newMeeting
+      meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
       pure meeting.conversation.metadata.cnvmAccess
 
     case result of
@@ -212,7 +212,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               invitedEmails = []
             }
 
-    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId "test-conn") newMeeting
     result `shouldBe` Left InvalidTimes
 
   it "fails to create a meeting if start time is in the past" $ do
@@ -229,7 +229,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               invitedEmails = []
             }
 
-    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId "test-conn") newMeeting
     result `shouldBe` Left InvalidTimes
 
   it "accepts a meeting whose start time is exactly at the tolerance boundary" $ do
@@ -248,7 +248,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               invitedEmails = []
             }
 
-    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId "test-conn") newMeeting
     result `shouldSatisfy` isRight
 
   it "rejects a meeting whose start time is just past the tolerance boundary" $ do
@@ -266,7 +266,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               invitedEmails = []
             }
 
-    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId "test-conn") newMeeting
     result `shouldBe` Left InvalidTimes
 
   describe "getMeeting access control" $ do
@@ -294,7 +294,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
         getMeeting zUser1 meeting.meeting.id
 
@@ -311,7 +311,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         (meeting,) <$> getMeeting zUser1 meeting.meeting.id
 
       case result of
@@ -330,7 +330,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         members <- gets (Map.lookup (qUnqualified meeting.conversation.qualifiedId))
         let updatedMembers = maybe (Set.singleton uid2) (Set.insert uid2) members
         modify (Map.insert (qUnqualified meeting.conversation.qualifiedId) updatedMembers)
@@ -352,7 +352,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         getMeeting zUser3 meeting.meeting.id
 
       result `shouldBe` Right Nothing
@@ -381,8 +381,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
-        updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing)
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing)
 
       result `shouldBe` Left EmptyUpdate
 
@@ -397,7 +397,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         let update =
               API.UpdateMeeting
                 { startTime = Just (addUTCTime 8000 now),
@@ -405,7 +405,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   title = Nothing,
                   recurrence = Nothing
                 }
-        updateMeeting zUser1 meeting.meeting.id update
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
 
       result `shouldBe` Left InvalidTimes
 
@@ -420,7 +420,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         let update =
               API.UpdateMeeting
                 { startTime = Just (addUTCTime (negate 3600) now),
@@ -428,7 +428,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   title = Nothing,
                   recurrence = Nothing
                 }
-        updateMeeting zUser1 meeting.meeting.id update
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
 
       result `shouldBe` Left InvalidTimes
 
@@ -443,7 +443,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser1 ongoingMeeting
+          meeting <- createMeeting zUser1 (ConnId "test-conn") ongoingMeeting
           -- Advance the clock 3000s: startTime (now+100s) is now in the past, so
           -- the meeting has started. It stays editable because isAlive is
           -- endTime-based and endTime (now+7200s) is still well past the
@@ -457,7 +457,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                     title = Just (unsafeRange "Edited While Ongoing"),
                     recurrence = Nothing
                   }
-          updateMeeting zUser1 meeting.meeting.id update
+          updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       case result of
         Left err ->
           fail $ "Expected the ongoing meeting to be editable, got: " <> show err
@@ -476,7 +476,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser1 ongoingMeeting
+          meeting <- createMeeting zUser1 (ConnId "test-conn") ongoingMeeting
           passTime 3000
           let update =
                 API.UpdateMeeting
@@ -485,7 +485,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                     title = Nothing,
                     recurrence = Nothing
                   }
-          updateMeeting zUser1 meeting.meeting.id update
+          updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left InvalidTimes
 
     it "returns Nothing for expired meeting" $ do
@@ -499,9 +499,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
-        updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -516,8 +516,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
-        updateMeeting zUser2 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -532,10 +532,10 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         -- Simulate a data-inconsistency: the meeting's conversation vanished.
         modify @(Map ConvId StoredConversation) (Map.delete (qUnqualified meeting.meeting.conversationId))
-        updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -564,8 +564,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
        in isNotEmpty && hasValidTimes ==>
             ioProperty $ do
               result <- runTestStack now gen Map.empty teamConfig $ do
-                meeting <- createMeeting zUser1 baseMeeting
-                updated <- updateMeeting zUser1 meeting.meeting.id sanitizedUpdate
+                meeting <- createMeeting zUser1 (ConnId "test-conn") baseMeeting
+                updated <- updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id sanitizedUpdate
                 pure (meeting.meeting.conversationId, updated)
               case result of
                 Left err ->
@@ -605,7 +605,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         deleteResult <- deleteMeeting zUser1 testConnId meeting.meeting.id
         getResult <- getMeeting zUser1 meeting.meeting.id
         pure (deleteResult, getResult)
@@ -623,7 +623,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         deleteMeeting zUser2 testConnId meeting.meeting.id
 
       result `shouldBe` Right False
@@ -639,7 +639,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
         deleteMeeting zUser1 testConnId meeting.meeting.id
 
@@ -664,7 +664,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         _ <- internalGetConversation (qUnqualified meeting.conversation.qualifiedId)
         _ <- deleteMeeting zUser1 testConnId meeting.meeting.id
         internalGetConversation (qUnqualified meeting.conversation.qualifiedId)
@@ -682,7 +682,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         -- Change conversation type to non-meeting by updating local members only
         -- This simulates a non-meeting conversation without touching internal types
         deleteMeeting zUser1 testConnId meeting.meeting.id
@@ -715,7 +715,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         success <- addInvitedEmails zUser1 meeting.meeting.id [email1, email2]
         fetched <- getMeeting zUser1 meeting.meeting.id
         pure (success, fetched)
@@ -738,7 +738,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
         addInvitedEmails zUser1 meeting.meeting.id [email1]
 
@@ -755,7 +755,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         addInvitedEmails zUser2 meeting.meeting.id [email1]
 
       result `shouldBe` Right False
@@ -796,7 +796,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         success <- removeInvitedEmails zUser1 meeting.meeting.id [email2]
         fetched <- getMeeting zUser1 meeting.meeting.id
         pure (success, fetched)
@@ -819,7 +819,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         success <- removeInvitedEmails zUser1 meeting.meeting.id [email1, email2]
         fetched <- getMeeting zUser1 meeting.meeting.id
         pure (success, fetched)
@@ -842,7 +842,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         success <- removeInvitedEmails zUser1 meeting.meeting.id [email2, email3]
         fetched <- getMeeting zUser1 meeting.meeting.id
         pure (success, fetched)
@@ -865,7 +865,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
         removeInvitedEmails zUser1 meeting.meeting.id [email1]
 
@@ -882,7 +882,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         removeInvitedEmails zUser2 meeting.meeting.id [email1]
 
       result `shouldBe` Right False
@@ -923,7 +923,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         success <- replaceInvitedEmails zUser1 meeting.meeting.id [email3]
         fetched <- getMeeting zUser1 meeting.meeting.id
         pure (success, fetched)
@@ -946,7 +946,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         success <- replaceInvitedEmails zUser1 meeting.meeting.id []
         fetched <- getMeeting zUser1 meeting.meeting.id
         pure (success, fetched)
@@ -969,7 +969,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         success <- replaceInvitedEmails zUser1 meeting.meeting.id [email3, email3, email1]
         fetched <- getMeeting zUser1 meeting.meeting.id
         pure (success, fetched)
@@ -992,7 +992,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
         replaceInvitedEmails zUser1 meeting.meeting.id [email2]
 
@@ -1009,7 +1009,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        meeting <- createMeeting zUser1 newMeeting
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         replaceInvitedEmails zUser2 meeting.meeting.id [email3]
 
       result `shouldBe` Right False
@@ -1073,7 +1073,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "getMeeting returns a recurring meeting whose slot passed but window is open" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
           getMeeting zUser meeting.meeting.id
       case result of
@@ -1084,7 +1084,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "listMeetings includes a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          _meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          _meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
           listMeetings zUser
       case result of
@@ -1094,15 +1094,15 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "updateMeeting succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
-          updateMeeting zUser meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+          updateMeeting zUser (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
       fmap isJust result `shouldBe` Right True
 
     it "addInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
           addInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
@@ -1110,7 +1110,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "deleteMeeting succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
           deleteMeeting zUser (ConnId "test-conv") meeting.meeting.id
       result `shouldBe` Right True
@@ -1118,7 +1118,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "removeInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
           removeInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
@@ -1126,7 +1126,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "replaceInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
           replaceInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
@@ -1134,7 +1134,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "getMeeting returns an open-ended recurring meeting indefinitely" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting openEndedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting openEndedRecurrence)
           passTime validityWindow
           getMeeting zUser meeting.meeting.id
       fmap isJust result `shouldBe` Right True
@@ -1142,8 +1142,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "cleanupOldMeetings skips recurring meetings whose window is still open" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          recurring <- createMeeting zUser (futureMeeting boundedRecurrence)
-          _plain <- createMeeting zUser (futureMeeting Nothing)
+          recurring <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
+          _plain <- createMeeting zUser (ConnId "test-conn") (futureMeeting Nothing)
           passTime validityWindow
           -- cutoff is past the endTime (now+7200) so the non-recurring
           -- meeting is picked up, but well before the recurrence window.
@@ -1160,7 +1160,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "cleanupOldMeetings never picks up open-ended recurring meetings" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (futureMeeting openEndedRecurrence)
+          meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting openEndedRecurrence)
           passTime validityWindow
           -- Even with a cutoff well past the endTime, open-ended
           -- recurrence is never picked up.
@@ -1177,9 +1177,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           -- endTime now+8000, no recurrence -> effectiveEndTime now+8000 (earliest)
-          plain <- createMeeting zUser (meetingAt 8000 Nothing)
+          plain <- createMeeting zUser (ConnId "test-conn") (meetingAt 8000 Nothing)
           -- endTime now+4000, until now+10000 -> effectiveEndTime now+10000 (later)
-          recur <- createMeeting zUser (meetingAt 4000 (recurUntil (addUTCTime 10000 now)))
+          recur <- createMeeting zUser (ConnId "test-conn") (meetingAt 4000 (recurUntil (addUTCTime 10000 now)))
           _deleted <- cleanupOldMeetings (addUTCTime 11000 now) 1
           plainRemains <- isJust <$> getMeeting zUser plain.meeting.id
           recurRemains <- isJust <$> getMeeting zUser recur.meeting.id
@@ -1213,7 +1213,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
          in ioProperty $ do
               result <-
                 runTestStack now gen Map.empty teamConfig $ do
-                  meeting <- createMeeting zUser nm
+                  meeting <- createMeeting zUser (ConnId "test-conn") nm
                   passTime advanceTime
                   fetched <- isJust <$> getMeeting zUser meeting.meeting.id
                   listedCount <- length <$> listMeetings zUser
@@ -1253,28 +1253,28 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "allows operations for personal user even when meetings disabled" $ do
       result <-
         runTestStack now gen Map.empty meetingsDisabled $
-          createMeeting zUserPersonal newMeeting
+          createMeeting zUserPersonal (ConnId "test-conn") newMeeting
 
       result `shouldSatisfy` isRight
 
     it "allows operations for team user with meetings enabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       result `shouldSatisfy` isRight
 
     it "throws MeetingsFeatureDisabled on createMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       result `shouldBe` Left MeetingsFeatureDisabled
 
     it "returns Nothing on getMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       case result of
         Left err -> fail $ "Failed to create meeting: " <> show err
@@ -1288,21 +1288,21 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on updateMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       case result of
         Left err -> fail $ "Failed to create meeting: " <> show err
         Right meeting -> do
           result2 <-
             runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-              updateMeeting zUserTeam meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+              updateMeeting zUserTeam (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
 
     it "throws MeetingsFeatureDisabled on deleteMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       case result of
         Left err -> fail $ "Failed to create meeting: " <> show err
@@ -1323,7 +1323,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on addInvitedEmails for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       case result of
         Left err -> fail $ "Failed to create meeting: " <> show err
@@ -1337,7 +1337,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on removeInvitedEmails for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       case result of
         Left err -> fail $ "Failed to create meeting: " <> show err
@@ -1351,7 +1351,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on replaceInvitedEmails for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId "test-conn") newMeeting
 
       case result of
         Left err -> fail $ "Failed to create meeting: " <> show err
@@ -1386,7 +1386,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "emits a meeting.create event on successful create" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
-          meeting <- createMeeting zUser1 newMeeting
+          meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           pushes <- get @[Push]
           pure (meeting, pushes)
 
@@ -1401,9 +1401,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "emits a meeting.update event on successful update" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
-          meeting <- createMeeting zUser1 newMeeting
+          meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
-          _ <- updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+          _ <- updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
           get @[Push]
 
       case result of
@@ -1416,7 +1416,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "emits a meeting.delete event on successful delete" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
-          meeting <- createMeeting zUser1 newMeeting
+          meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
           _ <- deleteMeeting zUser1 (ConnId "test-conn") meeting.meeting.id
           get @[Push]
@@ -1431,9 +1431,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "does not emit an event when updateMeeting fails (non-creator)" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-          meeting <- createMeeting zUser1 newMeeting
+          meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
-          _ <- updateMeeting zUser2 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing)
+          _ <- updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing)
           get @[Push]
 
       case result of
@@ -1443,7 +1443,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "does not emit an event when deleteMeeting fails (non-creator)" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-          meeting <- createMeeting zUser1 newMeeting
+          meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
           _ <- deleteMeeting zUser2 (ConnId "test-conn") meeting.meeting.id
           get @[Push]
@@ -1452,7 +1452,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Left err -> fail $ "Error: " <> show err
         Right pushes -> extractMeetingEvents pushes `shouldBe` []
 
-    it "does not deliver lifecycle events to the meeting initiator" $ do
+    it "delivers lifecycle events to all members and propagates conn" $ do
       let members =
             [ newMember uid1,
               newMember uid2
@@ -1461,15 +1461,20 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           convId = Id $ read "00000000-0000-0000-0000-000000000071"
           qMeetingId = Qualified meetingId (Domain "wire.com")
           qConvId = Qualified convId (Domain "wire.com")
+          originConn = ConnId "origin"
       result <-
         runTestStack now gen Map.empty def $ do
-          _ <- notifyMeetingEvent zUser1 Nothing members qConvId Nothing MeetingEvent.Create qMeetingId
+          _ <- notifyMeetingEvent zUser1 (Just originConn) members qConvId Nothing MeetingEvent.Create qMeetingId
           get @[Push]
       case result of
         Left err -> fail $ "Error: " <> show err
         Right pushes -> do
-          let recipientIds = map (.recipientUserId) (concatMap (.recipients) pushes)
-          recipientIds `shouldBe` [uid2]
+          let push = head pushes
+          -- Order is deterministic: 'members' is a literal list, 'map
+          -- localMemberToRecipient' preserves order, and mkMeetingEventPush
+          -- no longer filters or reorders recipients.
+          map (.recipientUserId) push.recipients `shouldBe` [uid1, uid2]
+          push.conn `shouldBe` Just originConn
 
 -- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
 expectedStartTimeTolerance :: NominalDiffTime

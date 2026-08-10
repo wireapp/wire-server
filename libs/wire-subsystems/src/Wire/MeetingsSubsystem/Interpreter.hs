@@ -114,10 +114,10 @@ interpretMeetingsSubsystem ::
   NominalDiffTime ->
   InterpreterFor MeetingsSubsystem r
 interpretMeetingsSubsystem validityPeriod = interpret $ \case
-  CreateMeeting zUser newMeeting ->
-    createMeetingImpl zUser newMeeting
-  UpdateMeeting zUser meetingId update ->
-    updateMeetingImpl zUser meetingId update validityPeriod
+  CreateMeeting zUser connId newMeeting ->
+    createMeetingImpl zUser connId newMeeting
+  UpdateMeeting zUser connId meetingId update ->
+    updateMeetingImpl zUser connId meetingId update validityPeriod
   DeleteMeeting zUser connId meetingId ->
     deleteMeetingImpl zUser connId meetingId validityPeriod
   GetMeeting zUser meetingId ->
@@ -143,9 +143,10 @@ createMeetingImpl ::
     Member (Error MeetingError) r
   ) =>
   Local UserId ->
+  ConnId ->
   API.NewMeeting ->
   Sem r API.MeetingWithConversation
-createMeetingImpl zUser newMeeting = do
+createMeetingImpl zUser connId newMeeting = do
   -- Look up user's team once and reuse for both checks
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled conversationTeamId
@@ -201,7 +202,7 @@ createMeetingImpl zUser newMeeting = do
       trial
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
-  notifyMeetingEvent zUser Nothing storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
+  notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
   pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
 
@@ -216,11 +217,12 @@ updateMeetingImpl ::
     Member Now r
   ) =>
   Local UserId ->
+  ConnId ->
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversation)
-updateMeetingImpl zUser meetingId update validityPeriod = do
+updateMeetingImpl zUser connId meetingId update validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence) $
@@ -256,7 +258,7 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.endTime
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
-    lift $ notifyMeetingEvent zUser Nothing conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
+    lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
 deleteMeetingImpl ::

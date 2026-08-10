@@ -36,6 +36,7 @@ type MeetingsAPI =
         :> From 'V15
         :> Until 'V17
         :> ZLocalUser
+        :> ZConn
         :> "meetings"
         :> ReqBody '[JSON] NewMeeting
         :> CanThrow 'InvalidOperation
@@ -51,6 +52,7 @@ type MeetingsAPI =
            ( Summary "Create a new meeting"
                :> From 'V17
                :> ZLocalUser
+               :> ZConn
                :> "meetings"
                :> ReqBody '[JSON] NewMeeting
                :> CanThrow 'InvalidOperation
@@ -67,6 +69,7 @@ type MeetingsAPI =
                :> From 'V15
                :> Until 'V17
                :> ZLocalUser
+               :> ZConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -85,6 +88,7 @@ type MeetingsAPI =
            ( Summary "Update an existing meeting"
                :> From 'V17
                :> ZLocalUser
+               :> ZConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
