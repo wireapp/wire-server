@@ -54,7 +54,7 @@ mkMeetingEventPush now qUser conn recipients qConvId mTeamId meetingType qMeetin
               evtTime = now,
               evtTeam = mTeamId
             },
-      recipients = filter ((/= qUnqualified qUser) . recipientUserId) recipients,
+      recipients = recipients,
       route = PushV2.RouteDirect,
       conn
     }

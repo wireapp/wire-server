@@ -30,10 +30,12 @@ import Wire.API.User.EmailAddress (EmailAddress)
 data MeetingsSubsystem m a where
   CreateMeeting ::
     Local UserId ->
+    ConnId ->
     NewMeeting ->
     MeetingsSubsystem m MeetingWithConversation
   UpdateMeeting ::
     Local UserId ->
+    ConnId ->
     Qualified MeetingId ->
     UpdateMeeting ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
