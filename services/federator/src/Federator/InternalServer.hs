@@ -131,4 +131,4 @@ callOutward targetDomain component (RPC path) req cont = do
 
 serveOutward :: Env -> Int -> IORef [IO ()] -> IO ()
 serveOutward env port cleanupsRef = do
-  serveServant @(ToServantApi API) env port cleanupsRef (toServant $ server env._httpManager env._internalPort)
+  serveServant @(ToServantApi API) env port cleanupsRef (toServant $ server env._httpManager env._externalPort)
