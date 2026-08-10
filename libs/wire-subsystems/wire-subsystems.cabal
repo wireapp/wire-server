@@ -635,6 +635,8 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.One2OneSpec
+    Wire.EmailSubsystem.TemplateFixtures
+    Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
