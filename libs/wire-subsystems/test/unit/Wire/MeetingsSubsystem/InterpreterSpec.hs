@@ -1470,6 +1470,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Left err -> fail $ "Error: " <> show err
         Right pushes -> do
           let push = head pushes
+          -- Order is deterministic: 'members' is a literal list, 'map
+          -- localMemberToRecipient' preserves order, and mkMeetingEventPush
+          -- no longer filters or reorders recipients.
           map (.recipientUserId) push.recipients `shouldBe` [uid1, uid2]
           push.conn `shouldBe` Just originConn
 

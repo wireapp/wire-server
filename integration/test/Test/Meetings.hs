@@ -32,7 +32,7 @@ testMeetingCreate = do
       assertSuccess resp
       void $ awaitMatch isConvCreateMeetingNotif ws
       m <- getJSON 201 resp
-      -- the creator's other connection (this websocket) now receives meeting.create
+      -- the creator's other client connection (this websocket) now receives meeting.create
       void $ awaitMatch isMeetingCreateNotif ws
       pure m
 
@@ -261,7 +261,7 @@ testMeetingRecurrence = do
   r2 <- withWebSocket owner $ \ws -> do
     resp <- putMeeting owner domain meetingId updatedMeeting
     assertSuccess resp
-    -- the creator's other connection (this websocket) now receives meeting.update
+    -- the creator's other client connection (this websocket) now receives meeting.update
     void $ awaitMatch isMeetingUpdateNotif ws
     pure resp
 
@@ -506,16 +506,16 @@ testMeetingDelete = do
   withWebSocket owner $ \ws -> do
     deleteMeeting owner domain meetingId >>= assertStatus 200
     void $ awaitMatch isConvDeleteMeetingNotif ws
-    -- the creator's other connection (this websocket) now receives meeting.delete
+    -- the creator's other client connection (this websocket) now receives meeting.delete
     void $ awaitMatch isMeetingDeleteNotif ws
   getMeeting owner domain meetingId >>= assertStatus 404
 
 -- | WPB-27907: meeting lifecycle events are delivered to all conversation
--- members; only the originating connection is excluded (no redundant echo),
--- while the initiator's other connections and all other members receive them.
--- This test covers the non-initiator member path: a member who joined the
--- meeting conversation after creation receives 'meeting.update' and
--- 'meeting.delete'. The originating-connection exclusion is covered in
+-- members; only the originating client connection is excluded (no redundant
+-- echo), while the initiator's other client connections and all other members
+-- receive them. This test covers the non-initiator member path: a member who
+-- joined the meeting conversation after creation receives 'meeting.update' and
+-- 'meeting.delete'. The originating-client-connection exclusion is covered in
 -- 'testMeetingOriginatingConnectionExcluded'; the multi-member recipient set
 -- is covered at the unit level in "Wire.MeetingsSubsystem.InterpreterSpec".
 testMeetingLifecycleEventsDeliveredToMembers :: (HasCallStack) => App ()
@@ -541,7 +541,7 @@ testMeetingLifecycleEventsDeliveredToMembers = do
   void $ createAddCommit ownerClient convId [participant] >>= sendAndConsumeCommitBundle
 
   -- The non-initiator member receives 'meeting.update'; the originating-
-  -- connection exclusion is asserted in 'testMeetingOriginatingConnectionExcluded'.
+  -- client-connection exclusion is asserted in 'testMeetingOriginatingConnectionExcluded'.
   updateNotif <-
     withWebSocket participant $ \ws -> do
       putMeeting owner domain meetingId (object ["title" .= "Updated Lifecycle Meeting"]) >>= assertSuccess
@@ -565,9 +565,9 @@ testMeetingOriginatingConnectionExcluded = do
     withWebSocket owner $ \wsOther -> do
       _ <- postMeetings owner newMeeting >>= assertSuccess
       void $ awaitMatch isMeetingCreateNotif wsOther
-      -- The originating connection still receives conversation.create-meeting
-      -- (the conversation event is not connection-excluded), but it must NOT
-      -- receive meeting.create (excluded via the request's connection "conn").
+      -- The originating client connection still receives conversation.create-meeting
+      -- (the conversation event is not client-connection-excluded), but it must NOT
+      -- receive meeting.create (excluded via the request's client connection "conn").
       void $ awaitMatch isConvCreateMeetingNotif wsOrigin
       assertNoEvent 1 wsOrigin
 
