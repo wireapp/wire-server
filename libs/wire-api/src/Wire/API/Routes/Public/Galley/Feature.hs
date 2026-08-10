@@ -86,7 +86,8 @@ type FeatureAPI =
     :<|> FeatureAPIGetPut MeetingsConfig
     :<|> Deprecated ::> Until 'V17 ::> FeatureAPIGet MeetingsPremiumConfig
     :<|> Deprecated ::> Until 'V17 ::> FeatureAPIPut MeetingsPremiumConfig
-    :<|> FeatureAPIGetPut BackgroundEffectsConfig
+    :<|> Deprecated ::> Until 'V17 ::> FeatureAPIGet BackgroundEffectsConfig
+    :<|> Deprecated ::> Until 'V17 ::> FeatureAPIPut BackgroundEffectsConfig
 
 type VersionedFeatureAPIPut named reqBodyVersion cfg =
   Named
