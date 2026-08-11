@@ -50,12 +50,10 @@ testBackgroundEffectsRemovedAtV17 = do
     resp.json %. "status" `shouldMatch` "enabled"
     resp.json %. "lockStatus" `shouldMatch` "locked"
 
--- | WPB-27912: the aggregate list endpoints 'GET /feature-configs' and
--- 'GET /teams/:tid/features' are version-agnostic — like 'From'-gated features
--- (e.g. MLS), they include every feature at every API version. Even though the
--- dedicated backgroundEffects endpoints 404 at v17, both list endpoints keep
--- returning the (default enabled+locked) backgroundEffects entry. This test
--- locks that behaviour in.
+-- | Test version agnostic feature endpoints for `backgroundEffects`
+--
+-- Across versions, `backgroundEffects` is always set to `enabled` and `locked` to provide backwards compatibility.
+-- From `V17` on, the feature itself  has been removed.
 testBackgroundEffectsListedAtV17 :: (HasCallStack) => App ()
 testBackgroundEffectsListedAtV17 = do
   (owner, tid, []) <- createTeam OwnDomain 0
