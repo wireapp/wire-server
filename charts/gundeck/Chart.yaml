@@ -2,3 +2,10 @@ apiVersion: v1
 description: Gundeck (part of Wire Server) - Push Notification Hub Service
 name: gundeck
 version: 0.0.42
+annotations:
+  # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
+  helm.sh/images: |
+    - name: gundeck
+      image: quay.io/wire/gundeck:do-not-use
+    - name: gundeck-integration
+      image: quay.io/wire/gundeck-integration:do-not-use
