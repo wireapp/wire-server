@@ -6,4 +6,4 @@ annotations:
   # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
   helm.sh/images: |
     - name: mlsstats
-      image: quay.io/wire/mlsstats
+      image: quay.io/wire/mlsstats:do-not-use
