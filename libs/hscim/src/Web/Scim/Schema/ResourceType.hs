@@ -45,18 +45,52 @@ instance FromJSON ResourceType where
     other -> fail ("unknown ResourceType: " ++ show other)
 
 -- | Definitions of endpoints, returned by @/ResourceTypes@.
+-- | A schema extension advertised by a 'Resource', as defined in RFC 7643
+-- section 6.  Serialises to @{"schema": <urn>, "required": <bool>}@.
+data SchemaExtension = SchemaExtension
+  { schemaExtensionSchema :: Schema,
+    schemaExtensionRequired :: Bool
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON SchemaExtension where
+  toJSON (SchemaExtension sch req) =
+    object ["schema" .= sch, "required" .= req]
+
+instance FromJSON SchemaExtension where
+  parseJSON = either (fail . show) go . jsonLower
+    where
+      go = withObject "SchemaExtension" $ \o ->
+        SchemaExtension <$> o .: "schema" <*> o .:? "required" .!= False
+
 data Resource = Resource
   { name :: Text,
     endpoint :: URI,
-    schema :: Schema
+    schema :: Schema,
+    schemaExtensions :: [SchemaExtension]
   }
   deriving (Show, Eq, Generic)
 
 instance ToJSON Resource where
-  toJSON = genericToJSON serializeOptions
+  toJSON (Resource name' endpoint' schema' exts) =
+    object $
+      [ "name" .= name',
+        "endpoint" .= endpoint',
+        "schema" .= schema'
+      ]
+        -- omit the field entirely when there are no extensions, so resources
+        -- without extensions keep their previous representation.
+        <> ["schemaExtensions" .= exts | not (null exts)]
 
 instance FromJSON Resource where
-  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
+  parseJSON = either (fail . show) go . jsonLower
+    where
+      go = withObject "Resource" $ \o ->
+        Resource
+          <$> o .: "name"
+          <*> o .: "endpoint"
+          <*> o .: "schema"
+          <*> o .:? "schemaextensions" .!= []
 
 ----------------------------------------------------------------------------
 -- Available resource endpoints
@@ -66,7 +100,8 @@ usersResource =
   Resource
     { name = "User",
       endpoint = URI [relativeReference|/Users|],
-      schema = User20
+      schema = User20,
+      schemaExtensions = []
     }
 
 groupsResource :: Resource
@@ -74,5 +109,6 @@ groupsResource =
   Resource
     { name = "Group",
       endpoint = URI [relativeReference|/Groups|],
-      schema = Group20
+      schema = Group20,
+      schemaExtensions = []
     }

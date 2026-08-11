@@ -18,6 +18,7 @@
 module Web.Scim.Capabilities.MetaSchema
   ( ConfigSite,
     configServer,
+    defaultResourceTypes,
     Supported (..),
     BulkConfig (..),
     FilterConfig (..),
@@ -133,11 +134,19 @@ empty =
       authenticationSchemes = [AuthScheme.authHttpBasicEncoding]
     }
 
+-- | The resource types advertised by a server that has not customised them:
+-- the plain @User@ and @Group@ resources with no schema extensions.
+defaultResourceTypes :: [Resource]
+defaultResourceTypes = [usersResource, groupsResource]
+
 configServer ::
   (Monad m) =>
   Configuration ->
+  -- | The resource types to advertise at @/ResourceTypes@.  Pass
+  -- 'defaultResourceTypes' unless the server supports schema extensions.
+  [Resource] ->
   ConfigSite (AsServerT (ScimHandler m))
-configServer config =
+configServer config resourceTypes' =
   ConfigSite
     { spConfig = pure config,
       getSchemas =
@@ -152,12 +161,7 @@ configServer config =
       schema = \uri -> case getSchema (fromSchemaUri uri) of
         Nothing -> throwScim (notFound "Schema" uri)
         Just s -> pure s,
-      resourceTypes =
-        pure $
-          ListResponse.fromList
-            [ usersResource,
-              groupsResource
-            ]
+      resourceTypes = pure $ ListResponse.fromList resourceTypes'
     }
 
 data ConfigSite route = ConfigSite
