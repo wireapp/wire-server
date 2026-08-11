@@ -58,7 +58,7 @@ testBackgroundEffectsRemovedAtV17 = do
 -- locks that behaviour in.
 testBackgroundEffectsListedAtV17 :: (HasCallStack) => App ()
 testBackgroundEffectsListedAtV17 = do
-  (owner, tid, _) <- createTeam OwnDomain 0
+  (owner, tid, []) <- createTeam OwnDomain 0
   let assertBackgroundEffects resp = do
         resp.status `shouldMatchInt` 200
         be <- resp.json %. "backgroundEffects"
