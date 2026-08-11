@@ -65,6 +65,7 @@ library
     Web.Scim.Schema.User.Name
     Web.Scim.Schema.User.Phone
     Web.Scim.Schema.User.Photo
+    Web.Scim.Schema.User.Role
     Web.Scim.Schema.UserTypes
     Web.Scim.Server
     Web.Scim.Server.Mock
@@ -114,7 +115,9 @@ library
     , mmorph
     , mtl
     , network-uri
+    , openapi3
     , retry
+    , schema-profunctor
     , scientific
     , servant
     , servant-client

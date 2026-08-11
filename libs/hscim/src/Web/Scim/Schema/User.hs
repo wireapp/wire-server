@@ -94,6 +94,7 @@ import Web.Scim.Schema.User.IM (IM)
 import Web.Scim.Schema.User.Name (Name)
 import Web.Scim.Schema.User.Phone (Phone)
 import Web.Scim.Schema.User.Photo (Photo)
+import Web.Scim.Schema.User.Role (Role)
 import Web.Scim.Schema.UserTypes
 
 -- | SCIM user record, parametrized with type-level @tag@ (see 'UserTypes').
@@ -120,7 +121,7 @@ data User tag = User
     photos :: [Photo],
     addresses :: [Address],
     entitlements :: [Text],
-    roles :: [Text],
+    roles :: [Role],
     x509Certificates :: [Certificate],
     -- Extra data.
     --

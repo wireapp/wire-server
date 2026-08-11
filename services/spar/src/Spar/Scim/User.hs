@@ -97,6 +97,7 @@ import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
 import qualified Web.Scim.Schema.User.Email as Scim.Email
+import qualified Web.Scim.Schema.User.Role as Scim.Role
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.User
@@ -334,11 +335,13 @@ validateScimUser' errloc midp richInfoLimit user = do
     validateRole =
       Scim.roles <&> \case
         [] -> pure Nothing
-        [role] ->
-          maybe
-            (throw $ badRequest $ "The role '" <> role <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
-            (pure . Just)
-            (fromByteString $ Text.encodeUtf8 role)
+        [role] -> case Scim.Role.value role of
+          Nothing -> throw $ badRequest "A role must have a value."
+          Just roleName ->
+            maybe
+              (throw $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
+              (pure . Just)
+              (fromByteString $ Text.encodeUtf8 roleName)
         (_ : _ : _) -> throw $ badRequest "A user cannot have more than one role."
 
     badRequest :: Text -> Scim.ScimError
@@ -1086,10 +1089,19 @@ synthesizeScimUser info =
           Scim.roles =
             maybe
               []
-              ( (: [])
-                  . Text.decodeUtf8With lenientDecode
-                  . toStrict
-                  . toByteString
+              ( \role ->
+                  [ Scim.Role.Role
+                      { Scim.Role.value =
+                          Just
+                            . Text.decodeUtf8With lenientDecode
+                            . toStrict
+                            . toByteString
+                            $ role,
+                        Scim.Role.typ = Nothing,
+                        Scim.Role.display = Nothing,
+                        Scim.Role.primary = Nothing
+                      }
+                  ]
               )
               (info.role),
           Scim.emails = (\e -> Scim.Email.Email Nothing (Scim.Email.EmailAddress e) Nothing) <$> info.emails

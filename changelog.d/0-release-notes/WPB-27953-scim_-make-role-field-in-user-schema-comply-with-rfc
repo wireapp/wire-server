@@ -1,0 +1,21 @@
+SCIM: Make role field in user schema comply with RFC.  Any code that processes SCIM users must be changed to follow the standard, instead of the previous Wire implementation.
+
+Previous User schema (incompatible with RFC):
+
+```
+{
+  ...
+  "roles": ["member"],
+  ...
+}
+```
+
+New schema (RFC-compliant):
+
+```
+{
+  ...
+  "roles": [{"value" : "member"}],
+  ...
+}
+```

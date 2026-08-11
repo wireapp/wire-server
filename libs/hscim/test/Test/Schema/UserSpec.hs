@@ -56,6 +56,7 @@ import Web.Scim.Schema.User.IM as IM
 import Web.Scim.Schema.User.Name as Name
 import Web.Scim.Schema.User.Phone as Phone
 import Web.Scim.Schema.User.Photo as Photo
+import Web.Scim.Schema.User.Role as Role
 import Web.Scim.Test.Util
 
 prop_roundtrip :: Property
@@ -176,6 +177,16 @@ spec = do
       toJSON (extendedUser (UserExtraObject "foo")) `shouldBe` extendedUserObjectJson
       eitherDecode (encode extendedUserObjectJson)
         `shouldBe` Right (extendedUser (UserExtraObject "foo"))
+  describe "roles (RFC 7643 complex multi-valued attribute)" $ do
+    it "renders as objects with a 'value' sub-attribute, not bare strings" $
+      toJSON (Role (Just "member") Nothing Nothing Nothing)
+        `shouldBe` [scim| {"value": "member"} |]
+    it "parses the RFC-compliant object form" $
+      eitherDecode "{\"value\":\"member\"}"
+        `shouldBe` Right (Role (Just "member") Nothing Nothing Nothing)
+    it "still parses the legacy bare-string form for backwards compatibility" $
+      eitherDecode "\"member\""
+        `shouldBe` Right (Role (Just "member") Nothing Nothing Nothing)
 
 genName :: Gen Name
 genName =
@@ -321,7 +332,14 @@ completeUser =
             }
         ],
       entitlements = ["sample entitlement"],
-      roles = ["sample role"],
+      roles =
+        [ Role
+            { Role.value = Just "sample role",
+              Role.typ = Nothing,
+              Role.display = Nothing,
+              Role.primary = Nothing
+            }
+        ],
       x509Certificates =
         [ Certificate
             { Certificate.typ = Just "sample certificate type",
@@ -337,7 +355,9 @@ completeUserJson =
   [scim|
 {
   "roles": [
-    "sample role"
+    {
+      "value": "sample role"
+    }
   ],
   "x509Certificates": [
     {
