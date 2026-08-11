@@ -40,11 +40,12 @@ data Role = Role
 instance ToSchema Role where
   schema =
     object
-      $ Role
-      <$> (value .= maybe_ (optField "value" schema))
-      <*> (typ .= maybe_ (optField "type" schema))
-      <*> (display .= maybe_ (optField "display" schema))
-      <*> (primary .= maybe_ (optField "primary" schema))
+      ( Role
+          <$> (value .= maybe_ (optField "value" schema))
+          <*> (typ .= maybe_ (optField "type" schema))
+          <*> (display .= maybe_ (optField "display" schema))
+          <*> (primary .= maybe_ (optField "primary" schema))
+      )
 
 -- | We accept both the RFC-compliant object form (parsed via the schema above)
 -- and a plain string (for backwards compatibility with clients that send

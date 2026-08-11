@@ -337,11 +337,11 @@ validateScimUser' errloc midp richInfoLimit user = do
         [] -> pure Nothing
         [role] -> case Scim.Role.value role of
           Nothing -> throw $ badRequest "A role must have a value."
-          Just roleName ->
+          Just roleNm ->
             maybe
-              (throw $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
+              (throw $ badRequest $ "The role '" <> roleNm <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
               (pure . Just)
-              (fromByteString $ Text.encodeUtf8 roleName)
+              (fromByteString $ Text.encodeUtf8 roleNm)
         (_ : _ : _) -> throw $ badRequest "A user cannot have more than one role."
 
     badRequest :: Text -> Scim.ScimError
