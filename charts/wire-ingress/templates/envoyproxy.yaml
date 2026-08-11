@@ -9,7 +9,7 @@
   Envoy Gateway requires an explicit sink when accessLog settings are set, so we
   send the redacted format to /dev/stdout through a File sink.
 */ -}}
-{{- $accessLogText := printf "[%%START_TIME%%] \"%%REQ(:METHOD)%% %%PATH(NQ:ORIG_OR_PATH)%% %%PROTOCOL%%\" %%RESPONSE_CODE%% %%RESPONSE_FLAGS%% %%BYTES_RECEIVED%% %%BYTES_SENT%% %%DURATION%% \"%%REQ(X-FORWARDED-FOR)%%\" \"%%REQ(USER-AGENT)%%\" \"%%REQ(X-REQUEST-ID)%%\" \"%%REQ(:AUTHORITY)%%\" \"%%UPSTREAM_HOST%%\"" -}}
+{{- $accessLogText := printf "[%%START_TIME%%] \"%%REQ(:METHOD)%% %%PATH(NQ:ORIG_OR_PATH)%% %%PROTOCOL%%\" %%RESPONSE_CODE%% %%RESPONSE_FLAGS%% %%BYTES_RECEIVED%% %%BYTES_SENT%% %%DURATION%% \"%%REQ(X-FORWARDED-FOR)%%\" \"%%REQ(USER-AGENT)%%\" \"%%REQ(X-REQUEST-ID)%%\" \"%%REQ(:AUTHORITY)%%\" \"%%UPSTREAM_HOST%%\"\n" -}}
 {{- $accessLogSink := dict "type" "File" "file" (dict "path" "/dev/stdout") -}}
 {{- $accessLogSetting := dict "format" (dict "type" "Text" "text" $accessLogText) "sinks" (list $accessLogSink) -}}
 {{- $defaultTelemetry := dict "telemetry" (dict "accessLog" (dict "settings" (list $accessLogSetting))) -}}
