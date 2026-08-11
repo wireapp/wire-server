@@ -1,0 +1,1 @@
+When using the wire-ingress provided EnvoyProxy, ensure the request path's query string is removed from the logs, to ensure access_tokens passed as query string are not logged. Browsers are required to pass them on a query string on some endpoints such as /await.
