@@ -309,7 +309,6 @@ versions, including v17.
 
 The flag now defaults to **enabled and locked** and the Helm configuration
 override has been removed (operators can no longer change it via Helm). The
-`BackgroundEffectsConfig` type carries a `DEPRECATED` pragma. The
 `GET/PUT /teams/:tid/features/backgroundEffects` and internal lock-status
 endpoints return 404 at API version v17; they remain available through v16.
 The aggregate endpoints `GET /feature-configs` and
