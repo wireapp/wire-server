@@ -42,7 +42,7 @@ testCellsEvent :: (HasCallStack) => App ()
 testCellsEvent = do
   (alice, tid, [bob, chaz, dean, eve]) <- createTeam OwnDomain 5
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
-  q <- watchCellsEventsForTeam tid (convEvents conv)
+  cellsQueue <- watchCellsEventsForTeam tid (convEvents conv)
 
   bobId <- bob %. "qualified_id"
   chazId <- chaz %. "qualified_id"
@@ -55,7 +55,7 @@ testCellsEvent = do
   addMembers alice conv def {role = Just "wire_member", users = [chazId]} >>= assertSuccess
 
   do
-    event <- getMessage q %. "payload.0"
+    event <- getMessage cellsQueue %. "payload.0"
     event %. "type" `shouldMatch` "conversation.member-join"
     event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
     event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
@@ -66,7 +66,7 @@ testCellsEvent = do
   addMembers alice conv def {role = Just "wire_member", users = [deanId]} >>= assertSuccess
 
   do
-    event <- getMessage q %. "payload.0"
+    event <- getMessage cellsQueue %. "payload.0"
     event %. "type" `shouldMatch` "conversation.member-join"
     event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
     event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
@@ -76,33 +76,33 @@ testCellsEvent = do
   I.setCellsState alice conv "disabled" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [eveId]} >>= assertSuccess
 
-  assertNoMessage q
+  assertNoMessage cellsQueue
 
 testCellsCreationEvent :: (HasCallStack) => App ()
 testCellsCreationEvent = do
   (alice, tid, _) <- createTeam OwnDomain 1
-  q0 <- watchCellsEventsForTeam tid def
+  baseQueue <- watchCellsEventsForTeam tid def
   conv <- postConversation alice defProteus {team = Just tid, cells = True} >>= getJSON 201
 
-  let q = q0 {filter = isNotifConv conv} :: QueueConsumer
+  let cellsQueue = baseQueue {filter = isNotifConv conv} :: QueueConsumer
 
-  event <- getMessage q %. "payload.0"
+  event <- getMessage cellsQueue %. "payload.0"
   event %. "type" `shouldMatch` "conversation.create"
   event %. "qualified_conversation.id" `shouldMatch` (conv %. "qualified_id.id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
 
-  assertNoMessage q
+  assertNoMessage cellsQueue
 
 testCellsDeletionEvent :: (HasCallStack) => App ()
 testCellsDeletionEvent = do
   (alice, tid, _) <- createTeam OwnDomain 1
-  q0 <- watchCellsEventsForTeam tid def
+  baseQueue <- watchCellsEventsForTeam tid def
   conv <- postConversation alice defProteus {team = Just tid, cells = True} >>= getJSON 201
   void $ deleteTeamConversation tid conv alice >>= assertSuccess
 
-  let q = q0 {filter = isConvDeleteNotif} :: QueueConsumer
+  let cellsQueue = baseQueue {filter = isNotifTeamConvDelete conv} :: QueueConsumer
 
-  event <- getMessage q %. "payload.0"
+  event <- getMessage cellsQueue %. "payload.0"
   event %. "type" `shouldMatch` "conversation.delete"
   event %. "conversation" `shouldMatch` (conv %. "qualified_id.id")
   event %. "qualified_conversation" `shouldMatch` (conv %. "qualified_id")
@@ -110,22 +110,22 @@ testCellsDeletionEvent = do
   event %. "from" `shouldMatch` (alice %. "qualified_id.id")
   event %. "team" `shouldMatch` tid
 
-  assertNoMessage q
+  assertNoMessage cellsQueue
 
 testCellsCreationEventIsSentOnlyOnce :: (HasCallStack) => App ()
 testCellsCreationEventIsSentOnlyOnce = do
   (alice, tid, members) <- createTeam OwnDomain 2
-  q0 <- watchCellsEventsForTeam tid def
+  baseQueue <- watchCellsEventsForTeam tid def
   conv <- postConversation alice defProteus {team = Just tid, cells = True, qualifiedUsers = members} >>= getJSON 201
 
-  let q = q0 {filter = isNotifConv conv} :: QueueConsumer
+  let cellsQueue = baseQueue {filter = isNotifConv conv} :: QueueConsumer
 
-  event <- getMessage q %. "payload.0"
+  event <- getMessage cellsQueue %. "payload.0"
   event %. "type" `shouldMatch` "conversation.create"
   event %. "qualified_conversation.id" `shouldMatch` (conv %. "qualified_id.id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
 
-  assertNoMessage q
+  assertNoMessage cellsQueue
 
 testCellsFeatureCheck :: (HasCallStack) => App ()
 testCellsFeatureCheck = do
@@ -139,15 +139,15 @@ testCellsFeatureCheck = do
 testCellsEventOnFeatureToggle :: (HasCallStack) => App ()
 testCellsEventOnFeatureToggle = do
   (_, tid, _) <- createTeam OwnDomain 1
-  q <- watchCellsEventsForTeam tid def
+  cellsQueue <- watchCellsEventsForTeam tid def
   I.patchTeamFeature OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
-  getMessage q >>= \event -> do
+  getMessage cellsQueue >>= \event -> do
     event %. "payload.0.type" `shouldMatch` "feature-config.update"
     event %. "payload.0.name" `shouldMatch` "cells"
     event %. "payload.0.team" `shouldMatch` (asString tid)
     event %. "payload.0.data.status" `shouldMatch` "disabled"
   I.patchTeamFeature OwnDomain tid "cells" (object ["status" .= "enabled"]) >>= assertSuccess
-  getMessage q >>= \event -> do
+  getMessage cellsQueue >>= \event -> do
     event %. "payload.0.type" `shouldMatch` "feature-config.update"
     event %. "payload.0.name" `shouldMatch` "cells"
     event %. "payload.0.team" `shouldMatch` (asString tid)
@@ -166,9 +166,9 @@ testCellsIgnoredEvents = do
   (alice, tid, _) <- createTeam OwnDomain 1
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
   I.setCellsState alice conv "ready" >>= assertSuccess
-  q <- watchCellsEventsForTeam tid (convEvents conv)
+  cellsQueue <- watchCellsEventsForTeam tid (convEvents conv)
   void $ updateMessageTimer alice conv 1000 >>= getBody 200
-  assertNoMessage q
+  assertNoMessage cellsQueue
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -211,26 +211,26 @@ connectToCellsQueue sm messages = do
       (cancelConsumer chan)
 
 getNextMessage :: QueueConsumer -> App Value
-getNextMessage q = do
-  m <- liftIO $ atomically $ readTChan q.chan
+getNextMessage cellsQueue = do
+  m <- liftIO $ atomically $ readTChan cellsQueue.chan
   v <- either assertFailure pure $ A.eitherDecode m.msgBody
-  ok <- q.filter v
+  ok <- cellsQueue.filter v
   if ok
     then pure v
-    else getNextMessage q
+    else getNextMessage cellsQueue
 
 getMessageMaybe :: QueueConsumer -> App (Maybe Value)
-getMessageMaybe q = do
+getMessageMaybe cellsQueue = do
   timeOutSeconds <- asks (.timeOutSeconds)
-  next <- appToIO (getNextMessage q)
+  next <- appToIO (getNextMessage cellsQueue)
   liftIO $ timeout (timeOutSeconds * 1000000) next
 
 getMessage :: QueueConsumer -> App Value
-getMessage q = getMessageMaybe q >>= assertJust "Cells queue timeout"
+getMessage cellsQueue = getMessageMaybe cellsQueue >>= assertJust "Cells queue timeout"
 
 assertNoMessage :: QueueConsumer -> App ()
-assertNoMessage f =
-  getMessageMaybe f >>= \case
+assertNoMessage cellsQueue =
+  getMessageMaybe cellsQueue >>= \case
     Nothing -> pure ()
     Just m -> do
       j <- prettyJSON m
@@ -307,8 +307,8 @@ watchCellsEvents opts = do
 
 watchCellsEventsForTeam :: String -> WatchCellsEvents -> App QueueConsumer
 watchCellsEventsForTeam tid opts = do
-  q <- watchCellsEvents opts
+  cellsQueue <- watchCellsEvents opts
   let isEventForTeam v = fieldEquals @Value v "payload.0.team" tid
   -- the cells event queue is shared by tests
   -- let's hope this filter reduces the risk of tests interfering with each other
-  pure $ q {filter = isEventForTeam}
+  pure $ cellsQueue {filter = isEventForTeam}
