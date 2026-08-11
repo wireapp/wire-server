@@ -2,3 +2,7 @@ apiVersion: v1
 description: Dummy ephemeral SQS service
 name: fake-aws-sqs
 version: 0.0.42
+annotations:
+  helm.sh/images: |
+    - name: elasticmq-native
+      image: docker.io/softwaremill/elasticmq-native:1.6.11
