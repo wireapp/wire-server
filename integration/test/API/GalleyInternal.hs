@@ -85,10 +85,7 @@ getFederationStatus user domains =
           $ req
           & addJSONObject ["domains" .= domainList]
 
--- | Poll (via 'eventually') until the user's backend is fully connected to all
--- the given domains — every domain reachable AND the federation graph among them
--- connected. Absorbs transient reachability blips under dynamic-backend churn
--- (WPB-3797).
+-- | Poll until the user's backend is fully connected to all given domains
 assertFullyConnected ::
   ( HasCallStack,
     MakesValue user
