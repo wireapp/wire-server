@@ -4,7 +4,7 @@ name: redis-ephemeral
 version: 0.0.42
 annotations:
   # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
-  images: |
+  helm.sh/images: |
     - dependency: redis
       name: redis
       image: docker.io/bitnamilegacy/redis:6.2.7-debian-11-r0

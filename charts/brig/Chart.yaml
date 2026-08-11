@@ -6,6 +6,6 @@ annotations:
   # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
   helm.sh/images: |
     - name: brig
-      image: "quay.io/wire/brig:do-not-use"
+      image: quay.io/wire/brig:do-not-use
     - name: brig-integration
-      image: "quay.io/wire/brig-integration:do-not-use"
+      image: quay.io/wire/brig-integration:do-not-use

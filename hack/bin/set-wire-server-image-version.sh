@@ -10,18 +10,18 @@ charts=(brig cannon galley gundeck spar cargohold proxy cassandra-migrations ela
 
 for chart in "${charts[@]}"; do
     if [ -f "$CHARTS_DIR/$chart/values.yaml" ]; then
-      sed -i "s/^  tag: .*/  tag: $target_version/g" "$CHARTS_DIR/$chart/values.yaml"
+      sed -i "s|^  tag: .*|  tag: $target_version|g" "$CHARTS_DIR/$chart/values.yaml"
     fi
     if [ -f "$CHARTS_DIR/$chart/Chart.yaml" ]; then
-      sed -i "s/:do-not-use/:$target_version/g" "$CHARTS_DIR/$chart/Chart.yaml"
+      sed -i "s|:do-not-use|:$target_version|g" "$CHARTS_DIR/$chart/Chart.yaml"
     fi
 done
 
 # special case nginz
 if [ -f "$CHARTS_DIR/nginz/values.yaml" ]; then
-  sed -i "s/^    tag: .*/    tag: $target_version/g" "$CHARTS_DIR/nginz/values.yaml"
+  sed -i "s|^    tag: .*|    tag: $target_version|g" "$CHARTS_DIR/nginz/values.yaml"
 
   if [ -f "$CHARTS_DIR/nginz/Chart.yaml" ]; then
-    sed -i "s/:do-not-use/:$target_version/g" "$CHARTS_DIR/nginz/Chart.yaml"
+    sed -i "s|:do-not-use|:$target_version|g" "$CHARTS_DIR/nginz/Chart.yaml"
   fi
 fi

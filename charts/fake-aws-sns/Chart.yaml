@@ -9,4 +9,3 @@ annotations:
       image: docker.io/mesosphere/aws-cli:1.14.5
     - name: localstack
       image: docker.io/localstack/localstack:0.8.7
-
