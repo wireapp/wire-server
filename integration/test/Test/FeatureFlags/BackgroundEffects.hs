@@ -38,13 +38,11 @@ testBackgroundEffects access =
 -- feature-locked against the default enabled+locked state.
 testBackgroundEffectsRemovedAtV17 :: (HasCallStack) => App ()
 testBackgroundEffectsRemovedAtV17 = do
-  (owner, tid, _) <- createTeam OwnDomain 0
+  (owner, tid, []) <- createTeam OwnDomain 0
   let p = joinHttpPath ["teams", tid, "features", "backgroundEffects"]
       body = object ["status" .= "enabled", "lockStatus" .= "locked"]
-  bindResponse (baseRequest owner Galley (ExplicitVersion 17) p >>= submit "GET") $ \resp -> do
-    resp.status `shouldMatchInt` 404
-  bindResponse (baseRequest owner Galley (ExplicitVersion 17) p <&> addJSON body >>= submit "PUT") $ \resp -> do
-    resp.status `shouldMatchInt` 404
+  bindResponse (baseRequest owner Galley (ExplicitVersion 17) p >>= submit "GET") $ assertStatus 404
+  bindResponse (baseRequest owner Galley (ExplicitVersion 17) p <&> addJSON body >>= submit "PUT") $ assertStatus 404
   bindResponse (baseRequest owner Galley (ExplicitVersion 16) p >>= submit "GET") $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
