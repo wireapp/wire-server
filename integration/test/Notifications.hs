@@ -230,6 +230,11 @@ isConvDeleteNotif n =
   fieldEquals n "payload.0.type" "conversation.delete"
     ||~ fieldEquals n "payload.0.type" "conversation.system.delete"
 
+isNotifTeamConvDelete :: (HasCallStack, MakesValue conv, MakesValue a) => conv -> a -> App Bool
+isNotifTeamConvDelete conv n =
+  isNotifConv conv n
+    &&~ fieldEquals n "payload.0.type" "conversation.delete"
+
 isConvAdminlessReminderNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvAdminlessReminderNotif n = fieldEquals n "payload.0.type" "conversation.adminless-reminder"
 
