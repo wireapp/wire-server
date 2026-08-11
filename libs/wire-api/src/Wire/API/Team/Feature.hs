@@ -2428,13 +2428,12 @@ instance ToObjectSchema MeetingsPremiumConfig where
 
 --------------------------------------------------------------------------------
 -- BackgroundEffects Feature
---
--- /Deprecated (WPB-27912)./ This feature flag no longer affects meeting
--- behaviour and is kept solely for API compatibility. It defaults to
--- /enabled and locked/. Scheduled for removal in a future release.
 
 {-# DEPRECATED BackgroundEffectsConfig "Deprecated (WPB-27912): no longer affects meeting behaviour; kept for API compatibility." #-}
 
+-- | /Deprecated (WPB-27912)./ This feature flag no longer affects meeting
+-- behaviour and is kept solely for API compatibility. It defaults to
+-- /enabled and locked/. Scheduled for removal in a future release.
 data BackgroundEffectsConfig = BackgroundEffectsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform BackgroundEffectsConfig)
