@@ -1,10 +1,22 @@
-module API.Template (tests) where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import Bilge
-import Brig.Options
-import Brig.Team.Template (loadTeamTemplatesWithBrigOpts)
-import Brig.Template
-import Brig.User.Template (loadUserTemplates)
+module Wire.EmailSubsystem.TemplateSpec (spec) where
+
 import Data.Code
 import Data.Id
 import Data.Json.Util
@@ -18,9 +30,7 @@ import Imports
 import Network.Mail.Mime
 import Polysemy
 import Polysemy.Output
-import Test.Tasty
-import Test.Tasty.HUnit
-import Util
+import Test.Hspec
 import Wire.API.Locale
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
 import Wire.API.User.Activation
@@ -30,57 +40,43 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.TemplateFixtures
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
--- FUTUREWORK: This does not have to be an integration test. It could be
--- covered by unit tests in wire-subsystems. Then, the helper functions can be
--- privatized.
-tests :: Opts -> Manager -> IO TestTree
-tests opts m = do
-  team <- liftIO $ loadTeamTemplatesWithBrigOpts opts
-  user <- liftIO $ loadUserTemplates opts
-  let teamTemplates = Map.assocs $ uncurry Map.insert team.locDefault team.locOther
-      userTemplates = Map.assocs $ uncurry Map.insert user.locDefault user.locOther
-      b = genTemplateBrandingMap opts.emailSMS.general.templateBranding
-  pure $
-    testGroup
-      "email templates"
-      [ testGroup
-          "team"
-          $ fmap
-            ( \(loc, ts) ->
-                testGroup
-                  (show loc)
-                  [ test m "team invitation" $ testTeamInvitationEmail b ts,
-                    test m "team invitation existing user" $ testTeamInvitationEmailExistingUser b ts,
-                    test m "member welcome" $ testMemberWelcomeEmail b ts,
-                    test m "new team owner welcome" $ testNewTeamOwnerWelcomeEmail b ts
-                  ]
-            )
-            teamTemplates,
-        testGroup "user" $
-          fmap
-            ( \(loc, ts) ->
-                testGroup
-                  (show loc)
-                  [ test m "password reset email" $ testPasswordResetEmail b ts,
-                    test m "verification email" $ testVerificationEmail b ts,
-                    test m "team deletion verification email" $ testTeamDeletionVerificationEmail b ts,
-                    test m "scim token verification email" $ testScimTokenVerificationEmail b ts,
-                    test m "login verification email" $ testLoginVerificationEmail b ts,
-                    test m "new client email" $ testNewClientEmail b loc ts,
-                    test m "account deletion email" $ testAccountDeletionEmail b ts,
-                    test m "activation email" $ testActivationEmail b ts,
-                    test m "activation email update" $ testActivationEmailUpdate b ts,
-                    test m "team activation email" $ testTeamActivationEmail b ts
-                  ]
-            )
-            userTemplates
-      ]
+-- | Insert the default locale into the map of other locales, giving the full
+-- set of locales that ship templates. Each is exercised below.
+byLocale :: Localised a -> [(Locale, a)]
+byLocale l = Map.assocs $ uncurry Map.insert l.locDefault l.locOther
 
-testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
-testTeamInvitationEmailExistingUser branding templates = do
+spec :: Spec
+spec = do
+  teamTemplates <- runIO loadTestTeamTemplates
+  userTemplates <- runIO loadTestUserTemplates
+  describe "email templates" $ do
+    describe "team" $
+      for_ (byLocale teamTemplates) $ \(loc, ts) ->
+        describe (show loc) $ do
+          it "team invitation" $ testTeamInvitationEmail ts
+          it "team invitation existing user" $ testTeamInvitationEmailExistingUser ts
+          it "member welcome" $ testMemberWelcomeEmail ts
+          it "new team owner welcome" $ testNewTeamOwnerWelcomeEmail ts
+    describe "user" $
+      for_ (byLocale userTemplates) $ \(loc, ts) ->
+        describe (show loc) $ do
+          it "password reset email" $ testPasswordResetEmail ts
+          it "verification email" $ testVerificationEmail ts
+          it "team deletion verification email" $ testTeamDeletionVerificationEmail ts
+          it "scim token verification email" $ testScimTokenVerificationEmail ts
+          it "login verification email" $ testLoginVerificationEmail ts
+          it "new client email" $ testNewClientEmail loc ts
+          it "account deletion email" $ testAccountDeletionEmail ts
+          it "activation email" $ testActivationEmail ts
+          it "activation email update" $ testActivationEmailUpdate ts
+          it "team activation email" $ testTeamActivationEmail ts
+
+testTeamInvitationEmailExistingUser :: (HasCallStack) => TeamTemplates -> Expectation
+testTeamInvitationEmailExistingUser templates = do
   let tpl = templates.existingUserInvitationEmail
       (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
       input =
@@ -90,12 +86,12 @@ testTeamInvitationEmailExistingUser branding templates = do
             invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
             invInviter = fromJust $ emailAddressText "inviter@example.com"
           }
-  liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
-  liftIO $ url @?= "https://example.com/accept-invitation/?team-code=ZoMX0xs="
+  mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.invitationEmailSender
+  url `shouldBe` "https://example.com/accept-invitation/?team-code=ZoMX0xs="
   assertNoErrors errs
 
-testTeamInvitationEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
-testTeamInvitationEmail branding templates = do
+testTeamInvitationEmail :: (HasCallStack) => TeamTemplates -> Expectation
+testTeamInvitationEmail templates = do
   let tpl = templates.invitationEmail
       (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
       input =
@@ -105,12 +101,12 @@ testTeamInvitationEmail branding templates = do
             invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
             invInviter = fromJust $ emailAddressText "inviter@example.com"
           }
-  liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
-  liftIO $ url @?= "https://example.com/join/?team-code=ZoMX0xs="
+  mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.invitationEmailSender
+  url `shouldBe` "https://example.com/join/?team-code=ZoMX0xs="
   assertNoErrors errs
 
-testMemberWelcomeEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
-testMemberWelcomeEmail branding templates = do
+testMemberWelcomeEmail :: (HasCallStack) => TeamTemplates -> Expectation
+testMemberWelcomeEmail templates = do
   let tpl = templates.memberWelcomeEmail
       to = fromJust $ emailAddressText "test@example.com"
       tid = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000")
@@ -118,8 +114,8 @@ testMemberWelcomeEmail branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderMemberWelcomeMail to tid tname tpl branding
   assertNoErrors errs
 
-testNewTeamOwnerWelcomeEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
-testNewTeamOwnerWelcomeEmail branding templates = do
+testNewTeamOwnerWelcomeEmail :: (HasCallStack) => TeamTemplates -> Expectation
+testNewTeamOwnerWelcomeEmail templates = do
   let tpl = templates.newTeamOwnerWelcomeEmail
       to = fromJust $ emailAddressText "test@example.com"
       tid = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000")
@@ -128,8 +124,8 @@ testNewTeamOwnerWelcomeEmail branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderNewTeamOwnerWelcomeEmail to tid tname name tpl branding
   assertNoErrors errs
 
-testPasswordResetEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testPasswordResetEmail branding templates = do
+testPasswordResetEmail :: (HasCallStack) => UserTemplates -> Expectation
+testPasswordResetEmail templates = do
   let tpl = templates.passwordResetEmail
       to = fromJust $ emailAddressText "test@example.com"
       key = mkPasswordResetKey (Id UUID.nil)
@@ -137,8 +133,8 @@ testPasswordResetEmail branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderPwResetMail to key code tpl branding
   assertNoErrors errs
 
-testVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testVerificationEmail branding templates = do
+testVerificationEmail :: (HasCallStack) => UserTemplates -> Expectation
+testVerificationEmail templates = do
   let tpl = templates.verificationEmail
       to = fromJust $ emailAddressText "test@example.com"
       key = ActivationKey . Ascii.unsafeFromText $ "key"
@@ -146,32 +142,32 @@ testVerificationEmail branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderVerificationMail to key code tpl branding
   assertNoErrors errs
 
-testTeamDeletionVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testTeamDeletionVerificationEmail branding templates = do
+testTeamDeletionVerificationEmail :: (HasCallStack) => UserTemplates -> Expectation
+testTeamDeletionVerificationEmail templates = do
   let tpl = templates.verificationTeamDeletionEmail
       to = fromJust $ emailAddressText "test@example.com"
       code = Value . unsafeRange . Ascii.unsafeFromText $ "code"
       (errs, _) = run $ runOutputList @Text $ renderSecondFactorVerificationEmail to code tpl branding
   assertNoErrors errs
 
-testScimTokenVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testScimTokenVerificationEmail branding templates = do
+testScimTokenVerificationEmail :: (HasCallStack) => UserTemplates -> Expectation
+testScimTokenVerificationEmail templates = do
   let tpl = templates.verificationScimTokenEmail
       to = fromJust $ emailAddressText "test@example.com"
       code = Value . unsafeRange . Ascii.unsafeFromText $ "code"
       (errs, _) = run $ runOutputList @Text $ renderSecondFactorVerificationEmail to code tpl branding
   assertNoErrors errs
 
-testLoginVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testLoginVerificationEmail branding templates = do
+testLoginVerificationEmail :: (HasCallStack) => UserTemplates -> Expectation
+testLoginVerificationEmail templates = do
   let tpl = templates.verificationLoginEmail
       to = fromJust $ emailAddressText "test@example.com"
       code = Value . unsafeRange . Ascii.unsafeFromText $ "code"
       (errs, _) = run $ runOutputList @Text $ renderSecondFactorVerificationEmail to code tpl branding
   assertNoErrors errs
 
-testActivationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testActivationEmail branding templates = do
+testActivationEmail :: (HasCallStack) => UserTemplates -> Expectation
+testActivationEmail templates = do
   let tpl = templates.activationEmail
       to = fromJust $ emailAddressText "test@example.com"
       name = Name "name"
@@ -180,8 +176,8 @@ testActivationEmail branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderActivationMail to name key code tpl branding
   assertNoErrors errs
 
-testActivationEmailUpdate :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testActivationEmailUpdate branding templates = do
+testActivationEmailUpdate :: (HasCallStack) => UserTemplates -> Expectation
+testActivationEmailUpdate templates = do
   let tpl = templates.activationEmailUpdate
       to = fromJust $ emailAddressText "test@example.com"
       name = Name "name"
@@ -190,8 +186,8 @@ testActivationEmailUpdate branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderActivationMail to name key code tpl branding
   assertNoErrors errs
 
-testTeamActivationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testTeamActivationEmail branding templates = do
+testTeamActivationEmail :: (HasCallStack) => UserTemplates -> Expectation
+testTeamActivationEmail templates = do
   let tpl = templates.teamActivationEmail
       to = fromJust $ emailAddressText "test@example.com"
       name = Name "name"
@@ -201,8 +197,8 @@ testTeamActivationEmail branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderTeamActivationMail to name teamName key code tpl branding
   assertNoErrors errs
 
-testNewClientEmail :: (HasCallStack) => Map Text Text -> Locale -> UserTemplates -> Http ()
-testNewClientEmail branding loc templates = do
+testNewClientEmail :: (HasCallStack) => Locale -> UserTemplates -> Expectation
+testNewClientEmail loc templates = do
   let tpl = templates.newClientEmail
       to = fromJust $ emailAddressText "test@example.com"
       name = Name "name"
@@ -222,8 +218,8 @@ testNewClientEmail branding loc templates = do
       (errs, _) = run $ runOutputList @Text $ renderNewClientEmail to name loc client tpl branding
   assertNoErrors errs
 
-testAccountDeletionEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
-testAccountDeletionEmail branding templates = do
+testAccountDeletionEmail :: (HasCallStack) => UserTemplates -> Expectation
+testAccountDeletionEmail templates = do
   let tpl = templates.deletionEmail
       to = fromJust $ emailAddressText "test@example.com"
       name = Name "name"
@@ -232,7 +228,7 @@ testAccountDeletionEmail branding templates = do
       (errs, _) = run $ runOutputList @Text $ renderDeletionEmail to name key code tpl branding
   assertNoErrors errs
 
-assertNoErrors :: [Text] -> Http ()
+assertNoErrors :: (HasCallStack) => [Text] -> Expectation
 assertNoErrors errs =
-  liftIO $
-    assertBool ("The following variables were not replaced: " <> show (nub errs)) (null errs)
+  unless (null errs) $
+    expectationFailure ("The following variables were not replaced: " <> show (nub errs))

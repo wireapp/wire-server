@@ -18,94 +18,23 @@
 module Brig.User.Template (loadUserTemplates) where
 
 import Brig.Options qualified as Opt
-import Data.Text.Template
 import Imports
-import Wire.EmailSubsystem.Template hiding (readTemplate, readText)
+import Wire.EmailSubsystem.Template hiding (loadUserTemplates)
+import Wire.EmailSubsystem.Template qualified as EmailTemplate
 import Wire.EmailSubsystem.Templates.User
 
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
-loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
-  UserTemplates
-    <$> ( VerificationEmailTemplate activationUrl
-            <$> readTemplate fp "email/verification-subject.txt"
-            <*> readTemplate fp "email/verification.txt"
-            <*> readTemplate fp "email/verification.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( ActivationEmailTemplate activationUrl
-            <$> readTemplate fp "email/activation-subject.txt"
-            <*> readTemplate fp "email/activation.txt"
-            <*> readTemplate fp "email/activation.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( ActivationEmailTemplate activationUrl
-            <$> readTemplate fp "email/update-subject.txt"
-            <*> readTemplate fp "email/update.txt"
-            <*> readTemplate fp "email/update.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( TeamActivationEmailTemplate teamActivationUrl
-            <$> readTemplate fp "email/team-activation-subject.txt"
-            <*> readTemplate fp "email/team-activation.txt"
-            <*> readTemplate fp "email/team-activation.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( PasswordResetEmailTemplate passwordResetUrl
-            <$> readTemplate fp "email/password-reset-subject.txt"
-            <*> readTemplate fp "email/password-reset.txt"
-            <*> readTemplate fp "email/password-reset.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( DeletionEmailTemplate deletionUserUrl
-            <$> readTemplate fp "email/deletion-subject.txt"
-            <*> readTemplate fp "email/deletion.txt"
-            <*> readTemplate fp "email/deletion.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( NewClientEmailTemplate
-            <$> readTemplate fp "email/new-client-subject.txt"
-            <*> readTemplate fp "email/new-client.txt"
-            <*> readTemplate fp "email/new-client.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( SecondFactorVerificationEmailTemplate
-            <$> readTemplate fp "email/verification-login-subject.txt"
-            <*> readTemplate fp "email/verification-login.txt"
-            <*> readTemplate fp "email/verification-login.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( SecondFactorVerificationEmailTemplate
-            <$> readTemplate fp "email/verification-scim-token-subject.txt"
-            <*> readTemplate fp "email/verification-scim-token.txt"
-            <*> readTemplate fp "email/verification-scim-token.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( SecondFactorVerificationEmailTemplate
-            <$> readTemplate fp "email/verification-delete-team-subject.txt"
-            <*> readTemplate fp "email/verification-delete-team.txt"
-            <*> readTemplate fp "email/verification-delete-team.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
+loadUserTemplates o =
+  EmailTemplate.loadUserTemplates
+    userTemplateOpts
+    o.emailSMS.general.templateDir
+    (Opt.defaultTemplateLocale o.settings)
+    o.emailSMS.general.emailSender
   where
-    gOptions = o.emailSMS.general
-    uOptions = o.emailSMS.user
-    tOptions = o.emailSMS.team
-    emailSender = gOptions.emailSender
-    activationUrl = template uOptions.activationUrl
-    teamActivationUrl = template tOptions.tActivationUrl
-    passwordResetUrl = template uOptions.passwordResetUrl
-    deletionUserUrl = template uOptions.deletionUrl
-    defLocale = Opt.defaultTemplateLocale o.settings
-    templateDir = gOptions.templateDir
-    readTemplate = readTemplateWithDefault templateDir defLocale "user"
-    readText = readTextWithDefault templateDir defLocale "user"
+    userTemplateOpts =
+      UserTemplateOpts
+        { activationUrl = o.emailSMS.user.activationUrl,
+          teamActivationUrl = o.emailSMS.team.tActivationUrl,
+          passwordResetUrl = o.emailSMS.user.passwordResetUrl,
+          deletionUrl = o.emailSMS.user.deletionUrl
+        }

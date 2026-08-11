@@ -350,7 +350,6 @@ executable brig-integration
     API.Team
     API.Team.Util
     API.TeamUserSearch
-    API.Template
     API.User
     API.User.Account
     API.User.Auth
