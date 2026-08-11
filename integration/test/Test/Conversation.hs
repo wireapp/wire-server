@@ -701,7 +701,7 @@ testSynchroniseUserRemovalNotification domain = do
         charlie <- randomUser dynBackend.berDomain def
         mapM_ (connectTwoUsers charlie) [alice, bob]
         conv <-
-          postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
+          retryTransient (postConversation alice (defProteus {qualifiedUsers = [bob, charlie]}))
             >>= getJSON 201
         pure (conv, charlie)
 

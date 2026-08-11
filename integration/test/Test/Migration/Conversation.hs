@@ -15,7 +15,6 @@ module Test.Migration.Conversation where
 import API.Galley
 import qualified API.GalleyInternal as I
 import Control.Applicative
-import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.IntMap (IntMap)
@@ -254,28 +253,6 @@ testMigrationToPostgresProteus = do
       fmap IntMap.fromList . pooledForConcurrentlyN parallelism [1 .. 5] $ \phase -> do
         convs <- replicateM n $ action
         pure (phase, convs)
-
-    -- \| Retry a request that fans out over federation on transient errors.
-    --
-    -- Conversation creates and membership changes federate to the freshly
-    -- (re)started migrating backend; during that cold-start burst transient
-    -- federation failures are common (the dynamic backend is declared ready by
-    -- a single federated ping, then hit with parallelism-8 fan-out). This
-    -- tolerates 533 (unreachable backends / unexpected federation response),
-    -- 521 (connection refused) and 525 (SSL), in addition to the 500/422 that
-    -- the previous helper already covered. Bounded by a cumulative cap so
-    -- genuine failures still surface.
-    retryTransient :: App Response -> App Response
-    retryTransient action = go (0 :: Int) (100_000 :: Int)
-      where
-        go spent delay = do
-          resp <- action
-          if resp.status `elem` [500, 422, 521, 525, 533] && spent < maxCumulative
-            then do
-              liftIO $ threadDelay delay
-              go (spent + delay) (min 2_000_000 (delay * 2))
-            else pure resp
-        maxCumulative = 30_000_000
 
     runPhaseOperations :: (HasCallStack) => Int -> Value -> String -> TestConvList -> Value -> Value -> App [ConvId]
     runPhaseOperations phase convAdmin tid TestConvList {..} mel mark = do
