@@ -168,6 +168,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    async
     base
     bytestring
     bytestring-conversion
