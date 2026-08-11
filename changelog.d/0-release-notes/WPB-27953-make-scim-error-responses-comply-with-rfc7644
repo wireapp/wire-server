@@ -1,0 +1,22 @@
+Make SCIM error responses comply with RFC7644.  Any code that processes SCIM error responses must be changed to follow the standard, instead of the previous Wire implementation.
+
+Previous schema (incompatible with RFC):
+
+```
+{
+  "code": 400,
+  "label": "scim-error",
+  "message": "{\"detail\":\"[...]\",\"schemas\":[\"urn:ietf:params:scim:api:messages:2.0:Error\"],\"scimType\":\"invalidValue\",\"status\":\"400\"}"
+}
+```
+
+New schema (RFC-compliant):
+
+```
+{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400"
+  "scimType": "invalidValue",
+  "detail": "[...]",
+}
+```
