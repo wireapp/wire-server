@@ -526,6 +526,10 @@ testAddUnreachableUserFromFederatingBackend domain = do
       otherDomain <- make domain & asString
       [alice, bob, charlie, chad] <-
         createAndConnectUsers [ownDomain, otherDomain, cDom.berDomain, cDom.berDomain]
+      -- Wait for ownDomain <-> {fed2, dynamicC} to be fully connected before
+      -- creating the conversation, so a transient fed2 reachability blip under
+      -- dynamic-backend churn does not turn the create into a 533 (WPB-3797).
+      assertFullyConnected alice [otherDomain, cDom.berDomain]
 
       conv <- withWebSockets [bob, charlie] $ \wss -> do
         conv <-
