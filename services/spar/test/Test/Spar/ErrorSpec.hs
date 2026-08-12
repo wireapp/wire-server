@@ -19,7 +19,8 @@
 
 module Test.Spar.ErrorSpec where
 
-import Data.Aeson (encode)
+import Data.Aeson (eitherDecode')
+import Data.Aeson.QQ (aesonQQ)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant (ServerError (..))
@@ -38,7 +39,17 @@ spec = describe "sparToServerError" $ do
             Scim.InvalidValue
             (Just "Could not process externalId.")
         serverErr = sparToServerError (SAML.CustomError (SparScimError scimErr))
-    errBody serverErr `shouldBe` encode scimErr
+    eitherDecode' (errBody serverErr)
+      `shouldBe` Right
+        [aesonQQ|
+                  {
+                    "detail": "Could not process externalId.",
+                    "schemas": [
+                      "urn:ietf:params:scim:api:messages:2.0:Error"
+                    ],
+                    "scimType": "invalidValue",
+                    "status": "400"
+                  }|]
     errHTTPCode serverErr `shouldBe` 400
     lookup "Content-Type" (errHeaders serverErr)
       `shouldBe` Just "application/scim+json;charset=utf-8"
