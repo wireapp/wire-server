@@ -97,6 +97,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import System.Logger qualified as Log
 import Wire.API.Bot hiding (addBot)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
@@ -1195,6 +1196,18 @@ isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
     && maybe True (== GroupConversation) conv.metadata.cnvmGroupConvType
 
+shouldSkipSystemAdminlessDeletion :: Maybe (Local UserId) -> StoredConversation -> Bool
+shouldSkipSystemAdminlessDeletion mlusr conv =
+  isNothing mlusr
+    && not (null conv.remoteMembers)
+
+logSkippedSystemAdminlessDeletion :: (Member TinyLog r) => Text -> StoredConversation -> Sem r ()
+logSkippedSystemAdminlessDeletion action conv =
+  info $
+    Log.msg (Log.val "Skipping senderless adminless deletion for conversation with remote members")
+      . Log.field "conversation_id" (idToText conv.id_)
+      . Log.field "action" action
+
 setupAdminlessGroupsCleanup ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1207,7 +1220,8 @@ setupAdminlessGroupsCleanup ::
     Member BackendNotificationQueueAccess r,
     Member FeaturesConfigSubsystem r,
     Member (Input (Local ())) r,
-    Member JobSubsystem r
+    Member JobSubsystem r,
+    Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
   TeamId ->
@@ -1216,7 +1230,10 @@ setupAdminlessGroupsCleanup mUsr tid = do
   teamConvIds <- E.getTeamConversations tid
   for_ teamConvIds $ \cnv -> do
     lcnv <- qualifyLocal cnv
-    adminlessTryAutopromote mUsr lcnv $ \_ feature _ -> scheduleDeletion lcnv mUsr tid feature
+    adminlessTryAutopromote mUsr lcnv $ \conv feature _ ->
+      if shouldSkipSystemAdminlessDeletion mUsr conv
+        then logSkippedSystemAdminlessDeletion "schedule_for_deletion" conv
+        else scheduleDeletion lcnv mUsr tid feature
 
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
@@ -1419,33 +1436,37 @@ adminlessAutopromoteOrDelete ::
     Member BackendNotificationQueueAccess r,
     Member FeaturesConfigSubsystem r,
     Member ProposalStore r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
   Sem r ()
 adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orAlternativelyDeleteConv
   where
-    orAlternativelyDeleteConv conv _ _ = do
-      removeConversation (qualifyAs lcnv conv)
-      case mlusr of
-        Just lusr ->
-          void $
-            sendConversationActionNotifications
-              (sing @'ConversationDeleteTag)
-              (tUntagged lusr)
-              False
-              Nothing
-              (qualifyAs lcnv conv)
-              (convBotsAndMembers conv)
-              ()
-              def
-        Nothing -> do
-          now <- Now.get
-          Notify.pushSystemEvent
-            Nothing
-            (SystemEvent (tUntagged lcnv) Nothing now conv.metadata.cnvmTeam EdSystemConvDelete)
-            (Set.fromList (map (.id_) conv.localMembers))
+    orAlternativelyDeleteConv conv _ _ =
+      if shouldSkipSystemAdminlessDeletion mlusr conv
+        then logSkippedSystemAdminlessDeletion "deletion" conv
+        else do
+          removeConversation (qualifyAs lcnv conv)
+          case mlusr of
+            Just lusr ->
+              void $
+                sendConversationActionNotifications
+                  (sing @'ConversationDeleteTag)
+                  (tUntagged lusr)
+                  False
+                  Nothing
+                  (qualifyAs lcnv conv)
+                  (convBotsAndMembers conv)
+                  ()
+                  def
+            Nothing -> do
+              now <- Now.get
+              Notify.pushSystemEvent
+                Nothing
+                (SystemEvent (tUntagged lcnv) Nothing now conv.metadata.cnvmTeam EdSystemConvDelete)
+                (Set.fromList (map (.id_) conv.localMembers))
 
 adminlessAutopromoteOrSendReminder ::
   ( Member ConversationStore r,
@@ -1457,7 +1478,8 @@ adminlessAutopromoteOrSendReminder ::
     Member Now r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
@@ -1465,30 +1487,33 @@ adminlessAutopromoteOrSendReminder ::
   Sem r ()
 adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
-    orAlternativelySendReminder conv _ _ = do
-      now <- Now.get
-      case mlusr of
-        Just lusr -> do
-          let event =
-                Event
-                  (tUntagged lcnv)
-                  Nothing
-                  (EventFromUser (tUntagged lusr))
-                  now
-                  (conv.metadata.cnvmTeam)
-                  (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
-          pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
-        Nothing ->
-          Notify.pushSystemEvent
-            Nothing
-            ( SystemEvent
-                (tUntagged lcnv)
+    orAlternativelySendReminder conv _ _ =
+      if shouldSkipSystemAdminlessDeletion mlusr conv
+        then logSkippedSystemAdminlessDeletion "reminder" conv
+        else do
+          now <- Now.get
+          case mlusr of
+            Just lusr -> do
+              let event =
+                    Event
+                      (tUntagged lcnv)
+                      Nothing
+                      (EventFromUser (tUntagged lusr))
+                      now
+                      (conv.metadata.cnvmTeam)
+                      (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
+              pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
+            Nothing ->
+              Notify.pushSystemEvent
                 Nothing
-                now
-                conv.metadata.cnvmTeam
-                (EdSystemAdminlessReminder (AdminlessReminder deletionScheduledFor))
-            )
-            (Set.fromList (map (.id_) conv.localMembers))
+                ( SystemEvent
+                    (tUntagged lcnv)
+                    Nothing
+                    now
+                    conv.metadata.cnvmTeam
+                    (EdSystemAdminlessReminder (AdminlessReminder deletionScheduledFor))
+                )
+                (Set.fromList (map (.id_) conv.localMembers))
 
 -- Use eight random bytes and fold them into a big-endian Word64. This keeps
 -- the helper small, deterministic under tests, and free of extra Random API.

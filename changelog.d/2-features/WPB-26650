@@ -1,0 +1,1 @@
+Skip senderless prevent-adminless deletion for federated conversations with remote members to prevent remote state drift.

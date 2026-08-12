@@ -21,6 +21,7 @@ import API.Brig
 import API.Galley
 import API.GalleyInternal hiding (getConversation)
 import qualified API.GalleyInternal as GalleyI
+import Control.Concurrent (threadDelay)
 import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
@@ -324,6 +325,129 @@ testAdminlessSetupMemberUpdateAfterAdminLeaves = do
     bindResponse (getConversation bob conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+
+testAdminlessSetupDeletesWithOriginAndRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupDeletesWithOriginAndRemoteMembers = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+  conv <-
+    postConversation
+      alice
+      (defProteus {team = Just tid, qualifiedUsers = [remoteUser], newUsersRole = "wire_member"})
+      >>= getJSON 201
+  convQid <- objQidObject conv
+
+  removeMember alice conv alice >>= assertSuccess
+
+  eventually $ bindResponse (listConversationIds remoteUser def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    conversationIds <- resp.json %. "qualified_conversations" & asList
+    conversationIds `shouldContain` [convQid]
+
+  withWebSockets [remoteUser] $ \[wsRemoteUser] -> do
+    setTeamFeatureConfigVersioned (ExplicitVersion 17) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "1s" []) >>= assertSuccess
+
+    deleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsRemoteUser
+    deleteNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+    eventually $ bindResponse (listConversationIds remoteUser def) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      conversationIds <- resp.json %. "qualified_conversations" & asList
+      conversationIds `shouldNotContain` [convQid]
+
+testAdminlessSetupSkipsDeletionForRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupSkipsDeletionForRemoteMembers = do
+  -- Senderless deletion is skipped when remote members are present because
+  -- remote backends do not support the system delete event yet.
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+
+  alice1 <- createMLSClient def alice
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [remoteUser]
+
+  -- Create an adminless conversation while the feature is disabled. Enabling
+  -- the feature later exercises the system-triggered setup path.
+  removeMember alice conv alice >>= assertSuccess
+
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" ["1s"]
+
+  -- The setup job must not schedule deletion or reminders for this
+  -- conversation because it contains a remote member.
+  liftIO $ threadDelay 2_000_000
+  bindResponse (GalleyI.getConversation conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+testAdminlessSetupSkipsReminderForRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupSkipsReminderForRemoteMembers = do
+  -- A remote member prevents senderless deletion. The remaining local app is
+  -- not eligible for promotion, but would receive a system reminder if one
+  -- were emitted.
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "5s" ["4s"]
+
+  alice1 <- createMLSClient def alice
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [remoteUser]
+  let newApp = def {name = "adminless-federated-reminder-app", description = "not eligible for promotion"}
+  (app, _) <- createAndAddAppMember alice tid alice1 conv newApp
+
+  -- Create an adminless conversation while the feature is disabled. Enabling
+  -- it through the internal path runs senderless setup cleanup.
+  removeMember alice conv alice >>= assertSuccess
+
+  withWebSockets [app] $ \[wsApp] -> do
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "2s" ["1s"]
+
+    reminderResult <- awaitNMatchesResultFor 5 1 isConvSystemAdminlessReminderNotif wsApp
+    reminderResult.success `shouldMatch` False
+
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+testAdminlessSetupAutopromotesWithRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupAutopromotesWithRemoteMembers = do
+  -- Autopromotion is safe with remote members because the owning backend is
+  -- authoritative for roles, even though remote clients do not receive the
+  -- senderless system member-update event yet.
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+
+  alice1 <- createMLSClient def alice
+  bob1 <- createMLSClient def bob
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [bob, remoteUser]
+
+  -- Create an adminless conversation while the feature is disabled. Enabling
+  -- the feature later promotes Bob through a system action.
+  removeMember alice conv alice >>= assertSuccess
+
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+
+  liftIO $ threadDelay 2_000_000
+  bindResponse (getConversation bob conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
 
 testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
 testAdminlessJobsCancelledOnFeatureDisable = do
