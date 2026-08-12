@@ -363,9 +363,9 @@ spec = with app $ do
         patch
           "/0"
           [scim|{
-          "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-          "Operations": [{ "op": "Remove", "path": "displayName"}]
-        }|]
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "operations": [{ "op": "remove", "path": "displayName"}]
+          }|]
           `shouldRespondWith` [scim|{
           "schemas": [
             "urn:ietf:params:scim:schemas:core:2.0:User"

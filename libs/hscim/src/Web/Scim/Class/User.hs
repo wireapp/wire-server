@@ -67,7 +67,7 @@ data UserSite tag route = UserSite
       route
         :- Capture "id" (UserId tag)
           :> ReqBody '[SCIM] (PatchOp tag)
-          :> Patch '[SCIM] (StoredUser tag),
+          :> Servant.Patch '[SCIM] (StoredUser tag),
     usDeleteUser ::
       route
         :- Capture "id" (UserId tag)
@@ -138,16 +138,20 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     PatchOp tag ->
     ScimHandler m (StoredUser tag)
   default patchUser ::
-    (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
+    -- (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
     AuthInfo tag ->
     UserId tag ->
     -- | PATCH payload
     PatchOp tag ->
     ScimHandler m (StoredUser tag)
-  patchUser info uid op' = do
-    (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
-    (newUser :: User tag) <- applyPatch user op'
-    putUser info uid newUser
+  patchUser = undefined
+
+  {-
+    patchUser info uid op' = do
+      (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
+      (newUser :: User tag) <- applyPatch user op'
+      putUser info uid newUser
+  -}
 
   -- | Delete a user.
   --
