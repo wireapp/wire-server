@@ -52,6 +52,7 @@ import qualified Web.Scim.Schema.User as User
 import Web.Scim.Schema.User.Address as Address
 import Web.Scim.Schema.User.Certificate as Certificate
 import Web.Scim.Schema.User.Email as Email
+import Web.Scim.Schema.User.Entitlement as Entitlement
 import Web.Scim.Schema.User.IM as IM
 import Web.Scim.Schema.User.Name as Name
 import Web.Scim.Schema.User.Phone as Phone
@@ -117,6 +118,7 @@ spec = do
           let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
           let patchOp = PatchOp [operation]
           User.applyPatch user patchOp `shouldSatisfy` isRight
+
     it "does not support multi-value attributes" $ do
       let schemas' = []
       let extras = KeyMap.empty
@@ -136,13 +138,14 @@ spec = do
           ("ims", toJSON @[IM] mempty),
           ("photos", toJSON @[Photo] mempty),
           ("addresses", toJSON @[Address] mempty),
-          ("entitlements", toJSON @[Text] mempty),
+          ("entitlements", toJSON @[Entitlement] mempty),
           ("x509Certificates", toJSON @[Certificate] mempty)
         ]
         $ \(key, upd) -> do
           let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
           let patchOp = PatchOp [operation]
           User.applyPatch user patchOp `shouldSatisfy` isLeft
+
     it "applies patch to `extra`" $ do
       let schemas' = []
       let extras = KeyMap.empty
@@ -187,6 +190,19 @@ spec = do
     it "still parses the legacy bare-string form for backwards compatibility" $
       eitherDecode "\"member\""
         `shouldBe` Right (Role (Just "member") Nothing Nothing Nothing)
+
+  describe "entitlements (RFC 7643 complex multi-valued attribute)" $ do
+    it "renders as objects with a 'value' sub-attribute, not bare strings" $ do
+      toJSON (Entitlement (Just "some entitlement") Nothing Nothing Nothing)
+        `shouldBe` [scim| {"value": "some entitlement"} |]
+
+    it "parses the RFC-compliant object form" $ do
+      eitherDecode "{\"value\":\"some entitlement\"}"
+        `shouldBe` Right (Entitlement (Just "some entitlement") Nothing Nothing Nothing)
+
+    it "still parses the legacy bare-string form for backwards compatibility" $ do
+      eitherDecode "\"some entitlement\""
+        `shouldBe` Right (Entitlement (Just "some entitlement") Nothing Nothing Nothing)
 
 genName :: Gen Name
 genName =
@@ -331,7 +347,14 @@ completeUser =
               Address.primary = Just (ScimBool True)
             }
         ],
-      entitlements = ["sample entitlement"],
+      entitlements =
+        [ Entitlement
+            { Entitlement.value = Just "sample entitlement",
+              Entitlement.typ = Nothing,
+              Entitlement.display = Nothing,
+              Entitlement.primary = Nothing
+            }
+        ],
       roles =
         [ Role
             { Role.value = Just "sample role",
@@ -408,7 +431,9 @@ completeUserJson =
   ],
   "preferredLanguage": "da, en-gb;q=0.8, en;q=0.7",
   "entitlements": [
-    "sample entitlement"
+    {
+      "value": "sample entitlement"
+    }
   ],
   "displayName": "sample displayName",
   "nickName": "sample nickName",

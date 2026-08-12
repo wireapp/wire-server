@@ -90,6 +90,7 @@ import Web.Scim.Schema.Schema (Schema (..), getSchemaUri)
 import Web.Scim.Schema.User.Address (Address)
 import Web.Scim.Schema.User.Certificate (Certificate)
 import Web.Scim.Schema.User.Email (Email)
+import Web.Scim.Schema.User.Entitlement (Entitlement)
 import Web.Scim.Schema.User.IM (IM)
 import Web.Scim.Schema.User.Name (Name)
 import Web.Scim.Schema.User.Phone (Phone)
@@ -120,7 +121,7 @@ data User tag = User
     ims :: [IM],
     photos :: [Photo],
     addresses :: [Address],
-    entitlements :: [Text],
+    entitlements :: [Entitlement],
     roles :: [Role],
     x509Certificates :: [Certificate],
     -- Extra data.

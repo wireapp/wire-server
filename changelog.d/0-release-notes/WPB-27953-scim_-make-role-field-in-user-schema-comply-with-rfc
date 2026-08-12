@@ -1,4 +1,4 @@
-SCIM: Make role field in user schema comply with RFC.  Any code that processes SCIM users must be changed to follow the standard, instead of the previous Wire implementation.
+SCIM: Make role and entitlements fields in user schema comply with RFC.  Any code that processes SCIM users must be changed to follow the standard, instead of the previous Wire implementation.
 
 Previous User schema (incompatible with RFC):
 
@@ -6,6 +6,7 @@ Previous User schema (incompatible with RFC):
 {
   ...
   "roles": ["member"],
+  "entitlements": ["some entitlement"],
   ...
 }
 ```
@@ -16,6 +17,9 @@ New schema (RFC-compliant):
 {
   ...
   "roles": [{"value" : "member"}],
+  "entitlements": [{"value" : "some entitlement"}],
   ...
 }
 ```
+
+For backwards compatibility, both fields still accept the old bare-string form on input.

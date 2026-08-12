@@ -1,1 +1,1 @@
-SCIM: Make role field in user schema comply with RFC.
+SCIM: Make role and entitlements fields in user schema comply with RFC.

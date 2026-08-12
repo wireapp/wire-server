@@ -61,6 +61,7 @@ library
     Web.Scim.Schema.User.Address
     Web.Scim.Schema.User.Certificate
     Web.Scim.Schema.User.Email
+    Web.Scim.Schema.User.Entitlement
     Web.Scim.Schema.User.IM
     Web.Scim.Schema.User.Name
     Web.Scim.Schema.User.Phone
