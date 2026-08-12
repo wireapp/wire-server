@@ -31,7 +31,9 @@
 , mmorph
 , mtl
 , network-uri
+, openapi3
 , retry
+, schema-profunctor
 , scientific
 , servant
 , servant-client
@@ -79,7 +81,9 @@ mkDerivation {
     mmorph
     mtl
     network-uri
+    openapi3
     retry
+    schema-profunctor
     scientific
     servant
     servant-client
