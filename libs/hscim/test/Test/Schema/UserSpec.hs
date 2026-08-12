@@ -154,40 +154,50 @@ spec = do
       let operation = Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
       let patchOp = PatchOp [operation]
       User.extra <$> User.applyPatch user patchOp `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
+
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
       toJSON completeUser `shouldBe` completeUserJson
       eitherDecode (encode completeUserJson) `shouldBe` Right completeUser
+
     it "has defaults for all optional and multi-valued fields" $ do
       toJSON minimalUser `shouldBe` minimalUserJson
       eitherDecode (encode minimalUserJson) `shouldBe` Right minimalUser
-    it "treats 'null' and '[]' as absence of fields" $
+
+    it "treats 'null' and '[]' as absence of fields" $ do
       eitherDecode (encode minimalUserJsonRedundant)
         `shouldBe` Right minimalUser
+
     it "allows casing variations in field names" $ do
       require $ mk_prop_caseInsensitive genUser
       require $ mk_prop_caseInsensitive (ListResponse.fromList . (: []) <$> genStoredUser)
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
-    it "doesn't require the 'schemas' field" $
+
+    it "doesn't require the 'schemas' field" $ do
       eitherDecode (encode minimalUserJsonNoSchemas)
         `shouldBe` Right minimalUser
+
     it "doesn't add 'extra' if it's an empty object" $ do
       toJSON (extendedUser UserExtraEmpty) `shouldBe` extendedUserEmptyJson
       eitherDecode (encode extendedUserEmptyJson)
         `shouldBe` Right (extendedUser UserExtraEmpty)
+
     it "encodes and decodes 'extra' correctly" $ do
       toJSON (extendedUser (UserExtraObject "foo")) `shouldBe` extendedUserObjectJson
       eitherDecode (encode extendedUserObjectJson)
         `shouldBe` Right (extendedUser (UserExtraObject "foo"))
+
   describe "roles (RFC 7643 complex multi-valued attribute)" $ do
-    it "renders as objects with a 'value' sub-attribute, not bare strings" $
+    it "renders as objects with a 'value' sub-attribute, not bare strings" $ do
       toJSON (Role (Just "member") Nothing Nothing Nothing)
         `shouldBe` [scim| {"value": "member"} |]
-    it "parses the RFC-compliant object form" $
+
+    it "parses the RFC-compliant object form" $ do
       eitherDecode "{\"value\":\"member\"}"
         `shouldBe` Right (Role (Just "member") Nothing Nothing Nothing)
-    it "still parses the legacy bare-string form for backwards compatibility" $
+
+    it "still parses the legacy bare-string form for backwards compatibility" $ do
       eitherDecode "\"member\""
         `shouldBe` Right (Role (Just "member") Nothing Nothing Nothing)
 
