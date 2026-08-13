@@ -18,8 +18,16 @@ spec:
       labels:
         app: reaper
         release: {{ .Release.Name }}
+      annotations:
+        # Ensure changes to the script cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: reaper-role
+      serviceAccountName: {{ include "reaper.serviceAccountName" . }}
+      automountServiceAccountToken: true
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"
@@ -29,12 +37,38 @@ spec:
               app: reaper
       containers:
         - name: reaper
-          image: bitnamilegacy/kubectl:1.32.2
-          command: ["/app/reaper.sh", "{{ .Release.Namespace }}"]
+          image: {{ include "reaper.image" . | quote }}
+          imagePullPolicy: {{ default "" .Values.image.pullPolicy | quote }}
+          command: ["/bin/sh", "/app/reaper.sh", "{{ .Release.Namespace }}", "{{ .Values.checkIntervalSeconds }}"]
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
+          env:
+            # kubectl writes its discovery cache below $HOME; the root
+            # filesystem is read-only, so point it at the emptyDir.
+            - name: HOME
+              value: /tmp
           volumeMounts:
             - name: reaper-script
               mountPath: /app
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: reaper-script
           configMap:
@@ -43,4 +77,5 @@ spec:
             items:
               - key: reaper.sh
                 path: reaper.sh
-
+        - name: tmp
+          emptyDir: {}

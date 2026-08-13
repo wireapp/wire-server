@@ -14,3 +14,29 @@ messages. Here, this reaper will check that the `redis-ephemeral` pod is older t
 other `cannon`; if that is not the case, it kills the `cannon`s forcing clients to
 reconnect.
 
+Image
+-----
+
+The reaper runs `scripts/reaper.sh` through `kubectl`, so `image` must point at a
+kubectl image that **contains a POSIX shell** at `/bin/sh`. Distroless kubectl images
+do not ship one and the pod will fail to start. The script itself is POSIX sh, so
+busybox `ash` is enough, bash not required.
+
+The image is fully configurable:
+
+```yaml
+image:
+  registry: docker.io      # set to "" for an unqualified repository
+  repository: alpine/kubectl
+  tag: 1.36.3
+  digest: ""               # e.g. "sha256:..."; takes precedence over tag
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+  - name: my-pull-secret
+```
+
+RBAC
+----
+
+The chart creates a namespaced `Role`/`RoleBinding` granting `get`, `list`, `watch` and
+`delete` on pods, bound to a `<release>-reaper` ServiceAccount.

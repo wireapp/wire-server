@@ -1,25 +1,32 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # See the readme of the reaper chart.
+#
+# This is POSIX sh on purpose: the only actively maintained kubectl images that
+# ship busybox ash, not bash.
 
 # we loop forever, and on transient errors sleep and try again.
 # setting -e would crash the pod on transient e.g. network errors, which isn't useful.
-set -uo pipefail
+set -u
+# shellcheck disable=SC3040 # busybox ash supports pipefail
+set -o pipefail
 
-USAGE="$0 <NAMESPACE>"
+USAGE="$0 <NAMESPACE> [INTERVAL_SECONDS]"
 NAMESPACE="${1:?$USAGE}"
+INTERVAL="${2:-15}"
 
-echo "Using namespace: $NAMESPACE"
+echo "Using namespace: $NAMESPACE, check interval: ${INTERVAL}s"
 
 kill_all_cannons() {
   echo "Killing all cannons"
-  CANNON_PODS=$(kubectl -n "$NAMESPACE" get pods 2>/dev/null \
-    | grep -e "cannon" \
-    | awk '{ print $1 }') || {
-    echo "Failed to list cannon pods. Skipping this iteration..."
+  RAW_PODS=$(kubectl -n "$NAMESPACE" get pods 2>&1) || {
+    echo "Failed to list cannon pods: $RAW_PODS. Skipping this iteration..."
     return
   }
+  CANNON_PODS=$(echo "$RAW_PODS" | grep -e "cannon" | awk '{ print $1 }') || CANNON_PODS=""
 
+  # A here-document rather than a pipeline, so the loop runs in the current
+  # shell and the `exit 1` below actually terminates the script.
   while IFS= read -r cannon; do
     if [ -n "$cannon" ]; then
       echo "Deleting $cannon"
@@ -29,29 +36,33 @@ kill_all_cannons() {
         exit 1
       }
     fi
-  done <<< "$CANNON_PODS"
+  done <<EOF
+$CANNON_PODS
+EOF
 }
 
 while true; do
-  # Gather all pods that contain "cannon" or "redis-ephemeral", sorted by creation time
-  ALL_PODS=$(kubectl -n "$NAMESPACE" get pods --sort-by=.metadata.creationTimestamp 2>/dev/null \
-    | grep -e "cannon" -e "redis-ephemeral") || {
-      echo "Failed to list pods. Skipping this iteration..."
-      sleep 60
-      continue
+  # List first, filter second. Folding both into one pipeline made an API failure.
+  RAW_PODS=$(kubectl -n "$NAMESPACE" get pods --sort-by=.metadata.creationTimestamp 2>&1) || {
+    echo "Failed to list pods: $RAW_PODS. Skipping this iteration..."
+    sleep "$INTERVAL"
+    continue
   }
+
+  # Gather all pods that contain "cannon" or "redis-ephemeral", sorted by creation time
+  ALL_PODS=$(echo "$RAW_PODS" | grep -e "cannon" -e "redis-ephemeral") || ALL_PODS=""
 
   # Check if we have any cannon pods at all
   if ! echo "$ALL_PODS" | grep -q "cannon"; then
     echo "No cannon pods found. Doing nothing..."
-    sleep 60
+    sleep "$INTERVAL"
     continue
   fi
 
   # Check if we have any redis-ephemeral pods at all
   if ! echo "$ALL_PODS" | grep -q "redis-ephemeral"; then
     echo "No redis-ephemeral pod found. Doing nothing..."
-    sleep 60
+    sleep "$INTERVAL"
     continue
   fi
 
@@ -61,17 +72,18 @@ while true; do
 
   if [ -z "$FIRST_POD" ]; then
     echo "Could not determine the oldest pod from the list. Doing nothing..."
-    sleep 60
+    sleep "$INTERVAL"
     continue
   fi
 
-  if [[ "$FIRST_POD" =~ "redis-ephemeral" ]]; then
-    echo "redis-ephemeral is the oldest pod, all good."
-  else
-    kill_all_cannons
-  fi
+  case "$FIRST_POD" in
+    *redis-ephemeral*)
+      echo "redis-ephemeral is the oldest pod, all good."
+      ;;
+    *)
+      kill_all_cannons
+      ;;
+  esac
 
-  echo "Sleep 1"
-  sleep 1
+  sleep "$INTERVAL"
 done
-
