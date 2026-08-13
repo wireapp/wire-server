@@ -19,7 +19,7 @@
 
 module Test.TeamCollaborators where
 
-import qualified API.Brig as BrigP
+import API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import API.Common (randomName)
 import API.Galley
@@ -62,6 +62,13 @@ testCreateTeamCollaborator = do
     res %. "user" `shouldMatch` userId
     res %. "team" `shouldMatch` team
     res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]
+
+  -- team size counts collaborators separately
+  bindResponse (getTeamSize owner team) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "teamSize" `shouldMatchInt` 2
+    resp.json %. "apps" `shouldMatchInt` 0
+    resp.json %. "collaborators" `shouldMatchInt` 1
 
 testTeamCollaboratorEndpointsForbiddenForOtherTeams :: (HasCallStack) => App ()
 testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
