@@ -760,7 +760,7 @@ checkTeamMembersRole tid owner uid role = do
   [member] <- filter ((== uid) . (^. Member.userId)) <$> getTeamMembers owner tid
   liftIO $ (member ^. Member.permissions . to Member.permissionsRole) `shouldBe` Just role
 
--- | Assert the body of a scim error response (rfc7644, section 3.12).  The arguments are the
+-- | Create the body of a scim error response (rfc7644, section 3.12).  The arguments are the
 -- @detail@, @scimType@ and @status@ fields; @schemas@ is the same for every scim error and is
 -- filled in here.
 --
