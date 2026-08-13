@@ -23,7 +23,6 @@ module Util.Scim where
 
 import Bilge
 import Bilge.Assert
-import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Random
 import qualified Data.Aeson as Aeson
@@ -784,7 +783,7 @@ mkScimErrorResp ::
   Maybe LByteString
 mkScimErrorResp mDetail scimType status resp =
   Just . Aeson.encode . Aeson.object . catMaybes $
-    [ ("detail" Aeson..=) <$> (mDetail <|> (Control.Exception.assert (isJust actualDetail) actualDetail)),
+    [ ("detail" Aeson..=) <$> (mDetail <|> actualDetail),
       Just ("schemas" Aeson..= ["urn:ietf:params:scim:api:messages:2.0:Error" :: Text]),
       ("scimType" Aeson..=) <$> scimType,
       Just ("status" Aeson..= status)

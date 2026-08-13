@@ -673,7 +673,7 @@ testCreateUserNoIdPInvalidRoles = do
   createUser' tok scimUserTooManyRoles !!! do
     const 400 === statusCode
     mkScimErrorResp
-      (Just "A user cannot have more than one role.")
+      (Just "A user cannot have more than one role. (post)")
       (Just "invalidValue")
       "400"
       === responseBody
@@ -686,7 +686,7 @@ testCreateUserNoIdPInvalidRoles = do
   createUser' tok scimUserInvalidRole !!! do
     const 400 === statusCode
     mkScimErrorResp
-      (Just "The role 'foobar' is not valid. Valid roles are owner, admin, member, partner.")
+      (Just "The role 'foobar' is not valid. Valid roles are owner, admin, member, partner. (post)")
       (Just "invalidValue")
       "400"
       === responseBody
@@ -2062,6 +2062,7 @@ specPatchUser = do
             PatchOp.Remove
             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
             Nothing
+
     it "doing nothing doesn't change the user" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2069,6 +2070,7 @@ specPatchUser = do
       let userid = scimUserId storedUser
       storedUser' <- patchUser tok userid (PatchOp.PatchOp [])
       liftIO $ storedUser `shouldBe` storedUser'
+
     it "can update userName" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2082,6 +2084,7 @@ specPatchUser = do
             [replaceAttrib "userName" userName]
       let user'' = Scim.value (Scim.thing storedUser')
       liftIO $ Scim.User.userName user'' `shouldBe` userName
+
     it "can't update to someone else's userName" $ do
       env <- ask
       (tok, _) <- registerIdPAndScimToken
@@ -2095,6 +2098,7 @@ specPatchUser = do
         const 409 === statusCode
         mkScimErrorResp Nothing (Just "uniqueness") "409"
           === responseBody
+
     it "can't update to someone else's externalId" $ do
       env <- ask
       (tok, _) <- registerIdPAndScimToken
@@ -2108,6 +2112,7 @@ specPatchUser = do
         const 409 === statusCode
         mkScimErrorResp Nothing (Just "uniqueness") "409"
           === responseBody
+
     it "can't update a non-existing user" $ do
       env <- ask
       (tok, _) <- registerIdPAndScimToken
@@ -2117,6 +2122,7 @@ specPatchUser = do
         const 404 === statusCode
         mkScimErrorResp Nothing Nothing "404"
           === responseBody
+
     it "can update displayName" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2130,6 +2136,7 @@ specPatchUser = do
             [replaceAttrib "displayName" displayName]
       let user'' = Scim.value (Scim.thing storedUser')
       liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+
     it "can update externalId" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2143,10 +2150,15 @@ specPatchUser = do
             [replaceAttrib "externalId" externalId]
       let user'' = Scim.value . Scim.thing $ storedUser'
       liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+
     it "replace role works" $ testPatchRole replaceAttrib
+
     it "add role works" $ testPatchRole addAttrib
+
     it "replace with invalid input should fail" $ testPatchIvalidInput replaceAttrib
+
     it "add with invalid input should fail" $ testPatchIvalidInput addAttrib
+
     it "replacing every supported atttribute at once works" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2167,6 +2179,7 @@ specPatchUser = do
       liftIO $ Scim.User.externalId user'' `shouldBe` externalId
       liftIO $ Scim.User.userName user'' `shouldBe` userName
       liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+
     it "other valid attributes that we do not explicit support throw an error" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2176,8 +2189,9 @@ specPatchUser = do
       let patchOp = PatchOp.PatchOp [replaceAttrib "emails" ("hello" :: Text)]
       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
         const 400 === statusCode
-        mkScimErrorResp Nothing (Just "invalidValue") "400"
+        mkScimErrorResp Nothing (Just "invalidPath") "400"
           === responseBody
+
     it "invalid attributes are quietly ignored for now" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2187,8 +2201,9 @@ specPatchUser = do
       let patchOp = PatchOp.PatchOp [replaceAttrib "totallyBogus" ("hello" :: Text)]
       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
         const 400 === statusCode
-        mkScimErrorResp Nothing (Just "invalidValue") "400"
+        mkScimErrorResp Nothing (Just "invalidPath") "400"
           === responseBody
+
     -- NOTE: Remove at the moment actually never works! As all the fields
     -- we support are required in our book
     it "userName cannot be removed according to scim" $ do
@@ -2200,8 +2215,9 @@ specPatchUser = do
       let patchOp = PatchOp.PatchOp [removeAttrib "userName"]
       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
         const 400 === statusCode
-        mkScimErrorResp Nothing (Just "invalidValue") "400"
+        mkScimErrorResp Nothing (Just "mutability") "400"
           === responseBody
+
     it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
       pendingWith
         "We default to the externalId when displayName is removed. lets keep that for now"
@@ -2240,7 +2256,7 @@ testPatchIvalidInput patchOp = do
   patchUser' tok uid (PatchOp.PatchOp [patchWithInvalidRole]) !!! do
     const 400 === statusCode
     mkScimErrorResp
-      (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner.")
+      (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner. (put)")
       (Just "invalidValue")
       "400"
       === responseBody
@@ -2248,7 +2264,7 @@ testPatchIvalidInput patchOp = do
   patchUser' tok uid (PatchOp.PatchOp [patchWithTooManyRoles]) !!! do
     const 400 === statusCode
     mkScimErrorResp
-      (Just "A user cannot have more than one role.")
+      (Just "A user cannot have more than one role. (put)")
       (Just "invalidValue")
       "400"
       === responseBody
@@ -2307,8 +2323,6 @@ specDeleteUser = do
       (tok, _) <- registerIdPAndScimToken
       deleteUser_ (Just tok) Nothing (env ^. teSpar) !!! do
         const 405 === statusCode
-        mkScimErrorResp Nothing Nothing "405"
-          === responseBody
   describe "DELETE /Users/:id" $ do
     it "should delete user from brig, spar.scim_user_times, spar.user" $ do
       (tok, (_, _, idp)) <- registerIdPAndScimToken

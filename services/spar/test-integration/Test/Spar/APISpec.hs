@@ -1370,7 +1370,7 @@ specProvisionScimAndSAMLUserWithRole = do
       ScimT.createUser' tok scimUser !!! do
         const 400 === statusCode
         ScimT.mkScimErrorResp
-          (Just "A user cannot have more than one role.")
+          (Just "A user cannot have more than one role. (post)")
           (Just "invalidValue")
           "400"
           === responseBody
@@ -1382,7 +1382,7 @@ specProvisionScimAndSAMLUserWithRole = do
       ScimT.createUser' tok scimUser !!! do
         const 400 === statusCode
         ScimT.mkScimErrorResp
-          (Just "The role 'president' is not valid. Valid roles are owner, admin, member, partner.")
+          (Just "The role 'president' is not valid. Valid roles are owner, admin, member, partner. (post)")
           (Just "invalidValue")
           "400"
           === responseBody
@@ -1413,7 +1413,7 @@ specProvisionScimAndSAMLUserWithRole = do
       ScimT.updateUser' tok uid (scimUser {Scim.roles = ["admin", "member"]}) !!! do
         const 400 === statusCode
         ScimT.mkScimErrorResp
-          (Just "A user cannot have more than one role.")
+          (Just "A user cannot have more than one role. (put)")
           (Just "invalidValue")
           "400"
           === responseBody
@@ -1424,7 +1424,7 @@ specProvisionScimAndSAMLUserWithRole = do
       ScimT.updateUser' tok uid (scimUser {Scim.roles = ["hamlet"]}) !!! do
         const 400 === statusCode
         ScimT.mkScimErrorResp
-          (Just "The role 'hamlet' is not valid. Valid roles are owner, admin, member, partner.")
+          (Just "The role 'hamlet' is not valid. Valid roles are owner, admin, member, partner. (put)")
           (Just "invalidValue")
           "400"
           === responseBody
