@@ -68,6 +68,13 @@ testCreateGetApp sameOrOtherDomain = do
         void $ assertNoEvent 5 wsRegularMember
       pure (appId, cookie)
 
+  -- team size counts apps separately.  (they are not members.)
+  bindResponse (getTeamSize owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "teamSize" `shouldMatchInt` 2
+    resp.json %. "apps" `shouldMatchInt` 1
+    resp.json %. "collaborators" `shouldMatchInt` 0
+
   -- Verify that the team.member-join event is in the team notifications queue
   bindResponse (getTeamNotifications regularMember (Just lastTeamNotif)) $ \resp -> do
     resp.status `shouldMatchInt` 200
