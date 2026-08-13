@@ -23,8 +23,11 @@ module Util.Scim where
 
 import Bilge
 import Bilge.Assert
+import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Random
+import qualified Data.Aeson as Aeson
+import Data.Aeson.Lens (key, _String)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle, parseHandle)
@@ -757,3 +760,35 @@ checkTeamMembersRole :: (HasCallStack) => TeamId -> UserId -> UserId -> Role -> 
 checkTeamMembersRole tid owner uid role = do
   [member] <- filter ((== uid) . (^. Member.userId)) <$> getTeamMembers owner tid
   liftIO $ (member ^. Member.permissions . to Member.permissionsRole) `shouldBe` Just role
+
+-- | Assert the body of a scim error response (rfc7644, section 3.12).  The arguments are the
+-- @detail@, @scimType@ and @status@ fields; @schemas@ is the same for every scim error and is
+-- filled in here.
+--
+-- Both 'Maybe' arguments mean different things when they are 'Nothing':
+--
+--   * @detail@: the message is /not tested/.  Whatever the response contains is echoed into the
+--     expected value, so this field can never make the comparison fail.
+--
+--   * @scimType@: the key must be /absent/.  That is what the server does when there is no error
+--     type, as opposed to rendering it as @null@.
+--
+-- > deleteUser_ Nothing (Just uid) spar !!! do
+-- >   const 401 === statusCode
+-- >   mkScimErrorResp Nothing Nothing "401" === responseBody
+mkScimErrorResp ::
+  Maybe Text ->
+  Maybe Text ->
+  Text ->
+  Response (Maybe LByteString) ->
+  Maybe LByteString
+mkScimErrorResp mDetail scimType status resp =
+  Just . Aeson.encode . Aeson.object . catMaybes $
+    [ ("detail" Aeson..=) <$> (mDetail <|> (Control.Exception.assert (isJust actualDetail) actualDetail)),
+      Just ("schemas" Aeson..= ["urn:ietf:params:scim:api:messages:2.0:Error" :: Text]),
+      ("scimType" Aeson..=) <$> scimType,
+      Just ("status" Aeson..= status)
+    ]
+  where
+    actualDetail :: Maybe Text
+    actualDetail = responseBody resp >>= (^? key "detail" . _String)

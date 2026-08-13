@@ -651,15 +651,9 @@ testCreateUserWithPass = do
   createUser_ (Just tok) user (env ^. teSpar) !!! do
     const 400 === statusCode
     mkScimErrorResp
-      [aesonQQ|
-        {
-          "detail": "Setting user passwords is not supported for security reasons. (post)",
-          "schemas": [
-            "urn:ietf:params:scim:api:messages:2.0:Error"
-          ],
-          "scimType": "invalidValue",
-          "status": "400"
-        }|]
+      (Just "Setting user passwords is not supported for security reasons. (post)")
+      (Just "invalidValue")
+      "400"
       === responseBody
 
 testCreateUserNoIdPInvalidRoles :: TestSpar ()
@@ -678,7 +672,11 @@ testCreateUserNoIdPInvalidRoles = do
         }
   createUser' tok scimUserTooManyRoles !!! do
     const 400 === statusCode
-    const (Just "A user cannot have more than one role.") =~= responseBody
+    mkScimErrorResp
+      (Just "A user cannot have more than one role.")
+      (Just "invalidValue")
+      "400"
+      === responseBody
   scimUserInvalidRole <-
     randomScimUser <&> \u ->
       u
@@ -687,7 +685,11 @@ testCreateUserNoIdPInvalidRoles = do
         }
   createUser' tok scimUserInvalidRole !!! do
     const 400 === statusCode
-    const (Just "The role 'foobar' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
+    mkScimErrorResp
+      (Just "The role 'foobar' is not valid. Valid roles are owner, admin, member, partner.")
+      (Just "invalidValue")
+      "400"
+      === responseBody
 
 testCreateUserNoIdPWithRoles :: TestSpar ()
 testCreateUserNoIdPWithRoles = do
@@ -861,15 +863,9 @@ testCreateUserNoIdPNoEmail = do
   createUser_ (Just tok) user (env ^. teSpar) !!! do
     const 400 === statusCode
     mkScimErrorResp
-      [aesonQQ|
-        {
-          "detail": "Could not process externalId. Please check: (1) does the scim user contain a valid email address? (2) did you associate your scim token with a SAML IdP in wire?",
-          "schemas": [
-            "urn:ietf:params:scim:api:messages:2.0:Error"
-          ],
-          "scimType": "invalidValue",
-          "status": "400"
-        }|]
+      (Just "Could not process externalId. Please check: (1) does the scim user contain a valid email address? (2) did you associate your scim token with a SAML IdP in wire?")
+      (Just "invalidValue")
+      "400"
       === responseBody
 
 testCreateUserWithSamlIdP :: TestSpar ()
@@ -957,15 +953,9 @@ testExternalIdIsRequired = do
   createUser_ (Just tok) user' (env ^. teSpar) !!! do
     const 400 === statusCode
     mkScimErrorResp
-      [aesonQQ|
-        {
-          "detail": "externalId is required",
-          "schemas": [
-            "urn:ietf:params:scim:api:messages:2.0:Error"
-          ],
-          "scimType": "invalidValue",
-          "status": "400"
-        }|]
+      (Just "externalId is required")
+      (Just "invalidValue")
+      "400"
       === responseBody
 
 -- The next line contains a mapping from this test to the following test standards:
@@ -978,8 +968,10 @@ testCreateRejectsInvalidHandle = do
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, _) <- registerIdPAndScimToken
-  createUser_ (Just tok) (user {Scim.User.userName = "#invalid name"}) (env ^. teSpar)
-    !!! const 400 === statusCode
+  createUser_ (Just tok) (user {Scim.User.userName = "#invalid name"}) (env ^. teSpar) !!! do
+    const 400 === statusCode
+    mkScimErrorResp Nothing (Just "invalidValue") "400"
+      === responseBody
 
 -- @END
 
@@ -998,30 +990,18 @@ testCreateRejectsTakenHandle = do
   createUser_ (Just tokTeamA) (user2 {Scim.User.userName = Scim.User.userName user1}) (env ^. teSpar) !!! do
     const 409 === statusCode
     mkScimErrorResp
-      [aesonQQ|
-        {
-          "detail": "userName is already taken",
-          "schemas": [
-            "urn:ietf:params:scim:api:messages:2.0:Error"
-          ],
-          "scimType": "uniqueness",
-          "status": "409"
-        }|]
+      (Just "userName is already taken")
+      (Just "uniqueness")
+      "409"
       === responseBody
 
   -- Try to create different user with same handle in different team.
   createUser_ (Just tokTeamB) (user3 {Scim.User.userName = Scim.User.userName user1}) (env ^. teSpar) !!! do
     const 409 === statusCode
     mkScimErrorResp
-      [aesonQQ|
-        {
-          "detail": "userName is already taken",
-          "schemas": [
-            "urn:ietf:params:scim:api:messages:2.0:Error"
-          ],
-          "scimType": "uniqueness",
-          "status": "409"
-        }|]
+      (Just "userName is already taken")
+      (Just "uniqueness")
+      "409"
       === responseBody
 
 -- | Test that user creation fails if the @externalId@ is already in use for given IdP.
@@ -1044,8 +1024,10 @@ testCreateRejectsTakenExternalId withidp = do
   _ <- createUser tok user1
   -- Try to create different user with same @externalId@ in same team, and fail.
   user2 <- randomScimUser
-  createUser_ (Just tok) (user2 {Scim.User.externalId = Scim.User.externalId user1}) (env ^. teSpar)
-    !!! const 409 === statusCode
+  createUser_ (Just tok) (user2 {Scim.User.externalId = Scim.User.externalId user1}) (env ^. teSpar) !!! do
+    const 409 === statusCode
+    mkScimErrorResp Nothing (Just "uniqueness") "409"
+      === responseBody
 
 -- | Test that it's fine to have same @externalId@s for two users belonging to different IdPs.
 testCreateSameExternalIds :: TestSpar ()
@@ -1331,7 +1313,8 @@ testListProvisionedUsers = do
   (tok, _) <- registerIdPAndScimToken
   listUsers_ (Just tok) Nothing spar !!! do
     const 400 === statusCode
-    const (Just "tooMany") =~= responseBody
+    mkScimErrorResp Nothing (Just "tooMany") "400"
+      === responseBody
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do
@@ -1623,8 +1606,10 @@ testGetNoDeletedUsers = do
   -- Delete the user
   call $ deleteUserOnBrig (env ^. teBrig) userid
   -- Try to find the user
-  getUser_ (Just tok) userid (env ^. teSpar)
-    !!! const 404 === statusCode
+  getUser_ (Just tok) userid (env ^. teSpar) !!! do
+    const 404 === statusCode
+    mkScimErrorResp Nothing Nothing "404"
+      === responseBody
   -- TODO(arianvp): What does this mean; @fisx ??
   pendingWith "TODO: delete via SCIM"
 
@@ -1640,14 +1625,9 @@ testUserGetFailsWithNotFoundIfOutsideTeam = do
   getUser_ (Just tokTeamB) userid (env ^. teSpar) !!! do
     const 404 === statusCode
     mkScimErrorResp
-      [aesonQQ|
-        {
-          "detail": #{"User " <> idToText userid <> " not found"},
-          "schemas": [
-            "urn:ietf:params:scim:api:messages:2.0:Error"
-          ],
-          "status": "404"
-        }|]
+      (Just ("User " <> idToText userid <> " not found"))
+      Nothing
+      "404"
       === responseBody
 
 {- does not find a non-scim-provisioned user:
@@ -1755,8 +1735,10 @@ testUserUpdateFailsWithNotFoundIfOutsideTeam = do
   let userid = scimUserId storedUser
   -- Overwrite the user with another randomly-generated user
   user' <- randomScimUser
-  updateUser_ (Just tokTeamB) (Just userid) user' (env ^. teSpar)
-    !!! const 404 === statusCode
+  updateUser_ (Just tokTeamB) (Just userid) user' (env ^. teSpar) !!! do
+    const 404 === statusCode
+    mkScimErrorResp Nothing Nothing "404"
+      === responseBody
 
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()
@@ -1808,8 +1790,10 @@ testUpdateToExistingExternalIdFails = do
   env <- ask
   -- Should fail with 409 to denote that the given externalId is in use by a
   -- different user.
-  updateUser_ (Just tok) (Just $ scimUserId storedNewUser) updatedNewUser (env ^. teSpar)
-    !!! const 409 === statusCode
+  updateUser_ (Just tok) (Just $ scimUserId storedNewUser) updatedNewUser (env ^. teSpar) !!! do
+    const 409 === statusCode
+    mkScimErrorResp Nothing (Just "uniqueness") "409"
+      === responseBody
 
 -- | Test that updating still works when name and handle are not changed.
 --
@@ -2107,7 +2091,10 @@ specPatchUser = do
       let userid = scimUserId storedUser
       _ <- createUser tok user'
       let patchOp = PatchOp.PatchOp [replaceAttrib "userName" (Scim.User.userName user')]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
+        const 409 === statusCode
+        mkScimErrorResp Nothing (Just "uniqueness") "409"
+          === responseBody
     it "can't update to someone else's externalId" $ do
       env <- ask
       (tok, _) <- registerIdPAndScimToken
@@ -2117,13 +2104,19 @@ specPatchUser = do
       let userid = scimUserId storedUser
       _ <- createUser tok user'
       let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (Scim.User.externalId user')]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
+        const 409 === statusCode
+        mkScimErrorResp Nothing (Just "uniqueness") "409"
+          === responseBody
     it "can't update a non-existing user" $ do
       env <- ask
       (tok, _) <- registerIdPAndScimToken
       userid <- liftIO $ randomId
       let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" ("blah" :: Text)]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 404 === statusCode
+      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
+        const 404 === statusCode
+        mkScimErrorResp Nothing Nothing "404"
+          === responseBody
     it "can update displayName" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2181,8 +2174,10 @@ specPatchUser = do
       let userid = scimUserId storedUser
       env <- ask
       let patchOp = PatchOp.PatchOp [replaceAttrib "emails" ("hello" :: Text)]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
-        !!! const 400 === statusCode
+      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
+        const 400 === statusCode
+        mkScimErrorResp Nothing (Just "invalidValue") "400"
+          === responseBody
     it "invalid attributes are quietly ignored for now" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2190,8 +2185,10 @@ specPatchUser = do
       let userid = scimUserId storedUser
       env <- ask
       let patchOp = PatchOp.PatchOp [replaceAttrib "totallyBogus" ("hello" :: Text)]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
-        !!! const 400 === statusCode
+      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
+        const 400 === statusCode
+        mkScimErrorResp Nothing (Just "invalidValue") "400"
+          === responseBody
     -- NOTE: Remove at the moment actually never works! As all the fields
     -- we support are required in our book
     it "userName cannot be removed according to scim" $ do
@@ -2201,7 +2198,10 @@ specPatchUser = do
       storedUser <- createUser tok user
       let userid = scimUserId storedUser
       let patchOp = PatchOp.PatchOp [removeAttrib "userName"]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
+        const 400 === statusCode
+        mkScimErrorResp Nothing (Just "invalidValue") "400"
+          === responseBody
     it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
       pendingWith
         "We default to the externalId when displayName is removed. lets keep that for now"
@@ -2219,7 +2219,10 @@ specPatchUser = do
       storedUser <- createUser tok user
       let userid = scimUserId storedUser
       let patchOp = PatchOp.PatchOp [removeAttrib "externalId"]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! do
+        const 400 === statusCode
+        mkScimErrorResp Nothing (Just "invalidValue") "400"
+          === responseBody
 
 testPatchIvalidInput :: (Text -> [Role] -> Operation) -> TestSpar ()
 testPatchIvalidInput patchOp = do
@@ -2236,11 +2239,19 @@ testPatchIvalidInput patchOp = do
           (Just $ Aeson.Array $ V.singleton $ Aeson.String "invalid-role")
   patchUser' tok uid (PatchOp.PatchOp [patchWithInvalidRole]) !!! do
     const 400 === statusCode
-    const (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
+    mkScimErrorResp
+      (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner.")
+      (Just "invalidValue")
+      "400"
+      === responseBody
   let patchWithTooManyRoles = patchOp "roles" [defaultRole, defaultRole]
   patchUser' tok uid (PatchOp.PatchOp [patchWithTooManyRoles]) !!! do
     const 400 === statusCode
-    const (Just "A user cannot have more than one role.") =~= responseBody
+    mkScimErrorResp
+      (Just "A user cannot have more than one role.")
+      (Just "invalidValue")
+      "400"
+      === responseBody
 
 testPatchRole :: (Text -> [Role] -> Operation) -> TestSpar ()
 testPatchRole replaceOrAdd = do
@@ -2294,8 +2305,10 @@ specDeleteUser = do
     it "responds with 405 (just making sure...)" $ do
       env <- ask
       (tok, _) <- registerIdPAndScimToken
-      deleteUser_ (Just tok) Nothing (env ^. teSpar)
-        !!! const 405 === statusCode
+      deleteUser_ (Just tok) Nothing (env ^. teSpar) !!! do
+        const 405 === statusCode
+        mkScimErrorResp Nothing Nothing "405"
+          === responseBody
   describe "DELETE /Users/:id" $ do
     it "should delete user from brig, spar.scim_user_times, spar.user" $ do
       (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -2353,8 +2366,10 @@ specDeleteUser = do
       storedUser <- createUser tok user
       spar <- view teSpar
       let uid = scimUserId storedUser
-      deleteUser_ Nothing (Just uid) spar
-        !!! const 401 === statusCode
+      deleteUser_ Nothing (Just uid) spar !!! do
+        const 401 === statusCode
+        mkScimErrorResp Nothing Nothing "401"
+          === responseBody
     it "should always pretend to succeed, even if user exists in other team (does not leak information by diverging behavior)" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2374,8 +2389,10 @@ specDeleteUser = do
       let uid = scimUserId storedUser
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
-      aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
-        !!! const 404 === statusCode
+      aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode) !!! do
+        const 404 === statusCode
+        mkScimErrorResp Nothing Nothing "404"
+          === responseBody
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
     it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
@@ -2409,8 +2426,10 @@ specDeleteUser = do
 
         deleteUser_ (Just tok) (Just uid) spar
           !!! const 204 === statusCode
-        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
-          !!! const 404 === statusCode
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode) !!! do
+          const 404 === statusCode
+          mkScimErrorResp Nothing Nothing "404"
+            === responseBody
 
     context "user not touched via scim before" $ do
       it "works" $ do
@@ -2429,8 +2448,10 @@ specDeleteUser = do
           !!! const 200 === statusCode
         deleteUser_ (Just tok) (Just uid) spar
           !!! const 204 === statusCode
-        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
-          !!! const 404 === statusCode
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode) !!! do
+          const 404 === statusCode
+          mkScimErrorResp Nothing Nothing "404"
+            === responseBody
 
       context "No IDP" $ do
         describe "Deleting a User" $ do
@@ -2559,7 +2580,7 @@ specSCIMManaged = do
           expectedResponseBody updatedThing =
             -- NB: this is for requests to brig, not scim requests, so
             -- the code-label-message schema is legit!
-            mkScimErrorResp
+            mkBrigErrorResp
               [aesonQQ|
                 {
                   "code": 403,
@@ -2655,5 +2676,7 @@ executeTeamUserSearch brig teamid self mbSearchText =
         === statusCode
       >>= fmap Search.searchResults . responseJsonError
 
-mkScimErrorResp :: Aeson.Value -> resp -> Maybe LByteString
-mkScimErrorResp val _ = Just (Aeson.encode val)
+-- | Assert the exact body of an error response from an endpoint that is /not/ scim: brig has
+-- its own code-label-message error schema.  For scim errors use 'mkScimErrorResp'.
+mkBrigErrorResp :: Aeson.Value -> resp -> Maybe LByteString
+mkBrigErrorResp val _ = Just (Aeson.encode val)
