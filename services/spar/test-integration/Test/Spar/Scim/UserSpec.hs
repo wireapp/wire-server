@@ -36,7 +36,6 @@ import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Random (randomRIO)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
-import qualified Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
@@ -56,7 +55,6 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
@@ -652,9 +650,17 @@ testCreateUserWithPass = do
   user <- randomScimUser <&> \u -> u {Scim.User.password = Just "geheim"}
   createUser_ (Just tok) user (env ^. teSpar) !!! do
     const 400 === statusCode
-    -- TODO: write a FAQ entry in wire-docs, reference it in the error description.
-    -- TODO: yes, we should just test for error labels consistently, i know...
-    const (Just "Setting user passwords is not supported for security reasons.") =~= responseBody
+    mkScimErrorResp
+      [aesonQQ|
+        {
+          "detail": "Setting user passwords is not supported for security reasons. (post)",
+          "schemas": [
+            "urn:ietf:params:scim:api:messages:2.0:Error"
+          ],
+          "scimType": "invalidValue",
+          "status": "400"
+        }|]
+      === responseBody
 
 testCreateUserNoIdPInvalidRoles :: TestSpar ()
 testCreateUserNoIdPInvalidRoles = do
@@ -854,6 +860,17 @@ testCreateUserNoIdPNoEmail = do
   user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just "notanemail"}
   createUser_ (Just tok) user (env ^. teSpar) !!! do
     const 400 === statusCode
+    mkScimErrorResp
+      [aesonQQ|
+        {
+          "detail": "Could not process externalId. Please check: (1) does the scim user contain a valid email address? (2) did you associate your scim token with a SAML IdP in wire?",
+          "schemas": [
+            "urn:ietf:params:scim:api:messages:2.0:Error"
+          ],
+          "scimType": "invalidValue",
+          "status": "400"
+        }|]
+      === responseBody
 
 testCreateUserWithSamlIdP :: TestSpar ()
 testCreateUserWithSamlIdP = do
@@ -937,8 +954,19 @@ testExternalIdIsRequired = do
   user <- randomScimUser
   let user' = user {Scim.User.externalId = Nothing}
   (tok, _) <- registerIdPAndScimToken
-  createUser_ (Just tok) user' (env ^. teSpar)
-    !!! const 400 === statusCode
+  createUser_ (Just tok) user' (env ^. teSpar) !!! do
+    const 400 === statusCode
+    mkScimErrorResp
+      [aesonQQ|
+        {
+          "detail": "externalId is required",
+          "schemas": [
+            "urn:ietf:params:scim:api:messages:2.0:Error"
+          ],
+          "scimType": "invalidValue",
+          "status": "400"
+        }|]
+      === responseBody
 
 -- The next line contains a mapping from this test to the following test standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -967,11 +995,34 @@ testCreateRejectsTakenHandle = do
   -- Create and add a first user: success!
   _ <- createUser tokTeamA user1
   -- Try to create different user with same handle in same team.
-  createUser_ (Just tokTeamA) (user2 {Scim.User.userName = Scim.User.userName user1}) (env ^. teSpar)
-    !!! const 409 === statusCode
+  createUser_ (Just tokTeamA) (user2 {Scim.User.userName = Scim.User.userName user1}) (env ^. teSpar) !!! do
+    const 409 === statusCode
+    mkScimErrorResp
+      [aesonQQ|
+        {
+          "detail": "userName is already taken",
+          "schemas": [
+            "urn:ietf:params:scim:api:messages:2.0:Error"
+          ],
+          "scimType": "uniqueness",
+          "status": "409"
+        }|]
+      === responseBody
+
   -- Try to create different user with same handle in different team.
-  createUser_ (Just tokTeamB) (user3 {Scim.User.userName = Scim.User.userName user1}) (env ^. teSpar)
-    !!! const 409 === statusCode
+  createUser_ (Just tokTeamB) (user3 {Scim.User.userName = Scim.User.userName user1}) (env ^. teSpar) !!! do
+    const 409 === statusCode
+    mkScimErrorResp
+      [aesonQQ|
+        {
+          "detail": "userName is already taken",
+          "schemas": [
+            "urn:ietf:params:scim:api:messages:2.0:Error"
+          ],
+          "scimType": "uniqueness",
+          "status": "409"
+        }|]
+      === responseBody
 
 -- | Test that user creation fails if the @externalId@ is already in use for given IdP.
 testCreateRejectsTakenExternalId :: Bool -> TestSpar ()
@@ -1586,8 +1637,18 @@ testUserGetFailsWithNotFoundIfOutsideTeam = do
   (tokTeamB, _) <- registerIdPAndScimToken
   storedUser <- createUser tokTeamA user
   let userid = scimUserId storedUser
-  getUser_ (Just tokTeamB) userid (env ^. teSpar)
-    !!! const 404 === statusCode
+  getUser_ (Just tokTeamB) userid (env ^. teSpar) !!! do
+    const 404 === statusCode
+    mkScimErrorResp
+      [aesonQQ|
+        {
+          "detail": #{"User " <> idToText userid <> " not found"},
+          "schemas": [
+            "urn:ietf:params:scim:api:messages:2.0:Error"
+          ],
+          "status": "404"
+        }|]
+      === responseBody
 
 {- does not find a non-scim-provisioned user:
 
@@ -2172,7 +2233,7 @@ testPatchIvalidInput patchOp = do
         PatchOp.Operation
           PatchOp.Replace
           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath "roles")))
-          (Just $ Data.Aeson.Array $ V.singleton $ Data.Aeson.String "invalid-role")
+          (Just $ Aeson.Array $ V.singleton $ Aeson.String "invalid-role")
   patchUser' tok uid (PatchOp.PatchOp [patchWithInvalidRole]) !!! do
     const 400 === statusCode
     const (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
@@ -2494,27 +2555,39 @@ specSCIMManaged = do
         resp <- call $ post (brig . path "/access" . forceCookie cky) <!! const 200 === statusCode
         pure $ decodeToken resp
 
+      let expectedResponseBody :: String -> resp -> Maybe LByteString
+          expectedResponseBody updatedThing =
+            -- NB: this is for requests to brig, not scim requests, so
+            -- the code-label-message schema is legit!
+            mkScimErrorResp
+              [aesonQQ|
+                {
+                  "code": 403,
+                  "label": "managed-by-scim",
+                  "message": #{"Updating " <> updatedThing <> " is not allowed, because it is managed by SCIM, or E2EId is enabled"}
+                }|]
       do
         newEmail <- randomEmail
         call $
           changeEmailBrigCreds brig cky sessiontok newEmail !!! do
-            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
+            expectedResponseBody "email" === responseBody
 
       do
         handleTxt <- randomAlphaNum
         call $
           changeHandleBrig brig uid handleTxt !!! do
-            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
+            expectedResponseBody "handle" === responseBody
 
       do
         displayName <- Name <$> randomAlphaNum
         let uupd = UserUpdate (Just displayName) Nothing Nothing Nothing Nothing
         call $
           updateProfileBrig brig uid uupd !!! do
-            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
+            expectedResponseBody "name" === responseBody
+
     it "created_on should be filled in CSV export" $ do
       g <- view teGalley
       user <- randomScimUser
@@ -2581,3 +2654,6 @@ executeTeamUserSearch brig teamid self mbSearchText =
       <!! const 200
         === statusCode
       >>= fmap Search.searchResults . responseJsonError
+
+mkScimErrorResp :: Aeson.Value -> resp -> Maybe LByteString
+mkScimErrorResp val _ = Just (Aeson.encode val)
