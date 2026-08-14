@@ -35,6 +35,7 @@
 
 module Test.Federator.Client (tests) where
 
+import Control.Concurrent.Async (replicateConcurrently_)
 import Control.Exception hiding (handle)
 import Control.Monad.Codensity
 import Control.Monad.Except
@@ -92,6 +93,7 @@ tests =
       testGroup
         "HTTP2 client"
         [ testCase "testResponseHeaders" testResponseHeaders,
+          testCase "testConcurrentRequestsAllRecorded" testConcurrentRequestsAllRecorded,
           testCase "testStreaming" testStreaming
         ]
     ]
@@ -247,6 +249,20 @@ testResponseHeaders = do
     Right resp -> do
       responseStatusCode resp @?= HTTP.status200
       lookup "X-Foo" (toList (responseHeaders resp)) @?= Just "bar"
+
+testConcurrentRequestsAllRecorded :: IO ()
+testConcurrentRequestsAllRecorded = do
+  (_, sentRequests) <-
+    withTempMockFederator def $ \port -> do
+      let req =
+            HTTP2.requestBuilder
+              HTTP.methodPost
+              "/rpc/target.example.com/brig/test"
+              [("Wire-Origin-Domain", "origin.example.com"), (federationRequestIdHeaderName, "rid")]
+              "body"
+      mgr <- defaultHttp2Manager
+      replicateConcurrently_ 50 (performHTTP2Request mgr (False, "127.0.0.1", port) req)
+  length sentRequests @?= 50
 
 testStreaming :: IO ()
 testStreaming = withInfiniteMockServer $ \port -> do

@@ -151,7 +151,7 @@ mockInternalRequest remoteCalls mock targetDomain component (RPC path) req cont 
     if path == "api-version"
       then pure $ MockResponse Wai.status200 "application/json" (Aeson.encode (VersionInfo mock.versions))
       else do
-        modifyIORef remoteCalls (<> [fedRequest])
+        atomicModifyIORef' remoteCalls (\xs -> (xs <> [fedRequest], ()))
         fromException @MockException
           . handle (throw . handleException)
           $ mock.handler fedRequest
