@@ -1,9 +1,5 @@
 {
     "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
-    "qualified_id": {
-        "domain": "example.com",
-        "id": "00000001-0000-0000-0000-000000000001"
-    },
     "from": "a471447c-aa30-4592-81b0-dec6c1c02bca",
     "qualified_conversation": {
         "domain": "example.com",
@@ -12,6 +8,10 @@
     "qualified_from": {
         "domain": "example.com",
         "id": "a471447c-aa30-4592-81b0-dec6c1c02bca"
+    },
+    "qualified_id": {
+        "domain": "example.com",
+        "id": "00000001-0000-0000-0000-000000000001"
     },
     "time": "2018-01-01T00:00:00.000Z",
     "type": "meeting.create",
