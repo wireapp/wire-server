@@ -20,6 +20,8 @@
 
 module Wire.BackgroundWorker.Env where
 
+import Amazonka qualified
+import Amazonka.SES qualified as SES
 import Cassandra (ClientState)
 import Cassandra.Util (defInitCassandra)
 import Control.Monad.Base
@@ -51,6 +53,8 @@ import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Team.Feature (LegalholdConfig, npProject)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackgroundWorker.Options
+import Wire.EmailSending.Options qualified as EmailOpt
+import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.JobSubsystem.Migrations (mkArbiterConnectionString)
 import Wire.Options.Galley (GuestLinkTTLSeconds, conversationCodeURISettings)
 import Wire.Options.Galley qualified as Galley
@@ -72,6 +76,10 @@ workerName = \case
   BackendNotificationPusher -> "backend-notification-pusher"
   DeadUserNotificationWatcher -> "dead-user-notification-watcher"
   BackgroundJobConsumer -> "background-job-consumer"
+
+-- | The configured outbound email transport. Exactly one is built from
+-- 'Opts.email' (a required sum), so the "no transport" state is unrepresentable.
+data EmailTransport = EmailTransportSMTP !SMTP.SMTP | EmailTransportSES !Amazonka.Env
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -113,7 +121,8 @@ data Env = Env
     passwordHashingOptions :: !PasswordHashingOptions,
     checkGroupInfo :: !(Maybe Bool),
     convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
-    passwordHashingRateLimitEnv :: RateLimitEnv
+    passwordHashingRateLimitEnv :: RateLimitEnv,
+    emailTransport :: EmailTransport
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -217,6 +226,20 @@ mkEnv opts galleyOpts = do
             listClientsUsingBrig = galleyOpts._settings._intraListing
           }
   passwordHashingRateLimitEnv <- newRateLimitEnv galleyOpts._settings._passwordHashingRateLimit
+  emailTransport <- case opts.email of
+    EmailOpt.EmailSMTP s -> do
+      let smtpHost = s.smtpEndpoint.host
+          smtpPort = Just (fromIntegral s.smtpEndpoint.port)
+      smtpCredentials <- case EmailOpt.smtpCredentials s of
+        Just (EmailOpt.EmailSMTPCredentials u pwd) ->
+          Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials pwd
+        _ -> pure Nothing
+      EmailTransportSMTP <$> SMTP.initSMTP logger smtpHost smtpPort smtpCredentials s.smtpConnType
+    EmailOpt.EmailAWS aws -> do
+      let AWSEndpoint {..} = aws.sesEndpoint
+          sesEndpoint =
+            Amazonka.setEndpoint _awsSecure _awsHost _awsPort SES.defaultService
+      EmailTransportSES <$> (Amazonka.newEnv Amazonka.discover <&> Amazonka.configureService sesEndpoint)
   Log.info logger $ Log.msg @Text "Environment initialized"
   pure Env {..}
 

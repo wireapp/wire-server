@@ -30,11 +30,13 @@ import Data.Schema
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Types qualified as QT
+import Wire.API.BackgroundJobs.Email (SendEmailJob)
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 data BackgroundJobPayload
   = BackgroundJobSyncUserGroupAndChannel SyncUserGroupAndChannel
   | BackgroundJobSyncUserGroup SyncUserGroup
+  | BackgroundJobSendEmail !SendEmailJob
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform BackgroundJobPayload
 
@@ -42,10 +44,12 @@ backgroundJobPayloadLabel :: BackgroundJobPayload -> Text
 backgroundJobPayloadLabel p = case backgroundJobPayloadTag p of
   BackgroundJobSyncUserGroupAndChannelTag -> "sync-user-group-and-channel"
   BackgroundJobSyncUserGroupTag -> "sync-user-group"
+  BackgroundJobSendEmailTag -> "send-email"
 
 data BackgroundJobPayloadTag
   = BackgroundJobSyncUserGroupAndChannelTag
   | BackgroundJobSyncUserGroupTag
+  | BackgroundJobSendEmailTag
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via GenericUniform BackgroundJobPayloadTag
 
@@ -54,7 +58,8 @@ instance ToSchema BackgroundJobPayloadTag where
     enum @Text $
       mconcat
         [ element "sync-user-group-and-channel" BackgroundJobSyncUserGroupAndChannelTag,
-          element "sync-user-group" BackgroundJobSyncUserGroupTag
+          element "sync-user-group" BackgroundJobSyncUserGroupTag,
+          element "send-email" BackgroundJobSendEmailTag
         ]
 
 backgroundJobPayloadTag :: BackgroundJobPayload -> BackgroundJobPayloadTag
@@ -62,6 +67,7 @@ backgroundJobPayloadTag =
   \case
     BackgroundJobSyncUserGroupAndChannel {} -> BackgroundJobSyncUserGroupAndChannelTag
     BackgroundJobSyncUserGroup {} -> BackgroundJobSyncUserGroupTag
+    BackgroundJobSendEmail {} -> BackgroundJobSendEmailTag
 
 backgroundJobPayloadTagSchema :: ObjectSchema SwaggerDoc BackgroundJobPayloadTag
 backgroundJobPayloadTagSchema = field "type" schema
@@ -116,6 +122,7 @@ backgroundJobPayloadObjectSchema =
     backgroundJobPayloadDataSchema = \case
       BackgroundJobSyncUserGroupAndChannelTag -> tag _BackgroundJobSyncUserGroupAndChannel (field "payload" schema)
       BackgroundJobSyncUserGroupTag -> tag _BackgroundJobSyncUserGroup (field "payload" schema)
+      BackgroundJobSendEmailTag -> tag _BackgroundJobSendEmail (field "payload" schema)
 
 instance ToSchema BackgroundJobPayload where
   schema = object backgroundJobPayloadObjectSchema

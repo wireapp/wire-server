@@ -4,6 +4,8 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amazonka
+, amazonka-ses
 , amqp
 , arbiter-core
 , arbiter-worker
@@ -67,6 +69,8 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    amazonka
+    amazonka-ses
     amqp
     arbiter-core
     arbiter-worker

@@ -710,7 +710,15 @@ background-worker:
       tlsCaSecretRef:
         name: "rabbitmq-certificate"
         key: "ca.crt"
+    # Email transport: the worker sends email via SES in CI (mirrors brig).
+    useSES: true
+    aws:
+      region: "eu-west-1"
+      sesEndpoint: http://fake-aws-ses:4569
+      sesQueue: integration-brig-events
   secrets:
+    awsKeyId: dummykey
+    awsSecretKey: dummysecret
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}

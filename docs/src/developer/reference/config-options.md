@@ -2448,3 +2448,66 @@ Notes
 - `jobs.workerThreads` controls the number of worker threads in each job queue. The default is `1`; increasing it allows jobs in that queue to run in parallel when their group keys permit it.
 - Both job queues share the same PostgreSQL pool. Increasing `jobs.workerThreads` can increase the number of connections needed when more jobs run concurrently, but it does not create a permanently dedicated connection per thread or queue.
 - The job runner is poll-only and does not require an additional PostgreSQL listener connection.
+
+## Background worker: Email sending
+
+The background-worker delivers the email jobs enqueued by brig. It requires an
+`email` transport (AWS SES or SMTP), the same shape brig uses for
+`emailSMS.email`. Configuration is supplied via Helm under
+`background-worker.config` and rendered into the `email` block of
+`background-worker.yaml`.
+
+The transport is selected by `background-worker.config.useSES`:
+
+- `useSES: true` (default) renders an SES block. `aws.sesQueue` is required and
+  `aws.sesEndpoint` selects the SES endpoint. The worker also needs the
+  `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` environment
+  variables, injected from `background-worker.config.aws.region` and the
+  `awsKeyId`/`awsSecretKey` secrets (the same pattern brig uses).
+- `useSES: false` renders an SMTP block using the `smtp.*` settings. The SMTP
+  password is read from the file named by `smtp.passwordFile` (mounted from the
+  `smtpPassword` secret).
+
+Rendered config (`background-worker.yaml`):
+
+```yaml
+# SES:
+email:
+  sesQueue: wire-brig-events
+  sesEndpoint: https://email.eu-west-1.amazonaws.com
+# SMTP (xor SES):
+# email:
+#   smtpEndpoint: { host: smtp.example.com, port: 587 }
+#   smtpConnType: tls
+#   smtpCredentials:
+#     smtpUsername: wire
+#     smtpPassword: /etc/wire/background-worker/secrets/smtp-password.txt
+```
+
+Helm values (under `background-worker`):
+
+```yaml
+config:
+  useSES: true
+  aws:
+    region: "eu-west-1"
+    sesEndpoint: https://email.eu-west-1.amazonaws.com
+    sesQueue: wire-brig-events   # required when useSES is true
+  smtp:
+    passwordFile: /etc/wire/background-worker/secrets/smtp-password.txt
+secrets:
+  awsKeyId: <aws-access-key-id>          # SES only
+  awsSecretKey: <aws-secret-access-key>  # SES only
+  smtpPassword: <smtp-password>          # SMTP only
+```
+
+Notes
+
+- `email` is required: the worker fails to start without a transport.
+- For SES, the worker reads `AWS_REGION` from `config.aws.region` and the AWS
+  credentials from the `awsKeyId`/`awsSecretKey` secrets, mirroring brig.
+- For SMTP, the password is mounted at
+  `/etc/wire/background-worker/secrets/smtp-password.txt` (from the
+  `smtpPassword` secret); `config.smtp.passwordFile` must point at it.
+- The `background-jobs` queue is durable, so transient worker downtime does not
+  lose email jobs; an updated worker picks up messages an older one requeued.

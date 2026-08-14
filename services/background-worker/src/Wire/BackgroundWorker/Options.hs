@@ -30,6 +30,7 @@ import Network.AMQP.Extended
 import System.Cron (CronSchedule, parseCronSchedule)
 import System.Logger.Extended
 import Util.Options
+import Wire.EmailSending.Options (EmailOpts)
 import Wire.Migration
 import Wire.PostgresMigrationOpts
 
@@ -57,7 +58,8 @@ data Opts = Opts
     migrateDomainRegistration :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
-    backgroundJobs :: BackgroundJobsConfig
+    backgroundJobs :: BackgroundJobsConfig,
+    email :: !EmailOpts
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts

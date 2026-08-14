@@ -36,6 +36,8 @@ library
 
   build-depends:
       aeson
+    , amazonka
+    , amazonka-ses
     , amqp
     , arbiter-core
     , arbiter-worker

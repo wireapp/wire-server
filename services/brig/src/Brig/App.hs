@@ -44,7 +44,6 @@ module Brig.App
     wireServerEnterpriseEndpointLens,
     casClientLens,
     hasqlPoolLens,
-    smtpEnvLens,
     emailSenderLens,
     awsEnvLens,
     appLoggerLens,
@@ -171,7 +170,6 @@ import Wire.API.User.Identity
 import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.Options qualified as EmailOpt
-import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
@@ -201,7 +199,6 @@ data Env = Env
     wireServerEnterpriseEndpoint :: Maybe Endpoint,
     casClient :: Cas.ClientState,
     hasqlPool :: HasqlPool.Pool,
-    smtpEnv :: Maybe SMTP.SMTP,
     emailSender :: EmailAddress,
     awsEnv :: AWS.Env,
     appLogger :: Logger,
@@ -270,7 +267,7 @@ newEnv opts = do
   ttp <- loadTeamTemplatesWithBrigOpts opts
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
       brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
-  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
+  emailAWSOpts <- emailConn $ Opt.email (Opt.emailSMS opts)
   aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
   zau <- initZAuth opts
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
@@ -320,7 +317,6 @@ newEnv opts = do
         wireServerEnterpriseEndpoint = opts.wireServerEnterprise,
         casClient = cas,
         hasqlPool = hasqlPool,
-        smtpEnv = emailSMTP,
         emailSender = opts.emailSMS.general.emailSender,
         awsEnv = aws, -- used by `journalEvent` directly
         appLogger = lgr,
@@ -354,16 +350,8 @@ newEnv opts = do
         postgresMigration = opts.postgresMigration
       }
   where
-    emailConn _ (EmailOpt.EmailAWS aws) = pure (Just aws, Nothing)
-    emailConn lgr (EmailOpt.EmailSMTP s) = do
-      let h = s.smtpEndpoint.host
-          p = Just . fromInteger . toInteger $ s.smtpEndpoint.port
-      smtpCredentials <- case EmailOpt.smtpCredentials s of
-        Just (EmailOpt.EmailSMTPCredentials u p') -> do
-          Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials p'
-        _ -> pure Nothing
-      smtp <- SMTP.initSMTP lgr h p smtpCredentials (EmailOpt.smtpConnType s)
-      pure (Nothing, Just smtp)
+    emailConn (EmailOpt.EmailAWS aws) = pure (Just aws)
+    emailConn (EmailOpt.EmailSMTP _) = pure Nothing
     mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty
 
 mkIndexEnv :: ElasticSearchOpts -> Logger -> Endpoint -> Manager -> IO IndexEnv

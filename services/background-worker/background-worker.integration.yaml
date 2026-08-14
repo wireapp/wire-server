@@ -45,6 +45,12 @@ rabbitmq:
   caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
+# Email transport for the background-worker (same shape as brig's emailSMS.email).
+# SES takes precedence over SMTP when both are configured.
+email:
+  sesQueue: integration-brig-events
+  sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+
 backendNotificationPusher:
   pushBackoffMinWait: 1000 # 1ms
   pushBackoffMaxWait: 1000000 # 1s

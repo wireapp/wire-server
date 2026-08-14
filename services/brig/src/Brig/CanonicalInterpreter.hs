@@ -89,8 +89,7 @@ import Wire.DomainVerificationChallengeStore.Cassandra
 import Wire.DomainVerificationChallengeStore.DualWrite (interpretDomainVerificationChallengeStoreToCassandraAndPostgres)
 import Wire.DomainVerificationChallengeStore.Postgres (interpretDomainVerificationChallengeStoreToPostgres)
 import Wire.EmailSending
-import Wire.EmailSending.SES
-import Wire.EmailSending.SMTP
+import Wire.EmailSending.Queueing (emailViaQueueInterpreter)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Interpreter
 import Wire.EnterpriseLoginSubsystem
@@ -451,7 +450,7 @@ runBrigToIO e (AppT ma) = do
               . interpretClientToIO e.casClient
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
-              . emailSendingInterpreter e
+              . emailViaQueueInterpreter e.requestId e.amqpJobsPublisherChannel
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
               . passwordResetCodeStoreToCassandra @Cas.Client
@@ -559,9 +558,3 @@ rethrowHttpErrorIO act = do
   case eithError of
     Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
-
-emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
-emailSendingInterpreter e = do
-  case e.smtpEnv of
-    Just smtp -> emailViaSMTPInterpreter e.appLogger smtp
-    Nothing -> emailViaSESInterpreter (e.awsEnv ^. amazonkaEnv)

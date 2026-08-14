@@ -45,6 +45,8 @@ import Wire.BackgroundJobsPublisher
 import Wire.BackgroundJobsRunner (BackgroundJobRunner (..))
 import Wire.ConversationStore (ConversationStore, upsertMembers)
 import Wire.ConversationSubsystem
+import Wire.EmailSending (EmailSending, sendMail)
+import Wire.EmailSending.Queueing (fromSerializableMail)
 import Wire.Sem.Random
 import Wire.StoredConversation
 import Wire.UserGroupStore (UserGroupStore, getUserGroup, getUserGroupChannels)
@@ -53,6 +55,7 @@ import Wire.UserList (toUserList)
 interpretBackgroundJobRunner ::
   ( Member UserGroupStore r,
     Member BackgroundJobPublisher r,
+    Member EmailSending r,
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
@@ -66,6 +69,7 @@ interpretBackgroundJobRunner = interpret $ \case
 runBackgroundJob ::
   ( Member UserGroupStore r,
     Member BackgroundJobPublisher r,
+    Member EmailSending r,
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
@@ -77,6 +81,13 @@ runBackgroundJob ::
 runBackgroundJob job = case job.payload of
   BackgroundJobSyncUserGroupAndChannel payload -> runSyncUserGroupAndChannel payload
   BackgroundJobSyncUserGroup payload -> runSyncUserGroup payload
+  BackgroundJobSendEmail payload -> case fromSerializableMail payload of
+    Left err ->
+      Log.warn $
+        field "job_id" (toByteString job.jobId)
+          . field "error" err
+          . msg (val "Rejecting malformed email job")
+    Right mail -> sendMail mail
 
 runSyncUserGroupAndChannel ::
   ( Member UserGroupStore r,

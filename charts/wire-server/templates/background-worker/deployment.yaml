@@ -109,6 +109,20 @@ spec:
           {{ toYaml .Values.additionalVolumeMounts | nindent 10 }}
           {{- end }}
           env:
+          {{- if hasKey $backgroundWorker.secrets "awsKeyId" }}
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: background-worker
+                key: awsKeyId
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: background-worker
+                key: awsSecretKey
+          {{- end }}
+          - name: AWS_REGION
+            value: "{{ $backgroundWorker.config.aws.region }}"
           - name: RABBITMQ_USERNAME
             valueFrom:
               secretKeyRef:

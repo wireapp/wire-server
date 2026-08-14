@@ -80,6 +80,22 @@ data:
       {{- end }}
     {{- end }}
 
+    email:
+    {{- if .useSES }}
+      sesQueue: {{ required "Missing value: background-worker.config.aws.sesQueue" .aws.sesQueue }}
+      sesEndpoint: {{ .aws.sesEndpoint | quote }}
+    {{- else }}
+      smtpEndpoint:
+        host: {{ .smtp.host }}
+        port: {{ .smtp.port }}
+      smtpConnType: {{ .smtp.connType }}
+      {{- if .smtp.username }}
+      smtpCredentials:
+        smtpUsername: {{ .smtp.username }}
+        smtpPassword: {{ .smtp.passwordFile }}
+      {{- end }}
+    {{- end }}
+
     migrateConversations: {{ .migrateConversations }}
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}

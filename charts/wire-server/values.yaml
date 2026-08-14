@@ -1075,6 +1075,28 @@ background-worker:
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
 
+    # Email transport for the background-worker (delivers the email jobs
+    # enqueued by brig). Same SES/SMTP shape as brig's emailSMS.email.
+    # `useSES` selects the transport: when true, the worker sends via AWS SES
+    # using `aws.sesQueue`/`aws.sesEndpoint` together with the AWS_ACCESS_KEY_ID
+    # / AWS_SECRET_ACCESS_KEY secrets and the AWS_REGION below. When false, it
+    # sends via SMTP using the `smtp.*` settings.
+    useSES: true
+    aws:
+      region: "eu-west-1"
+      sesEndpoint: https://email.eu-west-1.amazonaws.com
+      # sesQueue is required when useSES is true (deployment-specific), e.g.:
+      # sesQueue: wire-brig-events
+    # SMTP transport (used when useSES is false). The ConfigMap renders these
+    # into the `email` block; mirrors brig's `smtp` settings.
+    smtp:
+      passwordFile: /etc/wire/background-worker/secrets/smtp-password.txt
+
+  # Optional secret keys (see templates/background-worker/secret.yaml):
+  #   awsKeyId: <aws-access-key-id>          # required for SES; rendered as AWS_ACCESS_KEY_ID
+  #   awsSecretKey: <aws-secret-access-key>   # required for SES; rendered as AWS_SECRET_ACCESS_KEY
+  #   smtpPassword: <smtp-password>           # mounted at /etc/wire/background-worker/secrets/smtp-password.txt;
+  #                                          # consumed via config.smtp.passwordFile (mirrors brig/galley)
   secrets: {}
 
   podSecurityContext:
