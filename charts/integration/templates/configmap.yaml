@@ -102,6 +102,13 @@ data:
       adminPort: 15672
       vHost: /
 
+    rabbitmq-v2:
+      host: rabbitmq.wire-federation-v2.svc.cluster.local
+      port: 5671
+      adminHost: rabbitmq.wire-federation-v2.svc.cluster.local
+      adminPort: 15672
+      vHost: /
+
     backendTwo:
 
       brig:

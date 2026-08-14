@@ -140,6 +140,7 @@ mkGlobalEnv cfgFile = do
         gRabbitMQConfig = intConfig.rabbitmq,
         gRabbitMQConfigV0 = intConfig.rabbitmqV0,
         gRabbitMQConfigV1 = intConfig.rabbitmqV1,
+        gRabbitMQConfigV2 = intConfig.rabbitmqV2,
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds,
         gDNSMockServerConfig = intConfig.dnsMockServer,

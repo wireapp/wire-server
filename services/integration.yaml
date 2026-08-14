@@ -187,6 +187,13 @@ rabbitmq-v1:
   adminPort: 15672
   vHost: federation-v1
 
+rabbitmq-v2:
+  host: localhost
+  port: 5671
+  adminHost: localhost
+  adminPort: 15672
+  vHost: federation-v2
+
 cassandra:
   host: 127.0.0.1
   port: 9042
