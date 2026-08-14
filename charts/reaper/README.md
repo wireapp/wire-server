@@ -40,3 +40,32 @@ RBAC
 
 The chart creates a namespaced `Role`/`RoleBinding` granting `get`, `list`, `watch` and
 `delete` on pods, bound to a `<release>-reaper` ServiceAccount.
+
+`watch` is required even though the script never watches anything explicitly:
+`kubectl delete pod` blocks until the pod is gone and opens a watch to do so. Without it
+the reaper deletes the first cannon and then hangs, without crashing.
+
+Earlier versions bound the ServiceAccount to `cluster-admin` through a fixed-name
+`ClusterRoleBinding`, which gave the pod read access to every Secret in the cluster.
+`helm upgrade` removes that binding and the old `reaper-role` ServiceAccount. Because
+nothing is cluster-scoped any more and all names are release-scoped, several reaper
+releases can now coexist in one cluster; previously a second release failed to install
+with a `ClusterRoleBinding` ownership conflict.
+
+Runtime
+-------
+
+The container runs as uid/gid 65534 with a read-only root filesystem and has resource
+requests and limits. `nodeSelector`, `tolerations` and `affinity` are honoured.
+
+`checkIntervalSeconds` (default `15`) controls how long the script waits between checks.
+Earlier versions listed pods once per second.
+
+Logs distinguish a failure to reach the API from "there are no matching pods", and
+include the underlying error:
+
+    Failed to list pods: Error from server (Forbidden): ... Skipping this iteration...
+    No cannon pods found. Doing nothing...
+
+Both cases previously printed `Failed to list pods. Skipping this iteration...`, so a
+reaper that could not list pods at all looked exactly like an idle one.
