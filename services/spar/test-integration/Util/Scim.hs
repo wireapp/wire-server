@@ -62,12 +62,21 @@ import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import qualified Web.Scim.Schema.User.Role as Scim.Role
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider hiding (handle, team)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
+
+-- | Build a SCIM @roles@ list (RFC 7643 complex form) from plain role-name strings.
+mkScimRoles :: [Text] -> [Scim.Role.Role]
+mkScimRoles = map (\v -> Scim.Role.Role (Just v) Nothing Nothing Nothing)
+
+-- | Extract the role-name strings from a SCIM @roles@ list.
+scimRoleValues :: [Scim.Role.Role] -> [Text]
+scimRoleValues = mapMaybe Scim.Role.value
 
 -- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
 runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
@@ -162,7 +171,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
           Scim.User.externalId = Just externalId,
           Scim.User.emails = [],
           Scim.User.phoneNumbers = phones,
-          Scim.User.roles = ["member"]
+          Scim.User.roles = mkScimRoles ["member"]
           -- if we don't add this role here explicitly, some tests may show confusing failures
           -- involving [] or null being changed to ["member"] during a create or update
           -- operation.
@@ -724,7 +733,7 @@ setDefaultRoleAndEmailsIfEmpty :: Scim.User.User a -> Scim.User.User a
 setDefaultRoleAndEmailsIfEmpty u =
   u
     { Scim.User.roles = case Scim.User.roles u of
-        [] -> [cs $ toByteString' defaultRole]
+        [] -> mkScimRoles [cs $ toByteString' defaultRole]
         xs -> xs,
       -- when the emails field is empty, we try to populate it with the externalId
       Scim.User.emails = case Scim.User.emails u of

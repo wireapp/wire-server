@@ -1,5 +1,4 @@
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -25,11 +24,15 @@ module Web.Scim.Schema.Common where
 import Data.Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.Types (Parser)
 import qualified Data.CaseInsensitive as CI
 import Data.List (nub, (\\))
+import qualified Data.OpenApi as S
+import Data.Schema (NamedSwaggerDoc, Schema (..), ToSchema (..), mkSchema, swaggerDoc)
 import Data.String.Conversions (cs)
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text as Text
+import Lens.Micro ((&), (?~))
 import qualified Network.URI as Network
 
 data WithId id a = WithId
@@ -66,16 +69,30 @@ instance ToJSON URI where
 
 newtype ScimBool = ScimBool {unScimBool :: Bool}
   deriving stock (Eq, Show, Ord)
-  deriving newtype (ToJSON)
+  deriving (FromJSON, ToJSON) via (Schema ScimBool)
 
-instance FromJSON ScimBool where
-  parseJSON (Bool bl) = pure (ScimBool bl)
-  parseJSON (String str) =
-    case CI.mk str of
-      "true" -> pure (ScimBool True)
-      "false" -> pure (ScimBool False)
-      _ -> fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> cs str
-  parseJSON bad = fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> show bad
+-- | Serialises to a plain JSON boolean; parses either a JSON boolean or the
+-- (case-insensitive) strings @"true"@ / @"false"@.
+instance ToSchema ScimBool where
+  schema = mkSchema desc parse (Just . toJSON . unScimBool)
+    where
+      parse :: Value -> Parser ScimBool
+      parse (Bool bl) = pure (ScimBool bl)
+      parse (String str) =
+        case CI.mk str of
+          "true" -> pure (ScimBool True)
+          "false" -> pure (ScimBool False)
+          _ -> fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> cs str
+      parse bad = fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> show bad
+
+      -- The renderer always produces a JSON boolean, so the schema type is
+      -- @boolean@; the extra string inputs the parser tolerates are documented
+      -- in the description.
+      desc :: NamedSwaggerDoc
+      desc =
+        swaggerDoc @Bool
+          & (S.schema . S.description)
+            ?~ "On input, the JSON strings \"true\" and \"false\" (case-insensitive) are also accepted."
 
 toKeyword :: String -> String
 toKeyword "typ" = "type"

@@ -668,7 +668,7 @@ testCreateUserNoIdPInvalidRoles = do
     randomScimUser <&> \u ->
       u
         { Scim.User.externalId = Just $ fromEmail email,
-          Scim.User.roles = cs . toByteString <$> [RoleMember, RoleExternalPartner]
+          Scim.User.roles = mkScimRoles $ cs . toByteString <$> [RoleMember, RoleExternalPartner]
         }
   createUser' tok scimUserTooManyRoles !!! do
     const 400 === statusCode
@@ -677,7 +677,7 @@ testCreateUserNoIdPInvalidRoles = do
     randomScimUser <&> \u ->
       u
         { Scim.User.externalId = Just $ fromEmail email,
-          Scim.User.roles = ["foobar"]
+          Scim.User.roles = mkScimRoles ["foobar"]
         }
   createUser' tok scimUserInvalidRole !!! do
     const 400 === statusCode
@@ -699,7 +699,7 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
     randomScimUser <&> \u ->
       u
         { Scim.User.externalId = Just $ fromEmail email,
-          Scim.User.roles = [cs $ toByteString role]
+          Scim.User.roles = mkScimRoles [cs $ toByteString role]
         }
   scimStoredUser <- createUser tok scimUser
   let userid = scimUserId scimStoredUser
@@ -713,7 +713,7 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
     -- FUTUREWORK: if this is not the desired behavior, have to handle this in the `getUser` handler:
     -- - if the user has a pending invitation, we have to look up the role in the invitation table
     --   by doing an rpc to brig
-    liftIO $ Scim.User.roles usr `shouldBe` [cs $ toByteString defaultRole]
+    liftIO $ scimRoleValues (Scim.User.roles usr) `shouldBe` [cs $ toByteString defaultRole]
     -- now external ID can differ from email, so emails are also returned
     liftIO $ (\(Scim.Email.Email _ e _) -> Scim.Email.unEmailAddress e) <$> Scim.User.emails usr `shouldBe` [email]
     liftIO $ Scim.User.externalId usr `shouldBe` (Just (fromEmail email))
@@ -1975,7 +1975,7 @@ testUpdateUserRole = do
         randomScimUser <&> \u ->
           u
             { Scim.User.externalId = Just $ fromEmail email,
-              Scim.User.roles = [cs $ toByteString initialRole]
+              Scim.User.roles = mkScimRoles [cs $ toByteString initialRole]
             }
       scimStoredUser <- createUser tok scimUser
       let userid = scimUserId scimStoredUser
@@ -1987,7 +1987,7 @@ testUpdateUserRole = do
         Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
         registerInvitation email userName inviteeCode True
       checkTeamMembersRole tid owner userid initialRole
-      _ <- updateUser tok userid (scimUser {Scim.User.roles = cs . toByteString <$> maybeToList mUpdatedRole})
+      _ <- updateUser tok userid (scimUser {Scim.User.roles = mkScimRoles $ cs . toByteString <$> maybeToList mUpdatedRole})
       checkTeamMembersRole tid owner userid targetRoleExpected
 
 ----------------------------------------------------------------------------
@@ -2210,7 +2210,7 @@ createScimUserWithRole brig tid owner tok initialRole = do
     randomScimUser <&> \u ->
       u
         { Scim.User.externalId = Just $ fromEmail email,
-          Scim.User.roles = [cs $ toByteString initialRole]
+          Scim.User.roles = mkScimRoles [cs $ toByteString initialRole]
         }
   scimStoredUser <- createUser tok scimUser
   let userid = scimUserId scimStoredUser
