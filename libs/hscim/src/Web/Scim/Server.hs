@@ -42,7 +42,7 @@ import Network.Wai
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic
-import Web.Scim.Capabilities.MetaSchema (ConfigSite, Configuration, configServer)
+import Web.Scim.Capabilities.MetaSchema (ConfigSite, Configuration, configServer, defaultResourceTypes)
 import Web.Scim.Class.Auth (AuthDB (..), AuthTypes (..))
 import Web.Scim.Class.Group (GroupDB, GroupSite (..), GroupTypes (..), groupServer)
 import Web.Scim.Class.User (UserDB (..), UserSite (..), userServer)
@@ -90,7 +90,7 @@ siteServer ::
   Site tag (AsServerT (ScimHandler m))
 siteServer conf =
   Site
-    { config = toServant $ configServer conf,
+    { config = toServant $ configServer conf defaultResourceTypes,
       users = \authData -> toServant (userServer @tag authData),
       groups = \authData -> toServant (groupServer @tag authData)
     }

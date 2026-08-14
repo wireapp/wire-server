@@ -24,6 +24,7 @@ import Data.Aeson
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Range as Range
 import Test.Hspec
 import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Web.Scim.Schema.ResourceType
@@ -38,8 +39,33 @@ spec :: Spec
 spec = do
   it "roundtrip" $ do
     require prop_roundtrip
+
   it "case-insensitive" $ do
     require $ mk_prop_caseInsensitive genResource
+
+  it "omits schemaExtensions when there are none" $ do
+    toJSON usersResource
+      `shouldBe` object
+        [ "endpoint" .= String "/Users",
+          "name" .= String "User",
+          "schema" .= String "urn:ietf:params:scim:schemas:core:2.0:User"
+        ]
+
+  it "serialises a schema extension in RFC 7643 shape" $ do
+    toJSON (SchemaExtension (Schema.CustomSchema "urn:example:X") True)
+      `shouldBe` object
+        [ "schema" .= String "urn:example:X",
+          "required" .= True
+        ]
+
+  it "user schema with extension also works" $ do
+    toJSON (usersResource {schemaExtensions = [SchemaExtension (Schema.CustomSchema "urn:example:X") True]})
+      `shouldBe` object
+        [ "endpoint" .= String "/Users",
+          "name" .= String "User",
+          "schema" .= String "urn:ietf:params:scim:schemas:core:2.0:User",
+          "schemaExtensions" .= [object ["schema" .= String "urn:example:X", "required" .= True]]
+        ]
 
 genResource :: Gen Resource
 genResource =
@@ -47,6 +73,11 @@ genResource =
     <$> Gen.element ["name1", "name2", "name3"]
     <*> genUri
     <*> genSchema
+    <*> Gen.list (Range.linear 0 3) genSchemaExtension
+
+genSchemaExtension :: Gen SchemaExtension
+genSchemaExtension =
+  SchemaExtension <$> genSchema <*> Gen.bool
 
 genSchema :: Gen Schema.Schema
 genSchema =

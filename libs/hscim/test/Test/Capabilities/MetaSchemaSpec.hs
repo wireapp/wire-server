@@ -39,7 +39,7 @@ import Web.Scim.Test.Util
 app :: IO Application
 app = do
   storage <- emptyTestStorage
-  pure $ mkapp @Mock (Proxy @ConfigAPI) (toServant (configServer empty)) (nt storage)
+  pure $ mkapp @Mock (Proxy @ConfigAPI) (toServant (configServer empty defaultResourceTypes)) (nt storage)
 
 shouldSatisfy ::
   (Show a, FromJSON a) =>
