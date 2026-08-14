@@ -1,29 +1,12 @@
-The `reaper` chart no longer grants itself `cluster-admin`, and no longer uses an
-unmaintained container image. Two operator-visible changes:
+The `reaper` chart no longer grants itself `cluster-admin` and no longer uses an
+unmaintained container image. Upgrading is a drop-in `helm upgrade`; no manual steps.
 
-* **RBAC.** The chart used to create a fixed-name `ClusterRoleBinding` (`reaper-role`)
-  binding its ServiceAccount to `cluster-admin`, which gave the pod read access to every
-  Secret in the cluster. It now creates a namespaced `Role`/`RoleBinding` granting only
-  `get`, `list`, `watch` and `delete` on pods, bound to a `<release>-reaper`
-  ServiceAccount. (`watch` is required because `kubectl delete pod` waits for the pod to
-  disappear and opens a watch to do so.)
-  `helm upgrade` removes the old `ClusterRoleBinding` and the old `reaper-role`
-  ServiceAccount.
+Two cases need action:
 
-* **Image.** The default image changed from `docker.io/bitnamilegacy/kubectl:1.32.4`
-  to `docker.io/alpine/kubectl:1.36.3`. Operators overriding `image` in their values must
-  update the override; note the image must contain a POSIX shell at `/bin/sh`, so
-  distroless kubectl images do not work.
-  `image.digest`, `image.pullPolicy` and `imagePullSecrets` are now supported, and
-  `image.registry` may be set to `""` for an unqualified repository. Operators mirroring
-  images into a private registry for airgapped installs need to add the new image.
+* If you override `image` in your values, update the override: the default changed from
+  `docker.io/bitnamilegacy/kubectl:1.32.4` to `docker.io/alpine/kubectl:1.36.3`. The
+  image must contain a POSIX shell at `/bin/sh` — distroless kubectl images do not work.
+* If you mirror images into a private registry (airgapped installs), add the new image.
 
-The reaper also distinguishes "could not reach the API" from "there are no matching pods"
-in its logs, and includes the underlying error. Previously both cases printed
-`Failed to list pods. Skipping this iteration...`, so a reaper that could not list pods at
-all was indistinguishable from an idle one.
-
-The container now runs as uid/gid 65534 with a read-only root filesystem, has resource
-requests and limits, and honours `nodeSelector`, `tolerations` and `affinity`. The poll
-interval is configurable via `checkIntervalSeconds` and defaults to 15s, down from one
-pod list per second against the API server.
+See `charts/reaper/README.md` for the image settings, the RBAC the chart now creates,
+and the rest of the changes.
