@@ -56,6 +56,10 @@ module Wire.API.Message
     UserClients (..),
     ReportMissing (..),
     IgnoreMissing (..),
+
+    -- * Only exported for tests
+    parseMap,
+    parseMapMerge,
   )
 where
 
@@ -366,10 +370,10 @@ protolensOtrRecipientsToOtrRecipients entries =
   QualifiedOtrRecipients . QualifiedUserClientMap <$> protolensToQualifiedUCMap entries
   where
     protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (Map UserId (Map ClientId ByteString)))
-    protolensToQualifiedUCMap qualifiedEntries = parseMap (mkDomain . view Proto.Otr.domain) (protolensToUCMap . view Proto.Otr.entries) qualifiedEntries
+    protolensToQualifiedUCMap qualifiedEntries = parseMapMerge (mkDomain . view Proto.Otr.domain) (protolensToUCMap . view Proto.Otr.entries) qualifiedEntries
 
     protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (Map UserId (Map ClientId ByteString))
-    protolensToUCMap es = parseMap parseUserId parseClientMap es
+    protolensToUCMap es = parseMapMerge parseUserId parseClientMap es
 
     parseUserId :: Proto.Otr.UserEntry -> Either String UserId
     parseUserId =
@@ -412,6 +416,15 @@ qualifiedOtrRecipientsToProtolens (QualifiedOtrRecipients (QualifiedUserClientMa
 
 parseMap :: (Applicative f, Ord k) => (a -> f k) -> (a -> f v) -> [a] -> f (Map k v)
 parseMap keyParser valueParser xs = Map.fromList <$> traverse (\x -> (,) <$> keyParser x <*> valueParser x) xs
+
+-- | Like 'parseMap', but for values that are themselves maps: entries sharing
+-- a key are merged instead of the last one silently clobbering the rest. A
+-- well-formed request can legitimately contain multiple protobuf entries for
+-- the same key (e.g. two 'QualifiedUserEntry's for the same domain), and
+-- 'Map.fromList' (used by 'parseMap') would otherwise silently drop every
+-- recipient from all but the last entry for that key.
+parseMapMerge :: (Applicative f, Ord k, Ord k2) => (a -> f k) -> (a -> f (Map k2 v)) -> [a] -> f (Map k (Map k2 v))
+parseMapMerge keyParser valueParser xs = Map.fromListWith Map.union <$> traverse (\x -> (,) <$> keyParser x <*> valueParser x) xs
 
 --------------------------------------------------------------------------------
 -- Filter
