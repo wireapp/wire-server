@@ -135,7 +135,13 @@ sparToServerErrorWithLogging logger err = do
   pure errServant
 
 sparToServerError :: SparError -> ServerError
-sparToServerError = httpErrorToServerError . renderSparError
+-- SCIM errors have their own response format (RFC 7644, section 3.12): the body
+-- must be the bare SCIM error object.  Going through 'renderSparError' /
+-- 'httpErrorToServerError' would instead nest it into a wire-server 'Wai.Error'
+-- ('{"code":..,"label":"scim-error","message":<scim error as string>}'), so we
+-- render it directly here.
+sparToServerError (SAML.CustomError (SparScimError err)) = Scim.scimToServerError err
+sparToServerError err = httpErrorToServerError (renderSparError err)
 
 waiToServant :: Wai.Error -> ServerError
 waiToServant waierr =

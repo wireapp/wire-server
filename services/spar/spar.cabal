@@ -530,6 +530,7 @@ test-suite spec
     Paths_spar
     Test.Spar.APISpec
     Test.Spar.DataSpec
+    Test.Spar.ErrorSpec
     Test.Spar.Intra.BrigSpec
     Test.Spar.Roundtrip.ByteString
     Test.Spar.Saml.IdPSpec
