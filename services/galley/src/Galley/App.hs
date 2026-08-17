@@ -54,6 +54,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
+import Data.Time.Clock (NominalDiffTime, secondsToDiffTime)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Monad (runApp)
@@ -304,6 +305,16 @@ type GalleyEffects =
      Final IO
    ]
 
+-- | Resolved (validityPeriod, pastEditPeriod) for meetings, with
+-- defaults 48h / 24h.
+meetingPeriods :: Opts -> (NominalDiffTime, NominalDiffTime)
+meetingPeriods o =
+  ( realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
+    realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod)
+  )
+  where
+    m = o ^. settings . meetings
+
 -- Define some invariants for the options used
 validateOptions :: Opts -> IO (Either HttpsUrl (Map Domain HttpsUrl))
 validateOptions o = do
@@ -313,6 +324,9 @@ validateOptions o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
+  let (meetingValidity, meetingPastEdit) = meetingPeriods o
+  when (meetingPastEdit < 0 || meetingPastEdit > meetingValidity) $
+    error "settings.meetings.pastEditPeriod must be non-negative and cannot be greater than settings.meetings.validityPeriod"
   case (o ^. O.federator, o ^. rabbitmq) of
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
@@ -565,10 +579,9 @@ evalGalley e =
             }
         . interpretMeetingNotifier
         . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem meetingLegacyTimeZone meetingValidityPeriod
+        . Meeting.interpretMeetingsSubsystem meetingLegacyTimeZone meetingValidityPeriod meetingPastEditPeriod
   where
-    meetingValidityPeriod =
-      realToFrac $ maybe (48 * 3600) (.duration) (e ^. options . settings . meetings >>= view validityPeriod)
+    (meetingValidityPeriod, meetingPastEditPeriod) = meetingPeriods (e ^. options)
     meetingLegacyTimeZone =
       fromMaybe defaultLegacyTimeZone (e ^. options . settings . meetings >>= view legacyTimeZone >>= parseTimeZone)
     lh = view (options . settings . featureFlags . to npProject) e

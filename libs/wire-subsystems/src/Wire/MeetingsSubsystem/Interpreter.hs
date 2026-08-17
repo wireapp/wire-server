@@ -111,14 +111,17 @@ interpretMeetingsSubsystem ::
     Member (Error MeetingError) r,
     Member (Input (Local ())) r
   ) =>
+  -- Takes the legacy time zone for V16 meetings, then the validity period,
+  -- then the past-edit period.
   API.TimeZone ->
   NominalDiffTime ->
+  NominalDiffTime ->
   InterpreterFor MeetingsSubsystem r
-interpretMeetingsSubsystem legacyTz validityPeriod = interpret $ \case
+interpretMeetingsSubsystem legacyTz validityPeriod pastEditPeriod = interpret $ \case
   CreateMeeting zUser connId newMeeting ->
     createMeetingImpl zUser connId newMeeting
   UpdateMeeting zUser connId meetingId update ->
-    updateMeetingImpl zUser connId meetingId update validityPeriod
+    updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod
   DeleteMeeting zUser connId meetingId ->
     deleteMeetingImpl zUser connId meetingId validityPeriod
   GetMeeting zUser meetingId ->
@@ -128,7 +131,7 @@ interpretMeetingsSubsystem legacyTz validityPeriod = interpret $ \case
   CreateMeetingV16 zUser connId newMeeting ->
     API.toLegacyWithConv <$> createMeetingImpl zUser connId (API.fromLegacyNewMeeting legacyTz newMeeting)
   UpdateMeetingV16 zUser connId meetingId update ->
-    updateMeetingV16Impl zUser connId meetingId update validityPeriod
+    updateMeetingV16Impl zUser connId meetingId update validityPeriod pastEditPeriod
   GetMeetingV16 zUser meetingId ->
     fmap API.toLegacy <$> getMeetingImpl zUser meetingId validityPeriod
   ListMeetingsV16 zUser ->
@@ -232,8 +235,9 @@ updateMeetingImpl ::
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
+  NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversation)
-updateMeetingImpl zUser connId meetingId update validityPeriod = do
+updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence) $
@@ -245,31 +249,25 @@ updateMeetingImpl zUser connId meetingId update validityPeriod = do
     let cutoff = addUTCTime (negate validityPeriod) now
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
-    let effStart = fromMaybe meeting.startTime update.startTime
-        mEndTime = update.endTime
-        effEnd = fromMaybe meeting.endTime mEndTime
-    when (effEnd <= effStart) $
+    guard $ meeting.creator == tUnqualified zUser
+    when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
         throw InvalidTimes
-    -- Reject moving the start time into the past, but only while the meeting is
-    -- still upcoming. A meeting that has already started may still be edited --
-    -- its start time is naturally in the past -- so clients can keep updating an
-    -- ongoing meeting (title, end_time, recurrence, or even the start time)
-    -- without being blocked by the past-start check (WPB-27465).
-    let pastCutoff = addUTCTime (negate startTimeTolerance) now
-    for_ update.startTime $ \t ->
-      when (meeting.startTime >= pastCutoff && t < pastCutoff) $
-        lift $
-          throw InvalidTimes
+    -- New time values may be moved into the past so that past/ongoing
+    -- meetings can be corrected to what actually happened, but no further
+    -- than `pastEditPeriod` (WPB-28080). Only provided values are checked;
+    -- unchanged stored times are not re-validated.
+    let pastEditCutoff = addUTCTime (negate pastEditPeriod) now
+    for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw InvalidTimes
+    for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw InvalidTimes
 
-    guard $ meeting.creator == tUnqualified zUser
     updatedMeeting <-
       MaybeT $
         Store.updateMeeting
           (qUnqualified meetingId)
           update.title
           update.startTime
-          mEndTime
+          update.endTime
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
@@ -294,9 +292,10 @@ updateMeetingV16Impl ::
   Qualified MeetingId ->
   API.UpdateMeetingV16 ->
   NominalDiffTime ->
+  NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversationV16)
-updateMeetingV16Impl zUser connId meetingId updateL validityPeriod =
-  fmap API.toLegacyWithConv <$> updateMeetingImpl zUser connId meetingId updateL validityPeriod
+updateMeetingV16Impl zUser connId meetingId updateL validityPeriod pastEditPeriod =
+  fmap API.toLegacyWithConv <$> updateMeetingImpl zUser connId meetingId updateL validityPeriod pastEditPeriod
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,

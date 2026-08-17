@@ -1,0 +1,1 @@
+Galley now validates at startup that `settings.meetings.pastEditPeriod` is not greater than `settings.meetings.validityPeriod` and refuses to start otherwise.

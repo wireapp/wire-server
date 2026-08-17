@@ -62,6 +62,7 @@ module Wire.Options.Galley
     meetings,
     validityPeriod,
     legacyTimeZone,
+    pastEditPeriod,
     email,
     MeetingsEmailConfig (..),
     postgresMigration,
@@ -182,6 +183,9 @@ data Settings = Settings
 data MeetingsConfig = MeetingsConfig
   { -- | Validity period of a meeting. After this time, the meeting is considered expired.
     _validityPeriod :: !(Maybe Duration),
+    -- | How far in the past a meeting's start/end time may be moved by an
+    -- update. Must not exceed 'validityPeriod'.
+    _pastEditPeriod :: !(Maybe Duration),
     -- | Email sending configuration for meeting invitations. When unset, no
     -- meeting invitation emails are sent.
     _email :: !(Maybe MeetingsEmailConfig),

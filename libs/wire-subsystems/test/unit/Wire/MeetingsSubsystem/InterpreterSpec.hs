@@ -140,7 +140,7 @@ runTestStack now gen teams configs =
     . inMemoryConversationSubsystemInterpreter
     . inMemoryMeetingsStoreInterpreter
     . interpretMeetingNotifier
-    . interpretMeetingsSubsystem API.defaultLegacyTimeZone 3600
+    . interpretMeetingsSubsystem API.defaultLegacyTimeZone 3600 expectedPastEditPeriod
 
 -- | Decode all 'Push' payloads that are meeting lifecycle events. Any push that
 -- decodes as a 'MeetingEvent.Event' is one: conversation events use distinct
@@ -424,7 +424,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Left InvalidTimes
 
-    it "throws InvalidTimes when updating startTime to the past" $ do
+    it "allows editing an upcoming meeting's start time into the past within the past-edit window" $ do
       let newMeeting =
             API.NewMeeting
               { title = fromJust $ checked "Original Meeting",
@@ -439,8 +439,86 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         let update =
               API.UpdateMeeting
-                { startTime = Just (addUTCTime (negate 3600) now),
+                { startTime = Just (addUTCTime (negate 60) now),
                   endTime = Nothing,
+                  title = Nothing,
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
+
+      case result of
+        Left err -> fail $ "Expected the update to be applied, got: " <> show err
+        Right Nothing -> fail "Expected the update to be applied"
+        Right (Just updated) ->
+          updated.meeting.startTime `shouldBe` addUTCTime (negate 60) now
+
+    it "accepts a meeting update whose start time is exactly at the past-edit boundary" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                tzid = API.defaultLegacyTimeZone,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Just (addUTCTime (negate expectedPastEditPeriod) now),
+                  endTime = Nothing,
+                  title = Nothing,
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
+
+      case result of
+        Right (Just _) -> pure ()
+        other -> fail $ "Expected the update to be applied, got: " <> show other
+
+    it "rejects a meeting update whose start time is just past the past-edit boundary" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                tzid = API.defaultLegacyTimeZone,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Just (addUTCTime (negate (expectedPastEditPeriod + 1)) now),
+                  endTime = Nothing,
+                  title = Nothing,
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
+
+      result `shouldBe` Left InvalidTimes
+
+    it "throws InvalidTimes when updating both times beyond the past-edit window even when start < end" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                tzid = API.defaultLegacyTimeZone,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Just (addUTCTime (negate 7200) now),
+                  endTime = Just (addUTCTime (negate (expectedPastEditPeriod + 1)) now),
                   title = Nothing,
                   recurrence = Nothing
                 }
@@ -569,13 +647,14 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 recurrence = Nothing,
                 invitedEmails = []
               }
-          -- Clamp the updated start time so it is not in the past (within
-          -- tolerance). This avoids discarding QuickCheck-generated updates
-          -- whose arbitrary UTCTime is far from `now`.
+          -- Clamp the updated start/end times so they are not in the past
+          -- beyond the past-edit window. This avoids discarding
+          -- QuickCheck-generated updates whose arbitrary UTCTime is far from
+          -- `now`.
           sanitizedUpdate =
             API.UpdateMeeting
               (fmap (max (addUTCTime (negate 60) now)) update.startTime)
-              update.endTime
+              (fmap (max (addUTCTime (negate 60) now)) update.endTime)
               update.title
               update.recurrence
           effectiveStart = fromMaybe baseMeeting.startTime sanitizedUpdate.startTime
@@ -1656,6 +1735,10 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 -- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
 expectedStartTimeTolerance :: NominalDiffTime
 expectedStartTimeTolerance = 60
+
+-- | Past-edit window configured in 'runTestStack' (third interpreter arg).
+expectedPastEditPeriod :: NominalDiffTime
+expectedPastEditPeriod = 3600
 
 -- | Validity window, beyond this one-time meeting belong to the past
 validityWindow :: NominalDiffTime
