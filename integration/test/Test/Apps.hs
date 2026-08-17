@@ -284,14 +284,6 @@ testRetrieveUsersIncludingApps = do
             ("team", SString),
             ("type", SString)
           ]
-      memberShape =
-        SObject
-          [ ("created_at", SString),
-            ("created_by", SString),
-            ("legalhold_status", SString),
-            ("permissions", SObject [("copy", SNumber), ("self", SNumber)]),
-            ("user", SString)
-          ]
       appShape =
         SObject
           [ ("category", SString),
@@ -344,6 +336,7 @@ testRetrieveUsersIncludingApps = do
   appId <- appCreated %. "user.id" & asString
 
   -- [`GET /teams/:tid/members`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-team-members) (route id: "get-team-members")
+  -- Apps are not team members, so they are not listed here.
   getTeamMembers owner tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "hasMore" `shouldMatch` False
@@ -351,16 +344,15 @@ testRetrieveUsersIncludingApps = do
     memIds <- (asString . (%. "user")) `mapM` mems
     memIds
       `shouldMatchSet` sequence
-        [ pure appId,
-          asString $ regular %. "qualified_id.id",
+        [ asString $ regular %. "qualified_id.id",
           asString $ owner %. "qualified_id.id"
         ]
 
   -- [`GET /teams/:tid/members/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-team-member) (route id: "get-team-member")
+  -- Same here: apps cannot be retrieved as team members.
   getTeamMember owner tid appId `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "user" `shouldMatch` appId
-    resp.json `shouldMatchShapeLenient` memberShape
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "no-team-member"
 
   -- [`GET /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-apps) (route id: "get-apps")
   getApps owner tid `bindResponse` \resp -> do
