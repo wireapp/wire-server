@@ -38,7 +38,7 @@ type MeetingsAPI =
         :> ZConn
         :> "meetings"
         :> ReqBody '[JSON] NewMeetingV16
-        :> CanThrow 'InvalidOperation
+        :> CanThrow MeetingError
         :> CanThrow UnreachableBackends
         :> MultiVerb
              'POST
@@ -54,7 +54,7 @@ type MeetingsAPI =
                :> ZConn
                :> "meetings"
                :> ReqBody '[JSON] NewMeeting
-               :> CanThrow 'InvalidOperation
+               :> CanThrow MeetingError
                :> CanThrow UnreachableBackends
                :> MultiVerb
                     'POST
@@ -74,7 +74,7 @@ type MeetingsAPI =
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
-               :> CanThrow 'InvalidOperation
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] UpdateMeetingV16
                :> MultiVerb
                     'PUT
@@ -93,7 +93,7 @@ type MeetingsAPI =
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
-               :> CanThrow 'InvalidOperation
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] UpdateMeeting
                :> MultiVerb
                     'PUT
@@ -112,6 +112,7 @@ type MeetingsAPI =
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> MultiVerb
                     'DELETE
                     '[JSON]
@@ -177,6 +178,7 @@ type MeetingsAPI =
                :> "invitations"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'POST
@@ -196,6 +198,7 @@ type MeetingsAPI =
                :> "delete"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'POST
@@ -214,6 +217,7 @@ type MeetingsAPI =
                :> "invitations"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'PUT

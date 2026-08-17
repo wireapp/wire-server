@@ -87,7 +87,7 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
-import Wire.API.Error.Galley (GalleyError (..), NonFederatingBackends, OperationDenied, UnreachableBackends)
+import Wire.API.Error.Galley (GalleyError (..), MeetingError, NonFederatingBackends, OperationDenied, UnreachableBackends)
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
@@ -251,7 +251,7 @@ type GalleyEffects =
      Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Now,
      BoundedQueue DeleteItem,
-     Error Meeting.MeetingError,
+     Error MeetingError,
      Error DynError,
      Error RateLimitExceeded,
      Error ConversationSubsystemError,
@@ -523,7 +523,7 @@ evalGalley e =
         . mapError toResponse -- Error ConversationSubsystemError,
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
-        . mapError meetingError
+        . mapError toResponse -- Error MeetingError
         . interpretBoundedQueue (e ^. deleteQueue)
         . nowToIO
         . runInputConst (e ^. convCodeURI)
@@ -596,10 +596,3 @@ interpretTeamFeatureSpecialContext e =
 
 mapTeamFeatureStoreError :: TeamFeatureStoreError -> InternalError
 mapTeamFeatureStoreError (TeamFeatureStoreErrorInternalError msg) = InternalErrorWithDescription msg
-
-meetingError :: Meeting.MeetingError -> Servant.Tagged 'InvalidOperation ()
-meetingError =
-  \case
-    Meeting.InvalidTimes -> Servant.Tagged @'InvalidOperation ()
-    Meeting.EmptyUpdate -> Servant.Tagged @'InvalidOperation ()
-    Meeting.MeetingsFeatureDisabled -> Servant.Tagged @'InvalidOperation ()

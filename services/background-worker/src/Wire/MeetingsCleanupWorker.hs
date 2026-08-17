@@ -29,6 +29,7 @@ import Imports
 import Polysemy.Error (runError)
 import Prometheus (incCounter)
 import System.Logger qualified as Log
+import Wire.API.Error.Galley (MeetingError)
 import Wire.API.Meeting (defaultLegacyTimeZone)
 import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..))
 import Wire.Effects
