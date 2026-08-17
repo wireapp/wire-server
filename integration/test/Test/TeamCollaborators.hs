@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -17,6 +19,9 @@
 
 module Test.TeamCollaborators where
 
+import qualified API.Brig as BrigP
+import qualified API.BrigInternal as BrigI
+import API.Common (randomName)
 import API.Galley
 import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra
@@ -317,3 +322,94 @@ testUpdateCollaborator = do
     []
     >>= assertSuccess
   postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "operation-denied"
+
+-- | Collaborators are part of the search space of the team they
+-- collaborate with: `GET /search/contacts` returns them to members of
+-- that team, just like it returns the team's own members.  We test
+-- collaborators from other teams, personal user accounts that
+-- collaborate, and app.
+testSearchFindsCollaborator :: (HasCallStack) => App ()
+testSearchFindsCollaborator = do
+  (owner, team, [alice]) <- createTeam OwnDomain 2
+  (otherOwner, otherTeam, [bob, collab1]) <- createTeam OwnDomain 3
+  collab2 :: Value <- randomUser OwnDomain def
+  collab3 :: Value <-
+    BrigP.createApp otherOwner otherTeam def
+      `bindResponse` \resp -> resp.json %. "user"
+
+  collab1Name <- collab1 %. "name" & asString
+  collab2Name <- collab2 %. "name" & asString
+  collab3Name <- collab3 %. "name" & asString
+
+  collab1Name' <- randomName
+  collab2Name' <- randomName
+  collab3Name' <- randomName
+
+  -- Find before any collaborations have been established.
+  let assertFinds ::
+        (HasCallStack, MakesValue expectFound, MakesValue searcher) =>
+        String ->
+        expectFound ->
+        searcher ->
+        App ()
+      assertFinds searchTerm expectFound searcher = do
+        BrigI.refreshIndex OwnDomain
+        BrigP.searchContacts searcher searchTerm OwnDomain `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          foundIds :: [String] <- resp.json %. "documents" >>= asList >>= mapM objId
+          expectedIds :: [String] <- (make >=> asList >=> mapM objId) expectFound
+          assertBool
+            ("found: " <> show foundIds <> "; expected: " <> show expectedIds)
+            (sort foundIds == sort expectedIds)
+
+  for_ [owner, alice] $ assertFinds collab1Name ([] @Value)
+  for_ [otherOwner, bob] $ assertFinds collab1Name [collab1]
+
+  for_ [owner, alice] $ assertFinds collab2Name [collab2]
+  for_ [otherOwner, bob] $ assertFinds collab2Name [collab2]
+
+  for_ [owner, alice] $ assertFinds collab3Name ([] @Value)
+  for_ [otherOwner, bob] $ assertFinds collab3Name [collab3]
+
+  -- Add collaborators to team
+  for_ [collab1, collab2, collab3]
+    $ \collab ->
+      addTeamCollaborator owner team collab ["implicit_connection"] >>= assertSuccess
+
+  for_ [owner, alice] $ assertFinds collab1Name [collab1]
+  for_ [otherOwner, bob] $ assertFinds collab1Name [collab1]
+
+  for_ [owner, alice] $ assertFinds collab2Name [collab2]
+  for_ [otherOwner, bob] $ assertFinds collab2Name [collab2]
+
+  for_ [owner, alice] $ assertFinds collab3Name [collab3]
+  for_ [otherOwner, bob] $ assertFinds collab3Name [collab3]
+
+  -- Check that updating name does not erase collaborating teams in index.
+  for_ [(collab1, collab1Name'), (collab2, collab2Name'), (collab3, collab3Name')]
+    $ \(collab, newName) -> do
+      let updateBody = (def :: BrigP.PutSelf) {BrigP.name = Just newName}
+       in BrigP.putSelf collab updateBody >>= assertSuccess
+
+  for_ [owner, alice] $ assertFinds collab1Name' [collab1]
+  for_ [otherOwner, bob] $ assertFinds collab1Name' [collab1]
+
+  for_ [owner, alice] $ assertFinds collab2Name' [collab2]
+  for_ [otherOwner, bob] $ assertFinds collab2Name' [collab2]
+
+  for_ [owner, alice] $ assertFinds collab3Name' [collab3]
+  for_ [otherOwner, bob] $ assertFinds collab3Name' [collab3]
+
+  -- Check that updating collaborating teams does not erase name in index.
+  for_ [collab1, collab2, collab3]
+    $ \collab -> do
+      removeTeamCollaborator owner team collab >>= assertSuccess
+
+  for_ [owner, alice] $ assertFinds collab1Name' ([] @Value)
+  for_ [otherOwner, bob] $ assertFinds collab1Name' [collab1]
+
+  for_ [owner, alice] $ assertFinds collab2Name' [collab2]
+  for_ [otherOwner, bob] $ assertFinds collab2Name' [collab2]
+
+  for_ [owner, alice] $ assertFinds collab3Name' ([] @Value)
+  for_ [otherOwner, bob] $ assertFinds collab3Name' [collab3]
