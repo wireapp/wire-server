@@ -240,6 +240,8 @@ galley:
               finaliseRegardlessAfter: null # "2029-10-17T00:00:00.000Z"
               usersThreshold: 100
               clientsThreshold: 100
+              # Allow group-wise migration by clients
+              allowManualMigration: false
             lockStatus: locked
         limitedEventFanout:
           defaults:
