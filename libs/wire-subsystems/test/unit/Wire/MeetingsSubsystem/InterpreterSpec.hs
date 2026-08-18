@@ -160,7 +160,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Test Meeting",
               startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 3600 (addUTCTime 3600 now),
+              endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
@@ -187,7 +187,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Access Meeting",
               startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 3600 (addUTCTime 3600 now),
+              endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
@@ -212,7 +212,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Invalid Meeting",
               startTime = addUTCTime 3600 now,
-              endTime = addUTCTime (-100) (addUTCTime 3600 now),
+              endTime = addUTCTime 3500 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
@@ -230,7 +230,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Past Meeting",
               startTime = addUTCTime (negate 3600) now,
-              endTime = addUTCTime 7200 (addUTCTime (negate 3600) now),
+              endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
@@ -250,7 +250,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Boundary Meeting",
               startTime = addUTCTime (negate expectedStartTimeTolerance) now,
-              endTime = addUTCTime 3660 (addUTCTime (negate expectedStartTimeTolerance) now),
+              endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
@@ -269,7 +269,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Just Past Boundary Meeting",
               startTime = addUTCTime (negate (expectedStartTimeTolerance + 1)) now,
-              endTime = addUTCTime 3661 (addUTCTime (negate (expectedStartTimeTolerance + 1)) now),
+              endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
@@ -297,7 +297,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Past Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -315,7 +315,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Creator Access Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -335,7 +335,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Member Access Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -358,7 +358,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Unauthorized Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -388,7 +388,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Original Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -405,7 +405,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Original Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -429,7 +429,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Original Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -453,7 +453,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Ongoing Meeting",
                 startTime = addUTCTime 100 now,
-                endTime = addUTCTime 7100 (addUTCTime 100 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -510,7 +510,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -528,7 +528,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Non-creator Update",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -545,7 +545,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Orphaned Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -564,7 +564,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Original Title",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -620,7 +620,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Meeting to Delete",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -639,7 +639,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Meeting to Delete",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -656,7 +656,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -682,7 +682,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Meeting to Delete",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -701,7 +701,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Meeting to Delete",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -735,7 +735,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Test Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -759,7 +759,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -777,7 +777,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Non-creator Test",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = []
@@ -819,7 +819,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Test Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2, email3]
@@ -843,7 +843,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Test Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
@@ -867,7 +867,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Test Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1]
@@ -891,7 +891,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1]
@@ -909,7 +909,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Non-creator Test",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
@@ -951,7 +951,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Test Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
@@ -975,7 +975,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Test Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
@@ -999,7 +999,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Test Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
@@ -1023,7 +1023,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1]
@@ -1041,7 +1041,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             API.NewMeeting
               { title = fromJust $ checked "Non-creator Test",
                 startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 3600 (addUTCTime 3600 now),
+                endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
@@ -1080,7 +1080,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Recurring Meeting",
               startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 3600 (addUTCTime 3600 now),
+              endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = r,
               invitedEmails = []
@@ -1103,7 +1103,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Meeting",
               startTime = addUTCTime (endOffset - 3600) now,
-              endTime = addUTCTime 3600 (addUTCTime (endOffset - 3600) now),
+              endTime = addUTCTime endOffset now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = r,
               invitedEmails = []
@@ -1287,7 +1287,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Test Meeting",
               startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 3600 (addUTCTime 3600 now),
+              endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
@@ -1421,7 +1421,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           API.NewMeeting
             { title = fromJust $ checked "Event Test Meeting",
               startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 3600 (addUTCTime 3600 now),
+              endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               recurrence = Nothing,
               invitedEmails = []
