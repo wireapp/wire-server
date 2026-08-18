@@ -487,3 +487,49 @@ testUploadClaim1000KeyPackages = do
   bindResponse (countKeyPackages suite alice1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "count" `shouldMatchInt` (keyPackageCount - 1)
+
+testUploadClaim1000KeyPackagesInBatches :: App ()
+testUploadClaim1000KeyPackagesInBatches = do
+  let suite = def
+      keyPackageCount = 1000
+      batchSize = 100
+
+  alice <- randomUser OwnDomain def
+  alice1 <- createMLSClient def {ciphersuites = [suite]} alice
+
+  bob <- randomUser OwnDomain def
+  bob1 <- createMLSClient def {ciphersuites = [suite]} bob
+
+  -- Generate 1000 key packages in parallel (16 concurrent workers)
+  kps <- map fst <$> pooledForConcurrentlyN 16 [1 .. keyPackageCount] \_ -> do
+    generateKeyPackage alice1 suite
+
+  -- Upload in batches of 100, verifying count after each batch
+  let chunks = chunksOf' kps
+        where
+          chunksOf' [] = []
+          chunksOf' xs = take batchSize xs : chunksOf' (drop batchSize xs)
+  for_ (zip chunks [1 ..]) \(chunk, batchNum) -> do
+    void $ uploadKeyPackages alice1 chunk >>= getBody 201
+
+    -- Verify count equals running total
+    let expectedCount = batchNum * batchSize
+    bindResponse (countKeyPackages suite alice1) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "count" `shouldMatchInt` expectedCount
+
+  -- Final verify: count is 1000
+  bindResponse (countKeyPackages suite alice1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "count" `shouldMatchInt` keyPackageCount
+
+  -- Bob claims one key package from alice
+  bindResponse (claimKeyPackages suite bob1 alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    kpBundles <- resp.json %. "key_packages" & asList
+    length kpBundles `shouldMatchInt` 1
+
+  -- Verify count is now 999 (one claimed)
+  bindResponse (countKeyPackages suite alice1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "count" `shouldMatchInt` (keyPackageCount - 1)
