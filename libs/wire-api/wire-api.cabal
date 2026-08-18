@@ -219,6 +219,7 @@ library
     Wire.API.Routes.Public.Gundeck
     Wire.API.Routes.Public.Proxy
     Wire.API.Routes.Public.Spar
+    Wire.API.Routes.Public.Swagger
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
     Wire.API.Routes.SpecialiseToVersion
@@ -726,6 +727,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Roundtrip.PostgresMarshall
     Test.Wire.API.Routes
+    Test.Wire.API.Routes.OAuthScopes
     Test.Wire.API.Routes.Version
     Test.Wire.API.Routes.Version.Wai
     Test.Wire.API.Run
@@ -751,6 +753,7 @@ test-suite wire-api-tests
     , containers             >=0.5
     , crypton
     , data-default
+    , file-embed
     , filepath
     , hex
     , hspec
@@ -764,6 +767,7 @@ test-suite wire-api-tests
     , QuickCheck
     , ram
     , random
+    , regex-tdfa
     , schema-profunctor
     , servant
     , servant-server
@@ -780,6 +784,7 @@ test-suite wire-api-tests
     , vector
     , wai
     , wire-api
+    , yaml
 
   ghc-options:
     -threaded -with-rtsopts=-N -Wunused-packages -Wno-x-partial

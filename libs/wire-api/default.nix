@@ -41,6 +41,7 @@
 , errors
 , extended
 , extra
+, file-embed
 , filepath
 , generics-sop
 , ghc-prim
@@ -125,6 +126,7 @@
 , wai-websockets
 , websockets
 , wire-message-proto-lens
+, yaml
 , zauth
 }:
 mkDerivation {
@@ -257,6 +259,7 @@ mkDerivation {
     crypton-pem
     currency-codes
     data-default
+    file-embed
     filepath
     hex
     hspec
@@ -274,6 +277,7 @@ mkDerivation {
     QuickCheck
     ram
     random
+    regex-tdfa
     saml2-web-sso
     schema-profunctor
     servant
@@ -292,6 +296,7 @@ mkDerivation {
     vector
     wai
     wire-message-proto-lens
+    yaml
   ];
   license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }

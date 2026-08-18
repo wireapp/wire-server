@@ -244,21 +244,8 @@ internalEndpointsSwaggerDocsAPIs =
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
 versionedSwaggerDocsAPI (Just (VersionNumber V17)) =
-  swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V17
-        <> serviceSwagger @BrigAPITag @'V17
-        <> serviceSwagger @GalleyAPITag @'V17
-        <> serviceSwagger @SparAPITag @'V17
-        <> serviceSwagger @CargoholdAPITag @'V17
-        <> serviceSwagger @CannonAPITag @'V17
-        <> serviceSwagger @GundeckAPITag @'V17
-        <> serviceSwagger @ProxyAPITag @'V17
-        <> serviceSwagger @OAuthAPITag @'V17
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V17) Nothing mempty]
-      & cleanupSwagger
+  swaggerSchemaUIServer devVersionSwaggerserviceSwagger
+    & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
 versionedSwaggerDocsAPI (Just (VersionNumber V16)) = swaggerPregenUIServer $(pregenSwagger V16)
 versionedSwaggerDocsAPI (Just (VersionNumber V15)) = swaggerPregenUIServer $(pregenSwagger V15)
 versionedSwaggerDocsAPI (Just (VersionNumber V14)) = swaggerPregenUIServer $(pregenSwagger V14)
