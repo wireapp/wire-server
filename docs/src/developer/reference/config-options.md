@@ -300,19 +300,20 @@ The aggregate list endpoints (`GET /feature-configs`,
 `GET /teams/:tid/features`) continue to include `meetingsPremium` at all API
 versions, including v17.
 
-### Background Effects
+### Background Effects (deprecated)
 
-The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is disabled and locked by default. If you want a different configuration, use the following syntax: 
-```yaml
-backgroundEffects:
-  defaults:
-    status: disabled|enabled
-    lockStatus: locked|unlocked
-```
+> **Deprecated (WPB-27912).** The `backgroundEffects` feature flag no longer
+> affects meeting behaviour. The flag, its data type and its public/internal
+> endpoints are retained for backward compatibility and are scheduled for
+> removal in a future release.
 
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/backgroundEffects/(un)?locked`).
-
-The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+The flag now defaults to **enabled and locked** and the Helm configuration
+override has been removed (operators can no longer change it via Helm). The
+`GET/PUT /teams/:tid/features/backgroundEffects` and internal lock-status
+endpoints return 404 at API version v17; they remain available through v16.
+The aggregate endpoints `GET /feature-configs` and
+`GET /teams/:tid/features` continue to include `backgroundEffects` at all API
+versions, including v17.
 
 ### File Sharing
 

@@ -96,7 +96,7 @@ testNonMemberAccess (Feature featureName) = do
   -- authz check (403 no-team-member) is still exercised.
   let getFeature = Public.getTeamFeature nonMember tid featureName
   resp <-
-    if featureName == "meetingsPremium"
+    if featureName `elem` ["meetingsPremium", "backgroundEffects"]
       then withAPIVersion 16 getFeature
       else getFeature
   assertForbidden resp

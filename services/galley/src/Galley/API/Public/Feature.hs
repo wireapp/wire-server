@@ -86,7 +86,7 @@ featureAPI =
     <@> featureAPIGetPut @MeetingsConfig
     <@> mkNamedAPI @'("get", MeetingsPremiumConfig) getFeature
     <@> mkNamedAPI @'("put", MeetingsPremiumConfig) setFeature
-    <@> featureAPIGetPut @BackgroundEffectsConfig
+    <@> hoistAPI id featureAPIGetPut
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

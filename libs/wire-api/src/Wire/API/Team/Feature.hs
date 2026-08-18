@@ -2428,9 +2428,12 @@ instance ToObjectSchema MeetingsPremiumConfig where
 
 --------------------------------------------------------------------------------
 -- BackgroundEffects Feature
---
--- Controls whether background effects are available in meetings.
 
+{-# DEPRECATED BackgroundEffectsConfig "Deprecated (WPB-27912): no longer affects meeting behaviour; kept for API compatibility." #-}
+
+-- | /Deprecated (WPB-27912)./ This feature flag no longer affects meeting
+-- behaviour and is kept solely for API compatibility. It defaults to
+-- /enabled and locked/. Scheduled for removal in a future release.
 data BackgroundEffectsConfig = BackgroundEffectsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform BackgroundEffectsConfig)
@@ -2441,7 +2444,7 @@ instance ToSchema BackgroundEffectsConfig where
   schema = object objectSchema
 
 instance Default (LockableFeature BackgroundEffectsConfig) where
-  def = defLockedFeature
+  def = defLockedFeature {status = FeatureStatusEnabled}
 
 instance IsFeatureConfig BackgroundEffectsConfig where
   type FeatureSymbol BackgroundEffectsConfig = "backgroundEffects"
