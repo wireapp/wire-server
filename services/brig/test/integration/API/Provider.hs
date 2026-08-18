@@ -142,6 +142,10 @@ tests dom brigOpts conf p db b c g n = do
               testSearchWhitelistHonorUpdates conf db b,
             test p "de-whitelisted bots are removed" $
               testWhitelistKickout dom conf db b g c,
+            test p "de-whitelisted bots are removed from conversations the team admin does not administer" $
+              testWhitelistKickoutNotConvAdmin True dom conf db b g c,
+            test p "de-whitelisted bots are removed from conversations the team admin is not in" $
+              testWhitelistKickoutNotConvAdmin False dom conf db b g c,
             test p "de-whitelisting works with deleted conversations" $
               testDeWhitelistDeletedConv conf db b g c,
             test p "whitelist via nginz" $ testWhitelistNginz conf db b n
@@ -897,14 +901,75 @@ testWhitelistKickout localDomain config db brig galley cannon = do
       _ <- waitFor (2 # Second) not (isMember galley lbuid cid)
       getBotConv galley bid cid
         !!! const 404 === statusCode
-      wsAssertMemberLeave ws qcid qowner [tUntagged lbuid]
-      svcAssertMemberLeave buf qowner [tUntagged lbuid] qcid
+      -- The bot removes itself, see 'updateServiceWhitelist'
+      wsAssertMemberLeave ws qcid (tUntagged lbuid) [tUntagged lbuid]
+      svcAssertMemberLeave buf (tUntagged lbuid) [tUntagged lbuid] qcid
     -- The bot should not get any further events
     liftIO $
       timeout (2 # Second) (readChan buf) >>= \case
         Nothing -> pure ()
         Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"
         Just (TestBotMessage e) -> assertFailure ("bot got an event: " <> show (evtType e))
+
+-- | The team admin who de-whitelists a service is not necessarily allowed to
+-- remove members from the conversations the service's bots are in. The bots have to
+-- be kicked out either way.
+testWhitelistKickoutNotConvAdmin ::
+  -- | Whether the team admin is a (non-admin) member of the bot's conversation
+  Bool ->
+  Domain ->
+  Config ->
+  DB.ClientState ->
+  Brig ->
+  Galley ->
+  Cannon ->
+  Http ()
+testWhitelistKickoutNotConvAdmin ownerInConv localDomain config db brig galley cannon = do
+  -- Create a team with an owner and a member
+  (owner, tid) <- Team.createUserWithTeam brig
+  member <- Team.createTeamMember brig galley owner tid fullPermissions
+  let memberId = userId member
+      qmemberId = userQualifiedId member
+      lowner = toLocalUnsafe localDomain owner
+  -- The member creates the conversation and is therefore its only conversation
+  -- admin; the owner joins as a plain conversation member, or not at all.
+  cid <- Team.createTeamConvWithRole roleNameWireMember galley tid memberId [owner | ownerInConv] Nothing
+  let qcid = Qualified cid localDomain
+  -- Create a service
+  withTestService config db brig defServiceApp $ \sref buf -> do
+    -- Add it to the conversation
+    let pid = sref ^. serviceRefProvider
+        sid = sref ^. serviceRefId
+    whitelistService brig owner tid pid sid
+    bot <-
+      responseJsonError
+        =<< (addBot brig memberId pid sid cid <!! const 201 === statusCode)
+    let bid = rsAddBotId bot
+        lbuid = qualifyAs lowner . botUserId $ bid
+    _ <- svcAssertBotCreated buf bid cid
+    svcAssertMemberJoin buf qmemberId [tUntagged lbuid] qcid
+    -- The owner de-whitelists the service; the bot should be kicked out
+    WS.bracketR cannon memberId $ \ws -> do
+      dewhitelistService brig owner tid pid sid
+      _ <- waitFor (2 # Second) not (isMember galley lbuid cid)
+      getBotConv galley bid cid
+        !!! const 404 === statusCode
+      wsAssertMemberLeave ws qcid (tUntagged lbuid) [tUntagged lbuid]
+      svcAssertMemberLeave buf (tUntagged lbuid) [tUntagged lbuid] qcid
+    -- The bot is gone from the member list the users see, too
+    let assertBotGone :: UserId -> Http ()
+        assertBotGone u = do
+          mems <-
+            fmap cnvMembers . responseJsonError @_ @(OwnConversation GroupConvType)
+              =<< (getConversationQualified galley u qcid <!! const 200 === statusCode)
+          liftIO $
+            assertEqual
+              "bot is still in the member list"
+              []
+              (filter ((== tUntagged lbuid) . omQualifiedId) (cmOthers mems))
+    assertBotGone memberId
+    -- The owner can only fetch the conversation if they are a member of it
+    when ownerInConv $ assertBotGone owner
 
 testDeWhitelistDeletedConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeWhitelistDeletedConv config db brig galley cannon = do
