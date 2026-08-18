@@ -1,0 +1,4 @@
+Cannon now logs an error when registering a client's remote presence with
+Gundeck fails, so operators can tell this apart from an actual
+websocket/network issue (e.g. `PongTimeout` caused by Gundeck losing its Redis
+connection).

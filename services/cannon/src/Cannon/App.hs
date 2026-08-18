@@ -48,11 +48,22 @@ wsapp k c e pc = runWS e (go `catches` ioErrors k c)
         ws <- mkWebSocket conn
         debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
         registerLocal k ws
-        registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
+        registerRemote k c
+          `onException` ( logRegisterRemoteError ws
+                            >> unregisterLocal k ws
+                            >> close k ws
+                        )
         timeout (maxLifetime * 1_000_000) (continue ws k) `finally` terminate k ws >>= \case
           Nothing ->
             Logger.info $ msg (val "websocket reached max lifetime") . client (key2bytes k)
           Just () -> pure ()
+    logRegisterRemoteError ws =
+      Logger.err $
+        logKey k
+          . client (key2bytes k)
+          ~~ "websocket"
+          .= connIdent ws
+          ~~ msg (val "Registering remote presence at Gundeck failed. Check Gundeck.")
 
 continue :: (MonadLogger m, MonadUnliftIO m) => Websocket -> Key -> m ()
 continue ws k = do
