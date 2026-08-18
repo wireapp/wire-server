@@ -67,10 +67,14 @@ emailToEmailAddress = unEmailAddress . value
 scimEmailsToEmailAddress :: [Email] -> Either Text (Maybe Email.EmailAddress)
 scimEmailsToEmailAddress es =
   case primaries of
-    [] -> Right Nothing
     [primaryEmail] -> Right . Just . unEmailAddress $ value primaryEmail
-    _ -> Left "More than one email is marked as primary; RFC 7643 §2.4 allows at most one."
+    _
+      | Prelude.length primaries > 1 -> Left "More than one email is marked as primary; RFC 7643 §2.4 allows at most one."
+      | otherwise -> Right (firstEntry es)
   where
+    firstEntry [] = Nothing
+    firstEntry (e : _) = Just . unEmailAddress $ value e
+
     primaries = Prelude.filter isPrimary es
 
     isPrimary e = primary e == Just (ScimBool True)
