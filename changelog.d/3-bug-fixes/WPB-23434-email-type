@@ -1,5 +1,7 @@
 SCIM now echoes the canonical email `type` of `"work"` on stored user emails, so
 that PATCH value-path filters like Entra's `emails[type eq "work"].value` match
 the existing entry for an in-place update. Previously spar synthesized emails
-with no `type`, the filter never matched, and every such PATCH appended a
-duplicate email instead of updating the address in place.
+with no `type`; the value-path filter then matched no entry, and since per
+RFC 7644 §3.5.2 an `Add` on a non-existing target creates it (rather than
+erroring), every such PATCH appended a duplicate email instead of updating the
+address in place.

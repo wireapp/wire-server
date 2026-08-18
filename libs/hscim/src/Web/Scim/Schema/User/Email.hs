@@ -17,7 +17,6 @@
 
 module Web.Scim.Schema.User.Email where
 
-import Control.Applicative ((<|>))
 import Data.Aeson
 import Data.Text hiding (dropWhile, show)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -73,8 +72,5 @@ scimEmailsToEmailAddress es =
     _ -> Left "More than one email is marked as primary; RFC 7643 §2.4 allows at most one."
   where
     primaries = Prelude.filter isPrimary es
-
-    pickFirst [] = Nothing
-    pickFirst (e : _) = Just (unEmailAddress (value e))
 
     isPrimary e = primary e == Just (ScimBool True)

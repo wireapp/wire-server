@@ -333,7 +333,13 @@ testSparPatchEmailValuePath = do
   bindResponse (patchScimUser OwnDomain tok userId patchOp) $ \res -> do
     res.status `shouldMatchInt` 200
   -- The provisioned email propagates end-to-end: SCIM GET reflects it and,
-  -- with validation disabled, it is active in Brig.
+  -- with validation disabled, it is active in Brig.  'eventually' is needed
+  -- because the PATCH 200 only means spar accepted the change; provisioning
+  -- of the new email in Brig (auto-activation, since @validateSAMLemails@ is
+  -- disabled) happens asynchronously, and there is no user-facing event to
+  -- synchronize on for a SCIM-provisioned, not-yet-registered user.  This
+  -- mirrors the deprecated spar suite (specEmailValidation), which polls the
+  -- same way.
   eventually $ do
     checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
@@ -375,6 +381,10 @@ testSparPatchEmailValuePathInPlace = do
   -- @.value@. The proof is the new value and echoed @type = "work"@ below -- a
   -- create-on-absent append would be collapsed back to the OLD address by
   -- 'scimEmailsToEmailAddress', failing the value assertion.
+  --
+  -- 'eventually' for the same reason as in 'testSparPatchEmailValuePath'
+  -- above: the PATCH 200 precedes the asynchronous email re-provisioning in
+  -- Brig, and no synchronizing event exists for it.
   eventually $ do
     checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
       storedEmail <- u %. "emails" >>= asList >>= assertOne
