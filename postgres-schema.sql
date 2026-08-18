@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.9
--- Dumped by pg_dump version 17.9
+-- Dumped from database version 17.10
+-- Dumped by pg_dump version 17.10
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -116,6 +116,34 @@ CREATE TABLE public.bot_conv (
 
 
 ALTER TABLE public.bot_conv OWNER TO "wire-server";
+
+--
+-- Name: client_notification_acks; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.client_notification_acks (
+    user_id uuid NOT NULL,
+    client_id bigint NOT NULL,
+    last_notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.client_notification_acks OWNER TO "wire-server";
+
+--
+-- Name: client_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.client_notifications (
+    user_id uuid NOT NULL,
+    client_id bigint NOT NULL,
+    notification_id uuid NOT NULL,
+    payload jsonb NOT NULL,
+    origin uuid
+);
+
+
+ALTER TABLE public.client_notifications OWNER TO "wire-server";
 
 --
 -- Name: collaborators; Type: TABLE; Schema: public; Owner: wire-server
@@ -272,6 +300,153 @@ CREATE TABLE public.domain_registration_challenge (
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
 
 --
+-- Name: epoch_history; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.epoch_history (
+    group_id text NOT NULL,
+    epoch bigint NOT NULL,
+    user_id uuid NOT NULL,
+    client_id bigint NOT NULL,
+    superseded_at timestamp with time zone
+);
+
+
+ALTER TABLE public.epoch_history OWNER TO "wire-server";
+
+--
+-- Name: epoch_notification_acks; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.epoch_notification_acks (
+    user_id uuid NOT NULL,
+    client_id bigint NOT NULL,
+    group_id text NOT NULL,
+    epoch bigint NOT NULL,
+    last_notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.epoch_notification_acks OWNER TO "wire-server";
+
+--
+-- Name: epoch_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.epoch_notifications (
+    group_id text NOT NULL,
+    epoch bigint NOT NULL,
+    notification_id uuid NOT NULL,
+    payload jsonb NOT NULL,
+    origin uuid
+);
+
+
+ALTER TABLE public.epoch_notifications OWNER TO "wire-server";
+
+--
+-- Name: last_client_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.last_client_notifications (
+    user_id uuid NOT NULL,
+    client_id bigint NOT NULL,
+    notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.last_client_notifications OWNER TO "wire-server";
+
+--
+-- Name: last_epoch_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.last_epoch_notifications (
+    group_id text NOT NULL,
+    epoch bigint NOT NULL,
+    notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.last_epoch_notifications OWNER TO "wire-server";
+
+--
+-- Name: last_local_connection_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.last_local_connection_notifications (
+    user_id uuid NOT NULL,
+    notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.last_local_connection_notifications OWNER TO "wire-server";
+
+--
+-- Name: last_remote_connection_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.last_remote_connection_notifications (
+    user_domain text NOT NULL,
+    user_id uuid NOT NULL,
+    notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.last_remote_connection_notifications OWNER TO "wire-server";
+
+--
+-- Name: last_team_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.last_team_notifications (
+    team_id uuid NOT NULL,
+    notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.last_team_notifications OWNER TO "wire-server";
+
+--
+-- Name: last_user_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.last_user_notifications (
+    user_id uuid NOT NULL,
+    notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.last_user_notifications OWNER TO "wire-server";
+
+--
+-- Name: local_connection_acks; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.local_connection_acks (
+    user_id uuid NOT NULL,
+    connected_user_id uuid NOT NULL,
+    last_notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.local_connection_acks OWNER TO "wire-server";
+
+--
+-- Name: local_connection_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.local_connection_notifications (
+    user_id uuid NOT NULL,
+    notification_id uuid NOT NULL,
+    payload jsonb NOT NULL,
+    origin uuid
+);
+
+
+ALTER TABLE public.local_connection_notifications OWNER TO "wire-server";
+
+--
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -343,6 +518,35 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
+-- Name: remote_connection_acks; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.remote_connection_acks (
+    user_id uuid NOT NULL,
+    connected_user_domain text NOT NULL,
+    connected_user_id uuid NOT NULL,
+    last_notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.remote_connection_acks OWNER TO "wire-server";
+
+--
+-- Name: remote_connection_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.remote_connection_notifications (
+    user_domain text NOT NULL,
+    user_id uuid NOT NULL,
+    notification_id uuid NOT NULL,
+    payload jsonb NOT NULL,
+    origin uuid
+);
+
+
+ALTER TABLE public.remote_connection_notifications OWNER TO "wire-server";
+
+--
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -407,6 +611,34 @@ CREATE TABLE public.team_features (
 ALTER TABLE public.team_features OWNER TO "wire-server";
 
 --
+-- Name: team_notification_acks; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_notification_acks (
+    user_id uuid NOT NULL,
+    client_id bigint NOT NULL,
+    team_id uuid NOT NULL,
+    last_notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.team_notification_acks OWNER TO "wire-server";
+
+--
+-- Name: team_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_notifications (
+    team_id uuid NOT NULL,
+    notification_id uuid NOT NULL,
+    payload jsonb NOT NULL,
+    origin uuid
+);
+
+
+ALTER TABLE public.team_notifications OWNER TO "wire-server";
+
+--
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -444,6 +676,33 @@ CREATE TABLE public.user_group_member (
 
 
 ALTER TABLE public.user_group_member OWNER TO "wire-server";
+
+--
+-- Name: user_notification_acks; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_notification_acks (
+    user_id uuid NOT NULL,
+    client_id bigint NOT NULL,
+    last_notification_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.user_notification_acks OWNER TO "wire-server";
+
+--
+-- Name: user_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_notifications (
+    user_id uuid NOT NULL,
+    notification_id uuid NOT NULL,
+    payload jsonb NOT NULL,
+    origin uuid
+);
+
+
+ALTER TABLE public.user_notifications OWNER TO "wire-server";
 
 --
 -- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
@@ -495,6 +754,22 @@ ALTER TABLE ONLY public.apps
 
 ALTER TABLE ONLY public.bot_conv
     ADD CONSTRAINT bot_conv_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: client_notification_acks client_notification_acks_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.client_notification_acks
+    ADD CONSTRAINT client_notification_acks_pkey PRIMARY KEY (user_id, client_id);
+
+
+--
+-- Name: client_notifications client_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.client_notifications
+    ADD CONSTRAINT client_notifications_pkey PRIMARY KEY (user_id, client_id, notification_id);
 
 
 --
@@ -570,6 +845,94 @@ ALTER TABLE ONLY public.domain_registration
 
 
 --
+-- Name: epoch_history epoch_history_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.epoch_history
+    ADD CONSTRAINT epoch_history_pkey PRIMARY KEY (group_id, epoch, user_id, client_id);
+
+
+--
+-- Name: epoch_notification_acks epoch_notification_acks_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.epoch_notification_acks
+    ADD CONSTRAINT epoch_notification_acks_pkey PRIMARY KEY (user_id, client_id, group_id, epoch);
+
+
+--
+-- Name: epoch_notifications epoch_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.epoch_notifications
+    ADD CONSTRAINT epoch_notifications_pkey PRIMARY KEY (group_id, epoch, notification_id);
+
+
+--
+-- Name: last_client_notifications last_client_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.last_client_notifications
+    ADD CONSTRAINT last_client_notifications_pkey PRIMARY KEY (user_id, client_id);
+
+
+--
+-- Name: last_epoch_notifications last_epoch_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.last_epoch_notifications
+    ADD CONSTRAINT last_epoch_notifications_pkey PRIMARY KEY (group_id, epoch);
+
+
+--
+-- Name: last_local_connection_notifications last_local_connection_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.last_local_connection_notifications
+    ADD CONSTRAINT last_local_connection_notifications_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: last_remote_connection_notifications last_remote_connection_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.last_remote_connection_notifications
+    ADD CONSTRAINT last_remote_connection_notifications_pkey PRIMARY KEY (user_domain, user_id);
+
+
+--
+-- Name: last_team_notifications last_team_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.last_team_notifications
+    ADD CONSTRAINT last_team_notifications_pkey PRIMARY KEY (team_id);
+
+
+--
+-- Name: last_user_notifications last_user_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.last_user_notifications
+    ADD CONSTRAINT last_user_notifications_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: local_connection_acks local_connection_acks_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.local_connection_acks
+    ADD CONSTRAINT local_connection_acks_pkey PRIMARY KEY (user_id, connected_user_id);
+
+
+--
+-- Name: local_connection_notifications local_connection_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.local_connection_notifications
+    ADD CONSTRAINT local_connection_notifications_pkey PRIMARY KEY (user_id, notification_id);
+
+
+--
 -- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -602,6 +965,22 @@ ALTER TABLE ONLY public.mls_history_client
 
 
 --
+-- Name: remote_connection_acks remote_connection_acks_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.remote_connection_acks
+    ADD CONSTRAINT remote_connection_acks_pkey PRIMARY KEY (user_id, connected_user_domain, connected_user_id);
+
+
+--
+-- Name: remote_connection_notifications remote_connection_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.remote_connection_notifications
+    ADD CONSTRAINT remote_connection_notifications_pkey PRIMARY KEY (user_domain, user_id, notification_id);
+
+
+--
 -- Name: remote_conversation_local_member remote_conversation_local_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -623,6 +1002,22 @@ ALTER TABLE ONLY public.subconversation
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: team_notification_acks team_notification_acks_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_notification_acks
+    ADD CONSTRAINT team_notification_acks_pkey PRIMARY KEY (user_id, client_id, team_id);
+
+
+--
+-- Name: team_notifications team_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_notifications
+    ADD CONSTRAINT team_notifications_pkey PRIMARY KEY (team_id, notification_id);
 
 
 --
@@ -655,6 +1050,22 @@ ALTER TABLE ONLY public.user_group_member
 
 ALTER TABLE ONLY public.user_group
     ADD CONSTRAINT user_group_pkey PRIMARY KEY (team_id, id);
+
+
+--
+-- Name: user_notification_acks user_notification_acks_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_notification_acks
+    ADD CONSTRAINT user_notification_acks_pkey PRIMARY KEY (user_id, client_id);
+
+
+--
+-- Name: user_notifications user_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_notifications
+    ADD CONSTRAINT user_notifications_pkey PRIMARY KEY (user_id, notification_id);
 
 
 --
@@ -762,6 +1173,13 @@ CREATE INDEX domain_registration_authorized_team_idx ON public.domain_registrati
 --
 
 CREATE INDEX domain_registration_challenge_expires_at_idx ON public.domain_registration_challenge USING btree (expires_at);
+
+
+--
+-- Name: epoch_history_client; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX epoch_history_client ON public.epoch_history USING btree (user_id, client_id);
 
 
 --
