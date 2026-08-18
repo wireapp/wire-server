@@ -141,6 +141,7 @@ data GlobalEnv = GlobalEnv
     gRabbitMQConfig :: RabbitMqAdminOpts,
     gRabbitMQConfigV0 :: RabbitMqAdminOpts,
     gRabbitMQConfigV1 :: RabbitMqAdminOpts,
+    gRabbitMQConfigV2 :: RabbitMqAdminOpts,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
     gDNSMockServerConfig :: DNSMockServerConfig,
@@ -160,6 +161,7 @@ data IntegrationConfig = IntegrationConfig
     rabbitmq :: RabbitMqAdminOpts,
     rabbitmqV0 :: RabbitMqAdminOpts,
     rabbitmqV1 :: RabbitMqAdminOpts,
+    rabbitmqV2 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
     dnsMockServer :: DNSMockServerConfig,
     cellsEventQueue :: String
@@ -180,6 +182,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "rabbitmq-v0"
         <*> o .: fromString "rabbitmq-v1"
+        <*> o .: fromString "rabbitmq-v2"
         <*> o .: fromString "cassandra"
         <*> o .: fromString "dnsMockServer"
         <*> o .: fromString "cellsEventQueue"
