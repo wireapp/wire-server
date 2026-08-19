@@ -45,7 +45,7 @@ import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty,
 import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Conversation (Access (CodeAccess, InviteAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
 import Wire.API.Error (ErrorS)
-import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..))
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.PostgresMarshall (PostgresUnmarshall (postgresUnmarshall))
@@ -223,7 +223,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId "test-conn") newMeeting
-    result `shouldBe` Left InvalidTimes
+    result `shouldBe` Left (InvalidTimes EndBeforeStart)
 
   it "fails to create a meeting if start time is in the past" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -241,7 +241,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId "test-conn") newMeeting
-    result `shouldBe` Left InvalidTimes
+    result `shouldBe` Left (InvalidTimes StartTimeTooFarInPast)
 
   it "accepts a meeting whose start time is exactly at the tolerance boundary" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -280,7 +280,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId "test-conn") newMeeting
-    result `shouldBe` Left InvalidTimes
+    result `shouldBe` Left (InvalidTimes StartTimeTooFarInPast)
 
   describe "getMeeting access control" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -425,8 +425,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   recurrence = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
-
-      result `shouldBe` Left InvalidTimes
+      result `shouldBe` Left (InvalidTimes EndBeforeStart)
 
     it "allows editing an upcoming meeting's start time into the past within the past-edit window" $ do
       let newMeeting =
@@ -503,8 +502,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   recurrence = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
-
-      result `shouldBe` Left InvalidTimes
+      result `shouldBe` Left (InvalidTimes TimesBeyondPastEditWindow)
 
     it "throws InvalidTimes when updating both times beyond the past-edit window even when start < end" $ do
       let newMeeting =
@@ -527,8 +525,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   recurrence = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
-
-      result `shouldBe` Left InvalidTimes
+      result `shouldBe` Left (InvalidTimes TimesBeyondPastEditWindow)
 
     it "allows editing an already-started (ongoing) meeting, including its start time" $ do
       let ongoingMeeting =
@@ -586,7 +583,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                     recurrence = Nothing
                   }
           updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
-      result `shouldBe` Left InvalidTimes
+      result `shouldBe` Left (InvalidTimes EndBeforeStart)
+
     it "returns Nothing for expired meeting" $ do
       let newMeeting =
             API.NewMeeting

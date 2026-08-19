@@ -19,7 +19,6 @@ module Wire.MeetingsSubsystem.Interpreter
   ( MeetingSystemConfig (..),
     interpretMeetingsSubsystem,
     startTimeTolerance,
-    MeetingError (..),
   )
 where
 
@@ -42,6 +41,7 @@ import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Error.Galley (InvalidTimesReason (..), MeetingError (..))
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
@@ -58,9 +58,6 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-
-data MeetingError = InvalidTimes | EmptyUpdate | MeetingsFeatureDisabled
-  deriving stock (Eq, Show)
 
 -- | Tolerance applied when validating that a meeting's start time is not in
 -- the past. The check always uses the server's clock ('Now.get') as the
@@ -174,11 +171,11 @@ createMeetingImpl zUser connId newMeeting = do
   -- Validate that the meeting ends after it starts (end_time is the source of
   -- truth; positivity was previously checked on the derived duration).
   when (newMeeting.endTime <= newMeeting.startTime) $
-    throw InvalidTimes
+    throw (InvalidTimes EndBeforeStart)
   -- Validate that startTime is not in the past (within tolerance)
   now <- Now.get
   when (newMeeting.startTime < addUTCTime (negate startTimeTolerance) now) $
-    throw InvalidTimes
+    throw (InvalidTimes StartTimeTooFarInPast)
 
   -- Determine trial status: personal users (no team) create trial meetings.
   -- The deprecated meetingsPremium feature flag no longer affects this; team
@@ -265,14 +262,14 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
     -- bound may change independently.
     when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
-        throw InvalidTimes
+        throw (InvalidTimes EndBeforeStart)
     -- New time values may be moved into the past so that past/ongoing
     -- meetings can be corrected to what actually happened, but no further
     -- than `pastEditPeriod` (WPB-28080). Only provided values are checked;
     -- unchanged stored times are not re-validated.
     let pastEditCutoff = addUTCTime (negate pastEditPeriod) now
-    for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw InvalidTimes
-    for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw InvalidTimes
+    for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
+    for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
 
     updatedMeeting <-
       MaybeT $

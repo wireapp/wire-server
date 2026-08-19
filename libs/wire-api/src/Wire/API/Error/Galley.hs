@@ -50,6 +50,8 @@ module Wire.API.Error.Galley
     GroupInfoDiagnostics (..),
     MLSOutOfSyncError (..),
     AdminlessConversation (..),
+    MeetingError (..),
+    InvalidTimesReason (..),
   )
 where
 
@@ -393,6 +395,52 @@ type instance MapError 'MLSHistoryClientDuplication = 'StaticError 400 "mls-hist
 type instance MapError 'MeetingNotFound = 'StaticError 404 "meeting-not-found" "Meeting not found"
 
 type instance MapError 'CodeStoreNotFound = 'StaticError 404 "code-store-not-found" "Code store not found"
+
+-- | Errors raised by the meetings subsystem, exposed at the API level via
+-- @CanThrow 'MeetingError'@. Every constructor keeps the @invalid-op@ label
+-- but carries an explicit message; 'InvalidTimes' additionally records which
+-- validation failed.
+data MeetingError
+  = InvalidTimes InvalidTimesReason
+  | EmptyUpdate
+  | MeetingsFeatureDisabled
+  deriving stock (Eq, Show)
+
+-- | The individual failure modes of meeting time validation.
+data InvalidTimesReason
+  = -- | The (effective) end time is not after the start time.
+    EndBeforeStart
+  | -- | The start time of a new meeting is too far in the past.
+    StartTimeTooFarInPast
+  | -- | An updated time is further in the past than the past-edit window allows.
+    TimesBeyondPastEditWindow
+  deriving stock (Eq, Show)
+
+meetingErrorToDyn :: MeetingError -> DynError
+meetingErrorToDyn = \case
+  InvalidTimes EndBeforeStart ->
+    DynError 403 "invalid-op" "Meeting end time must be after the start time"
+  InvalidTimes StartTimeTooFarInPast ->
+    DynError 403 "invalid-op" "Meeting start time is too far in the past"
+  InvalidTimes TimesBeyondPastEditWindow ->
+    DynError 403 "invalid-op" "Meeting times must not be set further into the past than the past-edit window allows"
+  EmptyUpdate -> DynError 403 "invalid-op" "Meeting update must set at least one field"
+  MeetingsFeatureDisabled -> DynError 403 "invalid-op" "The meetings feature is not enabled"
+
+type instance ErrorEffect MeetingError = Error MeetingError
+
+instance APIError MeetingError where
+  toResponse = toResponse . meetingErrorToDyn
+
+-- | The swagger documentation for 'MeetingError': one representative static
+-- error (the runtime messages are more detailed but share code and label).
+type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, or meetings feature disabled"
+
+instance IsSwaggerError MeetingError where
+  addToOpenApi = addStaticErrorToSwagger @MeetingErrorStatic
+
+instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where
+  interpretServerEffect = mapError meetingErrorToDyn
 
 --------------------------------------------------------------------------------
 -- Team Member errors
