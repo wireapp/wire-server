@@ -118,6 +118,9 @@ data:
         validityPeriod: {{ .validityPeriod }}
         {{- end }}
         legacyTimeZone: {{ .legacyTimeZone }}
+        {{- if .pastEditPeriod }}
+        pastEditPeriod: {{ .pastEditPeriod }}
+        {{- end }}
         {{- with .email }}
         email:
           from: {{ required "Missing value: galley.config.settings.meetings.email.from" .from | quote }}

@@ -249,6 +249,28 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Meetings validity and past-edit periods
+
+`settings.meetings.validityPeriod` (default `48h`) is how long a meeting stays
+alive (readable and editable) after its effective end time — its `end_time`, or
+the end of its recurrence window for recurring meetings; open-ended recurring
+meetings never expire. `settings.meetings.pastEditPeriod` (default `24h`) bounds how
+far into the past `PUT /meetings/{domain}/{id}` may move a meeting's
+`start_time`/`end_time`, so past and ongoing meetings can be corrected to what
+actually happened. Only provided time values are checked against this cutoff;
+unchanged stored times are not re-validated — but the effective times (provided
+or stored) must still satisfy `end_time > start_time`. Galley refuses to start
+if `pastEditPeriod` is negative or greater than `validityPeriod`, so a meeting
+edited to past times stays inside the validity window and remains visible and editable.
+
+```yaml
+# galley.yaml
+settings:
+  meetings:
+    validityPeriod: "48h"
+    pastEditPeriod: "24h"
+```
+
 ### Meetings email sender and transport
 
 The optional `settings.meetings.email` block enables emailing meeting
