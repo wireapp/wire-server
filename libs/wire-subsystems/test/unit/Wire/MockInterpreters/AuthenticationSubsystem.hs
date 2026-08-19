@@ -1,8 +1,15 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Wire.MockInterpreters.AuthenticationSubsystem where
 
+import Data.Time
+import Data.UUID qualified as UUID
+import Data.ZAuth.Token as ZAuth
 import Imports
 import Polysemy
 import Polysemy.State
+import Sodium.Crypto.Sign
+import Wire.API.User.Auth
 import Wire.AuthenticationSubsystem
 
 data MockAuthenticationState = MockAuthenticationState

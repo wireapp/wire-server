@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-partial-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -17,6 +19,7 @@
 
 module Wire.MockInterpreters.EmailSubsystem where
 
+import Data.Id
 import Data.Map qualified as Map
 import Imports
 import Polysemy
@@ -30,12 +33,19 @@ data SentMail = SentMail
   }
   deriving (Show, Eq)
 
-data SentMailContent = PasswordResetMail PasswordResetPair
+data SentMailContent
+  = PasswordResetMail PasswordResetPair
+  | AppEventMail
+      { aeTeamId :: TeamId,
+        aeEvent :: AppEvent
+      }
   deriving (Show, Eq)
 
 inMemoryEmailSubsystemInterpreter :: (Member (State (Map EmailAddress [SentMail])) r) => InterpreterFor EmailSubsystem r
 inMemoryEmailSubsystemInterpreter = interpret \case
   SendPasswordResetMail email keyCodePair mLocale -> modify $ Map.insertWith (<>) email [SentMail mLocale $ PasswordResetMail keyCodePair]
+  SendAppEventEmail email _name tid event mLocale ->
+    modify $ Map.insertWith (<>) email [SentMail mLocale $ AppEventMail tid event]
   _ -> error "inMemoryEmailSubsystemInterpreter: implement on demand"
 
 getEmailsSentTo :: (Member (State (Map EmailAddress [SentMail])) r) => EmailAddress -> Sem r [SentMail]
@@ -58,3 +68,4 @@ noopEmailSubsystemInterpreter = interpret \case
   SendMemberWelcomeEmail {} -> pure ()
   SendNewTeamOwnerWelcomeEmail {} -> pure ()
   SendSAMLIdPChanged {} -> pure ()
+  SendAppEventEmail {} -> pure ()

@@ -628,6 +628,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
+    Wire.AppSubsystem.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
@@ -635,6 +636,7 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.One2OneSpec
+    Wire.EmailSubsystem.TemplateDumpSpec
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec

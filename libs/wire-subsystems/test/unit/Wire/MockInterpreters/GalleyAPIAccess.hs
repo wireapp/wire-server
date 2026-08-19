@@ -19,71 +19,79 @@ module Wire.MockInterpreters.GalleyAPIAccess where
 
 import Control.Lens (to, (^.))
 import Data.Id
+import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
 import Imports
 import Polysemy
+import Polysemy.State
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamName (..))
 import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), IsFeatureConfig (..), LockableFeature (..), SndFactorPasswordChallengeConfig, npProject')
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
 import Wire.API.Team.SearchVisibility
 import Wire.GalleyAPIAccess
 
--- | interprets galley by statically returning the values passed
 miniGalleyAPIAccess ::
-  -- | what to return when calling GetTeamMember
+  -- | initial team members
   Map TeamId [TeamMember] ->
   -- | what to return when calling GetAllTeamFeaturesForUser
   AllTeamFeatures ->
   InterpreterFor GalleyAPIAccess r
-miniGalleyAPIAccess teams configs = interpret $ \case
-  CreateSelfConv _ -> error "CreateSelfConv not implemented in miniGalleyAPIAccess"
-  GetConv _ _ -> error "GetConv not implemented in miniGalleyAPIAccess"
-  GetTeamConv {} -> error "GetTeamConv not implemented in miniGalleyAPIAccess"
-  NewClient _ _ -> pure ()
-  CheckUserCanJoinTeam _ -> pure Nothing
-  AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
-  CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
-  GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
-  GetTeamMembersWithLimit tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
-  GetTeamId uid ->
-    pure . listToMaybe . Map.keys $
-      Map.filter
-        (\members -> any (\member -> member ^. userId == uid) members)
-        teams
-  GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
-  FindTeam _ -> error "FindTeam not implemented in miniGalleyAPIAccess"
-  GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
-  GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
-  GetUserLegalholdStatus _ _ -> error "GetUserLegalholdStatus not implemented in miniGalleyAPIAccess"
-  GetTeamSearchVisibility _ ->
-    pure SearchVisibilityStandard
-  ChangeTeamStatus {} -> error "ChangeTeamStatus not implemented in miniGalleyAPIAccess"
-  FinalizeDeleteTeam {} -> error "FinalizeDeleteTeam not implemented in miniGalleyAPIAccess"
-  MemberIsTeamOwner tid uid ->
-    pure $ memberIsTeamOwnerImpl teams tid uid
-  GetAllTeamFeaturesForUser _ -> pure configs
-  GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
-  GetVerificationCodeEnabled _ ->
-    pure $
-      case npProject' (Proxy @SndFactorPasswordChallengeConfig) configs of
-        LockableFeature FeatureStatusEnabled _ _ -> True
-        LockableFeature FeatureStatusDisabled _ _ -> False
-  GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
-  IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
-  UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
-  GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
-  GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
-  SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
-  InternalGetConversation _ -> pure Nothing
-  GetTeamContacts _ -> pure Nothing
-  SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
-  GetUserLHStatus _ _ -> error "GetUserLHStatus not implemented in miniGalleyAPIAccess"
-  GetUsersLHStatus _ -> error "GetUsersLHStatus not implemented in miniGalleyAPIAccess"
-  GuardLegalHold {} -> pure ()
-  UpdateTeamMember {} -> error "UpdateTeamMember not implemented in miniGalleyAPIAccess"
-  IsEmailValidationEnabledTeam {} -> error "IsEmailValidationEnabledTeam not implemented in miniGalleyAPIAccess"
+miniGalleyAPIAccess initialTeams configs =
+  evalState initialTeams . reinterpret \case
+    CreateSelfConv _ -> error "CreateSelfConv not implemented in miniGalleyAPIAccess"
+    GetConv _ _ -> error "GetConv not implemented in miniGalleyAPIAccess"
+    GetTeamConv {} -> error "GetTeamConv not implemented in miniGalleyAPIAccess"
+    NewClient _ _ -> pure ()
+    CheckUserCanJoinTeam _ -> pure Nothing
+    AddTeamMember uid tid inviter role -> do
+      let member = mkTeamMember uid (rolePermissions role) inviter defUserLegalHoldStatus
+      modify $ Map.insertWith (<>) tid [member]
+      pure True
+    CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
+    GetTeamMember uid tid -> gets $ \teams -> getTeamMemberImpl teams uid tid
+    GetTeamMembersWithLimit tid maxResults -> gets $ \teams -> getTeamMembersImpl teams tid maxResults
+    GetTeamId uid ->
+      gets $
+        listToMaybe
+          . Map.keys
+          . Map.filter (any (\member -> member ^. userId == uid))
+    GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
+    FindTeam _ -> error "FindTeam not implemented in miniGalleyAPIAccess"
+    GetTeamName _ -> pure (TeamName "Test Team")
+    GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
+    GetUserLegalholdStatus _ _ -> error "GetUserLegalholdStatus not implemented in miniGalleyAPIAccess"
+    GetTeamSearchVisibility _ ->
+      pure SearchVisibilityStandard
+    ChangeTeamStatus {} -> error "ChangeTeamStatus not implemented in miniGalleyAPIAccess"
+    FinalizeDeleteTeam {} -> error "FinalizeDeleteTeam not implemented in miniGalleyAPIAccess"
+    MemberIsTeamOwner tid uid ->
+      gets $ \teams -> memberIsTeamOwnerImpl teams tid uid
+    GetAllTeamFeaturesForUser _ -> pure configs
+    GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
+    GetVerificationCodeEnabled _ ->
+      pure $
+        case npProject' (Proxy @SndFactorPasswordChallengeConfig) configs of
+          LockableFeature FeatureStatusEnabled _ _ -> True
+          LockableFeature FeatureStatusDisabled _ _ -> False
+    GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
+    IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
+    UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
+    GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
+    GetTeamAdmins tid ->
+      gets $ \teams ->
+        newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
+    SelectTeamMemberInfos tid uids -> gets $ \teams -> selectTeamMemberInfosImpl teams tid uids
+    InternalGetConversation _ -> pure Nothing
+    GetTeamContacts _ -> pure Nothing
+    SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
+    GetUserLHStatus _ _ -> error "GetUserLHStatus not implemented in miniGalleyAPIAccess"
+    GetUsersLHStatus _ -> error "GetUsersLHStatus not implemented in miniGalleyAPIAccess"
+    GuardLegalHold {} -> pure ()
+    UpdateTeamMember {} -> error "UpdateTeamMember not implemented in miniGalleyAPIAccess"
+    IsEmailValidationEnabledTeam {} -> error "IsEmailValidationEnabledTeam not implemented in miniGalleyAPIAccess"
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList
