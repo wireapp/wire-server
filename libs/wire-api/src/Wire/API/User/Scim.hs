@@ -359,6 +359,14 @@ data ValidScimUser = ValidScimUser
     handle :: Handle,
     name :: BT.Name,
     emails :: [EmailAddress],
+    -- | SCIM @type@ of the stored email entry (e.g. @work@).  Persisted by spar
+    -- in @scim_user_times@ and echoed verbatim; 'Nothing' means \"not
+    -- supplied\" (echoed as absent).
+    emailType :: Maybe Text,
+    -- | SCIM @primary@ flag of the stored email entry.  Persisted by spar in
+    -- @scim_user_times@ and echoed verbatim; 'Nothing' means \"not supplied\"
+    -- (echoed as absent).
+    emailPrimary :: Maybe Bool,
     richInfo :: RI.RichInfo,
     active :: Bool,
     locale :: Maybe Locale,

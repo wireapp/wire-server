@@ -1,7 +1,11 @@
-SCIM now echoes the canonical email `type` of `"work"` on stored user emails, so
-that PATCH value-path filters like Entra's `emails[type eq "work"].value` match
-the existing entry for an in-place update. Previously spar synthesized emails
-with no `type`; the value-path filter then matched no entry, and since per
-RFC 7644 §3.5.2 an `Add` on a non-existing target creates it (rather than
-erroring), every such PATCH appended a duplicate email instead of updating the
-address in place.
+SCIM email metadata is now persisted and echoed verbatim. spar stores the
+`type` and `primary` sub-attributes of the SCIM email entry it keeps (in
+`spar.scim_user_times`) and echoes them back on GET/POST/PATCH exactly as the
+IdP sent them, instead of synthesizing a hardcoded `type` of `"work"`. As a
+result, PATCH value-path filters like Entra's `emails[type eq "work"].value`
+and Okta's `emails[primary eq true].value` match the stored entry for an
+in-place update when (and only when) the IdP actually supplied that metadata
+at provisioning time; users provisioned without it echo neither field. Since
+per RFC 7644 §3.5.2 an `Add` on a non-existing target creates it, a PATCH
+against a user whose stored email carries no such metadata appends a new
+entry rather than updating in place.

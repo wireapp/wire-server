@@ -18,7 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ScimUserTimesStore
-  ( ScimUserTimesStore (..),
+  ( ScimUserTimes (..),
+    ScimUserTimesStore (..),
     write,
     read,
     readMulti,
@@ -28,15 +29,22 @@ where
 
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis)
-import Imports (Maybe)
+import Imports (Bool, Maybe, Text)
 import Polysemy
 import Web.Scim.Schema.Common (WithId)
 import Web.Scim.Schema.Meta (WithMeta)
 
+data ScimUserTimes = ScimUserTimes
+  { scimUserTimesCreated :: UTCTimeMillis,
+    scimUserTimesLastUpdated :: UTCTimeMillis,
+    scimUserTimesEmailType :: Maybe Text,
+    scimUserTimesEmailPrimary :: Maybe Bool
+  }
+
 data ScimUserTimesStore m a where
-  Write :: WithMeta (WithId UserId t) -> ScimUserTimesStore m ()
-  Read :: UserId -> ScimUserTimesStore m (Maybe (UTCTimeMillis, UTCTimeMillis))
-  ReadMulti :: [UserId] -> ScimUserTimesStore m [(UserId, UTCTimeMillis, UTCTimeMillis)]
+  Write :: Maybe Text -> Maybe Bool -> WithMeta (WithId UserId t) -> ScimUserTimesStore m ()
+  Read :: UserId -> ScimUserTimesStore m (Maybe ScimUserTimes)
+  ReadMulti :: [UserId] -> ScimUserTimesStore m [(UserId, ScimUserTimes)]
   Delete :: UserId -> ScimUserTimesStore m ()
 
 makeSem ''ScimUserTimesStore

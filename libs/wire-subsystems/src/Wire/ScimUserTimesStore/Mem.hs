@@ -23,7 +23,7 @@ module Wire.ScimUserTimesStore.Mem
 where
 
 import Data.Id (UserId)
-import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Map qualified as M
 import Imports
 import Polysemy
@@ -34,10 +34,17 @@ import Wire.ScimUserTimesStore
 
 scimUserTimesStoreToMem ::
   Sem (ScimUserTimesStore ': r) a ->
-  Sem r (Map UserId (UTCTimeMillis, UTCTimeMillis), a)
+  Sem r (Map UserId ScimUserTimes, a)
 scimUserTimesStoreToMem = (runState mempty .) $
   reinterpret $ \case
-    Write (WithMeta meta (WithId uid _)) -> modify $ M.insert uid (toUTCTimeMillis $ created meta, toUTCTimeMillis $ lastModified meta)
+    Write emailType emailPrimary (WithMeta meta (WithId uid _)) ->
+      modify $
+        M.insert uid $
+          ScimUserTimes
+            (toUTCTimeMillis $ created meta)
+            (toUTCTimeMillis $ lastModified meta)
+            emailType
+            emailPrimary
     Read uid -> gets $ M.lookup uid
-    ReadMulti uids -> gets $ map (\(u, (a, b)) -> (u, a, b)) . filter ((`elem` uids) . fst) . M.toList
+    ReadMulti uids -> gets $ filter ((`elem` uids) . fst) . M.toList
     Delete uid -> modify $ M.delete uid

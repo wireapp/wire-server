@@ -2345,10 +2345,10 @@ specDeleteUser = do
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
       scimUser <-
-        aFewTimes (runSpar $ ScimUserTimesStore.read uid) isNothing
+        aFewTimes (isNothing <$> runSpar (ScimUserTimesStore.read uid)) id
       liftIO $
         (brigUser, samlUser, scimUser)
-          `shouldBe` (Nothing, Nothing, Nothing)
+          `shouldBe` (Nothing, Nothing, True)
     it "should respond with 204 on deletion (also indempotently)" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser

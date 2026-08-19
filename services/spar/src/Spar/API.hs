@@ -1152,5 +1152,5 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
 
 internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserId -> Sem r ScimUserInfo
 internalGetScimUserInfo uid = do
-  t <- fmap fst <$> ScimUserTimesStore.read uid
+  t <- fmap (.scimUserTimesCreated) <$> ScimUserTimesStore.read uid
   pure $ ScimUserInfo uid t

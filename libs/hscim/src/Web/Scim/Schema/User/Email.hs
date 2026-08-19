@@ -52,10 +52,11 @@ instance ToJSON Email where
 emailToEmailAddress :: Email -> Email.EmailAddress
 emailToEmailAddress = unEmailAddress . value
 
--- | Reduce a list of SCIM emails to the single address Wire stores.
+-- | Pick the 'Email' entry whose address Wire stores: the single entry marked
+-- @primary@ (RFC 7643 §2.4 allows at most one), else the first entry.
 --
 -- Wire/brig holds at most one email per user, so the (possibly multi-valued)
--- SCIM @emails@ attribute must be reduced to one address. Selection rule:
+-- SCIM @emails@ attribute must be reduced to one entry. Selection rule:
 -- the entry marked @primary@ (RFC 7643 §2.4: @primary@ value @true@ MUST
 -- appear no more than once), else the first entry. Per RFC 7643 §2.4 an
 -- absent @primary@ is assumed @false@; with none marked primary, Wire
@@ -64,17 +65,22 @@ emailToEmailAddress = unEmailAddress . value
 -- If more than one entry is marked @primary@ — a client-side protocol
 -- violation — this returns 'Left' with a descriptive message so the caller
 -- rejects the request instead of silently picking one.
-scimEmailsToEmailAddress :: [Email] -> Either Text (Maybe Email.EmailAddress)
-scimEmailsToEmailAddress es =
+scimEmailsToEmail :: [Email] -> Either Text (Maybe Email)
+scimEmailsToEmail es =
   case primaries of
-    [primaryEmail] -> Right . Just . unEmailAddress $ value primaryEmail
+    [primaryEmail] -> Right (Just primaryEmail)
     _
       | Prelude.length primaries > 1 -> Left "More than one email is marked as primary; RFC 7643 §2.4 allows at most one."
       | otherwise -> Right (firstEntry es)
   where
     firstEntry [] = Nothing
-    firstEntry (e : _) = Just . unEmailAddress $ value e
+    firstEntry (e : _) = Just e
 
     primaries = Prelude.filter isPrimary es
 
     isPrimary e = primary e == Just (ScimBool True)
+
+-- | Reduce a list of SCIM emails to the single address Wire stores (see
+-- 'scimEmailsToEmail' for the selection rule).
+scimEmailsToEmailAddress :: [Email] -> Either Text (Maybe Email.EmailAddress)
+scimEmailsToEmailAddress = fmap (fmap emailToEmailAddress) . scimEmailsToEmail

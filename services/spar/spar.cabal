@@ -51,6 +51,7 @@ library
     Spar.Schema.V20
     Spar.Schema.V21
     Spar.Schema.V22
+    Spar.Schema.V23
     Spar.Schema.V3
     Spar.Schema.V4
     Spar.Schema.V5
