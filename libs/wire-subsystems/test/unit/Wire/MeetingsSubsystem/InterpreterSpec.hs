@@ -43,7 +43,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
-import Wire.API.Conversation (Access (InviteAccess, PrivateAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
+import Wire.API.Conversation (Access (CodeAccess, InviteAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Event.Meeting qualified as MeetingEvent
@@ -183,7 +183,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting.conversation.qualifiedId `shouldBe` meeting.meeting.conversationId
         fetched `shouldBe` Just meeting.meeting
 
-  it "creates meeting conversation with invite access for MLS participant adds" $ do
+  it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -205,8 +205,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     case result of
       Left err -> fail $ "Error: " <> show err
       Right access -> do
-        PrivateAccess `elem` access `shouldBe` True
-        InviteAccess `elem` access `shouldBe` True
+        access `shouldBe` [InviteAccess, CodeAccess]
 
   it "fails to create a meeting if end_time is not after start_time" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0

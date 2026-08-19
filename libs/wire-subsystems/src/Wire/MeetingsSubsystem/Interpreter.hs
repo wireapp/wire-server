@@ -193,7 +193,8 @@ createMeetingImpl zUser connId newMeeting = do
             newConvName = Just newMeeting.title,
             -- InviteAccess is required so MLS commits can add participants via
             -- performConversationJoin (ensureAccess conv InviteAccess).
-            newConvAccess = Set.fromList [PrivateAccess, InviteAccess],
+            -- CodeAccess allows joining the meeting conversation by code.
+            newConvAccess = Set.fromList [InviteAccess, CodeAccess],
             newConvAccessRoles = Nothing,
             newConvTeam = ConvTeamInfo <$> conversationTeamId,
             newConvMessageTimer = Nothing,
