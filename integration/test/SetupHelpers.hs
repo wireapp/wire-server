@@ -451,10 +451,11 @@ randomScimUserWith params = do
   ty <- params.mkEmailType
   pr <- params.mkEmailPrimary
   emails <- do
-    let mk email = object $
-          ["value" .= email]
-            <> ["type" .= t | Just t <- [ty]]
-            <> ["primary" .= p | Just p <- [pr]]
+    let mk email =
+          object $
+            ["value" .= email]
+              <> ["type" .= t | Just t <- [ty]]
+              <> ["primary" .= p | Just p <- [pr]]
         hd = [extId | params.prependExternalIdToEmails]
     tl <- params.mkOtherEmails
     pure $ Array (fromList (mk <$> (hd <> tl)))

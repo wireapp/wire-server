@@ -90,7 +90,6 @@ rowToUserTimesMulti :: (UserId, UTCTimeMillis, UTCTimeMillis, Maybe Text, Maybe 
 rowToUserTimesMulti (uid, created_, lastUpdated, emailType, emailPrimary) =
   (uid, ScimUserTimes created_ lastUpdated emailType emailPrimary)
 
-
 -- | Delete a SCIM user's access times by id.
 -- You'll also want to ensure they are deleted in Brig and in the SAML Users table.
 deleteScimUserTimes ::

@@ -411,7 +411,8 @@ testSparScimEmailMetaRoundTrip = do
   eventually $ do
     getScimUser OwnDomain tok userId `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
-      res.json %. "emails"
+      res.json
+        %. "emails"
         `shouldMatch` [object ["value" .= newEmail, "type" .= ("work" :: String), "primary" .= True]]
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200

@@ -252,7 +252,6 @@ tokenInfoToIdP :: (Member IdPConfigStore r) => ScimTokenInfo -> Scim.ScimHandler
 tokenInfoToIdP ScimTokenInfo {stiIdP} =
   mapM (lift . IdPConfigStore.getConfig) stiIdP
 
-
 -- | Maximum accepted length of the SCIM email @type@ sub-attribute.  The value
 -- is IdP-controlled and persisted verbatim in @scim_user_times.email_type@, so
 -- it must be bounded (mirrors the @richInfoLimit@ idea).  NB: validation runs
