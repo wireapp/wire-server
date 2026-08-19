@@ -203,7 +203,7 @@ data TeamOpts = TeamOpts
     -- | Team Member Welcome URL
     tMemberWelcomeUrl :: !Text,
     -- | App management URL template (may contain ${team_id}); defaults to "" if absent
-    tAppManagementUrl :: !Text
+    tAppManagementUrl :: !Text -- TODO: rename to "tTeamManagementUrl", add to config.
   }
   deriving stock (Show, Generic)
 
