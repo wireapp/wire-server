@@ -753,6 +753,7 @@ test-suite wire-api-tests
     , containers             >=0.5
     , crypton
     , data-default
+    , directory
     , file-embed
     , filepath
     , hex
@@ -776,6 +777,7 @@ test-suite wire-api-tests
     , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
+    , template-haskell
     , text
     , time
     , types-common           >=0.16

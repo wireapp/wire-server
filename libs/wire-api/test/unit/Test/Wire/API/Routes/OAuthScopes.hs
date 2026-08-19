@@ -44,6 +44,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Yaml qualified as Yaml
 import Imports
+import Language.Haskell.TH (runIO)
 import Servant.API (toUrlPiece)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -95,9 +96,27 @@ enforcedScopes method path =
 
 nginzLocations :: [Location]
 nginzLocations =
-  case Yaml.decodeEither' $(embedFile =<< makeRelativeToProject "../../charts/nginz/values.yaml") of
+  case Yaml.decodeEither' nginzValues of
     Left e -> error $ "charts/nginz/values.yaml: " <> Yaml.prettyPrintParseException e
     Right (NginzLocations ls) -> ls
+
+-- | @charts\/nginz\/values.yaml@, embedded at compile time.
+--
+-- Under nix only this package's own directory is copied into the build sandbox,
+-- so @nix\/wire-server.nix@ splices the chart into @test\/unit\/generated\/@ and
+-- we prefer that copy; a plain cabal build has the whole repository checked out
+-- and reads the real file instead.  The lookup is inline because a top-level
+-- splice cannot call a function defined in the same module.
+nginzValues :: ByteString
+nginzValues =
+  $( do
+       spliced <- makeRelativeToProject "test/unit/generated/nginz-values.yaml"
+       spliced' <- runIO (doesFileExist spliced)
+       embedFile
+         =<< if spliced'
+           then pure spliced
+           else makeRelativeToProject "../../charts/nginz/values.yaml"
+   )
 
 instance A.FromJSON NginzLocations where
   parseJSON = A.withObject "charts/nginz/values.yaml" $ \top -> do

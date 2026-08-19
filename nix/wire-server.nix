@@ -159,6 +159,22 @@ let
     inherit hlib mls-test-cli;
   });
 
+  # 'Test.Wire.API.Routes.OAuthScopes' checks the OAuth scopes nginz enforces
+  # against the ones the swagger docs advertise, so it needs
+  # charts/nginz/values.yaml at compile time.  Only a package's own directory is
+  # copied into the build sandbox, so splice the chart in -- and by making it
+  # part of 'src', changing the chart also invalidates the build.
+  wireApiWithNginzChart = hself: hsuper: {
+    wire-api = hlib.overrideCabal hsuper.wire-api (old: {
+      src = pkgs.runCommand "wire-api-src" { } ''
+        cp -r ${old.src} $out
+        chmod -R u+w $out
+        mkdir -p $out/test/unit/generated
+        cp ${../charts/nginz/values.yaml} $out/test/unit/generated/nginz-values.yaml
+      '';
+    });
+  };
+
   executables = hself: hsuper:
     attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath hsuper.${e});
 
@@ -173,6 +189,7 @@ let
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
+      wireApiWithNginzChart
       manualOverrides
       executables
       staticExecutables

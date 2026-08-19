@@ -36,6 +36,7 @@
 , currency-codes
 , data-default
 , deriving-aeson
+, directory
 , deriving-swagger2
 , email-validate
 , errors
@@ -107,6 +108,7 @@
 , tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
+, template-haskell
 , text
 , these
 , time
@@ -259,6 +261,7 @@ mkDerivation {
     crypton-pem
     currency-codes
     data-default
+    directory
     file-embed
     filepath
     hex
@@ -287,6 +290,7 @@ mkDerivation {
     tasty-hspec
     tasty-hunit
     tasty-quickcheck
+    template-haskell
     text
     time
     types-common
