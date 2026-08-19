@@ -42,9 +42,10 @@ instance Default AppSubsystemConfig where
 data AppSubsystemError
   = AppSubsystemErrorNoPerm
   | AppSubsystemErrorMissingAuth
-  | AppSubsystemErrorNoUser -- The user having created the app not found
-  | AppSubsystemErrorAppUserNotFound -- The user used to "enact" the app not found
-  | AppSubsystemErrorNoApp
+  | AppSubsystemErrorNoCreator
+  | AppSubsystemErrorNoAppData
+  | AppSubsystemErrorNoAppUser
+  | AppSubsystemErrorNoAppTeamMember
   deriving (Eq, Show)
 
 instance Exception AppSubsystemError
@@ -54,9 +55,10 @@ appSubsystemErrorToHttpError =
   StdError . \case
     AppSubsystemErrorNoPerm -> Wai.mkError status403 "app-no-permission" "User does not have permission to create or manage apps"
     AppSubsystemErrorMissingAuth -> Wai.mkError status403 "missing-auth" "Re-authentication via password required"
-    AppSubsystemErrorNoUser -> Wai.mkError status403 "create-app-no-user" "App owner not found"
-    AppSubsystemErrorAppUserNotFound -> Wai.mkError status403 "app-user-not-found" "App user not found"
-    AppSubsystemErrorNoApp -> Wai.mkError status404 "app-not-found" "App not found"
+    AppSubsystemErrorNoCreator -> Wai.mkError status403 "no-app-creator" "App owner not found"
+    AppSubsystemErrorNoAppData -> Wai.mkError status404 "app-not-found" "App not found (metadata record)"
+    AppSubsystemErrorNoAppUser -> Wai.mkError status404 "app-not-found" "App not found (user record)"
+    AppSubsystemErrorNoAppTeamMember -> Wai.mkError status404 "app-not-found" "App not found (team member record)"
 
 data AppSubsystem m a where
   CreateApp :: Local UserId -> TeamId -> NewApp -> AppSubsystem m CreatedApp
@@ -71,7 +73,16 @@ data AppSubsystem m a where
     AppSubsystem m (Either RetryAfter SomeUserToken)
   -- | Delete app.  This is called when deleting team members.  It
   -- does not check authentication.
+  --
+  -- Don't forget to call InternalDeleteAppSendEmail when you call
+  -- DeleteApp!
+  --
+  -- Rationale: sending the email notification requires some state
+  -- that is lost during deletion.  By calling it explicitly in the
+  -- logic of team member deletion (where everything else happens)
+  -- makes it harder to get it wrong.
   InternalDeleteApp :: TeamId -> UserId -> AppSubsystem m ()
+  DeleteAppSendEmail :: TeamId -> UserId -> Maybe User -> AppSubsystem m ()
 
 makeSem ''AppSubsystem
 

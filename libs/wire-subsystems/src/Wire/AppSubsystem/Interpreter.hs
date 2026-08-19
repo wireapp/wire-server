@@ -17,6 +17,7 @@
 
 module Wire.AppSubsystem.Interpreter where
 
+import Control.Lens
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
@@ -35,6 +36,7 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.Event.Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamName (..))
 import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
 import Wire.API.User
@@ -46,6 +48,8 @@ import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Cookie (revokeAllCookies)
 import Wire.AuthenticationSubsystem.ZAuth
+import Wire.EmailSubsystem (AppEvent (..), EmailSubsystem)
+import Wire.EmailSubsystem qualified as Email
 import Wire.Events
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -59,17 +63,18 @@ import Wire.UserStore qualified as Store
 import Wire.UserSubsystem (UserSubsystem, internalUpdateSearchIndex)
 
 runAppSubsystem ::
-  ( Member UserStore r,
-    Member TinyLog r,
+  ( Member AppStore r,
+    Member EmailSubsystem r,
     Member (Error AppSubsystemError) r,
-    Member (Input AppSubsystemConfig) r,
+    Member Events r,
     Member GalleyAPIAccess r,
-    Member AppStore r,
-    Member Now r,
-    Member TeamSubsystem r,
+    Member (Input AppSubsystemConfig) r,
     Member NotificationSubsystem r,
+    Member Now r,
     Member Random r,
-    Member Events r
+    Member TeamSubsystem r,
+    Member TinyLog r,
+    Member UserStore r
   ) =>
   InterpreterFor UserSubsystem (AuthenticationSubsystem ': r) ->
   InterpreterFor AuthenticationSubsystem r ->
@@ -84,6 +89,7 @@ runAppSubsystem runUser runAuth =
       UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
       RefreshAppCookie lusr tid appId password -> runError $ refreshAppCookieImpl lusr tid appId password
       InternalDeleteApp tid appId -> internalDeleteAppImpl tid appId
+      DeleteAppSendEmail tid actorId mbAppUser -> deleteAppSendEmailImpl tid actorId mbAppUser
 
 createAppImpl ::
   ( Member UserStore r,
@@ -95,6 +101,7 @@ createAppImpl ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
+    Member EmailSubsystem r,
     Member AuthenticationSubsystem r,
     Member UserSubsystem r,
     Member Random r
@@ -133,6 +140,7 @@ createAppImpl lusr tid newApp = do
 
   -- generate a team event
   generateTeamEvents creator.id tid [EdMemberJoin u.id]
+  createAppSendEmail creator tid newApp
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
@@ -145,24 +153,46 @@ createAppImpl lusr tid newApp = do
         cookie = mkSomeToken c.cookieValue
       }
 
+createAppSendEmail ::
+  ( Member TeamSubsystem r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member EmailSubsystem r
+  ) =>
+  StoredUser ->
+  TeamId ->
+  NewApp ->
+  Sem r ()
+createAppSendEmail creator tid newApp =
+  notifyAdmins tid $ \teamName now ->
+    NewAppCreated
+      { actor = fromName creator.name,
+        appName = newApp.name,
+        date = now,
+        permissions = "",
+        teamName = teamName,
+        teamId = tid
+      }
+
 -- | Check that @lusr@ is member of team with @tid@.
 ensureTeamMember ::
-  ( Member UserStore r,
-    Member (Error AppSubsystemError) r,
-    Member GalleyAPIAccess r
+  ( Member TeamSubsystem r,
+    Member UserStore r,
+    Member (Error AppSubsystemError) r
   ) =>
   Local UserId ->
   TeamId ->
   Sem r (StoredUser, T.TeamMember)
 ensureTeamMember lusr tid = do
-  storedUser <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
-  teamMember <- getTeamMember storedUser.id tid >>= note AppSubsystemErrorNoPerm
+  storedUser <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoCreator
+  teamMember <- internalGetTeamMember storedUser.id tid >>= note AppSubsystemErrorNoPerm
   pure (storedUser, teamMember)
 
 getAppImpl ::
   ( Member AppStore r,
+    Member TeamSubsystem r,
     Member (Error AppSubsystemError) r,
-    Member GalleyAPIAccess r,
     Member UserStore r
   ) =>
   Local UserId ->
@@ -171,7 +201,7 @@ getAppImpl ::
   Sem r AppInfo
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
-  storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
+  storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoAppData
   pure $ storedAppToAppInfo storedApp
 
 storedAppToAppInfo :: StoredApp -> AppInfo
@@ -183,8 +213,8 @@ storedAppToAppInfo app =
 
 getAppsImpl ::
   ( Member AppStore r,
+    Member TeamSubsystem r,
     Member (Error AppSubsystemError) r,
-    Member GalleyAPIAccess r,
     Member UserStore r
   ) =>
   Local UserId ->
@@ -199,8 +229,11 @@ updateAppImpl ::
     Member (Error AppSubsystemError) r,
     Member Events r,
     Member GalleyAPIAccess r,
+    Member Now r,
+    Member TeamSubsystem r,
+    Member UserStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member EmailSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -208,11 +241,12 @@ updateAppImpl ::
   PutApp ->
   Sem r ()
 updateAppImpl lusr tid appid upd = do
-  (_updater, umem) <- ensureTeamMember lusr tid
+  (updater, umem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission umem T.CreateApp)
+  oldApp <- Store.getUser appid >>= note AppSubsystemErrorNoAppUser
   Store.updateApp tid appid (Store.MkStoredAppUpdate {category = upd.category, description = upd.description}) >>= \case
     Right () -> pure ()
-    Left Store.NotFound -> throw AppSubsystemErrorNoApp
+    Left Store.NotFound -> throw AppSubsystemErrorNoAppData
   Store.updateUser appid (def {Store.name = upd.name, Store.assets = upd.assets, Store.accentId = upd.accentId})
   internalUpdateSearchIndex appid
   generateUserEvent appid Nothing $
@@ -222,13 +256,41 @@ updateAppImpl lusr tid appid upd = do
           eupAccentId = upd.accentId,
           eupAssets = upd.assets
         }
+  updateAppMaybeSendEmail updater tid oldApp.name (fromMaybe oldApp.name upd.name)
+
+updateAppMaybeSendEmail ::
+  ( Member TeamSubsystem r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member EmailSubsystem r
+  ) =>
+  StoredUser ->
+  TeamId ->
+  Name ->
+  Name ->
+  Sem r ()
+updateAppMaybeSendEmail updater tid oldName newName = when (newName /= oldName) do
+  notifyAdmins tid $ \teamName now ->
+    AppMetadataChanged
+      { actor = fromName updater.name,
+        date = now,
+        newAppName = newName,
+        previousAppName = oldName,
+        teamName = teamName,
+        teamId = tid
+      }
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,
     Member AppStore r,
     Member (Error RetryAfter) r,
     Member (Error AppSubsystemError) r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member TeamSubsystem r,
+    Member UserStore r,
+    Member EmailSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -239,15 +301,40 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId mbPassword = do
   reauthenticateEither uid mbPassword
     >>= either (const $ throw AppSubsystemErrorMissingAuth) (const $ pure ())
 
-  mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
+  mem <- internalGetTeamMember uid tid >>= note AppSubsystemErrorNoPerm
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
-  void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
+  void $ Store.getApp appId tid >>= note AppSubsystemErrorNoAppData
 
   revokeAllCookies appId
   c :: Cookie (Token U) <-
     newCookieLimited appId Nothing PersistentCookie Nothing RevokeSameLabel
       >>= either throw pure
+  refreshAppCookieSendEmail uid tid appId
   pure $ mkSomeToken c.cookieValue
+
+refreshAppCookieSendEmail ::
+  ( Member TeamSubsystem r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member (Error AppSubsystemError) r,
+    Member EmailSubsystem r
+  ) =>
+  UserId ->
+  TeamId ->
+  UserId ->
+  Sem r ()
+refreshAppCookieSendEmail actorId tid appId = do
+  appUser <- Store.getUser appId >>= note AppSubsystemErrorNoAppUser
+  actor <- appEventActor actorId
+  notifyAdmins tid $ \teamName now ->
+    AppTokenChanged
+      { actor = actor,
+        appName = appUser.name,
+        date = now,
+        teamName = teamName,
+        teamId = tid
+      }
 
 appNewStoredUser ::
   (Member (Input AppSubsystemConfig) r, Member Random r) =>
@@ -287,10 +374,87 @@ appNewStoredUser creator new = do
 defAppSupportedProtocols :: Set BaseProtocolTag
 defAppSupportedProtocols = Set.singleton BaseProtocolMLSTag
 
-internalDeleteAppImpl ::
-  (Member AppStore r) =>
+-- | Send the notification email for an 'AppEvent' to every team admin/owner.
+-- Admins without an email address are silently skipped.
+-- The callback receives the team name and current timestamp; both are fetched here.
+notifyAdmins ::
+  ( Member TeamSubsystem r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member EmailSubsystem r
+  ) =>
+  TeamId ->
+  (Text -> UTCTimeMillis -> AppEvent) ->
+  Sem r ()
+notifyAdmins tid makeEvent = do
+  teamName <- tnName <$> getTeamName tid
+  now <- toUTCTimeMillis <$> get
+  let event = makeEvent teamName now
+  admins <- internalGetTeamAdmins tid
+  let adminUids = admins ^.. T.teamMembers . traverse . T.userId
+  adminUsers <- Store.getUsers adminUids
+  forM_ adminUsers $ \u ->
+    for_ u.email $ \email ->
+      Email.sendAppEventEmail email u.name tid event u.locale
+
+-- | Best-effort actor display name for an 'AppEvent'.
+appEventActor :: (Member UserStore r) => UserId -> Sem r Text
+appEventActor actorId = maybe "-/-" (fromName . (.name)) <$> Store.getUser actorId
+
+-- | TODO: no operation toggles app availability yet. This helper wires the
+-- 'AppAvailabilityChanged' event end-to-end; call it from the availability
+-- toggle once that operation exists.
+_changeAppAvailabilitySendEmail ::
+  ( Member TeamSubsystem r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member EmailSubsystem r
+  ) =>
   TeamId ->
   UserId ->
+  UserId ->
+  Text ->
+  Text ->
   Sem r ()
-internalDeleteAppImpl teamId appId =
+_changeAppAvailabilitySendEmail tid appId actorId previousAvailability newAvailability = do
+  appName <- maybe (Name "-/-") (.name) <$> Store.getUser appId
+  actor <- appEventActor actorId
+  notifyAdmins tid $ \teamName now ->
+    AppAvailabilityChanged
+      { actor = actor,
+        appName = appName,
+        date = now,
+        newAvailability = newAvailability,
+        previousAvailability = previousAvailability,
+        teamName = teamName,
+        teamId = tid
+      }
+
+internalDeleteAppImpl :: (Member AppStore r) => TeamId -> UserId -> Sem r ()
+internalDeleteAppImpl teamId appId = do
   Store.deleteApp appId teamId
+
+deleteAppSendEmailImpl ::
+  ( Member TeamSubsystem r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member EmailSubsystem r
+  ) =>
+  TeamId ->
+  UserId ->
+  Maybe User ->
+  Sem r ()
+deleteAppSendEmailImpl tid actorId mbAppUser = do
+  let appName = maybe (Name "-/-") (.userDisplayName) mbAppUser
+  actor <- appEventActor actorId
+  notifyAdmins tid $ \teamName now ->
+    AppDeleted
+      { actor = actor,
+        appName = appName,
+        date = now,
+        teamName = teamName,
+        teamId = tid
+      }

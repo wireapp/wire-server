@@ -21,7 +21,7 @@
 module Wire.EmailSubsystem.Template where
 
 import Control.Exception
-import Data.Aeson (FromJSON)
+import Data.Aeson (FromJSON, parseJSON, withObject, (.!=), (.:), (.:?))
 import Data.ByteString qualified as BS
 import Data.Map qualified as Map
 import Data.Text (pack, unpack)
@@ -201,10 +201,21 @@ data TeamOpts = TeamOpts
     -- | Team Creator Welcome URL
     tCreatorWelcomeUrl :: !Text,
     -- | Team Member Welcome URL
-    tMemberWelcomeUrl :: !Text
+    tMemberWelcomeUrl :: !Text,
+    -- | App management URL template (may contain ${team_id}); defaults to "" if absent
+    tAppManagementUrl :: !Text
   }
   deriving stock (Show, Generic)
-  deriving anyclass (FromJSON)
+
+instance FromJSON TeamOpts where
+  parseJSON = withObject "TeamOpts" $ \o ->
+    TeamOpts
+      <$> o .: "tInvitationUrl"
+      <*> o .: "tExistingUserInvitationUrl"
+      <*> o .: "tActivationUrl"
+      <*> o .: "tCreatorWelcomeUrl"
+      <*> o .: "tMemberWelcomeUrl"
+      <*> o .:? "tAppManagementUrl" .!= ""
 
 loadTeamTemplates :: TeamOpts -> FilePath -> Locale -> EmailAddress -> IO (Localised TeamTemplates)
 loadTeamTemplates tOptions templatesDir defLocale sender = readLocalesDir defLocale templatesDir "team" $ \fp ->
@@ -248,11 +259,26 @@ loadTeamTemplates tOptions templatesDir defLocale sender = readLocalesDir defLoc
             <*> pure sender
             <*> readText' fp "email/sender.txt"
         )
+    <*> ( AppEmailTemplates
+            (template tOptions.tAppManagementUrl)
+            <$> appEmailTpl fp "app-creation"
+            <*> appEmailTpl fp "app-deletion"
+            <*> appEmailTpl fp "app-availability-change"
+            <*> appEmailTpl fp "app-metadata-change"
+            <*> appEmailTpl fp "app-token-change"
+        )
   where
     tUrl = template tOptions.tInvitationUrl
     tExistingUrl = template tOptions.tExistingUserInvitationUrl
     readTemplate' = readTemplateWithDefault templatesDir defLocale "team"
     readText' = readTextWithDefault templatesDir defLocale "team"
+    appEmailTpl fp name =
+      AppEmailTemplate
+        <$> readTemplate' fp ("email/" <> name <> "-subject.txt")
+        <*> readTemplate' fp ("email/" <> name <> ".txt")
+        <*> readTemplate' fp ("email/" <> name <> ".html")
+        <*> pure sender
+        <*> readText' fp "email/sender.txt"
 
 -- | URL templates needed to render the user email templates. These are plain
 -- 'Text' 'Data.Text.Template.template' strings, mirroring the corresponding

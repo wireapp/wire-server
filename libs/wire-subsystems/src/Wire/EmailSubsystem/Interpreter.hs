@@ -31,6 +31,7 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy qualified as TL
 import Data.Text.Template
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.UUID (toText)
 import Data.X509.Extended
 import Imports
@@ -76,6 +77,8 @@ emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls branding email tid teamName loc name
   SendSAMLIdPChanged email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale ->
     sendSAMLIdPChangedImpl teamTpls branding email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale
+  SendAppEventEmail email name tid event mLocale ->
+    sendAppEventEmailImpl teamTpls branding email name tid event mLocale
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -697,6 +700,86 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
         & Map.insert "fingerprint" (T.pack d.fingerprint)
         & Map.insert "subject" (T.pack d.subject)
         & Map.insert "issuer" (T.pack d.issuer)
+
+-------------------------------------------------------------------------------
+-- App Event Email
+
+-- https://www.figma.com/design/AMNqFhTUElOZDJfbUYnMmJ/Apps--Services----Integrations?node-id=431-2452&p=f&t=PVFSkjqPlWKxbHUw-0
+
+sendAppEventEmailImpl ::
+  (Member EmailSending r, Member TinyLog r) =>
+  Localised TeamTemplates ->
+  Map Text Text ->
+  EmailAddress ->
+  Name ->
+  TeamId ->
+  AppEvent ->
+  Maybe Locale ->
+  Sem r ()
+sendAppEventEmailImpl teamTemplates branding email recipientName tid event mLocale = do
+  let templates = appEmails . snd $ forLocale mLocale teamTemplates
+  mail <- logEmailRenderErrors "app event email" $ renderAppEventEmail email recipientName tid templates event branding
+  sendMail mail
+
+renderAppEventEmail ::
+  (Member (Output Text) r) =>
+  EmailAddress ->
+  Name ->
+  TeamId ->
+  AppEmailTemplates ->
+  AppEvent ->
+  Map Text Text ->
+  Sem r Mail
+renderAppEventEmail email recipientName tid AppEmailTemplates {..} event branding = do
+  url <- toStrict <$> renderTextWithBrandingSem appEmailUrl (Map.singleton "team_id" (idToText tid))
+  let tpl = selectTemplate event
+      replace =
+        branding
+          & Map.insert "team_id" (idToText tid)
+          & Map.insert "team_name" event.teamName
+          & Map.insert "actor" event.actor
+          & Map.insert "date" (formatAppEventDate event.date)
+          & Map.insert "url" url
+          & Map.union (eventVars event)
+  txt <- renderTextWithBrandingSem tpl.appEmailBodyText replace
+  html <- renderHtmlWithBrandingSem tpl.appEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem tpl.appEmailSubject replace
+  let from = Address (Just tpl.appEmailSenderName) (fromEmail tpl.appEmailSender)
+      to = mkMimeAddress recipientName email
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "AppEvent")
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
+  where
+    selectTemplate = \case
+      NewAppCreated {} -> appCreationEmail
+      AppMetadataChanged {} -> appMetadataChangeEmail
+      AppTokenChanged {} -> appTokenChangeEmail
+      AppDeleted {} -> appDeletionEmail
+      AppAvailabilityChanged {} -> appAvailabilityChangeEmail
+    eventVars = \case
+      NewAppCreated {appName, permissions} ->
+        Map.fromList [("app_name", fromName appName), ("permissions", permissions)]
+      AppMetadataChanged {newAppName, previousAppName} ->
+        Map.fromList [("new_app_name", fromName newAppName), ("previous_app_name", fromName previousAppName)]
+      AppTokenChanged {appName} ->
+        Map.singleton "app_name" (fromName appName)
+      AppDeleted {appName} ->
+        Map.singleton "app_name" (fromName appName)
+      AppAvailabilityChanged {appName, newAvailability, previousAvailability} ->
+        Map.fromList
+          [ ("app_name", fromName appName),
+            ("new_availability", newAvailability),
+            ("previous_availability", previousAvailability)
+          ]
+
+formatAppEventDate :: UTCTimeMillis -> Text
+formatAppEventDate = T.pack . formatTime defaultTimeLocale "%Y-%m-%d" . fromUTCTimeMillis
 
 -------------------------------------------------------------------------------
 -- MIME Conversions
