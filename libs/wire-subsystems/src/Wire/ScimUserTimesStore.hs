@@ -29,7 +29,7 @@ where
 
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis)
-import Imports (Bool, Maybe, Text)
+import Imports (Bool, Eq, Maybe, Show, Text)
 import Polysemy
 import Web.Scim.Schema.Common (WithId)
 import Web.Scim.Schema.Meta (WithMeta)
@@ -40,6 +40,7 @@ data ScimUserTimes = ScimUserTimes
     scimUserTimesEmailType :: Maybe Text,
     scimUserTimesEmailPrimary :: Maybe Bool
   }
+  deriving (Eq, Show)
 
 data ScimUserTimesStore m a where
   Write :: Maybe Text -> Maybe Bool -> WithMeta (WithId UserId t) -> ScimUserTimesStore m ()

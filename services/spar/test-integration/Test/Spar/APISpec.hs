@@ -1068,7 +1068,7 @@ specCRUDIdentityProvider = do
                                 -- if the externalId is an email, and the email field was
                                 -- empty, the scim response from spar contains the externalId
                                 -- (parsed) in the emails field.
-                                Just e -> u {Scim.emails = [Scim.Email (Just "work") (Scim.EmailAddress e) Nothing]}
+                                Just e -> u {Scim.emails = [Scim.Email Nothing (Scim.EmailAddress e) Nothing]}
                                 Nothing -> u
                            in -- don't compare meta, or you need to update the ETag in version because email may have changed.
                               Scim.WithId i u'

@@ -66,12 +66,10 @@ emailToEmailAddress = unEmailAddress . value
 -- violation — this returns 'Left' with a descriptive message so the caller
 -- rejects the request instead of silently picking one.
 scimEmailsToEmail :: [Email] -> Either Text (Maybe Email)
-scimEmailsToEmail es =
-  case primaries of
-    [primaryEmail] -> Right (Just primaryEmail)
-    _
-      | Prelude.length primaries > 1 -> Left "More than one email is marked as primary; RFC 7643 §2.4 allows at most one."
-      | otherwise -> Right (firstEntry es)
+scimEmailsToEmail es = case primaries of
+  [primaryEmail] -> Right (Just primaryEmail)
+  [] -> Right (firstEntry es)
+  _ -> Left "More than one email is marked as primary; RFC 7643 §2.4 allows at most one."
   where
     firstEntry [] = Nothing
     firstEntry (e : _) = Just e

@@ -252,6 +252,15 @@ tokenInfoToIdP :: (Member IdPConfigStore r) => ScimTokenInfo -> Scim.ScimHandler
 tokenInfoToIdP ScimTokenInfo {stiIdP} =
   mapM (lift . IdPConfigStore.getConfig) stiIdP
 
+
+-- | Maximum accepted length of the SCIM email @type@ sub-attribute.  The value
+-- is IdP-controlled and persisted verbatim in @scim_user_times.email_type@, so
+-- it must be bounded (mirrors the @richInfoLimit@ idea).  NB: validation runs
+-- in 'validateScimUser'', through which PATCHes also re-validate the
+-- synthesized old user — so a manual backfill must not write a longer value.
+maxScimEmailTypeLength :: Int
+maxScimEmailTypeLength = 64
+
 -- | Validate a handle (@userName@).
 validateHandle :: (Member (Error Scim.ScimError) r) => Text -> Sem r Handle
 validateHandle txt = case parseHandle txt of
@@ -309,6 +318,13 @@ validateScimUser' errloc midp richInfoLimit user = do
   veid <- mkValidScimId midp (Scim.externalId user) (Scim.Email.emailToEmailAddress <$> mSelectedEmail)
   let vsuEmailType = mSelectedEmail >>= Scim.Email.typ
       vsuEmailPrimary = mSelectedEmail >>= fmap Scim.unScimBool . Scim.Email.primary
+  for_ vsuEmailType $ \ty ->
+    when (Text.length ty > maxScimEmailTypeLength) $
+      throw $
+        badRequest $
+          "SCIM email type is too long (max "
+            <> Text.pack (show maxScimEmailTypeLength)
+            <> " characters)."
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -593,7 +609,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser {..}
       lift $ Logger.debug ("createValidScimUser: spar says " <> show storedUser)
 
       -- {(arianvp): these two actions we probably want to make transactional.}
-      createValidScimUserSpar stiTeam buid storedUser externalId
+      createValidScimUserSpar stiTeam buid externalId
 
       -- If applicable, trigger email validation procedure on brig.
       -- FUTUREWORK: validate fallback emails?
@@ -622,9 +638,11 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser {..}
     externalIdTakenError :: Text -> Scim.ScimError
     externalIdTakenError msg = Scim.conflict {Scim.detail = Just ("ExternalId is already taken: " <> msg)}
 
--- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
+-- | Store saml credentials, scim externalId locally in spar.  Table
 -- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
 -- lookup in that table either, but compute the `externalId` from the `UserRef`.
+--
+-- (Scim timestamps and email metadata are written by 'synthesizeStoredUser'.)
 createValidScimUserSpar ::
   forall m r.
   ( (m ~ Scim.ScimHandler (Sem r)),
@@ -633,10 +651,9 @@ createValidScimUserSpar ::
   ) =>
   TeamId ->
   UserId ->
-  Scim.StoredUser ST.SparTag ->
   ST.ValidScimId ->
   m ()
-createValidScimUserSpar stiTeam uid _storedUser veid = lift $ do
+createValidScimUserSpar stiTeam uid veid = lift $ do
   ScimExternalIdStore.insert stiTeam veid.validScimIdExternal uid
   for_ (justThere veid.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
 
@@ -983,6 +1000,11 @@ assertHandleNotUsedElsewhere uid hndl = do
 --
 -- @mEmailMeta@: @'Just' (ty, pr)@ forces the email metadata (used by user creation, where
 -- the store row does not exist yet); 'Nothing' uses the stored metadata.
+--
+-- NB: callers MUST only pass 'Just' when the store row is known to be absent:
+-- metadata is persisted only when the row is written (i.e. it did not exist),
+-- so forcing metadata on an existing row would echo values that were never
+-- stored.
 synthesizeStoredUser ::
   forall r.
   ( Member (Input Opts) r,
@@ -1017,10 +1039,17 @@ synthesizeStoredUser acc veid mEmailMeta =
               <*> inputs scimBaseUri
               <*> getRole
 
-      let writeState :: Maybe ScimUserTimesStore.ScimUserTimes -> ManagedBy -> RI.RichInfo -> Maybe Text -> Maybe Bool -> Scim.StoredUser ST.SparTag -> Sem r ()
-          writeState oldAccessTimes oldManagedBy oldRichInfo emailType emailPrimary storedUser = do
-            when (isNothing oldAccessTimes) $
-              ScimUserTimesStore.write emailType emailPrimary storedUser
+      (richInfo, accessTimes, baseuri, role) <- lift readState
+      now <- toUTCTimeMillis <$> lift Now.get
+      let (createdAt, lastUpdatedAt, storedTy, storedPr) = case accessTimes of
+            Just t -> (t.scimUserTimesCreated, t.scimUserTimesLastUpdated, t.scimUserTimesEmailType, t.scimUserTimesEmailPrimary)
+            Nothing -> (now, now, Nothing, Nothing)
+          (effTy, effPr) = fromMaybe (storedTy, storedPr) mEmailMeta
+
+      let writeState :: ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()
+          writeState oldManagedBy oldRichInfo storedUser = do
+            when (isNothing accessTimes) $
+              ScimUserTimesStore.write effTy effPr storedUser
             when (oldManagedBy /= ManagedByScim) $ do
               BrigAPIAccess.setManagedBy uid ManagedByScim
               -- Invalidate any pending email-address update: a SCIM-managed user's
@@ -1030,16 +1059,6 @@ synthesizeStoredUser acc veid mEmailMeta =
             let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
             when (oldRichInfo /= newRichInfo) $
               BrigAPIAccess.setRichInfo uid newRichInfo
-
-      (richInfo, accessTimes, baseuri, role) <- lift readState
-      now <- toUTCTimeMillis <$> lift Now.get
-      let (createdAt, lastUpdatedAt) = case accessTimes of
-            Just t -> (t.scimUserTimesCreated, t.scimUserTimesLastUpdated)
-            Nothing -> (now, now)
-          storedTy = accessTimes >>= (.scimUserTimesEmailType)
-          storedPr = accessTimes >>= (.scimUserTimesEmailPrimary)
-          effTy = fromMaybe storedTy (fst <$> mEmailMeta)
-          effPr = fromMaybe storedPr (snd <$> mEmailMeta)
 
       handle <- lift $ Intra.giveDefaultHandle acc
 
@@ -1063,7 +1082,7 @@ synthesizeStoredUser acc veid mEmailMeta =
           baseuri
           acc.userLocale
           (Just role)
-      lift $ writeState accessTimes acc.userManagedBy richInfo effTy effPr storedUser
+      lift $ writeState acc.userManagedBy richInfo storedUser
       pure storedUser
   where
     getRole :: Sem r Role
@@ -1172,7 +1191,7 @@ getUserById midp stiTeam uid = do
       -- function to move it under scim control.
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       handleVeidChange brigUser mbOldVeid veid
-      createValidScimUserSpar stiTeam uid storedUser veid
+      createValidScimUserSpar stiTeam uid veid
       pure storedUser
     _ -> Applicative.empty
   where

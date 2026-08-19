@@ -414,18 +414,25 @@ randomScimUser :: App Value
 randomScimUser = randomScimUserWith def
 
 randomScimUserWithEmail :: String -> String -> App Value
-randomScimUserWithEmail extId email =
+randomScimUserWithEmail extId email = randomScimUserWithEmailAndMeta extId email Nothing Nothing
+
+randomScimUserWithEmailAndMeta :: String -> String -> Maybe String -> Maybe Bool -> App Value
+randomScimUserWithEmailAndMeta extId email ty pr =
   randomScimUserWith
     def
       { mkExternalId = pure extId,
         prependExternalIdToEmails = False,
-        mkOtherEmails = pure [email]
+        mkOtherEmails = pure [email],
+        mkEmailType = pure ty,
+        mkEmailPrimary = pure pr
       }
 
 data RandomScimUserParams = RandomScimUserParams
   { mkExternalId :: App String,
     prependExternalIdToEmails :: Bool, -- NB: this flag is also honored if externalId is not an email!
-    mkOtherEmails :: App [String]
+    mkOtherEmails :: App [String],
+    mkEmailType :: App (Maybe String), -- SCIM `type` attached to each email entry; emitted only when 'Just'.
+    mkEmailPrimary :: App (Maybe Bool) -- SCIM `primary` attached to each email entry; emitted only when 'Just'.
   }
 
 instance Default RandomScimUserParams where
@@ -433,14 +440,21 @@ instance Default RandomScimUserParams where
     RandomScimUserParams
       { mkExternalId = randomEmail,
         prependExternalIdToEmails = True,
-        mkOtherEmails = pure []
+        mkOtherEmails = pure [],
+        mkEmailType = pure Nothing,
+        mkEmailPrimary = pure Nothing
       }
 
 randomScimUserWith :: (HasCallStack) => RandomScimUserParams -> App Value
 randomScimUserWith params = do
   extId <- params.mkExternalId
+  ty <- params.mkEmailType
+  pr <- params.mkEmailPrimary
   emails <- do
-    let mk email = object ["value" .= email]
+    let mk email = object $
+          ["value" .= email]
+            <> ["type" .= t | Just t <- [ty]]
+            <> ["primary" .= p | Just p <- [pr]]
         hd = [extId | params.prependExternalIdToEmails]
     tl <- params.mkOtherEmails
     pure $ Array (fromList (mk <$> (hd <> tl)))

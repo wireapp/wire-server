@@ -2474,6 +2474,8 @@ CREATE TABLE spar_test.scim_external (
 CREATE TABLE spar_test.scim_user_times (
     uid uuid PRIMARY KEY,
     created_at timestamp,
+    email_primary boolean,
+    email_type text,
     last_updated_at timestamp
 ) WITH additional_write_policy = '99p'
     AND bloom_filter_fp_chance = 0.1

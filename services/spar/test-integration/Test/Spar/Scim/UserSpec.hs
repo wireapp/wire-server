@@ -2062,7 +2062,45 @@ specPatchUser = do
             PatchOp.Remove
             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
             Nothing
+    it "scim email metadata round-trip (incl. legacy rows without metadata)" $ do
+      (tok, _) <- registerIdPAndScimToken
+      (user0, email) <- randomScimUserWithEmail
+      -- Provision with explicit metadata; GET must echo it exactly.
+      let wantEmail =
+            Scim.Email.Email
+              (Just "work")
+              (Scim.Email.EmailAddress email)
+              (Just (Scim.ScimBool True))
+          user = user0 {Scim.User.emails = [wantEmail]}
+      storedUser <- createUser tok user
+      let uid :: UserId = scimUserId storedUser
+      getUser tok uid >>= \su -> liftIO $ do
+        (Scim.User.emails . Scim.value . Scim.thing $ su) `shouldBe` [wantEmail]
 
+      -- Simulate a legacy row (provisioned before metadata was stored):
+      -- overwriting the store row with no metadata makes GET echo none.
+      void . runSpar $ ScimUserTimesStore.write Nothing Nothing storedUser
+      getUser tok uid >>= \su -> liftIO $ do
+        (Scim.User.emails . Scim.value . Scim.thing $ su)
+          `shouldBe` [Scim.Email.Email Nothing (Scim.Email.EmailAddress email) Nothing]
+
+      -- Strict round-trip consequence: the value-path filter
+      -- @emails[type eq "work"]@ no longer matches the stored entry, so the
+      -- Add takes the create-on-absent path, appends a second entry, and the
+      -- reduction back to one email keeps the OLD address.
+      suffix <- cs <$> replicateM 7 (randomRIO ('0', '9'))
+      let newEmail = unsafeEmailAddress ("email" <> encodeUtf8 suffix) "example.com"
+          workValuePath =
+            PatchOp.IntoValuePath
+              ( Filter.ValuePath
+                  (Filter.topLevelAttrPath "emails")
+                  (Filter.FilterAttrCompare (Filter.topLevelAttrPath "type") Filter.OpEq (Filter.ValString "work"))
+              )
+              (Just "value")
+          addOp = PatchOp.Operation PatchOp.Add (Just workValuePath) (Just (Aeson.String (fromEmail newEmail)))
+      patchUser tok uid (PatchOp.PatchOp [addOp]) >>= \su -> liftIO $ do
+        (Scim.User.emails . Scim.value . Scim.thing $ su)
+          `shouldBe` [Scim.Email.Email Nothing (Scim.Email.EmailAddress email) Nothing]
     it "doing nothing doesn't change the user" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2344,11 +2382,11 @@ specDeleteUser = do
         aFewTimes (runSpar $ BrigAPIAccess.getAccount Intra.WithPendingInvitations uid) isNothing
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
-      scimUser <-
-        aFewTimes (isNothing <$> runSpar (ScimUserTimesStore.read uid)) id
+      scimUserDeleted <-
+        aFewTimes (runSpar $ ScimUserTimesStore.read uid) isNothing
       liftIO $
-        (brigUser, samlUser, scimUser)
-          `shouldBe` (Nothing, Nothing, True)
+        (brigUser, samlUser, scimUserDeleted)
+          `shouldBe` (Nothing, Nothing, Nothing)
     it "should respond with 204 on deletion (also indempotently)" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser

@@ -739,7 +739,7 @@ setDefaultRoleAndEmailsIfEmpty u =
         xs -> xs,
       -- when the emails field is empty, we try to populate it with the externalId
       Scim.User.emails = case Scim.User.emails u of
-        [] -> maybeToList ((\e -> Scim.Email.Email (Just "work") (Scim.Email.EmailAddress e) Nothing) <$> (emailAddressText =<< (Scim.User.externalId u)))
+        [] -> maybeToList ((\e -> Scim.Email.Email Nothing (Scim.Email.EmailAddress e) Nothing) <$> (emailAddressText =<< (Scim.User.externalId u)))
         xs -> xs
     }
 
