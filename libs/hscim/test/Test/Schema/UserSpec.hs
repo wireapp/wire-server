@@ -178,6 +178,8 @@ spec = do
           Left _ -> error $ "invalid email in test: " <> show raw
         mkUser :: [Email.Email] -> User PatchTag
         mkUser es = (User.empty [] "hello" KeyMap.empty :: User PatchTag) {emails = es}
+        emailTypePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].type"
+        emailPrimaryPath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].primary"
         emailValuePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].value"
     it "creates a work email via Replace when none matches" $ do
       let Right p = emailValuePath
@@ -219,14 +221,14 @@ spec = do
           result = User.applyPatch (mkUser []) (PatchOp [operation])
       result `shouldSatisfy` isLeft
     it "updates the 'type' sub-attribute of matching emails" $ do
-      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].type"
+      let Right p = emailTypePath
           operation = Operation Replace (Just p) (Just (String "custom"))
           result = User.applyPatch (mkUser [mkEmail "work" "a@example.com"]) (PatchOp [operation])
       result `shouldSatisfy` isRight
       let Right patched = result
       emails patched `shouldBe` [mkEmail "custom" "a@example.com"]
     it "updates the 'primary' sub-attribute of matching emails" $ do
-      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].primary"
+      let Right p = emailPrimaryPath
           operation = Operation Replace (Just p) (Just (Bool True))
           result = User.applyPatch (mkUser [mkEmail "work" "a@example.com"]) (PatchOp [operation])
       result `shouldSatisfy` isRight
@@ -270,6 +272,81 @@ spec = do
       result `shouldSatisfy` isRight
       let Right patched = result
       emails patched `shouldBe` [mkEmail "work" "keep@example.com", mkEmail "work" "added@example.com"]
+    it "removes the 'type' sub-attribute, keeping the entry and 'primary'" $ do
+      let Right p = emailTypePath
+          operation = Operation Remove (Just p) Nothing
+          result = User.applyPatch (mkUser [mkEmailPrimary "work" "w@example.com" True]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+          Right addr = validate "w@example.com"
+      emails patched `shouldBe` [Email.Email Nothing (Email.EmailAddress addr) (Just (ScimBool True))]
+    it "removes the 'primary' sub-attribute, keeping the entry and 'type'" $ do
+      let Right p = emailPrimaryPath
+          operation = Operation Remove (Just p) Nothing
+          result = User.applyPatch (mkUser [mkEmailPrimary "work" "w@example.com" True]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "w@example.com"]
+    it "rejects removing the 'value' sub-attribute" $ do
+      let Right p = emailValuePath
+          operation = Operation Remove (Just p) Nothing
+          result = User.applyPatch (mkUser [mkEmail "work" "w@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isLeft
+    it "unassigns 'type' on an explicit null value (RFC 7643 §2.5)" $ do
+      let Right p = emailTypePath
+          operation = Operation Replace (Just p) (Just Null)
+          result = User.applyPatch (mkUser [mkEmailPrimary "work" "w@example.com" True]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+          Right addr = validate "w@example.com"
+      emails patched `shouldBe` [Email.Email Nothing (Email.EmailAddress addr) (Just (ScimBool True))]
+    it "unassigns 'primary' on an explicit null value (RFC 7643 §2.5)" $ do
+      let Right p = emailPrimaryPath
+          operation = Operation Replace (Just p) (Just Null)
+          result = User.applyPatch (mkUser [mkEmailPrimary "work" "w@example.com" True]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` [mkEmail "work" "w@example.com"]
+    it "rejects an explicit null value on the 'value' sub-attribute" $ do
+      let Right p = emailValuePath
+          operation = Operation Replace (Just p) (Just Null)
+          result = User.applyPatch (mkUser [mkEmail "work" "w@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isLeft
+    it "removes all emails on a filterless remove (RFC 7644 §3.5.2.2)" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails"
+          operation = Operation Remove (Just p) Nothing
+          result = User.applyPatch (mkUser [mkEmail "work" "w@example.com", mkEmail "home" "h@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      emails patched `shouldBe` []
+    it "Add with an explicit null value unassigns 'type' like Replace" $ do
+      let Right p = emailTypePath
+          operation = Operation Add (Just p) (Just Null)
+          result = User.applyPatch (mkUser [mkEmailPrimary "work" "w@example.com" True]) (PatchOp [operation])
+      result `shouldSatisfy` isRight
+      let Right patched = result
+          Right addr = validate "w@example.com"
+      emails patched `shouldBe` [Email.Email Nothing (Email.EmailAddress addr) (Just (ScimBool True))]
+    it "rejects removing an unknown emails sub-attribute" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails[type eq \"work\"].displayname"
+          operation = Operation Remove (Just p) Nothing
+          result = User.applyPatch (mkUser [mkEmail "work" "w@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isLeft
+    it "rejects removing an emails sub-attribute without a filter" $ do
+      let Right p = PatchOp.parsePath (User.supportedSchemas @PatchTag) "emails.type"
+          operation = Operation Remove (Just p) Nothing
+          result = User.applyPatch (mkUser [mkEmail "work" "w@example.com"]) (PatchOp [operation])
+      result `shouldSatisfy` isLeft
+    it "unassigns a Maybe-typed attribute on an explicit null value (RFC 7643 §2.5)" $ do
+      let setPath = Just (NormalPath (AttrPath Nothing "displayname" Nothing))
+          result =
+            User.applyPatch (mkUser []) . PatchOp $
+              [ Operation Replace setPath (Just (String "Old")),
+                Operation Replace setPath (Just Null)
+              ]
+      result `shouldSatisfy` isRight
+      let Right patched = result
+      displayName patched `shouldBe` Nothing
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip

@@ -382,18 +382,61 @@ applyUserOperation user (Operation Replace Nothing (Just value)) = do
 applyUserOperation _ (Operation Replace _ Nothing) =
   throwError (badRequest InvalidValue (Just "No value was provided"))
 applyUserOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
-applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
+-- RFC 7644 §3.5.2.2 (Remove Operation): "If the target location is a
+-- single-value attribute, the attribute and its associated value is removed,
+-- and the attribute SHALL be considered unassigned." and: "If the target
+-- location is a multi-valued attribute and no filter is specified, the
+-- attribute and all values are removed, and the attribute SHALL be considered
+-- unassigned."
+--
+-- RFC 7643 §2.5 (Unassigned and Null Values): "Unassigned attributes, the
+-- null value, or an empty array [...] SHALL be considered to be equivalent
+-- in 'state'.  Assigning an attribute with the value 'null' [...] has the
+-- effect of making the attribute 'unassigned'."  Consequently, a @Replace@
+-- with an explicit @null@ value on a 'Maybe'-typed attribute here
+-- (displayname, externalid, active) unassigns it, exactly as @Remove@ does.
+applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr mSubAttr))) _value) =
   case attr of
     "username" -> throwError (badRequest Mutability Nothing)
     "displayname" -> pure $ user {displayName = Nothing}
     "externalid" -> pure $ user {externalId = Nothing}
     "active" -> pure $ user {active = Nothing}
     "roles" -> pure $ user {roles = []}
+    "emails" -> case mSubAttr of
+      -- Unfiltered remove of the multi-valued attribute itself.
+      Nothing -> pure $ user {emails = []}
+      -- A sub-attribute without a filter would have to hit every entry;
+      -- require the explicit value-path form instead (and keep @.value@
+      -- protected there).
+      Just _ ->
+        throwError
+          ( badRequest
+              InvalidPath
+              (Just "removing a sub-attribute of 'emails' requires a value-path filter, e.g. emails[type eq \\\"work\\\"].type")
+          )
     _ -> pure user
-applyUserOperation user (Operation Remove (Just (IntoValuePath vp _mSub)) _) =
+-- RFC 7644 §3.5.2.2 (Remove Operation): "If the target location is a complex
+-- multi-valued attribute and a complex filter is specified based on the
+-- attribute's sub-attributes, the matching records are removed.
+-- Sub-attributes whose values have been removed SHALL be considered
+-- unassigned."  With a sub-attribute target (RFC 7644 §3.5.2: PATH = attrPath
+-- / valuePath [subAttr], Figure 7), the sub-attribute becomes *unassigned* on
+-- each matching entry and the record itself is kept -- implemented by reusing
+-- the null-unassignment of 'replaceEmailsValuePath' (RFC 7643 §2.5: remove of
+-- a sub-attribute is equivalent to assigning null).
+applyUserOperation user (Operation Remove (Just (IntoValuePath vp mSub)) _) =
   case vp of
     ValuePath (AttrPath _ attr _) _
-      | attr == "emails" -> pure user {emails = removeMatchingEmails vp (emails user)}
+      | attr == "emails" -> case mSub of
+          Just (SubAttr sub)
+            | sub == "value" ->
+                throwError
+                  ( badRequest
+                      InvalidPath
+                      (Just "removing the 'value' sub-attribute of 'emails' is not supported; remove the whole entry instead")
+                  )
+            | otherwise -> replaceEmailsValuePath user vp mSub Null
+          Nothing -> pure user {emails = removeMatchingEmails vp (emails user)}
       | otherwise ->
           throwError
             ( badRequest
@@ -420,6 +463,12 @@ applyUserOperation user (Operation Remove (Just (IntoValuePath vp _mSub)) _) =
 -- 'replaceEmailValue', which deviates from the RFC: when the filter is
 -- @type eq <s>@ and no entry matches, it appends
 -- @Email { typ = Just s, value = newVal, primary = Nothing }@.
+--
+-- @Remove@ honors the sub-attribute (RFC 7644 §3.5.2: PATH = valuePath
+-- [subAttr]): @remove emails[type eq "work"].type@\/@.primary@ unassigns just
+-- that field and keeps the entry; a filterless @remove emails@ clears all
+-- entries. @.value@ cannot be removed or nulled (400) -- the address is the
+-- record's identity in brig.
 
 -- | Textual form of an 'Email' address, for string comparison.
 emailValueText :: Email -> Text
@@ -534,15 +583,31 @@ replaceEmailsValuePath user vp mSub val =
       es = emails user
    in case mSub of
         Just (SubAttr sub)
-          | sub == "value" -> do
-              newAddr <- resultToScimError (fromJSON val)
-              pure user {emails = replaceEmailValue flt newAddr es}
-          | sub == "type" -> do
-              t <- resultToScimError (fromJSON val)
-              pure user {emails = setEmailField flt (\e -> e {typ = Just t}) es}
-          | sub == "primary" -> do
-              b <- resultToScimError (fromJSON val)
-              pure user {emails = setEmailField flt (\e -> e {primary = Just b}) es}
+          -- RFC 7643 §2.5 (Unassigned and Null Values): "Assigning an
+          -- attribute with the value 'null' or an empty array [...] has the
+          -- effect of making the attribute 'unassigned'." Assigning an
+          -- explicit null therefore unassigns 'type'/'primary'; 'value' cannot
+          -- be unassigned (the address is the record's identity in brig).
+          | sub == "value" -> case val of
+              Null ->
+                throwError
+                  ( badRequest
+                      InvalidPath
+                      (Just "setting the 'value' sub-attribute of 'emails' to null is not supported; remove the whole entry instead")
+                  )
+              _ -> do
+                newAddr <- resultToScimError (fromJSON val)
+                pure user {emails = replaceEmailValue flt newAddr es}
+          | sub == "type" -> case val of
+              Null -> pure user {emails = setEmailField flt (\e -> e {typ = Nothing}) es}
+              _ -> do
+                t <- resultToScimError (fromJSON val)
+                pure user {emails = setEmailField flt (\e -> e {typ = Just t}) es}
+          | sub == "primary" -> case val of
+              Null -> pure user {emails = setEmailField flt (\e -> e {primary = Nothing}) es}
+              _ -> do
+                b <- resultToScimError (fromJSON val)
+                pure user {emails = setEmailField flt (\e -> e {primary = Just b}) es}
           | otherwise ->
               throwError
                 ( badRequest
@@ -553,11 +618,10 @@ replaceEmailsValuePath user vp mSub val =
           newEmails <- decodeEmails val
           pure user {emails = foldr (replaceEmailEntry flt) es newEmails}
 
--- | Drop every email matching the value-path filter (used by @Remove@).
---
--- NOTE: a sub-attribute on the path (e.g. @emails[type eq "work"].value@) is
--- ignored -- @Remove@ always drops the whole matching entry. (Clearing just the
--- @.value@ is infeasible anyway, since 'Email.value' is non-nullable.)
+-- | Drop every email matching the value-path filter (used by @Remove@ without a
+-- sub-attribute). A @Remove@ targeting a sub-attribute (e.g.
+-- @emails[type eq "work"].type@) is handled in 'applyUserOperation', which
+-- unassigns just that field and keeps the entry (RFC 7644 §3.5.2.2).
 removeMatchingEmails :: ValuePath -> [Email] -> [Email]
 removeMatchingEmails vp = filter (not . emailMatches (valuePathFilter vp))
 

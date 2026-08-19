@@ -2115,6 +2115,56 @@ specPatchUser = do
       patchUser tok uid (PatchOp.PatchOp [addOp]) >>= \su -> liftIO $ do
         (Scim.User.emails . Scim.value . Scim.thing $ su)
           `shouldBe` [Scim.Email.Email Nothing (Scim.Email.EmailAddress email) Nothing]
+
+    -- RFC 7644 §3.5.2.2: removing a sub-attribute unassigns it and keeps the
+    -- record; RFC 7643 §2.5: assigning null is equivalent to unassignment.
+    it "scim email type can be removed / nulled without collateral erasure" $ do
+      (tok, _) <- registerIdPAndScimToken
+      (user0, email) <- randomScimUserWithEmail
+      let wantEmail =
+            Scim.Email.Email
+              (Just "work")
+              (Scim.Email.EmailAddress email)
+              (Just (Scim.ScimBool True))
+          user = user0 {Scim.User.emails = [wantEmail]}
+          typePath =
+            PatchOp.IntoValuePath
+              ( Filter.ValuePath
+                  (Filter.topLevelAttrPath "emails")
+                  (Filter.FilterAttrCompare (Filter.topLevelAttrPath "type") Filter.OpEq (Filter.ValString "work"))
+              )
+              (Just "type")
+          expectKept addr su = liftIO $ do
+            (Scim.User.emails . Scim.value . Scim.thing $ su)
+              `shouldBe` [Scim.Email.Email Nothing (Scim.Email.EmailAddress addr) (Just (Scim.ScimBool True))]
+
+      -- remove emails[type eq "work"].type
+      storedUser <- createUser tok user
+      let uid :: UserId = scimUserId storedUser
+      patchUser tok uid (PatchOp.PatchOp [PatchOp.Operation PatchOp.Remove (Just typePath) Nothing])
+        >>= expectKept email
+      Just times <- runSpar $ ScimUserTimesStore.read uid
+      liftIO $ do
+        times.scimUserTimesEmailType `shouldBe` Nothing
+        times.scimUserTimesEmailPrimary `shouldBe` Just True
+
+      -- replace emails[type eq "work"].type with "value": null
+      -- (fresh user: a type-less entry no longer matches the filter)
+      (user0', email') <- randomScimUserWithEmail
+      let wantEmail' =
+            Scim.Email.Email
+              (Just "work")
+              (Scim.Email.EmailAddress email')
+              (Just (Scim.ScimBool True))
+          user' = user0' {Scim.User.emails = [wantEmail']}
+      storedUser' <- createUser tok user'
+      let uid' :: UserId = scimUserId storedUser'
+      patchUser tok uid' (PatchOp.PatchOp [PatchOp.Operation PatchOp.Replace (Just typePath) (Just Aeson.Null)])
+        >>= expectKept email'
+      Just times' <- runSpar $ ScimUserTimesStore.read uid'
+      liftIO $ do
+        times'.scimUserTimesEmailType `shouldBe` Nothing
+        times'.scimUserTimesEmailPrimary `shouldBe` Just True
     it "doing nothing doesn't change the user" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
