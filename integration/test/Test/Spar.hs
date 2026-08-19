@@ -430,6 +430,24 @@ testSparScimEmailMetaRoundTrip = do
     res.status `shouldMatchInt` 200
     res.json %. "emails" `shouldMatch` [object ["value" .= email2]]
 
+-- | Non-"work" email types are accepted and echoed verbatim (no normalization
+-- to "work").
+testSparScimEmailTypeNonWorkEcho :: (HasCallStack) => App ()
+testSparScimEmailTypeNonWorkEcho = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  mapM_
+    ( \ty -> do
+        extId <- randomExternalId
+        email <- randomEmail
+        scimUser <- randomScimUserWithEmailAndMeta extId email (Just ty) Nothing
+        userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+        getScimUser OwnDomain tok userId `bindResponse` \res -> do
+          res.status `shouldMatchInt` 200
+          res.json %. "emails" `shouldMatch` [object ["value" .= email, "type" .= ty]]
+    )
+    ["home", "other"]
+
 testSparRejectsMultiplePrimaryEmails :: (HasCallStack) => App ()
 testSparRejectsMultiplePrimaryEmails = do
   (owner, _tid, _) <- createTeam OwnDomain 1

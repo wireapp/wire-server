@@ -1512,6 +1512,20 @@ specGetUser = describe "GET /Users/:id" $ do
   it "finds a user that has no handle, and gives it a default handle before responding with it" testGetUserWithNoHandle
   it "doesn't find a deleted user" testGetNoDeletedUsers
   it "doesn't find users from other teams" testUserGetFailsWithNotFoundIfOutsideTeam
+  it "echoes a non-'work' email type verbatim" testGetUserEmailTypeNonWork
+
+-- | Non-"work" email types are accepted (createUser asserts 201) and echoed
+-- verbatim on GET.
+testGetUserEmailTypeNonWork :: TestSpar ()
+testGetUserEmailTypeNonWork = do
+  (tok, _) <- registerIdPAndScimToken
+  (user0, email) <- randomScimUserWithEmail
+  let wantEmail = Scim.Email.Email (Just "home") (Scim.Email.EmailAddress email) Nothing
+      user = user0 {Scim.User.emails = [wantEmail]}
+  storedUser <- createUser tok user
+  getUser tok (scimUserId storedUser) >>= \su ->
+    liftIO $
+      (Scim.User.emails . Scim.value . Scim.thing $ su) `shouldBe` [wantEmail]
 
 -- | Test that a SCIM-provisioned user is fetchable.
 testGetUser :: TestSpar ()
