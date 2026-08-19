@@ -36,7 +36,6 @@
 , currency-codes
 , data-default
 , deriving-aeson
-, directory
 , deriving-swagger2
 , email-validate
 , errors
@@ -261,7 +260,6 @@ mkDerivation {
     crypton-pem
     currency-codes
     data-default
-    directory
     file-embed
     filepath
     hex

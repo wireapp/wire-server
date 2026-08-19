@@ -753,7 +753,6 @@ test-suite wire-api-tests
     , containers             >=0.5
     , crypton
     , data-default
-    , directory
     , file-embed
     , filepath
     , hex
