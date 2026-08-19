@@ -173,8 +173,8 @@ tests =
           ],
       testGroup "Meeting V15" $
         testObjects
-          [ (Versioned @'V15 testObject_Meeting_manual_1, "testObject_Meeting_v15_manual_1.json"),
-            (Versioned @'V15 testObject_Meeting_manual_2, "testObject_Meeting_v15_manual_2.json")
+          [ (testObject_MeetingV16_manual_1, "testObject_Meeting_v15_manual_1.json"),
+            (testObject_MeetingV16_manual_2, "testObject_Meeting_v15_manual_2.json")
           ],
       testGroup "Meeting" $
         testObjects

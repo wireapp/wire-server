@@ -112,6 +112,7 @@
 , tinylog
 , transformers
 , types-common
+, tz
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -225,6 +226,7 @@ mkDerivation {
     tinylog
     transformers
     types-common
+    tz
     unordered-containers
     uri-bytestring
     utf8-string

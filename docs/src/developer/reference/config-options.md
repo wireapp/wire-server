@@ -282,6 +282,13 @@ points at the path where the SMTP password is read, and
 path into `transport.smtpCredentials.smtpPassword`, the same pattern Brig uses
 for `smtp.passwordFile`.
 
+### Meetings time settings
+
+The `galley.config.settings.meetings.legacyTimeZone` Helm value is an IANA time
+zone id (e.g. `"Europe/Berlin"`, the default) used as the `tzid` for meetings
+created by legacy clients (< V17), which send an `end_time` instead of the V17
+`duration` + `tzid` fields. It has no effect on V17+ clients.
+
 ### Meetings Premium (deprecated)
 
 > **Deprecated (WPB-26771).** The `meetingsPremium` feature flag no longer

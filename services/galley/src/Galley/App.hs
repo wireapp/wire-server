@@ -90,6 +90,7 @@ import Wire.API.Error.Galley (GalleyError (..), NonFederatingBackends, Operation
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
+import Wire.API.Meeting (defaultLegacyTimeZone, parseTimeZone)
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
@@ -564,10 +565,12 @@ evalGalley e =
             }
         . interpretMeetingNotifier
         . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
+        . Meeting.interpretMeetingsSubsystem meetingLegacyTimeZone meetingValidityPeriod
   where
     meetingValidityPeriod =
       realToFrac $ maybe (48 * 3600) (.duration) (e ^. options . settings . meetings >>= view validityPeriod)
+    meetingLegacyTimeZone =
+      fromMaybe defaultLegacyTimeZone (e ^. options . settings . meetings >>= view legacyTimeZone >>= parseTimeZone)
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)

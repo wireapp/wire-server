@@ -141,6 +141,7 @@ galley:
 
       meetings:
         validityPeriod: "48h"
+        legacyTimeZone: "Europe/Berlin"
         # Optional. When set, meeting invitation emails are sent with this
         # sender over the configured transport (SES xor SMTP). `useSES` selects
         # the transport; `aws` is used when true, `smtp` when false (mirrors

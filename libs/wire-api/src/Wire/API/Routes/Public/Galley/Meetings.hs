@@ -27,7 +27,6 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
-import Wire.API.Routes.Versioned
 
 type MeetingsAPI =
   Named
@@ -38,14 +37,14 @@ type MeetingsAPI =
         :> ZLocalUser
         :> ZConn
         :> "meetings"
-        :> ReqBody '[JSON] NewMeeting
+        :> ReqBody '[JSON] NewMeetingV16
         :> CanThrow 'InvalidOperation
         :> CanThrow UnreachableBackends
         :> MultiVerb
              'POST
              '[JSON]
-             '[VersionedRespond 'V15 201 "Meeting created" MeetingWithConversation]
-             MeetingWithConversation
+             '[Respond 201 "Meeting created" MeetingWithConversationV16]
+             MeetingWithConversationV16
     )
     :<|> Named
            "create-meeting"
@@ -76,12 +75,12 @@ type MeetingsAPI =
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidOperation
-               :> ReqBody '[JSON] UpdateMeeting
+               :> ReqBody '[JSON] UpdateMeetingV16
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    '[VersionedRespond 'V15 200 "Meeting updated" MeetingWithConversation]
-                    MeetingWithConversation
+                    '[Respond 200 "Meeting updated" MeetingWithConversationV16]
+                    MeetingWithConversationV16
            )
     :<|> Named
            "update-meeting"
@@ -132,7 +131,7 @@ type MeetingsAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    (VersionedRespond 'V15 200 "A single meeting by ID" Meeting)
+                    (Respond 200 "A single meeting by ID" MeetingV16)
            )
     :<|> Named
            "get-meeting"
@@ -156,7 +155,7 @@ type MeetingsAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    (VersionedRespond 'V16 200 "List of meetings for the authenticated user" [Meeting])
+                    (Respond 200 "List of meetings for the authenticated user" [MeetingV16])
            )
     :<|> Named
            "list-meetings"

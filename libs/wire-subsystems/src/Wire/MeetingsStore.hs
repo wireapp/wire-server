@@ -29,7 +29,7 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Imports
 import Polysemy
-import Wire.API.Meeting (Recurrence (..))
+import Wire.API.Meeting (Recurrence (..), TimeZone, parseTimeZone, renderTimeZone)
 import Wire.API.PostgresMarshall
 import Wire.API.User.EmailAddress (emailAddressText, fromEmail)
 import Wire.API.User.Identity (EmailAddress)
@@ -43,8 +43,11 @@ data StoredMeeting = StoredMeeting
     creator :: UserId,
     -- | start time of the meeting
     startTime :: UTCTime,
-    -- | end time of the meeting
+    -- | end time of the meeting (the indexed effective-end column)
     endTime :: UTCTime,
+    -- | IANA time zone identifier of the meeting (NOT NULL; backfilled to
+    -- 'defaultLegacyTimeZone' and always supplied on create)
+    tzid :: TimeZone,
     -- | optional recurrence pattern
     recurrence :: Maybe Recurrence,
     -- | conversation where the meeting belongs
@@ -62,8 +65,8 @@ data StoredMeeting = StoredMeeting
 
 -- | Effective end time of a meeting for expiry and cleanup decisions.
 --
--- * No recurrence: the meeting's 'endTime'.
--- * Bounded recurrence ('until' set): 'max endTime until' -- the meeting is
+-- * No recurrence: end_time.
+-- * Bounded recurrence ('until' set): @max end_time until@ -- the meeting is
 --   still alive while its recurrence window is open, even if the original
 --   time slot has passed.
 -- * Open-ended recurrence ('until' = 'Nothing'): 'Nothing' -- the meeting
@@ -80,6 +83,7 @@ type StoredMeetingTuple =
     UUID, -- creator
     UTCTime, -- start_time
     UTCTime, -- end_time
+    Text, -- tzid
     Maybe Text, -- recurrence_frequency
     Maybe Int32, -- recurrence_interval
     Maybe UTCTime, -- recurrence_until
@@ -98,6 +102,7 @@ instance PostgresMarshall StoredMeetingTuple StoredMeeting where
           toUUID storedMeeting.creator,
           storedMeeting.startTime,
           storedMeeting.endTime,
+          renderTimeZone storedMeeting.tzid,
           rFreq,
           rInterval,
           rUntil,
@@ -115,6 +120,7 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       creator',
       startTime',
       endTime',
+      tzid',
       rFreq,
       rInterval,
       rUntil,
@@ -126,6 +132,7 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       ) = do
       rTitle <- first T.pack $ checkedEither title'
       recurrence' <- postgresUnmarshall (rFreq, rInterval, rUntil)
+      tzid'' <- maybe (Left "invalid tzid") Right (parseTimeZone tzid')
       pure
         StoredMeeting
           { id = Id id',
@@ -133,6 +140,7 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
             creator = Id creator',
             startTime = startTime',
             endTime = endTime',
+            tzid = tzid'',
             recurrence = recurrence',
             conversationId = Id conversationId',
             invitedEmails = mapMaybe emailAddressText (V.toList invitedEmails'),
@@ -147,6 +155,7 @@ data MeetingsStore m a where
     UserId ->
     UTCTime ->
     UTCTime ->
+    TimeZone ->
     Maybe Recurrence ->
     ConvId ->
     [EmailAddress] ->

@@ -61,6 +61,7 @@ module Wire.Options.Galley
     checkGroupInfo,
     meetings,
     validityPeriod,
+    legacyTimeZone,
     email,
     MeetingsEmailConfig (..),
     postgresMigration,
@@ -183,7 +184,12 @@ data MeetingsConfig = MeetingsConfig
     _validityPeriod :: !(Maybe Duration),
     -- | Email sending configuration for meeting invitations. When unset, no
     -- meeting invitation emails are sent.
-    _email :: !(Maybe MeetingsEmailConfig)
+    _email :: !(Maybe MeetingsEmailConfig),
+    -- | Default IANA time zone id (e.g. @"Europe/Berlin"@) injected when legacy
+    -- clients (< V17) create meetings that carry no @tzid@ (V17 adds it).
+    -- Resolved in 'Galley.App' via 'parseTimeZone'; defaults
+    -- to @"Europe/Berlin"@ when unset or invalid.
+    _legacyTimeZone :: !(Maybe Text)
   }
   deriving (Show, Generic)
 

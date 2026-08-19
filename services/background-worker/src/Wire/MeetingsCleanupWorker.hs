@@ -29,6 +29,7 @@ import Imports
 import Polysemy.Error (runError)
 import Prometheus (incCounter)
 import System.Logger qualified as Log
+import Wire.API.Meeting (defaultLegacyTimeZone)
 import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..))
 import Wire.Effects
 import Wire.ExternalAccess.External
@@ -101,7 +102,7 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
     . runBackgroundWorkerEffects env extEnv (RequestId "meetings-cleanup") Nothing
     . interpretMeetingsStoreToPostgres
     . runError @MeetingError
-    . interpretMeetingsSubsystem validityPeriod
+    . interpretMeetingsSubsystem defaultLegacyTimeZone validityPeriod
     $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
 
 data WorkerException = WorkerException Text

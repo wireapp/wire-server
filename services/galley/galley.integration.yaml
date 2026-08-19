@@ -93,6 +93,7 @@ settings:
 
   meetings:
     validityPeriod: "5s"
+    legacyTimeZone: "Europe/Berlin"
     email:
       from: meetings@integration.example.com
       replyTo: reply@integration.example.com

@@ -33,7 +33,7 @@ inMemoryMeetingsStoreInterpreter ::
   (Member (State (Map MeetingId StoredMeeting)) r, Member Now r, Member Random r) =>
   InterpreterFor MeetingsStore r
 inMemoryMeetingsStoreInterpreter = interpret $ \case
-  CreateMeeting title creator startTime endTime recurrence conversationId invitedEmails trial -> do
+  CreateMeeting title creator startTime endTime tzid recurrence conversationId invitedEmails trial -> do
     mid <- Random.newId
     now <- Now.get
     let sm =
@@ -43,6 +43,7 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
               creator = creator,
               startTime = startTime,
               endTime = endTime,
+              tzid = tzid,
               recurrence = recurrence,
               conversationId = conversationId,
               invitedEmails = invitedEmails,
@@ -62,11 +63,13 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
         let updatedMeeting =
               meeting
                 { title = fromMaybe (meeting.title) title,
-                  startTime = fromMaybe meeting.startTime startTime,
+                  startTime = startTime',
                   endTime = fromMaybe meeting.endTime endTime,
                   recurrence = fromMaybe meeting.recurrence recurrence,
                   updatedAt = now
                 }
+              where
+                startTime' = fromMaybe meeting.startTime startTime
         modify (Map.insert mid updatedMeeting) >> pure (Just updatedMeeting)
   ListMeetingsByUser userId cutoffTime ->
     gets $
