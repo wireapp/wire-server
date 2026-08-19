@@ -103,9 +103,9 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
     . interpretMeetingsStoreToPostgres
     . runError @MeetingError
     -- Cleanup performs no meeting updates, so the past-edit period is
-    -- unused; passing the retention period for both periods trivially
-    -- satisfies validityPeriod >= pastEditPeriod.
-    . interpretMeetingsSubsystem defaultLegacyTimeZone validityPeriod validityPeriod
+    -- unused; pass 0 to keep the (inert) limit as tight as possible.
+    . interpretMeetingsSubsystem
+      MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
     $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
 
 data WorkerException = WorkerException Text

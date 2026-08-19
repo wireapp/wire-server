@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.MeetingsSubsystem.Interpreter
-  ( interpretMeetingsSubsystem,
+  ( MeetingSystemConfig (..),
+    interpretMeetingsSubsystem,
     startTimeTolerance,
     MeetingError (..),
   )
@@ -100,6 +101,17 @@ meetingsFeatureEnabled maybeTeamId =
       meetingFeature <- getFeatureForTeam @_ @MeetingsConfig teamId
       pure (meetingFeature.status == FeatureStatusEnabled)
 
+-- | System-wide meeting configuration: the legacy time zone used for V16
+-- meetings, how long meetings stay alive after their effective end time, and
+-- how far into the past an update may move a meeting's times. Invariant
+-- (checked by callers at startup where configurable): @pastEditPeriod <=
+-- validityPeriod@, so an edited meeting stays within the validity window.
+data MeetingSystemConfig = MeetingSystemConfig
+  { legacyTimeZone :: !API.TimeZone,
+    validityPeriod :: !NominalDiffTime,
+    pastEditPeriod :: !NominalDiffTime
+  }
+
 interpretMeetingsSubsystem ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
@@ -111,37 +123,34 @@ interpretMeetingsSubsystem ::
     Member (Error MeetingError) r,
     Member (Input (Local ())) r
   ) =>
-  -- Takes the legacy time zone for V16 meetings, then the validity period,
-  -- then the past-edit period.
-  API.TimeZone ->
-  NominalDiffTime ->
-  NominalDiffTime ->
+  -- | System-wide meeting configuration.
+  MeetingSystemConfig ->
   InterpreterFor MeetingsSubsystem r
-interpretMeetingsSubsystem legacyTz validityPeriod pastEditPeriod = interpret $ \case
+interpretMeetingsSubsystem cfg = interpret $ \case
   CreateMeeting zUser connId newMeeting ->
     createMeetingImpl zUser connId newMeeting
   UpdateMeeting zUser connId meetingId update ->
-    updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod
+    updateMeetingImpl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   DeleteMeeting zUser connId meetingId ->
-    deleteMeetingImpl zUser connId meetingId validityPeriod
+    deleteMeetingImpl zUser connId meetingId cfg.validityPeriod
   GetMeeting zUser meetingId ->
-    getMeetingImpl zUser meetingId validityPeriod
+    getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetings zUser ->
-    listMeetingsImpl zUser validityPeriod
+    listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV16 zUser connId newMeeting ->
-    API.toLegacyWithConv <$> createMeetingImpl zUser connId (API.fromLegacyNewMeeting legacyTz newMeeting)
+    API.toLegacyWithConv <$> createMeetingImpl zUser connId (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting)
   UpdateMeetingV16 zUser connId meetingId update ->
-    updateMeetingV16Impl zUser connId meetingId update validityPeriod pastEditPeriod
+    updateMeetingV16Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   GetMeetingV16 zUser meetingId ->
-    fmap API.toLegacy <$> getMeetingImpl zUser meetingId validityPeriod
+    fmap API.toLegacy <$> getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetingsV16 zUser ->
-    map API.toLegacy <$> listMeetingsImpl zUser validityPeriod
+    map API.toLegacy <$> listMeetingsImpl zUser cfg.validityPeriod
   AddInvitedEmails zUser meetingId emails ->
-    addInvitedEmailsImpl zUser meetingId emails validityPeriod
+    addInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
   RemoveInvitedEmails zUser meetingId emails ->
-    removeInvitedEmailsImpl zUser meetingId emails validityPeriod
+    removeInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
   ReplaceInvitedEmails zUser meetingId emails ->
-    replaceInvitedEmailsImpl zUser meetingId emails validityPeriod
+    replaceInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
   CleanupOldMeetings cutoffTime batchSize ->
     cleanupOldMeetingsImpl cutoffTime batchSize
 
@@ -250,6 +259,9 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
+    -- Creation enforces endTime > startTime (createMeetingImpl); re-establish
+    -- the invariant on the *effective* times after this update, since either
+    -- bound may change independently.
     when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
         throw InvalidTimes

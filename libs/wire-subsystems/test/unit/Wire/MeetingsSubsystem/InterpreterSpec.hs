@@ -140,7 +140,12 @@ runTestStack now gen teams configs =
     . inMemoryConversationSubsystemInterpreter
     . inMemoryMeetingsStoreInterpreter
     . interpretMeetingNotifier
-    . interpretMeetingsSubsystem API.defaultLegacyTimeZone 3600 expectedPastEditPeriod
+    . interpretMeetingsSubsystem
+      MeetingSystemConfig
+        { legacyTimeZone = API.defaultLegacyTimeZone,
+          validityPeriod = 3600,
+          pastEditPeriod = configuredPastEditPeriod
+        }
 
 -- | Decode all 'Push' payloads that are meeting lifecycle events. Any push that
 -- decodes as a 'MeetingEvent.Event' is one: conversation events use distinct
@@ -467,7 +472,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         let update =
               API.UpdateMeeting
-                { startTime = Just (addUTCTime (negate expectedPastEditPeriod) now),
+                { startTime = Just (addUTCTime (negate configuredPastEditPeriod) now),
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing
@@ -493,7 +498,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         let update =
               API.UpdateMeeting
-                { startTime = Just (addUTCTime (negate (expectedPastEditPeriod + 1)) now),
+                { startTime = Just (addUTCTime (negate (configuredPastEditPeriod + 1)) now),
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing
@@ -518,7 +523,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         let update =
               API.UpdateMeeting
                 { startTime = Just (addUTCTime (negate 7200) now),
-                  endTime = Just (addUTCTime (negate (expectedPastEditPeriod + 1)) now),
+                  endTime = Just (addUTCTime (negate (configuredPastEditPeriod + 1)) now),
                   title = Nothing,
                   recurrence = Nothing
                 }
@@ -1736,9 +1741,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 expectedStartTimeTolerance :: NominalDiffTime
 expectedStartTimeTolerance = 60
 
--- | Past-edit window configured in 'runTestStack' (third interpreter arg).
-expectedPastEditPeriod :: NominalDiffTime
-expectedPastEditPeriod = 3600
+-- | Past-edit window configured in 'runTestStack'.
+configuredPastEditPeriod :: NominalDiffTime
+configuredPastEditPeriod = 3600
 
 -- | Validity window, beyond this one-time meeting belong to the past
 validityWindow :: NominalDiffTime

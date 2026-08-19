@@ -257,10 +257,11 @@ the end of its recurrence window for recurring meetings; open-ended recurring
 meetings never expire. `settings.meetings.pastEditPeriod` (default `24h`) bounds how
 far into the past `PUT /meetings/{domain}/{id}` may move a meeting's
 `start_time`/`end_time`, so past and ongoing meetings can be corrected to what
-actually happened. Only newly provided time values are checked; unchanged
-stored times are not re-validated. Galley refuses to start if
-`pastEditPeriod` is greater than `validityPeriod`, so a meeting edited to past
-times stays inside the validity window and remains visible and editable.
+actually happened. Only provided time values are checked against this cutoff;
+unchanged stored times are not re-validated — but the effective times (provided
+or stored) must still satisfy `end_time > start_time`. Galley refuses to start
+if `pastEditPeriod` is negative or greater than `validityPeriod`, so a meeting
+edited to past times stays inside the validity window and remains visible and editable.
 
 ```yaml
 # galley.yaml

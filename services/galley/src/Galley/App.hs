@@ -54,7 +54,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Data.Time.Clock (NominalDiffTime, secondsToDiffTime)
+import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Monad (runApp)
@@ -305,13 +305,15 @@ type GalleyEffects =
      Final IO
    ]
 
--- | Resolved (validityPeriod, pastEditPeriod) for meetings, with
--- defaults 48h / 24h.
-meetingPeriods :: Opts -> (NominalDiffTime, NominalDiffTime)
-meetingPeriods o =
-  ( realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
-    realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod)
-  )
+-- | Resolved meeting system config, with defaults 48h validity / 24h
+-- past-edit period.
+meetingSystemConfig :: Opts -> Meeting.MeetingSystemConfig
+meetingSystemConfig o =
+  Meeting.MeetingSystemConfig
+    { legacyTimeZone = fromMaybe defaultLegacyTimeZone (m >>= view legacyTimeZone >>= parseTimeZone),
+      validityPeriod = realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
+      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod)
+    }
   where
     m = o ^. settings . meetings
 
@@ -324,8 +326,8 @@ validateOptions o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
-  let (meetingValidity, meetingPastEdit) = meetingPeriods o
-  when (meetingPastEdit < 0 || meetingPastEdit > meetingValidity) $
+  let meetingsCfg = meetingSystemConfig o
+  when (meetingsCfg.pastEditPeriod < 0 || meetingsCfg.pastEditPeriod > meetingsCfg.validityPeriod) $
     error "settings.meetings.pastEditPeriod must be non-negative and cannot be greater than settings.meetings.validityPeriod"
   case (o ^. O.federator, o ^. rabbitmq) of
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
@@ -579,11 +581,8 @@ evalGalley e =
             }
         . interpretMeetingNotifier
         . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem meetingLegacyTimeZone meetingValidityPeriod meetingPastEditPeriod
+        . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
   where
-    (meetingValidityPeriod, meetingPastEditPeriod) = meetingPeriods (e ^. options)
-    meetingLegacyTimeZone =
-      fromMaybe defaultLegacyTimeZone (e ^. options . settings . meetings >>= view legacyTimeZone >>= parseTimeZone)
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)
