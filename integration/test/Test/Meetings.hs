@@ -44,6 +44,8 @@ testMeetingCreate = do
   -- The full conversation is returned alongside the legacy field
   assertConversationMatchesLegacy meeting
 
+  meeting %. "conversation" %. "access" `shouldMatchSet` ["invite", "code"]
+
   -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   r2 <- getMeeting owner domain meetingId
