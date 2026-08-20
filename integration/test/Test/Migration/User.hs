@@ -490,8 +490,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
     deletePersonalUsers :: (HasCallStack, MakesValue mel, ToWSConnect mel) => mel -> Map String (Value, Maybe String) -> App ()
     deletePersonalUsers mel users =
       withWebSocket mel $ \wsMel -> do
-        pooledForConcurrentlyN_ parallelism users $ \(user, mPw) ->
-          deleteUserWithPassword user mPw
+        pooledForConcurrentlyN_ parallelism users $ uncurry deleteUserWithPassword
         void $ awaitNMatches (Map.size users) isDeleteUserNotif wsMel
 
     createConvsAndAddBot :: (HasCallStack, MakesValue user) => String -> user -> Maybe String -> String -> String -> Int -> App (Map String (Value, Value))

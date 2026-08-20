@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
+
 
 module Wire.UserStore.Migration where
 
