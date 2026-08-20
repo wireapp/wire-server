@@ -1,6 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
-{-# OPTIONS_GHC -Wwarn #-}
 
 -- | The migration has these phases.
 -- 1. Write to cassandra (before any migration activity)
@@ -25,7 +24,6 @@ import API.Spar
 import Control.Applicative
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
