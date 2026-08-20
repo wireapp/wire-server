@@ -33,8 +33,7 @@ import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Resource (Resource)
 import Polysemy.Time
-import Polysemy.TinyLog (TinyLog, warn)
-import System.Logger.Message qualified as Log
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature (FeatureStatus)
@@ -223,7 +222,6 @@ runAppropriateInterpreter casClient uid action =
       else interpretUserStoreCassandra casClient action
 
 paginateOverCassandraAndPostgres ::
-  (Member TinyLog r) =>
   (Int32 -> Maybe (GeneralPaginationState pgMarker) -> Sem r (PageWithState pgMarker pageItem)) ->
   (Int32 -> Maybe (GeneralPaginationState pgMarker) -> Sem r (PageWithState pgMarker pageItem)) ->
   pgMarker ->
@@ -233,10 +231,6 @@ paginateOverCassandraAndPostgres ::
 paginateOverCassandraAndPostgres getCasPage getPgPage pgStartingMarker pageSize mPagingState = do
   let getPageFromCassandra = do
         casPage <- getCasPage pageSize mPagingState
-        warn $
-          Log.msg (Log.val "-------------> Got cas page")
-            . Log.field "size" (show $ length casPage.pwsResults)
-            . Log.field "hasMore" (pwsHasMore casPage)
         if pwsHasMore casPage
           then pure casPage
           else do
@@ -245,10 +239,6 @@ paginateOverCassandraAndPostgres getCasPage getPgPage pgStartingMarker pageSize 
             if remainingSize > 0
               then do
                 pgPage <- getPageFromPostgres remainingSize Nothing
-                warn $
-                  Log.msg (Log.val "-------------> Got pg page")
-                    . Log.field "size" (show $ length pgPage.pwsResults)
-                    . Log.field "hasMore" (pwsHasMore pgPage)
                 pure
                   PageWithState
                     { pwsResults = casPage.pwsResults <> pgPage.pwsResults,
