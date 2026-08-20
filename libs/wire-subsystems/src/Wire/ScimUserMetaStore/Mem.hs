@@ -17,27 +17,34 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ScimUserTimesStore.Mem
-  ( scimUserTimesStoreToMem,
+module Wire.ScimUserMetaStore.Mem
+  ( scimUserMetaStoreToMem,
   )
 where
 
 import Data.Id (UserId)
-import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State
 import Web.Scim.Schema.Common (WithId (WithId))
 import Web.Scim.Schema.Meta (WithMeta (WithMeta), created, lastModified)
-import Wire.ScimUserTimesStore
+import Wire.ScimUserMetaStore
 
-scimUserTimesStoreToMem ::
-  Sem (ScimUserTimesStore ': r) a ->
-  Sem r (Map UserId (UTCTimeMillis, UTCTimeMillis), a)
-scimUserTimesStoreToMem = (runState mempty .) $
+scimUserMetaStoreToMem ::
+  Sem (ScimUserMetaStore ': r) a ->
+  Sem r (Map UserId ScimUserMeta, a)
+scimUserMetaStoreToMem = (runState mempty .) $
   reinterpret $ \case
-    Write (WithMeta meta (WithId uid _)) -> modify $ M.insert uid (toUTCTimeMillis $ created meta, toUTCTimeMillis $ lastModified meta)
+    Write emailType emailPrimary (WithMeta meta (WithId uid _)) ->
+      modify $
+        M.insert uid $
+          ScimUserMeta
+            (toUTCTimeMillis $ created meta)
+            (toUTCTimeMillis $ lastModified meta)
+            emailType
+            emailPrimary
     Read uid -> gets $ M.lookup uid
-    ReadMulti uids -> gets $ map (\(u, (a, b)) -> (u, a, b)) . filter ((`elem` uids) . fst) . M.toList
+    ReadMulti uids -> gets $ filter ((`elem` uids) . fst) . M.toList
     Delete uid -> modify $ M.delete uid

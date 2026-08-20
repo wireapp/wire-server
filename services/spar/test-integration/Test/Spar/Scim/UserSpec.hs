@@ -93,7 +93,7 @@ import qualified Wire.API.User.Scim as Spar.Types
 import qualified Wire.API.User.Search as Search
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
-import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
+import qualified Wire.ScimUserMetaStore as ScimUserMetaStore
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -2062,7 +2062,6 @@ specPatchUser = do
             PatchOp.Remove
             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
             Nothing
-
     it "doing nothing doesn't change the user" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2344,10 +2343,10 @@ specDeleteUser = do
         aFewTimes (runSpar $ BrigAPIAccess.getAccount Intra.WithPendingInvitations uid) isNothing
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
-      scimUser <-
-        aFewTimes (runSpar $ ScimUserTimesStore.read uid) isNothing
+      scimUserDeleted <-
+        aFewTimes (runSpar $ ScimUserMetaStore.read uid) isNothing
       liftIO $
-        (brigUser, samlUser, scimUser)
+        (brigUser, samlUser, scimUserDeleted)
           `shouldBe` (Nothing, Nothing, Nothing)
     it "should respond with 204 on deletion (also indempotently)" $ do
       (tok, _) <- registerIdPAndScimToken

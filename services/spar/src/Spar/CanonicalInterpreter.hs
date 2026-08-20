@@ -75,8 +75,8 @@ import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
-import Wire.ScimUserTimesStore (ScimUserTimesStore)
-import Wire.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Wire.ScimUserMetaStore (ScimUserMetaStore)
+import Wire.ScimUserMetaStore.Cassandra (scimUserMetaStoreToCassandra)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
@@ -104,7 +104,7 @@ type LowerLevelCanonicalEffs =
      Error IdPSubsystemError,
      Error ScimSubsystemError,
      ScimExternalIdStore,
-     ScimUserTimesStore,
+     ScimUserMetaStore,
      ScimTokenStore,
      DefaultSsoCode,
      IdPConfigStore,
@@ -147,7 +147,7 @@ runSparToIO ctx =
     . idPToCassandra
     . defaultSsoCodeToCassandra
     . scimTokenStoreToCassandra
-    . scimUserTimesStoreToCassandra
+    . scimUserMetaStoreToCassandra
     . scimExternalIdStoreToCassandra
     . mapScimSubsystemErrors
     . mapIdPSubsystemErrors

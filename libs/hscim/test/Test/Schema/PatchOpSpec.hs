@@ -140,3 +140,13 @@ spec = do
               "members[value eq \"2819c223-7f76-453a-919d-413861904646\"].displayname"
             ]
       for_ examples $ \p -> it ("parses " ++ show p) $ rPath <$> parseOnly (pPath (supportedSchemas @PatchTestTag)) p `shouldBe` Right (decodeUtf8 p)
+    it "keeps an explicit null 'value' distinct from an absent 'value' (RFC 7643 §2.5)" $ do
+      let p = either (error "unparseable path") id (parsePath [User20] "emails[type eq \"work\"].type")
+      Aeson.parseEither
+        (operationFromJSON [User20])
+        [scim| {"op":"replace","path":"emails[type eq \"work\"].type","value":null} |]
+        `shouldBe` Right (Operation Replace (Just p) (Just Aeson.Null))
+      Aeson.parseEither
+        (operationFromJSON [User20])
+        [scim| {"op":"replace","path":"emails[type eq \"work\"].type"} |]
+        `shouldBe` Right (Operation Replace (Just p) Nothing)

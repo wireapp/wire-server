@@ -54,6 +54,13 @@
 --  and all the others are either implied 'primary: false' or must be checked
 --  that they're false
 --
+--  (Partially addressed for @emails@: at most one @primary: true@ entry is
+--  now enforced at selection time in
+--  "Web.Scim.Schema.User.Email".'Web.Scim.Schema.User.Email.scimEmailsToEmail'
+--  (and 'Web.Scim.Schema.User.Email.scimEmailsToEmailAddress'), which
+--  rejects a multi-primary @emails@ list instead of silently picking
+--  one. Other multi-valued attributes are not yet validated.)
+--
 --
 -- == Attribute names
 --
@@ -77,19 +84,30 @@ import Data.Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.List ((\\))
+import Data.Maybe (fromMaybe)
 import Data.Text (Text, pack)
 import qualified Data.Text as Text
+import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics (Generic)
 import Lens.Micro
+import qualified Text.Email.Validate as EmailValidate
 import Web.Scim.AttrName
-import Web.Scim.Filter (AttrPath (..))
+import Web.Scim.Filter
+  ( AttrPath (..),
+    CompValue (..),
+    CompareOp (..),
+    Filter (..),
+    SubAttr (..),
+    ValuePath (..),
+    compareStr,
+  )
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error
 import Web.Scim.Schema.PatchOp
 import Web.Scim.Schema.Schema (Schema (..), getSchemaUri)
 import Web.Scim.Schema.User.Address (Address)
 import Web.Scim.Schema.User.Certificate (Certificate)
-import Web.Scim.Schema.User.Email (Email)
+import Web.Scim.Schema.User.Email (Email (Email, primary, typ), EmailAddress (..))
 import Web.Scim.Schema.User.Entitlement (Entitlement)
 import Web.Scim.Schema.User.IM (IM)
 import Web.Scim.Schema.User.Name (Name)
@@ -307,6 +325,24 @@ applyUserOperation ::
   User tag ->
   Operation ->
   m (User tag)
+applyUserOperation user (Operation Add (Just (IntoValuePath vp mSub)) (Just val)) =
+  case vp of
+    ValuePath (AttrPath _ attr _) _
+      | attr == "emails" -> addEmailsValuePath user vp mSub val
+      | otherwise ->
+          throwError
+            ( badRequest
+                InvalidPath
+                (Just "multi-valued PATCH is only supported for 'emails'")
+            )
+-- Catch-all: for single-valued 'NormalPath' attributes (username, displayname,
+-- externalid, active) an @Add@ coincides with a @Replace@ (RFC 7644 §3.5.2.1:
+-- a single-valued target has its value replaced). @roles@ is multi-valued
+-- (@[Text]@), so the rewrite turns an RFC-mandated append into an overwrite --
+-- a known deviation, acceptable while no client relies on append semantics for
+-- @roles@. Multi-valued value-path @Add@ is intercepted above; any future
+-- complex or multi-valued attribute added to 'NormalPath' must not rely on
+-- this rewrite.
 applyUserOperation user (Operation Add path value) = applyUserOperation user (Operation Replace path value)
 applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) =
   case attr of
@@ -321,8 +357,16 @@ applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema a
     "roles" ->
       (\x -> user {roles = x}) <$> resultToScimError (fromJSON value)
     _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active, roles"))
-applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
-  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+applyUserOperation user (Operation Replace (Just (IntoValuePath vp mSub)) (Just val)) =
+  case vp of
+    ValuePath (AttrPath _ attr _) _
+      | attr == "emails" -> replaceEmailsValuePath user vp mSub val
+      | otherwise ->
+          throwError
+            ( badRequest
+                InvalidPath
+                (Just "multi-valued PATCH is only supported for 'emails'")
+            )
 applyUserOperation user (Operation Replace Nothing (Just value)) = do
   case value of
     Object hm | null ((AttrName . Key.toText <$> KeyMap.keys hm) \\ ["username", "displayname", "externalid", "active", "roles"]) -> do
@@ -338,16 +382,248 @@ applyUserOperation user (Operation Replace Nothing (Just value)) = do
 applyUserOperation _ (Operation Replace _ Nothing) =
   throwError (badRequest InvalidValue (Just "No value was provided"))
 applyUserOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
-applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
+-- RFC 7644 §3.5.2.2 (Remove Operation): "If the target location is a
+-- single-value attribute, the attribute and its associated value is removed,
+-- and the attribute SHALL be considered unassigned." and: "If the target
+-- location is a multi-valued attribute and no filter is specified, the
+-- attribute and all values are removed, and the attribute SHALL be considered
+-- unassigned."
+--
+-- RFC 7643 §2.5 (Unassigned and Null Values): "Unassigned attributes, the
+-- null value, or an empty array [...] SHALL be considered to be equivalent
+-- in 'state'.  Assigning an attribute with the value 'null' [...] has the
+-- effect of making the attribute 'unassigned'."  Consequently, a @Replace@
+-- with an explicit @null@ value on a 'Maybe'-typed attribute here
+-- (displayname, externalid, active) unassigns it, exactly as @Remove@ does.
+applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr mSubAttr))) _value) =
   case attr of
     "username" -> throwError (badRequest Mutability Nothing)
     "displayname" -> pure $ user {displayName = Nothing}
     "externalid" -> pure $ user {externalId = Nothing}
     "active" -> pure $ user {active = Nothing}
     "roles" -> pure $ user {roles = []}
+    "emails" -> case mSubAttr of
+      -- Unfiltered remove of the multi-valued attribute itself.
+      Nothing -> pure $ user {emails = []}
+      -- A sub-attribute without a filter would have to hit every entry;
+      -- require the explicit value-path form instead (and keep @.value@
+      -- protected there).
+      Just _ ->
+        throwError
+          ( badRequest
+              InvalidPath
+              (Just "removing a sub-attribute of 'emails' requires a value-path filter, e.g. emails[type eq \\\"work\\\"].type")
+          )
     _ -> pure user
-applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
-  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+-- RFC 7644 §3.5.2.2 (Remove Operation): "If the target location is a complex
+-- multi-valued attribute and a complex filter is specified based on the
+-- attribute's sub-attributes, the matching records are removed.
+-- Sub-attributes whose values have been removed SHALL be considered
+-- unassigned."  With a sub-attribute target (RFC 7644 §3.5.2: PATH = attrPath
+-- / valuePath [subAttr], Figure 7), the sub-attribute becomes *unassigned* on
+-- each matching entry and the record itself is kept -- implemented by reusing
+-- the null-unassignment of 'replaceEmailsValuePath' (RFC 7643 §2.5: remove of
+-- a sub-attribute is equivalent to assigning null).
+applyUserOperation user (Operation Remove (Just (IntoValuePath vp mSub)) _) =
+  case vp of
+    ValuePath (AttrPath _ attr _) _
+      | attr == "emails" -> case mSub of
+          Just (SubAttr sub)
+            | sub == "value" ->
+                throwError
+                  ( badRequest
+                      InvalidPath
+                      (Just "removing the 'value' sub-attribute of 'emails' is not supported; remove the whole entry instead")
+                  )
+            | otherwise -> replaceEmailsValuePath user vp mSub Null
+          Nothing -> pure user {emails = removeMatchingEmails vp (emails user)}
+      | otherwise ->
+          throwError
+            ( badRequest
+                InvalidPath
+                (Just "multi-valued PATCH is only supported for 'emails'")
+            )
+
+----------------------------------------------------------------------------
+-- Multi-valued 'emails' value-path PATCH
+--
+-- Previously any value-path target (e.g. @emails[type eq "work"].value@) was
+-- rejected with "can not lens into multi-valued attributes yet". We now support
+-- value-path PATCH for the @emails@ attribute only -- the single multi-valued
+-- attribute that Spar persists. Other multi-valued attributes
+-- (@phoneNumbers@, @ims@, ...) remain unsupported and still fail as before.
+--
+-- NOTE on "create on absent": RFC 7644 §3.5.2.3 says a value-path @Replace@
+-- that matches nothing is a no-op. Microsoft Entra ID, however, provisions the
+-- email address with an @Add@ against @emails[type eq "work"].value@ (Entra uses
+-- @Add@ for both insert and update -- see
+-- <https://learn.microsoft.com/en-us/answers/questions/1693075/why-is-entra-id-sending-add-operations-instead-of>),
+-- expecting the entry to be created if absent. Both 'addEmailsValuePath' and the
+-- @Replace@ path therefore route the @.value@ sub-attribute through
+-- 'replaceEmailValue', which deviates from the RFC: when the filter is
+-- @type eq <s>@ and no entry matches, it appends
+-- @Email { typ = Just s, value = newVal, primary = Nothing }@.
+--
+-- @Remove@ honors the sub-attribute (RFC 7644 §3.5.2: PATH = valuePath
+-- [subAttr]): @remove emails[type eq "work"].type@\/@.primary@ unassigns just
+-- that field and keeps the entry; a filterless @remove emails@ clears all
+-- entries. @.value@ cannot be removed or nulled (400) -- the address is the
+-- record's identity in brig.
+
+-- | Textual form of an 'Email' address, for string comparison.
+emailValueText :: Email -> Text
+emailValueText (Email _ addr _) =
+  decodeUtf8 (EmailValidate.toByteString (unEmailAddress addr))
+
+-- | Does this 'Email' satisfy the given single-attribute 'Filter'? Supports the
+-- sub-attributes Entra and the spec use: @type@, @value@, @primary@. Any
+-- operator in 'compareStr's domain works for @type@\/@value@; @primary@ only
+-- supports @eq@\/@ne@. Unknown sub-attributes or a mismatched 'CompValue' type
+-- mean "no match".
+emailMatches :: Filter -> Email -> Bool
+emailMatches (FilterAttrCompare (AttrPath _ attr _) op cval) email
+  | attr == "type" = case cval of
+      ValString s -> compareStr op (fromMaybe "" (typ email)) s
+      _ -> False
+  | attr == "value" = case cval of
+      ValString s -> compareStr op (emailValueText email) s
+      _ -> False
+  | attr == "primary" = case cval of
+      ValBool b -> primaryMatches op b (primary email)
+      _ -> False
+  | otherwise = False
+
+-- | Compare a @primary@ filter value. Only @eq@\/@ne@ are meaningful.
+primaryMatches :: CompareOp -> Bool -> Maybe ScimBool -> Bool
+primaryMatches op b mp = case op of
+  OpEq -> mp == Just (ScimBool b)
+  OpNe -> mp /= Just (ScimBool b)
+  _ -> False
+
+-- | If the filter is @type eq <s>@, return @Just s@; otherwise 'Nothing'.
+-- Drives create-on-absent for the @.value@ sub-attribute (see note above).
+filterTypeEq :: Filter -> Maybe Text
+filterTypeEq (FilterAttrCompare (AttrPath _ attr _) OpEq (ValString s))
+  | attr == "type" = Just s
+filterTypeEq _ = Nothing
+
+-- | Apply an update to each matching email. Never creates new entries.
+setEmailField :: Filter -> (Email -> Email) -> [Email] -> [Email]
+setEmailField flt update = map (\e -> if emailMatches flt e then update e else e)
+
+-- | Set the address of an 'Email'. Uses positional construction to avoid the
+-- bare 'value' selector, which is ambiguous (shared by 'Email', 'WithId' and
+-- 'Operation').
+setEmailAddress :: EmailAddress -> Email -> Email
+setEmailAddress newAddr (Email t _ p) = Email t newAddr p
+
+-- | Replace the @.value@ of every matching email. When nothing matches and the
+-- filter is @type eq <s>@, append a new entry (create-on-absent; see note).
+replaceEmailValue :: Filter -> EmailAddress -> [Email] -> [Email]
+replaceEmailValue flt newAddr es
+  | any (emailMatches flt) es = setEmailField flt (setEmailAddress newAddr) es
+  | otherwise =
+      case filterTypeEq flt of
+        Just t -> es <> [Email (Just t) newAddr Nothing]
+        Nothing -> es
+
+-- | Replace each whole matching email with a new one; append if none match.
+--
+-- NOTE: every entry that matches the filter is overwritten with the same
+-- @newEmail@, so a filter matching several entries (e.g. two with
+-- @type eq "work"@, which Spar does not prevent) collapses them into
+-- duplicates. In practice each @type@ has at most one entry (the only mapping
+-- Entra uses), so this does not arise.
+replaceEmailEntry :: Filter -> Email -> [Email] -> [Email]
+replaceEmailEntry flt newEmail es
+  | any (emailMatches flt) es = setEmailField flt (const newEmail) es
+  | otherwise = es <> [newEmail]
+
+-- | Decode the operation value as one or more emails. A bare object is treated
+-- as a single-element list; an array is decoded as-is.
+decodeEmails :: (MonadError ScimError m) => Value -> m [Email]
+decodeEmails val = case fromJSON val of
+  Success (es' :: [Email]) -> pure es'
+  _ -> (: []) <$> resultToScimError (fromJSON val)
+
+-- | Handle an @Add@ on an @emails[...]@ value-path.
+--
+-- For the single-valued email sub-attributes (@.value@, @.type@, @.primary@) an
+-- @Add@ coincides with a @Replace@ (RFC 7644 §3.5.2.3): it sets the
+-- sub-attribute and, for @.value@, creates the entry on absent via
+-- 'replaceEmailValue'. For a whole-entry @Add@ (no sub-attribute) the value-path
+-- filter is intentionally ignored and the new entries are /appended/ rather than
+-- overwriting matches -- the concat semantics that distinguish @Add@ from
+-- @Replace@ for multi-valued attributes (where @Replace@ narrows the target set
+-- via the filter).
+addEmailsValuePath ::
+  (MonadError ScimError m) =>
+  User tag ->
+  ValuePath ->
+  Maybe SubAttr ->
+  Value ->
+  m (User tag)
+addEmailsValuePath user vp mSub val =
+  case mSub of
+    Just _ -> replaceEmailsValuePath user vp mSub val
+    Nothing -> do
+      newEmails <- decodeEmails val
+      pure user {emails = emails user <> newEmails}
+
+-- | Handle a @Replace@ on an @emails[...]@ value-path.
+replaceEmailsValuePath ::
+  (MonadError ScimError m) =>
+  User tag ->
+  ValuePath ->
+  Maybe SubAttr ->
+  Value ->
+  m (User tag)
+replaceEmailsValuePath user vp mSub val =
+  let flt = valuePathFilter vp
+      es = emails user
+   in case mSub of
+        Just (SubAttr sub)
+          -- RFC 7643 §2.5 (Unassigned and Null Values): "Assigning an
+          -- attribute with the value 'null' or an empty array [...] has the
+          -- effect of making the attribute 'unassigned'." Assigning an
+          -- explicit null therefore unassigns 'type'/'primary'; 'value' cannot
+          -- be unassigned (the address is the record's identity in brig).
+          | sub == "value" -> case val of
+              Null ->
+                throwError
+                  ( badRequest
+                      InvalidPath
+                      (Just "setting the 'value' sub-attribute of 'emails' to null is not supported; remove the whole entry instead")
+                  )
+              _ -> do
+                newAddr <- resultToScimError (fromJSON val)
+                pure user {emails = replaceEmailValue flt newAddr es}
+          | sub == "type" -> case val of
+              Null -> pure user {emails = setEmailField flt (\e -> e {typ = Nothing}) es}
+              _ -> do
+                t <- resultToScimError (fromJSON val)
+                pure user {emails = setEmailField flt (\e -> e {typ = Just t}) es}
+          | sub == "primary" -> case val of
+              Null -> pure user {emails = setEmailField flt (\e -> e {primary = Nothing}) es}
+              _ -> do
+                b <- resultToScimError (fromJSON val)
+                pure user {emails = setEmailField flt (\e -> e {primary = Just b}) es}
+          | otherwise ->
+              throwError
+                ( badRequest
+                    InvalidPath
+                    (Just "only the 'value', 'type' and 'primary' sub-attributes of 'emails' can be patched")
+                )
+        Nothing -> do
+          newEmails <- decodeEmails val
+          pure user {emails = foldr (replaceEmailEntry flt) es newEmails}
+
+-- | Drop every email matching the value-path filter (used by @Remove@ without a
+-- sub-attribute). A @Remove@ targeting a sub-attribute (e.g.
+-- @emails[type eq "work"].type@) is handled in 'applyUserOperation', which
+-- unassigns just that field and keeps the entry (RFC 7644 §3.5.2.2).
+removeMatchingEmails :: ValuePath -> [Email] -> [Email]
+removeMatchingEmails vp = filter (not . emailMatches (valuePathFilter vp))
 
 instance (UserTypes tag, FromJSON (User tag), Patchable (UserExtra tag)) => Patchable (User tag) where
   applyOperation user op@(Operation _ (Just (NormalPath (AttrPath schema _ _))) _)

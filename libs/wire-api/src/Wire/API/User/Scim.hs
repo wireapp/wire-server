@@ -358,7 +358,15 @@ data ValidScimUser = ValidScimUser
   { externalId :: ValidScimId,
     handle :: Handle,
     name :: BT.Name,
-    emails :: [EmailAddress],
+    -- | The (at most one) email address Wire stores for this user: brig keeps a
+    -- single email, so the SCIM @emails@ list is reduced to one entry by
+    -- @scimEmailsToEmail@ (the entry marked @primary@, else the
+    -- first).  'emailType' and 'emailPrimary' are the @type@\/@primary@
+    -- metadata of that same single entry ('Nothing' = not supplied, echoed as
+    -- absent).
+    emails :: Maybe EmailAddress,
+    emailType :: Maybe Text,
+    emailPrimary :: Maybe Bool,
     richInfo :: RI.RichInfo,
     active :: Bool,
     locale :: Maybe Locale,

@@ -112,6 +112,20 @@ updateScimUser domain scimToken userId scimUser = do
     & scimCommonHeaders scimToken
     & addJSON body
 
+patchScimUser ::
+  (HasCallStack, MakesValue domain, MakesValue patchOp) =>
+  domain ->
+  String ->
+  String ->
+  patchOp ->
+  App Response
+patchScimUser domain scimToken userId patchOp = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Users", userId]
+  body <- make patchOp
+  submit "PATCH" $ req
+    & scimCommonHeaders scimToken
+    & addJSON body
+
 createScimUserGroup :: (HasCallStack, MakesValue domain, MakesValue scimUserGroup) => domain -> String -> scimUserGroup -> App Response
 createScimUserGroup domain token scimUserGroup = do
   req <- baseRequest domain Spar Versioned "/scim/v2/Groups"

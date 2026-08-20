@@ -17,8 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ScimUserTimesStore
-  ( ScimUserTimesStore (..),
+module Wire.ScimUserMetaStore
+  ( ScimUserMeta (..),
+    ScimUserMetaStore (..),
     write,
     read,
     readMulti,
@@ -28,15 +29,28 @@ where
 
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis)
-import Imports (Maybe)
+import Imports (Bool, Eq, Maybe, Show, Text)
 import Polysemy
 import Web.Scim.Schema.Common (WithId)
 import Web.Scim.Schema.Meta (WithMeta)
 
-data ScimUserTimesStore m a where
-  Write :: WithMeta (WithId UserId t) -> ScimUserTimesStore m ()
-  Read :: UserId -> ScimUserTimesStore m (Maybe (UTCTimeMillis, UTCTimeMillis))
-  ReadMulti :: [UserId] -> ScimUserTimesStore m [(UserId, UTCTimeMillis, UTCTimeMillis)]
-  Delete :: UserId -> ScimUserTimesStore m ()
+-- | SCIM user metadata stored under a user id: creation and last-update time,
+-- plus the SCIM email metadata (@type@, @primary@) of the stored email entry.
+--
+-- The backing Cassandra table is still called @spar.scim_user_times@ (renaming
+-- it would require a migration); the store is no longer just about times.
+data ScimUserMeta = ScimUserMeta
+  { scimUserMetaCreated :: UTCTimeMillis,
+    scimUserMetaLastUpdated :: UTCTimeMillis,
+    scimUserMetaEmailType :: Maybe Text,
+    scimUserMetaEmailPrimary :: Maybe Bool
+  }
+  deriving (Eq, Show)
 
-makeSem ''ScimUserTimesStore
+data ScimUserMetaStore m a where
+  Write :: Maybe Text -> Maybe Bool -> WithMeta (WithId UserId t) -> ScimUserMetaStore m ()
+  Read :: UserId -> ScimUserMetaStore m (Maybe ScimUserMeta)
+  ReadMulti :: [UserId] -> ScimUserMetaStore m [(UserId, ScimUserMeta)]
+  Delete :: UserId -> ScimUserMetaStore m ()
+
+makeSem ''ScimUserMetaStore
