@@ -1,6 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
 
-
 module Wire.UserStore.Migration where
 
 import Cassandra hiding (Set)
