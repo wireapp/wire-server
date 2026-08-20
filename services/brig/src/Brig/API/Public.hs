@@ -55,7 +55,7 @@ import Brig.User.Client qualified as API
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens ((.~), (?~))
+import Control.Lens ((?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.ByteString (fromStrict)
@@ -111,7 +111,6 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
-import Wire.API.Routes.API (serviceSwagger)
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
@@ -123,13 +122,6 @@ import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Public.Brig.DomainVerification
-import Wire.API.Routes.Public.Brig.OAuth (OAuthAPITag)
-import Wire.API.Routes.Public.Cannon (CannonAPITag)
-import Wire.API.Routes.Public.Cargohold (CargoholdAPITag)
-import Wire.API.Routes.Public.Galley (GalleyAPITag)
-import Wire.API.Routes.Public.Gundeck (GundeckAPITag)
-import Wire.API.Routes.Public.Proxy (ProxyAPITag)
-import Wire.API.Routes.Public.Spar (SparAPITag)
 import Wire.API.Routes.Public.Swagger
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.Version
@@ -246,24 +238,9 @@ internalEndpointsSwaggerDocsAPIs =
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
 versionedSwaggerDocsAPI (Just (VersionNumber V18)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V18
-        <> serviceSwagger @BrigAPITag @'V18
-        <> serviceSwagger @GalleyAPITag @'V18
-        <> serviceSwagger @SparAPITag @'V18
-        <> serviceSwagger @CargoholdAPITag @'V18
-        <> serviceSwagger @CannonAPITag @'V18
-        <> serviceSwagger @GundeckAPITag @'V18
-        <> serviceSwagger @ProxyAPITag @'V18
-        <> serviceSwagger @OAuthAPITag @'V18
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V18) Nothing mempty]
-      & cleanupSwagger
-versionedSwaggerDocsAPI (Just (VersionNumber V17)) =
-  swaggerSchemaUIServer $
     devVersionSwagger
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
+versionedSwaggerDocsAPI (Just (VersionNumber V17)) = swaggerPregenUIServer $(pregenSwagger V17)
 versionedSwaggerDocsAPI (Just (VersionNumber V16)) = swaggerPregenUIServer $(pregenSwagger V16)
 versionedSwaggerDocsAPI (Just (VersionNumber V15)) = swaggerPregenUIServer $(pregenSwagger V15)
 versionedSwaggerDocsAPI (Just (VersionNumber V14)) = swaggerPregenUIServer $(pregenSwagger V14)
