@@ -49,6 +49,7 @@ import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
 import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.MlsMigrationConfig
 import Test.Wire.API.Golden.Manual.Pagination
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Manual.Push
@@ -304,6 +305,15 @@ tests =
         testObjects
           [ (testObject_MLSKeysByPurpose1, "testObject_MLSKeysByPurpose_1.json")
           ],
+      testGroup "Feature MlsMigrationConfig" $
+        testObjects
+          [(testObject_MlsMigrationConfig_1, "testObject_MlsMigrationConfig_1.json")],
+      testGroup "LockableFeature MlsMigrationConfig" $
+        testObjects
+          [(testObject_MlsMigrationConfig_2, "testObject_MlsMigrationConfig_2.json")],
+      testGroup "LockableFeaturePatch MlsMigrationConfig" $
+        testObjects
+          [(testObject_MlsMigrationConfig_3, "testObject_MlsMigrationConfig_3.json")],
       testGroup "SendActivationCode" $
         testObjects
           [ (testObject_SendActivationCode_1, "testObject_SendActivationCode_1.json"),
