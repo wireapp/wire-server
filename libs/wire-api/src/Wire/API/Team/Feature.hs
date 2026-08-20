@@ -1629,7 +1629,7 @@ data MlsMigrationConfigB t f = MlsMigrationConfig
     -- | Allow users to manually trigger migrations from Proteus to MLS for
     -- group conversations.
     --
-    -- There is no logic behind this flag in the backend. It it solely meant for
+    -- There is no logic behind this flag in the backend. It is solely meant for
     -- clients to decide if they should show a button (to facilitate MLS
     -- migration for a group conversation) or not.
     --
