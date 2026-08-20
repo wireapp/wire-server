@@ -111,17 +111,18 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
+import Wire.API.Routes.API (serviceSwagger)
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
 import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
-import Wire.API.Routes.API (serviceSwagger)
 import Wire.API.Routes.Internal.Gundeck qualified as GundeckInternalAPI
 import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPITag)
 import Wire.API.Routes.Public.Cannon (CannonAPITag)
 import Wire.API.Routes.Public.Cargohold (CargoholdAPITag)
@@ -129,7 +130,6 @@ import Wire.API.Routes.Public.Galley (GalleyAPITag)
 import Wire.API.Routes.Public.Gundeck (GundeckAPITag)
 import Wire.API.Routes.Public.Proxy (ProxyAPITag)
 import Wire.API.Routes.Public.Spar (SparAPITag)
-import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Swagger
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.Version
