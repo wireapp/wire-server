@@ -1427,13 +1427,13 @@ instance (Typeable f, FieldF f, PreventAdminlessTimeoutFieldF f) => ToSchema (Pr
         <*> deletionTimeout .= preventAdminlessTimeoutFieldF "deletionTimeout" "deletionTimeoutDuration"
         <*> reminderTimeouts .= preventAdminlessTimeoutsFieldF "reminderTimeouts" "reminderTimeoutDurations"
 
-instance ToSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+instance ToSchema (Versioned V16 PreventAdminlessGroupsConfig) where
   schema =
     object $
       Versioned
         <$> unVersioned .= oldPreventAdminlessGroupsConfigObjectSchema
 
-instance ToObjectSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+instance ToObjectSchema (Versioned V16 PreventAdminlessGroupsConfig) where
   objectSchema = field "config" schema
 
 instance ToSchema (Versioned V18 PreventAdminlessGroupsConfig) where
