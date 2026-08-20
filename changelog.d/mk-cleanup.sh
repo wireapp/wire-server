@@ -5,5 +5,9 @@ shopt -s nullglob
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-rm -f "$DIR"/*/*
+for d in "$DIR"/*; do
+    [[ -d "$d" ]] || continue
+    if [[ "$(basename "$d")" == "99-pending" ]]; then continue; fi
+    rm -f "$d"/*
+done
 git add "$DIR"

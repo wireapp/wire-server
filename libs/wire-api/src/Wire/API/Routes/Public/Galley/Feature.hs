@@ -70,8 +70,8 @@ type FeatureAPI =
     :<|> FeatureAPIGet DomainRegistrationConfig
     :<|> FeatureAPIGetPut ChannelsConfig
     :<|> FeatureAPIGet PreventAdminlessGroupsConfig
-    :<|> Until 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v16" V16 PreventAdminlessGroupsConfig
-    :<|> From 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v17" V17 PreventAdminlessGroupsConfig
+    :<|> Until 'V18 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v16" V16 PreventAdminlessGroupsConfig
+    :<|> From 'V18 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v18" V18 PreventAdminlessGroupsConfig
     :<|> FeatureAPIGet CellsConfig
     :<|> Until 'V14 ::> VersionedFeatureAPIPut "put-CellsConfig@v13" V13 CellsConfig
     :<|> From 'V14 ::> FeatureAPIPut CellsConfig

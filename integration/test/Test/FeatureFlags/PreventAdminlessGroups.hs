@@ -80,12 +80,12 @@ testPreventAdminlessGroupsPutV16AcceptsLegacyTimeoutFields = do
       resp.json `shouldMatch` canonicalPreventAdminlessGroupsFeature
   checkFeature "preventAdminlessGroups" owner tid canonicalPreventAdminlessGroupsFeature
 
-testPreventAdminlessGroupsPutV17AcceptsDurationTimeoutFields :: (HasCallStack) => App ()
-testPreventAdminlessGroupsPutV17AcceptsDurationTimeoutFields = do
+testPreventAdminlessGroupsPutV18AcceptsDurationTimeoutFields :: (HasCallStack) => App ()
+testPreventAdminlessGroupsPutV18AcceptsDurationTimeoutFields = do
   (owner, tid, _) <- createTeam OwnDomain 0
   bindResponse
     ( Public.setTeamFeatureConfigVersioned
-        (ExplicitVersion 17)
+        (ExplicitVersion 18)
         owner
         tid
         "preventAdminlessGroups"

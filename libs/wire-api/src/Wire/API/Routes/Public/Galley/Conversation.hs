@@ -965,7 +965,7 @@ type ConversationAPI =
                     \The roles of already existing members will not be changed \
                     \even if these members are included in the request body and their role differs from the role provided in this request."
                :> From 'V13
-               :> Until 'V17
+               :> Until 'V18
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -996,7 +996,7 @@ type ConversationAPI =
                     \The given role in the request body will be applied to all added members. \
                     \The roles of already existing members will not be changed \
                     \even if these members are included in the request body and their role differs from the role provided in this request."
-               :> From 'V17
+               :> From 'V18
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
