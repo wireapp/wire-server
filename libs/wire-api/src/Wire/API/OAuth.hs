@@ -199,7 +199,7 @@ data OAuthScope
   | ReadSelf
   | WriteConversations
   | WriteConversationsCode
-  deriving (Eq, Show, Generic, Ord)
+  deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
 class IsOAuthScope scope where

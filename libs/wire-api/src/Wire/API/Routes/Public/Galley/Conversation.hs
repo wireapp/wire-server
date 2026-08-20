@@ -534,6 +534,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> DescriptionOAuthScope 'WriteConversations
                :> From 'V16
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
@@ -1150,6 +1151,7 @@ type ConversationAPI =
     :<|> Named
            "get-code"
            ( Summary "Get existing conversation code"
+               :> DescriptionOAuthScope 'WriteConversationsCode
                :> CanThrow 'CodeNotFound
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
