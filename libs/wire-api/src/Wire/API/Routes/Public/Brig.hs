@@ -669,7 +669,7 @@ type AccountAPI =
     Named
       "register@v16"
       ( Summary "Register a new user."
-          :> Until 'V17
+          :> Until 'V18
           :> Description
                "If the environment where the registration takes \
                \place is private and a registered email address \
@@ -682,7 +682,7 @@ type AccountAPI =
     :<|> Named
            "register"
            ( Summary "Register a new user."
-               :> From 'V17
+               :> From 'V18
                :> Description
                     "If the environment where the registration takes \
                     \place is private and a registered email address \

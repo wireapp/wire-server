@@ -44,11 +44,11 @@ import Wire.API.Routes.Version
 import Wire.API.SwaggerHelper (cleanupSwagger)
 
 -- | The version 'devVersionSwagger' describes.  Must stay in sync with the type
--- level @\'V17@ below; there is no way to tie the two together, since the
+-- level @\'V18@ below; there is no way to tie the two together, since the
 -- 'S.OpenApi' has to be assembled at a statically known version.
 devVersion :: Version
 devVersion =
-  if maxBound == V17
+  if maxBound == V18
     then maxBound
     else
       -- if you get this error, you also need to update the version literals below.
@@ -60,15 +60,15 @@ devVersion =
 -- @info.description@, so setting it afterwards is equivalent.
 devVersionSwagger :: S.OpenApi
 devVersionSwagger =
-  ( serviceSwagger @VersionAPITag @'V17
-      <> serviceSwagger @BrigAPITag @'V17
-      <> serviceSwagger @GalleyAPITag @'V17
-      <> serviceSwagger @SparAPITag @'V17
-      <> serviceSwagger @CargoholdAPITag @'V17
-      <> serviceSwagger @CannonAPITag @'V17
-      <> serviceSwagger @GundeckAPITag @'V17
-      <> serviceSwagger @ProxyAPITag @'V17
-      <> serviceSwagger @OAuthAPITag @'V17
+  ( serviceSwagger @VersionAPITag @'V18
+      <> serviceSwagger @BrigAPITag @'V18
+      <> serviceSwagger @GalleyAPITag @'V18
+      <> serviceSwagger @SparAPITag @'V18
+      <> serviceSwagger @CargoholdAPITag @'V18
+      <> serviceSwagger @CannonAPITag @'V18
+      <> serviceSwagger @GundeckAPITag @'V18
+      <> serviceSwagger @ProxyAPITag @'V18
+      <> serviceSwagger @OAuthAPITag @'V18
   )
     & S.info . S.title .~ "Wire-Server API"
     & S.servers .~ [S.Server ("/" <> toUrlPiece devVersion) Nothing mempty]

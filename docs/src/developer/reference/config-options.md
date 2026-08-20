@@ -425,7 +425,7 @@ Feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`,
 
 From a client's perspective, API versioning works like this:
 
-- API version V17 and newer should send the duration fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
+- API version V18 and newer should send the duration fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
 - Feature responses include the duration fields for clients to read.
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/preventAdminlessGroups/(un)?locked`).

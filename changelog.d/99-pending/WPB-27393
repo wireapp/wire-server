@@ -1,0 +1,1 @@
+V18 `PUT /conversations/{domain}/{conversation}/members` rejects replacements that would leave a regular group without an admin; V17 and older retain the legacy autopromotion behavior. (#5387)

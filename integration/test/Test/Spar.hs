@@ -1879,7 +1879,7 @@ testScimUserIsNotAllowedToChangeNameOnRegistering = do
     resp.json %. "name" `shouldMatch` scimUserDisplayName
 
   let newProfilename = "Takemiya Masaki"
-  registerUserWith OwnDomain email code newProfilename `bindResponse` \resp -> do
+  registerUserWithVersioned (ExplicitVersion 18) OwnDomain email code newProfilename `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "managed-by-scim"
 

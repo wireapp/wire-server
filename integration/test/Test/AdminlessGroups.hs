@@ -201,9 +201,9 @@ testAdminlessReplaceMembers = do
       members <- resp.json %. "members.others" & asList
       shouldBeEmpty members
 
-  testVersion 17 $ \alice bob conv version -> do
+  testVersion 18 $ \alice bob conv version -> do
     bobId <- bob %. "qualified_id"
-    -- V17 rejects a replacement that would remove the last admin while leaving
+    -- V18 rejects a replacement that would remove the last admin while leaving
     -- only eligible non-admin members.
     bindResponse (replaceMembers alice conv def {users = [bobId], version = Just version}) $ \resp -> do
       resp.status `shouldMatchInt` 403
@@ -234,9 +234,9 @@ testAdminlessReplaceMembersAddsAdmin = do
   bobId <- bob %. "qualified_id"
   charlieId <- charlie %. "qualified_id"
 
-  -- V17 accepts replacing the existing admin when the same request adds a new
+  -- V18 accepts replacing the existing admin when the same request adds a new
   -- admin, because the resulting conversation is not adminless.
-  bindResponse (replaceMembers alice conv def {users = [bobId, charlieId], role = Just "wire_admin", version = Just 17}) $ \resp -> do
+  bindResponse (replaceMembers alice conv def {users = [bobId, charlieId], role = Just "wire_admin", version = Just 18}) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   bindResponse (getConversation charlie conv) $ \resp -> do
@@ -253,10 +253,10 @@ testAdminlessReplaceMembersAddsEligibleMember = do
   conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [], newUsersRole = "wire_member"}) >>= getJSON 201
   bobId <- bob %. "qualified_id"
 
-  -- V17 rejects a replacement that removes the only admin even when the
+  -- V18 rejects a replacement that removes the only admin even when the
   -- eligible member is added by the same request.
   bindResponse
-    (replaceMembers alice conv def {users = [bobId], role = Just "wire_member", version = Just 17})
+    (replaceMembers alice conv def {users = [bobId], role = Just "wire_member", version = Just 18})
     $ \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "adminless-conversation"
@@ -315,7 +315,7 @@ testAdminlessSetupMemberUpdateAfterAdminLeaves = do
     resp.status `shouldMatchInt` 200
 
   withWebSockets [bob] $ \[wsBob] -> do
-    setTeamFeatureConfigVersioned (ExplicitVersion 17) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "10s" []) >>= assertSuccess
+    setTeamFeatureConfigVersioned (ExplicitVersion 18) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "10s" []) >>= assertSuccess
 
     notif <- awaitMatchFor 20 isMemberUpdateNotif wsBob
     notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
@@ -350,7 +350,7 @@ testAdminlessSetupDeletesWithOriginAndRemoteMembers = do
     conversationIds `shouldContain` [convQid]
 
   withWebSockets [remoteUser] $ \[wsRemoteUser] -> do
-    setTeamFeatureConfigVersioned (ExplicitVersion 17) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "1s" []) >>= assertSuccess
+    setTeamFeatureConfigVersioned (ExplicitVersion 18) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "1s" []) >>= assertSuccess
 
     deleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsRemoteUser
     deleteNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice

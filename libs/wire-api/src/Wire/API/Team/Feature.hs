@@ -1436,13 +1436,13 @@ instance ToSchema (Versioned V16 PreventAdminlessGroupsConfig) where
 instance ToObjectSchema (Versioned V16 PreventAdminlessGroupsConfig) where
   objectSchema = field "config" schema
 
-instance ToSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+instance ToSchema (Versioned V18 PreventAdminlessGroupsConfig) where
   schema =
     object $
       Versioned
         <$> unVersioned .= durationPreventAdminlessGroupsConfigObjectSchema
 
-instance ToObjectSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+instance ToObjectSchema (Versioned V18 PreventAdminlessGroupsConfig) where
   objectSchema = field "config" schema
 
 oldPreventAdminlessGroupsConfigObjectSchema :: ObjectSchema SwaggerDoc PreventAdminlessGroupsConfig
