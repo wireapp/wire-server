@@ -33,19 +33,20 @@ import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, close)
 import System.Logger.Class qualified as Logger
 import UnliftIO (throwIO, timeout)
+import Wire.API.Routes.Version (Version)
 
 -- | Maximum lifetime of a websocket in seconds.
 maxLifetime :: Int
 maxLifetime = 3 * 24 * 3600
 
-wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
-wsapp k c e pc = runWS e (go `catches` ioErrors k c)
+wsapp :: Version -> Key -> Maybe ClientId -> Env -> ServerApp
+wsapp v k c e pc = runWS e (go `catches` ioErrors k c)
   where
     go = do
       runInIO <- askRunInIO
       conn0 <- liftIO (acceptRequest pc `catch` rejectOnError pc)
       liftIO . withPingPong defaultPingPongOptions conn0 $ \conn -> runInIO $ do
-        ws <- mkWebSocket conn
+        ws <- mkWebSocket v conn
         debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
         registerLocal k ws
         registerRemote k c

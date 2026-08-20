@@ -37,6 +37,8 @@ import Data.Schema
 import Data.Time (UTCTime)
 import Imports
 import Wire.API.Event.Conversation (EventFrom (..), eventFromUserId, eventVia, mkEventFrom)
+import Wire.API.Notification (Transmit (..))
+import Wire.API.Routes.Version (Version (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -56,6 +58,11 @@ instance ToSchema EventType where
           element "meeting.delete" Delete,
           element "meeting.member-add" MemberAdd
         ]
+
+instance Transmit Event where
+  transmit e v
+    | v < V15 = Nothing -- all meeting.* event types were introduced with V15
+    | otherwise = Just e
 
 --------------------------------------------------------------------------------
 -- Event
