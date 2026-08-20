@@ -246,7 +246,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
     createTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> String -> String -> Int -> App TestUserList
     createTestUsers domain mel pid sid n = runConcurrently $ do
       scimUsersWithRichInfo <- Concurrently $ createScimUsers domain n True True
-      scimUsersWithoutRichInfo <- Concurrently $ createScimUsers domain n True True
+      scimUsersWithoutRichInfo <- Concurrently $ createScimUsers domain n False True
       pendingScimUsers <- Concurrently $ createScimUsers domain n False False
       ssoUsers <- Concurrently $ createSsoUsers domain n
       passwordTeamUsers <- Concurrently $ createPasswordTeamUsers domain n
