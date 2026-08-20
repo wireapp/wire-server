@@ -448,6 +448,60 @@ testSparScimEmailTypeNonWorkEcho = do
     )
     ["home", "other"]
 
+-- | RFC 7644 §3.5.2.2: removing a sub-attribute unassigns it and keeps the
+-- record; RFC 7643 §2.5 (and RFC 7644 §3.5.2): assigning @null@ is equivalent
+-- to unassignment.  Removing or nulling @emails[type eq \"work\"].type@ must
+-- not erase the email value or the @primary@ flag.
+testSparPatchEmailSubAttrRemoveNull :: (HasCallStack) => App ()
+testSparPatchEmailSubAttrRemoveNull = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  extId <- randomExternalId
+  email <- randomEmail
+  scimUser <- randomScimUserWithEmailAndMeta extId email (Just "work") (Just True)
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  let typePath = "emails[type eq \"work\"].type"
+      wantFull = object ["value" .= email, "type" .= ("work" :: String), "primary" .= True]
+      wantKept = object ["value" .= email, "primary" .= True]
+  getScimUser OwnDomain tok userId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantFull]
+
+  -- PATCH Remove on the type sub-attribute: synchronous strict echo (the
+  -- store write precedes the re-read), type key absent.
+  bindResponse (patchScimUser OwnDomain tok userId (scimPatchOp "Remove" typePath Nothing)) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+  getScimUser OwnDomain tok userId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+
+  -- Strict round-trip consequence: the value-path filter
+  -- @emails[type eq \"work\"]@ no longer matches the stored entry, so the
+  -- Add takes the create-on-absent path, appends a second entry, and the
+  -- reduction back to one email (primary, else first) keeps the OLD address.
+  newEmail <- randomEmail
+  bindResponse (patchScimUser OwnDomain tok userId (scimAddPatchOp "emails[type eq \"work\"].value" newEmail)) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+  getScimUser OwnDomain tok userId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+
+  -- PATCH Replace with null is equivalent to Remove (RFC 7643 §2.5).  Fresh
+  -- user: a type-less entry no longer matches the filter above.
+  extId2 <- randomExternalId
+  email2 <- randomEmail
+  scimUser2 <- randomScimUserWithEmailAndMeta extId2 email2 (Just "work") (Just True)
+  userId2 <- createScimUser OwnDomain tok scimUser2 >>= getJSON 201 >>= (%. "id") >>= asString
+  bindResponse (patchScimUser OwnDomain tok userId2 (scimPatchOp "Replace" typePath (Just A.Null))) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= email2, "primary" .= True]]
+  getScimUser OwnDomain tok userId2 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= email2, "primary" .= True]]
+
 testSparRejectsMultiplePrimaryEmails :: (HasCallStack) => App ()
 testSparRejectsMultiplePrimaryEmails = do
   (owner, _tid, _) <- createTeam OwnDomain 1
@@ -578,20 +632,17 @@ testSparExternalIdUpdateToANonEmail = do
   updatedScimUser <- setField "externalId" extId scimUser
   updateScimUser OwnDomain tok userId updatedScimUser >>= assertStatus 400
 
--- | An @Add@ PatchOp setting the given value-path (e.g.
--- @emails[type eq \\\"work\\\"].value@) to a new email address.
-scimAddPatchOp :: String -> String -> Value
-scimAddPatchOp path value =
+-- | A SCIM PatchOp with the given op, path, and optional value.
+scimPatchOp :: String -> String -> Maybe A.Value -> A.Value
+scimPatchOp op path value =
   object
     [ "schemas" .= ["urn:ietf:params:scim:api:messages:2.0:PatchOp" :: String],
       "Operations"
-        .= [ object
-               [ "op" .= ("Add" :: String),
-                 "path" .= path,
-                 "value" .= value
-               ]
-           ]
+        .= [object (["op" .= op, "path" .= path] <> ["value" .= v | Just v <- [value]])]
     ]
+
+scimAddPatchOp :: String -> String -> A.Value
+scimAddPatchOp path value = scimPatchOp "Add" path (Just (A.String . cs $ value))
 
 testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Tagged "mailUnchanged" Bool -> App ()
 testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do

@@ -103,7 +103,7 @@ import Wire.IdPConfigStore (IdPConfigStore)
 import Wire.Reporter (Reporter)
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimSubsystem
-import Wire.ScimUserTimesStore (ScimUserTimesStore)
+import Wire.ScimUserMetaStore (ScimUserMetaStore)
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -127,7 +127,7 @@ apiScim ::
     Member BrigAPIAccess r,
     Member ScimSubsystem r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member ScimTokenStore r,
     Member Reporter r,
     Member IdPConfigStore r,

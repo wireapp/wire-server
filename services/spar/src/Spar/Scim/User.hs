@@ -113,8 +113,8 @@ import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
-import Wire.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
+import Wire.ScimUserMetaStore (ScimUserMetaStore)
+import qualified Wire.ScimUserMetaStore as ScimUserMetaStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
@@ -134,7 +134,7 @@ instance
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member IdPConfigStore r,
     Member SAMLUserStore r
   ) =>
@@ -342,7 +342,7 @@ validateScimUser' errloc midp richInfoLimit user = do
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
 
-  pure $ ST.ValidScimUser veid handl uname (maybeToList (justHere veid.validScimIdAuthInfo)) vsuEmailType vsuEmailPrimary richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
+  pure $ ST.ValidScimUser veid handl uname (justHere veid.validScimIdAuthInfo) vsuEmailType vsuEmailPrimary richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     validRoleNames :: Text
     validRoleNames =
@@ -534,7 +534,7 @@ createValidScimUser ::
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member SAMLUserStore r,
     Member IdPConfigStore r
   ) =>
@@ -667,7 +667,7 @@ updateValidScimUser ::
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member IdPConfigStore r,
     Member SAMLUserStore r
   ) =>
@@ -743,7 +743,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
                 let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser.active)
                 when (new /= old) $ BrigAPIAccess.setStatus uid new
 
-            ScimUserTimesStore.write newValidScimUser.emailType newValidScimUser.emailPrimary newScimStoredUser
+            ScimUserMetaStore.write newValidScimUser.emailType newValidScimUser.emailPrimary newScimStoredUser
           Scim.getUser tokinfo uid
 
 updateVsuUref ::
@@ -828,7 +828,7 @@ deleteScimUser ::
   ( Member (Logger (Msg -> Msg)) r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member SAMLUserStore r,
     Member IdPConfigStore r
   ) =>
@@ -877,7 +877,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       ( Member IdPConfigStore r,
         Member SAMLUserStore r,
         Member ScimExternalIdStore r,
-        Member ScimUserTimesStore r
+        Member ScimUserMetaStore r
       ) =>
       User ->
       Scim.ScimHandler (Sem r) ()
@@ -897,7 +897,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         Right veid -> lift $ do
           for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
           ScimExternalIdStore.delete stiTeam veid.validScimIdExternal
-      lift $ ScimUserTimesStore.delete uid
+      lift $ ScimUserMetaStore.delete uid
 
 ----------------------------------------------------------------------------
 -- Utilities
@@ -1011,7 +1011,7 @@ synthesizeStoredUser ::
     Member (Logger (Msg -> Msg)) r,
     Member BrigAPIAccess r,
     Member GalleyAPIAccess r,
-    Member ScimUserTimesStore r
+    Member ScimUserMetaStore r
   ) =>
   User ->
   ST.ValidScimId ->
@@ -1030,25 +1030,25 @@ synthesizeStoredUser acc veid mEmailMeta =
       let uid = userId acc
           accStatus = acc.userStatus
 
-      let readState :: Sem r (RI.RichInfo, Maybe ScimUserTimesStore.ScimUserTimes, URIBS.URI, Role)
+      let readState :: Sem r (RI.RichInfo, Maybe ScimUserMetaStore.ScimUserMeta, URIBS.URI, Role)
           readState =
             (,,,)
               <$> BrigAPIAccess.getRichInfo uid
-              <*> ScimUserTimesStore.read uid
+              <*> ScimUserMetaStore.read uid
               <*> inputs scimBaseUri
               <*> getRole
 
       (richInfo, accessTimes, baseuri, role) <- lift readState
       now <- toUTCTimeMillis <$> lift Now.get
-      let (createdAt, lastUpdatedAt, storedTy, storedPr) = case accessTimes of
-            Just t -> (t.scimUserTimesCreated, t.scimUserTimesLastUpdated, t.scimUserTimesEmailType, t.scimUserTimesEmailPrimary)
+      let (createdAt, lastUpdatedAt, storedEmailType, storedEmailPrimary) = case accessTimes of
+            Just t -> (t.scimUserMetaCreated, t.scimUserMetaLastUpdated, t.scimUserMetaEmailType, t.scimUserMetaEmailPrimary)
             Nothing -> (now, now, Nothing, Nothing)
-          (effTy, effPr) = fromMaybe (storedTy, storedPr) mEmailMeta
+          (emailType, emailPrimary) = fromMaybe (storedEmailType, storedEmailPrimary) mEmailMeta
 
       let writeState :: ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()
           writeState oldManagedBy oldRichInfo storedUser = do
             when (isNothing accessTimes) $
-              ScimUserTimesStore.write effTy effPr storedUser
+              ScimUserMetaStore.write emailType emailPrimary storedUser
             when (oldManagedBy /= ManagedByScim) $ do
               BrigAPIAccess.setManagedBy uid ManagedByScim
               -- Invalidate any pending email-address update: a SCIM-managed user's
@@ -1062,8 +1062,7 @@ synthesizeStoredUser acc veid mEmailMeta =
       handle <- lift $ Intra.giveDefaultHandle acc
 
       let emails =
-            maybeToList $
-              acc.userEmailUnvalidated <|> (emailIdentity =<< userIdentity acc) <|> justHere veid.validScimIdAuthInfo
+            acc.userEmailUnvalidated <|> (emailIdentity =<< userIdentity acc) <|> justHere veid.validScimIdAuthInfo
 
       storedUser <-
         synthesizeStoredUser'
@@ -1071,8 +1070,8 @@ synthesizeStoredUser acc veid mEmailMeta =
           veid
           acc.userDisplayName
           emails
-          effTy
-          effPr
+          emailType
+          emailPrimary
           handle
           richInfo
           accStatus
@@ -1094,7 +1093,7 @@ synthesizeStoredUser' ::
   UserId ->
   ST.ValidScimId ->
   Name ->
-  [EmailAddress] ->
+  Maybe EmailAddress ->
   Maybe Text ->
   Maybe Bool ->
   Handle ->
@@ -1153,14 +1152,15 @@ synthesizeScimUser info =
               )
               (info.role),
           -- The type/primary metadata of the stored email entry are persisted in
-          -- @spar.scim_user_times@ (see "Wire.ScimUserTimesStore") and echoed exactly
+          -- @spar.scim_user_times@ (see "Wire.ScimUserMetaStore") and echoed exactly
           -- as the IdP sent them; nothing is synthesized.  Users provisioned before
           -- the metadata existed (or by providers that send none) echo neither
           -- field, so value-path filters like @emails[type eq \"work\"]@ only match
           -- when that type was actually supplied — by design (strict round-trip).
           Scim.emails =
-            (\e -> Scim.Email.Email info.emailType (Scim.Email.EmailAddress e) (Scim.ScimBool <$> info.emailPrimary))
-              <$> info.emails
+            maybeToList $
+              (\e -> Scim.Email.Email info.emailType (Scim.Email.EmailAddress e) (Scim.ScimBool <$> info.emailPrimary))
+                <$> info.emails
         }
 
 -- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)
@@ -1173,7 +1173,7 @@ getUserById ::
     Member Now r,
     Member SAMLUserStore r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r
+    Member ScimUserMetaStore r
   ) =>
   Maybe IdP ->
   TeamId ->
@@ -1219,7 +1219,7 @@ scimFindUserByHandle ::
     Member Now r,
     Member SAMLUserStore r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r
+    Member ScimUserMetaStore r
   ) =>
   Maybe IdP ->
   TeamId ->
@@ -1245,7 +1245,7 @@ scimFindUserByExternalId ::
     Member Now r,
     Member SAMLUserStore r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r
+    Member ScimUserMetaStore r
   ) =>
   Maybe IdP ->
   TeamId ->

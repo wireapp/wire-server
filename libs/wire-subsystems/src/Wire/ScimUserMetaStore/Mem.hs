@@ -17,8 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ScimUserTimesStore.Mem
-  ( scimUserTimesStoreToMem,
+module Wire.ScimUserMetaStore.Mem
+  ( scimUserMetaStoreToMem,
   )
 where
 
@@ -30,17 +30,17 @@ import Polysemy
 import Polysemy.State
 import Web.Scim.Schema.Common (WithId (WithId))
 import Web.Scim.Schema.Meta (WithMeta (WithMeta), created, lastModified)
-import Wire.ScimUserTimesStore
+import Wire.ScimUserMetaStore
 
-scimUserTimesStoreToMem ::
-  Sem (ScimUserTimesStore ': r) a ->
-  Sem r (Map UserId ScimUserTimes, a)
-scimUserTimesStoreToMem = (runState mempty .) $
+scimUserMetaStoreToMem ::
+  Sem (ScimUserMetaStore ': r) a ->
+  Sem r (Map UserId ScimUserMeta, a)
+scimUserMetaStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Write emailType emailPrimary (WithMeta meta (WithId uid _)) ->
       modify $
         M.insert uid $
-          ScimUserTimes
+          ScimUserMeta
             (toUTCTimeMillis $ created meta)
             (toUTCTimeMillis $ lastModified meta)
             emailType

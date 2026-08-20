@@ -131,8 +131,8 @@ import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import qualified Wire.SamlProtocolSettings as SamlProtocolSettings
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimSubsystem
-import Wire.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
+import Wire.ScimUserMetaStore (ScimUserMetaStore)
+import qualified Wire.ScimUserMetaStore as ScimUserMetaStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
@@ -168,7 +168,7 @@ api ::
     Member AReqIDStore r,
     Member VerdictFormatStore r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member ScimTokenStore r,
     Member ScimSubsystem r,
     Member IdPSubsystem r,
@@ -263,7 +263,7 @@ apiINTERNAL ::
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member SAMLUserStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member (Logger (Msg -> Msg)) r,
     Member Random r,
     Member GalleyAPIAccess r,
@@ -1150,7 +1150,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
     *> DefaultSsoCode.store code
       $> NoContent
 
-internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserId -> Sem r ScimUserInfo
+internalGetScimUserInfo :: (Member ScimUserMetaStore r) => UserId -> Sem r ScimUserInfo
 internalGetScimUserInfo uid = do
-  t <- fmap (.scimUserTimesCreated) <$> ScimUserTimesStore.read uid
+  t <- fmap (.scimUserMetaCreated) <$> ScimUserMetaStore.read uid
   pure $ ScimUserInfo uid t

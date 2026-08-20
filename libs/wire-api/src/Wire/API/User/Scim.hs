@@ -358,14 +358,14 @@ data ValidScimUser = ValidScimUser
   { externalId :: ValidScimId,
     handle :: Handle,
     name :: BT.Name,
-    emails :: [EmailAddress],
-    -- | SCIM @type@ of the stored email entry (e.g. @work@).  Persisted by spar
-    -- in @scim_user_times@ and echoed verbatim; 'Nothing' means \"not
-    -- supplied\" (echoed as absent).
+    -- | The (at most one) email address Wire stores for this user: brig keeps a
+    -- single email, so the SCIM @emails@ list is reduced to one entry by
+    -- @scimEmailsToEmail@ (the entry marked @primary@, else the
+    -- first).  'emailType' and 'emailPrimary' are the @type@\/@primary@
+    -- metadata of that same single entry ('Nothing' = not supplied, echoed as
+    -- absent).
+    emails :: Maybe EmailAddress,
     emailType :: Maybe Text,
-    -- | SCIM @primary@ flag of the stored email entry.  Persisted by spar in
-    -- @scim_user_times@ and echoed verbatim; 'Nothing' means \"not supplied\"
-    -- (echoed as absent).
     emailPrimary :: Maybe Bool,
     richInfo :: RI.RichInfo,
     active :: Bool,

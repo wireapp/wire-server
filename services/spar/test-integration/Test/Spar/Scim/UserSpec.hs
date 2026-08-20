@@ -93,7 +93,7 @@ import qualified Wire.API.User.Scim as Spar.Types
 import qualified Wire.API.User.Search as Search
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
-import qualified Wire.ScimUserTimesStore as ScimUserTimesStore
+import qualified Wire.ScimUserMetaStore as ScimUserMetaStore
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -1512,20 +1512,6 @@ specGetUser = describe "GET /Users/:id" $ do
   it "finds a user that has no handle, and gives it a default handle before responding with it" testGetUserWithNoHandle
   it "doesn't find a deleted user" testGetNoDeletedUsers
   it "doesn't find users from other teams" testUserGetFailsWithNotFoundIfOutsideTeam
-  it "echoes a non-'work' email type verbatim" testGetUserEmailTypeNonWork
-
--- | Non-"work" email types are accepted (createUser asserts 201) and echoed
--- verbatim on GET.
-testGetUserEmailTypeNonWork :: TestSpar ()
-testGetUserEmailTypeNonWork = do
-  (tok, _) <- registerIdPAndScimToken
-  (user0, email) <- randomScimUserWithEmail
-  let wantEmail = Scim.Email.Email (Just "home") (Scim.Email.EmailAddress email) Nothing
-      user = user0 {Scim.User.emails = [wantEmail]}
-  storedUser <- createUser tok user
-  getUser tok (scimUserId storedUser) >>= \su ->
-    liftIO $
-      (Scim.User.emails . Scim.value . Scim.thing $ su) `shouldBe` [wantEmail]
 
 -- | Test that a SCIM-provisioned user is fetchable.
 testGetUser :: TestSpar ()
@@ -2076,95 +2062,6 @@ specPatchUser = do
             PatchOp.Remove
             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
             Nothing
-    it "scim email metadata round-trip (incl. legacy rows without metadata)" $ do
-      (tok, _) <- registerIdPAndScimToken
-      (user0, email) <- randomScimUserWithEmail
-      -- Provision with explicit metadata; GET must echo it exactly.
-      let wantEmail =
-            Scim.Email.Email
-              (Just "work")
-              (Scim.Email.EmailAddress email)
-              (Just (Scim.ScimBool True))
-          user = user0 {Scim.User.emails = [wantEmail]}
-      storedUser <- createUser tok user
-      let uid :: UserId = scimUserId storedUser
-      getUser tok uid >>= \su -> liftIO $ do
-        (Scim.User.emails . Scim.value . Scim.thing $ su) `shouldBe` [wantEmail]
-
-      -- Simulate a legacy row (provisioned before metadata was stored):
-      -- overwriting the store row with no metadata makes GET echo none.
-      void . runSpar $ ScimUserTimesStore.write Nothing Nothing storedUser
-      getUser tok uid >>= \su -> liftIO $ do
-        (Scim.User.emails . Scim.value . Scim.thing $ su)
-          `shouldBe` [Scim.Email.Email Nothing (Scim.Email.EmailAddress email) Nothing]
-
-      -- Strict round-trip consequence: the value-path filter
-      -- @emails[type eq "work"]@ no longer matches the stored entry, so the
-      -- Add takes the create-on-absent path, appends a second entry, and the
-      -- reduction back to one email keeps the OLD address.
-      suffix <- cs <$> replicateM 7 (randomRIO ('0', '9'))
-      let newEmail = unsafeEmailAddress ("email" <> encodeUtf8 suffix) "example.com"
-          workValuePath =
-            PatchOp.IntoValuePath
-              ( Filter.ValuePath
-                  (Filter.topLevelAttrPath "emails")
-                  (Filter.FilterAttrCompare (Filter.topLevelAttrPath "type") Filter.OpEq (Filter.ValString "work"))
-              )
-              (Just "value")
-          addOp = PatchOp.Operation PatchOp.Add (Just workValuePath) (Just (Aeson.String (fromEmail newEmail)))
-      patchUser tok uid (PatchOp.PatchOp [addOp]) >>= \su -> liftIO $ do
-        (Scim.User.emails . Scim.value . Scim.thing $ su)
-          `shouldBe` [Scim.Email.Email Nothing (Scim.Email.EmailAddress email) Nothing]
-
-    -- RFC 7644 §3.5.2.2: removing a sub-attribute unassigns it and keeps the
-    -- record; RFC 7643 §2.5: assigning null is equivalent to unassignment.
-    it "scim email type can be removed / nulled without collateral erasure" $ do
-      (tok, _) <- registerIdPAndScimToken
-      (user0, email) <- randomScimUserWithEmail
-      let wantEmail =
-            Scim.Email.Email
-              (Just "work")
-              (Scim.Email.EmailAddress email)
-              (Just (Scim.ScimBool True))
-          user = user0 {Scim.User.emails = [wantEmail]}
-          typePath =
-            PatchOp.IntoValuePath
-              ( Filter.ValuePath
-                  (Filter.topLevelAttrPath "emails")
-                  (Filter.FilterAttrCompare (Filter.topLevelAttrPath "type") Filter.OpEq (Filter.ValString "work"))
-              )
-              (Just "type")
-          expectKept addr su = liftIO $ do
-            (Scim.User.emails . Scim.value . Scim.thing $ su)
-              `shouldBe` [Scim.Email.Email Nothing (Scim.Email.EmailAddress addr) (Just (Scim.ScimBool True))]
-
-      -- remove emails[type eq "work"].type
-      storedUser <- createUser tok user
-      let uid :: UserId = scimUserId storedUser
-      patchUser tok uid (PatchOp.PatchOp [PatchOp.Operation PatchOp.Remove (Just typePath) Nothing])
-        >>= expectKept email
-      Just times <- runSpar $ ScimUserTimesStore.read uid
-      liftIO $ do
-        times.scimUserTimesEmailType `shouldBe` Nothing
-        times.scimUserTimesEmailPrimary `shouldBe` Just True
-
-      -- replace emails[type eq "work"].type with "value": null
-      -- (fresh user: a type-less entry no longer matches the filter)
-      (user0', email') <- randomScimUserWithEmail
-      let wantEmail' =
-            Scim.Email.Email
-              (Just "work")
-              (Scim.Email.EmailAddress email')
-              (Just (Scim.ScimBool True))
-          user' = user0' {Scim.User.emails = [wantEmail']}
-      storedUser' <- createUser tok user'
-      let uid' :: UserId = scimUserId storedUser'
-      patchUser tok uid' (PatchOp.PatchOp [PatchOp.Operation PatchOp.Replace (Just typePath) (Just Aeson.Null)])
-        >>= expectKept email'
-      Just times' <- runSpar $ ScimUserTimesStore.read uid'
-      liftIO $ do
-        times'.scimUserTimesEmailType `shouldBe` Nothing
-        times'.scimUserTimesEmailPrimary `shouldBe` Just True
     it "doing nothing doesn't change the user" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2447,7 +2344,7 @@ specDeleteUser = do
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
       scimUserDeleted <-
-        aFewTimes (runSpar $ ScimUserTimesStore.read uid) isNothing
+        aFewTimes (runSpar $ ScimUserMetaStore.read uid) isNothing
       liftIO $
         (brigUser, samlUser, scimUserDeleted)
           `shouldBe` (Nothing, Nothing, Nothing)

@@ -18,8 +18,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ScimUserTimesStore.Cassandra
-  ( scimUserTimesStoreToCassandra,
+module Wire.ScimUserMetaStore.Cassandra
+  ( scimUserMetaStoreToCassandra,
   )
 where
 
@@ -30,16 +30,16 @@ import Imports
 import Polysemy
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
-import Wire.ScimUserTimesStore (ScimUserTimes (..), ScimUserTimesStore (..))
+import Wire.ScimUserMetaStore (ScimUserMeta (..), ScimUserMetaStore (..))
 
-scimUserTimesStoreToCassandra :: forall m r a. (MonadClient m, Member (Embed m) r) => Sem (ScimUserTimesStore ': r) a -> Sem r a
-scimUserTimesStoreToCassandra =
+scimUserMetaStoreToCassandra :: forall m r a. (MonadClient m, Member (Embed m) r) => Sem (ScimUserMetaStore ': r) a -> Sem r a
+scimUserMetaStoreToCassandra =
   interpret $
     embed @m . \case
-      Write emailType emailPrimary wm -> writeScimUserTimes emailType emailPrimary wm
-      Read uid -> readScimUserTimes uid
-      ReadMulti uids -> readScimUserTimesMulti uids
-      Delete uid -> deleteScimUserTimes uid
+      Write emailType emailPrimary wm -> writeScimUserMeta emailType emailPrimary wm
+      Read uid -> readScimUserMeta uid
+      ReadMulti uids -> readScimUserMetaMulti uids
+      Delete uid -> deleteScimUserMeta uid
 
 ----------------------------------------------------------------------
 -- SCIM user records
@@ -49,8 +49,8 @@ scimUserTimesStoreToCassandra =
 -- | Store creation and last-update time from the scim metadata under a user
 -- id, together with the SCIM email metadata (@type@, @primary@) of the stored
 -- email entry (if any was supplied by the IdP).
-writeScimUserTimes :: (HasCallStack, MonadClient m) => Maybe Text -> Maybe Bool -> WithMeta (WithId UserId a) -> m ()
-writeScimUserTimes emailType emailPrimary (WithMeta meta (WithId uid _)) =
+writeScimUserMeta :: (HasCallStack, MonadClient m) => Maybe Text -> Maybe Bool -> WithMeta (WithId UserId a) -> m ()
+writeScimUserMeta emailType emailPrimary (WithMeta meta (WithId uid _)) =
   retry x5 . write ins $
     params
       LocalQuorum
@@ -66,37 +66,37 @@ writeScimUserTimes emailType emailPrimary (WithMeta meta (WithId uid _)) =
 
 -- | Read creation and last-update time (and SCIM email metadata) from the
 -- database for a given user id.
-readScimUserTimes :: (HasCallStack, MonadClient m) => UserId -> m (Maybe ScimUserTimes)
-readScimUserTimes uid = do
-  fmap rowToScimUserTimes
+readScimUserMeta :: (HasCallStack, MonadClient m) => UserId -> m (Maybe ScimUserMeta)
+readScimUserMeta uid = do
+  fmap rowToScimUserMeta
     <$> retry x1 (query1 sel $ params LocalQuorum (Identity uid))
   where
     sel :: PrepQuery R (Identity UserId) (UTCTimeMillis, UTCTimeMillis, Maybe Text, Maybe Bool)
     sel = "SELECT created_at, last_updated_at, email_type, email_primary FROM scim_user_times WHERE uid = ?"
 
-readScimUserTimesMulti :: (HasCallStack, MonadClient m) => [UserId] -> m [(UserId, ScimUserTimes)]
-readScimUserTimesMulti uid = do
-  fmap rowToUserTimesMulti
+readScimUserMetaMulti :: (HasCallStack, MonadClient m) => [UserId] -> m [(UserId, ScimUserMeta)]
+readScimUserMetaMulti uid = do
+  fmap rowToUserMetaMulti
     <$> retry x1 (query sel $ params LocalQuorum (Identity uid))
   where
     sel :: PrepQuery R (Identity [UserId]) (UserId, UTCTimeMillis, UTCTimeMillis, Maybe Text, Maybe Bool)
     sel = "SELECT uid, created_at, last_updated_at, email_type, email_primary FROM scim_user_times WHERE uid IN ?"
 
-rowToScimUserTimes :: (UTCTimeMillis, UTCTimeMillis, Maybe Text, Maybe Bool) -> ScimUserTimes
-rowToScimUserTimes (created_, lastUpdated, emailType, emailPrimary) =
-  ScimUserTimes created_ lastUpdated emailType emailPrimary
+rowToScimUserMeta :: (UTCTimeMillis, UTCTimeMillis, Maybe Text, Maybe Bool) -> ScimUserMeta
+rowToScimUserMeta (created_, lastUpdated, emailType, emailPrimary) =
+  ScimUserMeta created_ lastUpdated emailType emailPrimary
 
-rowToUserTimesMulti :: (UserId, UTCTimeMillis, UTCTimeMillis, Maybe Text, Maybe Bool) -> (UserId, ScimUserTimes)
-rowToUserTimesMulti (uid, created_, lastUpdated, emailType, emailPrimary) =
-  (uid, ScimUserTimes created_ lastUpdated emailType emailPrimary)
+rowToUserMetaMulti :: (UserId, UTCTimeMillis, UTCTimeMillis, Maybe Text, Maybe Bool) -> (UserId, ScimUserMeta)
+rowToUserMetaMulti (uid, created_, lastUpdated, emailType, emailPrimary) =
+  (uid, ScimUserMeta created_ lastUpdated emailType emailPrimary)
 
 -- | Delete a SCIM user's access times by id.
 -- You'll also want to ensure they are deleted in Brig and in the SAML Users table.
-deleteScimUserTimes ::
+deleteScimUserMeta ::
   (HasCallStack, MonadClient m) =>
   UserId ->
   m ()
-deleteScimUserTimes uid = retry x5 . write del $ params LocalQuorum (Identity uid)
+deleteScimUserMeta uid = retry x5 . write del $ params LocalQuorum (Identity uid)
   where
     del :: PrepQuery W (Identity UserId) ()
     del = "DELETE FROM scim_user_times WHERE uid = ?"
