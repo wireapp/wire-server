@@ -1,4 +1,4 @@
-SCIM user resources returned by spar now include `"type": "work"` on stored email
+SCIM user resources returned by spar now include `type` on stored email
 addresses. Previously spar persisted no `type`, so SCIM PATCH operations with a
 value-path filter like `emails[type eq "work"].value` (as sent by Microsoft
 Entra ID) never matched the stored entry and silently appended a duplicate
