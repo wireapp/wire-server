@@ -81,18 +81,26 @@ data Location = Location
     locScope :: Maybe Text
   }
 
--- | The scopes that get an OAuth token past nginz to this endpoint.
+-- | The scope an OAuth token needs to get past nginz to this endpoint.
 --
--- Empty when nginz requires no scope, and also when it requires one
--- not in 'Wire.API.OAuth.OAuthScopes'.  Mistyped scope names are
--- caught by 'testScopeNamesAreReal'.
+-- libzauth accepts a whole tier range per method, so a token holding
+-- @admin:meetings@ may also @POST@.  Documenting every accepted scope would be
+-- noise, and would force @POST@ to be annotated with both @write:@ and
+-- @admin:@; what the docs should name is the /least/ privilege that suffices,
+-- so we take the lowest tier that is actually grantable.
+--
+-- Empty when nginz requires no scope, and also when no tier it would accept is
+-- in 'Wire.API.OAuth.OAuthScope' -- then the endpoint cannot be reached with an
+-- OAuth token at all and there is nothing to document.  Mistyped scope names
+-- are caught by 'testScopeNamesAreReal'.
+--
+-- FUTUREWORK(fisx): https://wearezeta.atlassian.net/browse/WPB-28193
 enforcedScopes :: Text -> Text -> Set Text
 enforcedScopes method path =
-  fromMaybe Set.empty $ do
+  maybe Set.empty Set.singleton $ do
     loc <- find (`locationMatches` path) nginzLocations
     base <- locScope loc
-    pure . Set.intersection grantableScopes . Set.fromList $
-      [tier <> ":" <> base | tier <- methodScopeTiers method]
+    find (`Set.member` grantableScopes) [tier <> ":" <> base | tier <- methodScopeTiers method]
 
 nginzLocations :: [Location]
 nginzLocations =
@@ -161,7 +169,9 @@ pcreOnlyConstructs = ["(?", "\\", "{", "*?", "+?"]
 
 -- | @oauth_scope: foo@ in values.yaml names a scope without a tier; libzauth
 -- decides which tiers satisfy it from the request method.  See @verify_scope@ in
--- @libs/libzauth/libzauth/src/oauth.rs@
+-- @libs/libzauth/libzauth/src/oauth.rs@.  Listed in increasing order of
+-- privilege: 'enforcedScopes' takes the first grantable one, so this order
+-- decides which scope an endpoint gets documented with.
 methodScopeTiers :: Text -> [Text]
 methodScopeTiers = \case
   "GET" -> ["read", "write", "admin"]
