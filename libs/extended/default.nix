@@ -27,6 +27,7 @@
 , http-types
 , imports
 , lib
+, megaparsec
 , metrics-wai
 , monad-control
 , postgresql-connection-string
@@ -76,6 +77,7 @@ mkDerivation {
     http-client-tls
     http-types
     imports
+    megaparsec
     metrics-wai
     monad-control
     postgresql-connection-string
@@ -101,12 +103,14 @@ mkDerivation {
     aeson
     base
     bytestring
+    containers
     crypton
     crypton-asn1-types
     crypton-pem
     crypton-x509
     hspec
     imports
+    postgresql-connection-string
     QuickCheck
     string-conversions
     temporary

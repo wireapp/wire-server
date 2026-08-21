@@ -36,6 +36,7 @@ import Hasql.Connection qualified as HasqlConnection
 import Hasql.Connection.Settings qualified as HasqlConnectionSettings
 import Hasql.Decoders qualified as HasqlDecoders
 import Hasql.Encoders qualified as HasqlEncoders
+import Hasql.Pool.Extended (runConnStrParser)
 import Hasql.Session qualified as HasqlSession
 import Hasql.Statement qualified as HasqlStatement
 import Hasql.TH
@@ -52,8 +53,8 @@ mkArbiterConnectionString :: Map Text Text -> Maybe FilePathSecrets -> IO Secret
 mkArbiterConnectionString pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   let pgConfig' = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
-  pure . secretText . PostgresqlConnectionString.toKeyValueString $
-    PostgresqlConnectionString.fromKeyValueParams pgConfig'
+  connStr <- runConnStrParser $ PostgresqlConnectionString.fromKeyValueParams pgConfig'
+  pure . secretText $ PostgresqlConnectionString.toKeyValueString connStr
 
 -- | Apply all migrations for the job registry before constructing any worker
 -- pools or accepting jobs.

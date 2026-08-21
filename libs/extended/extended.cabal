@@ -108,6 +108,7 @@ library
     , http-client-tls
     , http-types
     , imports
+    , megaparsec
     , metrics-wai
     , monad-control
     , postgresql-connection-string
@@ -138,6 +139,7 @@ test-suite extended-tests
     Paths_extended
     Test.Data.Hourglass.ConstSpec
     Test.Data.X509.ExtendedSpec
+    Test.Hasql.Pool.ExtendedSpec
     Test.System.Logger.ExtendedSpec
 
   hs-source-dirs:     test
@@ -196,6 +198,7 @@ test-suite extended-tests
       aeson
     , base
     , bytestring
+    , containers
     , crypton
     , crypton-asn1-types
     , crypton-pem
@@ -203,6 +206,7 @@ test-suite extended-tests
     , extended
     , hspec
     , imports
+    , postgresql-connection-string
     , QuickCheck
     , string-conversions
     , temporary
