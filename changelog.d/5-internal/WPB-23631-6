@@ -1,1 +1,0 @@
-Move `Spar.Sem.ScimExternalIdStore` in `Wire.ScimExternalIdStore`. (#5392, #5423)

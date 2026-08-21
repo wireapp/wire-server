@@ -1,1 +1,0 @@
-The federator internal listener's /i/status health check now correctly verifies the external listener is ready instead of checking itself, so readiness no longer reports up before the external federation listener is bound.

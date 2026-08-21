@@ -1,1 +1,0 @@
-Rename `Wire.ScimUserTimesStore` to `Wire.ScimUserMetaStore` (`ScimUserTimes` -> `ScimUserMeta`); the store also holds SCIM email metadata now. The Cassandra table `spar.scim_user_times` is unchanged.

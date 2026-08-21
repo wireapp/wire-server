@@ -1,1 +1,0 @@
-When a user is put under SCIM control, any pending email-address update is now invalidated (the unvalidated email and its activation token are removed). Previously, team settings kept offering a "resend verification" action that could not succeed (failing with `403 managed-by-scim`), and a stale activation link could still change a SCIM-managed user's email outside of SCIM.

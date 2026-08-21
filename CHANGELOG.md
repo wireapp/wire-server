@@ -1,3 +1,444 @@
+# [2026-08-21] (Chart Release 5.35.0)
+
+## Release notes
+
+
+* The PostgreSQL connection pool implementation was switched to `hasql-resource-pool`.
+  The `agingTimeout` setting is now ignored and should be treated as deprecated.
+  Pool metrics now include acquisition/session latency. (#5323)
+
+* Background-worker now runs additional jobs and has new settings. The `jobs` settings configure the dispatcher, worker, retry, shutdown, and reaper behavior, with defaults matching the existing behavior. The initial queues are `meetings` and `conversations`, with one worker pool assigned to each queue.
+
+  Operators should size the background-worker PostgreSQL pool and PostgreSQL `max_connections` for this workload and the transient connection used while acquiring the migration lock; that connection is closed after migrations complete. `jobs.workerThreads` defaults to `1`.
+
+  Both worker pools use the same PostgreSQL pool. Connections are borrowed for active job transactions and short-lived worker operations, rather than being reserved permanently per pool. LISTEN/NOTIFY is disabled, so the job runner does not open an additional listener connection.
+
+  The Helm chart sets `background-worker.terminationGracePeriodSeconds` to `40`, providing a margin over the default `jobs.gracefulShutdownTimeout` of `30s`. Adjust both settings together if changing the shutdown timeout. (#5289)
+
+* * The `backgroundEffects` team feature flag is **deprecated** (WPB-27912). Its
+    default is now **enabled and locked**, and the Helm configuration override for
+    `backgroundEffects` has been removed from `charts/wire-server`. The flag's
+    data type and its public/internal HTTP endpoints are retained for backward
+    compatibility; any Helm overrides for `backgroundEffects` are now ignored and
+    can be removed. The public/internal HTTP endpoints return 404 at API version
+    v17 and remain available through v16; the flag type remains deprecated. The
+    aggregate `GET /feature-configs` and `GET /teams/:tid/features` endpoints
+    continue to include `backgroundEffects` at all API versions, including v17. (#5431)
+
+* Make SCIM error responses comply with RFC7644.  Any code that processes SCIM error responses must be changed to follow the standard, instead of the previous Wire implementation.
+
+  Previous schema (incompatible with RFC):
+
+  ```
+  {
+    "code": 400,
+    "label": "scim-error",
+    "message": "{\"detail\":\"[...]\",\"schemas\":[\"urn:ietf:params:scim:api:messages:2.0:Error\"],\"scimType\":\"invalidValue\",\"status\":\"400\"}"
+  }
+  ```
+
+  New schema (RFC-compliant):
+
+  ```
+  {
+    "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+    "status": "400"
+    "scimType": "invalidValue",
+    "detail": "[...]",
+  }
+  ``` (#5439)
+
+* SCIM: Make role and entitlements fields in user schema comply with RFC.  Any code that processes SCIM users must be changed to follow the standard, instead of the previous Wire implementation.
+
+  Previous User schema (incompatible with RFC):
+
+  ```
+  {
+    ...
+    "roles": ["member"],
+    "entitlements": ["some entitlement"],
+    ...
+  }
+  ```
+
+  New schema (RFC-compliant):
+
+  ```
+  {
+    ...
+    "roles": [{"value" : "member"}],
+    "entitlements": [{"value" : "some entitlement"}],
+    ...
+  }
+  ```
+
+  For backwards compatibility, both fields still accept the old bare-string form on input. (#5440)
+
+* Added a new galley setting `settings.meetings.pastEditPeriod` (default 24h): how far into the past `PUT /meetings/{domain}/{id}` may move a meeting's `start_time`/`end_time`, so past and ongoing meetings can be corrected after the fact. Previously any start time in the past (beyond a 60s tolerance) was rejected while a meeting was still upcoming. Galley refuses to start if `pastEditPeriod` is negative or greater than `settings.meetings.validityPeriod`. (#5451)
+
+* Update meeting conversations from `{private, invite}` to `{invite, code}` so meetings can be joined by code. (#5464)
+
+* The `reaper` chart no longer grants itself `cluster-admin` and no longer uses an
+  unmaintained container image. Upgrading is a drop-in `helm upgrade`; no manual steps.
+
+  Two cases need action:
+
+  * If you override `image` in your values, update the override: the default changed from
+    `docker.io/bitnamilegacy/kubectl:1.32.4` to `docker.io/alpine/kubectl:1.36.3`. The
+    image must contain a POSIX shell at `/bin/sh` — distroless kubectl images do not work.
+  * If you mirror images into a private registry (airgapped installs), add the new image.
+
+  See `charts/reaper/README.md` for the image settings, the RBAC the chart now creates,
+  and the rest of the changes. (#5444)
+
+* * The `meetingsPremium` team feature flag is **deprecated** (WPB-26771). It no
+    longer affects meeting behaviour: team meetings are always non-trial
+    regardless of its value. Its default is now **enabled and locked**, and the
+    Helm configuration override for `meetingsPremium` has been removed from
+    `charts/wire-server`. The flag's data type and its public/internal HTTP
+    endpoints are retained for backward compatibility but have no behavioural
+    effect; any Helm overrides for `meetingsPremium` are now ignored and can be
+    removed. The public/internal HTTP endpoints now return 404 at API version v17
+    and remain available through v16; the flag type remains deprecated. The aggregate `GET /feature-configs` and `GET /teams/:tid/features` endpoints continue to include `meetingsPremium` at all API versions, including v17. (#5326)
+
+* * Galley has a new optional `settings.meetings.email` configuration block
+    (WPB-27175) for sending meeting-invitation emails to invited external
+    addresses. It takes a required `from` sender, an optional `replyTo` address,
+    and a `transport` that selects AWS SES or SMTP (the same shape Brig uses).
+    When the block is unset, meeting invitation emails are disabled. For SMTP,
+    set `galley.secrets.smtpPassword` (mounted at
+    `/etc/wire/galley/secrets/smtp-password.txt`) and point
+    `settings.meetings.email.smtp.passwordFile` at that path; the Galley ConfigMap
+    injects it into `transport.smtpCredentials.smtpPassword`, the same pattern
+    Brig uses for `smtp.passwordFile`. This change adds the
+    configuration plumbing only; email sending itself lands in a follow-up. (#5346)
+
+* Starting at API version V17, the `Meeting` type returned and accepted by the
+  meetings endpoints carries `tzid` (IANA time zone) and drops the deprecated
+  `trial` field; `end_time` is retained on both V17 and V16. The operator config
+  `galley.config.settings.meetings.legacyTimeZone` (default `Europe/Berlin`) now
+  applies only to meetings created by legacy clients (API < V17); reads no longer
+  need it, as `tzid` is persisted `NOT NULL` (backfilled to `Europe/Berlin`). (#5391)
+
+
+## API changes
+
+
+* SCIM user resources returned by spar now include `type` on stored email
+  addresses. Previously spar persisted no `type`, so SCIM PATCH operations with a
+  value-path filter like `emails[type eq "work"].value` (as sent by Microsoft
+  Entra ID) never matched the stored entry and silently appended a duplicate
+  email instead of updating the address in place. Clients that compare full SCIM
+  user payloads rather than individual fields (e.g. strict equality on the
+  `emails` array) will see the additional `type` member. (WPB-23434) (#5419)
+
+* Introduced meeting-specific conversation lifecycle events: `conversation.create-meeting` and `conversation.delete-meeting`. When a conversation of type meeting (`group_conv_type: "meeting"`) is created or deleted, clients receive these instead of `conversation.create` / `conversation.delete`. The payloads are identical to their non-meeting counterparts (`conversation.delete-meeting`, like `conversation.delete`, carries no `data`); only the event `type` differs, so clients can handle meetings distinctly. (WPB-26626) (#5421)
+
+* `POST /meetings` (create) and `PUT /meetings/{domain}/{id}` (update) now return a full `conversation` object alongside the existing meeting fields. The legacy `qualified_conversation` field is retained for backward compatibility. (#5301)
+
+* Roll back: do *not* include collaborator apps in get-apps end-point. (#5402)
+
+* The `backgroundEffects` team feature endpoints are deprecated and return 404 for
+  clients on API version v17: the public `GET`/`PUT /teams/:tid/features/backgroundEffects`
+  and the internal legacy lock `PUT /i/teams/:tid/features/backgroundEffects/(un)?locked`.
+  They remain available through v16. The aggregate endpoints
+  `GET /feature-configs` and `GET /teams/:tid/features` are unaffected and continue
+  to include `backgroundEffects` at all API versions: the aggregate feature list is
+  version-agnostic, like other version-gated features such as MLS. (#5431)
+
+* Make scim error responses comply with RFC7644. (#5439)
+
+* SCIM: advertise all schemas used in User (fixes RFC compliance issue). (#5441)
+
+* SCIM: Make role and entitlements fields in user schema comply with RFC. (#5440)
+
+* The `mlsMigration` team feature config now includes an `allowManualMigration`
+  boolean field (default `false`) that controls whether clients are permitted to
+  perform single-group (manual) MLS migrations. The field only steers client
+  behaviour (e.g. if a migration button is shown or not). It does not enforce
+  checks in the backend. (#5456)
+
+* New oauth scopes for meetings for calendar integration. (#5462)
+
+* Meeting endpoints (`POST /meetings`, `PUT/DELETE /meetings/:domain/:id`, meeting invitation endpoints): errors have dedicated descriptions. (#5455)
+
+* To prevent security-relevant configuration mistakes, make configuration of
+  allowed IdP certificate fingerprints (`idpCertFingerprintAllowlist`) mandatory for
+  multi-ingress SSO. **This will break existing multi-ingress SSO flows until
+  `idpCertFingerprintAllowlist` is configured!** This breakage is unfortunately
+  necessary, because we're getting more lenient regarding the IdPs a user can use
+  to log in ("auto IdP migration"). Regular (non-multi-ingress) use cases are
+  unaffected. (#5327)
+
+* +`GET /conversations/{domain}/{id}` and the legacy `GET /conversations/{id}` now return 404 (`no-conversation`) when the conversation is a meeting, on API versions prior to V16, instead of returning the conversation with `group_conv_type: null`. The legacy batch endpoint `GET /conversations?ids=…` — itself removed at V3, so only ever available on V1–V2 — likewise omits meeting conversations from its results. Meeting conversations remain fully accessible from V16 onwards. (WPB-26626) (#5382)
+
+* The `meetingsPremium` team feature endpoints are deprecated and return 404 for
+  clients on API version v17: the public `GET`/`PUT /teams/:tid/features/meetingsPremium`
+  and the internal legacy lock `PUT /i/teams/:tid/features/meetingsPremium/(un)?locked`.
+  They remain available through v16. The flag has had no behavioural effect since
+  WPB-26771 (team meetings are always non-trial). The aggregate endpoints
+  `GET /feature-configs` and `GET /teams/:tid/features` are unaffected and continue
+  to include `meetingsPremium` at all API versions: the aggregate feature list is
+  version-agnostic, like other version-gated features such as MLS. (WPB-26771) (#5364)
+
+* Reject meeting creation and update when the start time is in the past (with a 60-second tolerance for clock skew). Previously, meetings could be created with arbitrary past start times. (#5325)
+
+* GET /meetings/list and GET /meetings/{domain}/{id} no longer return 403 invalid-op when the caller's team has the `meetings` feature disabled. The read endpoints now treat a disabled feature as "no meetings": GET /meetings/list returns 200 [], and GET /meetings/{domain}/{id} returns 404 meeting-not-found. Write operations (create, update, delete, invitation mutations) still return 403 invalid-op when the feature is disabled. Previously these read endpoints returned an undocumented 403 invalid-op for members of teams with the meetings feature disabled. (#5353)
+
+* The meetings endpoints (POST /meetings, PUT /meetings/{domain}/{id}, GET /meetings/{domain}/{id}, GET /meetings/list) drop the deprecated `trial` field from the `Meeting` response starting at API version V17. On V15–V16 the field is still present but always returns `false` (team meetings are never trial; see WPB-26771). The underlying storage is unchanged. (#5363)
+
+* PUT /meetings/{domain}/{id} can now edit a meeting that has already started (an ongoing meeting). The start-time-not-in-the-past validation added by WPB-26773 previously rejected any update whose start_time was in the past, which also blocked legitimate edits to ongoing meetings — whose start time is naturally in the past; the check now applies only to meetings that have not started yet. Creating a meeting with a past start time, and moving an upcoming meeting's start time into the past, remain rejected (WPB-27465). (#5373)
+
+* Starting at API version V17, the `Meeting` type carries a `tzid` (IANA time
+  zone) and drops the deprecated `trial` field; `end_time` is retained on both V17
+  and V16. A V17 update that supplies only `start_time` leaves `end_time`
+  unchanged — pass `end_time` to reschedule the end. (#5391)
+
+
+## Features
+
+
+* Manual team invitations now conflict when a matching pending SCIM invitation already exists for the same team and email address. (#5400)
+
+* Add user contact-status enrichment to user listings based on available Proteus and MLS contact methods. (#5371)
+
+* Introduce schedulable background jobs, migrate meetings cleanup to the new job runner, and add the initial adminless reminder and deletion jobs. (#5289)
+
+* Skip senderless prevent-adminless deletion for federated conversations with remote members to prevent remote state drift. (#5425)
+
+* Add adminless-group reconciliation, teardown, and system events for member updates, reminders, and deletion. (#5357, #5390)
+
+* Filter Wire Meetings lifecycle events only on the originating client connection. (#5428)
+
+* When a team uses multiple SAML IdPs (one per ingress domain) in a multi-ingress
+  setup, users can now authenticate via any of the team's IdPs even if their
+  account was originally provisioned under a different one. Spar resolves the
+  correct account by email-based NameID lookup across all team IdPs and migrates
+  the user's SSO identity to the authenticating IdP transparently.
+
+  **Important:** Email addresses (`NameID`s) must be unique across configured
+  IdPs! Otherwise, users may be logged into wrong accounts!
+
+  Please refer to the documentation for further information. (#5212)
+
+* * Added meeting lifecycle events: `meeting.create`, `meeting.update`, and
+    `meeting.delete` (WPB-26705). These websocket notifications are pushed to all
+    local members of the meeting's conversation on every successful create, update,
+    and delete operation. Each payload carries the event `type`, the meeting's
+    qualified ID in the top-level `qualified_id` field, the
+    `qualified_conversation`, `qualified_from`, `via`, `time`, and optional `team`.
+    Meeting events use a dedicated event envelope (not the conversation event
+    envelope). (#5330)
+
+* Added `meeting.member-add` websocket event (WPB-27620). When a user becomes a
+  member of an MLS meeting conversation, a `meeting.member-add` lifecycle event is
+  pushed to the newly-added local members, alongside the existing `meeting.create`,
+  `meeting.update`, and `meeting.delete` events. The payload uses the same meeting
+  event structure as the other meeting lifecycle events. (#5383)
+
+
+## Bug fixes and other updates
+
+
+* When a user is put under SCIM control, any pending email-address update is now invalidated (the unvalidated email and its activation token are removed). Previously, team settings kept offering a "resend verification" action that could not succeed (failing with `403 managed-by-scim`), and a stale activation link could still change a SCIM-managed user's email outside of SCIM. (#5333)
+
+* Release a handle claimed after a SCIM invitation expired, before cleanup, preventing a subsequent team invitation from using that handle. (#5400)
+
+* SCIM PATCH now supports the `emails` multi-valued attribute (e.g. Entra's
+  `emails[type eq "work"].value`), so user emails can be updated via SCIM. Identity
+  providers that previously hit a `can not lens into multi-valued attributes yet`
+  error when provisioning emails now succeed. (#5419)
+
+* SCIM email metadata is now persisted and echoed verbatim. spar stores the
+  `type` and `primary` sub-attributes of the SCIM email entry it keeps (in
+  `spar.scim_user_times`) and echoes them back on GET/POST/PATCH exactly as the
+  IdP sent them, instead of synthesizing a hardcoded `type` of `"work"` (email
+  `type` values are limited to 64 characters). As a result, PATCH value-path
+  filters like Entra's `emails[type eq "work"].value` and Okta's
+  `emails[primary eq true].value` match the stored entry for an in-place update
+  when (and only when) the IdP actually supplied that metadata at provisioning
+  time; users provisioned without it echo neither field. Since per RFC 7644
+  §3.5.2 an `Add` on a non-existing target creates it, a type-filter PATCH
+  against a user whose stored email carries no such metadata appends a new
+  entry (which the single-email reduction collapses back to the old address,
+  i.e. no visible change), while a primary-filter PATCH is a complete no-op. (#5419)
+
+* SCIM user provisioning now rejects requests (HTTP 400) that mark more than one
+  email as `primary`, an RFC 7643 §2.4 violation. Previously spar silently picked
+  one primary and dropped the rest, masking client-side misconfiguration. Requests
+  with zero or one primary email are unchanged. (#5419)
+
+* Fixed asset uploads with non-ASCII filenames when audit logging is enabled. Audit-log metadata is now percent-encoded before being stored in S3 metadata headers and decoded when read back. (#5359)
+
+* Fix nginz routes for delete / update collaborator.  Move collaborator CRUD api to galley. (#5334)
+
+* Users marked non-searchable are no longer returned across federation. (#5282)
+
+* If apps are re-enabled in the team, DO NOT re-activate any apps in the team. (#5347)
+
+* Wire Meetings lifecycle events (meeting.create, meeting.update, meeting.delete) are no longer delivered to the user who triggered the action, consistent with how other event types avoid echoing back to the originator. Previously the creator/updater/deleter received their own meeting event. (#5426)
+
+* Allow team admin to remove bot from all conversations, instead of crashing.  (This is how it's already done in 'finishDeleteService'.) (#5450)
+
+* Fix openapi3 docs for oauth scopes. (#5457)
+
+* Enable claiming key packages for ephemeral users (#5339)
+
+* The federator internal listener's /i/status health check now correctly verifies the external listener is ready instead of checking itself, so readiness no longer reports up before the external federation listener is bound. (#5403)
+
+* Reorder SSO nginx locations to enforce correct rate limiting:
+  `/sso/get-by-email` needs to appear before `/sso` in nginx's config, because
+  regex locations are matched in order (first-match), not by specificity. In
+  previous order `/sso` caught before `/sso/get-by-email` applied the specific
+  5r/m rate limit, leaving it on the generic 50r/s limit. (#5341)
+
+* Fixed Content Security Policy header scoping in multi-ingress Kubernetes configuration. CSP headers set via the Ingress nginx configuration-snippet are now properly scoped to exclude the webapp domain, preventing conflicts with the webapp's own CSP headers that are set independently. (#5432)
+
+* SCIM PATCH on `emails` now handles the email `type` and `primary`
+  sub-attributes per RFC 7644 §3.5.2.2 and RFC 7643 §2.5:
+  `remove emails[type eq "work"].type` (or `.primary`) unassigns just that
+  sub-attribute and keeps the entry (including the address and the other
+  sub-attribute) instead of deleting the whole record; `replace`/`add` with an
+  explicit `"value": null` unassigns the sub-attribute the same way; and a
+  filterless `remove emails` clears all email entries. Removing or nulling the
+  `.value` sub-attribute is rejected with a 400 pointing at whole-entry removal,
+  since the address is the record's identity. As a consequence of preserving
+  explicit `null` values in PATCH operations, `replace` with `null` on
+  `displayName`/`externalId`/`active` now unassigns the attribute (RFC 7643 §2.5)
+  like the corresponding `remove` already did, instead of failing with
+  "No value was provided". (#5419)
+
+* Fixed a discrepancy between the canonical `searchVisibility` feature key used in runtime JSON and the legacy `teamSearchVisibility` key used in YAML configuration. Both names are now accepted; no configuration changes or other operator actions are required. (#5338)
+
+
+## Internal changes
+
+
+* Fix integration test cleanup on federation instance V2. (#5447)
+
+* Update postgres schema dump. (#5461)
+
+* Move email template completeness tests from brig to wire-subsystems. (#5429)
+
+* Rename `Wire.ScimUserTimesStore` to `Wire.ScimUserMetaStore` (`ScimUserTimes` -> `ScimUserMeta`); the store also holds SCIM email metadata now. The Cassandra table `spar.scim_user_times` is unchanged. (#5419)
+
+* Move `Spar.Sem.Reporter` to `Wire.Reporter` (#5377)
+
+* Move `Spar.Sem.SamlProtocolSettings` to `Wire.SamlProtocolSettings` (#5377)
+
+* Move `Brig.Effects.JwtTools` in `Wire.JwtTools`. (#5396)
+
+* Move `Brig.Budget` in `Wire.BudgetStore`. (#5397)
+
+* Move `Galley.Effects.Queue` in `Wire.BoundedQueue`. (#5398)
+
+* Move `Spar.Sem.ScimUserTimesStore` to `Wire.ScimUserTimesStore`. (#5378)
+
+* Move `Spar.Sem.DefaultSsoCode` in `Wire.DefaultSsoStore` (#5379)
+
+* Move `Spar.Sem.IdPRawMetadataStore` to `Wire.IdPRawMetadataStore`. (#5380)
+
+* Move `Spar.Sem.VerdictFormatStore` in `Wire.VerdictFormatStore`. (#5388)
+
+* Move `Spar.Sem.ScimExternalIdStore` in `Wire.ScimExternalIdStore`. (#5392, #5423)
+
+* Read the DPoP public key bundle once at startup and cache it, instead of
+  re-reading the file on every request; the `PublicKeyBundle` effect is removed. (#5393)
+
+* Move `Brig.Effects.UserPendingActivationStore` in `Wire.UserPendingActivationStore`. (#5394)
+
+* Move `Brig.Effects.SFT` in `Wire.SFT`. (#5395)
+
+* In multi-domain (multi-ingress) mode, the `wire-ingress` chart now applies the
+  `httpRoute.annotations` passthrough to every per-domain HTTPRoute, so external-dns
+  weighted-record annotations (set-identifier/aws-weight) work across all backend
+  domains. The `service.create` toggle also applies in multi-domain deployments. (#5307)
+
+* Extract MLS key-package handling into a subsystem and split Cassandra access into a dedicated store. (#5368)
+
+* Added partial indexes and rewrote the meetings cleanup query so the background
+  worker stays fully index-backed as the `meetings` table grows:
+  - `idx_meetings_recurrence_eff_end` on `GREATEST(end_time, recurrence_until)`
+    for bounded recurring meetings (covers the recurring branches of the list and
+    cleanup queries).
+  - `idx_meetings_end_time_nonrecurring` on `end_time` for non-recurring meetings,
+    so cleanup can find expired non-recurring meetings without scanning
+    not-yet-expired recurring rows whose original slot is long past.
+  `getOldMeetingsImpl` now issues one bounded, index-backed query per meeting kind
+  and merges the two batches. (#5328)
+
+* Added a `meetings_recurrence_consistency` CHECK constraint so the recurrence
+  columns can never be left in a partially-set state (frequency is the master
+  switch; interval is required when set; recurrence_until stays optional for
+  open-ended recurring meetings). (#5328)
+
+* The wire-ingress and nginx-ingress-services charts now expose annotation
+  passthroughs (`httpRoute.annotations` on the HTTPRoutes, `ingress.annotations` on
+  the Ingresses), so external-dns weighted records (set-identifier/aws-weight) can
+  be attached to both routers for a zero-downtime nginx-to-Envoy DNS cutover.
+  wire-ingress also gains a `service.create` toggle (default true) to reuse the
+  backend Services owned by nginx-ingress-services while both run in parallel. (#5358)
+
+* When using the wire-ingress provided EnvoyProxy, ensure the request path's query string is removed from the logs, to ensure access_tokens passed as query string are not logged. Browsers are required to pass them on a query string on some endpoints such as /await. (#5361)
+
+* Moved the following endpoints from development version V17 to the new development version V18: `PUT /conversations/:domain/:cnv/members` (rejection of replacements that would leave a group adminless), `PUT /teams/:tid/features/preventAdminlessGroups` (duration-string request body), and `POST /register` (403 for SCIM-managed users changing their name). V17 behaves like V16 for these endpoints. API version V18 was created as a development version; V17 remains a development version until finalized. The changelog entry for the moved members endpoint is parked in `changelog.d/99-pending/`, which `mk-changelog.sh` and `mk-cleanup.sh` now skip. (#5468)
+
+* Cannon now logs an error when registering a client's remote presence with
+  Gundeck fails, so operators can tell this apart from an actual
+  websocket/network issue (e.g. `PongTimeout` caused by Gundeck losing its Redis
+  connection). (#5454)
+
+* The alpine base images used by the `cannon-configurator` initContainer (`wire-server`
+  chart) and the `job-done` container (`cassandra-migrations` chart) are no longer
+  hard-coded. They can now be set via `cannon.configuratorImage.{repository,tag,pullPolicy}`
+  in the `wire-server` chart and `jobDoneImage.{repository,tag}` in the
+  `cassandra-migrations` chart.
+
+  The default was bumped from `alpine:3.21.3` to `alpine:3.24.1`, since alpine 3.21
+  reaches end-of-support on 2026-11-01. The local integration stack's `init_vhosts`
+  container also moved from `alpine/curl:3.14` (an Alpine 3.14 image last published
+  in 2021) to `alpine/curl:8.21.0`.
+
+  Operators who mirror images into a private registry should make sure the new
+  `alpine:3.24.1` tag is cached, or override `repository` to point at their mirror.
+
+  The chart release tooling (`hack/bin/set-wire-server-image-version.sh`,
+  `hack/bin/set-chart-image-version.sh`) now anchors its version stamping to
+  `repository: quay.io/wire/` lines instead of matching `tag:` by indentation, so
+  third-party image tags in `values.yaml` are no longer overwritten with the
+  wire-server release version. (#5408)
+
+* Updated email templates to v1.0.155 (#5344)
+
+* Fix `#sbom` Nix env / sbomnix usage by upgrading to latest stable version of
+  the latter. The issue was introduced by upgrading `nixpkgs` to 26.05.
+
+* brig: Remove /i/users/rich-info (#5384)
+
+* remove sftd_disco (now lives in wireapp/wire-avs-service) (#5056)
+
+* Use wire image mirror for integration tests as `public.ecr.aws/bitnami/` is no
+  longer available
+  (https://aws.amazon.com/blogs/containers/bitnami-image-removal-from-ecr-public/).
+  Docker Hub has strict rate-limiting. So, in lieu of better options, we now use
+  our own image cache at `quay.io/wire/mirror-images`. (#5360)
+
+* Internal: `meetings.tzid` is now `NOT NULL`, backfilled to `Europe/Berlin`.
+  `end_time` is the source of truth (there are no `duration`/`duration_original`
+  columns). (WPB-27553) (#5391)
+
+* The `Z-Host` header has been treated as domain, but used as `Text`.
+  De-serializing and thus using it as `Domain` increases type-safety and ensures
+  domain related semantics; e.g. case insensitivity in equality checks.
+  This solves a `FUTUREWORK` remark which was around for quite some time. (#5320)
+
+
+## Federation changes
+
+
+* `deeplink.json` now contains a new optional field `supportEmail` that may be used by clients. (#5351)
+
+
 # [2026-07-07] (Chart Release 5.34.0)
 
 ## Release notes

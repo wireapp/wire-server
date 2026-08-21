@@ -1,1 +1,0 @@
-Allow team admin to remove bot from all conversations, instead of crashing.  (This is how it's already done in 'finishDeleteService'.)

@@ -1,4 +1,0 @@
-Starting at API version V17, the `Meeting` type carries a `tzid` (IANA time
-zone) and drops the deprecated `trial` field; `end_time` is retained on both V17
-and V16. A V17 update that supplies only `start_time` leaves `end_time`
-unchanged — pass `end_time` to reschedule the end.
