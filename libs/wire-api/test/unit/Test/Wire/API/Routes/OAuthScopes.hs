@@ -227,13 +227,9 @@ renderFinding f =
     [ toUrlPiece (fVersion f),
       fMethod f,
       fPath f,
-      renderScopes (fEnforced f),
-      renderScopes (fDocumented f)
+      T.pack . show . toList $ fEnforced f,
+      T.pack . show . toList $ fDocumented f
     ]
-  where
-    renderScopes s
-      | Set.null s = "-"
-      | otherwise = T.intercalate " " (Set.toAscList s)
 
 findings :: [Finding]
 findings =
