@@ -226,13 +226,11 @@ instance ToByteString OAuthScope where
 
 instance FromByteString OAuthScope where
   parser = do
-    s <- parser
-    case T.toLower s of
-      "write:conversations" -> pure WriteConversations
-      "write:conversations_code" -> pure WriteConversationsCode
-      "read:self" -> pure ReadSelf
-      "read:feature_configs" -> pure ReadFeatureConfigs
-      _ -> fail "invalid scope"
+    s <- (toByteString' . T.toLower) <$> parser
+    let table = Map.fromList [(toByteString' c, c) | c <- [(minBound :: OAuthScope) ..]]
+    case Map.lookup s table of
+      Just c -> pure c
+      Nothing -> fail $ "invalid scope: " <> show s
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
   deriving (Eq, Show, Generic, Monoid, Semigroup, Arbitrary)
