@@ -23,6 +23,7 @@ import Servant
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Meeting
+import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -49,6 +50,7 @@ type MeetingsAPI =
     :<|> Named
            "create-meeting"
            ( Summary "Create a new meeting"
+               :> DescriptionOAuthScope 'WriteMeetings
                :> From 'V17
                :> ZLocalUser
                :> ZConn
