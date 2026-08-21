@@ -640,6 +640,10 @@ nginx_conf:
     - path: /conversations/([^/]*)/([^/]*)/add-permission
       envs:
       - all
+    - path: /conversations/([^/]*)/([^/]*)/name
+      envs:
+      - all
+      oauth_scope: conversations_name
     - path: /broadcast
       envs:
       - all
@@ -778,7 +782,16 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
-    - path: /meetings(.*)
+    - path: /meetings$
+      envs:
+      - all
+      oauth_scope: meetings
+    ## this rule can't be expressed yet: https://wearezeta.atlassian.net/browse/WPB-28193
+    #- path: /meetings/([^/]*)/([^/]*)$
+    #  envs:
+    #  - all
+    #  oauth_scopes: [write:meetings, admin:meetings]
+    - path: /meetings/(.*)
       envs:
       - all
     gundeck:

@@ -29,6 +29,7 @@ import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
 import Data.Json.Util
+import Data.Map qualified as Map
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Range
@@ -199,6 +200,9 @@ data OAuthScope
   | ReadSelf
   | WriteConversations
   | WriteConversationsCode
+  | WriteConversationsName
+  | WriteMeetings
+  | AdminMeetings
   deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
@@ -217,10 +221,22 @@ instance IsOAuthScope 'ReadSelf where
 instance IsOAuthScope 'ReadFeatureConfigs where
   toOAuthScope = ReadFeatureConfigs
 
+instance IsOAuthScope 'WriteConversationsName where
+  toOAuthScope = WriteConversationsName
+
+instance IsOAuthScope 'WriteMeetings where
+  toOAuthScope = WriteMeetings
+
+instance IsOAuthScope 'AdminMeetings where
+  toOAuthScope = AdminMeetings
+
 instance ToByteString OAuthScope where
   builder = \case
     WriteConversations -> "write:conversations"
     WriteConversationsCode -> "write:conversations_code"
+    WriteConversationsName -> "write:conversations_name"
+    WriteMeetings -> "write:meetings"
+    AdminMeetings -> "admin:meetings"
     ReadSelf -> "read:self"
     ReadFeatureConfigs -> "read:feature_configs"
 

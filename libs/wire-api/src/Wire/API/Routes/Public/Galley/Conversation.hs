@@ -1340,6 +1340,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-name"
            ( Summary "Update conversation name"
+               :> DescriptionOAuthScope 'WriteConversationsName
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
