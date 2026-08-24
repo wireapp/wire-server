@@ -42,7 +42,7 @@ import Wire.API.User as User
 import Wire.API.User.Scim
 import Wire.API.UserGroup
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
-import Wire.MockInterpreters
+import Wire.MockInterpreters hiding (mockBrigAPIAccess)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
 import Wire.StoredUser

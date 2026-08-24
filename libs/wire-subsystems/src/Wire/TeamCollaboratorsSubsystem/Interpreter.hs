@@ -29,6 +29,8 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Member qualified as TeamMember
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess qualified as BrigAPIAccess
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -36,26 +38,26 @@ import Wire.TeamCollaboratorsStore qualified as Store
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
-import Wire.UserSubsystem (UserSubsystem)
-import Wire.UserSubsystem qualified as UserSubsystem
 
 interpretTeamCollaboratorsSubsystem ::
   ( Member TeamSubsystem r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r,
-    Member UserSubsystem r
+    Member NotificationSubsystem r
   ) =>
+  InterpreterFor BrigAPIAccess r ->
   InterpreterFor TeamCollaboratorsSubsystem r
-interpretTeamCollaboratorsSubsystem = interpret $ \case
-  CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
-  GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
-  InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
-  InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
-  InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
-  InternalUpdateTeamCollaborator user team perms -> internalUpdateTeamCollaboratorImpl user team perms
-  InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
+interpretTeamCollaboratorsSubsystem brigAPIAccess =
+  interpret $
+    brigAPIAccess . \case
+      CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
+      GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
+      InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
+      InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
+      InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+      InternalUpdateTeamCollaborator user team perms -> internalUpdateTeamCollaboratorImpl user team perms
+      InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -78,7 +80,7 @@ createTeamCollaboratorImpl ::
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member UserSubsystem r
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   UserId ->
@@ -93,8 +95,7 @@ createTeamCollaboratorImpl zUser user team perms = do
   generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
   -- Reindex the collaborator with their new collaboration team
-  collaborations <- Store.getTeamCollaborations user
-  UserSubsystem.internalUpdateSearchIndex user (Just (map gTeam collaborations))
+  BrigAPIAccess.updateSearchIndex user
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -117,7 +118,7 @@ internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
 internalUpdateTeamCollaboratorImpl ::
-  (Member Store.TeamCollaboratorsStore r, Member UserSubsystem r) =>
+  (Member Store.TeamCollaboratorsStore r, Member BrigAPIAccess r) =>
   UserId ->
   TeamId ->
   Set CollaboratorPermission ->
@@ -125,19 +126,17 @@ internalUpdateTeamCollaboratorImpl ::
 internalUpdateTeamCollaboratorImpl user team perms = do
   Store.updateTeamCollaborator user team perms
   -- Reindex collaborator when permissions change
-  collaborations <- Store.getTeamCollaborations user
-  UserSubsystem.internalUpdateSearchIndex user (Just (map gTeam collaborations))
+  BrigAPIAccess.updateSearchIndex user
 
 internalRemoveTeamCollaboratorImpl ::
-  (Member Store.TeamCollaboratorsStore r, Member UserSubsystem r) =>
+  (Member Store.TeamCollaboratorsStore r, Member BrigAPIAccess r) =>
   UserId ->
   TeamId ->
   Sem r ()
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
   -- Reindex collaborator when removed
-  collaborations <- Store.getTeamCollaborations user
-  UserSubsystem.internalUpdateSearchIndex user (Just (map gTeam collaborations))
+  BrigAPIAccess.updateSearchIndex user
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

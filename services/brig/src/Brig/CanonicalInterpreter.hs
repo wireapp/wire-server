@@ -68,6 +68,8 @@ import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess.Local (interpretBrigAPIAccessLocally)
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
 import Wire.ClientStore (ClientStore)
@@ -189,13 +191,12 @@ type RecursiveEffects =
   '[ AuthenticationSubsystem,
      UserSubsystem,
      AppSubsystem,
-     ClientSubsystem
+     ClientSubsystem,
+     BrigAPIAccess,
+     TeamCollaboratorsSubsystem
    ]
 
-type NonRecursiveEffects2 =
-  '[ TeamCollaboratorsSubsystem
-   ]
-    `Append` BrigLowerLevelEffects
+type NonRecursiveEffects2 = BrigLowerLevelEffects
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
@@ -299,7 +300,7 @@ runRecursiveEffects ::
   (Members NonRecursiveEffects2 r) =>
   Sem (RecursiveEffects `Append` r) a ->
   Sem r a
-runRecursiveEffects = runClient . runApp . runUser . runAuth
+runRecursiveEffects = runTeamCollaborators . runBrigAPIAccess . runClient . runApp . runUser . runAuth
   where
     runAuth :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor AuthenticationSubsystem r
     runAuth = interpretAuthenticationSubsystem runUser
@@ -312,6 +313,12 @@ runRecursiveEffects = runClient . runApp . runUser . runAuth
 
     runClient :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor ClientSubsystem r
     runClient = runClientSubsystem runAuth runUser
+
+    runBrigAPIAccess :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor BrigAPIAccess r
+    runBrigAPIAccess = interpretBrigAPIAccessLocally runUser
+
+    runTeamCollaborators :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor TeamCollaboratorsSubsystem r
+    runTeamCollaborators = interpretTeamCollaboratorsSubsystem runBrigAPIAccess
 
 runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
@@ -510,7 +517,6 @@ runBrigToIO e (AppT ma) = do
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
               . samlEmailSubsystemInterpreter
-              . interpretTeamCollaboratorsSubsystem
               . runRecursiveEffects
               . interpretUserGroupSubsystem
               . maybe
