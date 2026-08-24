@@ -155,8 +155,29 @@ interpretUserStoreToCassandraAndPostgres casClient =
       interpretUserStorePostgres action >>= \case
         Nothing -> interpretUserStoreCassandra casClient action
         Just uid -> pure $ Just uid
-    UpdateUserHandleEither uid update ->
-      runAppropriateInterpreter casClient uid $ UserStore.updateUserHandleEither uid update
+    UpdateUserHandleEither uid update -> do
+      -- There is no easy way to handle the race condition that Alice in
+      -- Cassandra and Bob in Postgresql don't claim the same handle. If they
+      -- race to claim a handle, they _can_ both succeed. In this case, the
+      -- migration code _could_ fail to migrate the Alice user, so it has to be
+      -- careful about handling this case.
+      withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+        let glimpseAction = UserStore.glimpseHandle update.new
+        cassGlimpse <- interpretUserStoreCassandra casClient glimpseAction
+        pgGlimpse <- interpretUserStorePostgres glimpseAction
+        case (cassGlimpse, pgGlimpse) of
+          (_, Just pgClaimer)
+            | pgClaimer == uid -> pure $ Right ()
+            | otherwise -> pure $ Left StoredUserUpdateHandleExists
+          (Just casClaimer, Nothing)
+            | casClaimer == uid -> pure $ Right ()
+            | otherwise -> pure $ Left StoredUserUpdateHandleExists
+          (Nothing, Nothing) -> do
+            isUserInPg <- interpretUserStorePostgres $ UserStore.doesUserExist uid
+            let action = UserStore.updateUserHandleEither uid update
+            if isUserInPg
+              then interpretUserStorePostgres action
+              else interpretUserStoreCassandra casClient action
     UpdateSSOId uid ssoId ->
       runAppropriateInterpreter casClient uid $ UserStore.updateSSOId uid ssoId
     UpdateManagedBy uid managedBy ->

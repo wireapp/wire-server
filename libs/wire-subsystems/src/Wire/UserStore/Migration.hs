@@ -219,6 +219,7 @@ saveToPostgres user mServiceConv =
         | user.userType /= UserTypeBot ->
             Transaction.statement (user.id_, user.teamId, user.createdAt) insertDeleted
       _ -> do
+        -- TODO: Deal with handle uniqueness failures
         Transaction.statement (userRowPGToTuple user) insertUser
         for_ user.assets $ \assets -> do
           Transaction.statement user.id_ deleteAssetsStatement
