@@ -63,6 +63,7 @@ import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
 import System.IO
@@ -674,6 +675,23 @@ logToConsoleDebug mOutput colorize prefix hdl = do
 federatorIngressDelay :: Int
 federatorIngressDelay = 30 * 1000 * 1000
 
+-- | Federation domains of the legacy helper releases enabled for this run.
+-- Gated by the same @ENABLE_FEDERATION_V<n>@ env vars as the parametrised
+-- tests ("Testlib.VersionedFed.mkFedTestCase"), so we never probe a helper
+-- namespace that is not deployed.
+enabledFedDomains :: (HasCallStack) => App [String]
+enabledFedDomains = do
+  env <- ask
+  let enabled n dom = do
+        v <- liftIO (lookupEnv ("ENABLE_FEDERATION_V" <> show (n :: Int)))
+        pure [dom | v == Just "1"]
+  mconcat
+    <$> sequence
+      [ enabled 0 env.federationV0Domain,
+        enabled 1 env.federationV1Domain,
+        enabled 2 env.federationV2Domain
+      ]
+
 -- | Pre-warm the static 'domain1' <-> 'domain2' federation path once, before
 -- the test suite bursts. 'ensureBackendReachable' only warms /dynamic/ backends
 -- (it skips the two static domains), so the very first cross-domain call
@@ -691,6 +709,23 @@ warmupFederation = do
             (uncurry checkFederationIngress)
             [(env.domain1, env.domain2), (env.domain2, env.domain1)]
   retryRequestUntil checkBoth "Static federator ingress (domain1 <-> domain2)"
+  -- The legacy helper namespaces (fed-v0/1/2) are never warmed by
+  -- 'ensureBackendReachable' (it only runs for dynamic backends), so the
+  -- first federated call to or from a helper races its cold ingress
+  -- (nginx/envoy 502/503 surfaced to tests as 533). Warm all four
+  -- directions once, before the concurrent test pool starts.
+  fedDomains <- enabledFedDomains
+  forM_ fedDomains $ \fedDom -> do
+    let checkAll =
+          and
+            <$> traverse
+              (uncurry checkFederationIngress)
+              [ (env.domain1, fedDom),
+                (env.domain2, fedDom),
+                (fedDom, env.domain1),
+                (fedDom, env.domain2)
+              ]
+    retryRequestUntil checkAll ("Federator ingress (static <-> " <> fedDom <> ")")
 
 retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
 retryRequestUntil = retryRequestUntilDebug federatorIngressDelay Nothing
