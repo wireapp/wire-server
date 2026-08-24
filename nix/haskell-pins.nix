@@ -176,7 +176,7 @@ let
       src = inputs.hasql-migration;
     };
 
-    # PR: https://github.com/nikita-volkov/postgresql-connection-string/pull/4
+    # PR: https://github.com/nikita-volkov/postgresql-connection-string/pull/4 + 6
     postgresql-connection-string = {
       src = inputs.postgresql-connection-string;
     };
