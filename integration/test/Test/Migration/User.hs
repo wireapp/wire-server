@@ -598,11 +598,6 @@ instance Monoid TestUsersByOperations where
 
 instance ToJSON TestUsersByOperations
 
--- \|
--- TODO: Add Weird cases
--- - Users without a name
--- - Users without activated
--- - Users with unclaimed handles
 data TestUserList = TestUserList
   { scimUsersWithRichInfo :: TestScimUsers,
     scimUsersWithoutRichInfo :: TestScimUsers,
