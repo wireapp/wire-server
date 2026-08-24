@@ -118,8 +118,12 @@ interpretUserStoreToCassandraAndPostgres casClient =
         cassUsers <- indexByUserId <$> interpretUserStoreCassandra casClient (UserStore.getUsers uids)
         pgUsers <- indexByUserId <$> interpretUserStorePostgres (UserStore.getUsers uids)
         pure $ mapMaybe (\uid -> Map.lookup uid pgUsers <|> Map.lookup uid cassUsers) uids
-    DoesUserExist uid ->
-      runAppropriateInterpreter casClient uid $ UserStore.doesUserExist uid
+    DoesUserExist uid -> do
+      withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+        isUserInPg <- interpretUserStorePostgres $ UserStore.doesUserExist uid
+        if isUserInPg
+          then pure True
+          else interpretUserStoreCassandra casClient $ UserStore.doesUserExist uid
     GetIndexUser uid ->
       runAppropriateInterpreter casClient uid $ UserStore.getIndexUser uid
     GetIndexUsersPaginated pageSize mPagingState -> do
