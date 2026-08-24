@@ -129,7 +129,7 @@ createAppImpl lusr tid newApp = do
   Store.createUser u Nothing
   now <- toUTCTimeMillis <$> get
   void $ addTeamMember u.id tid (Just (tUnqualified lusr, now)) R.RoleMember
-  internalUpdateSearchIndex u.id
+  internalUpdateSearchIndex u.id Nothing
 
   -- generate a team event
   generateTeamEvents creator.id tid [EdMemberJoin u.id]
@@ -214,7 +214,7 @@ updateAppImpl lusr tid appid upd = do
     Right () -> pure ()
     Left Store.NotFound -> throw AppSubsystemErrorNoApp
   Store.updateUser appid (def {Store.name = upd.name, Store.assets = upd.assets, Store.accentId = upd.accentId})
-  internalUpdateSearchIndex appid
+  internalUpdateSearchIndex appid Nothing
   generateUserEvent appid Nothing $
     UserUpdated $
       (emptyUserUpdatedData appid)

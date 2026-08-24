@@ -36,13 +36,16 @@ import Wire.TeamCollaboratorsStore qualified as Store
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
+import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem qualified as UserSubsystem
 
 interpretTeamCollaboratorsSubsystem ::
   ( Member TeamSubsystem r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member UserSubsystem r
   ) =>
   InterpreterFor TeamCollaboratorsSubsystem r
 interpretTeamCollaboratorsSubsystem = interpret $ \case
@@ -74,7 +77,8 @@ createTeamCollaboratorImpl ::
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member UserSubsystem r
   ) =>
   Local UserId ->
   UserId ->
@@ -87,6 +91,10 @@ createTeamCollaboratorImpl zUser user team perms = do
 
   -- TODO: Review the event's values
   generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
+
+  -- Reindex the collaborator with their new collaboration team
+  collaborations <- Store.getTeamCollaborations user
+  UserSubsystem.internalUpdateSearchIndex user (Just (map gTeam collaborations))
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -109,21 +117,27 @@ internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
 internalUpdateTeamCollaboratorImpl ::
-  (Member Store.TeamCollaboratorsStore r) =>
+  (Member Store.TeamCollaboratorsStore r, Member UserSubsystem r) =>
   UserId ->
   TeamId ->
   Set CollaboratorPermission ->
   Sem r ()
 internalUpdateTeamCollaboratorImpl user team perms = do
   Store.updateTeamCollaborator user team perms
+  -- Reindex collaborator when permissions change
+  collaborations <- Store.getTeamCollaborations user
+  UserSubsystem.internalUpdateSearchIndex user (Just (map gTeam collaborations))
 
 internalRemoveTeamCollaboratorImpl ::
-  (Member Store.TeamCollaboratorsStore r) =>
+  (Member Store.TeamCollaboratorsStore r, Member UserSubsystem r) =>
   UserId ->
   TeamId ->
   Sem r ()
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
+  -- Reindex collaborator when removed
+  collaborations <- Store.getTeamCollaborations user
+  UserSubsystem.internalUpdateSearchIndex user (Just (map gTeam collaborations))
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

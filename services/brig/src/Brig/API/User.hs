@@ -250,7 +250,7 @@ createUserSpar new = do
     for_ new.newUserSparRichInfo $
       UserStore.updateRichInfo uid . unRichInfo
     GalleyAPIAccess.createSelfConv uid
-    User.internalUpdateSearchIndex uid
+    User.internalUpdateSearchIndex uid Nothing
     Events.generateUserEvent uid Nothing (UserCreated u)
 
   -- Add to team
@@ -323,7 +323,7 @@ upgradePersonalToTeam luid bNewTeam = do
     liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Active bNewTeam.bnuCurrency
 
     liftSem $ UserStore.updateUserTeam uid tid
-    liftSem $ User.internalUpdateSearchIndex uid
+    liftSem $ User.internalUpdateSearchIndex uid Nothing
     liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
     initAccountFeatureConfig uid
 
@@ -720,7 +720,7 @@ changeAccountStatus usrs status = do
       Sem r ()
     update ev u = do
       UserStore.updateAccountStatus u status
-      User.internalUpdateSearchIndex u
+      User.internalUpdateSearchIndex u Nothing
       Events.generateUserEvent u Nothing (ev u)
 
 changeSingleAccountStatus ::
@@ -738,7 +738,7 @@ changeSingleAccountStatus uid status = do
   ev <- mkUserEvent (NonEmpty.singleton uid) status
   lift . liftSem $ do
     UserStore.updateAccountStatus uid status
-    User.internalUpdateSearchIndex uid
+    User.internalUpdateSearchIndex uid Nothing
     Events.generateUserEvent uid Nothing (ev uid)
 
 mkUserEvent ::
@@ -857,13 +857,13 @@ onActivated (AccountActivated account) = liftSem $ do
   let uid = userId account
   Log.debug $ field "user" (toByteString uid) . field "action" (val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  User.internalUpdateSearchIndex uid
+  User.internalUpdateSearchIndex uid Nothing
   Events.generateUserEvent uid Nothing $ UserActivated account
   -- userIdentity is always Just at the time of writing this comment,
   -- since account has been activated already.
   pure (uid, userIdentity account, True)
 onActivated (EmailActivated uid email) = liftSem $ do
-  User.internalUpdateSearchIndex uid
+  User.internalUpdateSearchIndex uid Nothing
   Events.generateUserEvent uid Nothing (emailUpdated uid email)
   UserStore.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
@@ -1206,7 +1206,7 @@ deleteAccount user = do
   Intra.rmUser uid (userAssets user)
   ClientStore.lookupClients uid >>= mapM_ (ClientStore.delete uid . (.clientId))
   luid <- embed $ qualifyLocal uid
-  User.internalUpdateSearchIndex uid
+  User.internalUpdateSearchIndex uid Nothing
   Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))
   embed do
     -- Note: Connections can only be deleted afterwards, since
