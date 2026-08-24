@@ -63,7 +63,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
               newServiceKey = cs botServiceSettings.publicKey
             }
       sid <- service %. "id" & asString
-      updateServiceConn domainM pid sid (object ["password" .= defPassword, "enabled" .= True])
+      updateServiceConn domainM pid sid (object ["password" .= defPassword, "enabled" .= True]) >>= assertSuccess
 
       seedUsers <- seedTestUsers domainM mel pid sid
       pure (mel, pid, sid, seedUsers)
@@ -207,7 +207,6 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
     checkUnaffectedUsers :: (HasCallStack) => String -> IntMap TestUserList -> IntMap TestUserList -> Int -> App ()
     checkUnaffectedUsers domain seedUsersToBeUpdated seedUsersToBeDeleted phase = do
       let upcomingPhases = IntSet.fromList [(phase + 1) .. 5]
-          _pastPhases = IntSet.fromList [1 .. phase]
           usersNotYetDeleted = IntMap.restrictKeys seedUsersToBeDeleted upcomingPhases
           usersNotYetUpdated = IntMap.restrictKeys seedUsersToBeUpdated upcomingPhases
           existingUserLists = IntMap.elems usersNotYetDeleted <> IntMap.elems usersNotYetUpdated
@@ -568,7 +567,7 @@ testReindexingUsersDuringMigration = do
         pure u
       withWebSocket searcher $ \ws -> do
         pooledForConcurrentlyN_ parallelism deletedUsers deleteUser
-        awaitNMatches n isDeleteUserNotif ws
+        void $ awaitNMatches n isDeleteUserNotif ws
       pure (searcher, existingUsers, deletedUsers)
 
     checkSearchWorks :: (HasCallStack) => String -> Value -> [Value] -> [Value] -> App ()
