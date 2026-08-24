@@ -24,14 +24,20 @@ import API.Spar
 import Control.Applicative
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
 import qualified Data.Map as Map
 import Data.String.Conversions
+import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Tuple.Extra
+import Data.UUID (UUID)
+import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
+import Database.CQL.IO
 import GHC.Stack
 import Notifications
 import SetupHelpers hiding (deleteUser)
@@ -607,6 +613,73 @@ testReindexingUsersDuringMigration = do
 
       pooledForConcurrentlyN_ parallelism deletedUsers $ \u ->
         assertCannotFind searcher u (u %. "name") domain
+
+-- Alice and Bob have the same handle, but the handle claims table supports
+-- Alice's claim. Charlie has a handle, but the handle claims table doesn't
+-- support this claim.
+--
+-- After the migration only Alice gets to keep her handle. Bob and Charlie are
+-- both handle less.
+testMigrationOfUsersWithHandleDisputes :: (HasCallStack) => App ()
+testMigrationOfUsersWithHandleDisputes = do
+  resourcePool <- asks (.resourcePool)
+
+  runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
+    let domain = backend.berDomain
+        brigKeyspace = backend.berBrigKeyspace
+    (alice, bob, charlie, doubleClaimedHandle, unclaimedHandle) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
+      alice <- randomUser domain def
+
+      bob <- randomUser domain def
+      Just bobId <- UUID.fromString <$> (bob %. "qualified_id.id" & asString)
+
+      charlie <- randomUser domain def
+      Just charlieId <- UUID.fromString <$> (charlie %. "qualified_id.id" & asString)
+
+      doubleClaimedHandle <- randomHandle
+      unclaimedHandle <- randomHandle
+
+      -- Claim handle correctly for alice
+      putHandle alice doubleClaimedHandle >>= assertSuccess
+
+      -- Claim handle by hacking into the DB for bob and charlie. There seems to
+      -- be no other way of testing this edge case
+      let assignHandleQuery :: PrepQuery W (Text, UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET handle = ? WHERE id = ?"
+      write assignHandleQuery $ defQueryParams LocalQuorum (Text.pack doubleClaimedHandle, bobId)
+      write assignHandleQuery $ defQueryParams LocalQuorum (Text.pack unclaimedHandle, charlieId)
+
+      assertHandle alice (Just doubleClaimedHandle)
+      assertHandle bob (Just doubleClaimedHandle)
+      assertHandle charlie (Just unclaimedHandle)
+
+      pure (alice, bob, charlie, doubleClaimedHandle, unclaimedHandle)
+
+    runCodensity (startDynamicBackend backend phase3Overrides) $ \_ -> do
+      waitForMigration domain userMigrationFinishedCounterName
+
+    runCodensity (startDynamicBackend backend phase5Overrides) $ \_ -> do
+      assertHandle alice (Just doubleClaimedHandle)
+      assertHandle bob Nothing
+      assertHandle charlie Nothing
+
+      -- Claiming the unclaimed handle works
+      putHandle charlie unclaimedHandle >>= assertSuccess
+      assertHandle charlie (Just unclaimedHandle)
+
+      -- Claiming alice's handle doesn't work
+      putHandle bob doubleClaimedHandle >>= assertStatus 409
+  where
+    assertHandle :: (HasCallStack) => Value -> Maybe String -> App ()
+    assertHandle user expectedHandle = do
+      getSelf user `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        case expectedHandle of
+          Just h ->
+            resp.json %. "handle" `shouldMatch` h
+          Nothing ->
+            case resp.json of
+              Just (Object o) -> KM.keys o `shouldNotContain` [fromString "handle"]
+              _ -> assertFailure "Unexpected body for getSelf"
 
 -- * Test Helpers
 

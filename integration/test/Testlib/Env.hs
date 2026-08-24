@@ -96,14 +96,14 @@ mkGlobalEnv cfgFile = do
           & Cassandra.setContacts intConfig.cassandra.cassHost []
           & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.cassPort)
       cassSettings = maybe basicCassSettings (\sslCtx -> Cassandra.setSSLContext sslCtx basicCassSettings) mbSSLContext
-  cassClient <- Cassandra.init cassSettings
+  gCassClient <- Cassandra.init cassSettings
   let resources = backendResources (Map.elems intConfig.dynamicBackends)
   resourcePool <-
     liftIO $
       createBackendResourcePool
         resources
         intConfig.rabbitmq
-        cassClient
+        gCassClient
   let sm =
         Map.fromList $
           [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
@@ -146,7 +146,8 @@ mkGlobalEnv cfgFile = do
         gDNSMockServerConfig = intConfig.dnsMockServer,
         gCellsEventQueue = intConfig.cellsEventQueue,
         gCellsEventWatchersLock,
-        gCellsEventWatchers
+        gCellsEventWatchers,
+        gCassClient
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -202,6 +203,7 @@ mkEnv currentTestName ge = do
           cellsEventQueue = ge.gCellsEventQueue,
           cellsEventWatchersLock = ge.gCellsEventWatchersLock,
           cellsEventWatchers = ge.gCellsEventWatchers,
+          cassClient = ge.gCassClient,
           curlTrace
         }
 
