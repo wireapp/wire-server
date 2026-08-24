@@ -210,6 +210,7 @@ servantSitemap =
     :<|> enterpriseLoginApi
     :<|> samlIdPApi
     :<|> Named @"i-delete-app" deleteAppH
+    :<|> Named @"i-send-app-deletion-email" sendAppDeletionEmailH
     :<|> Named @"i-get-app-ids" getAppIdsH
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
@@ -1065,6 +1066,11 @@ deleteGroupManagedInternalH tid gid managedBy = do
 
 deleteAppH :: (Member AppSubsystem r) => TeamId -> UserId -> Handler r NoContent
 deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> pure NoContent
+
+sendAppDeletionEmailH :: (Member AppSubsystem r) => BrigIRoutes.AppDeletionEmailRequest -> Handler r ()
+sendAppDeletionEmailH req =
+  lift . liftSem $
+    AppSubsystem.deleteAppSendEmail req.teamId req.actorId req.mbAppUser
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid

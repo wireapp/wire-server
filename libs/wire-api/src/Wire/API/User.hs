@@ -2173,6 +2173,9 @@ data PutApp = PutApp
   deriving (Arbitrary) via (GenericUniform PutApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
 
+instance Default PutApp where
+  def = PutApp Nothing Nothing Nothing Nothing Nothing
+
 newtype Category = Category {fromCategory :: Text}
   deriving (Eq, Ord, Show, Read, Generic)
   deriving (Arbitrary) via GenericUniform Category

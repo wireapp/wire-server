@@ -62,10 +62,28 @@ data IdPConfigChangeEmailTemplate = IdPConfigChangeEmailTemplate
     senderName :: !Text
   }
 
+data AppEmailTemplate = AppEmailTemplate
+  { appEmailSubject :: !Template,
+    appEmailBodyText :: !Template,
+    appEmailBodyHtml :: !Template,
+    appEmailSender :: !EmailAddress,
+    appEmailSenderName :: !Text
+  }
+
+data AppEmailTemplates = AppEmailTemplates
+  { appEmailUrl :: !Template,
+    appCreationEmail :: !AppEmailTemplate,
+    appDeletionEmail :: !AppEmailTemplate,
+    appAvailabilityChangeEmail :: !AppEmailTemplate,
+    appMetadataChangeEmail :: !AppEmailTemplate,
+    appTokenChangeEmail :: !AppEmailTemplate
+  }
+
 data TeamTemplates = TeamTemplates
   { invitationEmail :: !InvitationEmailTemplate,
     existingUserInvitationEmail :: !InvitationEmailTemplate,
     memberWelcomeEmail :: !MemberWelcomeEmailTemplate,
     newTeamOwnerWelcomeEmail :: !NewTeamOwnerWelcomeEmailTemplate,
-    idpConfigChangeEmail :: !IdPConfigChangeEmailTemplate
+    idpConfigChangeEmail :: !IdPConfigChangeEmailTemplate,
+    appEmails :: !AppEmailTemplates
   }

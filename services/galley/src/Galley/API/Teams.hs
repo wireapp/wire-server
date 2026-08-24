@@ -782,17 +782,20 @@ deleteTeamMember' lusr zcon tid remove mBody = do
     then do
       body <- mBody & note (InvalidPayload "missing request body")
       ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword) Nothing Nothing
-      uType <-
-        E.getUser remove <&> \case
-          Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
-          _ -> UserTypeFilterRegular
+      mbUser <- E.getUser remove
+      let uType =
+            if ((.userType) <$> mbUser) == Just U.UserTypeApp
+              then UserTypeFilterApp
+              else UserTypeFilterRegular
       teamSizeAfterDelete <- do
         before <- E.getSize tid
         pure $ updateTeamSize uType before (-1)
       E.deleteUser remove
       case uType of
         UserTypeFilterRegular -> pure ()
-        UserTypeFilterApp -> E.deleteApp tid remove
+        UserTypeFilterApp -> do
+          E.deleteApp tid remove
+          E.deleteAppSendEmail (tUnqualified lusr) tid remove mbUser
       owners <- E.getBillingTeamMembers tid
       Journal.teamUpdate tid teamSizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted

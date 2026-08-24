@@ -120,6 +120,7 @@ data BrigAPIAccess m a where
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m (Either Wai.Error ())
   DeleteGroupInternal :: ManagedBy -> TeamId -> UserGroupId -> BrigAPIAccess m (Either DeleteGroupManagedError ())
   DeleteApp :: TeamId -> UserId -> BrigAPIAccess m ()
+  DeleteAppSendEmail :: UserId -> TeamId -> UserId -> Maybe User -> BrigAPIAccess m ()
   GetAppIdsForTeam :: TeamId -> BrigAPIAccess m [UserId]
   SetAccountStatus :: UserId -> AccountStatus -> BrigAPIAccess m ()
   -- SAML / SCIM user management (migrated from Spar.Sem.BrigAccess)

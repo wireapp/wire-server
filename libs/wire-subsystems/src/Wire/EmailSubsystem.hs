@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-partial-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,6 +22,7 @@ module Wire.EmailSubsystem where
 
 import Data.Code qualified as Code
 import Data.Id
+import Data.Json.Util
 import Data.X509.Extended (CertDescription)
 import Imports
 import Polysemy
@@ -30,6 +32,57 @@ import Wire.API.Locale
 import Wire.API.User
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Client (Client (..))
+
+-- | A typed description of something that happened to an app in a team. Each
+-- constructor corresponds to a distinct admin-notification email (and template).
+--
+-- See https://www.figma.com/design/AMNqFhTUElOZDJfbUYnMmJ/Apps--Services----Integrations?node-id=431-2452
+data AppEvent
+  = NewAppCreated -- app-creation
+      { actor :: Text,
+        appName :: Name,
+        date :: UTCTimeMillis,
+        permissions :: Text,
+        teamId :: TeamId,
+        teamName :: Text
+        -- TODO: team management url (${URL}) and ${support}?  is that included in branding?
+      }
+  | AppMetadataChanged
+      { actor :: Text,
+        date :: UTCTimeMillis,
+        newAppName :: Name,
+        previousAppName :: Name,
+        teamId :: TeamId,
+        teamName :: Text
+        -- TODO: team management url (${URL}) and ${support}?  is that included in branding?
+      }
+  | AppTokenChanged
+      { actor :: Text,
+        appName :: Name,
+        date :: UTCTimeMillis,
+        teamId :: TeamId,
+        teamName :: Text
+        -- TODO: team management url (${URL}) and ${support}?  is that included in branding?
+      }
+  | AppDeleted
+      { actor :: Text,
+        appName :: Name,
+        date :: UTCTimeMillis,
+        teamId :: TeamId,
+        teamName :: Text
+        -- TODO: team management url (${URL}) and ${support}?  is that included in branding?
+      }
+  | AppAvailabilityChanged
+      { actor :: Text,
+        appName :: Name,
+        date :: UTCTimeMillis,
+        newAvailability :: Text,
+        previousAvailability :: Text,
+        teamId :: TeamId,
+        teamName :: Text
+        -- TODO: team management url (${URL}) and ${support}?  is that included in branding?
+      }
+  deriving (Eq, Show)
 
 data EmailSubsystem m a where
   SendPasswordResetMail :: EmailAddress -> PasswordResetPair -> Maybe Locale -> EmailSubsystem m ()
@@ -61,5 +114,6 @@ data EmailSubsystem m a where
     Maybe URI ->
     Maybe Locale ->
     EmailSubsystem m ()
+  SendAppEventEmail :: EmailAddress -> Name -> TeamId -> AppEvent -> Maybe Locale -> EmailSubsystem m ()
 
 makeSem ''EmailSubsystem

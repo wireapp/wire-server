@@ -23,6 +23,7 @@ import Imports
 import Polysemy
 import Polysemy.State
 import Wire.AppStore
+import Wire.AppStore qualified as Store
 
 inMemoryAppStoreInterpreter ::
   forall r.
@@ -32,5 +33,9 @@ inMemoryAppStoreInterpreter = interpret $ \case
   CreateApp app -> modify (app :)
   GetApp uid tid -> gets $ find $ \app -> app.id == uid && app.teamId == tid
   GetApps tid -> gets $ filter $ \app -> app.teamId == tid
-  UpdateApp _owner _app _upd -> error $ "inMemoryAppStoreInterpreter: UpdateApp"
+  UpdateApp _teamId appId _upd ->
+    gets $ \apps ->
+      if any (\a -> a.id == appId) apps
+        then Right ()
+        else Left Store.NotFound
   DeleteApp uid tid -> modify $ filter $ \app -> not (app.id == uid && app.teamId == tid)

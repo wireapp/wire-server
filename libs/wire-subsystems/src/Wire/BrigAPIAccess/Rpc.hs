@@ -49,7 +49,7 @@ import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
-import Wire.API.Routes.Internal.Brig (CreateGroupInternalRequest (..), GetBy, IdpChangedNotification (..), UpdateGroupInternalRequest (..))
+import Wire.API.Routes.Internal.Brig (AppDeletionEmailRequest (..), CreateGroupInternalRequest (..), GetBy, IdpChangedNotification (..), UpdateGroupInternalRequest (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -147,6 +147,8 @@ interpretBrigAccess brigEndpoint =
         setAccountStatus uid status
       DeleteApp teamId uid ->
         deleteApp teamId uid
+      DeleteAppSendEmail actorId tid appId mbAppUser ->
+        deleteAppSendEmail actorId tid appId mbAppUser
       CreateSAML uref buid teamid name managedBy handle richInfo mLocale role ->
         createSAML uref buid teamid name managedBy handle richInfo mLocale role
       CreateNoSAML extId email uid teamid uname locale role ->
@@ -753,6 +755,21 @@ deleteApp teamId uid = do
     brigRequest $
       method DELETE
         . paths ["i", "teams", toByteString' teamId, "apps", toByteString' uid]
+        . expect2xx
+
+deleteAppSendEmail ::
+  (Member Rpc r, Member (Input Endpoint) r) =>
+  UserId ->
+  TeamId ->
+  UserId ->
+  Maybe User ->
+  Sem r ()
+deleteAppSendEmail actorId tid appId mbAppUser = do
+  void $
+    brigRequest $
+      method POST
+        . path "/i/apps/send-deletion-email"
+        . json AppDeletionEmailRequest {actorId, teamId = tid, appId, mbAppUser}
         . expect2xx
 
 getAppIdsForTeam ::

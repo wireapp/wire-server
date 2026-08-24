@@ -47,6 +47,8 @@ module Wire.API.Routes.Internal.Brig
     EnterpriseLoginApi,
     SAMLIdPAPI,
     DeleteApp,
+    SendAppDeletionEmail,
+    AppDeletionEmailRequest (..),
     IdpChangedNotification (..),
   )
 where
@@ -730,6 +732,7 @@ type API =
            :<|> EnterpriseLoginApi
            :<|> SAMLIdPAPI
            :<|> DeleteApp
+           :<|> SendAppDeletionEmail
            :<|> GetAppIds
        )
 
@@ -752,6 +755,34 @@ type DeleteApp =
         :> "apps"
         :> Capture "uid" UserId
         :> Delete '[Servant.JSON] NoContent
+    )
+
+data AppDeletionEmailRequest = AppDeletionEmailRequest
+  { actorId :: UserId,
+    teamId :: TeamId,
+    appId :: UserId,
+    mbAppUser :: Maybe User
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AppDeletionEmailRequest
+
+instance ToSchema AppDeletionEmailRequest where
+  schema =
+    object $
+      AppDeletionEmailRequest
+        <$> (.actorId) .= field "actor_id" schema
+        <*> (.teamId) .= field "team_id" schema
+        <*> (.appId) .= field "app_id" schema
+        <*> (.mbAppUser) .= optField "app_user" (maybeWithDefault Null schema)
+
+type SendAppDeletionEmail =
+  Named
+    "i-send-app-deletion-email"
+    ( Summary "Send an email about app deletion to all team admins and owners"
+        :> "apps"
+        :> "send-deletion-email"
+        :> ReqBody '[Servant.JSON] AppDeletionEmailRequest
+        :> Post '[Servant.JSON] ()
     )
 
 type GetAppIds =

@@ -125,7 +125,8 @@ import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue
-import Wire.EmailSubsystem
+import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.EmailSubsystem qualified as EmailSubsystem
 import Wire.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
@@ -330,7 +331,7 @@ upgradePersonalToTeam luid bNewTeam = do
     -- send confirmation email
     for_ (userEmail user) $ \email -> do
       liftSem $
-        sendNewTeamOwnerWelcomeEmail
+        EmailSubsystem.sendNewTeamOwnerWelcomeEmail
           email
           tid
           bNewTeam.bnuTeam.newTeamName.fromRange
@@ -920,7 +921,7 @@ sendActivationCode email loc = do
     sendVerificationEmail ek uc = do
       (key, code) <- mkPair ek uc Nothing
       let em = emailKeyOrig ek
-      lift $ liftSem $ sendVerificationMail em key code loc
+      lift $ liftSem $ EmailSubsystem.sendVerificationMail em key code loc
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
@@ -941,9 +942,9 @@ sendActivationCode email loc = do
         case mbTeam of
           Just team
             | team ^. teamCreator == uid ->
-                liftSem $ sendTeamActivationMail em name aKey aCode loc' (team ^. teamName)
+                liftSem $ EmailSubsystem.sendTeamActivationMail em name aKey aCode loc' (team ^. teamName)
           _otherwise ->
-            liftSem $ (maybe sendActivationMail (const sendEmailAddressUpdateMail) ident) em name aKey aCode loc'
+            liftSem $ (maybe EmailSubsystem.sendActivationMail (const EmailSubsystem.sendEmailAddressUpdateMail) ident) em name aKey aCode loc'
 
     guardBlockedDomainEmail ::
       ( Member (Input UserSubsystemConfig) r',
@@ -1079,7 +1080,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
           let v = VerificationCode.codeValue c
           let l = userLocale a
           let n = userDisplayName a
-          lift (liftSem $ sendAccountDeletionEmail target n k v l)
+          lift (liftSem $ EmailSubsystem.sendAccountDeletionEmail target n k v l)
             `onException` lift (liftSem $ deleteCode k VerificationCode.AccountDeletion)
           pure $! Just $! VerificationCode.codeTTL c
 
