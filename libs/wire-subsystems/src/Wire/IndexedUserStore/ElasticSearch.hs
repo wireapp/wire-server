@@ -526,13 +526,17 @@ matchSelf :: UserId -> Maybe ES.Query
 matchSelf searcher = Just (termQ "_id" (idToText searcher))
 
 -- | Exclude apps from other teams.
--- Apps should only be searchable within their own team.
+-- Apps should only be searchable within their own team, or within a team they
+-- collaborate with.
 matchAppsFromOtherTeams :: Maybe TeamId -> Maybe ES.Query
 matchAppsFromOtherTeams mSearcherTeamId =
   Just $
     ES.QueryBoolQuery
       boolQuery
-        { ES.boolQueryMustMatch =
+        { -- Apps collaborating with the searcher's team are not excluded.
+          ES.boolQueryMustNotMatch =
+            maybeToList (termQ "collaborating_teams" . idToText <$> mSearcherTeamId),
+          ES.boolQueryMustMatch =
             [ -- Match apps (type = "app")
               termQ "type" "app",
               -- That are from a different team than the searcher

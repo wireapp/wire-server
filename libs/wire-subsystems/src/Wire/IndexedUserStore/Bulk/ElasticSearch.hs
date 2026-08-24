@@ -29,6 +29,7 @@ import Data.Conduit.List qualified as CL
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis))
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Database.Bloodhound qualified as ES
 import Imports
 import Polysemy
@@ -37,6 +38,7 @@ import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import UnliftIO (pooledForConcurrentlyN)
+import Wire.API.Team.Collaborator (gTeam, gUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
@@ -45,6 +47,7 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.MigrationStore
 import Wire.IndexedUserStore.MigrationStore qualified as MigrationStore
+import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore, getTeamCollaborationsForUsers)
 import Wire.UserSearch.Migration
 import Wire.UserSearch.Types
 import Wire.UserStore
@@ -54,15 +57,15 @@ type IOInterpreter r = forall a. Sem r a -> IO a
 
 -- | Increase this number any time you want to force reindexing.
 expectedMigrationVersion :: MigrationVersion
-expectedMigrationVersion = MigrationVersion 6
+expectedMigrationVersion = MigrationVersion 7
 
-syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
+syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO ()
 syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGT
 
-forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
+forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO ()
 forceSyncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE
 
-syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
+syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
 syncAllUsersWithVersion interpreter pageSize mkVersion =
   runConduit $
     zipSources (CL.sourceList [1 ..]) (paginateWithStateC (interpreter . getIndexUsersPaginated pageSize))
@@ -114,6 +117,12 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
         fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
           getRoles t (fmap (.userId) us)
 
+      -- One query for the whole page.  A failure here fails every document of the
+      -- page, which 'logAndHush' then logs and skips.
+      eithCollabTeams :: Either SomeException (Map UserId [TeamId]) <-
+        try . fmap (Map.fromListWith (<>) . map (\tc -> (gUser tc, [gTeam tc]))) . interpreter $
+          getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
+
       let vis :: IndexUser -> Either SomeException SearchVisibilityInbound
           vis indexUser =
             fromMaybe (Right defaultSearchVisibilityInbound) $ flip Map.lookup visMap =<< indexUser.teamId
@@ -122,7 +131,8 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           mkUserDoc indexUser = do
             currentVis <- vis indexUser
             currentRole <- sequence $ Map.lookup indexUser.userId roles
-            pure $ indexUserToDoc currentVis ((.value) <$> currentRole) Nothing indexUser
+            currentCollabTeams <- Map.findWithDefault [] indexUser.userId <$> eithCollabTeams
+            pure $ indexUserToDoc currentVis ((.value) <$> currentRole) currentCollabTeams indexUser
 
           mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
           mkDocVersion u = do
@@ -159,7 +169,7 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
         <$> permissionsToRole tmi.permissions
 
 migrateData ::
-  (Member (Embed IO) r, Member IndexedUserStore r, Member (Error MigrationException) r, Member IndexedUserMigrationStore r, Member TinyLog r, Member UserStore r, Member GalleyAPIAccess r) =>
+  (Member (Embed IO) r, Member IndexedUserStore r, Member (Error MigrationException) r, Member IndexedUserMigrationStore r, Member TinyLog r, Member UserStore r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) =>
   IOInterpreter r ->
   Int32 ->
   IO ()

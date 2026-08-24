@@ -506,7 +506,7 @@ getVerificationCode uid action = runMaybeT do
 internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
-    :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalUpdateSearchIndex uid Nothing $> NoContent)
+    :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalUpdateSearchIndex uid $> NoContent)
 
 enterpriseLoginApi ::
   ( Member EnterpriseLoginSubsystem r,
@@ -878,7 +878,7 @@ updateSSOIdH uid ssoid = lift $ do
   liftSem $
     if success
       then do
-        UserSubsystem.internalUpdateSearchIndex uid Nothing
+        UserSubsystem.internalUpdateSearchIndex uid
         Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
         pure UpdateSSOIdSuccess
       else pure UpdateSSOIdNotFound
@@ -894,7 +894,7 @@ deleteSSOIdH uid = lift $ do
   success <- liftSem $ UserStore.updateSSOId uid Nothing
   if success
     then liftSem $ do
-      UserSubsystem.internalUpdateSearchIndex uid Nothing
+      UserSubsystem.internalUpdateSearchIndex uid
       Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound

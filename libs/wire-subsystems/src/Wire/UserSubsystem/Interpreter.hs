@@ -60,6 +60,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
+import Wire.API.Team.Collaborator (gTeam)
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -102,6 +103,8 @@ import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
+import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
+import Wire.TeamCollaboratorsStore qualified as TeamCollaboratorsStore
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
@@ -141,6 +144,7 @@ runUserSubsystem ::
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
+    Member TeamCollaboratorsStore r,
     Member UserGroupStore r,
     Member (Input (Local any)) r
   ) =>
@@ -194,8 +198,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         isUsersContactableImpl users mlsAvailable allowedCipherSuites
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-      InternalUpdateSearchIndex uid mTeams ->
-        syncUserIndex uid mTeams
+      InternalUpdateSearchIndex uid ->
+        syncUserIndex uid
       AcceptTeamInvitation luid pwd code ->
         acceptTeamInvitationImpl luid pwd code
       InternalFindTeamInvitation mEmailKey code ->
@@ -711,6 +715,7 @@ updateUserProfileImpl ::
     Member Events r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -725,7 +730,7 @@ updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
   let interestingToUpdateIndex = isJust update.name || isJust update.accentId
-  when interestingToUpdateIndex $ syncUserIndex uid Nothing
+  when interestingToUpdateIndex $ syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
   where
     guardMlsSupport user = for_ update.supportedProtocols $ \protocols -> do
@@ -772,6 +777,7 @@ updateHandleImpl ::
     Member Events r,
     Member UserStore r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -789,7 +795,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     UserStore.updateUserHandle uid (MkStoredUserHandleUpdate user.handle newHandle)
-  syncUserIndex uid Nothing
+  syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
@@ -839,12 +845,12 @@ syncUserIndex ::
   ( Member UserStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member Metrics r
+    Member Metrics r,
+    Member TeamCollaboratorsStore r
   ) =>
   UserId ->
-  Maybe [TeamId] ->
   Sem r ()
-syncUserIndex uid mCollabTeams =
+syncUserIndex uid =
   getIndexUser uid
     >>= maybe deleteFromIndex upsert
   where
@@ -861,9 +867,13 @@ syncUserIndex uid mCollabTeams =
           teamSearchVisibilityInbound
           indexUser.teamId
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
+      collabTeams <- map gTeam <$> TeamCollaboratorsStore.getTeamCollaborations uid
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) mCollabTeams indexUser
-          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
+          userDoc = indexUserToDoc vis (value <$> mRole) collabTeams indexUser
+          -- GTE, not GT: the version comes from the user row alone, but the document also
+          -- holds data that changes without touching that row (collaborations), and under
+          -- GT those updates would be dropped as version conflicts.  Older writes still lose.
+          version = ES.ExternalGTE . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
 
@@ -1181,6 +1191,7 @@ acceptTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r,
     Member Events r,
     Member AuthenticationSubsystem r,
@@ -1209,7 +1220,7 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   for_ (userEmail . selfUser =<< mSelfProfile) $ \email ->
     deletePendingScimUser tid email uid
-  syncUserIndex uid Nothing
+  syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
 getUserExportDataImpl :: (Member UserStore r, Member ClientSubsystem r) => UserId -> Sem r (Maybe TeamExportUser)
@@ -1245,6 +1256,7 @@ removeEmailEitherImpl ::
     Member UserStore r,
     Member Events r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r,
     Member Metrics r
@@ -1259,7 +1271,7 @@ removeEmailEitherImpl lusr = runError $ do
       deleteKey $ mkEmailKey e
       deleteEmail uid
       generateUserEvent uid Nothing (emailRemoved uid e)
-      syncUserIndex uid Nothing
+      syncUserIndex uid
     Just _ -> throw UserSubsystemLastIdentity
     Nothing -> throw UserSubsystemNoIdentity
 
@@ -1281,6 +1293,7 @@ setUserSearchableImpl ::
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -1291,4 +1304,4 @@ setUserSearchableImpl luid uid searchable = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
-  syncUserIndex uid Nothing
+  syncUserIndex uid

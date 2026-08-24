@@ -82,7 +82,7 @@ data UserDoc = UserDoc
     udSearchable :: Maybe Bool,
     -- | Teams that have added this user as a collaborator.
     -- Updated separately via 'syncUserIndexCollaborations' when collaborator relationships change.
-    udCollaboratingTeams :: Maybe [TeamId]
+    udCollaboratingTeams :: [TeamId]
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDoc)
@@ -132,7 +132,7 @@ instance FromJSON UserDoc where
       <*> o .:? "sso"
       <*> o .:? "email_unvalidated"
       <*> o .:? "searchable"
-      <*> o .:? "collaborating_teams"
+      <*> o .:? "collaborating_teams" .!= []
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
