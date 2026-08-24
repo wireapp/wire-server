@@ -194,8 +194,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         isUsersContactableImpl users mlsAvailable allowedCipherSuites
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-      InternalUpdateSearchIndex uid ->
-        syncUserIndex uid
+      InternalUpdateSearchIndex uid mTeams ->
+        syncUserIndex uid mTeams
       AcceptTeamInvitation luid pwd code ->
         acceptTeamInvitationImpl luid pwd code
       InternalFindTeamInvitation mEmailKey code ->
@@ -725,7 +725,7 @@ updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
   let interestingToUpdateIndex = isJust update.name || isJust update.accentId
-  when interestingToUpdateIndex $ syncUserIndex uid
+  when interestingToUpdateIndex $ syncUserIndex uid Nothing
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
   where
     guardMlsSupport user = for_ update.supportedProtocols $ \protocols -> do
@@ -789,7 +789,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     UserStore.updateUserHandle uid (MkStoredUserHandleUpdate user.handle newHandle)
-  syncUserIndex uid
+  syncUserIndex uid Nothing
   generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
@@ -842,8 +842,9 @@ syncUserIndex ::
     Member Metrics r
   ) =>
   UserId ->
+  Maybe [TeamId] ->
   Sem r ()
-syncUserIndex uid =
+syncUserIndex uid mCollabTeams =
   getIndexUser uid
     >>= maybe deleteFromIndex upsert
   where
@@ -861,7 +862,7 @@ syncUserIndex uid =
           indexUser.teamId
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          userDoc = indexUserToDoc vis (value <$> mRole) mCollabTeams indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -1208,7 +1209,7 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   for_ (userEmail . selfUser =<< mSelfProfile) $ \email ->
     deletePendingScimUser tid email uid
-  syncUserIndex uid
+  syncUserIndex uid Nothing
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
 getUserExportDataImpl :: (Member UserStore r, Member ClientSubsystem r) => UserId -> Sem r (Maybe TeamExportUser)
@@ -1258,7 +1259,7 @@ removeEmailEitherImpl lusr = runError $ do
       deleteKey $ mkEmailKey e
       deleteEmail uid
       generateUserEvent uid Nothing (emailRemoved uid e)
-      syncUserIndex uid
+      syncUserIndex uid Nothing
     Just _ -> throw UserSubsystemLastIdentity
     Nothing -> throw UserSubsystemNoIdentity
 
@@ -1290,4 +1291,4 @@ setUserSearchableImpl luid uid searchable = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
-  syncUserIndex uid
+  syncUserIndex uid Nothing

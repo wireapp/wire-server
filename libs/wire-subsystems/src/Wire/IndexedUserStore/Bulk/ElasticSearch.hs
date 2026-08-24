@@ -122,7 +122,7 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           mkUserDoc indexUser = do
             currentVis <- vis indexUser
             currentRole <- sequence $ Map.lookup indexUser.userId roles
-            pure $ indexUserToDoc currentVis ((.value) <$> currentRole) indexUser
+            pure $ indexUserToDoc currentVis ((.value) <$> currentRole) Nothing indexUser
 
           mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
           mkDocVersion u = do

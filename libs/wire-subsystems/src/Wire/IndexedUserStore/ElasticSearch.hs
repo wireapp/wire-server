@@ -640,7 +640,16 @@ restrictSearchSpaceByUserType = \case
       else ES.TermsQuery "type" (userTypeFilterToText <$> (utsH :| utsT))
 
 matchTeamMembersOf :: TeamId -> ES.Query
-matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
+matchTeamMembersOf team =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryShouldMatch =
+          [ -- Match users who are members of the team
+            ES.TermQuery (ES.Term "team" $ idToText team) Nothing,
+            -- Match users who are collaborators in the team
+            ES.TermQuery (ES.Term "collaborating_teams" $ idToText team) Nothing
+          ]
+      }
 
 matchTeamMembersSearchableByAllTeams :: ES.Query
 matchTeamMembersSearchableByAllTeams =

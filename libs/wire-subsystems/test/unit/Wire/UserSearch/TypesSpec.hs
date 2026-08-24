@@ -50,6 +50,7 @@ userDoc1 =
   UserDoc
     { udId = fromJust . hush . parseIdFromText $ "0a96b396-57d6-11ea-a04b-7b93d1a5c19c",
       udTeam = hush . parseIdFromText $ "17c59b18-57d6-11ea-9220-8bbf5eee961a",
+      udCollaboratingTeams = fmap (: []) . hush . parseIdFromText $ "17c59b18-57d6-11ea-9220-8bbf5eee961a",
       udName = Just . Name $ "Carl Phoomp",
       udNormalized = Just $ "carl phoomp",
       udHandle = Just . fromJust . parseHandle $ "phoompy",
