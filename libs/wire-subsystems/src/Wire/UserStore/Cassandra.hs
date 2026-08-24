@@ -101,8 +101,13 @@ interpretUserStoreToCassandraAndPostgres ::
   ClientState -> InterpreterFor UserStore r
 interpretUserStoreToCassandraAndPostgres casClient =
   interpret $ \case
-    CreateUser new mbConv ->
-      runAppropriateInterpreter casClient new.id $ UserStore.createUser new mbConv
+    CreateUser new mbConv -> do
+      -- Store new users in postgresql
+      withMigrationLocks LockShared (MilliSeconds 500) [new.id] $ do
+        isUserInCass <- interpretUserStoreCassandra casClient $ UserStore.doesUserExist new.id
+        if isUserInCass
+          then interpretUserStoreCassandra casClient $ UserStore.createUser new mbConv
+          else interpretUserStorePostgres $ UserStore.createUser new mbConv
     ActivateUser uid identity ->
       runAppropriateInterpreter casClient uid $ UserStore.activateUser uid identity
     DeactivateUser uid ->
