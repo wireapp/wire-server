@@ -121,6 +121,10 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
 
                 checkAllDeletionsWorked domainM mel seedUsers.deletes phase
                 checkUnaffectedUsers domainM seedUsers.deletes seedUsers.updates phase
+                updatedSoFar <- readIORef updatedUsersRef
+                newSoFar <- readIORef newUsersRef
+                addJSONToFailureContext "newSoFar" newSoFar
+                  $ checkNewAndUpdatedUsers domainM updatedSoFar newSoFar
 
                 when (phase == 3) $ do
                   waitForMigration domainM userMigrationFinishedCounterName
@@ -213,13 +217,32 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
           existingScimUsers = concatMap extractScimUsers existingUserLists
           existingUsers = concatMap extractTestUsers existingUserLists
 
-      pooledForConcurrentlyN_ parallelism existingScimUsers $ \(token, scimUser) ->
+      checkScimUsers domain existingScimUsers
+      checkUsers existingUsers
+
+    checkNewAndUpdatedUsers :: (HasCallStack) => String -> IntMap TestUserList -> IntMap TestUserList -> App ()
+    checkNewAndUpdatedUsers domain newUsers updatedUsers = do
+      let scimUsers =
+            concatMap extractScimUsers newUsers
+              <> concatMap extractScimUsers updatedUsers
+          users =
+            concatMap extractTestUsers newUsers
+              <> concatMap extractTestUsers updatedUsers
+      checkScimUsers domain scimUsers
+      checkUsers users
+
+    checkScimUsers :: (HasCallStack) => String -> [(String, Value)] -> App ()
+    checkScimUsers domain tokensAndUsers = do
+      pooledForConcurrentlyN_ parallelism tokensAndUsers $ \(token, scimUser) ->
         addJSONToFailureContext "scimUser" scimUser $ do
           uid <- scimUser %. "id" & asString
           getScimUser domain token uid `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 200
             resp.json `shouldMatch` scimUser
-      pooledForConcurrentlyN_ parallelism existingUsers $ \user ->
+
+    checkUsers :: (HasCallStack) => [Value] -> App ()
+    checkUsers users =
+      pooledForConcurrentlyN_ parallelism users $ \user ->
         addJSONToFailureContext "user" user $ do
           getSelf user `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 200
@@ -239,6 +262,12 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
         <> map fst (Map.elems testUserList.passwordTeamUsers.users)
         <> map fst (Map.elems testUserList.personalUsersWithHandle)
         <> map fst (Map.elems testUserList.personalUsersWithoutHandle)
+        <> extractBots testUserList
+
+    extractBots :: TestUserList -> [Value]
+    extractBots testUserList =
+      map fst (Map.elems testUserList.botsInTeamConvs.users)
+        <> map fst (Map.elems testUserList.botsInPersonalConvs)
 
     createTestUsers :: (HasCallStack, MakesValue mel) => String -> mel -> String -> String -> Int -> App TestUserList
     createTestUsers domain mel pid sid n = runConcurrently $ do
@@ -384,8 +413,9 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
         Map.singleton uid <$> case update of
           RegisterPendingScimUser -> do
             registerInvitedUser domain tid email
+            updatedScimUser <- getScimUser domain testScimUsers.token uid >>= getJSON 200
             let quid = object ["domain" .= domain, "id" .= uid]
-            fmap (scimUser,pw,) . getJSON 200 =<< getSelf quid
+            fmap (updatedScimUser,pw,) . getJSON 200 =<< getSelf quid
           UpdatePendingScimUser updateUser -> do
             updatePendingScimUserAndCheck domain testScimUsers.token (scimUser, pw, inv) updateUser
       pure (testScimUsers {users = updatedUsers} :: TestScimUsers)
