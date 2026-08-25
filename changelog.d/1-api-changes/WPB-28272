@@ -1,0 +1,2 @@
+`PUT /meetings/{domain}/{id}` now accepts an optional `tzid` field to update a
+meeting's IANA time zone.

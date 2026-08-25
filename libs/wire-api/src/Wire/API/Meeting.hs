@@ -303,15 +303,18 @@ instance ToSchema Frequency where
           element "yearly" Yearly
         ]
 
--- | Request to update an existing meeting. Updates carry no @tzid@ (it is
--- immutable after creation); @end_time@ is optional on both eras, so a single
--- type serves V17 ('UpdateMeeting') and V16 ('UpdateMeetingV16').
+-- | Request to update an existing meeting. @tzid@ is optional: 'Just' sets
+-- the meeting's IANA time zone, while omitting it (as legacy V15\/V16
+-- clients, whose request shape carries no @tzid@, always do) leaves the
+-- stored time zone unchanged; @end_time@ is optional on both eras, so a
+-- single type serves V17 ('UpdateMeeting') and V16 ('UpdateMeetingV16').
 data UpdateMeeting = UpdateMeeting
   { startTime :: Maybe UTCTime,
     endTime :: Maybe UTCTime,
     title :: Maybe (Range 1 256 Text),
     -- | 'Just x' means "set 'recurrence' to 'x', meaning set to a value or unset it"
-    recurrence :: Maybe (Maybe Recurrence)
+    recurrence :: Maybe (Maybe Recurrence),
+    tzid :: Maybe TimeZone
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeeting)
@@ -327,6 +330,7 @@ instance ToSchema UpdateMeeting where
         <*> (.endTime) .= maybe_ (optField "end_time" utcTimeSchema)
         <*> (.title) .= maybe_ (optField "title" schema)
         <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
+        <*> (.tzid) .= maybe_ (optField "tzid" schema)
 
 instance ToSchema Recurrence where
   schema =

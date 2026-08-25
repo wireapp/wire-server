@@ -166,6 +166,7 @@ data MeetingsStore m a where
     Maybe (Range 1 256 Text) ->
     Maybe UTCTime ->
     Maybe UTCTime ->
+    Maybe TimeZone ->
     Maybe (Maybe Recurrence) ->
     MeetingsStore m (Maybe StoredMeeting)
   DeleteMeeting ::

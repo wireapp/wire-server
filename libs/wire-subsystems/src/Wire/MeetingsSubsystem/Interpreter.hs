@@ -247,7 +247,7 @@ updateMeetingImpl ::
 updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
-  when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence) $
+  when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence && isNothing update.tzid) $
     throw EmptyUpdate
 
   runMaybeT $ do
@@ -278,15 +278,17 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
           update.title
           update.startTime
           update.endTime
+          update.tzid
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
--- | V16 update path: 'API.UpdateMeetingV16' is now 'API.UpdateMeeting' (both
+-- | V16 update path: 'API.UpdateMeetingV16' is 'API.UpdateMeeting' (both
 -- carry an optional @end_time@), so this delegates straight through to the
--- shared update implementation and re-shapes the result. @tzid@ is immutable,
--- so the legacy time zone is not needed here.
+-- shared update implementation and re-shapes the result. The legacy request
+-- shape carries no @tzid@ from V15\/V16 clients, and an omitted @tzid@ leaves
+-- the stored time zone unchanged, so no legacy time zone injection is needed.
 updateMeetingV16Impl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
