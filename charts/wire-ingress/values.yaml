@@ -112,28 +112,58 @@ gateway:
     ciphers:
       - ECDHE-ECDSA-AES256-GCM-SHA384
       - ECDHE-RSA-AES256-GCM-SHA384
-    # TR-02102-2 Tables 6 and 10: recommended Diffie-Hellman groups. Note that
-    # X25519 — an Envoy default — is NOT on the BSI list, which is why this is
-    # set explicitly. Every TLS 1.3 client must support secp256r1 (P-256), so
-    # restricting to the NIST curves is safe in practice.
+    # Key agreement groups, in server preference order. These are BoringSSL
+    # group names, NOT IANA names — Envoy passes the list straight to
+    # SSL_CTX_set1_curves_list and refuses to start the listener if any name is
+    # unknown.
+    #
+    # X25519MLKEM768 first makes the handshake post-quantum: it is a hybrid of
+    # X25519 and ML-KEM-768, so it is at least as strong as X25519 alone and
+    # protects today's traffic against harvest-now-decrypt-later. PQ-capable
+    # clients (current Chrome and Firefox) send an X25519MLKEM768 key share in
+    # the first ClientHello, so this costs no extra round trip for them; clients
+    # that do not offer it simply fall back to the NIST curves below.
+    #
+    # NOTE on the two groups TR-02102-2 names as its intended future
+    # recommendation — SecP256r1MLKEM768 and SecP384r1MLKEM1024: BoringSSL does
+    # not implement them, so Envoy cannot offer them. X25519MLKEM768 is the only
+    # hybrid it supports. See the README for details; the chart fails rendering
+    # with an explanatory message if you put those names here.
+    #
+    # For strict TR-02102-2 conformance today, drop X25519MLKEM768 and keep only
+    # the NIST curves: Tables 6 and 10 list secp256r1/384r1/521r1 (and the
+    # brainpool and ffdhe groups, which BoringSSL also does not implement), and
+    # no PQ group. X25519 — an Envoy default — is not on the BSI list either,
+    # which is why it is absent below as a standalone group.
     ecdhCurves:
+      - X25519MLKEM768
       - P-256
       - P-384
       - P-521
-    # TR-02102-2 Tables 11 and 12. Left empty (Envoy defaults) because
-    # restricting this is the change most likely to break older clients:
-    # Envoy's defaults include rsa_pkcs1_* which TR-02102-2 only recommended
-    # until the end of 2025. To drop those, set:
-    #   signatureAlgorithms:
-    #     - ecdsa_secp256r1_sha256
-    #     - ecdsa_secp384r1_sha384
-    #     - ecdsa_secp521r1_sha512
-    #     - rsa_pss_rsae_sha256
-    #     - rsa_pss_rsae_sha384
-    #     - rsa_pss_rsae_sha512
-    # Make sure the list covers the key type of your server certificate
-    # (tls.privateKey.algorithm below defaults to ECDSA P-384).
-    signatureAlgorithms: []
+    # TR-02102-2 Tables 11 and 12, intersected with what BoringSSL accepts.
+    # Dropping Envoy's rsa_pkcs1_* defaults is the point: TR-02102-2 only
+    # recommended PKCS #1 v1.5 padding until the end of 2025.
+    #
+    # This list covers both certificates this chart can issue — ECDSA P-384 for
+    # the main cert (tls.privateKey below) and ECDSA P-256 for the federator
+    # cert — plus RSA-PSS for externally supplied RSA certificates.
+    #
+    # Only these names are valid; anything else makes Envoy reject the listener
+    # config at load time. In particular the TR also lists rsa_pss_pss_* and the
+    # ecdsa_brainpool* algorithms, which BoringSSL does not implement.
+    #
+    # Two things to check before changing this list:
+    #   - it must cover the key type of your server certificate;
+    #   - it also constrains the federator mTLS handshake, so remote backends
+    #     presenting RSA client certificates over TLS 1.2 need rsa_pkcs1_sha256
+    #     added back unless their certificates support PSS.
+    signatureAlgorithms:
+      - ecdsa_secp256r1_sha256
+      - ecdsa_secp384r1_sha384
+      - ecdsa_secp521r1_sha512
+      - rsa_pss_rsae_sha256
+      - rsa_pss_rsae_sha384
+      - rsa_pss_rsae_sha512
   # ALPN configuration for HTTP/2 support with multiple listeners.
   # When using multiple listeners with overlapping certificate SANs,
   # Envoy Gateway may downgrade to HTTP/1.1. This ClientTrafficPolicy

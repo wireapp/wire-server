@@ -86,8 +86,8 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.tls.minVersion` | `"1.2"` | Minimum TLS version. One of `Auto`, `"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`. |
 | `gateway.tls.maxVersion` | `"1.3"` | Maximum TLS version. Same value set as `minVersion`. |
 | `gateway.tls.ciphers` | `[ECDHE-ECDSA-AES256-GCM-SHA384, ECDHE-RSA-AES256-GCM-SHA384]` | Cipher suites offered for **TLS 1.0-1.2 only**. Not rendered when `minVersion` is `"1.3"`, because Envoy Gateway rejects that combination. |
-| `gateway.tls.ecdhCurves` | `[P-256, P-384, P-521]` | Supported ECDH groups. Set explicitly because Envoy's default includes X25519, which TR-02102-2 does not list. |
-| `gateway.tls.signatureAlgorithms` | `[]` | Signature algorithms the listener advertises. Empty means Envoy's defaults; see `values.yaml` for the TR-02102-2 list to opt into. |
+| `gateway.tls.ecdhCurves` | `[X25519MLKEM768, P-256, P-384, P-521]` | Key agreement groups in server preference order, as **BoringSSL** names (not IANA names). The hybrid post-quantum group comes first — see [Post-quantum key agreement](#post-quantum-key-agreement). |
+| `gateway.tls.signatureAlgorithms` | `[ecdsa_secp*, rsa_pss_rsae_*]` | Signature algorithms, dropping Envoy's `rsa_pkcs1_*` defaults. Also constrains the federator mTLS handshake — see `values.yaml`. |
 | `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
@@ -374,27 +374,80 @@ The defaults come from these tables of TR-02102-2 (2026 edition):
 [`TlsParameters.cipher_suites`](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#extensions-transport-sockets-tls-v3-tlsparameters),
 which — like OpenSSL's `ssl_ciphers` — "has no effect when negotiating TLS 1.3".
 Unlike nginx, Envoy exposes no counterpart to `ssl_conf_command Ciphersuites`:
-the TLS 1.3 suite list is fixed by the BoringSSL build Envoy links against. A
-stock Envoy therefore offers `TLS_AES_128_GCM_SHA256`, `TLS_AES_256_GCM_SHA384`
-(both recommended by TR-02102-2 Table 13) **and**
-`TLS_CHACHA20_POLY1305_SHA256`, which is not on the BSI list.
+it only ever calls `SSL_CTX_set_strict_cipher_list`, never BoringSSL's
+`SSL_CTX_set_ciphersuites`, so the TLS 1.3 suite list is whatever the linked
+BoringSSL offers. Envoy therefore also offers `TLS_CHACHA20_POLY1305_SHA256`
+alongside `TLS_AES_128_GCM_SHA256` and `TLS_AES_256_GCM_SHA384` (the two on
+TR-02102-2 Table 13). Upstream issue
+[envoyproxy/envoy#19548](https://github.com/envoyproxy/envoy/issues/19548) asks
+for exactly this and went stale without a resolution.
 
-Three ways to deal with this, in order of preference:
+A BoringSSL **FIPS** build does *not* help here, despite what the FIPS-specific
+defaults suggest: `DEFAULT_CIPHER_SUITES_FIPS` and `DEFAULT_CURVES_FIPS` in
+Envoy only change the TLS 1.2 cipher list and the curve list, and BoringSSL's
+SSL layer has no FIPS conditional around the TLS 1.3 suite table. ChaCha20
+remains on offer.
 
-1. **Accept it and document it.** ChaCha20-Poly1305 is not broken or deprecated;
-   it is simply absent from the BSI recommendation. This is the default.
-2. **Run a BoringSSL FIPS build of Envoy.** FIPS builds drop ChaCha20 entirely,
-   leaving exactly the two AES-GCM suites TR-02102-2 recommends. There is no
-   stock `envoyproxy/envoy` FIPS image — it has to be built with Bazel
-   `--config=boringssl-fips` or sourced from a vendor — and it can then be
-   pointed at via `gateway.envoyProxy.spec.provider.kubernetes.envoyDeployment.container.image`
-   (set `gateway.manageServiceType: false` when doing so — it overwrites the
-   whole `provider` block — and instead put `envoyService.type` in
-   `envoyProxy.spec`). Note that FIPS builds also narrow the available ECDH
-   curves to P-256 only.
-3. **Disable TLS 1.3** with `gateway.tls.maxVersion: "1.2"`. Fully conformant on
+That leaves two real options:
+
+1. **Accept it and document the deviation.** ChaCha20-Poly1305 is not broken or
+   deprecated; it is simply absent from the BSI recommendation. This is the
+   default, and the recommended choice.
+2. **Disable TLS 1.3** with `gateway.tls.maxVersion: "1.2"`. Fully conformant on
    the cipher list, but gives up TLS 1.3 — which TR-02102-2 itself says "should
-   be used in preference". Not recommended.
+   be used in preference" — and forecloses post-quantum key agreement, which
+   exists only in TLS 1.3. Not recommended.
+
+Closing the gap properly would mean patching BoringSSL's cipher table or
+teaching Envoy to call `SSL_CTX_set_ciphersuites`, and running a self-built
+proxy image via
+`gateway.envoyProxy.spec.provider.kubernetes.envoyDeployment.container.image`
+(set `gateway.manageServiceType: false` when doing so — it overwrites the whole
+`provider` block). That means owning a fork of Envoy's TLS stack and a Bazel
+build across every Envoy Gateway bump; it is not worth it for this one suite.
+
+### Post-quantum key agreement
+
+`gateway.tls.ecdhCurves` puts **X25519MLKEM768** ahead of the NIST curves, so
+the handshake is hybrid post-quantum wherever the client supports it. This
+matters for harvest-now-decrypt-later: a hybrid group derives the shared secret
+from both X25519 and ML-KEM-768, so it is at least as strong as X25519 alone
+and additionally resists a future quantum attacker. Current Chrome and Firefox
+send an X25519MLKEM768 key share in the first ClientHello, so there is no extra
+round trip for them; clients that do not offer the group fall back to P-256 /
+P-384 / P-521.
+
+This has to be set explicitly — Envoy's own default is `X25519:P-256`, which is
+purely classical, even though the BoringSSL it links against would offer the
+hybrid group by default.
+
+**The two groups TR-02102-2 names are not available.** The BSI note under
+Table 10 says it intends to recommend `SecP256r1MLKEM768` and
+`SecP384r1MLKEM1024` (from
+[draft-ietf-tls-ecdhe-mlkem](https://datatracker.ietf.org/doc/draft-ietf-tls-ecdhemlkem/))
+once the RFC is adopted. BoringSSL implements neither. Its full group table is
+`P-256`, `P-384`, `P-521`, `X25519`, `X25519Kyber768Draft00`, `X25519MLKEM768`
+and `MLKEM1024` — so `X25519MLKEM768` is the only hybrid on offer, and the
+brainpool and `ffdhe*` groups from TR Tables 6/10 are unavailable too. Envoy
+rejects the whole listener if `ecdh_curves` contains a name BoringSSL does not
+know, and it surfaces only in the proxy log, so this chart fails template
+rendering with an explanatory message if you put the `SecP*MLKEM*` names in
+`gateway.tls.ecdhCurves`.
+
+Strictly speaking X25519MLKEM768 is a deviation from TR-02102-2 as written
+today, since its classical half is X25519 and no PQ group is listed yet. It is
+a deviation in the direction the BSI has already announced it is going, and it
+is strictly stronger than the classical fallback. For a deployment that must
+match the current text exactly, drop it and keep only the NIST curves:
+
+```yaml
+gateway:
+  tls:
+    ecdhCurves:
+      - P-256
+      - P-384
+      - P-521
+```
 
 ### Federator mTLS uses Envoy Gateway policies
 
