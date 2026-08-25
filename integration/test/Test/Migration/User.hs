@@ -681,6 +681,42 @@ testMigrationOfUsersWithHandleDisputes = do
               Just (Object o) -> KM.keys o `shouldNotContain` [fromString "handle"]
               _ -> assertFailure "Unexpected body for getSelf"
 
+testMigrationOfInvalidUsers :: (HasCallStack) => App ()
+testMigrationOfInvalidUsers = do
+  resourcePool <- asks (.resourcePool)
+
+  runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
+    let domain = backend.berDomain
+        brigKeyspace = backend.berBrigKeyspace
+    (validUser, noName, noActivated) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
+      validUser <- randomUser domain def
+
+      noName <- randomUser domain def
+      Just noNameId <- UUID.fromString <$> (noName %. "qualified_id.id" & asString)
+
+      noActivated <- randomUser domain def
+      Just noActivatedId <- UUID.fromString <$> (noActivated %. "qualified_id.id" & asString)
+
+      -- Cause users
+      let removeName :: PrepQuery W (Identity UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET name = NULL WHERE id = ?"
+          removeActivated :: PrepQuery W (Identity UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET activated = NULL WHERE id = ?"
+      write removeName $ defQueryParams LocalQuorum (Identity noNameId)
+      write removeActivated $ defQueryParams LocalQuorum (Identity noActivatedId)
+
+      getSelf validUser >>= assertStatus 200
+      getSelf noName >>= assertStatus 500
+      getSelf noActivated >>= assertStatus 500
+
+      pure (validUser, noName, noActivated)
+
+    runCodensity (startDynamicBackend backend phase3Overrides) $ \_ -> do
+      waitForMigration domain userMigrationFinishedCounterName
+
+    runCodensity (startDynamicBackend backend phase5Overrides) $ \_ -> do
+      getSelf validUser >>= assertStatus 200
+      getSelf noName >>= assertStatus 404
+      getSelf noActivated >>= assertStatus 404
+
 -- * Test Helpers
 
 data TestUsersByOperations = TestUsersByOperations
