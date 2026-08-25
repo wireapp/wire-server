@@ -106,7 +106,7 @@ data BrigAPIAccess m a where
   GetAccountConferenceCallingConfigClient :: UserId -> BrigAPIAccess m (Feature ConferenceCallingConfig)
   GetLocalMLSClients :: Local UserId -> CipherSuiteTag -> BrigAPIAccess m (Set ClientInfo)
   GetLocalMLSClient :: Local UserId -> ClientId -> CipherSuiteTag -> BrigAPIAccess m ClientInfo
-  UpdateSearchVisibilityInbound :: -- TODO: what's this?  do i need to use this instead of UpdateSearchIndex?
+  UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAPIAccess m ()
   GetUserExportData :: UserId -> BrigAPIAccess m (Maybe TeamExportUser)
