@@ -255,6 +255,8 @@ type SternAPI =
     :<|> Named "put-route-legalhold-config" (MkFeatureStatusPutRoute LegalholdConfig)
     :<|> Named "get-route-sso-config" (MkFeatureGetRoute SSOConfig)
     :<|> Named "put-route-sso-config" (MkFeatureStatusPutRoute SSOConfig)
+    :<|> Named "get-route-stealth-users" (MkFeatureGetRoute StealthUsersConfig)
+    :<|> Named "put-route-stealth-users" (MkFeatureStatusPutRoute StealthUsersConfig)
     :<|> Named "get-route-search-visibility-available-config" (MkFeatureGetRoute SearchVisibilityAvailableConfig)
     :<|> Named "put-route-search-visibility-available-config" (MkFeatureStatusPutRoute SearchVisibilityAvailableConfig)
     :<|> Named "get-route-validate-saml-emails-config" (MkFeatureGetRoute RequireExternalEmailVerificationConfig)

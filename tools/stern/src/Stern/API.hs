@@ -153,6 +153,8 @@ sitemap' =
     :<|> Named @"put-route-legalhold-config" (mkFeatureStatusPutRoute @LegalholdConfig)
     :<|> Named @"get-route-sso-config" (mkFeatureGetRoute @SSOConfig)
     :<|> Named @"put-route-sso-config" (mkFeatureStatusPutRoute @SSOConfig)
+    :<|> Named @"get-route-stealth-users" (mkFeatureGetRoute @StealthUsersConfig)
+    :<|> Named @"put-route-stealth-users" (mkFeatureStatusPutRoute @StealthUsersConfig)
     :<|> Named @"get-route-search-visibility-available-config" (mkFeatureGetRoute @SearchVisibilityAvailableConfig)
     :<|> Named @"put-route-search-visibility-available-config" (mkFeatureStatusPutRoute @SearchVisibilityAvailableConfig)
     :<|> Named @"get-route-validate-saml-emails-config" (mkFeatureGetRoute @RequireExternalEmailVerificationConfig)
