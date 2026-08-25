@@ -5,6 +5,5 @@ version: 0.0.42
 annotations:
   # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
   # The umbrella chart runs no containers of its own; every subchart declares its
-  # own images. Declared explicitly so that "no images" is distinguishable from
-  # "not looked at yet".
+  # own images.
   helm.sh/images: "[]"
