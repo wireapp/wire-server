@@ -30,7 +30,7 @@ import Text.Regex.TDFA ((=~))
 import UnliftIO
 
 waitForMigration :: (HasCallStack) => String -> String -> App ()
-waitForMigration domain name =
+waitForMigration domain metricName =
   maybe failWithContext pure =<< timeout 30_000_000 go
   where
     failWithContext = do
@@ -42,7 +42,15 @@ waitForMigration domain name =
         getMetrics domain BackgroundWorker `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
           pure $ Text.decodeUtf8 resp.body
-      let (_, _, _, finishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack (name <> "\\ ([0-9]+\\.[0-9]+)$"))
+      let (_, _, _, finishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack (metricName <> "\\ ([0-9]+\\.[0-9]+)$"))
       when (finishedMatches /= [Text.pack "1.0"]) $ do
         liftIO $ threadDelay 100_000
         go
+
+assertMigrationSuccessful :: (HasCallStack) => String -> String -> App ()
+assertMigrationSuccessful domain failedMetricName = do
+  getMetrics domain BackgroundWorker `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    let metrics = Text.decodeUtf8 resp.body
+        (_, _, _, failedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack (failedMetricName <> "\\ ([0-9]+\\.[0-9]+)$"))
+    failedMatches `shouldMatch` [Text.pack "0.0"]

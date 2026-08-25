@@ -615,19 +615,30 @@ testReindexingUsersDuringMigration = do
         assertCannotFind searcher u (u %. "name") domain
 
 -- Alice and Bob have the same handle, but the handle claims table supports
--- Alice's claim. Charlie has a handle, but the handle claims table doesn't
--- support this claim.
+-- Alice's claim.
+--
+-- Charlie has a handle, but the handle claims table doesn't support this claim.
+--
+-- Doug and Dan also have the same handle, Cassandra supports Doug's claim,
+-- while Postgresql supports Dan's claim. In this case Dan wins, this is
+-- arbitrary, but some arbitrary things needs to be done here.
 --
 -- After the migration only Alice gets to keep her handle. Bob and Charlie are
 -- both handle less.
 testMigrationOfUsersWithHandleDisputes :: (HasCallStack) => App ()
 testMigrationOfUsersWithHandleDisputes = do
   resourcePool <- asks (.resourcePool)
+  -- Between Alice and Bob
+  doubleClaimedHandle <- randomHandle
+  -- Charlie's Handle
+  unclaimedHandle <- randomHandle
+  -- Between Doug and Dan
+  doubledClaimedInTwoDBs <- randomHandle
 
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let domain = backend.berDomain
         brigKeyspace = backend.berBrigKeyspace
-    (alice, bob, charlie, doubleClaimedHandle, unclaimedHandle) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
+    (alice, bob, charlie, doug) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
       alice <- randomUser domain def
 
       bob <- randomUser domain def
@@ -636,11 +647,11 @@ testMigrationOfUsersWithHandleDisputes = do
       charlie <- randomUser domain def
       Just charlieId <- UUID.fromString <$> (charlie %. "qualified_id.id" & asString)
 
-      doubleClaimedHandle <- randomHandle
-      unclaimedHandle <- randomHandle
+      doug <- randomUser domain def
 
-      -- Claim handle correctly for alice
+      -- Claim handle correctly for alice and doug
       putHandle alice doubleClaimedHandle >>= assertSuccess
+      putHandle doug doubledClaimedInTwoDBs >>= assertSuccess
 
       -- Claim handle by hacking into the DB for bob and charlie. There seems to
       -- be no other way of testing this edge case
@@ -651,16 +662,30 @@ testMigrationOfUsersWithHandleDisputes = do
       assertHandle alice (Just doubleClaimedHandle)
       assertHandle bob (Just doubleClaimedHandle)
       assertHandle charlie (Just unclaimedHandle)
+      assertHandle doug (Just doubledClaimedInTwoDBs)
 
-      pure (alice, bob, charlie, doubleClaimedHandle, unclaimedHandle)
+      pure (alice, bob, charlie, doug)
+
+    -- Start Phase 5 here so that we can claim the same handle for Dan as Doug
+    -- but in Postgresql. The production scenario can only happen due to a race
+    -- condition. This is just a more precise way of causing the DB
+    -- inconsistency.
+    dan <- runCodensity (startDynamicBackend backend phase5Overrides) $ \_ -> do
+      dan <- randomUser domain def
+      putHandle dan doubledClaimedInTwoDBs >>= assertSuccess
+      assertHandle dan (Just doubledClaimedInTwoDBs)
+      pure dan
 
     runCodensity (startDynamicBackend backend phase3Overrides) $ \_ -> do
       waitForMigration domain userMigrationFinishedCounterName
+      assertMigrationSuccessful domain "^wire_users_migration_failed"
 
     runCodensity (startDynamicBackend backend phase5Overrides) $ \_ -> do
       assertHandle alice (Just doubleClaimedHandle)
       assertHandle bob Nothing
       assertHandle charlie Nothing
+      assertHandle doug Nothing
+      assertHandle dan (Just doubledClaimedInTwoDBs)
 
       -- Claiming the unclaimed handle works
       putHandle charlie unclaimedHandle >>= assertSuccess
