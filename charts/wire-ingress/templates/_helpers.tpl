@@ -206,3 +206,56 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp = printf "%s upgrade-insecure-requests" $csp -}}
 {{- $csp -}}
 {{- end -}}
+
+{{/*
+TLS parameters shared by every ClientTrafficPolicy this chart renders.
+
+These constrain what Envoy will negotiate with clients, and exist so the
+deployment can stay conformant with BSI TR-02102-2 ("Cryptographic Mechanisms:
+Recommendations and Key Lengths — Part 2: Use of Transport Layer Security"),
+which the nginx-based ingress used to enforce via the `ssl-protocols`,
+`ssl-ciphers` and `ssl_conf_command Ciphersuites` settings of
+`charts/ingress-nginx-controller`.
+
+Emits the `minVersion` / `maxVersion` / `ciphers` / `ecdhCurves` /
+`signatureAlgorithms` keys of an Envoy Gateway `ClientTrafficPolicy`
+`spec.tls`, unindented. Call with the root context and `nindent` the result.
+
+Renders nothing when `gateway.tls.enabled` is false; callers guard on that so
+they do not emit a stray blank line.
+*/}}
+{{- define "wire-ingress.tlsParameters" -}}
+{{- $tls := .Values.gateway.tls -}}
+{{- if $tls.enabled -}}
+{{- $minVersion := $tls.minVersion | default "" | toString -}}
+{{- if $minVersion }}
+minVersion: {{ $minVersion | quote }}
+{{- end }}
+{{- if $tls.maxVersion }}
+maxVersion: {{ $tls.maxVersion | toString | quote }}
+{{- end }}
+{{- /*
+`ciphers` only applies to TLS 1.0-1.2 — TLS 1.3 suites are fixed by BoringSSL
+and cannot be selected. Envoy Gateway rejects the resource outright (CEL
+validation) if `ciphers` is set alongside `minVersion: "1.3"`, so drop it.
+*/ -}}
+{{- if and $tls.ciphers (ne $minVersion "1.3") }}
+ciphers:
+  {{- range $tls.ciphers }}
+  - {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- if $tls.ecdhCurves }}
+ecdhCurves:
+  {{- range $tls.ecdhCurves }}
+  - {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- if $tls.signatureAlgorithms }}
+signatureAlgorithms:
+  {{- range $tls.signatureAlgorithms }}
+  - {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+{{- end -}}

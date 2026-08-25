@@ -1,0 +1,48 @@
+{{- $alpn := .Values.gateway.alpn.enabled -}}
+{{- $tls := .Values.gateway.tls.enabled -}}
+{{- $proxyProtocol := .Values.gateway.proxyProtocol.enabled -}}
+{{- if or $alpn $tls $proxyProtocol }}
+{{/* Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
+
+     Gateway-wide client-side settings: ALPN, TLS parameters and PROXY protocol.
+
+     These all live in ONE resource on purpose. Envoy Gateway attaches at most a
+     single ClientTrafficPolicy per target: a second policy targeting the same
+     Gateway is rejected with `Conflicted` rather than merged. Splitting these
+     into separate resources would silently drop whichever one lost the race.
+
+     Listeners that have their own section-scoped ClientTrafficPolicy (the
+     federator listener) do NOT inherit this one — Envoy Gateway marks this
+     policy `Overridden` for those sections — so that policy repeats the same
+     ALPN and TLS settings. */}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: {{ include "wire-ingress.gatewayName" . }}-client-traffic
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ include "wire-ingress.gatewayName" . | quote }}
+  {{- if $proxyProtocol }}
+  proxyProtocol:
+    optional: {{ .Values.gateway.proxyProtocol.optional }}
+  {{- end }}
+  {{- if or $alpn $tls }}
+  tls:
+    {{- if $alpn }}
+    alpnProtocols:
+      {{- range .Values.gateway.alpn.protocols }}
+      - {{ . }}
+      {{- end }}
+    {{- end }}
+    {{- if $tls }}
+    {{- include "wire-ingress.tlsParameters" . | trim | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
