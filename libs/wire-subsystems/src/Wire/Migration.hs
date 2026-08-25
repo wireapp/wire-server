@@ -32,12 +32,12 @@ import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async
+import Polysemy.AtomicState
 import Polysemy.Conc hiding (timeout_)
 import Polysemy.Conc qualified as Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource
-import Polysemy.State
 import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
@@ -152,7 +152,7 @@ paginateSem q p r = do
 
 handleErrors ::
   forall r.
-  ( Member (State Int) r,
+  ( Member (AtomicState Int) r,
     Member TinyLog r
   ) =>
   ByteString ->
@@ -167,10 +167,10 @@ handleErrors key action = do
         Log.msg (Log.val "error occurred during migration")
           . Log.field "key" (show key)
           . Log.field "error" (show e)
-      modify (+ 1)
+      atomicModify (+ 1)
 
 handleLockAndDBErrors ::
-  ( Member (State Int) r,
+  ( Member (AtomicState Int) r,
     Member TinyLog r
   ) =>
   ByteString ->
@@ -188,7 +188,7 @@ handleLockAndDBErrors key action = do
         Log.msg (Log.val "error occurred during migration")
           . Log.field "key" (show key)
           . Log.field "error" e
-      modify (+ 1)
+      atomicModify (+ 1)
 
 withExclusiveMigrationLockAndTimeout ::
   forall x r.

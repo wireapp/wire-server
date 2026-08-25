@@ -20,11 +20,11 @@ import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (..))
 import Imports
 import Polysemy
 import Polysemy.Async
+import Polysemy.AtomicState
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource
-import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger.Class qualified as Log
@@ -62,7 +62,7 @@ migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFail
     (migrateAllUsers migOpts migCounter migDuration)
 
 type EffectStack =
-  [ State Int,
+  [ AtomicState Int,
     Input ClientState,
     Input Pool,
     Resource,
@@ -87,13 +87,13 @@ interpreter cassClient pgPool logger name =
     . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
-    . runState 0
+    . atomicStateToIO 0
 
 migrateAllUsers ::
   ( Member TinyLog r,
     Member (Input ClientState) r,
     Member (Embed IO) r,
-    Member (State Int) r,
+    Member (AtomicState Int) r,
     Member (Concurrency Unsafe) r,
     Member (Input Pool) r,
     Member Async r,
