@@ -1003,10 +1003,10 @@ addTeamCollaborator owner tid collaborator permissions = do
         "permissions" .= permissions
       ]
 
-getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
-getAllTeamCollaborators owner tid = do
-  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators"]
-  submit "GET" req
+getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> String -> App Response
+getAllTeamCollaborators owner tid authHeader = do
+  req <- baseRequest owner Nginz Versioned $ joinHttpPath ["teams", tid, "collaborators"]
+  submit "GET" (req & addHeader "Authorization" authHeader)
 
 updateTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
 updateTeamCollaborator owner tid collaborator permissions = do

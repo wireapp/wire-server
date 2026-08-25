@@ -1270,11 +1270,24 @@ getApp self tid appId = do
       joinHttpPath ["teams", tid, "apps", appIdStr]
   submit "GET" req
 
+getApp' :: (MakesValue self, MakesValue app) => self -> String -> app -> String -> App Response
+getApp' self tid appId auth = do
+  appIdStr <- asString appId
+  req <-
+    baseRequest self Brig (ExplicitVersion 15 {- use `POST /list-users` from v16 onwards -}) $
+      joinHttpPath ["teams", tid, "apps", appIdStr]
+  submit "GET" (req & addHeader "Authorization" auth)
+
 -- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-apps
 getApps :: (MakesValue self) => self -> String -> App Response
 getApps self tid = do
   req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
   submit "GET" req
+
+getApps' :: (MakesValue self) => self -> String -> String -> App Response
+getApps' self tid auth = do
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
+  submit "GET" (req & addHeader "Authorization" auth)
 
 putAppMetadata :: (HasCallStack, MakesValue user, MakesValue app) => String -> user -> app -> Value -> App Response
 putAppMetadata tid owner appId appMetadata = do

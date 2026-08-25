@@ -82,10 +82,14 @@ testCreateGetApp sameOrOtherDomain = do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
 
+  ownerEmail <- owner %. "email" & asString
+  loginResp <- login owner ownerEmail defPassword >>= getJSON 200
+  ownerAuthHeader <- asString $ loginResp %. "access_token"
+
   -- getApp, getApps
-  bindResponse (getApp owner tid appId) $ \resp -> do
+  bindResponse (getApp' owner tid appId ownerAuthHeader) $ \resp -> do
     resp.status `shouldMatchInt` 200
-  bindResponse (getApps owner tid) $ \resp -> do
+  bindResponse (getApps' owner tid ownerAuthHeader) $ \resp -> do
     resp.status `shouldMatchInt` 200
     void $ resp.json & asList >>= assertOne
   bindResponse (createApp owner tid (new {name = "fmappie"})) $ \resp -> do
