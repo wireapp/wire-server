@@ -407,7 +407,24 @@ let
   };
   wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll { } { }));
 
-  hoogle = (hPkgs localModsOnlyDocs).hoogleWithPackages (p: builtins.map (e: p.${e}) wireServerPackages);
+  # Haddock for the hoogle image: the image serves the hoogle database and
+  # haddock HTML (nixpkgs hoogle.nix).  The quickjump index is not needed
+  # for hoogle search: galley's haddock has hung indefinitely in CI right
+  # before "Documentation created" (task timed out after 1h10m).  Haddock
+  # (and the -O0 compile) are also forced serial: parallel haddock
+  # (-j$NIX_BUILD_CORES) is the prime deadlock suspect.  This only affects
+  # the hoogle image, not the production docker images (built from
+  # imagesNoDocs, enableDocs = false).
+  hoogleHaddockOverrides = hself: hsuper:
+    builtins.mapAttrs
+      (_: drv:
+        hlib.overrideCabal
+          (hlib.disableParallelBuilding drv)
+          (old: { doHaddockQuickjump = false; }))
+      (lib.genAttrs wireServerPackages (name: hsuper.${name}));
+
+  hoogle = ((hPkgs localModsOnlyDocs).extend hoogleHaddockOverrides).hoogleWithPackages
+    (p: builtins.map (e: p.${e}) wireServerPackages);
 
   # More about dockerTools.streamLayeredImage:
   # https://nixos.org/manual/nixpkgs/unstable/#ssec-pkgs-dockerTools-streamLayeredImage
