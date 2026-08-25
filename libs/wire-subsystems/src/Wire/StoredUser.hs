@@ -205,7 +205,6 @@ data NewStoredUser = NewStoredUser
     country :: Maybe Country,
     providerId :: Maybe ProviderId,
     serviceId :: Maybe ServiceId,
-    handle :: Maybe Handle,
     teamId :: Maybe TeamId,
     managedBy :: ManagedBy,
     supportedProtocols :: Set BaseProtocolTag,
@@ -238,7 +237,6 @@ deriving instance
       Maybe Country,
       Maybe ProviderId,
       Maybe ServiceId,
-      Maybe Handle,
       Maybe TeamId,
       ManagedBy,
       Set BaseProtocolTag,
@@ -268,7 +266,7 @@ newStoredUserToStoredUser new =
       country = new.country,
       providerId = new.providerId,
       serviceId = new.serviceId,
-      handle = new.handle,
+      handle = Nothing,
       teamId = new.teamId,
       managedBy = Just new.managedBy,
       supportedProtocols = Just new.supportedProtocols,
@@ -277,8 +275,8 @@ newStoredUserToStoredUser new =
 
 -- This saves the identity from `NewStoredUser` even if the user is
 -- not activated.
-newStoredUserToUser :: Qualified NewStoredUser -> User
-newStoredUserToUser (Qualified new domain) =
+newStoredUserToUser :: Qualified NewStoredUser -> Maybe Handle -> User
+newStoredUserToUser (Qualified new domain) mbHandle =
   User
     { userQualifiedId = Qualified new.id domain,
       userType = new.userType,
@@ -292,7 +290,7 @@ newStoredUserToUser (Qualified new domain) =
       userStatus = new.status,
       userLocale = Locale new.language new.country,
       userService = newServiceRef <$> new.serviceId <*> new.providerId,
-      userHandle = new.handle,
+      userHandle = mbHandle,
       userExpire = new.expires,
       userTeam = new.teamId,
       userManagedBy = new.managedBy,

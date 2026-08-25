@@ -81,8 +81,7 @@ type InsertUserRow =
   ( UserId, Name, Maybe TextStatus, Pict, Maybe EmailAddress,
     Maybe UserSSOId, ColourId, Maybe Password, Bool, AccountStatus,
     Maybe UTCTimeMillis, Language, Maybe Country, Maybe ProviderId, Maybe ServiceId,
-    Maybe Handle, Maybe TeamId, ManagedBy, Set BaseProtocolTag, Bool,
-    UserType
+    Maybe TeamId, ManagedBy, Set BaseProtocolTag, Bool, UserType
   )
 type
   SelectUserRow =
@@ -165,7 +164,6 @@ createUserImpl new mbConv =
         new.country,
         new.providerId,
         new.serviceId,
-        new.handle,
         new.teamId,
         new.managedBy,
         new.supportedProtocols,
@@ -181,14 +179,12 @@ createUserImpl new mbConv =
            (id, name, text_status, picture, email,
            sso_id, accent_id, password, activated, account_status,
            expires, language, country, provider, service,
-           handle, team, managed_by, supported_protocols, searchable,
-           user_type)
+           team, managed_by, supported_protocols, searchable, user_type)
            VALUES
            ($1 :: uuid, $2 :: text, $3 :: text?, $4 :: jsonb, $5 :: text?,
             $6 :: jsonb?, $7 :: integer, $8 :: text?, $9 :: boolean, $10 :: integer,
             $11 :: timestamptz?, $12 :: text, $13 :: text?, $14 :: uuid?, $15 :: uuid?,
-            $16 :: text?, $17 :: uuid?, $18 :: integer, $19 :: integer, $20 :: boolean,
-            $21 :: integer)
+            $16 :: uuid?, $17 :: integer, $18 :: integer, $19 :: boolean, $20 :: integer)
            ON CONFLICT (id) DO UPDATE
            SET name = EXCLUDED.name,
                text_status = EXCLUDED.text_status,
@@ -204,7 +200,6 @@ createUserImpl new mbConv =
                country = EXCLUDED.country,
                provider = EXCLUDED.provider,
                service = EXCLUDED.service,
-               handle = EXCLUDED.handle,
                team = EXCLUDED.team,
                managed_by = EXCLUDED.managed_by,
                supported_protocols = EXCLUDED.supported_protocols,
