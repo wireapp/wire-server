@@ -450,7 +450,7 @@ runBrigToIO e (AppT ma) = do
               . interpretClientToIO e.casClient
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
-              . emailViaQueueInterpreter e.requestId e.amqpJobsPublisherChannel
+              . emailViaQueueInterpreter e.requestId e.hasqlPool
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
               . passwordResetCodeStoreToCassandra @Cas.Client

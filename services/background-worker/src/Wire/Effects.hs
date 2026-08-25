@@ -421,9 +421,9 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
 
 -- | Interpret 'EmailSending' for the background-worker: SMTP or SES, whichever
 -- transport 'mkEnv' built from the required @email@ config (a sum, so the
--- "no transport" state is unrepresentable). Send failures are raised as IO
--- exceptions and are converted to @'Left' 'Text'@ at the 'dispatchJob'
--- boundary, so they flow through the consumer's bounded retry and DLQ.
+-- "no transport" state is unrepresentable). Used by the Arbiter @emails@ worker
+-- pool ("Wire.EmailJobsWorker"); send failures are retried by Arbiter's
+-- bounded retry/backoff and eventually land in the queue's DLQ.
 emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
 emailSendingInterpreter env = case env.emailTransport of
   EmailTransportSMTP smtp -> emailViaSMTPInterpreter env.logger smtp

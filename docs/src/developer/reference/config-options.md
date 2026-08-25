@@ -2451,10 +2451,10 @@ Notes
 
 ## Background worker: Email sending
 
-The background-worker delivers the email jobs enqueued by brig. It requires an
-`email` transport (AWS SES or SMTP), the same shape brig uses for
-`emailSMS.email`. Configuration is supplied via Helm under
-`background-worker.config` and rendered into the `email` block of
+The background-worker delivers the email jobs enqueued by brig on the `emails`
+Arbiter queue (PostgreSQL). It requires an `email` transport (AWS SES or SMTP),
+the same shape brig uses for `emailSMS.email`. Configuration is supplied via
+Helm under `background-worker.config` and rendered into the `email` block of
 `background-worker.yaml`.
 
 The transport is selected by `background-worker.config.useSES`:
@@ -2509,5 +2509,12 @@ Notes
 - For SMTP, the password is mounted at
   `/etc/wire/background-worker/secrets/smtp-password.txt` (from the
   `smtpPassword` secret); `config.smtp.passwordFile` must point at it.
-- The `background-jobs` queue is durable, so transient worker downtime does not
-  lose email jobs; an updated worker picks up messages an older one requeued.
+- Email jobs are inserted by brig into the `emails` table of the default
+  Arbiter schema (created at startup by the Arbiter migrations). Failed sends
+  are retried with bounded exponential backoff and eventually moved to the
+  queue's dead-letter queue, so transient worker downtime does not lose email
+  jobs.
+- The `emails` queue and its dead-letter table live in the shared PostgreSQL
+  database and contain full email content (including one-time codes and reset
+  links for jobs that were never delivered). Keep database access
+  least-privileged and monitor DLQ growth.

@@ -36,6 +36,7 @@ import Data.Text as Text
 import GHC.TypeLits
 import Imports
 import Test.QuickCheck (oneof)
+import Wire.API.BackgroundJobs.Email (SerializableMail)
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 -- | The queue/table for jobs that operate on meetings.
@@ -49,6 +50,12 @@ type ConversationsQueueName = "conversations"
 
 conversationsQueueName :: Text
 conversationsQueueName = Text.pack $ symbolVal (Proxy @ConversationsQueueName)
+
+-- | The queue/table for jobs that send outbound email.
+type EmailsQueueName = "emails"
+
+emailsQueueName :: Text
+emailsQueueName = Text.pack $ symbolVal (Proxy @EmailsQueueName)
 
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
@@ -247,8 +254,73 @@ deriving via (Schema ConversationsJobPayload) instance S.ToSchema ConversationsJ
 instance Arbitrary ConversationsJobPayload where
   arbitrary = oneof [AdminlessDeletion <$> arbitrary, AdminlessReminder <$> arbitrary]
 
+-- | Payload persisted in the emails queue. Arbiter persists these payloads and
+-- workers decode them later, so changes to field names or shapes require a
+-- coordinated rollout. The mail itself is the 'SerializableMail' record from
+-- "Wire.API.BackgroundJobs.Email"; the request id of the brig request that
+-- queued the mail is captured for logging/tracing in the worker.
+data SendEmailJobPayload = SendEmailJobPayload
+  { sendEmailJobRequestId :: !RequestId,
+    sendEmailJobMail :: !SerializableMail
+  }
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema SendEmailJobPayload)
+
+instance ToSchema SendEmailJobPayload where
+  schema =
+    object $
+      SendEmailJobPayload
+        <$> (.sendEmailJobRequestId) .= field "request_id" schema
+        <*> (.sendEmailJobMail) .= field "mail" schema
+
+instance Arbitrary SendEmailJobPayload where
+  arbitrary = SendEmailJobPayload <$> arbitrary <*> arbitrary
+
+data EmailsJobPayload
+  = SendEmail !SendEmailJobPayload
+  deriving stock (Eq, Generic, Show)
+
+data EmailsJobPayloadTag
+  = SendEmailTag
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via GenericUniform EmailsJobPayloadTag
+
+instance ToSchema EmailsJobPayloadTag where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "send_email" SendEmailTag
+        ]
+
+makePrisms ''EmailsJobPayload
+
+emailsJobPayloadObjectSchema :: ObjectSchema SwaggerDoc EmailsJobPayload
+emailsJobPayloadObjectSchema = taggedJobPayloadObjectSchema toTag toSchema
+  where
+    toTag :: EmailsJobPayload -> EmailsJobPayloadTag
+    toTag =
+      \case
+        SendEmail {} -> SendEmailTag
+
+    toSchema :: EmailsJobPayloadTag -> ObjectSchema SwaggerDoc EmailsJobPayload
+    toSchema = \case
+      SendEmailTag -> tag _SendEmail (field "data" schema)
+
+instance ToSchema EmailsJobPayload where
+  schema = object emailsJobPayloadObjectSchema
+
+deriving via (Schema EmailsJobPayload) instance FromJSON EmailsJobPayload
+
+deriving via (Schema EmailsJobPayload) instance ToJSON EmailsJobPayload
+
+deriving via (Schema EmailsJobPayload) instance S.ToSchema EmailsJobPayload
+
+instance Arbitrary EmailsJobPayload where
+  arbitrary = SendEmail <$> arbitrary
+
 -- | Registry for the jobs we expose via Arbiter.
 type JobRegistry =
   '[ Queue MeetingsQueueName MeetingsJobPayload,
-     Queue ConversationsQueueName ConversationsJobPayload
+     Queue ConversationsQueueName ConversationsJobPayload,
+     Queue EmailsQueueName EmailsJobPayload
    ]

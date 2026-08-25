@@ -17,10 +17,10 @@
 
 -- | Queueing interpreter for the 'EmailSending' effect.
 --
--- Instead of sending mail directly (SMTP\/SES), this interpreter enqueues a
--- 'BackgroundJobSendEmail' job on the shared @background-jobs@ queue. The
--- actual send is performed by the background-worker (see
--- "Wire.BackgroundJobsRunner.Interpreter").
+-- Instead of sending mail directly (SMTP\/SES), this interpreter inserts a
+-- 'SendEmail' job into the Arbiter @emails@ queue (a PostgreSQL table managed
+-- by Arbiter). The actual send is performed by the background-worker's emails
+-- worker pool (see "Wire.EmailJobsWorker").
 --
 -- This is the single seam for *all* email sending in brig: every mail flows
 -- through 'EmailSending', so interpreting it to a queue covers verification,
@@ -33,13 +33,14 @@ module Wire.EmailSending.Queueing
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Data.ByteString.Base64.Lazy qualified as B64
 import Data.ByteString.Lazy qualified as BL
-import Data.Id (RequestId, randomId)
+import Data.Id (RequestId)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
-import Network.AMQP qualified as Q
 import Network.Mail.Mime
   ( Address (..),
     Disposition (..),
@@ -49,50 +50,50 @@ import Network.Mail.Mime
     PartContent (..),
   )
 import Polysemy
-import Wire.API.BackgroundJobs
 import Wire.API.BackgroundJobs.Email
-import Wire.BackgroundJobsPublisher.RabbitMQ qualified as Publisher
+import Wire.API.Jobs (EmailsJobPayload (SendEmail), JobRegistry, SendEmailJobPayload (..))
 import Wire.EmailSending (EmailSending (SendMail))
+import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, mkNewWireArbiterEnv, runWireArbiter)
 
--- | Interpret 'EmailSending' by enqueuing a 'BackgroundJobSendEmail' job.
+-- | Interpret 'EmailSending' by inserting a 'SendEmail' job into the Arbiter
+-- @emails@ queue.
 --
--- The job id is minted with 'randomId' and the message is published directly to
--- the @background-jobs@ queue via the channel-level 'Publisher.publishJob'. This
--- keeps the interpreter's only effect requirement 'Embed' 'IO', so it drops into
--- the producer's effect stack exactly where the old direct-send interpreter sat
--- (it needs neither 'Random' nor 'BackgroundJobPublisher' to be present at that
--- point in the stack).
+-- The interpreter is self-contained: it runs Arbiter against the producer's
+-- shared PostgreSQL pool, so its only effect requirement is 'Embed' 'IO' and it
+-- drops into the producer's effect stack exactly where the old direct-send
+-- interpreter sat. The table is created by 'runJobMigrations' (run at startup
+-- by every service that schedules or executes jobs).
 emailViaQueueInterpreter ::
   (Member (Embed IO) r) =>
   RequestId ->
-  MVar Q.Channel ->
+  HasqlPoolExt.Pool ->
   InterpreterFor EmailSending r
-emailViaQueueInterpreter requestId channelMVar =
-  interpret \case
-    SendMail mail -> do
-      channel <- embed (readMVar channelMVar)
-      jobId <- embed (randomId @IO)
-      Publisher.publishJob requestId channel jobId (BackgroundJobSendEmail (toSerializableMail mail))
+emailViaQueueInterpreter requestId pool = interpret \case
+  SendMail mail -> do
+    let payload =
+          SendEmailJobPayload
+            { sendEmailJobRequestId = requestId,
+              sendEmailJobMail = toSerializableMail mail
+            }
+        -- Bounded attempts: the send is retried by Arbiter with exponential
+        -- backoff, and after these attempts the job is moved to the queue's
+        -- dead-letter table.
+        job =
+          (ArbiterCore.defaultJob (SendEmail payload))
+            { ArbiterCore.maxAttempts = Just 3
+            }
+    embed @IO . void $
+      runWireArbiter arbiterEnv $
+        ArbiterCore.insertJob @EmailsJobPayload @(WireArbiter JobRegistry) job
+  where
+    arbiterEnv = mkNewWireArbiterEnv ArbiterCore.defaultSchemaName pool
 
 --------------------------------------------------------------------------------
 -- Mail <-> record conversion
 --------------------------------------------------------------------------------
 
-toSerializableMail :: Mail -> SendEmailJob
-toSerializableMail mail = SendEmailJob {sejMail = fromMail mail}
-
--- | Reconstruct a 'Mail' from a deserialized job.
---
--- The job comes off an internal queue, but this is defense in depth: rather
--- than trusting it, the conversion rejects jobs whose part nesting exceeds
--- 'maxPartNesting', whose flat content is not strictly valid base64, or whose
--- header-rendered fields contain CR\/LF\/NUL (header injection). Anything
--- produced by 'toSerializableMail' always decodes.
-fromSerializableMail :: SendEmailJob -> Either Text Mail
-fromSerializableMail job = toMail job.sejMail
-
-fromMail :: Mail -> SerializableMail
-fromMail m =
+toSerializableMail :: Mail -> SerializableMail
+toSerializableMail m =
   SerializableMail
     { smFrom = fromAddress m.mailFrom,
       smTo = fromAddress <$> m.mailTo,
@@ -102,8 +103,15 @@ fromMail m =
       smParts = (fromPart <$>) <$> m.mailParts
     }
 
-toMail :: SerializableMail -> Either Text Mail
-toMail m = do
+-- | Reconstruct a 'Mail' from a deserialized job payload.
+--
+-- The job comes off an internal queue, but this is defense in depth: rather
+-- than trusting it, the conversion rejects payloads whose part nesting exceeds
+-- 'maxPartNesting', whose flat content is not strictly valid base64, or whose
+-- header-rendered fields contain CR\/LF\/NUL (header injection). Anything
+-- produced by 'toSerializableMail' always decodes.
+fromSerializableMail :: SerializableMail -> Either Text Mail
+fromSerializableMail m = do
   mailFrom <- toAddress m.smFrom
   mailTo <- traverse toAddress m.smTo
   mailCc <- traverse toAddress m.smCc

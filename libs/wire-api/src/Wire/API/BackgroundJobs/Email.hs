@@ -18,10 +18,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Email job payload types (WPB-27255).
+-- | Serializable email types (WPB-27255).
 --
--- Email delivery is queued to the background-worker as a 'BackgroundJobSendEmail'
--- job. The actual SMTP/SES send happens in the worker; brig only enqueues.
+-- Outbound email is queued to the background-worker as a 'SendEmail' job on
+-- the Arbiter @emails@ queue (see "Wire.API.Jobs"). The actual SMTP\/SES send
+-- happens in the worker; brig only enqueues.
 --
 -- @wire-api@ cannot depend on @mime-mail@, so a mail is serialised as the plain
 -- records below. The @Mail@ <-> record conversion lives in @wire-subsystems@
@@ -236,16 +237,3 @@ instance ToSchema SerializableMail where
         <*> (.smBcc) .= field "bcc" (array schema)
         <*> (.smHeaders) .= field "headers" (array schema)
         <*> (.smParts) .= field "parts" (array (array schema))
-
-data SendEmailJob = SendEmailJob
-  { sejMail :: !SerializableMail
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Aeson.ToJSON, Aeson.FromJSON) via (Schema SendEmailJob)
-  deriving (Arbitrary) via GenericUniform SendEmailJob
-
-instance ToSchema SendEmailJob where
-  schema =
-    object $
-      SendEmailJob
-        <$> (.sejMail) .= field "mail" schema

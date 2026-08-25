@@ -20,8 +20,6 @@ module Wire.BackgroundWorker.Jobs.Registry
   )
 where
 
-import Control.Exception (try)
-import Data.Text qualified as T
 import Imports
 import Wire.API.BackgroundJobs (BackgroundJob (..))
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
@@ -36,13 +34,8 @@ dispatchJob job = do
   env <- ask @Env
   let disableTlsV1 = True
   extEnv <- liftIO (initExtEnv disableTlsV1)
-  liftIO $
-    try @SomeException
-      ( runBackgroundWorkerEffects env extEnv job.requestId (Just job.jobId)
-          . interpretBackgroundJobPublisherRabbitMQ job.requestId env.amqpJobsPublisherChannel
-          . interpretBackgroundJobRunner
-          $ runJob job
-      )
-      >>= \case
-        Right r -> pure r
-        Left e -> pure (Left (T.pack (displayException e)))
+  liftIO
+    $ runBackgroundWorkerEffects env extEnv job.requestId (Just job.jobId)
+      . interpretBackgroundJobPublisherRabbitMQ job.requestId env.amqpJobsPublisherChannel
+      . interpretBackgroundJobRunner
+    $ runJob job

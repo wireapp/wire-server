@@ -16,13 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Unit tests for the email queueing conversion ('Wire.EmailSending.Queueing')
--- and the 'SendEmailJob' payload serialization.
+-- and the 'SendEmailJobPayload' serialization.
 --
--- These cover the data path shared by the producer (brig enqueues a
--- 'BackgroundJobSendEmail') and the consumer (the background-worker reconstructs
--- the 'Mail' and sends it): the @Mail@ <-> 'SendEmailJob' conversion must be a
--- round-trip, and the job must survive JSON encoding/decoding through the
--- @background-jobs@ queue.
+-- These cover the data path shared by the producer (brig inserts a
+-- 'SendEmail' job into the Arbiter @emails@ queue) and the consumer (the
+-- background-worker reconstructs the 'Mail' and sends it): the
+-- @Mail@ <-> 'SerializableMail' conversion must be a round-trip, and the job
+-- payload must survive JSON encoding/decoding through the queue's JSONB
+-- column.
 module Wire.EmailSendingQueueingSpec (spec) where
 
 import Data.Aeson qualified as Aeson
@@ -40,17 +41,18 @@ import Network.Mail.Mime
 import Test.Hspec
 import Test.QuickCheck
 import Wire.API.BackgroundJobs.Email
+import Wire.API.Jobs (EmailsJobPayload (..))
 import Wire.EmailSending.Queueing
 
 spec :: Spec
 spec = do
   describe "toSerializableMail / fromSerializableMail" $ do
     it "round-trips Mail -> SerializableMail -> Mail -> SerializableMail" $ do
-      let job = toSerializableMail sampleMail
-      toSerializableMail <$> fromSerializableMail job `shouldBe` Right job
+      let sm = toSerializableMail sampleMail
+      toSerializableMail <$> fromSerializableMail sm `shouldBe` Right sm
 
     it "preserves all address lists, headers and parts" $ do
-      let sm = (toSerializableMail sampleMail).sejMail
+      let sm = toSerializableMail sampleMail
       sm.smFrom `shouldBe` smaFrom
       sm.smTo `shouldBe` [smaTo]
       sm.smCc `shouldBe` [SerializableMailAddress Nothing "cc@example.com"]
@@ -82,68 +84,68 @@ spec = do
       fromSerializableMail (nestedJobAtDepth 11) `shouldSatisfy` isLeft
 
     it "rejects flat content that is not valid base64" $ do
-      let job = SendEmailJob {sejMail = sampleJob.sejMail {smParts = [[partWithContent (SerializablePartContentText "not base64!!!")]]}}
+      let job = sampleJob {smParts = [[partWithContent (SerializablePartContentText "not base64!!!")]]}
       fromSerializableMail job `shouldSatisfy` isLeft
 
     -- One case per call site of 'validateHeaderField', so a future refactor
     -- that drops one (e.g. a missing 'traverse' over 'smaName') fails here.
     it "rejects NUL in every header-rendered field" $ do
-      let base = sampleJob.sejMail
+      let base = sampleJob
           okPart = partWithContent (SerializablePartContentText "aGk=")
-          withMail mail = SendEmailJob {sejMail = mail}
-          jobs :: [SendEmailJob]
+          jobs :: [SerializableMail]
           jobs =
-            [ withMail base {smFrom = base.smFrom {smaName = Just "Wire\0"}},
-              withMail base {smTo = [base.smFrom {smaEmail = "evil\0@example.com"}]},
-              withMail base {smParts = [[okPart {smpType = "text/plain\0"}]]},
-              withMail
-                base
-                  { smParts =
-                      [ [ okPart
-                            { smpDisposition =
-                                SerializableDisposition {smdType = SerializableDispositionInline, smdFilename = "evil\0.txt"}
-                            }
-                        ]
+            [ base {smFrom = base.smFrom {smaName = Just "Wire\0"}},
+              base {smTo = [base.smFrom {smaEmail = "evil\0@example.com"}]},
+              base {smParts = [[okPart {smpType = "text/plain\0"}]]},
+              base
+                { smParts =
+                    [ [ okPart
+                          { smpDisposition =
+                              SerializableDisposition {smdType = SerializableDispositionInline, smdFilename = "evil\0.txt"}
+                          }
                       ]
-                  },
-              withMail
-                base
-                  { smParts =
-                      [ [ okPart
-                            { smpDisposition =
-                                SerializableDisposition {smdType = SerializableDispositionDefault, smdFilename = "evil\0.txt"}
-                            }
-                        ]
+                    ]
+                },
+              base
+                { smParts =
+                    [ [ okPart
+                          { smpDisposition =
+                              SerializableDisposition {smdType = SerializableDispositionDefault, smdFilename = "evil\0.txt"}
+                          }
                       ]
-                  }
+                    ]
+                }
             ]
       mapM_ (\job -> fromSerializableMail job `shouldSatisfy` isLeft) jobs
 
     it "rejects CR/LF in header-rendered fields" $ do
       let job =
-            SendEmailJob
-              { sejMail =
-                  sampleJob.sejMail
-                    { smHeaders = [SerializableMailHeader "Subject" "hi\r\nBcc: evil@example.com"]
-                    }
+            sampleJob
+              { smHeaders = [SerializableMailHeader "Subject" "hi\r\nBcc: evil@example.com"]
               }
       fromSerializableMail job `shouldSatisfy` isLeft
-
-  describe "SendEmailJob JSON serialization" $ do
-    it "round-trips the sample job through Aeson" $ do
+  describe "SerializableMail / EmailsJobPayload JSON serialization" $ do
+    it "round-trips the sample mail through Aeson" $ do
       let job = toSerializableMail sampleMail
       Aeson.decode (Aeson.encode job) `shouldBe` Just job
 
-    it "decoding a serialized job yields a job that round-trips back to itself" $ do
+    it "decoding a serialized mail yields a mail that round-trips back to itself" $ do
       let job = toSerializableMail sampleMail
-          decoded = Aeson.decode (Aeson.encode job) :: Maybe SendEmailJob
+          decoded = Aeson.decode (Aeson.encode job) :: Maybe SerializableMail
       (fmap toSerializableMail . fromSerializableMail <$> decoded) `shouldBe` Just (Right job)
 
     -- Exercises the wire-api schema machinery (record fields, nested lists,
     -- and the encoding/disposition enums) for arbitrary payloads.
-    it "encode . decode = id for arbitrary SendEmailJob" $
-      property $ \(job :: SendEmailJob) ->
-        Aeson.decode @SendEmailJob (Aeson.encode job) === Just job
+    it "encode . decode = id for arbitrary SerializableMail" $
+      property $ \(job :: SerializableMail) ->
+        Aeson.decode @SerializableMail (Aeson.encode job) === Just job
+
+    -- The Arbiter @emails@ queue envelope: the tagged payload sum and the
+    -- payload record (request id + mail) must round-trip through the queue's
+    -- JSONB column.
+    it "encode . decode = id for arbitrary EmailsJobPayload" $
+      property $ \(job :: EmailsJobPayload) ->
+        Aeson.decode @EmailsJobPayload (Aeson.encode job) === Just job
 
 -- | A mail shaped exactly like the ones brig builds (see
 -- 'Wire.EmailSubsystem.Interpreter'): one alternative with a plain and an html
@@ -178,14 +180,13 @@ nestedMail = sampleMail {mailParts = [[nestedPart]]}
         { partContent = NestedParts [plainPart (LT.pack "inner plain"), htmlPart (LT.pack "<p>inner html</p>")]
         }
 
-sampleJob :: SendEmailJob
+sampleJob :: SerializableMail
 sampleJob = toSerializableMail sampleMail
 
 -- | A job whose single part's content is nested @n@ levels deep (n
 -- 'SerializablePartContentNestedParts' wrappers around base64 text).
-nestedJobAtDepth :: Int -> SendEmailJob
-nestedJobAtDepth n =
-  SendEmailJob {sejMail = sampleJob.sejMail {smParts = [[partAtDepth n]]}}
+nestedJobAtDepth :: Int -> SerializableMail
+nestedJobAtDepth n = sampleJob {smParts = [[partAtDepth n]]}
   where
     partAtDepth :: Int -> SerializableMailPart
     partAtDepth 0 = partWithContent (SerializablePartContentText "aGk=")
@@ -203,42 +204,39 @@ partWithContent content =
 
 -- | A job with non-default dispositions (Inline/Attachment, which carry a
 -- filename) and encodings other than the default, to exercise those branches.
-variantJob :: SendEmailJob
+variantJob :: SerializableMail
 variantJob =
-  SendEmailJob
-    { sejMail =
-        SerializableMail
-          { smFrom = smaFrom,
-            smTo = [smaTo],
-            smCc = [],
-            smBcc = [],
-            smHeaders = [SerializableMailHeader "Subject" "Attachments"],
-            smParts =
-              [ [ SerializableMailPart
-                    { smpType = "image/png",
-                      smpEncoding = SerializableEncodingBase64,
-                      smpDisposition =
-                        SerializableDisposition
-                          { smdType = SerializableDispositionInline,
-                            smdFilename = "logo.png"
-                          },
-                      smpHeaders = [],
-                      smpContent = SerializablePartContentText "iVBORw0KGgo="
+  SerializableMail
+    { smFrom = smaFrom,
+      smTo = [smaTo],
+      smCc = [],
+      smBcc = [],
+      smHeaders = [SerializableMailHeader "Subject" "Attachments"],
+      smParts =
+        [ [ SerializableMailPart
+              { smpType = "image/png",
+                smpEncoding = SerializableEncodingBase64,
+                smpDisposition =
+                  SerializableDisposition
+                    { smdType = SerializableDispositionInline,
+                      smdFilename = "logo.png"
                     },
-                  SerializableMailPart
-                    { smpType = "application/pdf",
-                      smpEncoding = SerializableEncodingQuotedPrintableText,
-                      smpDisposition =
-                        SerializableDisposition
-                          { smdType = SerializableDispositionAttachment,
-                            smdFilename = "doc.pdf"
-                          },
-                      smpHeaders = [SerializableMailHeader "Content-ID" "<doc>"],
-                      smpContent = SerializablePartContentText "JVBERi0="
-                    }
-                ]
-              ]
-          }
+                smpHeaders = [],
+                smpContent = SerializablePartContentText "iVBORw0KGgo="
+              },
+            SerializableMailPart
+              { smpType = "application/pdf",
+                smpEncoding = SerializableEncodingQuotedPrintableText,
+                smpDisposition =
+                  SerializableDisposition
+                    { smdType = SerializableDispositionAttachment,
+                      smdFilename = "doc.pdf"
+                    },
+                smpHeaders = [SerializableMailHeader "Content-ID" "<doc>"],
+                smpContent = SerializablePartContentText "JVBERi0="
+              }
+          ]
+        ]
     }
 
 smaFrom :: SerializableMailAddress

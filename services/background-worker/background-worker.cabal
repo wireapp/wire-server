@@ -24,6 +24,7 @@ library
     Wire.BackgroundWorker.Workers
     Wire.DeadUserNotificationWatcher
     Wire.Effects
+    Wire.EmailJobsWorker
     Wire.MeetingsCleanupWorker
     Wire.PostgresMigrations
 
