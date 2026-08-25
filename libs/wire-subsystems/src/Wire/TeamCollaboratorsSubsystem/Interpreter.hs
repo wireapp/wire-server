@@ -91,7 +91,6 @@ createTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.GetTeamCollaborators InsufficientRights
   Store.createTeamCollaborator user team perms
 
-  -- TODO: Review the event's values
   generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
   -- Reindex the collaborator with their new collaboration team
