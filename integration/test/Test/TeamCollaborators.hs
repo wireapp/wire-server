@@ -413,3 +413,13 @@ testSearchFindsCollaborator = do
 
   for_ [owner, alice] $ assertFinds collab3Name' ([] @Value)
   for_ [otherOwner, bob] $ assertFinds collab3Name' [collab3]
+
+  -- Can one user collaborate in multiple teams without breaking search?
+  (_thirdOwner, _thirdTeam, [multiCollab]) <- createTeam OwnDomain 2
+  multiCollabName <- multiCollab %. "name" & asString
+
+  addTeamCollaborator owner team multiCollab ["implicit_connection"] >>= assertSuccess
+  addTeamCollaborator otherOwner otherTeam multiCollab ["implicit_connection"] >>= assertSuccess
+
+  for_ [owner, alice] $ assertFinds multiCollabName [multiCollab]
+  for_ [otherOwner, bob] $ assertFinds multiCollabName [multiCollab]
