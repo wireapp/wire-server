@@ -128,10 +128,27 @@ migrateUser migTimeout migCounter migDuration uid =
     case mCassData of
       Nothing -> pure ()
       Just cassData -> do
-        let eithPGRow = mkUserRowPG cassData.id cassData.user cassData.isHandleClaimed cassData.richInfo
+        let eithPGRow = mkUserRowPG cassData.id cassData.user cassData.handleClaimValidity cassData.richInfo
         case eithPGRow of
-          Left e -> warn $ Log.msg (Log.val "Invalid user found, skipping") . Log.field "id" (idToText cassData.id) . Log.field "error" (show e)
+          Left e ->
+            warn $
+              Log.msg (Log.val "Invalid user found, skipping")
+                . Log.field "id" (idToText cassData.id)
+                . Log.field "error" (show e)
           Right pgRow -> do
+            case cassData.handleClaimValidity of
+              HandleClaimValid -> pure ()
+              HandleNotClaimed ->
+                info $
+                  Log.msg (Log.val "This user has a handle which is not 'claimed' by anyone, this user will lose their handle")
+                    . Log.field "user" (idToText pgRow.id_)
+                    . Log.field "handle" (show $ fromHandle <$> cassData.user.handle)
+              HandleClaimedByAnotherUser claimedBy -> do
+                warn $
+                  Log.msg (Log.val "This user has a handle claimed by someone else, this user will lose their handle")
+                    . Log.field "user" (idToText pgRow.id_)
+                    . Log.field "handle" (show $ fromHandle <$> cassData.user.handle)
+                    . Log.field "legitimate_claim_by" (idToText claimedBy)
             saveToPostgres pgRow cassData.serviceConv
             let mServiceTeam = (.teamId) =<< cassData.serviceConv
             runClient cState $ deleteFromCassandra pgRow.id_ pgRow.handle ((,,mServiceTeam) <$> pgRow.providerId <*> pgRow.serviceId)
@@ -147,12 +164,15 @@ getUserData uid = do
       serviceConv <- case (,) <$> user.providerId <*> user.serviceId of
         Nothing -> pure Nothing
         Just (pid, sid) -> asRecord <$$> query1 selectServiceConv (params LocalQuorum (pid, sid, uid))
-      isHandleClaimed <- case user.handle of
-        Nothing -> pure False
+      handleClaimValidity <- case user.handle of
+        Nothing -> pure HandleClaimValid
         Just h -> do
           mClaimedBy <- runIdentity <$$> query1 selectHandleClaim (params LocalQuorum (Identity h))
-          -- TODO: log if the handle is claimed by someone else.
-          pure $ mClaimedBy == Just uid
+          case mClaimedBy of
+            Nothing -> pure HandleNotClaimed
+            Just claimedBy
+              | claimedBy == uid -> pure HandleClaimValid
+              | otherwise -> pure $ HandleClaimedByAnotherUser claimedBy
       richInfo <- runIdentity <$$> query1 selectRichInfo (params LocalQuorum (Identity uid))
       pure $ Just RawUserData {id = uid, ..}
   where
@@ -177,8 +197,8 @@ getUserData uid = do
 data InvalidUserError = UserHasNoName | UserHasNoActivated
   deriving (Show)
 
-mkUserRowPG :: UserId -> UserRowCass -> Bool -> Maybe RichInfoAssocList -> Either InvalidUserError UserRowPG
-mkUserRowPG id_ cass@UserRowCass {..} isHandleClaimed richInfo = run . runError $ do
+mkUserRowPG :: UserId -> UserRowCass -> HandleClaimValidity -> Maybe RichInfoAssocList -> Either InvalidUserError UserRowPG
+mkUserRowPG id_ cass@UserRowCass {..} handleClaimValidity richInfo = run . runError $ do
   pgName <- note UserHasNoName cass.name
   pgActivated <- note UserHasNoActivated cass.activated
   createdAt <- note UserHasNoActivated $ writetimeToUTC <$> cass.activatedWriteTime
@@ -188,7 +208,17 @@ mkUserRowPG id_ cass@UserRowCass {..} isHandleClaimed richInfo = run . runError 
         userType = fromMaybe UserTypeRegular cass.userType,
         name = pgName,
         activated = pgActivated,
-        handle = if isHandleClaimed then cass.handle else Nothing,
+        handle = case handleClaimValidity of
+          HandleClaimValid -> cass.handle
+          HandleNotClaimed ->
+            -- In this case if we just give this handle to the current user,
+            -- there could be other users with the same situation. We cannot tie
+            -- break here, so we just take away the handle from all users
+            Nothing
+          HandleClaimedByAnotherUser _ ->
+            -- Handle is claimed by someone else, so this user cannot get to
+            -- keep it.
+            Nothing,
         ..
       }
 
@@ -242,9 +272,10 @@ saveToPostgres user mServiceConv = do
     Transaction.statement user.id_ markPendingDelete
     pure isHandleRemoved
 
-  when isHandleRemoved $
-    warn $
-      Log.msg (Log.val "Duplicate handle claim found, this user doesn't have a handle anymore") . Log.field "user" (idToText user.id_)
+  when isHandleRemoved . warn $
+    Log.msg (Log.val "Duplicate handle claim found, this user doesn't have a handle anymore")
+      . Log.field "user" (idToText user.id_)
+      . Log.field "handle" (show $ fromHandle <$> user.handle)
   where
     isHandleTaken :: Hasql.Statement (UserId, Handle) Bool
     isHandleTaken =

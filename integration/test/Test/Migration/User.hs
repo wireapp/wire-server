@@ -614,85 +614,93 @@ testReindexingUsersDuringMigration = do
       pooledForConcurrentlyN_ parallelism deletedUsers $ \u ->
         assertCannotFind searcher u (u %. "name") domain
 
--- Alice and Bob have the same handle, but the handle claims table supports
--- Alice's claim.
+-- handleA: Alice and Anna have the same handle, but the handle claims table
+-- supports Alice's claim. After the migration Bob loses their handle.
 --
--- Charlie has a handle, but the handle claims table doesn't support this claim.
+-- handleB: Bob and Bill also have the same handle, but the handle claims table
+-- doesn't support any of their claims. After the migration both of them will
+-- loose the claim.
 --
--- Doug and Dan also have the same handle, Cassandra supports Doug's claim,
--- while Postgresql supports Dan's claim. In this case Dan wins, this is
--- arbitrary, but some arbitrary things needs to be done here.
---
--- After the migration only Alice gets to keep her handle. Bob and Charlie are
--- both handle less.
+-- handleC: Carl and Creed also have the same handle, Cassandra supports Carl's
+-- claim, while Postgresql supports Creed's claim. In this case Creed gets to
+-- keep their handle.
 testMigrationOfUsersWithHandleDisputes :: (HasCallStack) => App ()
 testMigrationOfUsersWithHandleDisputes = do
   resourcePool <- asks (.resourcePool)
-  -- Between Alice and Bob
-  doubleClaimedHandle <- randomHandle
-  -- Charlie's Handle
-  unclaimedHandle <- randomHandle
-  -- Between Doug and Dan
-  doubledClaimedInTwoDBs <- randomHandle
+  -- Between Alice and Anna
+  handleA <- randomHandle
+
+  -- In user record for Bob and Bill
+  handleB <- randomHandle
+
+  -- Between Carl and Creed
+  handleC <- randomHandle
 
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let domain = backend.berDomain
         brigKeyspace = backend.berBrigKeyspace
-    (alice, bob, charlie, doug) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
+    (alice, anna, bob, bill, carl) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
       alice <- randomUser domain def
-
+      anna <- randomUser domain def
       bob <- randomUser domain def
+      bill <- randomUser domain def
+      carl <- randomUser domain def
+
+      Just annaId <- UUID.fromString <$> (anna %. "qualified_id.id" & asString)
       Just bobId <- UUID.fromString <$> (bob %. "qualified_id.id" & asString)
+      Just billId <- UUID.fromString <$> (bill %. "qualified_id.id" & asString)
 
-      charlie <- randomUser domain def
-      Just charlieId <- UUID.fromString <$> (charlie %. "qualified_id.id" & asString)
+      -- Claim handle correctly for alice
+      putHandle alice handleA >>= assertSuccess
+      putHandle carl handleC >>= assertSuccess
 
-      doug <- randomUser domain def
-
-      -- Claim handle correctly for alice and doug
-      putHandle alice doubleClaimedHandle >>= assertSuccess
-      putHandle doug doubledClaimedInTwoDBs >>= assertSuccess
-
-      -- Claim handle by hacking into the DB for bob and charlie. There seems to
-      -- be no other way of testing this edge case
+      -- Claim handle by hacking into the DB for others. There seems to be no
+      -- other way of testing this edge case
       let assignHandleQuery :: PrepQuery W (Text, UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET handle = ? WHERE id = ?"
-      write assignHandleQuery $ defQueryParams LocalQuorum (Text.pack doubleClaimedHandle, bobId)
-      write assignHandleQuery $ defQueryParams LocalQuorum (Text.pack unclaimedHandle, charlieId)
+      write assignHandleQuery $ defQueryParams LocalQuorum (Text.pack handleA, annaId)
+      write assignHandleQuery $ defQueryParams LocalQuorum (Text.pack handleB, bobId)
+      write assignHandleQuery $ defQueryParams LocalQuorum (Text.pack handleB, billId)
 
-      assertHandle alice (Just doubleClaimedHandle)
-      assertHandle bob (Just doubleClaimedHandle)
-      assertHandle charlie (Just unclaimedHandle)
-      assertHandle doug (Just doubledClaimedInTwoDBs)
+      assertHandle alice (Just handleA)
+      assertHandle anna (Just handleA)
+      assertHandle bob (Just handleB)
+      assertHandle bill (Just handleB)
+      assertHandle carl (Just handleC)
 
-      pure (alice, bob, charlie, doug)
+      pure (alice, anna, bob, bill, carl)
 
     -- Start Phase 5 here so that we can claim the same handle for Dan as Doug
     -- but in Postgresql. The production scenario can only happen due to a race
     -- condition. This is just a more precise way of causing the DB
     -- inconsistency.
-    dan <- runCodensity (startDynamicBackend backend phase5Overrides) $ \_ -> do
-      dan <- randomUser domain def
-      putHandle dan doubledClaimedInTwoDBs >>= assertSuccess
-      assertHandle dan (Just doubledClaimedInTwoDBs)
-      pure dan
+    creed <- runCodensity (startDynamicBackend backend phase5Overrides) $ \_ -> do
+      creed <- randomUser domain def
+      putHandle creed handleC >>= assertSuccess
+      assertHandle creed (Just handleC)
+      pure creed
 
     runCodensity (startDynamicBackend backend phase3Overrides) $ \_ -> do
       waitForMigration domain userMigrationFinishedCounterName
       assertMigrationSuccessful domain "^wire_users_migration_failed"
 
     runCodensity (startDynamicBackend backend phase5Overrides) $ \_ -> do
-      assertHandle alice (Just doubleClaimedHandle)
+      assertHandle alice (Just handleA)
+      assertHandle anna Nothing
+
       assertHandle bob Nothing
-      assertHandle charlie Nothing
-      assertHandle doug Nothing
-      assertHandle dan (Just doubledClaimedInTwoDBs)
+      assertHandle bill Nothing
 
-      -- Claiming the unclaimed handle works
-      putHandle charlie unclaimedHandle >>= assertSuccess
-      assertHandle charlie (Just unclaimedHandle)
+      assertHandle carl Nothing
+      assertHandle creed (Just handleC)
 
-      -- Claiming alice's handle doesn't work
-      putHandle bob doubleClaimedHandle >>= assertStatus 409
+      -- handleA cannot be claimed
+      putHandle anna handleA >>= assertStatus 409
+
+      -- handleB can be claimed
+      putHandle bob handleB >>= assertSuccess
+
+      -- handleC cannot be claimed
+      putHandle carl handleC >>= assertStatus 409
   where
     assertHandle :: (HasCallStack) => Value -> Maybe String -> App ()
     assertHandle user expectedHandle = do

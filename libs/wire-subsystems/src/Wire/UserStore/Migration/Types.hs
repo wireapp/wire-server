@@ -18,8 +18,13 @@ data RawUserData = RawUserData
     user :: UserRowCass,
     richInfo :: Maybe RichInfoAssocList,
     serviceConv :: Maybe ServiceConv,
-    isHandleClaimed :: Bool
+    handleClaimValidity :: HandleClaimValidity
   }
+
+data HandleClaimValidity
+  = HandleClaimValid
+  | HandleNotClaimed
+  | HandleClaimedByAnotherUser UserId
 
 -- | Some fields are read as 'Maybe' even if they're supposed to always be
 -- there. This is to deal with potential old data in the DB.
