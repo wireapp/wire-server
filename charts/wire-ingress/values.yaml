@@ -85,6 +85,55 @@ gateway:
       # Optional hostname restriction for the HTTP listener. Set alongside
       # listeners.https.hostname when using mergeGateways.
       hostname: ""
+  # TLS parameters applied to every HTTPS listener of the Gateway (including the
+  # federator listener). Rendered into the ClientTrafficPolicy resources.
+  #
+  # The defaults restrict Envoy to the mechanisms recommended by BSI TR-02102-2
+  # ("Cryptographic Mechanisms: Recommendations and Key Lengths — Part 2: Use of
+  # Transport Layer Security"), matching what the nginx ingress enforced via
+  # ssl-protocols / ssl-ciphers in charts/ingress-nginx-controller.
+  #
+  # CAVEAT: Envoy cannot restrict TLS 1.3 cipher suites — they are fixed by
+  # BoringSSL and `ciphers` below only applies to TLS 1.0-1.2. A stock Envoy
+  # build therefore also offers TLS_CHACHA20_POLY1305_SHA256, which is not on
+  # the TR-02102-2 list. See the "TR-02102-2 conformance" section of the README
+  # for the two ways to close that gap.
+  tls:
+    # Set to false to leave all TLS parameters at Envoy's defaults.
+    enabled: true
+    # TR-02102-2 Table 2: TLS 1.3 (2032+) and TLS 1.2 (until end of 2031) are
+    # recommended; TLS 1.0/1.1 are not. Valid: Auto, "1.0", "1.1", "1.2", "1.3".
+    minVersion: "1.2"
+    maxVersion: "1.3"
+    # TR-02102-2 Table 3/4: recommended cipher suites for TLS 1.2.
+    # Ignored when minVersion is "1.3" (Envoy Gateway rejects the combination).
+    # The AES-128 counterparts (ECDHE-{ECDSA,RSA}-AES128-GCM-SHA256) are equally
+    # conformant and can be added here for broader client compatibility.
+    ciphers:
+      - ECDHE-ECDSA-AES256-GCM-SHA384
+      - ECDHE-RSA-AES256-GCM-SHA384
+    # TR-02102-2 Tables 6 and 10: recommended Diffie-Hellman groups. Note that
+    # X25519 — an Envoy default — is NOT on the BSI list, which is why this is
+    # set explicitly. Every TLS 1.3 client must support secp256r1 (P-256), so
+    # restricting to the NIST curves is safe in practice.
+    ecdhCurves:
+      - P-256
+      - P-384
+      - P-521
+    # TR-02102-2 Tables 11 and 12. Left empty (Envoy defaults) because
+    # restricting this is the change most likely to break older clients:
+    # Envoy's defaults include rsa_pkcs1_* which TR-02102-2 only recommended
+    # until the end of 2025. To drop those, set:
+    #   signatureAlgorithms:
+    #     - ecdsa_secp256r1_sha256
+    #     - ecdsa_secp384r1_sha384
+    #     - ecdsa_secp521r1_sha512
+    #     - rsa_pss_rsae_sha256
+    #     - rsa_pss_rsae_sha384
+    #     - rsa_pss_rsae_sha512
+    # Make sure the list covers the key type of your server certificate
+    # (tls.privateKey.algorithm below defaults to ECDSA P-384).
+    signatureAlgorithms: []
   # ALPN configuration for HTTP/2 support with multiple listeners.
   # When using multiple listeners with overlapping certificate SANs,
   # Envoy Gateway may downgrade to HTTP/1.1. This ClientTrafficPolicy
