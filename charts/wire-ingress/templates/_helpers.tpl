@@ -228,6 +228,10 @@ they do not emit a stray blank line.
 {{- $tls := .Values.gateway.tls -}}
 {{- if $tls.enabled -}}
 {{- $minVersion := $tls.minVersion | default "" | toString -}}
+{{- $lib := $tls.sslLibrary | default "boringssl" -}}
+{{- if not (has $lib (list "boringssl" "aws-lc" "openssl")) -}}
+{{- fail (printf "gateway.tls.sslLibrary: %q is not one of boringssl, aws-lc, openssl" $lib) -}}
+{{- end -}}
 {{- if $minVersion }}
 minVersion: {{ $minVersion | quote }}
 {{- end }}
@@ -247,15 +251,31 @@ ciphers:
 {{- end }}
 {{- if $tls.ecdhCurves }}
 {{- /*
-Envoy hands this list to BoringSSL's SSL_CTX_set1_curves_list and fails the
-whole listener if a name is unknown — an error that only shows up in the proxy
-log at runtime. Catch the one mistake this chart invites: TR-02102-2 names
-SecP256r1MLKEM768 and SecP384r1MLKEM1024 as the hybrid groups it intends to
-recommend, but BoringSSL implements neither, so Envoy cannot offer them.
+Envoy joins this list with ":" and hands it to SSL_CTX_set1_curves_list; if the
+linked crypto library does not know a name, the whole listener is rejected and
+the only trace is a line in the proxy log. Which names exist depends on how the
+proxy image was built, so validate against the library named in
+gateway.tls.sslLibrary. Unknown names are passed through — new groups appear
+faster than this chart is updated — but a name that some OTHER library supports
+is almost certainly a mismatch between the value and the running image.
 */ -}}
-{{- range $tls.ecdhCurves }}
-{{- if or (hasPrefix "SecP" .) (hasPrefix "secp256r1mlkem" (lower .)) (hasPrefix "secp384r1mlkem" (lower .)) }}
-{{- fail (printf "gateway.tls.ecdhCurves: %q is not supported by the BoringSSL that Envoy links against, and Envoy would refuse to start the listener. TR-02102-2 names SecP256r1MLKEM768 / SecP384r1MLKEM1024 as its intended future recommendation, but the only hybrid post-quantum group BoringSSL implements is X25519MLKEM768. Note also that these are BoringSSL group names, not IANA names: use P-256 / P-384 / P-521 rather than secp256r1 / secp384r1 / secp521r1." .) }}
+{{- $groups := dict
+    "boringssl" (list "P-224" "P-256" "P-384" "P-521" "X25519" "X25519Kyber768Draft00" "X25519MLKEM768" "MLKEM1024")
+    "aws-lc" (list "P-224" "P-256" "P-384" "P-521" "X25519" "SecP256r1MLKEM768" "X25519MLKEM768" "SecP384r1MLKEM1024" "MLKEM512" "MLKEM768" "MLKEM1024") -}}
+{{- if hasKey $groups $lib }}
+{{- $ok := index $groups $lib }}
+{{- $anyLib := concat (index $groups "boringssl") (index $groups "aws-lc") }}
+{{- range $curve := $tls.ecdhCurves }}
+{{- if and (has $curve $anyLib) (not (has $curve $ok)) }}
+{{- fail (printf "gateway.tls.ecdhCurves: %q is not implemented by %s, which gateway.tls.sslLibrary says the proxy image links against — Envoy would reject the listener at config load. SecP256r1MLKEM768 and SecP384r1MLKEM1024, the hybrid groups TR-02102-2 intends to recommend, exist only in AWS-LC: run an Envoy built with `--config=aws-lc-fips` and set gateway.tls.sslLibrary: aws-lc. On the stock BoringSSL image the only hybrid available is X25519MLKEM768. See the chart README." $curve $lib) }}
+{{- end }}
+{{- if not (has $curve $anyLib) }}
+{{- range $known := $anyLib }}
+{{- if eq (lower $curve) (lower $known) }}
+{{- fail (printf "gateway.tls.ecdhCurves: %q is spelled wrong — these are crypto-library group names and are case sensitive. Use %q. (Note the NIST curves are P-256 / P-384 / P-521, not secp256r1 / secp384r1 / secp521r1.)" $curve $known) }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 ecdhCurves:

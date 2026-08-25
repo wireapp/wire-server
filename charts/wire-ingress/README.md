@@ -88,6 +88,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.tls.ciphers` | `[ECDHE-ECDSA-AES256-GCM-SHA384, ECDHE-RSA-AES256-GCM-SHA384]` | Cipher suites offered for **TLS 1.0-1.2 only**. Not rendered when `minVersion` is `"1.3"`, because Envoy Gateway rejects that combination. |
 | `gateway.tls.ecdhCurves` | `[X25519MLKEM768, P-256, P-384, P-521]` | Key agreement groups in server preference order, as **BoringSSL** names (not IANA names). The hybrid post-quantum group comes first — see [Post-quantum key agreement](#post-quantum-key-agreement). |
 | `gateway.tls.signatureAlgorithms` | `[ecdsa_secp*, rsa_pss_rsae_*]` | Signature algorithms, dropping Envoy's `rsa_pkcs1_*` defaults. Also constrains the federator mTLS handshake — see `values.yaml`. |
+| `gateway.tls.sslLibrary` | `boringssl` | Crypto library the proxy image links against (`boringssl`, `aws-lc`, `openssl`). Chart-side validation of `ecdhCurves` only; does not change the rendered policy. See [Getting SecP256r1MLKEM768 / SecP384r1MLKEM1024](#getting-secp256r1mlkem768--secp384r1mlkem1024). |
 | `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
@@ -421,19 +422,6 @@ This has to be set explicitly — Envoy's own default is `X25519:P-256`, which i
 purely classical, even though the BoringSSL it links against would offer the
 hybrid group by default.
 
-**The two groups TR-02102-2 names are not available.** The BSI note under
-Table 10 says it intends to recommend `SecP256r1MLKEM768` and
-`SecP384r1MLKEM1024` (from
-[draft-ietf-tls-ecdhe-mlkem](https://datatracker.ietf.org/doc/draft-ietf-tls-ecdhemlkem/))
-once the RFC is adopted. BoringSSL implements neither. Its full group table is
-`P-256`, `P-384`, `P-521`, `X25519`, `X25519Kyber768Draft00`, `X25519MLKEM768`
-and `MLKEM1024` — so `X25519MLKEM768` is the only hybrid on offer, and the
-brainpool and `ffdhe*` groups from TR Tables 6/10 are unavailable too. Envoy
-rejects the whole listener if `ecdh_curves` contains a name BoringSSL does not
-know, and it surfaces only in the proxy log, so this chart fails template
-rendering with an explanatory message if you put the `SecP*MLKEM*` names in
-`gateway.tls.ecdhCurves`.
-
 Strictly speaking X25519MLKEM768 is a deviation from TR-02102-2 as written
 today, since its classical half is X25519 and no PQ group is listed yet. It is
 a deviation in the direction the BSI has already announced it is going, and it
@@ -448,6 +436,82 @@ gateway:
       - P-384
       - P-521
 ```
+
+#### Getting `SecP256r1MLKEM768` / `SecP384r1MLKEM1024`
+
+The BSI note under Table 10 says it intends to recommend `SecP256r1MLKEM768` and
+`SecP384r1MLKEM1024` (from
+[draft-ietf-tls-ecdhe-mlkem](https://datatracker.ietf.org/doc/draft-ietf-tls-ecdhemlkem/))
+once the RFC is adopted. **BoringSSL implements neither**, so they are not
+available on the stock `envoyproxy/envoy` image. Its whole group table is
+`P-256`, `P-384`, `P-521`, `X25519`, `X25519Kyber768Draft00`, `X25519MLKEM768`
+and `MLKEM1024` — the brainpool and `ffdhe*` groups from TR Tables 6/10 are
+missing too.
+
+They *are* available in **AWS-LC**, which Envoy supports as an alternative
+crypto library. AWS-LC's group table includes both, under exactly those names,
+and Envoy has an upstream build config for it (see
+[bazel/SSL.md](https://github.com/envoyproxy/envoy/blob/main/bazel/SSL.md)):
+
+```bash
+bazel build --config=aws-lc-fips //source/exe:envoy-static
+```
+
+To use it:
+
+1. Build that image yourself. There is no published AWS-LC Envoy image —
+   `envoyproxy/envoy` has no FIPS or AWS-LC tags at all, and the vendor FIPS
+   images that do exist (Tetrate, Chainguard) are BoringSSL-FIPS, which does not
+   help here.
+2. Point the proxy at it via
+   `gateway.envoyProxy.spec.provider.kubernetes.envoyDeployment.container.image`,
+   and set `gateway.manageServiceType: false` (it overwrites the whole
+   `provider` block), moving `envoyService.type` into `envoyProxy.spec`.
+3. Set `gateway.tls.sslLibrary: aws-lc` so the chart accepts the group names,
+   and list them in `gateway.tls.ecdhCurves`:
+
+```yaml
+gateway:
+  tls:
+    sslLibrary: aws-lc
+    ecdhCurves:
+      - SecP256r1MLKEM768
+      - SecP384r1MLKEM1024
+      - P-256
+      - P-384
+      - P-521
+```
+
+`gateway.tls.sslLibrary` only drives this validation — it changes nothing in the
+rendered `ClientTrafficPolicy`. It exists because Envoy rejects the entire
+listener when `ecdh_curves` holds a name the linked library does not know, and
+the only trace is a line in the proxy log; failing at `helm template` time with
+an explanation is considerably easier to debug.
+
+What this costs, before you commit to it:
+
+- **The Envoy project does not test it.** `bazel/SSL.md` states plainly that
+  "only the BoringSSL FIPS build on x86_64 is supported and tested by the Envoy
+  project", and that maintenance of other combinations "remains with downstream
+  projects".
+- **HTTP/3 is disabled** in AWS-LC builds. Irrelevant for this Gateway, which
+  serves h2 and http/1.1, but worth knowing.
+- **You own the build.** Envoy is a multi-hour Bazel build, and the AWS-LC
+  genrule wants the Bazel-downloaded LLVM toolchain plus pinned cmake/ninja/go
+  — the very things a Nix derivation strips out, so `pkgs.envoy` is not a
+  shortcut here (nixpkgs builds Envoy with `--config=gcc` and
+  `--repository_disable_download`).
+- **You own the version treadmill.** Envoy Gateway v1.8.3 ships
+  `envoyproxy/envoy:distroless-v1.38.3` and generates bootstrap config for that
+  version; a custom image has to track it across every Envoy Gateway bump.
+
+A third option is `--config=openssl` (OpenSSL 3.5 also has both groups), but it
+loads OpenSSL dynamically at runtime and is explicitly *not* covered by the
+Envoy security policy. Set `sslLibrary: openssl` to skip curve-name validation
+if you go that way.
+
+Note that neither AWS-LC nor OpenSSL fixes the TLS 1.3 ChaCha20 gap above:
+AWS-LC has no FIPS conditional around its TLS 1.3 cipher table either.
 
 ### Federator mTLS uses Envoy Gateway policies
 
