@@ -19,20 +19,47 @@
 -- subsystems directly instead of round-tripping over HTTP to itself (as
 -- 'Wire.BrigAPIAccess.Rpc.interpretBrigAccess' does for every other service).
 --
--- Only the operations actually needed by code shared with other services (e.g.
--- 'Wire.TeamCollaboratorsSubsystem') are implemented; everything else is
--- unimplemented until brig itself needs it.
+-- Only the operations needed by code shared with other services (e.g.
+-- 'Wire.TeamCollaboratorsSubsystem') are implemented locally.  Everything else
+-- falls back to the RPC handler, pointed at brig itself: correct, but a wasteful
+-- round-trip through our own listen socket, so it logs a warning and should be
+-- given a local implementation once something actually relies on it.
 module Wire.BrigAPIAccess.Local where
 
 import Imports
 import Polysemy
+import Polysemy.Error (Error)
+import Polysemy.Input (runInputConst)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
+import System.Logger.Message qualified as Log
+import Util.Options (Endpoint)
 import Wire.BrigAPIAccess
+import Wire.BrigAPIAccess.Rpc (brigAccessRpcHandler)
+import Wire.ParseException (ParseException)
+import Wire.Rpc (Rpc)
+import Wire.RpcException (RpcException)
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as UserSubsystem
 
+-- | The 'Endpoint' is brig's own; it is only used for the operations that have
+-- no local implementation yet.
 interpretBrigAPIAccessLocally ::
+  forall r.
+  ( Member TinyLog r,
+    Member Rpc r,
+    Member (Error ParseException) r,
+    Member (Error RpcException) r
+  ) =>
+  Endpoint ->
   InterpreterFor UserSubsystem r ->
   InterpreterFor BrigAPIAccess r
-interpretBrigAPIAccessLocally runUser = interpret $ \case
+interpretBrigAPIAccessLocally selfEndpoint runUser = interpret $ \case
   UpdateSearchIndex uid -> runUser (UserSubsystem.internalUpdateSearchIndex uid)
-  _ -> error "BrigAPIAccess.Local: operation not implemented" -- TODO: shouldn't we make an effort and at least fall back to the Rpc interpreter somehow?
+  other -> selfRpc other
+  where
+    selfRpc :: forall m x. BrigAPIAccess m x -> Sem r x
+    selfRpc action = do
+      Log.warn $
+        Log.msg (Log.val "BrigAPIAccess.Local: no local implementation, calling brig over HTTP")
+      runInputConst selfEndpoint (brigAccessRpcHandler action)
