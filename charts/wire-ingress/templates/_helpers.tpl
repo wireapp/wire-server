@@ -246,6 +246,18 @@ ciphers:
   {{- end }}
 {{- end }}
 {{- if $tls.ecdhCurves }}
+{{- /*
+Envoy hands this list to BoringSSL's SSL_CTX_set1_curves_list and fails the
+whole listener if a name is unknown — an error that only shows up in the proxy
+log at runtime. Catch the one mistake this chart invites: TR-02102-2 names
+SecP256r1MLKEM768 and SecP384r1MLKEM1024 as the hybrid groups it intends to
+recommend, but BoringSSL implements neither, so Envoy cannot offer them.
+*/ -}}
+{{- range $tls.ecdhCurves }}
+{{- if or (hasPrefix "SecP" .) (hasPrefix "secp256r1mlkem" (lower .)) (hasPrefix "secp384r1mlkem" (lower .)) }}
+{{- fail (printf "gateway.tls.ecdhCurves: %q is not supported by the BoringSSL that Envoy links against, and Envoy would refuse to start the listener. TR-02102-2 names SecP256r1MLKEM768 / SecP384r1MLKEM1024 as its intended future recommendation, but the only hybrid post-quantum group BoringSSL implements is X25519MLKEM768. Note also that these are BoringSSL group names, not IANA names: use P-256 / P-384 / P-521 rather than secp256r1 / secp384r1 / secp521r1." .) }}
+{{- end }}
+{{- end }}
 ecdhCurves:
   {{- range $tls.ecdhCurves }}
   - {{ . | quote }}
