@@ -1,0 +1,4 @@
+SCIM: Avoid assigning an already claimed handle to a user.
+
+Before this if SCIM created a user with a handle already claimed by another user
+the handle would get stored for the user even if the overall SCIM call fails.
