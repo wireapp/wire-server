@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.UserStore.Migration where
 
@@ -14,9 +15,9 @@ import Data.Time
 import Database.CQL.Protocol (Record (..), TupleType)
 import Hasql.Pool.Extended
 import Hasql.Statement qualified as Hasql
-import Hasql.TH (resultlessStatement)
+import Hasql.TH (resultlessStatement, singletonStatement)
 import Hasql.Transaction qualified as Transaction
-import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (..))
+import Hasql.Transaction.Sessions (IsolationLevel (..), Mode (..))
 import Imports
 import Polysemy
 import Polysemy.Async
@@ -209,26 +210,48 @@ userRowPGToTuple user =
    user.userType, user.pict, user.richInfo, user.searchable, user.createdAt)
 {- ORMOLU_ENABLE -}
 
-saveToPostgres :: (PGConstraints r) => UserRowPG -> Maybe ServiceConv -> Sem r ()
-saveToPostgres user mServiceConv =
-  runTransactionWithRetry ReadCommitted Write $ do
-    case user.status of
+saveToPostgres :: (PGConstraints r, Member TinyLog r) => UserRowPG -> Maybe ServiceConv -> Sem r ()
+saveToPostgres user mServiceConv = do
+  isHandleRemoved <- runTransactionWithRetry Serializable Write $ do
+    isHandleRemoved <- case user.status of
       -- bots are deleted by just updating their status to deleted and deleting
       -- the rows in service_user and service_team tables.
       Just Deleted
-        | user.userType /= UserTypeBot ->
+        | user.userType /= UserTypeBot -> do
             Transaction.statement (user.id_, user.teamId, user.createdAt) insertDeleted
+            pure False
       _ -> do
-        -- TODO: Deal with handle uniqueness failures
-        Transaction.statement (userRowPGToTuple user) insertUser
+        removeHandle <-
+          maybe
+            (pure False)
+            (\h -> Transaction.statement (user.id_, h) isHandleTaken)
+            user.handle
+        let userTuple =
+              userRowPGToTuple $
+                if removeHandle
+                  then user {handle = Nothing}
+                  else user
+        Transaction.statement userTuple insertUser
         for_ user.assets $ \assets -> do
           Transaction.statement user.id_ deleteAssetsStatement
           Transaction.statement (mkAssetRows user.id_ assets) insertAssetsStatement
         when (user.status /= Just Deleted) $ do
           for_ mServiceConv $ \serviceConv ->
             Transaction.statement (user.id_, serviceConv.convId, serviceConv.teamId) insertBotConv
+        pure removeHandle
     Transaction.statement user.id_ markPendingDelete
+    pure isHandleRemoved
+
+  when isHandleRemoved $
+    warn $
+      Log.msg (Log.val "Duplicate handle claim found, this user doesn't have a handle anymore") . Log.field "user" (idToText user.id_)
   where
+    isHandleTaken :: Hasql.Statement (UserId, Handle) Bool
+    isHandleTaken =
+      dimapPG
+        [singletonStatement|
+          SELECT EXISTS (SELECT 1 FROM wire_user where handle = $2 :: text AND id != $1 :: uuid) :: bool
+        |]
     insertDeleted :: Hasql.Statement (UserId, Maybe TeamId, UTCTime) ()
     insertDeleted =
       lmapPG

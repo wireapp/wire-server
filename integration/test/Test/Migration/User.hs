@@ -722,7 +722,7 @@ testMigrationOfInvalidUsers = do
       noActivated <- randomUser domain def
       Just noActivatedId <- UUID.fromString <$> (noActivated %. "qualified_id.id" & asString)
 
-      -- Cause users
+      -- Cause users to be invalid by poking into Cassandra
       let removeName :: PrepQuery W (Identity UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET name = NULL WHERE id = ?"
           removeActivated :: PrepQuery W (Identity UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET activated = NULL WHERE id = ?"
       write removeName $ defQueryParams LocalQuorum (Identity noNameId)
