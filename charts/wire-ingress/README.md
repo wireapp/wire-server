@@ -459,19 +459,41 @@ bazel build --config=aws-lc-fips //source/exe:envoy-static
 
 To use it:
 
-1. Build that image yourself. There is no published AWS-LC Envoy image —
-   `envoyproxy/envoy` has no FIPS or AWS-LC tags at all, and the vendor FIPS
-   images that do exist (Tetrate, Chainguard) are BoringSSL-FIPS, which does not
-   help here.
-2. Point the proxy at it via
-   `gateway.envoyProxy.spec.provider.kubernetes.envoyDeployment.container.image`,
-   and set `gateway.manageServiceType: false` (it overwrites the whole
-   `provider` block), moving `envoyService.type` into `envoyProxy.spec`.
-3. Set `gateway.tls.sslLibrary: aws-lc` so the chart accepts the group names,
-   and list them in `gateway.tls.ecdhCurves`:
+**1. Build the image.** There is no published AWS-LC Envoy image —
+`envoyproxy/envoy` has no FIPS or AWS-LC tags at all, and the vendor FIPS images
+that do exist (Tetrate, Chainguard) are BoringSSL-FIPS, which does not help
+here. [`hack/envoy-aws-lc/build.sh`](../../hack/envoy-aws-lc) drives Envoy's own
+build container and asserts that the resulting binary reports `AWS-LC` in
+`envoy --version`:
+
+```bash
+cd hack/envoy-aws-lc
+ENVOY_VERSION=v1.38.3 PUSH=1 IMAGE=quay.io/wire/envoy-aws-lc ./build.sh
+```
+
+`ENVOY_VERSION` must match the Envoy your Envoy Gateway ships — it generates
+bootstrap config for a specific version. Envoy Gateway v1.8.3 ships
+`envoyproxy/envoy:distroless-v1.38.3`.
+
+**2. Point the Gateway at it and enable the groups.** Note
+`manageServiceType: false`: that shorthand overwrites the whole `provider`
+block, so once you set `provider` yourself the service type has to move into
+`envoyProxy.spec` alongside it.
 
 ```yaml
 gateway:
+  manageServiceType: false
+  envoyProxy:
+    create: true
+    spec:
+      provider:
+        type: Kubernetes
+        kubernetes:
+          envoyService:
+            type: LoadBalancer
+          envoyDeployment:
+            container:
+              image: quay.io/wire/envoy-aws-lc:v1.38.3-aws-lc
   tls:
     sslLibrary: aws-lc
     ecdhCurves:
@@ -481,6 +503,24 @@ gateway:
       - P-384
       - P-521
 ```
+
+If the GatewayClass owns a shared `EnvoyProxy` (`gateway.envoyProxy.create:
+false`, as in the `envoy-shared` / `mergeGateways` setup), put the image
+override on that cluster-level `EnvoyProxy` instead — it applies to every
+Gateway using the class.
+
+**3. Check what was actually negotiated.** The proxy access log format set by
+this chart includes `requested_server_name` but not the cipher, so confirm from
+the outside:
+
+```bash
+openssl s_client -connect nginz-https.example.com:443 -groups SecP256r1MLKEM768 </dev/null 2>&1 \
+  | grep -E 'Negotiated TLS1.3 group|Cipher|Protocol'
+```
+
+(needs OpenSSL 3.5+, which is the client side that knows the group name). The
+proxy also exports `envoy_listener_ssl_curves_*` counters on the metrics port,
+which is the more practical way to see the mix across real clients.
 
 `gateway.tls.sslLibrary` only drives this validation — it changes nothing in the
 rendered `ClientTrafficPolicy`. It exists because Envoy rejects the entire
@@ -496,11 +536,11 @@ What this costs, before you commit to it:
   projects".
 - **HTTP/3 is disabled** in AWS-LC builds. Irrelevant for this Gateway, which
   serves h2 and http/1.1, but worth knowing.
-- **You own the build.** Envoy is a multi-hour Bazel build, and the AWS-LC
-  genrule wants the Bazel-downloaded LLVM toolchain plus pinned cmake/ninja/go
-  — the very things a Nix derivation strips out, so `pkgs.envoy` is not a
-  shortcut here (nixpkgs builds Envoy with `--config=gcc` and
-  `--repository_disable_download`).
+- **You own the build.** Envoy is a multi-hour Bazel build needing ~60G of
+  disk, and the AWS-LC genrule wants the Bazel-downloaded LLVM toolchain plus
+  pinned cmake/ninja/go — the very things a Nix derivation strips out, so
+  `pkgs.envoy` is not a shortcut and this is not part of the nix image set
+  (nixpkgs builds Envoy with `--config=gcc` and `--repository_disable_download`).
 - **You own the version treadmill.** Envoy Gateway v1.8.3 ships
   `envoyproxy/envoy:distroless-v1.38.3` and generates bootstrap config for that
   version; a custom image has to track it across every Envoy Gateway bump.
