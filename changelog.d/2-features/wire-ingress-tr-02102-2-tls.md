@@ -8,7 +8,11 @@ ALPN, TLS and PROXY protocol settings are now rendered into a single
 Gateway-wide `ClientTrafficPolicy`, because Envoy Gateway rejects a second
 policy targeting the same Gateway as `Conflicted` instead of merging it.
 
-See the chart README for the two conformance gaps that remain: TLS 1.3 cipher
-suites are fixed by BoringSSL and cannot be restricted by Envoy, and the hybrid
-groups TR-02102-2 intends to recommend (SecP256r1MLKEM768 /
-SecP384r1MLKEM1024) are not implemented by BoringSSL.
+`gateway.tls.ecdhCurves` is validated against the crypto library named in the
+new `gateway.tls.sslLibrary`, so a group the proxy image cannot offer fails at
+template time rather than silently breaking the listener at runtime.
+
+See the chart README for the conformance gaps that remain: TLS 1.3 cipher suites
+are fixed by the crypto library and cannot be restricted by Envoy, and the
+hybrid groups TR-02102-2 intends to recommend (SecP256r1MLKEM768 /
+SecP384r1MLKEM1024) need an Envoy built against AWS-LC rather than BoringSSL.

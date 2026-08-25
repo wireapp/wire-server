@@ -124,11 +124,14 @@ gateway:
     # the first ClientHello, so this costs no extra round trip for them; clients
     # that do not offer it simply fall back to the NIST curves below.
     #
-    # NOTE on the two groups TR-02102-2 names as its intended future
-    # recommendation — SecP256r1MLKEM768 and SecP384r1MLKEM1024: BoringSSL does
-    # not implement them, so Envoy cannot offer them. X25519MLKEM768 is the only
-    # hybrid it supports. See the README for details; the chart fails rendering
-    # with an explanatory message if you put those names here.
+    # The two groups TR-02102-2 names as its intended future recommendation —
+    # SecP256r1MLKEM768 and SecP384r1MLKEM1024 — are NOT available on the stock
+    # envoyproxy/envoy image, because BoringSSL does not implement them. They do
+    # exist in AWS-LC, which Envoy supports as an alternative crypto library
+    # (`bazel build --config=aws-lc-fips`). To use them, build that image, point
+    # gateway.envoyProxy.spec at it, and set sslLibrary: aws-lc below. See the
+    # README for what that costs. Otherwise the chart fails rendering with an
+    # explanatory message if you put those names here.
     #
     # For strict TR-02102-2 conformance today, drop X25519MLKEM768 and keep only
     # the NIST curves: Tables 6 and 10 list secp256r1/384r1/521r1 (and the
@@ -140,6 +143,18 @@ gateway:
       - P-256
       - P-384
       - P-521
+    # Crypto library the Envoy proxy image is built against. Purely a chart-side
+    # validation hint: it decides which ecdhCurves names are accepted, and has
+    # no effect on the rendered ClientTrafficPolicy. Leave at boringssl unless
+    # you deploy a custom proxy image.
+    #   boringssl - stock envoyproxy/envoy (default)
+    #   aws-lc    - built with --config=aws-lc-fips; adds SecP256r1MLKEM768,
+    #               SecP384r1MLKEM1024, MLKEM512/768; note HTTP/3 is disabled in
+    #               AWS-LC builds (irrelevant here, the Gateway serves h2 and
+    #               http/1.1) and that this build is not covered by the Envoy
+    #               project's own test matrix
+    #   openssl   - built with --config=openssl; curve names are not validated
+    sslLibrary: boringssl
     # TR-02102-2 Tables 11 and 12, intersected with what BoringSSL accepts.
     # Dropping Envoy's rsa_pkcs1_* defaults is the point: TR-02102-2 only
     # recommended PKCS #1 v1.5 padding until the end of 2025.
