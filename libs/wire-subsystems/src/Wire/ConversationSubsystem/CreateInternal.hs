@@ -637,25 +637,38 @@ checkBindingTeamPermissions ::
   TeamId ->
   Sem r (Maybe TeamId)
 checkBindingTeamPermissions lusr lother tid = do
+  -- TODO(fisx): i think this can be futher refactored to use
+  -- `getImplicitReachableLocals`.  i'm also still not sure this logic
+  -- is sound, need to think about this more!
+
+  -- TODO(fisx): also check the access control logic around
+  -- adding/removing conv members to/from group convs.  can that also
+  -- be simplified?
+
+  guardTeamBinding
   mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
-  zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
-  case (mTeamCollaborator, zusrMembership) of
+  mTeamMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
+  case (mTeamCollaborator, mTeamMember) of
     (Just collaborator, Nothing) -> guardPerm CollaboratorPermission.ImplicitConnection collaborator
     (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
     (Just collaborator, Just member) ->
       unless (hasPermission collaborator CollaboratorPermission.ImplicitConnection || hasPermission member CreateConversation) $
         throwS @OperationDenied
-  TeamStore.getTeamBinding tid >>= \case
-    Just Binding -> do
-      when (isJust zusrMembership) $
-        verifyMembership tid (tUnqualified lusr)
-      mOtherTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lother)
-      unless (isJust mOtherTeamCollaborator) $
-        verifyMembership tid (tUnqualified lother)
-      pure (Just tid)
-    Just _ -> throwS @'NonBindingTeam
-    Nothing -> throwS @'TeamNotFound
+  when (isJust mTeamMember) $
+    verifyMembership tid (tUnqualified lusr)
+  mOtherTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lother)
+  unless (isJust mOtherTeamCollaborator) $
+    verifyMembership tid (tUnqualified lother)
+  pure (Just tid)
   where
+    -- it is unclear why we do this here; it can be removed once we
+    -- remove binding teams from the code.
+    guardTeamBinding = do
+      TeamStore.getTeamBinding tid >>= \case
+        Just Binding -> pure ()
+        Just _ -> throwS @'NonBindingTeam
+        Nothing -> throwS @'TeamNotFound
+
     guardPerm p m =
       if m `hasPermission` p
         then pure ()

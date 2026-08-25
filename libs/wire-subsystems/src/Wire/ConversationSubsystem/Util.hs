@@ -165,28 +165,39 @@ ensureConnectedToLocalsOrSameTeam ::
   Sem r ()
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
-  uTeams <- getUserTeams u
+  implicitConnections <- getImplicitReachableLocals u uids
+  ensureConnectedToLocals u (uids \\ implicitConnections)
+
+getImplicitReachableLocals ::
+  ( Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  [UserId] ->
+  Sem r [UserId]
+getImplicitReachableLocals reacher reachees = do
+  uTeams <- getUserTeams reacher
   icTeams <- getUserCollaborationTeams
   icUsers <- getTeamCollaborators uTeams
-  -- We collect all the relevant uids from same teams as the origin user
+  -- We collect all the relevant reachees from same teams as the origin user
   sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
-    fmap (view Mem.userId) <$> TeamSubsystem.internalSelectTeamMembers team uids
-  -- Do not check connections for users that are on the same team
-  ensureConnectedToLocals u ((uids \\ join sameTeamUids) \\ icUsers)
+    fmap (view Mem.userId) <$> TeamSubsystem.internalSelectTeamMembers team reachees
+  pure (join sameTeamUids `union` icUsers)
   where
     -- Teams in which the user who wants to reach out is member with
     -- `ImplicitConnection` permission.
     getUserCollaborationTeams :: (Member TeamCollaboratorsSubsystem r') => Sem r' [TeamId]
     getUserCollaborationTeams =
       gTeam
-        <$$> (filter (flip hasPermission CollaboratorPermission.ImplicitConnection) <$> internalGetTeamCollaborations u)
+        <$$> (filter (flip hasPermission CollaboratorPermission.ImplicitConnection) <$> internalGetTeamCollaborations reacher)
 
     -- We do not check the permissions of team collaborators if a user tries to
     -- reach out to them (if they are in the same team.) The reasoning behind
     -- this is that team collaborators have implicitly agreed to be
     -- collaborated with.
     getTeamCollaborators :: (Member TeamCollaboratorsSubsystem r') => [TeamId] -> Sem r' [UserId]
-    getTeamCollaborators teams = gUser <$$> internalGetTeamCollaboratorsWithIds (Set.fromList teams) (Set.fromList uids)
+    getTeamCollaborators teams = gUser <$$> internalGetTeamCollaboratorsWithIds (Set.fromList teams) (Set.fromList reachees)
 
 -- | Check that the user is connected to everybody else.
 --
