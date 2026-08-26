@@ -353,7 +353,7 @@ testMeetingUpdateTzid = do
   fetched2 %. "tzid" `shouldMatch` ("America/New_York" :: String)
   fetched2 %. "title" `shouldMatch` ("Renamed" :: String)
 
-  putMeeting owner domain meetingId (object ["tzid" .= ("not-a-zone" :: String)]) >>= assertStatus 400
+  putMeeting owner domain meetingId (object ["tzid" .= ("not-a-zone" :: String)]) >>= assertLabel 400 "bad-request"
 
 testMeetingListEmpty :: (HasCallStack) => App ()
 testMeetingListEmpty = do
