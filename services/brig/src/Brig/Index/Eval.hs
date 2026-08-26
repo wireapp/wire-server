@@ -51,6 +51,7 @@ import Polysemy.TinyLog (TinyLog)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options
+import Wire.API.Team.Collaborator (TeamCollaboratorsError)
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
@@ -65,7 +66,6 @@ import Wire.Rpc
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics.IO
-import Wire.API.Team.Collaborator (TeamCollaboratorsError)
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.UserKeyStore (UserKeyStore)
