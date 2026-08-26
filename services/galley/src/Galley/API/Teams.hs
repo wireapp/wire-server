@@ -79,6 +79,7 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.App
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
+import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -279,8 +280,8 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       -- We could also write `updateTeamSize 1 size 0` here, but it seems clearer to do it
       -- inline.
       teamSize <- do
-        (TeamSize numRegulars numApps) <- E.getSize tid
-        pure $ TeamSize (max 1 numRegulars) numApps
+        (TeamSize numRegulars numApps numCollaborators) <- E.getSize tid
+        pure $ TeamSize (max 1 numRegulars) numApps numCollaborators
       Journal.teamActivate tid teamSize c teamCreationTime
     runJournal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: (Member (ErrorS 'InvalidTeamStatusUpdate) r) => (TeamStatus, TeamStatus) -> Sem r Bool
@@ -788,7 +789,9 @@ deleteTeamMember' lusr zcon tid remove mBody = do
           _ -> UserTypeFilterRegular
       teamSizeAfterDelete <- do
         before <- E.getSize tid
-        pure $ updateTeamSize uType before (-1)
+        pure case uType of
+          UserTypeFilterRegular -> before {teamSize = before.teamSize - 1}
+          UserTypeFilterApp -> before {apps = before.apps - 1}
       E.deleteUser remove
       case uType of
         UserTypeFilterRegular -> pure ()
@@ -1035,7 +1038,7 @@ ensureNotTooLargeForLegalHold ::
     Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
-  TeamSize ->
+  Natural ->
   Sem r ()
 ensureNotTooLargeForLegalHold tid teamSize =
   whenM (isLegalHoldEnabledForTeam tid) $
@@ -1073,8 +1076,10 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
       E.getUser (new ^. userId) <&> \case
         Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
         _ -> UserTypeFilterRegular
-    pure $ updateTeamSize uType n 1
-  ensureNotTooLargeForLegalHold tid sizeAfterAdd
+    pure case uType of
+      UserTypeFilterRegular -> n {teamSize = n.teamSize + 1}
+      UserTypeFilterApp -> n {apps = n.apps + 1}
+  ensureNotTooLargeForLegalHold tid (sizeAfterAdd.teamSize + sizeAfterAdd.apps + sizeAfterAdd.collaborators)
 
   admins <- E.getTeamAdmins tid
   let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
@@ -1110,10 +1115,10 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
       Sem r TeamSize
     ensureNotTooLarge teamid = do
       o <- input
-      teamSize <- E.getSize teamid
-      unless (teamSizeTotal teamSize < fromIntegral (o ^. settings . maxTeamSize)) $
+      tSize <- E.getSize teamid
+      unless (teamSize tSize < fromIntegral (o ^. settings . maxTeamSize)) $
         throwS @'TooManyTeamMembers
-      pure teamSize
+      pure tSize
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
@@ -1155,14 +1160,8 @@ canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
     sizeBeforeJoin <- E.getSize tid
-    let uType =
-          -- We do not have a `UserId` to check here.  Also,
-          -- `canUserJoinTeam` is called by Brig during user
-          -- registration via invitation (POST /register), where apps
-          -- never go.  So it is safe to assume "regular"
-          UserTypeFilterRegular
-    let sizeAfterJoin = updateTeamSize uType sizeBeforeJoin 1
-    ensureNotTooLargeForLegalHold tid sizeAfterJoin
+    let sizeAfterJoin = sizeBeforeJoin {teamSize = sizeBeforeJoin.teamSize + 1}
+    ensureNotTooLargeForLegalHold tid (sizeAfterJoin.teamSize + sizeAfterJoin.apps + sizeAfterJoin.collaborators)
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::

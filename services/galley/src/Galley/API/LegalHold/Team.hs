@@ -30,6 +30,7 @@ import Data.Id
 import Data.Misc (PlainTextPassword6)
 import Data.Range
 import Imports
+import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
@@ -80,18 +81,18 @@ ensureNotTooLargeToActivateLegalHold ::
   TeamId ->
   Sem r ()
 ensureNotTooLargeToActivateLegalHold tid = do
-  teamSize <- getSize tid
-  unlessM (teamSizeBelowLimit teamSize) $
+  tSize <- (.teamSize) <$> getSize tid
+  unlessM (teamSizeBelowLimit tSize) $
     throwS @'CannotEnableLegalHoldServiceLargeTeam
 
 teamSizeBelowLimit ::
   ( Member (Input FanoutLimit) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
-  TeamSize ->
+  Natural ->
   Sem r Bool
-teamSizeBelowLimit (fromIntegral . teamSizeTotal -> teamSize) = do
-  limit :: Int <- fromIntegral . fromRange <$> input @FanoutLimit
+teamSizeBelowLimit teamSize = do
+  limit <- fromIntegral . fromRange <$> input @FanoutLimit
   let withinLimit = teamSize <= limit
   featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
   case featureLegalHold of

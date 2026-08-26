@@ -1,5 +1,5 @@
 {
-    "teamSize": 500,
-    "teamSizeApps": 400,
-    "teamSizeRegulars": 100
+    "apps": 400,
+    "collaborators": 7,
+    "teamSize": 100
 }
