@@ -28,7 +28,6 @@ where
 import Brig.App
 import Brig.Options
 import Control.Error
-import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.Range (fromRange)
@@ -43,18 +42,12 @@ import Wire.StoredUser
 -- | Preconditions:
 --
 -- 1. @newUserUUID u == Just inv || isNothing (newUserUUID u)@.
--- 2. If @isJust@, @mbHandle@ must be claimed by user with id @inv@.
---
--- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
--- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
--- there, it was claimed properly.
 newStoredUser ::
   NewUser Password ->
   Maybe InvitationId ->
   Maybe TeamId ->
-  Maybe Handle ->
   AppT r NewStoredUser
-newStoredUser u inv tid mbHandle = do
+newStoredUser u inv tid = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   uid <-
     Id <$> do
@@ -103,7 +96,6 @@ newStoredUser u inv tid mbHandle = do
           country = l.lCountry,
           providerId = Nothing,
           serviceId = Nothing,
-          handle = mbHandle,
           expires = e,
           teamId = tid,
           managedBy = managedBy,
@@ -136,7 +128,6 @@ newStoredUserViaScim uid externalId tid locale name email = do
         country = loc.lCountry,
         providerId = Nothing,
         serviceId = Nothing,
-        handle = Nothing,
         expires = Nothing,
         teamId = Just tid,
         managedBy = ManagedByScim,

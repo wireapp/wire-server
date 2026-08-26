@@ -138,7 +138,7 @@ createAppImpl lusr tid newApp = do
   pure
     CreatedApp
       { user =
-          let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
+          let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u)) Nothing
               mbApp :: Maybe AppInfo = Just $ storedAppToAppInfo app
               lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
            in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
@@ -276,7 +276,6 @@ appNewStoredUser creator new = do
         country = loc.lCountry,
         providerId = Nothing,
         serviceId = Nothing,
-        handle = Nothing,
         expires = Nothing,
         teamId = creator.teamId,
         managedBy = defaultManagedBy,

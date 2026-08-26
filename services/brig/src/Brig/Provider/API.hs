@@ -846,7 +846,6 @@ addBot zuid zcon cid add = do
             country = locale.lCountry,
             serviceId = Just sid,
             providerId = Just pid,
-            handle = Nothing,
             teamId = Nothing,
             managedBy = ManagedByWire,
             supportedProtocols = defSupportedProtocols,
