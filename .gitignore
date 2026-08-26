@@ -111,3 +111,6 @@ tmp/
 
 # HLS config for haskell-tools plugin (Neovim)
 hls.json
+
+# Envoy AWS-LC build output (hack/envoy-aws-lc)
+envoy-build.log
