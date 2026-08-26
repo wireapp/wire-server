@@ -1,5 +1,8 @@
 version: 0.4.0.0
-run-mode: replace
+# 'add' only touches files that have no header at all.  Existing headers
+# (and, importantly, the years in them) are left alone; see
+# https://github.com/wireapp/wire-server/pull/4851.
+run-mode: add
 source-paths:
   - libs
   - services
@@ -13,7 +16,9 @@ variables:
   organization: Wire Swiss GmbH
   email: opensource@wire.com
   project: This file is part of the Wire Server implementation.
-  year: "2025"
+  # only ever used for files that get a header added now, so this needs no
+  # maintenance and causes no churn in files that already have one.
+  year: "{{ _current_year }}"
 license-headers:
   haskell:
     file-extensions: ["hs", "hsc"]

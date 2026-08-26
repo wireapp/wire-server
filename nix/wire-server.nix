@@ -470,6 +470,7 @@ let
     pkgs.cfssl
     pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
+    (hlib.justStaticExecutables pkgs.haskellPackages.headroom)
     (hlib.justStaticExecutables pkgs.haskellPackages.weeder)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
@@ -553,7 +554,6 @@ let
     pkgs.nix-prefetch-git
     pkgs.haskellPackages.cabal-plan
     pkgs.lsof
-    pkgs.haskellPackages.headroom
     profileEnv
   ]
     ++ ghcWithPackages
