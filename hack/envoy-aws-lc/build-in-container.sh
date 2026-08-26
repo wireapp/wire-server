@@ -32,10 +32,19 @@ read -r -a extra_flags <<<"${BAZEL_BUILD_EXTRA_OPTIONS:-}"
 # clang in /opt/llvm/bin, which is off the action PATH. The bootstrap therefore
 # dies with "c++: not found" long before anything of ours compiles.
 #
-# Passing an absolute CXX through --action_env fixes it. This is safe to do
-# globally: the actual AWS-LC build (bazel/external/aws_lc.genrule_cmd) pins its
-# compilers with a CMake toolchain file pointing at the Bazel-provided LLVM, so
-# it ignores CXX entirely.
+# Bazel reports this genrule as "[for tool]", so it runs in the EXEC
+# configuration. That makes --host_action_env the right knob, and it must be the
+# ONLY one: do not also pass --action_env=CXX.
+#
+# --action_env applies to target-configuration actions, which is where
+# rules_foreign_cc builds libevent and friends. Those run under Envoy's Clang
+# toolchain (libc++, lld, a sysroot), and injecting a GNU compiler there makes
+# CMake's try_compile fail to link:
+#   Foreign Cc - CMake: Building event failed ... make: *** [cmTC_xxxx/fast] Error 2
+# The exec configuration has no such toolchain expectations, so scoping the
+# override to it fixes ninja without disturbing anything else. The AWS-LC build
+# genrule is unaffected either way — bazel/external/aws_lc.genrule_cmd pins its
+# compilers with a CMake toolchain file pointing at the Bazel-provided LLVM.
 resolve_cxx() {
     local c
     for c in c++ g++ clang++; do
@@ -56,8 +65,20 @@ if [[ -z "$cxx_bin" ]]; then
 fi
 echo "using CXX=${cxx_bin} for the ninja bootstrap"
 
-bazel build --config=aws-lc-fips -c opt \
-    --action_env=CXX="$cxx_bin" \
+# --config=clang is NOT optional, even though bazel/SSL.md's example omits it.
+# Per bazel/README.md, with no toolchain config Bazel "uses system default
+# compiler settings". That half-works: Envoy's own C++ still compiles with the
+# hermetic LLVM, but two things from --config=clang go missing —
+#   clang-common: --linkopt=-fuse-ld=lld
+#   libc++:       --action_env=LDFLAGS="-stdlib=libc++ -fuse-ld=lld"
+# and without them rules_foreign_cc's CMake probe links with the system /bin/ld
+# instead of lld. That mixes the hermetic sysroot's pre-2.34 Scrt1.o with the
+# host's newer glibc and dies in CMake's compiler test, long before libevent
+# itself is built:
+#   undefined reference to `__libc_csu_init' / `__libc_csu_fini'
+#   Foreign Cc - CMake: Building event failed ... make: *** [cmTC_xxxxx/fast] Error 2
+bazel build --config=clang --config=aws-lc-fips -c opt \
+    --host_action_env=CXX="$cxx_bin" \
     "${extra_flags[@]}" //source/exe:envoy-static
 
 # bazel-bin is a symlink into the /build mount; cp dereferences it, so the
