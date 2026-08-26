@@ -294,7 +294,7 @@ isDevelopmentVersion V13 = False
 isDevelopmentVersion V14 = False
 isDevelopmentVersion V15 = False
 isDevelopmentVersion V16 = False
-isDevelopmentVersion V17 = True
+isDevelopmentVersion V17 = False
 isDevelopmentVersion V18 = True
 
 developmentVersions :: [Version]

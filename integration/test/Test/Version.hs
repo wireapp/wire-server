@@ -60,9 +60,9 @@ testVersion (Versioned' v) = withModifiedBackend
       domain <- resp.json %. "domain" & asString
       federation <- resp.json %. "federation" & asBool
 
-      -- during a version bump, there are two development versions until the
-      -- older one is released (i.e. moved to supported and frozen)
-      dev `shouldMatchSet` [17, 18 :: Int]
+      -- currently there is one development version
+      -- it is however theoretically possible to have multiple development versions
+      length dev `shouldMatchInt` 1
       domain `shouldMatch` dom
       federation `shouldMatch` True
 
