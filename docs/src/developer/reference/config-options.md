@@ -2248,7 +2248,7 @@ The current settings and their background-worker flags are:
    - `user`: `wire_user_migration_finished`
 
    > ⚠️ For user migrations please watch the logs for `Invalid user found,
-   > skipping`. This would be acompanied by an error which is either
+   > skipping`. This would be accompanied by an error which is either
    > `UserHasNoName` or `UserHasNoActivated`. These users are invalid and all
    > interactions with them were resulting in errors. If these warnings are
    > ignored, these users will stop existing in the system. If these users are
