@@ -22,10 +22,9 @@ message TeamEvent {
         // are guaranteed to be present).
         //
         // for backwards compatibility, clients should make these
-        // fields optional, and fall back to using `member_count` if
-        // they are missing.
-        required int32  member_count_regular = 4;
-        required int32  member_count_app = 5;
+        // fields optional, and assume '0' if missing.
+        required int32  apps = 4;
+        required int32  collaborators = 5;
     }
 
     enum EventType {

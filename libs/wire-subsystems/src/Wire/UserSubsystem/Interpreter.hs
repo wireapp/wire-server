@@ -309,8 +309,8 @@ internalFindTeamInvitationImpl (Just e) c =
         NotAllowed -> throwGuardFailed TeamInviteSetToNotAllowed
 
       maxSize <- maxTeamSize <$> input
-      teamSize <- teamSizeTotal <$> IndexedUserStore.getTeamSize tid
-      when (teamSize >= fromIntegral maxSize) $
+      tSize <- (.teamSize) <$> IndexedUserStore.getTeamSize tid
+      when (tSize >= fromIntegral maxSize) $
         throw UserSubsystemTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
       --             Remove after the next release.

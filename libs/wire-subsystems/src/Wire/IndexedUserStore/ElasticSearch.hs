@@ -90,7 +90,7 @@ getTeamSizeImpl cfg tid = do
   result <- either (embed . throwIO . IndexLookupError) pure (r :: Either ES.EsError (ES.SearchResult UserDoc))
   let aggs = fromMaybe mempty (ES.aggregations result)
       getCount name = maybe 0 (.filterDocCount) $ M.lookup name aggs >>= parseMaybe (parseJSON @FilterResult)
-  pure $ TeamSize (getCount "regulars") (getCount "apps")
+  pure $ TeamSize (getCount "teamSize") (getCount "apps") (getCount "collaborators")
   where
     teamQ = termQ "team" (idToText tid)
 

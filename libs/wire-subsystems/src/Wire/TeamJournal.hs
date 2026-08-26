@@ -112,14 +112,13 @@ journalEvent typ tid dat tim = do
 -- utils
 
 evData :: TeamSize -> [UserId] -> Maybe Currency.Alpha -> TeamEvent'EventData
-evData teamSize@(TeamSize regulars apps) billingUserIds cur =
-  defMessage
-    & T.memberCount .~ memberCountTotal
-    & T.billingUser .~ (toBytes <$> billingUserIds)
-    & T.maybe'currency .~ (pack . show <$> cur)
-    & T.memberCountRegular .~ memberCountRegulars
-    & T.memberCountApp .~ memberCountApps
-  where
-    memberCountTotal, memberCountRegulars, memberCountApps :: Int32
-    (memberCountTotal, memberCountRegulars, memberCountApps) =
-      (fromIntegral $ teamSizeTotal teamSize, fromIntegral regulars, fromIntegral apps)
+evData
+  (TeamSize (fromIntegral -> teamSize) (fromIntegral -> apps) (fromIntegral -> collaborators))
+  billingUserIds
+  cur =
+    defMessage
+      & T.memberCount .~ teamSize
+      & T.billingUser .~ (toBytes <$> billingUserIds)
+      & T.maybe'currency .~ (pack . show <$> cur)
+      & T.apps .~ apps
+      & T.collaborators .~ collaborators
