@@ -276,10 +276,6 @@ formatf-all:
 formatc:
 	./tools/ormolu.sh -c
 
-.PHONY: add-license
-add-license:
-	@echo "DEPRECATED: use 'make treefmt' instead (see 'headroom' rule in .treefmt.yaml)."
-
 # without redirecting stdin/-out/-err, emacs does something weird that takes 3-5 seconds.
 .PHONY: treefmt
 treefmt:
