@@ -34,6 +34,35 @@ as `ERROR: no such target '//: '`. Only a single-token script path survives.
 | `MIN_DISK_GB` | `60` | Free-space precheck; `0` disables it |
 | `BAZEL_BUILD_EXTRA_OPTIONS` | _(empty)_ | Extra bazel flags. Use if the build OOMs: `--jobs=8 --local_ram_resources=HOST_RAM*.5` |
 
+## Iterating on the build
+
+Keep a log so failures can be read back:
+
+```bash
+set -o pipefail
+make build-envoy-aws-lc-image 2>&1 | tee envoy-build.log
+```
+
+For a hands-off loop, let `entr` rebuild whenever the build scripts change. `-r`
+kills an in-flight build as soon as a fix lands, so you never wait on a run that
+is already known-bad:
+
+```bash
+ls hack/envoy-aws-lc/build.sh \
+   hack/envoy-aws-lc/build-in-container.sh \
+   hack/envoy-aws-lc/Dockerfile \
+   Makefile \
+ | entr -cr bash -c 'set -o pipefail; make build-envoy-aws-lc-image 2>&1 | tee envoy-build.log'
+```
+
+Bazel state lives under `WORK_DIR` and survives between runs, so only the first
+cycle pays the full build cost. `envoy-build.log` is gitignored.
+
+Two caveats: `entr -r` SIGTERMs the child, which can leave an orphaned
+`ci-envoy-build-run-*` container behind — `docker ps` and clean up if a rerun
+complains. And `entr` stops watching if the file list itself changes, so restart
+it after adding a file here.
+
 The full rationale, the chart wiring, and what this costs you in maintenance is
 in the [wire-ingress chart README](../../charts/wire-ingress/README.md#getting-secp256r1mlkem768--secp384r1mlkem1024).
 

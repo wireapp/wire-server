@@ -25,7 +25,40 @@ OUT="${PWD}/envoy-static"
 #   BAZEL_BUILD_EXTRA_OPTIONS='--jobs=8 --local_ram_resources=HOST_RAM*.5'
 read -r -a extra_flags <<<"${BAZEL_BUILD_EXTRA_OPTIONS:-}"
 
-bazel build --config=aws-lc-fips -c opt "${extra_flags[@]}" //source/exe:envoy-static
+# @aws_lc//:ninja_bin bootstraps ninja from source, and ninja's configure.py
+# compiles it with ${CXX:-c++}. Bazel runs actions with a restricted PATH
+# (/bin:/usr/bin:/usr/local/bin), and the Envoy build image has no `c++` at all:
+# it installs g++-13 but only aliases `gcc` via update-alternatives, and keeps
+# clang in /opt/llvm/bin, which is off the action PATH. The bootstrap therefore
+# dies with "c++: not found" long before anything of ours compiles.
+#
+# Passing an absolute CXX through --action_env fixes it. This is safe to do
+# globally: the actual AWS-LC build (bazel/external/aws_lc.genrule_cmd) pins its
+# compilers with a CMake toolchain file pointing at the Bazel-provided LLVM, so
+# it ignores CXX entirely.
+resolve_cxx() {
+    local c
+    for c in c++ g++ clang++; do
+        if command -v "$c" >/dev/null 2>&1; then command -v "$c"; return 0; fi
+    done
+    for c in "${LLVM_ROOT:-/opt/llvm}/bin/clang++" /usr/bin/g++-*; do
+        if [[ -x "$c" ]]; then printf '%s\n' "$c"; return 0; fi
+    done
+    return 1
+}
+
+cxx_bin="${CXX:-}"
+if [[ -z "$cxx_bin" ]]; then
+    cxx_bin="$(resolve_cxx)" || {
+        echo "error: no C++ compiler found in the build container; set CXX explicitly" >&2
+        exit 1
+    }
+fi
+echo "using CXX=${cxx_bin} for the ninja bootstrap"
+
+bazel build --config=aws-lc-fips -c opt \
+    --action_env=CXX="$cxx_bin" \
+    "${extra_flags[@]}" //source/exe:envoy-static
 
 # bazel-bin is a symlink into the /build mount; cp dereferences it, so the
 # binary lands on the host through the /source bind mount.
