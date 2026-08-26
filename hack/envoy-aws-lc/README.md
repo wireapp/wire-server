@@ -17,6 +17,23 @@ becomes an RFC. BoringSSL implements neither, so on a stock
 PUSH=1 ./build.sh       # build, then push
 ```
 
+Or from the repo root: `make build-envoy-aws-lc-image [PUSH=1]`.
+
+`build-in-container.sh` is the part that runs inside Envoy's build container. It
+is a separate file on purpose: `ci/run_envoy_docker.sh` forwards the command
+through an unquoted `exec ${DOCKER_COMMAND}`, so anything containing spaces is
+word-split into argv and `&&` reaches bazel as a literal target — which surfaces
+as `ERROR: no such target '//: '`. Only a single-token script path survives.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ENVOY_VERSION` | `v1.38.3` | Envoy tag to build; must match your Envoy Gateway |
+| `IMAGE` / `TAG` | `quay.io/wire/envoy-aws-lc` / `<version>-aws-lc` | Image coordinates |
+| `PUSH` | `0` | Push after a successful build and verification |
+| `WORK_DIR` | `/var/tmp/envoy-aws-lc` | Checkout and Bazel output base; keep it off tmpfs |
+| `MIN_DISK_GB` | `60` | Free-space precheck; `0` disables it |
+| `BAZEL_BUILD_EXTRA_OPTIONS` | _(empty)_ | Extra bazel flags. Use if the build OOMs: `--jobs=8 --local_ram_resources=HOST_RAM*.5` |
+
 The full rationale, the chart wiring, and what this costs you in maintenance is
 in the [wire-ingress chart README](../../charts/wire-ingress/README.md#getting-secp256r1mlkem768--secp384r1mlkem1024).
 

@@ -42,6 +42,12 @@ WORK_DIR="${WORK_DIR:-/var/tmp/envoy-aws-lc}"
 CHECKOUT_DIR="${CHECKOUT_DIR:-${WORK_DIR}/src}"
 export ENVOY_DOCKER_BUILD_DIR="${ENVOY_DOCKER_BUILD_DIR:-${WORK_DIR}/build}"
 
+# Forwarded into the build container by Envoy's ci/docker-compose.yml and
+# applied to the bazel invocation by build-in-container.sh. Use it to cap
+# resources if the build OOMs, e.g.
+#   BAZEL_BUILD_EXTRA_OPTIONS='--jobs=8 --local_ram_resources=HOST_RAM*.5'
+export BAZEL_BUILD_EXTRA_OPTIONS="${BAZEL_BUILD_EXTRA_OPTIONS:-}"
+
 log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
@@ -50,6 +56,8 @@ die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 command -v docker >/dev/null || die "docker is required"
 command -v git >/dev/null || die "git is required"
 docker info >/dev/null 2>&1 || die "cannot talk to the docker daemon"
+# run_envoy_docker.sh drives `docker compose`, not the standalone docker-compose.
+docker compose version >/dev/null 2>&1 || die "the docker compose plugin is required (ci/run_envoy_docker.sh uses 'docker compose')"
 
 arch="$(uname -m)"
 case "$arch" in
@@ -59,12 +67,15 @@ esac
 
 [[ "$(uname -s)" == Linux ]] || die "the Envoy build container only runs on Linux (found: $(uname -s))"
 
-avail_gb="$(df -BG --output=avail "$(dirname "$WORK_DIR")" | tail -1 | tr -dc '0-9')"
-if [[ -n "$avail_gb" && "$avail_gb" -lt 60 ]]; then
-    die "only ${avail_gb}G free at $(dirname "$WORK_DIR"); the build needs roughly 60G. Set WORK_DIR elsewhere."
-fi
-
 mkdir -p "$ENVOY_DOCKER_BUILD_DIR"
+
+# A rough estimate of the Bazel output base plus the container image. Override
+# MIN_DISK_GB=0 to skip the check (e.g. network storage that df misreports).
+MIN_DISK_GB="${MIN_DISK_GB:-60}"
+avail_gb="$(df -BG --output=avail "$ENVOY_DOCKER_BUILD_DIR" | tail -1 | tr -dc '0-9')"
+if [[ -n "$avail_gb" && "$avail_gb" -lt "$MIN_DISK_GB" ]]; then
+    die "only ${avail_gb}G free at ${ENVOY_DOCKER_BUILD_DIR}; the build needs roughly ${MIN_DISK_GB}G. Set WORK_DIR to a bigger volume, or MIN_DISK_GB=0 to skip this check."
+fi
 
 # --- source ------------------------------------------------------------------
 
@@ -86,12 +97,14 @@ grep -q 'common:aws-lc-fips' "${CHECKOUT_DIR}/.bazelrc" \
 # --- build -------------------------------------------------------------------
 
 log "Building envoy-static with --config=aws-lc-fips (this takes hours)"
+# The command MUST be a single token: ci/run_envoy_docker.sh forwards it via an
+# unquoted `exec ${DOCKER_COMMAND}`, so anything with spaces gets word-split
+# into argv and `&&` is passed to bazel as a literal target. Hence the separate
+# script rather than an inline `cmd1 && cmd2`.
+install -m 0755 "${SCRIPT_DIR}/build-in-container.sh" "${CHECKOUT_DIR}/wire-build-aws-lc.sh"
 (
     cd "$CHECKOUT_DIR"
-    ./ci/run_envoy_docker.sh \
-        'bazel build --config=aws-lc-fips -c opt //source/exe:envoy-static \
-         && cp -f bazel-bin/source/exe/envoy-static /source/envoy-static \
-         && chmod 0755 /source/envoy-static'
+    ./ci/run_envoy_docker.sh ./wire-build-aws-lc.sh
 )
 
 [[ -f "${CHECKOUT_DIR}/envoy-static" ]] || die "build finished but ${CHECKOUT_DIR}/envoy-static is missing"
