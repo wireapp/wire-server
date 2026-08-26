@@ -43,9 +43,9 @@ data EmailSubsystem m a where
   SendTeamActivationMail :: EmailAddress -> Name -> ActivationKey -> ActivationCode -> Maybe Locale -> Text -> EmailSubsystem m ()
   SendTeamDeletionVerificationMail :: EmailAddress -> Code.Value -> Maybe Locale -> EmailSubsystem m ()
   -- | send invitation to an unknown email address.
-  SendTeamInvitationMail :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
+  SendTeamInvitationMail :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m ()
   -- | send invitation to an email address associated with a personal user account.
-  SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
+  SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m ()
   SendMemberWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> EmailSubsystem m ()
   SendNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> EmailSubsystem m ()
   SendSAMLIdPChanged ::

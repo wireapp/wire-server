@@ -31,6 +31,7 @@ import System.Cron (CronSchedule, parseCronSchedule)
 import System.Logger.Extended
 import Util.Options
 import Wire.EmailSending.Options (EmailOpts)
+import Wire.EmailSubsystem.Template (EmailTemplatesOpts)
 import Wire.Migration
 import Wire.PostgresMigrationOpts
 
@@ -59,7 +60,8 @@ data Opts = Opts
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig,
-    email :: !EmailOpts
+    email :: !EmailOpts,
+    emailTemplates :: !EmailTemplatesOpts
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts

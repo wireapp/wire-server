@@ -25,7 +25,9 @@ import Imports
 import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
-import Wire.EmailSubsystem.Template
+import Wire.EmailSending.Composer (EmailTemplates (..))
+import Wire.EmailSubsystem.Template hiding (emailSender)
+import Wire.EmailSubsystem.Templates.Provider
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
@@ -77,3 +79,32 @@ loadTestTeamTemplates = loadTeamTemplates teamOpts "templates" defLocale emailSe
 -- | Load the on-disk user templates. See 'loadTestTeamTemplates'.
 loadTestUserTemplates :: IO (Localised UserTemplates)
 loadTestUserTemplates = loadUserTemplates userTemplateOpts "templates" defLocale emailSender
+
+providerOpts :: ProviderOpts
+providerOpts =
+  ProviderOpts
+    { homeUrl = "https://example.com/",
+      providerActivationUrl = "https://example.com/provider-activate/?key=${key}&code=${code}",
+      approvalUrl = "https://example.com/provider-approve/?key=${key}&code=${code}",
+      approvalTo = emailSender,
+      providerPwResetUrl = "https://example.com/provider-reset/?key=${key}&code=${code}"
+    }
+
+-- | Load the on-disk provider templates. See 'loadTestTeamTemplates'.
+loadTestProviderTemplates :: IO (Localised ProviderTemplates)
+loadTestProviderTemplates = loadProviderTemplates providerOpts "templates" defLocale emailSender
+
+-- | Load the full composer fixture set (all template bundles plus branding).
+loadTestEmailTemplates :: IO EmailTemplates
+loadTestEmailTemplates = do
+  user <- loadTestUserTemplates
+  team <- loadTestTeamTemplates
+  provider <- loadTestProviderTemplates
+  pure
+    EmailTemplates
+      { userTemplates = user,
+        teamTemplates = team,
+        providerTemplates = provider,
+        brandingFn = id,
+        brandingMap = branding
+      }

@@ -161,10 +161,7 @@ brig:
         emailSender: backend-integrationk8s@wire.com
         smsSender: dummy
       user:
-        activationUrl: https://example.com/verify/?key=${key}&code=${code}
         smsActivationUrl: https://example.com/v/${code}
-        passwordResetUrl: https://example.com/reset/?key=${key}&code=${code}
-        deletionUrl: https://example.com/d/?key=${key}&code=${code}
       team:
         tInvitationUrl: https://example.com/join/?team-code=${code}
         tExistingUserInvitationUrl: https://example.com/accept-invitation/?team-code=${code}
@@ -685,6 +682,28 @@ background-worker:
       cleanOlderThanHours: 0.0014
       batchSize: 100
       schedule: "* * * * *"
+    # Email templates for composing the emails queued by brig;
+    # mirrors the values brig used to configure.
+    emailTemplates:
+      templateDir: /usr/share/wire/templates
+      emailSender: backend-integrationk8s@wire.com
+      user:
+        activationUrl: https://example.com/verify/?key=${key}&code=${code}
+        teamActivationUrl: https://example.com/verify/?key=${key}&code=${code}
+        passwordResetUrl: https://example.com/reset/?key=${key}&code=${code}
+        deletionUrl: https://example.com/d/?key=${key}&code=${code}
+      team:
+        tInvitationUrl: https://example.com/join/?team-code=${code}
+        tExistingUserInvitationUrl: https://example.com/accept-invitation/?team-code=${code}
+        tActivationUrl: https://example.com/verify/?key=${key}&code=${code}
+        tCreatorWelcomeUrl: https://example.com/login
+        tMemberWelcomeUrl: https://example.com/download
+      provider:
+        homeUrl: https://example.com/
+        providerActivationUrl: https://example.com/provider-activate/?key=${key}&code=${code}
+        approvalUrl: https://example.com/provider-approve/?key=${key}&code=${code}
+        approvalTo: backend-integrationk8s@wire.com
+        providerPwResetUrl: https://example.com/provider-reset/?key=${key}&code=${code}
     # Cassandra clusters used by background-worker
     cassandra:
       host: {{ .Values.cassandraHost }}

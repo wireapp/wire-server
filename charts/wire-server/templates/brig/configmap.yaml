@@ -144,53 +144,14 @@ data:
         {{- end }}
       {{- end }}
       general:
-        templateDir: /usr/share/wire/templates
         emailSender: {{ .emailSMS.general.emailSender }}
         smsSender: {{ .emailSMS.general.smsSender | quote }}
-        templateBranding:
-          {{- with .emailSMS.general.templateBranding }}
-          brand: {{ .brand }}
-          brandUrl: {{ .brandUrl }}
-          brandLabelUrl: {{ .brandLabelUrl }}
-          brandLogoUrl: {{ .brandLogoUrl }}
-          brandService: {{ .brandService }}
-          copyright: {{ .copyright }}
-          misuse: {{ .misuse }}
-          legal: {{ .legal }}
-          forgot: {{ .forgot }}
-          support: {{ .support }}
-          {{- end }}
 
       user:
       {{- if .emailSMS.user }}
-        activationUrl: {{ .emailSMS.user.activationUrl }}
         smsActivationUrl: {{ .emailSMS.user.smsActivationUrl }}
-        passwordResetUrl: {{ .emailSMS.user.passwordResetUrl }}
-        {{- if .emailSMS.user.invitationUrl }}
-        invitationUrl: {{ .emailSMS.user.invitationUrl }}
-        {{- end }}
-        deletionUrl: {{ .emailSMS.user.deletionUrl }}
       {{- else }}
-        activationUrl: {{ .externalUrls.nginz }}/activate?key=${key}&code=${code}
         smsActivationUrl: {{ .externalUrls.nginz }}/v/${code}
-        passwordResetUrl: {{ .externalUrls.nginz }}/password-reset/${key}?code=${code}
-        invitationUrl: {{ .externalUrls.nginz }}/register?invitation_code=${code}
-        deletionUrl: {{ .externalUrls.nginz }}/users/delete?key=${key}&code=${code}
-      {{- end }}
-
-      provider:
-      {{- if .emailSMS.provider }}
-        homeUrl: {{ .emailSMS.provider.homeUrl }}
-        providerActivationUrl: {{ .emailSMS.provider.providerActivationUrl }}
-        approvalUrl: {{ .emailSMS.provider.approvalUrl }}
-        approvalTo: {{ .emailSMS.provider.approvalTo }}
-        providerPwResetUrl: {{ .emailSMS.provider.providerPwResetUrl }}
-      {{- else }}
-        homeUrl: https://provider.localhost/
-        providerActivationUrl: {{ .externalUrls.nginz }}/provider/activate?key=${key}&code=${code}
-        approvalUrl: {{ .externalUrls.nginz }}/provider/approve?key=${key}&code=${code}
-        approvalTo: success@simulator.amazonses.com
-        providerPwResetUrl: {{ .externalUrls.nginz }}/provider/password-reset?key=\${key}\&code=\${code}
       {{- end }}
 
       team:

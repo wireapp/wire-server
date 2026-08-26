@@ -2451,6 +2451,7 @@ Notes
 
 ## Background worker: Email sending
 
+
 The background-worker delivers the email jobs enqueued by brig on the `emails`
 Arbiter queue (PostgreSQL). It requires an `email` transport (AWS SES or SMTP),
 the same shape brig uses for `emailSMS.email`. Configuration is supplied via
@@ -2515,6 +2516,50 @@ Notes
   queue's dead-letter queue, so transient worker downtime does not lose email
   jobs.
 - The `emails` queue and its dead-letter table live in the shared PostgreSQL
-  database and contain full email content (including one-time codes and reset
-  links for jobs that were never delivered). Keep database access
-  least-privileged and monitor DLQ growth.
+  database and contain the queued request data (including one-time codes,
+  recipient addresses and reset URLs for jobs that were never delivered). Keep
+  database access least-privileged and monitor DLQ growth.
+
+## Background worker: Email templates
+
+The background-worker does not only deliver email, it **composes** it: brig
+enqueues the composing payload (email type, locale and inputs such as
+recipient, keys/codes, team names) as `send_email` jobs, and the worker
+selects the localized template, renders the placeholders and builds the MIME
+mail right before sending. The templates directory ships in the
+background-worker image at `/usr/share/wire/templates`.
+
+Configure it via Helm under `background-worker.config.emailTemplates`
+(rendered into the `emailTemplates` block of `background-worker.yaml`). These
+settings were previously brig's `emailSMS` template/URL/branding settings;
+brig no longer has them, so deployments must carry them on the worker instead
+(they must match what brig used to configure, or emails will render with
+different URLs/branding than before):
+
+```yaml
+config:
+  emailTemplates:
+    templateDir: /usr/share/wire/templates
+    # defaultLocale: en       # optional; falls back to en
+    emailSender: backend@wire.com
+    templateBranding:         # the 10 branding placeholders
+      brand: Wire
+      brandUrl: https://wire.com
+      # ...
+    user:                     # user email URL templates
+      activationUrl: https://<nginz>/activate?key=${key}&code=${code}
+      teamActivationUrl: https://<nginz>/register?team=${team}&team_code=${code}
+      passwordResetUrl: https://<nginz>/password-reset/${key}?code=${code}
+      deletionUrl: https://<nginz>/users/delete?key=${key}&code=${code}
+    team:                     # team email URL templates
+      tInvitationUrl: https://<nginz>/register?team=${team}&team_code=${code}
+      # ...
+    provider:                 # provider email URL templates
+      homeUrl: https://provider.example.com/
+      # ...
+```
+
+brig still configures `emailSMS.general.emailSender` (used for SCIM
+invitations and the enterprise audit email configuration) and the team
+invitation URL templates (`emailSMS.team`, rendered into API responses);
+everything else email-related lives on the worker.

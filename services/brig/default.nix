@@ -213,7 +213,6 @@ mkDerivation {
     metrics-core
     metrics-wai
     mime
-    mime-mail
     mmorph
     MonadRandom
     mtl

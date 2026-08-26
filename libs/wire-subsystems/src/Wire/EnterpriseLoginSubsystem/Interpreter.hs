@@ -30,19 +30,18 @@ where
 import Bilge hiding (delete)
 import Control.Lens ((^.), (^..), (^?))
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as BL
 import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Text.Encoding qualified as Text
-import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
+import Data.Text.Internal.Builder (fromText, toLazyText)
+import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder (Builder)
 import Data.Text.Lazy.Encoding as LT
 import Imports hiding (lookup)
 import Network.HTTP.Types.Method
-import Network.Mail.Mime (Address (Address), Mail (mailHeaders, mailParts, mailTo), emptyMail, plainPart)
 import Polysemy
 import Polysemy.Error (Error, note, throw)
 import Polysemy.Error qualified as Error
@@ -52,6 +51,7 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
 import Util.Options
+import Wire.API.BackgroundJobs.Email
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Version
@@ -65,7 +65,7 @@ import Wire.DomainVerificationChallengeStore
     mkStoredDomainVerificationChallenge,
   )
 import Wire.DomainVerificationChallengeStore qualified as Challenge
-import Wire.EmailSending (EmailSending, sendMail)
+import Wire.EmailSending.Queueing (EmailQueueing, queueEmail)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error
 import Wire.GalleyAPIAccess
@@ -95,7 +95,7 @@ runEnterpriseLoginSubsystemWithConfig ::
     Member GalleyAPIAccess r,
     Member SparAPIAccess r,
     Member TinyLog r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member Random r,
     Member Rpc r,
     Member UserKeyStore r,
@@ -120,7 +120,7 @@ runEnterpriseLoginSubsystem ::
     Member SparAPIAccess r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member Random r,
     Member Rpc r,
     Member UserKeyStore r,
@@ -308,7 +308,7 @@ deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Domain ->
   Sem r ()
@@ -328,7 +328,7 @@ unauthorizeImpl ::
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Domain ->
   Sem r ()
@@ -358,7 +358,7 @@ updateDomainRegistrationImpl ::
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Domain ->
   DomainRegistrationUpdate ->
@@ -384,7 +384,7 @@ lockDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Domain ->
   Sem r ()
@@ -408,7 +408,7 @@ unlockDomainImpl ::
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Domain ->
   Sem r ()
@@ -434,7 +434,7 @@ preAuthorizeImpl ::
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Domain ->
   Sem r ()
@@ -524,21 +524,10 @@ validate dr = do
     Backend _ _ -> when (dr.teamInvite /= NotAllowed) $ throw EnterpriseLoginSubsystemOperationForbidden
     _ -> pure ()
 
-mkAuditMail :: EmailAddress -> EmailAddress -> Text -> LText -> Mail
-mkAuditMail from to subject bdy =
-  (emptyMail (Address Nothing (fromEmail from)))
-    { mailTo = [Address Nothing (fromEmail to)],
-      mailHeaders =
-        [ ("Subject", subject),
-          ("X-Zeta-Purpose", "audit")
-        ],
-      mailParts = [[plainPart bdy]]
-    }
-
 sendAuditMail ::
   ( Member (Input EnterpriseLoginSubsystemConfig) r,
     Member TinyLog r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Builder ->
   Text ->
@@ -546,43 +535,33 @@ sendAuditMail ::
   Maybe DomainRegistration ->
   Sem r ()
 sendAuditMail url subject mBefore mAfter = do
-  let encodeDomainRegistrationPretty =
-        maybe
-          "null"
-          (Aeson.encodePretty . mkDomainRegistrationResponse @V10)
   let encodeDomainRegistration =
         maybe
           "null"
           (Aeson.encode . mkDomainRegistrationResponse @V10)
-  let auditLog :: LText =
-        toLazyText $
-          url
-            <> " called;\nOld value:\n"
-            <> fromLazyText
-              (LT.decodeUtf8 (encodeDomainRegistrationPretty mBefore))
-            <> "\nNew value:\n"
-            <> fromLazyText
-              ( LT.decodeUtf8
-                  ( encodeDomainRegistrationPretty
-                      mAfter
-                  )
-              )
   Log.info $
     Log.msg (Log.val "Domain registration audit log")
       . Log.field "url" (LT.encodeUtf8 $ toLazyText url)
       . Log.field "old_value" (encodeDomainRegistration mBefore)
       . Log.field "new_value" (encodeDomainRegistration mAfter)
   mConfig <- inputs emailConfig
-  for_ mConfig $ \config -> do
-    let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
-    sendMail mail
+  for_ mConfig $ \config ->
+    queueEmail . EnterpriseAuditEmail $
+      MkEnterpriseAuditEmail
+        { from = config.auditEmailSender,
+          to = config.auditEmailRecipient,
+          subject = subject,
+          url = toStrict (toLazyText url),
+          before = mkDomainRegistrationResponse @V10 <$> mBefore,
+          after = mkDomainRegistrationResponse @V10 <$> mAfter
+        }
 
 updateDomainRedirectImpl ::
   ( Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member DomainRegistrationStore r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailQueueing r
   ) =>
   Token ->
   Domain ->
@@ -614,7 +593,7 @@ updateTeamInviteImpl ::
   ( Member (Error EnterpriseLoginSubsystemError) r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
     Member DomainRegistrationStore r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member GalleyAPIAccess r,
     Member SparAPIAccess r,
     Member TinyLog r,

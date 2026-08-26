@@ -365,6 +365,7 @@ spec = do
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           emailTransport = undefined
+          emailComposition = undefined
           federationDomain = Domain "local"
           postgresMigration =
             PostgresMigrationOpts
@@ -430,6 +431,7 @@ spec = do
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           emailTransport = undefined
+          emailComposition = undefined
           federationDomain = Domain "local"
           postgresMigration =
             PostgresMigrationOpts

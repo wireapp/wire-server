@@ -24,7 +24,6 @@
 module Wire.API.Jobs where
 
 import Arbiter.Core.QueueRegistry (Queue)
-import Control.Arrow ((&&&))
 import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
@@ -36,7 +35,7 @@ import Data.Text as Text
 import GHC.TypeLits
 import Imports
 import Test.QuickCheck (oneof)
-import Wire.API.BackgroundJobs.Email (SerializableMail)
+import Wire.API.BackgroundJobs.Email (SendEmailRequest, taggedJobPayloadObjectSchema)
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 -- | The queue/table for jobs that operate on meetings.
@@ -142,20 +141,8 @@ instance ToSchema AdminlessSetupJob where
         <*> (.adminlessSetupJobOrigUserId) .= maybe_ (optField "orig_user_id" schema)
         <*> (.adminlessSetupJobRequestId) .= field "request_id" schema
 
--- | Common representation for all queue payload envelopes.
 -- The queue-specific sum supplies the type tag and its associated data schema,
 -- while this helper guarantees the stable {"type": ..., "data": ...} shape.
-taggedJobPayloadObjectSchema ::
-  forall tag payload.
-  (Bounded tag, Enum tag, ToSchema tag) =>
-  (payload -> tag) ->
-  (tag -> ObjectSchema SwaggerDoc payload) ->
-  ObjectSchema SwaggerDoc payload
-taggedJobPayloadObjectSchema toTag toSchema =
-  snd <$> (toTag &&& id) .= bind (fst .= tagObjectSchema) (snd .= dispatch toSchema)
-  where
-    tagObjectSchema :: ObjectSchema SwaggerDoc tag
-    tagObjectSchema = field "type" schema
 
 -- | Payload persisted in the meetings queue. Keep the type tag and nested data
 -- shape stable when changing job payloads. The sum makes the queue
@@ -254,14 +241,15 @@ deriving via (Schema ConversationsJobPayload) instance S.ToSchema ConversationsJ
 instance Arbitrary ConversationsJobPayload where
   arbitrary = oneof [AdminlessDeletion <$> arbitrary, AdminlessReminder <$> arbitrary]
 
--- | Payload persisted in the emails queue. Arbiter persists these payloads and
--- workers decode them later, so changes to field names or shapes require a
--- coordinated rollout. The mail itself is the 'SerializableMail' record from
--- "Wire.API.BackgroundJobs.Email"; the request id of the brig request that
--- queued the mail is captured for logging/tracing in the worker.
+-- | Payload persisted in the emails queue. Keep the type tag and nested data
+-- shape stable when changing job payloads. The payload carries the composing
+-- request (email type, locale and structured inputs) from
+-- "Wire.API.BackgroundJobs.Email"; the background-worker composes the actual
+-- email right before sending. The request id of the brig request that queued
+-- the mail is captured for logging/tracing in the worker.
 data SendEmailJobPayload = SendEmailJobPayload
   { sendEmailJobRequestId :: !RequestId,
-    sendEmailJobMail :: !SerializableMail
+    sendEmailJobRequest :: !SendEmailRequest
   }
   deriving stock (Eq, Generic, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema SendEmailJobPayload)
@@ -271,7 +259,7 @@ instance ToSchema SendEmailJobPayload where
     object $
       SendEmailJobPayload
         <$> (.sendEmailJobRequestId) .= field "request_id" schema
-        <*> (.sendEmailJobMail) .= field "mail" schema
+        <*> (.sendEmailJobRequest) .= field "request" schema
 
 instance Arbitrary SendEmailJobPayload where
   arbitrary = SendEmailJobPayload <$> arbitrary <*> arbitrary

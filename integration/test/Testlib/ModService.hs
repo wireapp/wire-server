@@ -227,7 +227,8 @@ defaultOverrides resource =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
               >=> setField "federationDomain" resource.berDomain
-              >=> setField "rabbitmq.vHost" resource.berVHost,
+              >=> setField "rabbitmq.vHost" resource.berVHost
+              >=> setField "emailTemplates.emailSender" resource.berEmailSMSEmailSender,
           federatorInternalCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorExternal.port" resource.berFederatorExternal

@@ -28,14 +28,16 @@ import Wire.API.Jobs (SendEmailJobPayload (..))
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.Effects (runBackgroundWorkerEffects)
 import Wire.EmailSending (sendMail)
-import Wire.EmailSending.Queueing (fromSerializableMail)
+import Wire.EmailSending.Composer (composeEmail)
+import Wire.EmailSubsystem.Template (logEmailRenderErrors)
 import Wire.ExternalAccess.External (ExtEnv)
 
--- | Send one outbound email queued by brig on the Arbiter @emails@ queue.
+-- | Compose and send one outbound email queued by brig on the Arbiter
+-- @emails@ queue.
 --
--- The mail record is not trusted: a payload that fails 'fromSerializableMail'
--- is malformed (or adversarial) and is rejected with a warning instead of
--- retried. A failing send surfaces as @'Left' 'Text'@ from
+-- The payload is the composing request (email type, locale, inputs); the mail
+-- itself is composed here from the bundled localized templates right before
+-- sending. A failing compose or send surfaces as @'Left' 'Text'@ from
 -- 'runBackgroundWorkerEffects' and is rethrown as retryable so Arbiter's
 -- bounded retry/backoff (and, eventually, the DLQ) applies.
 runSendEmailJob :: ExtEnv -> JobRead SendEmailJobPayload -> AppT IO ()
@@ -45,12 +47,10 @@ runSendEmailJob extEnv job = do
     Log.msg (Log.val "Running send-email job")
       . Log.field "request_id" (show job.payload.sendEmailJobRequestId)
       . Log.field "scheduled_for" (show job.notVisibleUntil)
-  case fromSerializableMail job.payload.sendEmailJobMail of
-    Left err ->
-      Log.warn env.logger $
-        Log.msg (Log.val "Rejecting malformed email job")
-          . Log.field "request_id" (show job.payload.sendEmailJobRequestId)
-          . Log.field "error" err
-    Right mail -> do
-      result <- liftIO $ runBackgroundWorkerEffects env extEnv job.payload.sendEmailJobRequestId Nothing $ sendMail mail
-      either (liftIO . throwRetryable) pure result
+  result <-
+    liftIO $
+      runBackgroundWorkerEffects env extEnv job.payload.sendEmailJobRequestId Nothing $
+        logEmailRenderErrors "send-email job" $
+          composeEmail env.emailComposition job.payload.sendEmailJobRequest
+            >>= sendMail
+  either (liftIO . throwRetryable) pure result

@@ -96,6 +96,13 @@ data:
       {{- end }}
     {{- end }}
 
+    # Email templates used to compose the emails queued by brig.
+    # These values must match what brig used to configure.
+    {{- with .emailTemplates }}
+    emailTemplates:
+{{ toYaml . | indent 6 }}
+    {{- end }}
+
     migrateConversations: {{ .migrateConversations }}
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}

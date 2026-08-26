@@ -48,7 +48,6 @@ import Brig.Effects.ConnectionStore
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
-import Brig.Template (InvitationUrlTemplates)
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Client qualified as API
@@ -162,8 +161,9 @@ import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ClientSubsystem.Error
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
-import Wire.EmailSending (EmailSending)
+import Wire.EmailSending.Queueing (EmailQueueing)
 import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Template (InvitationUrlTemplates)
 import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
 import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
@@ -365,7 +365,7 @@ servantSitemap ::
     Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member EmailSubsystem r,
     Member Events r,
     Member FederationConfigStore r,

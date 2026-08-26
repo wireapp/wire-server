@@ -25,7 +25,6 @@ import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.IO.Intra (runEvents)
 import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
-import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
@@ -88,10 +87,10 @@ import Wire.DomainVerificationChallengeStore
 import Wire.DomainVerificationChallengeStore.Cassandra
 import Wire.DomainVerificationChallengeStore.DualWrite (interpretDomainVerificationChallengeStoreToCassandraAndPostgres)
 import Wire.DomainVerificationChallengeStore.Postgres (interpretDomainVerificationChallengeStoreToPostgres)
-import Wire.EmailSending
-import Wire.EmailSending.Queueing (emailViaQueueInterpreter)
+import Wire.EmailSending.Queueing (EmailQueueing, emailViaQueueInterpreter)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Interpreter
+import Wire.EmailSubsystem.Template (InvitationUrlTemplates)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError, enterpriseLoginSubsystemErrorToHttpError)
 import Wire.EnterpriseLoginSubsystem.Interpreter
@@ -272,7 +271,7 @@ type BrigLowerLevelEffects =
      PasswordResetCodeStore,
      GalleyAPIAccess,
      SparAPIAccess,
-     EmailSending,
+     EmailQueueing,
      Rpc,
      Metrics,
      Embed Cas.Client,
@@ -517,7 +516,7 @@ runBrigToIO e (AppT ma) = do
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBrandingAsMap
+              . emailSubsystemInterpreter
               . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI

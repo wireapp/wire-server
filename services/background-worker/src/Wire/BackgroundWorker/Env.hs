@@ -53,6 +53,7 @@ import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Team.Feature (LegalholdConfig, npProject)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackgroundWorker.Options
+import Wire.EmailSending.Composer (EmailTemplates, loadEmailTemplates)
 import Wire.EmailSending.Options qualified as EmailOpt
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.JobSubsystem.Migrations (mkArbiterConnectionString)
@@ -122,7 +123,8 @@ data Env = Env
     checkGroupInfo :: !(Maybe Bool),
     convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
     passwordHashingRateLimitEnv :: RateLimitEnv,
-    emailTransport :: EmailTransport
+    emailTransport :: EmailTransport,
+    emailComposition :: EmailTemplates
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -240,6 +242,7 @@ mkEnv opts galleyOpts = do
           sesEndpoint =
             Amazonka.setEndpoint _awsSecure _awsHost _awsPort SES.defaultService
       EmailTransportSES <$> (Amazonka.newEnv Amazonka.discover <&> Amazonka.configureService sesEndpoint)
+  emailComposition <- loadEmailTemplates opts.emailTemplates
   Log.info logger $ Log.msg @Text "Environment initialized"
   pure Env {..}
 

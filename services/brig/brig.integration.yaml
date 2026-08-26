@@ -110,33 +110,10 @@ emailSMS:
     #         that may be used for this
 
   general:
-    templateDir: ../../libs/wire-subsystems/templates
     emailSender: backend-integration@wire.com
     smsSender: "+123456789" # or MG123456789... (twilio alphanumeric sender id)
-    templateBranding:
-      brand: Wire
-      brandUrl: https://wire.com
-      brandLabelUrl: wire.com # This is the text in the label for the above URL
-      brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
-      brandService: Wire Service Provider
-      copyright: © WIRE SWISS GmbH
-      misuse: misuse@wire.com
-      legal: https://wire.com/legal/
-      forgot: https://wire.com/forgot/
-      support: https://support.wire.com/
   user:
-    activationUrl: https://example.com/verify/?key=${key}&code=${code}
     smsActivationUrl: https://example.com/v/${code}
-    passwordResetUrl: https://example.com/reset/?key=${key}&code=${code}
-    invitationUrl: https://example.com/register?invitation_code=${code}
-    deletionUrl: https://example.com/d/?key=${key}&code=${code}
-
-  provider:
-    homeUrl: https://provider.localhost/
-    providerActivationUrl: http://127.0.0.1:8080/verify/bot/?key=${key}&code=${code}
-    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
-    approvalTo: success@simulator.amazonses.com
-    providerPwResetUrl: http://127.0.0.1:8080/reset/bot/?key=${key}&code=${code}
 
   team:
     tInvitationUrl: https://example.com/join/?team-code=${code}

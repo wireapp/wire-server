@@ -125,7 +125,6 @@ library
     Brig.Provider.Email
     Brig.Provider.RPC
     Brig.Provider.Tag
-    Brig.Provider.Template
     Brig.Queue
     Brig.Queue.Stomp
     Brig.Queue.Types
@@ -184,8 +183,6 @@ library
     Brig.Schema.V92_AddUserType
     Brig.Schema.V93_AddScimPendingUserEmail
     Brig.Team.API
-    Brig.Team.Template
-    Brig.Template
     Brig.User.API.Handle
     Brig.User.Auth
     Brig.User.Auth.Cookie
@@ -193,7 +190,6 @@ library
     Brig.User.EJPD
     Brig.User.Search.Index
     Brig.User.Search.SearchIndex
-    Brig.User.Template
     Brig.Version
 
   hs-source-dirs:  src
@@ -259,7 +255,6 @@ library
     , metrics-core                          >=0.3
     , metrics-wai                           >=0.3
     , mime
-    , mime-mail                             >=0.4
     , mmorph
     , MonadRandom                           >=0.5
     , mtl                                   >=2.1

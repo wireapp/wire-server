@@ -281,7 +281,7 @@ let
   #
   # extraContents :: Map Exe Derivation -> Map Text [Derivation]
   extraContents = exes: {
-    brig = [ brig-templates ];
+    background-worker = [ brig-templates ];
     brig-integration = [ brig-templates pkgs.mls-test-cli pkgs.awscli2 ];
     galley-integration = [ pkgs.mls-test-cli pkgs.awscli2 ];
     stern-integration = [ pkgs.awscli2 ];

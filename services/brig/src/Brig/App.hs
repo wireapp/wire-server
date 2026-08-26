@@ -30,8 +30,6 @@ module Brig.App
     mkIndexEnv,
     newEnv,
     closeEnv,
-    providerTemplatesWithLocale,
-    teamTemplatesWithLocale,
     invitationUrlTemplates,
     cargoholdLens,
     galleyLens,
@@ -45,15 +43,11 @@ module Brig.App
     casClientLens,
     hasqlPoolLens,
     emailSenderLens,
+    invitationUrlsLens,
     awsEnvLens,
     appLoggerLens,
     internalEventsLens,
     requestIdLens,
-    userTemplatesLens,
-    providerTemplatesLens,
-    teamTemplatesLens,
-    templateBrandingLens,
-    templateBrandingAsMapLens,
     httpManagerLens,
     http2ManagerLens,
     extGetManagerLens,
@@ -110,14 +104,10 @@ import Brig.Calling qualified as Calling
 import Brig.DeleteQueue.Interpreter
 import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
 import Brig.Options qualified as Opt
-import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
-import Brig.Team.Template
-import Brig.Template (InvitationUrlTemplates (..), genTemplateBranding, genTemplateBrandingMap)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
-import Brig.User.Template
 import Cassandra (runClient)
 import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
@@ -139,6 +129,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
+import Data.Text.Template (template)
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
@@ -164,14 +155,12 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Util.SuffixNamer
 import Wire.API.Federation.Error (federationNotImplemented)
-import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
 import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.Options qualified as EmailOpt
-import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
-import Wire.EmailSubsystem.Templates.User
+import Wire.EmailSubsystem.Template (InvitationUrlTemplates (..), TeamOpts (..))
 import Wire.ExternalAccess.External
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
@@ -200,15 +189,11 @@ data Env = Env
     casClient :: Cas.ClientState,
     hasqlPool :: HasqlPool.Pool,
     emailSender :: EmailAddress,
+    invitationUrls :: InvitationUrlTemplates,
     awsEnv :: AWS.Env,
     appLogger :: Logger,
     internalEvents :: QueueEnv,
     requestId :: RequestId,
-    userTemplates :: Localised UserTemplates,
-    providerTemplates :: Localised ProviderTemplates,
-    teamTemplates :: Localised TeamTemplates,
-    templateBranding :: TemplateBranding,
-    templateBrandingAsMap :: Map Text Text,
     httpManager :: Manager,
     http2Manager :: Http2Manager,
     extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
@@ -262,11 +247,6 @@ newEnv opts = do
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
-  utp <- loadUserTemplates opts
-  ptp <- loadProviderTemplates opts
-  ttp <- loadTeamTemplatesWithBrigOpts opts
-  let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
-      brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
   emailAWSOpts <- emailConn $ Opt.email (Opt.emailSMS opts)
   aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
   zau <- initZAuth opts
@@ -318,15 +298,15 @@ newEnv opts = do
         casClient = cas,
         hasqlPool = hasqlPool,
         emailSender = opts.emailSMS.general.emailSender,
+        invitationUrls =
+          InvitationUrlTemplates
+            { personalUser = template opts.emailSMS.team.tExistingUserInvitationUrl,
+              newUser = template opts.emailSMS.team.tInvitationUrl
+            },
         awsEnv = aws, -- used by `journalEvent` directly
         appLogger = lgr,
         internalEvents = (eventsQueue :: QueueEnv),
         requestId = RequestId defRequestId,
-        userTemplates = utp,
-        providerTemplates = ptp,
-        teamTemplates = ttp,
-        templateBranding = branding,
-        templateBrandingAsMap = brandingAsMap,
         httpManager = mgr,
         http2Manager = h2Mgr,
         extGetManager = ext,
@@ -463,22 +443,8 @@ initCassandra o g =
     (Just schemaVersion)
     g
 
-teamTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
-teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)
-
-providerTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
-providerTemplatesWithLocale l = forLocale l <$> asks (.providerTemplates)
-
 invitationUrlTemplates :: (MonadReader Env m) => m InvitationUrlTemplates
-invitationUrlTemplates = do
-  -- this works because team templates is not affected by `forLocale`; it is useful where we
-  -- use the `TeamTemplates` only for finding invitation url templates (those are not localized).
-  teamTemplates <- snd <$> teamTemplatesWithLocale Nothing
-  pure $
-    InvitationUrlTemplates
-      { personalUser = teamTemplates.existingUserInvitationEmail.invitationEmailUrl,
-        newUser = teamTemplates.invitationEmail.invitationEmailUrl
-      }
+invitationUrlTemplates = asks (.invitationUrls)
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

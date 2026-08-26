@@ -125,7 +125,7 @@ import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem as ClientSubsystem
 import Wire.ClientSubsystem.Error
 import Wire.DeleteQueue
-import Wire.EmailSending (EmailSending)
+import Wire.EmailSending.Queueing (EmailQueueing)
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -206,7 +206,7 @@ servicesAPI =
 providerAPI ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
     Member RateLimit r,
@@ -242,7 +242,7 @@ internalProviderAPI =
 
 newAccount ::
   ( Member GalleyAPIAccess r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
     Member RateLimit r
@@ -284,7 +284,7 @@ newAccount ip new = do
 
 activateAccountKey ::
   ( Member GalleyAPIAccess r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member VerificationCodeSubsystem r
   ) =>
   Code.Key ->
@@ -353,7 +353,7 @@ login l = do
   s <- asks (.settings)
   pure $ ProviderTokenCookie (ProviderToken token) (not s.cookieInsecure)
 
-beginPasswordReset :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Public.PasswordReset -> (Handler r) ()
+beginPasswordReset :: (Member GalleyAPIAccess r, Member EmailQueueing r, Member VerificationCodeSubsystem r) => Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
   guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
@@ -407,7 +407,7 @@ updateAccountProfile pid upd = do
 
 updateAccountEmail ::
   ( Member GalleyAPIAccess r,
-    Member EmailSending r,
+    Member EmailQueueing r,
     Member VerificationCodeSubsystem r
   ) =>
   ProviderId ->
