@@ -146,13 +146,12 @@ ensureConnectedOrSameTeam lusr others = do
   ensureConnectedToLocalsOrSameTeam lusr locals
   ensureConnectedToRemotes lusr remotes
 
--- | Check that the given user is part of the same team(s) as the other users
--- OR that there is a connection (either direct or implicit via team
--- collaborations.)
+-- | Check that the given users are connected to `u`, or that `u` is
+-- member of the same team, or that there is a collaboration.
 --
--- Team members are always considered connected, so we only check
--- 'ensureConnected' for non-team-members of the _given_ user. Implicit
--- connections are created per team, so we count them as team membership here.
+-- A collaboration exists between users `u` and `v` if either `u` is
+-- collaborating with `v`s team and has "implicit connection"
+-- permissions, or that `v` is collaborating in `u`s team.
 ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
@@ -165,26 +164,29 @@ ensureConnectedToLocalsOrSameTeam ::
   Sem r ()
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
+  -- own team
   uTeams <- getUserTeams u
+  -- teams with which `u` collaborates
   icTeams <- getUserCollaborationTeams
+  -- users collaborating with `u`s team
   icUsers <- getTeamCollaborators uTeams
-  -- We collect all the relevant uids from same teams as the origin user
+  -- Subset of uids from same team as `u` (the user who wants to connect)
   sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
     fmap (view Mem.userId) <$> TeamSubsystem.internalSelectTeamMembers team uids
-  -- Do not check connections for users that are on the same team
+  -- Do not check connections for team members and collaborators
   ensureConnectedToLocals u ((uids \\ join sameTeamUids) \\ icUsers)
   where
-    -- Teams in which the user who wants to reach out is member with
-    -- `ImplicitConnection` permission.
+    -- Teams in which `u` (the user who wants to connect) is
+    -- collaborator with `ImplicitConnection` permission.
     getUserCollaborationTeams :: (Member TeamCollaboratorsSubsystem r') => Sem r' [TeamId]
     getUserCollaborationTeams =
       gTeam
         <$$> (filter (flip hasPermission CollaboratorPermission.ImplicitConnection) <$> internalGetTeamCollaborations u)
 
-    -- We do not check the permissions of team collaborators if a user tries to
-    -- reach out to them (if they are in the same team.) The reasoning behind
-    -- this is that team collaborators have implicitly agreed to be
-    -- collaborated with.
+    -- We do not check the permissions of team collaborators if a user
+    -- tries to reach out to them (if they are in the same team.) The
+    -- reasoning behind this is that team collaborators have
+    -- implicitly agreed to be collaborated with.
     getTeamCollaborators :: (Member TeamCollaboratorsSubsystem r') => [TeamId] -> Sem r' [UserId]
     getTeamCollaborators teams = gUser <$$> internalGetTeamCollaboratorsWithIds (Set.fromList teams) (Set.fromList uids)
 
