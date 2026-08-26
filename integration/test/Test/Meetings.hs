@@ -329,6 +329,32 @@ testMeetingUpdateUnauthorized = do
 
   putMeeting otherUser domain meetingId update >>= assertStatus 404
 
+-- | WPB-28272: PUT /meetings/{domain}/{id} accepts an optional @tzid@ and
+-- updates the stored time zone; omitting it (as legacy clients do) keeps the
+-- stored value; an invalid tzid is rejected at decode time.
+testMeetingUpdateTzid :: (HasCallStack) => App ()
+testMeetingUpdateTzid = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let newMeeting = defaultMeetingJson "Tzid Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  meeting %. "tzid" `shouldMatch` ("Europe/Berlin" :: String)
+
+  updated <- putMeeting owner domain meetingId (object ["tzid" .= ("America/New_York" :: String)]) >>= getJSON 200
+  updated %. "tzid" `shouldMatch` ("America/New_York" :: String)
+  updated %. "title" `shouldMatch` ("Tzid Meeting" :: String)
+
+  fetched <- getMeeting owner domain meetingId >>= getJSON 200
+  fetched %. "tzid" `shouldMatch` ("America/New_York" :: String)
+
+  putMeeting owner domain meetingId (object ["title" .= ("Renamed" :: String)]) >>= assertStatus 200
+  fetched2 <- getMeeting owner domain meetingId >>= getJSON 200
+  fetched2 %. "tzid" `shouldMatch` ("America/New_York" :: String)
+  fetched2 %. "title" `shouldMatch` ("Renamed" :: String)
+
+  putMeeting owner domain meetingId (object ["tzid" .= ("not-a-zone" :: String)]) >>= assertLabel 400 "bad-request"
+
 testMeetingListEmpty :: (HasCallStack) => App ()
 testMeetingListEmpty = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
