@@ -93,6 +93,10 @@ meetingsCleanup:
   batchSize: 100
   schedule: "* * * * *"  # Run every minute
 
+# Cleanup of expired activation keys (nightly; every minute in CI)
+activationKeysCleanup:
+  schedule: "* * * * *"
+
 # license: <base64url licence payload>  # same payload as galley's settings.license
 postgresMigration:
   conversation: postgresql
