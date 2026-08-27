@@ -119,13 +119,18 @@ getTeamSizeImpl cfg tid = do
           { ES.boolQueryMustMatch = [teamQ, termQ "type" "app"]
           }
 
+    -- Collaborators are not members of the team, they are users (of other teams
+    -- or of no team) that collaborate with it.
+    collaboratorQuery = termQ "collaborating_teams" (idToText tid)
+
     search =
       (ES.mkSearch Nothing Nothing)
         { ES.size = ES.Size 0,
           ES.aggBody =
             Just $
-              ES.mkAggregations "regulars" (ES.FilterAgg (ES.FilterAggregation (ES.Filter regularQuery) Nothing))
+              ES.mkAggregations "teamSize" (ES.FilterAgg (ES.FilterAggregation (ES.Filter regularQuery) Nothing))
                 <> ES.mkAggregations "apps" (ES.FilterAgg (ES.FilterAggregation (ES.Filter appQuery) Nothing))
+                <> ES.mkAggregations "collaborators" (ES.FilterAgg (ES.FilterAggregation (ES.Filter collaboratorQuery) Nothing))
         }
 
 upsertImpl ::
