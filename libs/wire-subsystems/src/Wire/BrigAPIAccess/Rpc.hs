@@ -82,131 +82,115 @@ interpretBrigAccess ::
   Sem (BrigAPIAccess ': r) a ->
   Sem r a
 interpretBrigAccess brigEndpoint =
-  interpret $ runInputConst brigEndpoint . brigAccessRpcHandler
-
--- | Handles a single 'BrigAPIAccess' action by calling brig over HTTP.
---
--- Exposed separately from 'interpretBrigAccess' so that
--- 'Wire.BrigAPIAccess.Local.interpretBrigAPIAccessLocally' can delegate the
--- actions it does not implement itself.  'BrigAPIAccess' is a first-order
--- effect, so @m@ is unconstrained and any handler's action can be passed here.
-brigAccessRpcHandler ::
-  ( Member TinyLog r,
-    Member Rpc r,
-    Member (Error ParseException) r,
-    Member (Error RpcException) r,
-    Member (Input Endpoint) r
-  ) =>
-  BrigAPIAccess m a ->
-  Sem r a
-brigAccessRpcHandler = \case
-  GetConnectionsUnqualified uids muids mrel -> do
-    getConnectionsUnqualified uids muids mrel
-  GetConnections uids mquids mrel -> do
-    getConnections uids mquids mrel
-  PutConnectionInternal uc -> do
-    putConnectionInternal uc
-  ReauthUser uid reauth -> do
-    reAuthUser uid reauth
-  LookupActivatedUsers uids -> do
-    lookupActivatedUsers uids
-  GetUsers uids -> do
-    getUsers uids
-  DeleteUser uid -> do
-    deleteUser uid
-  GetContactList uid -> do
-    getContactList uid
-  GetUserExportData uid -> do
-    getUserExportData uid
-  GetSize tid -> do
-    getSize tid
-  LookupClients uids -> do
-    lookupClients uids
-  LookupClientsFull uids -> do
-    lookupClientsFull uids
-  NotifyClientsAboutLegalHoldRequest self other pk -> do
-    notifyClientsAboutLegalHoldRequest self other pk
-  GetLegalHoldAuthToken uid mpwd -> do
-    getLegalHoldAuthToken uid mpwd
-  AddLegalHoldClientToUserEither uid conn pks lpk -> do
-    addLegalHoldClientToUser uid conn pks lpk
-  RemoveLegalHoldClientFromUser uid -> do
-    removeLegalHoldClientFromUser uid
-  GetAccountConferenceCallingConfigClient uid -> do
-    getAccountConferenceCallingConfigClient uid
-  GetLocalMLSClients qusr ss -> do
-    getLocalMLSClients qusr ss
-  GetLocalMLSClient qusr cid ss -> do
-    getLocalMLSClient qusr cid ss
-  UpdateSearchVisibilityInbound status -> do
-    updateSearchVisibilityInbound status
-  DeleteBot convId botId ->
-    deleteBot convId botId
-  UpdateSearchIndex uid -> updateSearchIndex uid
-  GetAccountsBy localGetBy ->
-    getAccountsBy localGetBy
-  GetUsersByVariousKeys uids handles emails includePendingInvitations ->
-    getUsersByVariousKeys uids handles emails includePendingInvitations
-  CreateGroupInternal managedBy teamId creatorUserId newGroup ->
-    createGroupInternal managedBy teamId creatorUserId newGroup
-  GetGroupsInternal tid mbFilter mbManagedBy startIndex mbCount ->
-    getGroupsInternal tid mbFilter mbManagedBy startIndex mbCount
-  GetGroupInternal tid gid includeChannels ->
-    getGroupInternal tid gid includeChannels
-  UpdateGroup req ->
-    updateGroup req
-  DeleteGroupInternal managedBy teamId groupId ->
-    deleteGroupInternal managedBy teamId groupId
-  GetAppIdsForTeam teamId ->
-    getAppIdsForTeam teamId
-  SetAccountStatus uid status ->
-    setAccountStatus uid status
-  DeleteApp teamId uid ->
-    deleteApp teamId uid
-  CreateSAML uref buid teamid name managedBy handle richInfo mLocale role ->
-    createSAML uref buid teamid name managedBy handle richInfo mLocale role
-  CreateNoSAML extId email uid teamid uname locale role ->
-    createNoSAML extId email uid teamid uname locale role
-  UpdateEmail uid email activation ->
-    updateEmail uid email activation
-  GetAccount havePending uid ->
-    getAccount havePending uid
-  GetAccountByHandle handle ->
-    getByHandle handle
-  GetByEmail email ->
-    getByEmail email
-  SetName uid name ->
-    setName uid name
-  SetHandle uid handle ->
-    setHandle uid handle
-  SetManagedBy uid managedBy ->
-    setManagedBy uid managedBy
-  DeletePendingEmailUpdate uid ->
-    deletePendingEmailUpdate uid
-  SetSSOId uid ssoId ->
-    setSSOId uid ssoId
-  SetRichInfo uid richInfo ->
-    setRichInfo uid richInfo
-  SetLocale uid mLocale ->
-    setLocale uid mLocale
-  GetRichInfo uid ->
-    getRichInfo uid
-  CheckHandleAvailable handle ->
-    checkHandleAvailable handle
-  SsoLogin uid mLabel ->
-    ssoLogin uid mLabel
-  GetStatus uid ->
-    getStatus uid
-  GetStatusMaybe uid ->
-    getStatusMaybe uid
-  SetStatus uid status ->
-    setStatus uid status
-  GetDefaultUserLocale ->
-    getDefaultUserLocale
-  CheckAdminGetTeamId uid ->
-    checkAdminGetTeamId uid
-  SendSAMLIdPChangedEmail notif ->
-    sendSAMLIdPChangedEmail notif
+  interpret $
+    runInputConst brigEndpoint . \case
+      GetConnectionsUnqualified uids muids mrel -> do
+        getConnectionsUnqualified uids muids mrel
+      GetConnections uids mquids mrel -> do
+        getConnections uids mquids mrel
+      PutConnectionInternal uc -> do
+        putConnectionInternal uc
+      ReauthUser uid reauth -> do
+        reAuthUser uid reauth
+      LookupActivatedUsers uids -> do
+        lookupActivatedUsers uids
+      GetUsers uids -> do
+        getUsers uids
+      DeleteUser uid -> do
+        deleteUser uid
+      GetContactList uid -> do
+        getContactList uid
+      GetUserExportData uid -> do
+        getUserExportData uid
+      GetSize tid -> do
+        getSize tid
+      LookupClients uids -> do
+        lookupClients uids
+      LookupClientsFull uids -> do
+        lookupClientsFull uids
+      NotifyClientsAboutLegalHoldRequest self other pk -> do
+        notifyClientsAboutLegalHoldRequest self other pk
+      GetLegalHoldAuthToken uid mpwd -> do
+        getLegalHoldAuthToken uid mpwd
+      AddLegalHoldClientToUserEither uid conn pks lpk -> do
+        addLegalHoldClientToUser uid conn pks lpk
+      RemoveLegalHoldClientFromUser uid -> do
+        removeLegalHoldClientFromUser uid
+      GetAccountConferenceCallingConfigClient uid -> do
+        getAccountConferenceCallingConfigClient uid
+      GetLocalMLSClients qusr ss -> do
+        getLocalMLSClients qusr ss
+      GetLocalMLSClient qusr cid ss -> do
+        getLocalMLSClient qusr cid ss
+      UpdateSearchVisibilityInbound status -> do
+        updateSearchVisibilityInbound status
+      DeleteBot convId botId ->
+        deleteBot convId botId
+      UpdateSearchIndex uid -> updateSearchIndex uid
+      GetAccountsBy localGetBy ->
+        getAccountsBy localGetBy
+      GetUsersByVariousKeys uids handles emails includePendingInvitations ->
+        getUsersByVariousKeys uids handles emails includePendingInvitations
+      CreateGroupInternal managedBy teamId creatorUserId newGroup ->
+        createGroupInternal managedBy teamId creatorUserId newGroup
+      GetGroupsInternal tid mbFilter mbManagedBy startIndex mbCount ->
+        getGroupsInternal tid mbFilter mbManagedBy startIndex mbCount
+      GetGroupInternal tid gid includeChannels ->
+        getGroupInternal tid gid includeChannels
+      UpdateGroup req ->
+        updateGroup req
+      DeleteGroupInternal managedBy teamId groupId ->
+        deleteGroupInternal managedBy teamId groupId
+      GetAppIdsForTeam teamId ->
+        getAppIdsForTeam teamId
+      SetAccountStatus uid status ->
+        setAccountStatus uid status
+      DeleteApp teamId uid ->
+        deleteApp teamId uid
+      CreateSAML uref buid teamid name managedBy handle richInfo mLocale role ->
+        createSAML uref buid teamid name managedBy handle richInfo mLocale role
+      CreateNoSAML extId email uid teamid uname locale role ->
+        createNoSAML extId email uid teamid uname locale role
+      UpdateEmail uid email activation ->
+        updateEmail uid email activation
+      GetAccount havePending uid ->
+        getAccount havePending uid
+      GetAccountByHandle handle ->
+        getByHandle handle
+      GetByEmail email ->
+        getByEmail email
+      SetName uid name ->
+        setName uid name
+      SetHandle uid handle ->
+        setHandle uid handle
+      SetManagedBy uid managedBy ->
+        setManagedBy uid managedBy
+      DeletePendingEmailUpdate uid ->
+        deletePendingEmailUpdate uid
+      SetSSOId uid ssoId ->
+        setSSOId uid ssoId
+      SetRichInfo uid richInfo ->
+        setRichInfo uid richInfo
+      SetLocale uid mLocale ->
+        setLocale uid mLocale
+      GetRichInfo uid ->
+        getRichInfo uid
+      CheckHandleAvailable handle ->
+        checkHandleAvailable handle
+      SsoLogin uid mLabel ->
+        ssoLogin uid mLabel
+      GetStatus uid ->
+        getStatus uid
+      GetStatusMaybe uid ->
+        getStatusMaybe uid
+      SetStatus uid status ->
+        setStatus uid status
+      GetDefaultUserLocale ->
+        getDefaultUserLocale
+      CheckAdminGetTeamId uid ->
+        checkAdminGetTeamId uid
+      SendSAMLIdPChangedEmail notif ->
+        sendSAMLIdPChangedEmail notif
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do

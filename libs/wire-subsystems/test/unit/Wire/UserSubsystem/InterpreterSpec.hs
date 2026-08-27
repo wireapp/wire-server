@@ -1110,7 +1110,7 @@ spec = describe "UserSubsystem.Interpreter" do
             searchee = searcheeNoHandle {handle = Just searcheeHandle} :: StoredUser
 
             storedUserToDoc :: StoredUser -> UserDoc
-            storedUserToDoc user = indexUserToDoc defaultSearchVisibilityInbound Nothing [] (storedUserToIndexUser user)
+            storedUserToDoc user = indexUserToDoc defaultSearchVisibilityInbound Nothing (storedUserToIndexUser user)
 
             indexFromStoredUsers :: [StoredUser] -> UserIndex
             indexFromStoredUsers storedUsers = do
