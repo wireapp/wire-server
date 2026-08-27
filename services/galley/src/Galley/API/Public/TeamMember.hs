@@ -24,7 +24,10 @@ import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team.Collaborator
+import Wire.API.Team.Size
+import Wire.BrigAPIAccess (getSize)
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 teamMemberAPI :: API TeamMemberAPI GalleyEffects
 teamMemberAPI =
@@ -38,8 +41,8 @@ teamMemberAPI =
     <@> mkNamedAPI @"get-team-members-csv" Export.getTeamMembersCSV
     <@> mkNamedAPI @"add-team-collaborator"
       ( \zuid tid (NewTeamCollaborator uid perms) -> do
-          n <- ensureNotTooLarge tid
-          ensureNotTooLargeForLegalHold tid (n.teamSize + n.apps + n.collaborators + 1)
+          n <- getSize tid
+          TeamSubsystem.ensureNotTooLargeForLegalHold tid (n.teamSize + n.apps + n.collaborators + 1)
           createTeamCollaborator zuid uid tid perms
       )
     <@> mkNamedAPI @"get-team-collaborators" getAllTeamCollaborators

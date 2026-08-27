@@ -26,13 +26,22 @@ import Data.Qualified
 import Data.Range
 import Data.Singletons (Demote, Sing, SingKind, fromSing)
 import Imports
+import Numeric.Natural
 import Polysemy
+import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Team.Feature (FeatureStatus (FeatureStatusEnabled), LegalholdConfig)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults (..))
 import Wire.API.Team.LegalHold (UserLegalHoldStatusResponse)
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Error
 import Wire.API.Team.Member.Info (TeamMemberInfoList)
+import Wire.API.Team.Size (TeamSize (..))
+import Wire.BrigAPIAccess (BrigAPIAccess, getSize)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
+import Wire.LegalHold (computeLegalHoldFeatureStatus)
+import Wire.LegalHoldStore (LegalHoldStore)
 
 data PermissionCheckArgs teamAssociation where
   PermissionCheckArgs ::
@@ -144,3 +153,74 @@ checkConsent ::
   Sem r ConsentGiven
 checkConsent teamsOfUsers other = do
   consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
+
+-- | Ensure that a team has fewer members than the given limit (usually
+-- @settings.maxTeamSize@).  Returns the team size as it was before adding
+-- anybody.
+ensureNotTooLarge ::
+  ( Member BrigAPIAccess r,
+    Member (ErrorS 'TooManyTeamMembers) r
+  ) =>
+  Word32 ->
+  TeamId ->
+  Sem r TeamSize
+ensureNotTooLarge maxSize tid = do
+  tSize <- getSize tid
+  unless (tSize.teamSize < fromIntegral maxSize) $
+    throwS @'TooManyTeamMembers
+  pure tSize
+
+-- | Ensure that a team doesn't exceed the member count limit for the LegalHold
+-- feature. A team with more members than the fanout limit is too large, because
+-- the fanout limit would prevent turning LegalHold feature _off_ again (for
+-- details see 'Galley.API.LegalHold.removeSettings').
+--
+-- If LegalHold is configured for whitelisted teams only we consider the team
+-- size unlimited, because we make the assumption that these teams won't turn
+-- LegalHold off after activation.
+--  FUTUREWORK: Find a way around the fanout limit.
+ensureNotTooLargeForLegalHold ::
+  forall r.
+  ( Member LegalHoldStore r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  TeamId ->
+  Natural ->
+  Sem r ()
+ensureNotTooLargeForLegalHold tid teamSize =
+  whenM (isLegalHoldEnabledForTeam tid) $
+    unlessM (teamSizeBelowLimit teamSize) $
+      throwS @'TooManyTeamMembersOnTeamWithLegalhold
+
+isLegalHoldEnabledForTeam ::
+  forall r.
+  ( Member LegalHoldStore r,
+    Member FeaturesConfigSubsystem r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
+  ) =>
+  TeamId ->
+  Sem r Bool
+isLegalHoldEnabledForTeam tid = do
+  dbFeature <- getDbFeatureRawInternal tid
+  status <- computeLegalHoldFeatureStatus tid dbFeature
+  pure $ status == FeatureStatusEnabled
+
+teamSizeBelowLimit ::
+  ( Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
+  ) =>
+  Natural ->
+  Sem r Bool
+teamSizeBelowLimit teamSize = do
+  limit <- fromIntegral . fromRange <$> input @FanoutLimit
+  let withinLimit = teamSize <= limit
+  featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
+  case featureLegalHold of
+    FeatureLegalHoldDisabledPermanently -> pure withinLimit
+    FeatureLegalHoldDisabledByDefault -> pure withinLimit
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+      -- unlimited, see docs of 'ensureNotTooLargeForLegalHold'
+      pure True

@@ -49,8 +49,6 @@ module Galley.API.Teams
     uncheckedUpdateTeamMember,
     userIsTeamOwner,
     canUserJoinTeam,
-    ensureNotTooLarge,
-    ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
     internalDeleteBindingTeam,
     updateTeamCollaborator,
@@ -80,7 +78,6 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.App
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
-import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -1021,31 +1018,6 @@ ensureNotElevated targetPermissions member =
     )
     $ throwS @'InvalidPermissions
 
--- | Ensure that a team doesn't exceed the member count limit for the LegalHold
--- feature. A team with more members than the fanout limit is too large, because
--- the fanout limit would prevent turning LegalHold feature _off_ again (for
--- details see 'Galley.API.LegalHold.removeSettings').
---
--- If LegalHold is configured for whitelisted teams only we consider the team
--- size unlimited, because we make the assumption that these teams won't turn
--- LegalHold off after activation.
---  FUTUREWORK: Find a way around the fanout limit.
-ensureNotTooLargeForLegalHold ::
-  forall r.
-  ( Member LegalHoldStore r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member (Input FanoutLimit) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FeaturesConfigSubsystem r
-  ) =>
-  TeamId ->
-  Natural ->
-  Sem r ()
-ensureNotTooLargeForLegalHold tid teamSize =
-  whenM (isLegalHoldEnabledForTeam tid) $
-    unlessM (teamSizeBelowLimit teamSize) $
-      throwS @'TooManyTeamMembersOnTeamWithLegalhold
-
 addTeamMemberInternal ::
   ( Member E.BrigAPIAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
@@ -1072,7 +1044,8 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeAfterAdd <- do
-    n <- ensureNotTooLarge tid
+    maxSize <- inputs @Opts (^. settings . maxTeamSize)
+    n <- TeamSubsystem.ensureNotTooLarge maxSize tid
     uType <-
       E.getUser (new ^. userId) <&> \case
         Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
@@ -1085,7 +1058,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
         -- https://wearezeta.atlassian.net/browse/WPB-28095
         -- https://wearezeta.atlassian.net/browse/WPB-25521
         n {apps = n.apps + 1}
-  ensureNotTooLargeForLegalHold tid (sizeAfterAdd.teamSize + sizeAfterAdd.apps + sizeAfterAdd.collaborators)
+  TeamSubsystem.ensureNotTooLargeForLegalHold tid (sizeAfterAdd.teamSize + sizeAfterAdd.apps + sizeAfterAdd.collaborators)
 
   admins <- E.getTeamAdmins tid
   let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
@@ -1111,20 +1084,6 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeAfterAdd
-
-ensureNotTooLarge ::
-  ( Member E.BrigAPIAccess r,
-    Member (ErrorS 'TooManyTeamMembers) r,
-    Member (Input Opts) r
-  ) =>
-  TeamId ->
-  Sem r TeamSize
-ensureNotTooLarge teamid = do
-  o <- input
-  tSize <- E.getSize teamid
-  unless (teamSize tSize < fromIntegral (o ^. settings . maxTeamSize)) $
-    throwS @'TooManyTeamMembers
-  pure tSize
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
@@ -1167,7 +1126,7 @@ canUserJoinTeam tid = do
   when lhEnabled $ do
     sizeBeforeJoin <- E.getSize tid
     let sizeAfterJoin = sizeBeforeJoin {teamSize = sizeBeforeJoin.teamSize + 1}
-    ensureNotTooLargeForLegalHold tid (sizeAfterJoin.teamSize + sizeAfterJoin.apps + sizeAfterJoin.collaborators)
+    TeamSubsystem.ensureNotTooLargeForLegalHold tid (sizeAfterJoin.teamSize + sizeAfterJoin.apps + sizeAfterJoin.collaborators)
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
