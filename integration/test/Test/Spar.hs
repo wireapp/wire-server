@@ -157,6 +157,37 @@ testTeamInvitationWhenScimAccountExists = do
   user %. "managed_by" `shouldMatch` "scim"
   user %. "status" `shouldMatch` "active"
 
+-- | Ensure that unused team invitations are invalidated when the SCIM user
+-- gets deleted.
+testTeamInvitationUsedAfterScimUserDeleted :: (HasCallStack) => App ()
+testTeamInvitationUsedAfterScimUserDeleted = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scid <- createScimUser OwnDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+
+  code <-
+    getInvitationByEmail OwnDomain email
+      >>= getJSON 200
+      >>= getInvitationCodeForTeam OwnDomain tid
+      >>= getJSON 200
+      >>= (%. "code")
+      >>= asString
+
+  deleteScimUser OwnDomain token scid >>= assertSuccess
+
+  -- The invitation must no longer be usable: completing registration with
+  -- the previously-fetched code should fail, not resurrect the deleted
+  -- account. (This was bug WPB-28198)
+  registerUserWith OwnDomain email code "Eve" >>= assertStatus 400
+
+  getUsersByEmail OwnDomain [email] >>= getJSON 200 >>= asList >>= shouldBeEmpty
+
+  getInvitationByEmail OwnDomain email >>= assertStatus 404
+
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
   (owner, tid, _) <- createTeam OwnDomain 1

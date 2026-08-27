@@ -1170,7 +1170,7 @@ ensureAccountDeleted luid@(tUnqualified -> uid) = do
 -- states. Please change this order only with care!
 --
 -- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
--- as an effet operation
+-- as an effect operation
 -- FUTUREWORK: this does not need the whole User structure, only the User.
 deleteAccount ::
   ( Member (Embed HttpClientIO) r,
@@ -1197,8 +1197,10 @@ deleteAccount user = do
 
     PropertySubsystem.onUserDeleted uid
     UserStore.deleteUser user
-    for_ (userEmail user) $ \email ->
-      for_ (userTeam user) $ \tid ->
+    for_ (userTeam user) $ \tid -> do
+      -- Delete potentially pending team invitations for SCIM users
+      InvitationStore.deleteInvitation tid (userIdToInvitationId uid)
+      for_ (userEmail user) $ \email ->
         InvitationStore.deletePendingScimUser tid email uid
 
   traverse_ (removeUserFromAllGroups uid) user.userTeam

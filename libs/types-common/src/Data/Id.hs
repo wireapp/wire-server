@@ -42,6 +42,7 @@ module Data.Id
     idToText,
     idToString,
     invitationIdToUserId,
+    userIdToInvitationId,
     idObjectSchema,
     IdObject (..),
 
@@ -106,6 +107,10 @@ import Test.QuickCheck.Instances ()
 -- | Pending invitation users reuse the invitation UUID as the user UUID.
 invitationIdToUserId :: InvitationId -> UserId
 invitationIdToUserId = Id . toUUID
+
+-- | Pending invitation users reuse the invitation UUID as the user UUID.
+userIdToInvitationId :: UserId -> InvitationId
+userIdToInvitationId = Id . toUUID
 
 data IdTag
   = Asset
