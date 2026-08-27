@@ -213,6 +213,7 @@ type TeamMemberAPI =
            "add-team-collaborator"
            ( Summary "Add a collaborator to the team."
                :> From 'V10
+               :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
