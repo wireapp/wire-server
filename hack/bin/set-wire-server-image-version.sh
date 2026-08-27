@@ -11,7 +11,14 @@ charts=(proxy cassandra-migrations elasticsearch-index federator backoffice inte
 for chart in "${charts[@]}"; do
     values_file="$CHARTS_DIR/$chart/values.yaml"
     if [[ -f "$values_file" ]]; then
-        sed -i "s/^  tag: .*/  tag: $target_version/g" "$values_file"
+        if [[ "$chart" == "cassandra-migrations" ]]; then
+            # cassandra-migrations shares one images.tag across several images and
+            # has no adjacent repository: line, so anchor to the images: block to
+            # avoid stamping the (non-wire) jobDoneImage tag.
+            sed -i -E "/^images:/,/^[^[:space:]]/ s/^  tag: .*/  tag: $target_version/" "$values_file"
+        else
+            sed -i "s/^  tag: .*/  tag: $target_version/g" "$values_file"
+        fi
     fi
 done
 
@@ -19,4 +26,6 @@ done
 sed -i "s/^    tag: .*/    tag: $target_version/g" "$CHARTS_DIR/nginz/values.yaml"
 
 # Brig, Galley, Cargohold, BackgroundWorker, Cannon, Gundeck, and Spar are inlined into the umbrella chart.
-sed -i "s/^    tag: .*/    tag: $target_version/g" "$CHARTS_DIR/wire-server/values.yaml"
+# Anchored to quay.io/wire/ repository: lines so non-wire images (cannon's alpine
+# configuratorImage) keep their own tag instead of being stamped.
+sed -i -E "/^[[:space:]]*repository: quay\.io\/wire\//{n; s/^([[:space:]]*)tag: .*/\1tag: $target_version/}" "$CHARTS_DIR/wire-server/values.yaml"
