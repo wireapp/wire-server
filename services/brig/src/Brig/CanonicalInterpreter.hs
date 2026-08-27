@@ -56,6 +56,10 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.ActivationCodeStore.DualWrite (interpretActivationCodeStoreToCassandraAndPostgres)
 import Wire.ActivationCodeStore.Postgres (interpretActivationCodeStoreToPostgres)
+import Wire.ActivationCodeVerificationStore
+  ( ActivationCodeVerificationStore,
+    interpretActivationCodeVerificationStore,
+  )
 import Wire.AppStore
 import Wire.AppStore.Postgres
 import Wire.AppSubsystem
@@ -237,7 +241,9 @@ type BrigLowerLevelEffects =
      DomainVerificationChallengeStore,
      NonceStore,
      BlockListStore,
+     ActivationCodeVerificationStore,
      ActivationCodeStore,
+     BlockListStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -577,6 +583,7 @@ runBrigToIO e (AppT ma) = do
               . blockListStore
               . nonceStore
               . activationCodeStoreInterpreter
+              . interpretActivationCodeVerificationStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
