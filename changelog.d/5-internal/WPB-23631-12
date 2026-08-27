@@ -1,1 +1,0 @@
-Move `Galley.Effects.Queue` in `Wire.BoundedQueue`.

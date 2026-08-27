@@ -1,6 +1,0 @@
-Starting at API version V17, the `Meeting` type returned and accepted by the
-meetings endpoints carries `tzid` (IANA time zone) and drops the deprecated
-`trial` field; `end_time` is retained on both V17 and V16. The operator config
-`galley.config.settings.meetings.legacyTimeZone` (default `Europe/Berlin`) now
-applies only to meetings created by legacy clients (API < V17); reads no longer
-need it, as `tzid` is persisted `NOT NULL` (backfilled to `Europe/Berlin`).

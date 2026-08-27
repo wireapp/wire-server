@@ -1,1 +1,0 @@
-Meeting endpoints (`POST /meetings`, `PUT/DELETE /meetings/:domain/:id`, meeting invitation endpoints): errors have dedicated descriptions.

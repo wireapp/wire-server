@@ -1,4 +1,0 @@
-SCIM PATCH now supports the `emails` multi-valued attribute (e.g. Entra's
-`emails[type eq "work"].value`), so user emails can be updated via SCIM. Identity
-providers that previously hit a `can not lens into multi-valued attributes yet`
-error when provisioning emails now succeed.

@@ -1,1 +1,0 @@
-Extract MLS key-package handling into a subsystem and split Cassandra access into a dedicated store.

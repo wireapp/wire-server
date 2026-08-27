@@ -1,9 +1,0 @@
-* The `backgroundEffects` team feature flag is **deprecated** (WPB-27912). Its
-  default is now **enabled and locked**, and the Helm configuration override for
-  `backgroundEffects` has been removed from `charts/wire-server`. The flag's
-  data type and its public/internal HTTP endpoints are retained for backward
-  compatibility; any Helm overrides for `backgroundEffects` are now ignored and
-  can be removed. The public/internal HTTP endpoints return 404 at API version
-  v17 and remain available through v16; the flag type remains deprecated. The
-  aggregate `GET /feature-configs` and `GET /teams/:tid/features` endpoints
-  continue to include `backgroundEffects` at all API versions, including v17.

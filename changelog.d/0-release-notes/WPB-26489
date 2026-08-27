@@ -1,7 +1,0 @@
-Background-worker now runs additional jobs and has new settings. The `jobs` settings configure the dispatcher, worker, retry, shutdown, and reaper behavior, with defaults matching the existing behavior. The initial queues are `meetings` and `conversations`, with one worker pool assigned to each queue.
-
-Operators should size the background-worker PostgreSQL pool and PostgreSQL `max_connections` for this workload and the transient connection used while acquiring the migration lock; that connection is closed after migrations complete. `jobs.workerThreads` defaults to `1`.
-
-Both worker pools use the same PostgreSQL pool. Connections are borrowed for active job transactions and short-lived worker operations, rather than being reserved permanently per pool. LISTEN/NOTIFY is disabled, so the job runner does not open an additional listener connection.
-
-The Helm chart sets `background-worker.terminationGracePeriodSeconds` to `40`, providing a margin over the default `jobs.gracefulShutdownTimeout` of `30s`. Adjust both settings together if changing the shutdown timeout.

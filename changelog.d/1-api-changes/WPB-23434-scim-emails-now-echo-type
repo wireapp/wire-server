@@ -1,7 +1,0 @@
-SCIM user resources returned by spar now include `type` on stored email
-addresses. Previously spar persisted no `type`, so SCIM PATCH operations with a
-value-path filter like `emails[type eq "work"].value` (as sent by Microsoft
-Entra ID) never matched the stored entry and silently appended a duplicate
-email instead of updating the address in place. Clients that compare full SCIM
-user payloads rather than individual fields (e.g. strict equality on the
-`emails` array) will see the additional `type` member. (WPB-23434)
