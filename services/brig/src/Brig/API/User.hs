@@ -116,6 +116,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.ActivationCodeStore hiding (mkActivationKey)
 import Wire.ActivationCodeStore qualified as ActivationCode
+import Wire.ActivationCodeVerificationStore (ActivationCodeVerificationStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
@@ -364,6 +365,7 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member InvitationStore r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member RateLimit r
   ) =>
@@ -389,6 +391,7 @@ createUserV16 ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member InvitationStore r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member RateLimit r
   ) =>
@@ -416,6 +419,7 @@ createUserWith ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member InvitationStore r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member RateLimit r
   ) =>
@@ -767,8 +771,8 @@ activate ::
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
     Member UserStore r,
-  Member UserKeyStore r,
-  Member ActivationCodeStore r
+    Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -784,8 +788,8 @@ activateNoVerifyEmailDomain ::
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
     Member UserStore r,
-  Member UserKeyStore r,
-  Member ActivationCodeStore r
+    Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -801,8 +805,8 @@ activateWithCurrency ::
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
     Member UserStore r,
-  Member UserKeyStore r,
-  Member ActivationCodeStore r
+    Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r
   ) =>
   Bool ->
   ActivationTarget ->
@@ -836,8 +840,7 @@ activateWithCurrency verifyEmailDomain tgt code usr cur = do
       for_ tid $ \t -> liftSem $ GalleyAPIAccess.changeTeamStatus t Team.Active cur
 
 preverify ::
-  ( Member ActivationCodeStore r
-  ) =>
+  (Member ActivationCodeVerificationStore r) =>
   ActivationTarget ->
   ActivationCode ->
   ExceptT ActivationError (AppT r) (EmailKey, Maybe UserId)

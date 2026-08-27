@@ -2348,6 +2348,9 @@ background-worker:
     migrateNonce: false
     migrateConnections: false
     migrateActivationKeys: false
+    # Cleanup of expired activation keys in Postgres (nightly)
+    activationKeysCleanup:
+      schedule: "0 3 * * *"
 ```
 
 #### Migration for existing installations

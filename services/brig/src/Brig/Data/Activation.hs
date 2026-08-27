@@ -33,9 +33,13 @@ import Data.Text.Lazy qualified as LT
 import Imports
 import Polysemy
 import Wire.API.User
-import Wire.API.User.Password
 import Wire.API.User.Activation
+import Wire.API.User.Password
 import Wire.ActivationCodeStore
+import Wire.ActivationCodeVerificationStore
+  ( ActivationCodeVerificationStore,
+    verifyActivationCode,
+  )
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore qualified as Password
 import Wire.UserKeyStore
@@ -71,7 +75,7 @@ activateKey ::
     Member PasswordResetCodeStore r,
     Member UserStore r,
     Member UserKeyStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeVerificationStore r
   ) =>
   ActivationKey ->
   ActivationCode ->
@@ -134,9 +138,9 @@ activateKey k c u = do
         throwE . UserKeyExists . LT.fromStrict $
           fromEmail (emailKeyOrig key)
 
--- | Verify an activation code via the 'ActivationCodeStore' effect.
+-- | Verify an activation code via the 'ActivationCodeVerificationStore' effect.
 verifyCode ::
-  (Member ActivationCodeStore r) =>
+  (Member ActivationCodeVerificationStore r) =>
   ActivationKey ->
   ActivationCode ->
   ExceptT ActivationError (AppT r) (EmailKey, Maybe UserId)
