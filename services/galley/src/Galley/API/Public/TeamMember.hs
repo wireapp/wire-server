@@ -20,6 +20,7 @@ module Galley.API.Public.TeamMember where
 import Galley.API.Teams
 import Galley.API.Teams.Export qualified as Export
 import Galley.App
+import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team.Collaborator
@@ -36,7 +37,11 @@ teamMemberAPI =
     <@> mkNamedAPI @"update-team-member" updateTeamMember
     <@> mkNamedAPI @"get-team-members-csv" Export.getTeamMembersCSV
     <@> mkNamedAPI @"add-team-collaborator"
-      (\zuid tid (NewTeamCollaborator uid perms) -> createTeamCollaborator zuid uid tid perms)
+      ( \zuid tid (NewTeamCollaborator uid perms) -> do
+          n <- ensureNotTooLarge tid
+          ensureNotTooLargeForLegalHold tid (n.teamSize + n.apps + n.collaborators + 1)
+          createTeamCollaborator zuid uid tid perms
+      )
     <@> mkNamedAPI @"get-team-collaborators" getAllTeamCollaborators
     <@> mkNamedAPI @"update-team-collaborator" updateTeamCollaborator
     <@> mkNamedAPI @"remove-team-collaborator" removeTeamCollaborator
