@@ -23,12 +23,12 @@ where
 import Cassandra (ClientState)
 import Imports
 import Polysemy
+import Wire.API.User.Activation
+import Wire.API.User.EmailAddress
 import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCodeStore
 import Wire.ActivationCodeStore.Cassandra qualified as Cassandra
 import Wire.ActivationCodeStore.Postgres qualified as Postgres
-import Wire.API.User.Activation
-import Wire.API.User.EmailAddress
 import Wire.Postgres
 import Wire.UserKeyStore
 
@@ -57,10 +57,12 @@ interpretActivationCodeStoreToCassandraAndPostgres cs = interpret $ \case
   DeleteActivationCode ek -> do
     Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.deleteActivationCode ek
     Postgres.interpretActivationCodeStoreToPostgres $ ActivationCodeStore.deleteActivationCode ek
-  VerifyActivationCode key code -> do
-    -- Cassandra is the source of truth for reads; the Postgres result is
-    -- discarded for state convergence. A Postgres error fails the operation
-    -- (consistent with sibling stores).
-    result <- Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.verifyActivationCode key code
-    _ <- Postgres.interpretActivationCodeStoreToPostgres $ ActivationCodeStore.verifyActivationCode key code
-    pure result
+  LookupActivationKey key ->
+    -- Cassandra is the source of truth for reads.
+    Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.lookupActivationKey key
+  DecrementActivationRetries key -> do
+    Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.decrementActivationRetries key
+    Postgres.interpretActivationCodeStoreToPostgres $ ActivationCodeStore.decrementActivationRetries key
+  DeleteActivationKey key -> do
+    Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.deleteActivationKey key
+    Postgres.interpretActivationCodeStoreToPostgres $ ActivationCodeStore.deleteActivationKey key

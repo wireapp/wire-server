@@ -1064,6 +1064,10 @@ background-worker:
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
 
+    # Cleanup of expired activation keys in Postgres (nightly)
+    activationKeysCleanup:
+      schedule: "0 3 * * *"
+
   secrets: {}
 
   podSecurityContext:

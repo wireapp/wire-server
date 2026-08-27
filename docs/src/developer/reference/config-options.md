@@ -2100,6 +2100,9 @@ background-worker:
     migrateTeamFeatures: false
     migrateDomainRegistration: false
     migrateActivationKeys: false
+    # Cleanup of expired activation keys in Postgres (nightly)
+    activationKeysCleanup:
+      schedule: "0 3 * * *"
 ```
 
 #### Migration for existing installations
@@ -2152,6 +2155,7 @@ The current settings and their background-worker flags are:
          teamFeatures: migration-to-postgresql
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
+         activationKeys: migration-to-postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2159,9 +2163,7 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: false
        migrateDomainRegistration: false
        migrateUsers: false
-        activationKeys: migration-to-postgresql
-  background-worker:
-      migrateActivationKeys: false
+       migrateActivationKeys: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2203,7 +2205,7 @@ The current settings and their background-worker flags are:
    > to be saved, the operator must insert some value as `name` and/or
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
-  - `activationKeys`: `wire_activation_keys_migration_finished`
+   - `activationKeys`: `wire_activation_keys_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2218,6 +2220,7 @@ The current settings and their background-worker flags are:
          teamFeatures: postgresql
          domainRegistration: postgresql
          user: postgresql
+         activationKeys: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2225,6 +2228,7 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: false
        migrateDomainRegistration: false
        migrateUsers: false
+       migrateActivationKeys: false
    ```
 
 **How to run migrations independently or in batches**

@@ -224,6 +224,7 @@ library
     Wire.ActivationCodeStore.DualWrite
     Wire.ActivationCodeStore.Migration
     Wire.ActivationCodeStore.Postgres
+    Wire.ActivationCodeVerificationStore
     Wire.AppStore
     Wire.AppStore.Postgres
     Wire.AppSubsystem
