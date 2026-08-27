@@ -74,5 +74,5 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "user"
       <*> o .: "blockList"
       <*> o .: "passwordReset"
-      <*<*> o .: "customBackend"
+      <*> o .: "customBackend"
       <*> o .: "activationKeys"
