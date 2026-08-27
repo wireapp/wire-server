@@ -51,7 +51,6 @@ import Polysemy.TinyLog (TinyLog)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options
-import Wire.API.Team.Collaborator (TeamCollaboratorsError)
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
@@ -66,8 +65,6 @@ import Wire.Rpc
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics.IO
-import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
-import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
@@ -78,7 +75,6 @@ import Wire.UserStore.Postgres (interpretUserStorePostgres)
 type BrigIndexEffectStack =
   [ UserKeyStore,
     UserStore,
-    TeamCollaboratorsStore,
     IndexedUserStore,
     Error IndexedUserStoreError,
     IndexedUserMigrationStore,
@@ -90,7 +86,6 @@ type BrigIndexEffectStack =
     TinyLog,
     Input Hasql.Pool,
     Error UsageError,
-    Error TeamCollaboratorsError,
     Error ClientError,
     Embed IO,
     Final IO
@@ -137,7 +132,6 @@ runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationI
   runFinal
     . embedToFinal
     . throwErrorToIOFinal @ClientError
-    . throwErrorToIOFinal @TeamCollaboratorsError
     . throwPostgresUsageErrorToIOFinal
     . runInputConst pgPool
     . loggerToTinyLogReqId reqId logger
@@ -149,7 +143,6 @@ runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationI
     . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
-    . interpretTeamCollaboratorsStoreToPostgres
     . userStoreInterpreter
     . interpretUserKeyStoreCassandra casClient
     $ action

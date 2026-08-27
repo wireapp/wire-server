@@ -572,7 +572,7 @@ evalGalley e =
         . interpretTeamSubsystem teamSubsystemConfig
         . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
-        . interpretTeamCollaboratorsSubsystem (interpretBrigAccess (e ^. brig))
+        . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
         . runInputConst (e ^. reqId)
         . interpretJobSubsystem

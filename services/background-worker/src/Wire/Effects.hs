@@ -367,7 +367,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       )
     . runFeaturesConfigSubsystem
     . runInputSem getAllTeamFeaturesForServer
-    . interpretTeamCollaboratorsSubsystem (interpretBrigAccess env.brigEndpoint)
+    . interpretTeamCollaboratorsSubsystem
     . discardMeetingNotifier
     . interpretConversationSubsystem
   where
