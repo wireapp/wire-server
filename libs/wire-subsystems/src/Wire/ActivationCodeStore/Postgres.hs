@@ -18,12 +18,13 @@
 module Wire.ActivationCodeStore.Postgres
   ( interpretActivationCodeStoreToPostgres,
     insertActivationKeyRow,
+    deleteExpiredActivationKeys,
   )
 where
 
 import Data.Id (UserId)
-import Hasql.TH
 import Hasql.Statement qualified as Hasql
+import Hasql.TH
 import Imports
 import Polysemy
 import Util.Timeout
@@ -45,13 +46,40 @@ interpretActivationCodeStoreToPostgres = interpret $ \case
   DeleteActivationCode ek -> do
     key <- embed (mkActivationKey ek)
     runStatement key deleteCode
-  VerifyActivationCode key code -> verifyActivationCodeImpl key code
+  LookupActivationKey key -> do
+    mRow <- runStatement key selectForVerify
+    pure $ case mRow of
+      Just (keyType, keyText, code, user, retries) -> Just (ActivationKeyRow keyType keyText code user retries)
+      Nothing -> Nothing
+  DecrementActivationRetries key -> runStatement key decrementRetries
+  DeleteActivationKey key -> runStatement key deleteCode
+
+-- | Delete all expired activation key rows in bounded batches; returns the
+-- total number deleted.
+deleteExpiredActivationKeys :: (PGConstraints r) => Sem r Int
+deleteExpiredActivationKeys = go 0
+  where
+    batchSize :: Int32
+    batchSize = 10000
+    go !acc = do
+      deleted <- length <$> runStatement batchSize deleteExpiredBatch
+      if deleted >= fromIntegral batchSize then go (acc + deleted) else pure (acc + deleted)
+
+-- | Delete one batch of expired rows; returns one element per deleted row.
+deleteExpiredBatch :: Hasql.Statement Int32 [Int32]
+deleteExpiredBatch =
+  rmapPG
+    [vectorStatement|
+      DELETE FROM activation_keys
+      WHERE key IN (SELECT key FROM activation_keys WHERE expires_at <= now() LIMIT $1 :: int4)
+      RETURNING 1 :: int4
+    |]
 
 lookupCode :: Hasql.Statement ActivationKey (Maybe (Maybe UserId, ActivationCode))
 lookupCode =
   dimapPG
     [maybeStatement|
-      SELECT "user" :: uuid?, code :: text
+      SELECT user_id :: uuid?, code :: text
       FROM activation_keys
       WHERE key = ($1 :: text) AND expires_at > now()
     |]
@@ -78,41 +106,21 @@ insertActivationKeyRow ::
 insertActivationKeyRow (key, keyType, keyText, code, mUser, retries, ttlSecs) =
   runStatement (key, keyType, keyText, code, mUser, retries, ttlSecs) insertWithTtl
 
-verifyActivationCodeImpl ::
-  (PGConstraints r) =>
-  ActivationKey ->
-  ActivationCode ->
-  Sem r (Maybe (EmailKey, Maybe UserId))
-verifyActivationCodeImpl key code = do
-  mRow <- runStatement key selectForVerify
-  case mRow of
-    Just (keyType, keyText, storedCode, mUser, retries) ->
-      if
-        | storedCode == code -> pure (mkActivationScope keyType keyText mUser)
-        | retries >= 1 -> do
-            runStatement key decrementRetries
-            pure Nothing
-        | otherwise -> do
-            runStatement key deleteCode
-            pure Nothing
-    Nothing -> pure Nothing
-
 --------------------------------------------------------------------------------
 -- Statements
-
 
 insertWithTtl ::
   Hasql.Statement (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
 insertWithTtl =
   lmapPG
     [resultlessStatement|
-      INSERT INTO activation_keys (key, key_type, key_text, code, "user", retries, expires_at)
+      INSERT INTO activation_keys (key, key_type, key_text, code, user_id, retries, expires_at)
       VALUES ($1 :: text, $2 :: text, $3 :: text, $4 :: text, $5 :: uuid?, $6 :: int4, now() + make_interval(secs => $7 :: int4))
       ON CONFLICT (key) DO UPDATE
       SET key_type = ($2 :: text),
           key_text = ($3 :: text),
           code = ($4 :: text),
-          "user" = ($5 :: uuid?),
+          user_id = ($5 :: uuid?),
           retries = ($6 :: int4),
           expires_at = now() + make_interval(secs => $7 :: int4)
     |]
@@ -125,7 +133,7 @@ selectForVerify =
       SELECT key_type :: text,
              key_text :: text,
              code :: text,
-             "user" :: uuid?,
+             user_id :: uuid?,
              retries :: int4
       FROM activation_keys
       WHERE key = ($1 :: text) AND expires_at > now()

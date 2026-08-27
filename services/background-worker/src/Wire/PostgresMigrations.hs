@@ -21,12 +21,12 @@ import Imports
 import Prometheus
 import System.Logger qualified as Log
 import UnliftIO
+import Wire.ActivationCodeStore.Migration
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
 import Wire.DomainRegistrationStore.Migration
-import Wire.ActivationCodeStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.TeamFeatureStore.Migration
 

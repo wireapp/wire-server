@@ -31,11 +31,11 @@ import Polysemy.Conc (interpretRace)
 import Polysemy.Conc.Effect.Race hiding (Timeout)
 import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIOFinal)
-import Wire.API.User.Activation
 import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
+import Wire.API.User.Activation
 import Wire.ActivationCodeStore.Postgres qualified as Postgres
 import Wire.Migration
 import Wire.Postgres

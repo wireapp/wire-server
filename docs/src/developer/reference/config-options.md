@@ -2159,6 +2159,9 @@ background-worker:
     migrateTeamFeatures: false
     migrateDomainRegistration: false
     migrateActivationKeys: false
+    # Cleanup of expired activation keys in Postgres (nightly)
+    activationKeysCleanup:
+      schedule: "0 3 * * *"
 ```
 
 #### Migration for existing installations

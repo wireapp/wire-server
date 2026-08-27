@@ -50,8 +50,8 @@ import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
-import Wire.API.User.Activation
 import Wire.API.Team.Feature
+import Wire.API.User.Activation
 import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree

@@ -686,6 +686,8 @@ background-worker:
       cleanOlderThanHours: 0.0014
       batchSize: 100
       schedule: "* * * * *"
+    activationKeysCleanup:
+      schedule: "* * * * *"
     # Cassandra clusters used by background-worker
     cassandra:
       host: {{ .Values.cassandraHost }}

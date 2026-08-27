@@ -87,6 +87,10 @@ meetingsCleanup:
   batchSize: 100
   schedule: "* * * * *"  # Run every minute
 
+# Cleanup of expired activation keys (nightly; every minute in CI)
+activationKeysCleanup:
+  schedule: "* * * * *"
+
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql

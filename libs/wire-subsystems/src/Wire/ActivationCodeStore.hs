@@ -18,7 +18,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -38,11 +38,13 @@ module Wire.ActivationCodeStore
     lookupActivationCode,
     newActivationCode,
     deleteActivationCode,
-    verifyActivationCode,
+    lookupActivationKey,
+    decrementActivationRetries,
+    deleteActivationKey,
+    ActivationKeyRow (..),
     mkActivationKey,
     genActivationCode,
     maxAttempts,
-    mkActivationScope,
   )
 where
 
@@ -57,8 +59,17 @@ import Polysemy
 import Text.Printf (printf)
 import Util.Timeout
 import Wire.API.User.Activation
-import Wire.API.User.EmailAddress
 import Wire.UserKeyStore
+
+-- | Persisted state of one activation key row (no TTL/expiry exposure;
+-- expiry handling is a storage-internal concern).
+data ActivationKeyRow = ActivationKeyRow
+  { keyType :: Text,
+    keyText :: Text,
+    code :: ActivationCode,
+    user :: Maybe UserId,
+    retries :: Int32
+  }
 
 data ActivationCodeStore :: Effect where
   LookupActivationCode ::
@@ -78,15 +89,19 @@ data ActivationCodeStore :: Effect where
   DeleteActivationCode ::
     EmailKey ->
     ActivationCodeStore m ()
-  -- | Verify an activation code against the stored value for the given key.
-  -- On a match, returns the associated 'EmailKey' and 'UserId'.  On a
-  -- mismatch with remaining retries, decrements the retry counter (preserving
-  -- the remaining TTL).  On exhaustion, deletes the row.  Returns 'Nothing'
-  -- for any non-matching outcome (the caller treats this as an invalid code).
-  VerifyActivationCode ::
+  -- | Read the full row for an opaque 'ActivationKey' (unexpired only).
+  LookupActivationKey ::
     ActivationKey ->
-    ActivationCode ->
-    ActivationCodeStore m (Maybe (EmailKey, Maybe UserId))
+    ActivationCodeStore m (Maybe ActivationKeyRow)
+  -- | Decrement the retry counter by one, preserving expiry.
+  -- No-op when the row is absent or already at 0.
+  DecrementActivationRetries ::
+    ActivationKey ->
+    ActivationCodeStore m ()
+  -- | Delete the row for an opaque 'ActivationKey' (brute-force exhaustion).
+  DeleteActivationKey ::
+    ActivationKey ->
+    ActivationCodeStore m ()
 
 makeSem ''ActivationCodeStore
 
@@ -112,13 +127,3 @@ genActivationCode =
 -- | Maximum number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32
 maxAttempts = 3
-
--- | Reconstruct an activation scope from the stored key type/text.
--- Returns 'Just' if the key type is @"email"@ and the text parses as an
--- email address; 'Nothing' otherwise.
-mkActivationScope :: Text -> Text -> Maybe UserId -> Maybe (EmailKey, Maybe UserId)
-mkActivationScope "email" keyText mUser =
-  case emailAddressText keyText of
-    Just e -> Just (mkEmailKey e, mUser)
-    Nothing -> Nothing
-mkActivationScope _ _ _ = Nothing
