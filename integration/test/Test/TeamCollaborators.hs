@@ -18,9 +18,6 @@
 module Test.TeamCollaborators where
 
 import API.Brig
-import qualified API.Brig as BrigP
-import qualified API.BrigInternal as BrigI
-import API.Common (randomName)
 import API.Galley
 import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra
