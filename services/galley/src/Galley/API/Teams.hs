@@ -49,6 +49,7 @@ module Galley.API.Teams
     uncheckedUpdateTeamMember,
     userIsTeamOwner,
     canUserJoinTeam,
+    ensureNotTooLarge,
     ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
     internalDeleteBindingTeam,
@@ -1078,7 +1079,12 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
         _ -> UserTypeFilterRegular
     pure case uType of
       UserTypeFilterRegular -> n {teamSize = n.teamSize + 1}
-      UserTypeFilterApp -> n {apps = n.apps + 1}
+      UserTypeFilterApp ->
+        -- FUTUREWORK: this shouldn't happen, apps are not team
+        -- members!  See also:
+        -- https://wearezeta.atlassian.net/browse/WPB-28095
+        -- https://wearezeta.atlassian.net/browse/WPB-25521
+        n {apps = n.apps + 1}
   ensureNotTooLargeForLegalHold tid (sizeAfterAdd.teamSize + sizeAfterAdd.apps + sizeAfterAdd.collaborators)
 
   admins <- E.getTeamAdmins tid
@@ -1105,20 +1111,20 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeAfterAdd
-  where
-    ensureNotTooLarge ::
-      ( Member E.BrigAPIAccess r,
-        Member (ErrorS 'TooManyTeamMembers) r,
-        Member (Input Opts) r
-      ) =>
-      TeamId ->
-      Sem r TeamSize
-    ensureNotTooLarge teamid = do
-      o <- input
-      tSize <- E.getSize teamid
-      unless (teamSize tSize < fromIntegral (o ^. settings . maxTeamSize)) $
-        throwS @'TooManyTeamMembers
-      pure tSize
+
+ensureNotTooLarge ::
+  ( Member E.BrigAPIAccess r,
+    Member (ErrorS 'TooManyTeamMembers) r,
+    Member (Input Opts) r
+  ) =>
+  TeamId ->
+  Sem r TeamSize
+ensureNotTooLarge teamid = do
+  o <- input
+  tSize <- E.getSize teamid
+  unless (teamSize tSize < fromIntegral (o ^. settings . maxTeamSize)) $
+    throwS @'TooManyTeamMembers
+  pure tSize
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
