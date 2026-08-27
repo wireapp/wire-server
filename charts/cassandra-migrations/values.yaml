@@ -79,6 +79,15 @@ enableBrigMigrations: true
 enableGundeckMigrations: true
 enableSparMigrations: true
 
+# Image for the `job-done` container, which only runs a single `echo` to mark
+# the migration Job complete. Not a wire image, so it is versioned
+# independently of images.tag above. Override repository to pull from a
+# mirror registry, e.g. my-mirror.example/library/alpine
+# renovate: datasource=docker depName=alpine
+jobDoneImage:
+  repository: alpine
+  tag: "3.24.1"
+
 podSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
