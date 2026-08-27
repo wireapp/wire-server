@@ -19,14 +19,19 @@ module Wire.ActivationCodeStore.InterpreterSpec (spec) where
 
 import Data.Default
 import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Text.Printf (printf)
 import Wire.API.User.Activation
 import Wire.ActivationCodeStore
+import Wire.ActivationCodeVerificationStore
 import Wire.MiniBackend
 import Wire.MockInterpreters.ActivationCodeStore
+import Wire.UserKeyStore
 
 spec :: Spec
 spec = do
@@ -55,3 +60,25 @@ spec = do
                   <$> newActivationCode emailKey undefined mUid
               (ac,) <$> lookupActivationCode emailKey
        in actCode === c .&&. lookupRes === Just (mUid, c)
+    prop "a correct code verifies" $ \email config ->
+      let key = mkEmailKey email
+          result =
+            runNoFederationStack def mempty config $
+              interpretActivationCodeVerificationStore $ do
+                a <- newActivationCode key undefined Nothing
+                verifyActivationCode (a.activationKey) (a.activationCode)
+       in result === Just (key, Nothing)
+    prop "a wrong code fails to verify" $ \email config ->
+      let key = mkEmailKey email
+          result =
+            runNoFederationStack def mempty config $
+              interpretActivationCodeVerificationStore $ do
+                a <- newActivationCode key undefined Nothing
+                verifyActivationCode (a.activationKey) (bumpCode (a.activationCode))
+       in result === Nothing
+  where
+    -- a code that is (almost surely) different from the given one
+    bumpCode :: ActivationCode -> ActivationCode
+    bumpCode c =
+      ActivationCode . Ascii.unsafeFromText . Text.pack . printf "%06d" $
+        (read @Int (Text.unpack (Ascii.toText (fromActivationCode c))) + 1) `mod` 1000000

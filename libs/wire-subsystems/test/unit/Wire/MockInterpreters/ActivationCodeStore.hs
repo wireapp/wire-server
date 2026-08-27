@@ -27,7 +27,12 @@ import Polysemy
 import Polysemy.State
 import Text.Printf (printf)
 import Wire.API.User.Activation
-import Wire.ActivationCodeStore (ActivationCodeStore (..))
+import Wire.API.User.EmailAddress
+import Wire.ActivationCodeStore
+  ( ActivationCodeStore (..),
+    ActivationKeyRow (..),
+    maxAttempts,
+  )
 import Wire.UserKeyStore
 
 emailKeyToCode :: EmailKey -> ActivationCode
@@ -39,6 +44,12 @@ emailKeyToCode =
     . length
     . show
 
+-- | Derive the 'ActivationKey' exactly as 'NewActivationCode' does below.
+-- (Intentionally NOT the SHA-256 derivation of 'mkActivationKey'; the mock
+-- only needs internal consistency.)
+mockKey :: EmailKey -> ActivationKey
+mockKey = ActivationKey . Ascii.encodeBase64Url . T.encodeUtf8 . emailKeyUniq
+
 inMemoryActivationCodeStoreInterpreter ::
   (Member (State (Map EmailKey (Maybe UserId, ActivationCode))) r) =>
   InterpreterFor ActivationCodeStore r
@@ -46,13 +57,19 @@ inMemoryActivationCodeStoreInterpreter =
   interpret \case
     LookupActivationCode ek -> gets (!? ek)
     NewActivationCode ek _ uid -> do
-      let key =
-            ActivationKey
-              . Ascii.encodeBase64Url
-              . T.encodeUtf8
-              . emailKeyUniq
-              $ ek
+      let key = mockKey ek
           c = emailKeyToCode ek
       modify (insert ek (uid, c)) $> Activation key c
     DeleteActivationCode ek -> modify (delete ek)
-    VerifyActivationCode _ _ -> pure Nothing
+    LookupActivationKey key -> do
+      m <- get
+      pure $
+        listToMaybe
+          [ ActivationKeyRow "email" (fromEmail (emailKeyOrig ek)) c uid maxAttempts
+          | (ek, (uid, c)) <- Data.Map.toList m,
+            mockKey ek == key
+          ]
+    -- The mock keeps no retry count.
+    DecrementActivationRetries _ -> pure ()
+    DeleteActivationKey key ->
+      modify (Data.Map.filterWithKey (\ek _ -> mockKey ek /= key))
