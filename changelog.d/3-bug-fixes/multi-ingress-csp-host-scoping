@@ -1,1 +1,0 @@
-Fixed Content Security Policy header scoping in multi-ingress Kubernetes configuration. CSP headers set via the Ingress nginx configuration-snippet are now properly scoped to exclude the webapp domain, preventing conflicts with the webapp's own CSP headers that are set independently.

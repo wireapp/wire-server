@@ -1,1 +1,0 @@
-Manual team invitations now conflict when a matching pending SCIM invitation already exists for the same team and email address.

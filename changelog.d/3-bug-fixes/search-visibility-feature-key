@@ -1,1 +1,0 @@
-Fixed a discrepancy between the canonical `searchVisibility` feature key used in runtime JSON and the legacy `teamSearchVisibility` key used in YAML configuration. Both names are now accepted; no configuration changes or other operator actions are required.
