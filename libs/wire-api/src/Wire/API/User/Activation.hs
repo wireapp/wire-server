@@ -39,12 +39,12 @@ import Data.Data (Proxy (Proxy))
 import Data.OpenApi (ToParamSchema)
 import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Text.Ascii
 import Data.Text (pack)
-import Wire.API.PostgresMarshall
+import Data.Text.Ascii
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.Locale
+import Wire.API.PostgresMarshall
 import Wire.API.User.Identity
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -77,6 +77,7 @@ instance FromHttpApiData ActivationKey where
   parseUrlPiece = fmap ActivationKey . parseUrlPiece
 
 deriving instance C.Cql ActivationKey
+
 instance PostgresMarshall Text ActivationKey where
   postgresMarshall = toText . fromActivationKey
 
@@ -107,6 +108,7 @@ deriving instance C.Cql ActivationCode
 
 -- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
 type ActivationPair = (ActivationKey, ActivationCode)
+
 instance PostgresMarshall Text ActivationCode where
   postgresMarshall = toText . fromActivationCode
 
