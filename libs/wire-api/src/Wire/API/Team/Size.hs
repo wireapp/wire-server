@@ -39,7 +39,7 @@ data TeamSize = TeamSize
 
 instance ToSchema TeamSize where
   schema =
-    objectWithDocModifier (description ?~ "Number of team members (paid seats, always regular users), appps, collaborators.") $
+    objectWithDocModifier (description ?~ "Team member counts: paid seats (regular users), apps, and collaborators.") $
       TeamSize
         <$> (.teamSize) .= field "teamSize" schema
         <*> (.apps) .= field "apps" schema
