@@ -24,6 +24,8 @@ import Wire.BrigAPIAccess
 -- | Errors out on everything except 'UpdateSearchIndex', which is a no-op.
 mockBrigAPIAccess :: InterpreterFor BrigAPIAccess r
 mockBrigAPIAccess = interpret $ \case
+  UpdateSearchIndex _ -> pure ()
+  -- everything else is not implemented
   GetConnectionsUnqualified {} -> error "GetConnectionsUnqualified: implement on demand (mockBrigAPIAccess)"
   GetConnections {} -> error "GetConnections: implement on demand (mockBrigAPIAccess)"
   PutConnectionInternal {} -> error "PutConnectionInternal: implement on demand (mockBrigAPIAccess)"
@@ -45,7 +47,6 @@ mockBrigAPIAccess = interpret $ \case
   UpdateSearchVisibilityInbound {} -> error "UpdateSearchVisibilityInbound: implement on demand (mockBrigAPIAccess)"
   GetUserExportData {} -> error "GetUserExportData: implement on demand (mockBrigAPIAccess)"
   DeleteBot {} -> error "DeleteBot: implement on demand (mockBrigAPIAccess)"
-  UpdateSearchIndex _ -> pure ()
   GetAccountsBy {} -> error "GetAccountsBy: implement on demand (mockBrigAPIAccess)"
   GetUsersByVariousKeys {} -> error "GetUsersByVariousKeys: implement on demand (mockBrigAPIAccess)"
   CreateGroupInternal {} -> error "CreateGroupInternal: implement on demand (mockBrigAPIAccess)"
