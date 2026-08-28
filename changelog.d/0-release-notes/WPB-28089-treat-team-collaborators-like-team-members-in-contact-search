@@ -5,7 +5,7 @@ configure the `elasticsearch-index` chart's postgres setup, and have a
 postgres instance reachable with that setup, eg., like this:
 
 ```
-# in charts/elasticsearch-index/values.yaml
+# in (charts/elasticsearch-index/)values.yaml
 postgresql:
   host: postgresql # DNS name without protocol
   port: "5432"
@@ -17,8 +17,13 @@ postgresqlPool:
   idlenessTimeout: 10m
 
 postgresMigration:
-  user: cassandra
+  user: cassandra  # (or postgresql, migration-to-postgresql, ...)
 ```
 
-[More
-info](https://docs.wire.com/latest/developer/reference/config-options.html?h=config#configure-postgresql)
+Notes:
+- If you have experienced any elasticsearch index update issues since 2026-03-24 (Chart Release 5.29.0), this might be related.  If you have not resolved them, consider updating your `values.yaml` now and running a full re-index.
+- Note: `brig-index` understands `--user-storage-location`, but that is not relevant here, because collaborators are not technically user accounts, but pointers to user accounts, and they are stored in a different table.
+
+More info:
+- [configuring postgres](https://docs.wire.com/latest/developer/reference/config-options.html?h=config#configure-postgresql)
+- [maintaining elastic search](https://docs.wire.com/latest/developer/reference/elastic-search.html?h=elasticsearch)
