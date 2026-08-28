@@ -1,1 +1,0 @@
-`POST /meetings` (create) and `PUT /meetings/{domain}/{id}` (update) now return a full `conversation` object alongside the existing meeting fields. The legacy `qualified_conversation` field is retained for backward compatibility.

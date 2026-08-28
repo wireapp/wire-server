@@ -1,4 +1,0 @@
-Added a `meetings_recurrence_consistency` CHECK constraint so the recurrence
-columns can never be left in a partially-set state (frequency is the master
-switch; interval is required when set; recurrence_until stays optional for
-open-ended recurring meetings).

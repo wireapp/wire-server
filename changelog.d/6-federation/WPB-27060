@@ -1,1 +1,0 @@
-`deeplink.json` now contains a new optional field `supportEmail` that may be used by clients.

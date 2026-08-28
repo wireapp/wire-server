@@ -1,4 +1,0 @@
-The `Z-Host` header has been treated as domain, but used as `Text`.
-De-serializing and thus using it as `Domain` increases type-safety and ensures
-domain related semantics; e.g. case insensitivity in equality checks.
-This solves a `FUTUREWORK` remark which was around for quite some time.

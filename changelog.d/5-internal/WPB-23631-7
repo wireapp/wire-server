@@ -1,2 +1,0 @@
-Read the DPoP public key bundle once at startup and cache it, instead of
-re-reading the file on every request; the `PublicKeyBundle` effect is removed.

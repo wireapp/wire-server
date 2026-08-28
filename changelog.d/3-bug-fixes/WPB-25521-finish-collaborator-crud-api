@@ -1,1 +1,0 @@
-Fix nginz routes for delete / update collaborator.  Move collaborator CRUD api to galley.
