@@ -176,10 +176,14 @@ runCommand l = \case
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    skipped <- IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    when (skipped /= 0) do
+      throwM . IndexMigrationError $ "Reindex: failed to sync " <> show skipped <> " documents."
   ReindexSameOrNewer es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    skipped <- IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    when (skipped /= 0) do
+      throwM . IndexMigrationError $ "ReindexSameOrNewer: failed to sync " <> show skipped <> " documents."
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
@@ -259,6 +263,11 @@ waitForTaskToComplete timeoutSeconds taskNodeId = do
 
     errTaskGet :: ES.EsError -> m x
     errTaskGet e = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
+
+newtype IndexMigrationError = IndexMigrationError String
+  deriving (Show)
+
+instance Exception IndexMigrationError
 
 newtype ReindexFromAnotherIndexError = ReindexFromAnotherIndexError String
   deriving (Show)

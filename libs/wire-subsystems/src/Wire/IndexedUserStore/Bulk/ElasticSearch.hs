@@ -59,20 +59,26 @@ type IOInterpreter r = forall a. Sem r a -> IO a
 expectedMigrationVersion :: MigrationVersion
 expectedMigrationVersion = MigrationVersion 7
 
-syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO ()
+syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO Int
 syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGT
 
-forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO ()
+forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO Int
 forceSyncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE
 
-syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
+-- | Returns the number of users that could not be indexed because some of the
+-- data needed to build their document was unavailable.  Those users have been
+-- logged individually by 'logAndHush'.
+syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO Int
 syncAllUsersWithVersion interpreter pageSize mkVersion =
-  runConduit $
+  fmap getSum . runConduit $
     zipSources (CL.sourceList [1 ..]) (paginateWithStateC (interpreter . getIndexUsersPaginated pageSize))
       .| logPage
       .| mkUserDocs
-      .| Conduit.mapM_ (interpreter . IndexedUserStore.bulkUpsert)
+      .| Conduit.foldMapM upsertPage
   where
+    upsertPage :: (Int, [(ES.DocId, UserDoc, ES.VersionControl)]) -> IO (Sum Int)
+    upsertPage (skipped, docs) = Sum skipped <$ interpreter (IndexedUserStore.bulkUpsert docs)
+
     logPage :: ConduitT (Int32, [IndexUser]) [IndexUser] IO ()
     logPage = Conduit.mapM $ \(pageNumber, page) -> do
       interpreter $
@@ -82,7 +88,9 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
             . Log.field "firstUser" (maybe "N/A" (idToText . (.userId)) (headMay page))
       pure page
 
-    mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] IO ()
+    -- Emits the documents to be indexed together with the number of users of
+    -- this page that had to be skipped.
+    mkUserDocs :: ConduitT [IndexUser] (Int, [(ES.DocId, UserDoc, ES.VersionControl)]) IO ()
     mkUserDocs = Conduit.mapM $ \page -> do
       -- FUTUREWORK: extract team visibilities, roles and user type
       -- more efficiently sending one query per page
@@ -91,10 +99,10 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
       -- contains User, Maybe Role, UserType, ..., and pass around
       -- ExtendedUser.  this should make the code less convoluted.
 
-      let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
-          teamIds = Map.keys teams
+      let teams :: Map TeamId [IndexUser]
+          teams = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
 
-      visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 teamIds $ \t -> do
+      visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
         x <- try $ interpreter $ teamSearchVisibilityInbound t
         pure (t, x)
 
@@ -139,8 +147,12 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
             roleWithTime <- sequence (Map.lookup u.userId roles)
             pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
 
-      let docsWithErrors = map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
-      interpreter . flip mapMaybeM docsWithErrors $ logAndHush
+          docsWithErrors :: (e ~ Either SomeException) => [(ES.DocId, e UserDoc, e ES.VersionControl)]
+          docsWithErrors = map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
+
+      docs <- interpreter . flip mapMaybeM docsWithErrors $ logAndHush
+      let skipped = length docsWithErrors - length docs
+      pure (skipped, docs)
 
     rightSecond :: (a, b) -> (a, Either c b)
     rightSecond (a, b) = (a, Right b)
@@ -184,8 +196,15 @@ migrateData interpreter pageSize = interpreter $ do
         Log.msg (Log.val "Migration necessary.")
           . Log.field "expectedVersion" expectedMigrationVersion
           . Log.field "foundVersion" foundVersion
-      embed $ forceSyncAllUsers interpreter pageSize
-      MigrationStore.persistMigrationVersion expectedMigrationVersion
+      skipped <- embed $ forceSyncAllUsers interpreter pageSize
+      if skipped == 0
+        then MigrationStore.persistMigrationVersion expectedMigrationVersion
+        else do
+          Log.err $
+            Log.msg (Log.val "Migration incomplete, not persisting migration version.")
+              . Log.field "expectedVersion" expectedMigrationVersion
+              . Log.field "skippedUsers" skipped
+          throw $ SyncIncomplete
     else do
       Log.info $
         Log.msg (Log.val "No migration necessary.")
