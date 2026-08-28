@@ -120,6 +120,7 @@ import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationStore
+import Wire.MlsKeyPackageSubsystem
 import Wire.MockInterpreters
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore
@@ -275,6 +276,7 @@ type MiniBackendLowerEffects =
      GalleyAPIAccess,
      SparAPIAccess,
      ClientStore,
+     MlsKeyPackageSubsystem,
      InvitationStore,
      PasswordStore,
      ActivationCodeStore,
@@ -348,6 +350,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryActivationCodeStoreInterpreter
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
+    . mockMlsKeyPackageSubsystem
     . runInMemoryClientStoreInterpreter
     . miniSparAPIAccess
     . miniGalleyAPIAccess teams galleyConfigs
@@ -378,12 +381,18 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     mockConversationSubsystem :: forall r'. InterpreterFor ConversationSubsystem r'
     mockConversationSubsystem = interpretH $ \case
       _ -> error "Unimplemented ConversationSubsystem operation in mock"
+    mockMlsKeyPackageSubsystem :: forall r'. InterpreterFor MlsKeyPackageSubsystem r'
+    mockMlsKeyPackageSubsystem = interpret $ \case
+      HasMlsKeyPackages {} -> pure False
+      HasMlsKeyPackagesBulk {} -> pure mempty
+      _ -> error "Unimplemented MlsKeyPackageSubsystem operation in mock"
 
 type StateEffects =
   '[ State [Push],
      State (Map (TeamId) [TeamCollaborator]),
      State (Map (TeamId, InvitationId) StoredInvitation),
      State (Map InvitationCode StoredInvitation),
+     State (Map (TeamId, EmailAddress) [UserId]),
      State (Map EmailKey (Maybe UserId, ActivationCode)),
      State [EmailKey],
      State [StoredUser],
@@ -414,6 +423,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . liftUserStoreState
     . liftBlockListStoreState
     . liftActivationCodeStoreState
+    . liftPendingScimUserStoreState
     . liftInvitationInfoStoreState
     . liftInvitationStoreState
     . liftTeamCollaboratorsStoreState
@@ -507,6 +517,7 @@ data MiniBackend = MkMiniBackend
     activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
     invitationInfos :: Map InvitationCode StoredInvitation,
     invitations :: Map (TeamId, InvitationId) StoredInvitation,
+    pendingScimUsers :: Map (TeamId, EmailAddress) [UserId],
     teamIdps :: Map TeamId IdPList,
     teamCollaborators :: Map TeamId [TeamCollaborator],
     pushNotifications :: [Push],
@@ -527,6 +538,7 @@ instance Default MiniBackend where
         activationCodes = mempty,
         invitationInfos = mempty,
         invitations = mempty,
+        pendingScimUsers = mempty,
         teamIdps = mempty,
         teamCollaborators = mempty,
         pushNotifications = mempty,
@@ -809,6 +821,11 @@ liftInvitationStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (T
 liftInvitationStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitations)
   Put newInvs -> modify $ \b -> b {invitations = newInvs}
+
+liftPendingScimUserStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (TeamId, EmailAddress) [UserId]) : r) a -> Sem r a
+liftPendingScimUserStoreState = interpret \case
+  Polysemy.State.Get -> gets (.pendingScimUsers)
+  Put newUsers -> modify $ \b -> b {pendingScimUsers = newUsers}
 
 liftTeamCollaboratorsStoreState :: (Member (State MiniBackend) r) => Sem (State (Map TeamId [TeamCollaborator]) : r) a -> Sem r a
 liftTeamCollaboratorsStoreState = interpret \case

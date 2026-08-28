@@ -31,6 +31,7 @@ module Wire.API.Routes.Public
     ZProvider,
     ZAccess,
     DescriptionOAuthScope,
+    renderOAuthScope,
     ZHostOpt,
     ZHostValue,
     ZAuthServant,
@@ -227,7 +228,7 @@ instance (HasLink api) => HasLink (ZHostOpt :> api) where
   type MkLink (ZHostOpt :> api) a = MkLink api a
   toLink toA _ = toLink toA (Proxy :: Proxy api)
 
-type ZHostValue = Text -- FUTUREWORK: use Data.Domain.Domain here instead of Text?
+type ZHostValue = Domain
 
 type ZOptHostHeader =
   Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue
@@ -281,7 +282,7 @@ instance
   ) =>
   HasServer (ZHostOpt :> api) ctx
   where
-  type ServerT (ZHostOpt :> api) m = Maybe Text -> ServerT api m
+  type ServerT (ZHostOpt :> api) m = Maybe ZHostValue -> ServerT api m
   route ::
     Proxy (ZHostOpt :> api) ->
     Context ctx ->
@@ -352,17 +353,19 @@ instance
 
 addScopeDescription :: forall scope. (OAuth.IsOAuthScope scope) => OpenApi -> OpenApi
 addScopeDescription =
-  allOperations
-    . description
-    %~ Just
-      . ( <>
-            "\nOAuth scope: `"
-              <> ( decodeUtf8With lenientDecode . toStrict . toByteString $
-                     OAuth.toOAuthScope @scope
-                 )
-              <> "`"
-        )
-      . fold
+  allOperations . description %~ Just . (<> renderOAuthScope (OAuth.toOAuthScope @scope)) . fold
+
+-- | The snippet 'DescriptionOAuthScope' appends to an operation description.
+--
+-- This is enforced in @charts/nginz/values.yaml@ (search for
+-- @oauth_scope@).  Mismatches are caught in
+-- @Test.Wire.API.Routes.OAuthScopes@.  (This function is exported for
+-- that test only.)
+renderOAuthScope :: OAuth.OAuthScope -> Text
+renderOAuthScope scope =
+  "\nOAuth scope: `"
+    <> (decodeUtf8With lenientDecode . toStrict . toByteString $ scope)
+    <> "`"
 
 instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where
   type ServerT (DescriptionOAuthScope scope :> api) m = ServerT api m

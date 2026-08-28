@@ -14,6 +14,24 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Routes.Public.Galley.Feature where
 
@@ -21,6 +39,7 @@ import Data.Id
 import GHC.TypeLits
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.OAuth
@@ -68,8 +87,8 @@ type FeatureAPI =
     :<|> FeatureAPIGet DomainRegistrationConfig
     :<|> FeatureAPIGetPut ChannelsConfig
     :<|> FeatureAPIGet PreventAdminlessGroupsConfig
-    :<|> Until 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v16" V16 PreventAdminlessGroupsConfig
-    :<|> From 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v17" V17 PreventAdminlessGroupsConfig
+    :<|> Until 'V18 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v16" V16 PreventAdminlessGroupsConfig
+    :<|> From 'V18 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v18" V18 PreventAdminlessGroupsConfig
     :<|> FeatureAPIGet CellsConfig
     :<|> Until 'V14 ::> VersionedFeatureAPIPut "put-CellsConfig@v13" V13 CellsConfig
     :<|> From 'V14 ::> FeatureAPIPut CellsConfig
@@ -82,13 +101,14 @@ type FeatureAPI =
     :<|> FeatureAPIGet StealthUsersConfig
     :<|> FeatureAPIGet CellsInternalConfig
     :<|> FeatureAPIGetPut MeetingsConfig
-    :<|> FeatureAPIGetPut MeetingsPremiumConfig
-    :<|> FeatureAPIGetPut BackgroundEffectsConfig
+    :<|> Deprecated ::> Until 'V17 ::> FeatureAPIGet MeetingsPremiumConfig
+    :<|> Deprecated ::> Until 'V17 ::> FeatureAPIPut MeetingsPremiumConfig
+    :<|> Deprecated ::> Until 'V17 ::> FeatureAPIGetPut BackgroundEffectsConfig
 
 type VersionedFeatureAPIPut named reqBodyVersion cfg =
   Named
     named
-    ( Description (FeatureAPIDesc cfg)
+    ( Description (VersionedFeatureAPIDesc reqBodyVersion cfg)
         :> ZUser
         :> Summary (AppendSymbol "Put config for " (FeatureSymbol cfg))
         :> CanThrow OperationDenied

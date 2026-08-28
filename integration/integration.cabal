@@ -197,6 +197,7 @@ library
     Test.NginxZAuthModule
     Test.Notifications
     Test.OAuth
+    Test.One2OneTeamConv
     Test.PasswordReset
     Test.Presence
     Test.Property
@@ -211,6 +212,7 @@ library
     Test.Spar
     Test.Spar.CertFingerprintAllowlist
     Test.Spar.GetByEmail
+    Test.Spar.MultiIngressCrossIdpSso
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
     Test.Spar.STM
@@ -261,6 +263,7 @@ library
     , bytestring
     , bytestring-conversion
     , case-insensitive
+    , cborg
     , containers
     , cookie
     , cql

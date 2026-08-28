@@ -70,7 +70,6 @@ interpretUserStoreCassandra casClient =
       GetUserTeam uid -> getUserTeamImpl uid
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetRichInfo uid -> getRichInfoImpl uid
-      LookupRichInfos uids -> lookupRichInfosImpl uids
       UpsertHashedPassword uid pw -> upsertHashedPasswordImpl uid pw
       LookupHashedPassword uid -> lookupHashedPasswordImpl uid
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
@@ -255,15 +254,6 @@ lookupNameImpl u =
   where
     nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
     nameSelect = "SELECT name FROM user WHERE id = ?"
-
--- | Returned rich infos are in the same order as users
-lookupRichInfosImpl :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
-lookupRichInfosImpl users = do
-  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
-    <$> retry x1 (query richInfoSelectMulti (params LocalQuorum (Identity users)))
-  where
-    richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
-    richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 lookupFeatureConferenceCallingImpl :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
 lookupFeatureConferenceCallingImpl uid = do
@@ -453,8 +443,8 @@ insertUser :: PrepQuery W (TupleType NewStoredUser) ()
 insertUser =
   "INSERT INTO user (id, user_type, name, text_status, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, handle, team, managed_by, supported_protocols, searchable) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \country, provider, service, team, managed_by, supported_protocols, searchable) \
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
 insertServiceUser =

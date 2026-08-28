@@ -43,6 +43,7 @@ import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.Routes.Internal.Brig (GetBy (..), getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
@@ -50,6 +51,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Client (Client)
 import Wire.API.User.IdentityProvider hiding (domain, team)
 import Wire.API.User.Search
 import Wire.ActivationCodeStore
@@ -130,7 +132,7 @@ data UserSubsystem m a where
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | Get profiles for all app users in a team, touching only the apps table (efficient).
-  GetLocalAppProfiles :: Local TeamId -> UserSubsystem m [UserProfile]
+  GetLocalAppProfiles :: Local UserId -> TeamId -> UserSubsystem m [UserProfile]
   -- | Get the union of all user accounts matching the `GetBy` argument *and* having a non-empty UserIdentity.
   GetAccountsBy :: Local GetBy -> UserSubsystem m [User]
   -- | Get user accounts matching the `[EmailAddress]` argument (accounts with missing
@@ -167,6 +169,7 @@ data UserSubsystem m a where
     Maybe (Range 1 500 Int32) ->
     Maybe [UserTypeFilter] ->
     UserSubsystem m (SearchResult Contact)
+  IsUsersContactable :: Map UserId (Set BaseProtocolTag, Set Client) -> Bool -> Set CipherSuiteTag -> UserSubsystem m (Map UserId Bool)
   BrowseTeam ::
     UserId ->
     BrowseTeamFilters ->

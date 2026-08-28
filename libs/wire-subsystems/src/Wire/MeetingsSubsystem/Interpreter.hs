@@ -16,12 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.MeetingsSubsystem.Interpreter
-  ( interpretMeetingsSubsystem,
-    MeetingError (..),
+  ( MeetingSystemConfig (..),
+    interpretMeetingsSubsystem,
+    startTimeTolerance,
   )
 where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
+import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
@@ -34,15 +36,21 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as TinyLog
+import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Error.Galley (InvalidTimesReason (..), MeetingError (..))
+import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
-import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig, MeetingsPremiumConfig)
+import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
+import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.Sem.Now (Now)
@@ -51,8 +59,14 @@ import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
-data MeetingError = InvalidTimes | EmptyUpdate | MeetingsFeatureDisabled
-  deriving stock (Eq, Show)
+-- | Tolerance applied when validating that a meeting's start time is not in
+-- the past. The check always uses the server's clock ('Now.get') as the
+-- reference; the client's clock is never trusted. The tolerance only absorbs
+-- minor clock skew between client and server and the network/processing delay
+-- between the client sending the request and the server observing it (matches
+-- the 60s precedent used by SAML2).
+startTimeTolerance :: NominalDiffTime
+startTimeTolerance = 60
 
 -- | Whether a meeting is still alive at the given cutoff. A meeting is alive
 -- when its 'Store.effectiveEndTime' is at or after the cutoff, or 'Nothing'
@@ -66,42 +80,74 @@ checkMeetingsEnabled ::
   ) =>
   Maybe TeamId ->
   Sem r ()
-checkMeetingsEnabled maybeTeamId = do
+checkMeetingsEnabled maybeTeamId =
+  unlessM (meetingsFeatureEnabled maybeTeamId) $
+    throw MeetingsFeatureDisabled
+
+-- | Like 'checkMeetingsEnabled' but returns the resolved status instead of
+-- throwing. Used by read paths (list, get) that treat a disabled feature as
+-- "no meetings" rather than as a forbidden operation.
+meetingsFeatureEnabled ::
+  (Member FeaturesConfigSubsystem r) =>
+  Maybe TeamId ->
+  Sem r Bool
+meetingsFeatureEnabled maybeTeamId =
   case maybeTeamId of
-    Nothing -> pure ()
+    Nothing -> pure True
     Just teamId -> do
       meetingFeature <- getFeatureForTeam @_ @MeetingsConfig teamId
-      unless (meetingFeature.status == FeatureStatusEnabled) $
-        throw MeetingsFeatureDisabled
+      pure (meetingFeature.status == FeatureStatusEnabled)
+
+-- | System-wide meeting configuration: the legacy time zone used for V16
+-- meetings, how long meetings stay alive after their effective end time, and
+-- how far into the past an update may move a meeting's times. Invariant
+-- (checked by callers at startup where configurable): @pastEditPeriod <=
+-- validityPeriod@, so an edited meeting stays within the validity window.
+data MeetingSystemConfig = MeetingSystemConfig
+  { legacyTimeZone :: !API.TimeZone,
+    validityPeriod :: !NominalDiffTime,
+    pastEditPeriod :: !NominalDiffTime
+  }
 
 interpretMeetingsSubsystem ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member MeetingNotifier r,
     Member Now r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member (Input (Local ())) r
   ) =>
-  NominalDiffTime ->
+  -- | System-wide meeting configuration.
+  MeetingSystemConfig ->
   InterpreterFor MeetingsSubsystem r
-interpretMeetingsSubsystem validityPeriod = interpret $ \case
-  CreateMeeting zUser newMeeting ->
-    createMeetingImpl zUser newMeeting
-  UpdateMeeting zUser meetingId update ->
-    updateMeetingImpl zUser meetingId update validityPeriod
+interpretMeetingsSubsystem cfg = interpret $ \case
+  CreateMeeting zUser connId newMeeting ->
+    createMeetingImpl zUser connId newMeeting
+  UpdateMeeting zUser connId meetingId update ->
+    updateMeetingImpl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   DeleteMeeting zUser connId meetingId ->
-    deleteMeetingImpl zUser connId meetingId validityPeriod
+    deleteMeetingImpl zUser connId meetingId cfg.validityPeriod
   GetMeeting zUser meetingId ->
-    getMeetingImpl zUser meetingId validityPeriod
+    getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetings zUser ->
-    listMeetingsImpl zUser validityPeriod
+    listMeetingsImpl zUser cfg.validityPeriod
+  CreateMeetingV16 zUser connId newMeeting ->
+    API.toLegacyWithConv <$> createMeetingImpl zUser connId (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting)
+  UpdateMeetingV16 zUser connId meetingId update ->
+    updateMeetingV16Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
+  GetMeetingV16 zUser meetingId ->
+    fmap API.toLegacy <$> getMeetingImpl zUser meetingId cfg.validityPeriod
+  ListMeetingsV16 zUser ->
+    map API.toLegacy <$> listMeetingsImpl zUser cfg.validityPeriod
   AddInvitedEmails zUser meetingId emails ->
-    addInvitedEmailsImpl zUser meetingId emails validityPeriod
+    addInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
   RemoveInvitedEmails zUser meetingId emails ->
-    removeInvitedEmailsImpl zUser meetingId emails validityPeriod
+    removeInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
   ReplaceInvitedEmails zUser meetingId emails ->
-    replaceInvitedEmailsImpl zUser meetingId emails validityPeriod
+    replaceInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
   CleanupOldMeetings cutoffTime batchSize ->
     cleanupOldMeetingsImpl cutoffTime batchSize
 
@@ -110,25 +156,31 @@ createMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member MeetingNotifier r,
+    Member Now r,
     Member (Error MeetingError) r
   ) =>
   Local UserId ->
+  ConnId ->
   API.NewMeeting ->
-  Sem r (API.Meeting, StoredConversation)
-createMeetingImpl zUser newMeeting = do
+  Sem r API.MeetingWithConversation
+createMeetingImpl zUser connId newMeeting = do
   -- Look up user's team once and reuse for both checks
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled conversationTeamId
-  -- Validate that endTime > startTime
+  -- Validate that the meeting ends after it starts (end_time is the source of
+  -- truth; positivity was previously checked on the derived duration).
   when (newMeeting.endTime <= newMeeting.startTime) $
-    throw InvalidTimes
+    throw (InvalidTimes EndBeforeStart)
+  -- Validate that startTime is not in the past (within tolerance)
+  now <- Now.get
+  when (newMeeting.startTime < addUTCTime (negate startTimeTolerance) now) $
+    throw (InvalidTimes StartTimeTooFarInPast)
 
-  -- Determine trial status based on team membership and premium feature
-  trial <- case conversationTeamId of
-    Nothing -> pure True -- Personal users create trial meetings
-    Just teamId -> do
-      premiumFeature <- getFeatureForTeam @_ @MeetingsPremiumConfig teamId
-      pure $ premiumFeature.status /= FeatureStatusEnabled
+  -- Determine trial status: personal users (no team) create trial meetings.
+  -- The deprecated meetingsPremium feature flag no longer affects this; team
+  -- meetings are always non-trial (see WPB-26771).
+  let trial = isNothing conversationTeamId
 
   -- Create conversation with the meeting creator as the only member (admin role)
   let newConv =
@@ -138,7 +190,8 @@ createMeetingImpl zUser newMeeting = do
             newConvName = Just newMeeting.title,
             -- InviteAccess is required so MLS commits can add participants via
             -- performConversationJoin (ensureAccess conv InviteAccess).
-            newConvAccess = Set.fromList [PrivateAccess, InviteAccess],
+            -- CodeAccess allows joining the meeting conversation by code.
+            newConvAccess = Set.fromList [InviteAccess, CodeAccess],
             newConvAccessRoles = Nothing,
             newConvTeam = ConvTeamInfo <$> conversationTeamId,
             newConvMessageTimer = Nothing,
@@ -163,33 +216,38 @@ createMeetingImpl zUser newMeeting = do
       (tUnqualified zUser)
       newMeeting.startTime
       newMeeting.endTime
+      newMeeting.tzid
       newMeeting.recurrence
       storedConv.id_
       newMeeting.invitedEmails
       trial
 
-  -- Return created meeting
-  pure
-    ( storedMeetingToMeeting (tDomain zUser) storedMeeting,
-      storedConv
-    )
+  let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
+  notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
+
+  pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member MeetingNotifier r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
+  ConnId ->
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
-  Sem r (Maybe API.Meeting)
-updateMeetingImpl zUser meetingId update validityPeriod = do
+  NominalDiffTime ->
+  Sem r (Maybe API.MeetingWithConversation)
+updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
-  when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence) $
+  when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence && isNothing update.tzid) $
     throw EmptyUpdate
 
   runMaybeT $ do
@@ -198,11 +256,21 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
     let cutoff = addUTCTime (negate validityPeriod) now
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
+    guard $ meeting.creator == tUnqualified zUser
+    -- Creation enforces endTime > startTime (createMeetingImpl); re-establish
+    -- the invariant on the *effective* times after this update, since either
+    -- bound may change independently.
     when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
-        throw InvalidTimes
+        throw (InvalidTimes EndBeforeStart)
+    -- New time values may be moved into the past so that past/ongoing
+    -- meetings can be corrected to what actually happened, but no further
+    -- than `pastEditPeriod` (WPB-28080). Only provided values are checked;
+    -- unchanged stored times are not re-validated.
+    let pastEditCutoff = addUTCTime (negate pastEditPeriod) now
+    for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
+    for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
 
-    guard $ meeting.creator == tUnqualified zUser
     updatedMeeting <-
       MaybeT $
         Store.updateMeeting
@@ -210,14 +278,44 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.title
           update.startTime
           update.endTime
+          update.tzid
           update.recurrence
-    pure $ storedMeetingToMeeting (tDomain zUser) updatedMeeting
+    conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
+    lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
+    pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
+
+-- | V16 update path: 'API.UpdateMeetingV16' is 'API.UpdateMeeting' (both
+-- carry an optional @end_time@), so this delegates straight through to the
+-- shared update implementation and re-shapes the result. The legacy request
+-- shape carries no @tzid@ from V15\/V16 clients, and an omitted @tzid@ leaves
+-- the stored time zone unchanged, so no legacy time zone injection is needed.
+updateMeetingV16Impl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member MeetingNotifier r,
+    Member TinyLog r,
+    Member (Error MeetingError) r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified MeetingId ->
+  API.UpdateMeetingV16 ->
+  NominalDiffTime ->
+  NominalDiffTime ->
+  Sem r (Maybe API.MeetingWithConversationV16)
+updateMeetingV16Impl zUser connId meetingId updateL validityPeriod pastEditPeriod =
+  fmap API.toLegacyWithConv <$> updateMeetingImpl zUser connId meetingId updateL validityPeriod pastEditPeriod
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member MeetingNotifier r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
   ) =>
@@ -239,12 +337,13 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       guard $ meeting.creator == tUnqualified zUser
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
-      conv <- MaybeT $ ConversationSubsystem.internalGetConversation convId
+      conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
       when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
         lift $
           void $
             ConversationSubsystem.deleteLocalConversation zUser connId lConvId
       lift $ Store.deleteMeeting (qUnqualified meetingId)
+      lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
   pure $ isJust result
 
 getMeetingImpl ::
@@ -252,7 +351,6 @@ getMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
@@ -261,23 +359,46 @@ getMeetingImpl ::
   Sem r (Maybe API.Meeting)
 getMeetingImpl zUser meetingId validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
-  checkMeetingsEnabled maybeTeamId
-  -- Get meeting from store
-  runMaybeT $ do
-    storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
-    now <- lift Now.get
-    let cutoff = addUTCTime (negate validityPeriod) now
-    guard $ isAlive cutoff storedMeeting
-    guard $ qDomain meetingId == tDomain zUser
-    -- Check authorization: user must be creator OR member of the associated conversation
-    let isCreator = storedMeeting.creator == tUnqualified zUser
-    if isCreator
-      then pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting
-      else do
-        -- Check if user is a member of the conversation
-        let convId = storedMeeting.conversationId
-        void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
-        pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
+  enabled <- meetingsFeatureEnabled maybeTeamId
+  if enabled
+    then runMaybeT $ do
+      storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ isAlive cutoff storedMeeting
+      guard $ qDomain meetingId == tDomain zUser
+      -- Check authorization: user must be creator OR member of the associated conversation
+      let isCreator = storedMeeting.creator == tUnqualified zUser
+      if isCreator
+        then pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting
+        else do
+          -- Check if user is a member of the conversation
+          let convId = storedMeeting.conversationId
+          void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
+          pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
+    else pure Nothing
+
+-- | Look up the 'StoredConversation' associated with a meeting. When the
+-- conversation cannot be found (a data-integrity anomaly), a warning is logged
+-- before failing: otherwise the missing conversation is indistinguishable from
+-- a missing meeting for callers.
+getMeetingConversationOrFail ::
+  ( Member ConversationSubsystem r,
+    Member TinyLog r
+  ) =>
+  Qualified MeetingId ->
+  ConvId ->
+  Sem r (Maybe StoredConversation)
+getMeetingConversationOrFail meetingId convId = do
+  mConv <- ConversationSubsystem.internalGetConversation convId
+  case mConv of
+    Just conv -> pure (Just conv)
+    Nothing -> do
+      TinyLog.warn $
+        Log.msg ("conversation not found for meeting" :: ByteString)
+          . Log.field "conversationId" (toByteString' convId)
+          . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
+      pure Nothing
 
 -- Helper function to convert StoredMeeting to API.Meeting
 storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting
@@ -288,12 +409,30 @@ storedMeetingToMeeting domain sm =
       API.creator = Qualified sm.creator domain,
       API.startTime = sm.startTime,
       API.endTime = sm.endTime,
+      API.tzid = sm.tzid,
       API.recurrence = sm.recurrence,
       API.conversationId = Qualified sm.conversationId domain,
       API.invitedEmails = sm.invitedEmails,
-      API.trial = sm.trial,
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt
+    }
+
+-- | Like 'storedMeetingToMeeting', but additionally carries the full
+-- 'API.Conversation' associated with the meeting.
+--
+-- The local user's domain ('tDomain lUser') is used to qualify the meeting,
+-- its creator and its conversation: meetings are not federated, and every
+-- meeting operation guards @qDomain meetingId == tDomain zUser@. The
+-- conversation itself is always created locally.
+storedMeetingToMeetingWithConversation ::
+  Local UserId ->
+  StoredConversation ->
+  Store.StoredMeeting ->
+  API.MeetingWithConversation
+storedMeetingToMeetingWithConversation lUser conv sm =
+  API.MeetingWithConversation
+    { API.meeting = storedMeetingToMeeting (tDomain lUser) sm,
+      API.conversation = conversationView lUser (Just lUser) conv
     }
 
 listMeetingsImpl ::
@@ -301,7 +440,6 @@ listMeetingsImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
@@ -309,17 +447,20 @@ listMeetingsImpl ::
   Sem r [API.Meeting]
 listMeetingsImpl zUser validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
-  checkMeetingsEnabled maybeTeamId
-  now <- Now.get
-  let cutoff = addUTCTime (negate validityPeriod) now
-  -- List all meetings created by the user
-  createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
-  -- Loop over local conversations accessible by the user, then filter to only keep meetings.
-  memberMeetings <- getAllMemberMeetings zUser cutoff
-  -- Combine and deduplicate
-  let allMeetings = map (storedMeetingToMeeting (tDomain zUser)) createdMeetings <> memberMeetings
-      uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
-  pure uniqueMeetings
+  enabled <- meetingsFeatureEnabled maybeTeamId
+  if enabled
+    then do
+      now <- Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      -- List all meetings created by the user
+      createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
+      -- Loop over local conversations accessible by the user, then filter to only keep meetings.
+      memberMeetings <- getAllMemberMeetings zUser cutoff
+      -- Combine and deduplicate
+      let allMeetings = map (storedMeetingToMeeting (tDomain zUser)) createdMeetings <> memberMeetings
+          uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
+      pure uniqueMeetings
+    else pure []
 
 getAllMemberMeetings ::
   ( Member Store.MeetingsStore r,

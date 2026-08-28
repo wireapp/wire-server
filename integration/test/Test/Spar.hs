@@ -37,11 +37,13 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as ST
 import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
+import qualified Data.Vector as V
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
 import qualified SAML2.WebSSO.XML as SAMLXML
 import SetupHelpers
+import Testlib.Assertions
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
@@ -50,6 +52,110 @@ import qualified Time.System as Hourglass
 
 ----------------------------------------------------------------------
 -- scim stuff
+
+testTeamInvitationWhenScimInvitationExpired :: (HasCallStack) => App ()
+testTeamInvitationWhenScimInvitationExpired = do
+  let settings =
+        def
+          { brigCfg =
+              -- timeout for both SCIM and team invitations
+              setField "optSettings.setTeamInvitationTimeout" (2 :: Int)
+                -- Controls when asynchronous cleanup removes expired SCIM pending accounts.
+                . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
+          }
+  withModifiedBackend settings $ \domain -> do
+    (owner, _tid, _) <- createTeam domain 1
+    token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+    -- Create a SCIM user and let its invitation expire. Cleanup is deliberately
+    -- delayed so the expired pending account still exists at this point.
+    email <- randomEmail
+    externalId <- randomExternalId
+    scimUser <- randomScimUserWithEmail externalId email
+    scid <- createScimUser domain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+    handle <- scimUser %. "userName" >>= asString
+
+    -- assert that the SCIM handle is claimed
+    putHandle owner handle >>= assertStatus 409
+
+    -- Wait until the SCIM invitation has expired.
+    eventually $ getInvitationByEmail domain email >>= assertStatus 404
+
+    -- Create and accept a manual team invitation for the same email. This is
+    -- expected to succeed after the expired SCIM account has been cleaned up.
+    invitation <- postInvitation owner (def {email = Just email}) >>= getJSON 201
+    code <- getInvitationCode owner invitation >>= getJSON 200 >>= (%. "code") >>= asString
+    registerUserWith domain email code "Alice" >>= assertStatus 201
+    user <- getUsersByEmail domain [email] >>= getJSON 200 >>= asList >>= assertOne
+    manualUserId <- user %. "id" >>= asString
+
+    -- The handle previously held by the SCIM account is available again.
+    putHandle user handle >>= assertSuccess
+
+    manualUser <- getUsersId domain [manualUserId] >>= getJSON 200 >>= asList >>= assertOne
+    manualUser %. "id" `shouldMatch` manualUserId
+    manualUser %. "email" `shouldMatch` email
+    manualUser %. "handle" `shouldMatch` handle
+    manualUser %. "managed_by" `shouldMatch` "wire"
+    manualUser %. "status" `shouldMatch` "active"
+
+    -- The regular internal users API filters deleted records, so it cannot
+    -- distinguish a deleted SCIM account from an account that is not found.
+    shouldBeEmpty $ getUsersId domain [scid] >>= getJSON 200 >>= asList
+
+testTeamInvitationWhenScimInvitationPending :: (HasCallStack) => App ()
+testTeamInvitationWhenScimInvitationPending = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  (otherOwner, _otherTid, _) <- createTeam OwnDomain 1
+  token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- Create a SCIM user; this sends a SCIM invitation that remains pending.
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scid <- createScimUser OwnDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  handle <- scimUser %. "userName" >>= asString
+
+  -- The SCIM invitation is still pending. A second team invitation for the
+  -- same email and team must be rejected with a conflict.
+  postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+  -- The email must still be invit-able by a different team; otherwise a
+  -- pending SCIM invitation could be used for an email-registration DoS.
+  postInvitation otherOwner (def {email = Just email}) >>= assertStatus 201
+
+  users <- getUsersIdIncludingPending OwnDomain [scid] >>= getJSON 200 >>= asList
+  user <- assertOne users
+  user %. "email" `shouldMatch` email
+  user %. "handle" `shouldMatch` handle
+  user %. "managed_by" `shouldMatch` "scim"
+  user %. "status" `shouldMatch` "pending-invitation"
+
+testTeamInvitationWhenScimAccountExists :: (HasCallStack) => App ()
+testTeamInvitationWhenScimAccountExists = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- Create a SCIM user and accept the resulting SCIM invitation below.
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scid <- createScimUser OwnDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  handle <- scimUser %. "userName" >>= asString
+
+  -- Accept the SCIM invitation so the SCIM-managed account is active.
+  registerInvitedUser OwnDomain tid email
+
+  -- An active SCIM account already owns the email. A second team invitation
+  -- for the same email must therefore be rejected with a conflict.
+  postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+  users <- getUsersId OwnDomain [scid] >>= getJSON 200 >>= asList
+  user <- assertOne users
+  user %. "email" `shouldMatch` email
+  user %. "handle" `shouldMatch` handle
+  user %. "managed_by" `shouldMatch` "scim"
+  user %. "status" `shouldMatch` "active"
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
@@ -194,6 +300,226 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       subject <- u %. "sso_id.subject" >>= asString
       subject `shouldContainString` currentExtId
 
+testSparPatchEmailValuePath :: (HasCallStack) => App ()
+testSparPatchEmailValuePath = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMeta owner >>= getJSON 201
+  -- Disable SAML email validation so the provisioned email is activated
+  -- directly (the IdP vouches for it), with no separate activation step.
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  extId <- randomExternalId
+  -- Exercise create-on-absent: a SAML user provisioned with no email receives
+  -- its first work email via Entra's @Add@ on @emails[type eq "work"].value@.
+  -- This user has no email yet, so the value-path filter matches nothing and
+  -- the entry is created (with @type = "work"@ taken from the filter, which is
+  -- then persisted and echoed). In-place update of an existing typed email is
+  -- covered by 'testSparPatchEmailValuePathInPlace'.
+  scimUser <- randomScimUserWith def {mkExternalId = pure extId} >>= removeField "emails"
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  newEmail <- randomEmail
+  let patchOp = scimAddPatchOp "emails[type eq \"work\"].value" newEmail
+  bindResponse (patchScimUser OwnDomain tok userId patchOp) $ \res -> do
+    res.status `shouldMatchInt` 200
+  -- The provisioned email propagates end-to-end: SCIM GET reflects it and,
+  -- with validation disabled, it is active in Brig.  'eventually' is needed
+  -- because the PATCH 200 only means spar accepted the change; provisioning
+  -- of the new email in Brig (auto-activation, since @validateSAMLemails@ is
+  -- disabled) happens asynchronously, and there is no user-facing event to
+  -- synchronize on for a SCIM-provisioned, not-yet-registered user.  This
+  -- mirrors the deprecated spar suite (specEmailValidation), which polls the
+  -- same way.
+  eventually $ do
+    checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
+      storedEmail <- u %. "emails" >>= asList >>= assertOne
+      storedEmail %. "value" `shouldMatch` newEmail
+      storedEmail %. "type" `shouldMatch` ("work" :: String)
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json & asList >>= assertOne
+      u %. "email" `shouldMatch` newEmail
+
+testSparPatchEmailValuePathInPlace :: (HasCallStack) => App ()
+testSparPatchEmailValuePathInPlace = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMeta owner >>= getJSON 201
+  -- Disable SAML email validation so the updated email is activated directly
+  -- (the IdP vouches for it), with no separate activation step.
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  extId <- randomExternalId
+  email <- randomEmail
+  -- Provision with an explicit, non-default @type@ so the test proves the
+  -- echoed type comes from what was stored, not a hardcode.
+  scimUser <- randomScimUserWithEmailAndMeta extId email (Just "home") Nothing
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  newEmail <- randomEmail
+  let patchOp = scimAddPatchOp "emails[type eq \"home\"].value" newEmail
+  bindResponse (patchScimUser OwnDomain tok userId patchOp) $ \res -> do
+    res.status `shouldMatchInt` 200
+  -- In-place update (not create-on-absent): the value-path filter
+  -- @emails[type eq "home"]@ matches the stored entry (whose @type = "home"@
+  -- was persisted at provisioning time) and updates its @.value@. The proof
+  -- is the new value and the echoed @type = "home"@ below -- a
+  -- create-on-absent append would be collapsed back to the OLD address by
+  -- 'scimEmailsToEmailAddress', failing the value assertion.
+  --
+  -- 'eventually' for the same reason as in 'testSparPatchEmailValuePath'
+  -- above: the PATCH 200 precedes the asynchronous email re-provisioning in
+  -- Brig, and no synchronizing event exists for it.
+  eventually $ do
+    checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
+      storedEmail <- u %. "emails" >>= asList >>= assertOne
+      storedEmail %. "value" `shouldMatch` newEmail
+      storedEmail %. "type" `shouldMatch` ("home" :: String)
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json & asList >>= assertOne
+      u %. "email" `shouldMatch` newEmail
+
+-- | SCIM email metadata (@type@, @primary@) round-trips verbatim: spar
+-- persists what the IdP sends and echoes exactly that; users provisioned
+-- without metadata get back an email object with only @value@ (strict echo).
+testSparScimEmailMetaRoundTrip :: (HasCallStack) => App ()
+testSparScimEmailMetaRoundTrip = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMeta owner >>= getJSON 201
+  -- Disable SAML email validation so provisioned/updated emails are activated
+  -- directly, with no separate activation step.
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- Provision with explicit metadata; GET must echo it exactly.
+  extId <- randomExternalId
+  email <- randomEmail
+  scimUser <- randomScimUserWithEmailAndMeta extId email (Just "work") (Just True)
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  let wantEmail = object ["value" .= email, "type" .= ("work" :: String), "primary" .= True]
+  getScimUser OwnDomain tok userId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantEmail]
+
+  -- Okta-style in-place update via a filter on `primary`; the new address
+  -- keeps the stored metadata.
+  newEmail <- randomEmail
+  let patchOp = scimAddPatchOp "emails[primary eq true].value" newEmail
+  bindResponse (patchScimUser OwnDomain tok userId patchOp) $ \res -> do
+    res.status `shouldMatchInt` 200
+  eventually $ do
+    getScimUser OwnDomain tok userId `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      res.json
+        %. "emails"
+        `shouldMatch` [object ["value" .= newEmail, "type" .= ("work" :: String), "primary" .= True]]
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json & asList >>= assertOne
+      u %. "email" `shouldMatch` newEmail
+
+  -- Strict echo: a user provisioned WITHOUT metadata gets back an email
+  -- object containing only @value@ -- no @type@/@primary@ keys are
+  -- synthesized.
+  extId2 <- randomExternalId
+  email2 <- randomEmail
+  scimUser2 <- randomScimUserWithEmail extId2 email2
+  userId2 <- createScimUser OwnDomain tok scimUser2 >>= getJSON 201 >>= (%. "id") >>= asString
+  getScimUser OwnDomain tok userId2 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= email2]]
+
+-- | Non-"work" email types are accepted and echoed verbatim (no normalization
+-- to "work").
+testSparScimEmailTypeNonWorkEcho :: (HasCallStack) => App ()
+testSparScimEmailTypeNonWorkEcho = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  mapM_
+    ( \ty -> do
+        extId <- randomExternalId
+        email <- randomEmail
+        scimUser <- randomScimUserWithEmailAndMeta extId email (Just ty) Nothing
+        userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+        getScimUser OwnDomain tok userId `bindResponse` \res -> do
+          res.status `shouldMatchInt` 200
+          res.json %. "emails" `shouldMatch` [object ["value" .= email, "type" .= ty]]
+    )
+    ["home", "other"]
+
+-- | RFC 7644 §3.5.2.2: removing a sub-attribute unassigns it and keeps the
+-- record; RFC 7643 §2.5 (and RFC 7644 §3.5.2): assigning @null@ is equivalent
+-- to unassignment.  Removing or nulling @emails[type eq \"work\"].type@ must
+-- not erase the email value or the @primary@ flag.
+testSparPatchEmailSubAttrRemoveNull :: (HasCallStack) => App ()
+testSparPatchEmailSubAttrRemoveNull = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  extId <- randomExternalId
+  email <- randomEmail
+  scimUser <- randomScimUserWithEmailAndMeta extId email (Just "work") (Just True)
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  let typePath = "emails[type eq \"work\"].type"
+      wantFull = object ["value" .= email, "type" .= ("work" :: String), "primary" .= True]
+      wantKept = object ["value" .= email, "primary" .= True]
+  getScimUser OwnDomain tok userId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantFull]
+
+  -- PATCH Remove on the type sub-attribute: synchronous strict echo (the
+  -- store write precedes the re-read), type key absent.
+  bindResponse (patchScimUser OwnDomain tok userId (scimPatchOp "Remove" typePath Nothing)) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+  getScimUser OwnDomain tok userId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+
+  -- Strict round-trip consequence: the value-path filter
+  -- @emails[type eq \"work\"]@ no longer matches the stored entry, so the
+  -- Add takes the create-on-absent path, appends a second entry, and the
+  -- reduction back to one email (primary, else first) keeps the OLD address.
+  newEmail <- randomEmail
+  bindResponse (patchScimUser OwnDomain tok userId (scimAddPatchOp "emails[type eq \"work\"].value" newEmail)) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+  getScimUser OwnDomain tok userId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [wantKept]
+
+  -- PATCH Replace with null is equivalent to Remove (RFC 7643 §2.5).  Fresh
+  -- user: a type-less entry no longer matches the filter above.
+  extId2 <- randomExternalId
+  email2 <- randomEmail
+  scimUser2 <- randomScimUserWithEmailAndMeta extId2 email2 (Just "work") (Just True)
+  userId2 <- createScimUser OwnDomain tok scimUser2 >>= getJSON 201 >>= (%. "id") >>= asString
+  bindResponse (patchScimUser OwnDomain tok userId2 (scimPatchOp "Replace" typePath (Just A.Null))) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= email2, "primary" .= True]]
+  getScimUser OwnDomain tok userId2 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= email2, "primary" .= True]]
+
+testSparRejectsMultiplePrimaryEmails :: (HasCallStack) => App ()
+testSparRejectsMultiplePrimaryEmails = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  email1 <- randomEmail
+  email2 <- randomEmail
+  scimUser <-
+    randomScimUserWith def
+      >>= setField
+        "emails"
+        ( toJSON
+            [ object ["value" .= email1, "primary" .= True],
+              object ["value" .= email2, "primary" .= True]
+            ]
+        )
+  bindResponse (createScimUser OwnDomain tok scimUser) $ \res ->
+    res.status `shouldMatchInt` 400
+
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
   (owner, tid, _) <- createTeam OwnDomain 1
@@ -306,6 +632,18 @@ testSparExternalIdUpdateToANonEmail = do
   updatedScimUser <- setField "externalId" extId scimUser
   updateScimUser OwnDomain tok userId updatedScimUser >>= assertStatus 400
 
+-- | A SCIM PatchOp with the given op, path, and optional value.
+scimPatchOp :: String -> String -> Maybe A.Value -> A.Value
+scimPatchOp op path value =
+  object
+    [ "schemas" .= ["urn:ietf:params:scim:api:messages:2.0:PatchOp" :: String],
+      "Operations"
+        .= [object (["op" .= op, "path" .= path] <> ["value" .= v | Just v <- [value]])]
+    ]
+
+scimAddPatchOp :: String -> String -> A.Value
+scimAddPatchOp path value = scimPatchOp "Add" path (Just (A.String . cs $ value))
+
 testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Tagged "mailUnchanged" Bool -> App ()
 testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
   (owner, tid, _) <- createTeam OwnDomain 1
@@ -317,11 +655,11 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
 
   -- Verify that updating a user with an empty emails does not change the email
   bindResponse (updateScimUser OwnDomain tok userId scimUser) $ \resp -> do
-    resp.json %. "emails" `shouldMatch` (toJSON [object ["value" .= email]])
+    resp.json %. "emails" `shouldMatch` (toJSON [scimStoredEmail email])
     resp.status `shouldMatchInt` 200
 
   newEmail <- if emailUnchanged then pure email else randomEmail
-  let newEmails = (toJSON [object ["value" .= newEmail]])
+  let newEmails = toJSON [scimStoredEmail newEmail]
   updatedScimUser <- setField "emails" newEmails scimUser
   updateScimUser OwnDomain tok userId updatedScimUser `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
@@ -352,6 +690,13 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
   k userByUid
 
   userByUid `shouldMatch` userByIdExtId
+
+-- | Expected SCIM email object. spar echoes the @type@/@primary@ metadata of the
+-- stored email entry exactly as provisioned (see
+-- 'Spar.Scim.User.synthesizeScimUser'); fixtures in this module send no
+-- metadata, so the expected email object has only @value@.
+scimStoredEmail :: String -> Value
+scimStoredEmail addr = object ["value" .= addr]
 
 testSparScimTokenLimit :: (HasCallStack) => App ()
 testSparScimTokenLimit = withModifiedBackend
@@ -467,16 +812,23 @@ testSparScimCreateGetSearchUserGroup = do
   -- Test getting a single SCIM group by id
   gid <- respGroup1.json %. "id" & asString
   gottenGroup1 <- getScimUserGroup OwnDomain tok gid
-  respGroup1.json `shouldMatch` gottenGroup1.json
+  do
+    expected <- normalizeValue respGroup1.json
+    actual <- normalizeValue gottenGroup1.json
+    expected `shouldMatch` actual
 
   -- Test filter (get in bulk) SCIM groups
   -- 1. Match "group", results in finding all three groups created above.
-  filterScimUserGroup OwnDomain tok (Just "displayName co \"group\"") `bindResponse` \allThreeResp ->
-    (allThreeResp.json %. "Resources" & asList) `shouldMatchSet` [createdGroup1, createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"group\"") `bindResponse` \allThreeResp -> do
+    resources <- (allThreeResp.json %. "Resources" & asList) >>= mapM normalizeValue
+    expected <- mapM normalizeValue [createdGroup1, createdGroup2, createdGroup3]
+    resources `shouldMatchSet` expected
 
   -- 2. Match "another group", results in finding "another group" and "yet another group".
-  filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo ->
-    (justTwo.json %. "Resources" & asList) `shouldMatchSet` [createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo -> do
+    resources <- (justTwo.json %. "Resources" & asList) >>= mapM normalizeValue
+    expected <- mapM normalizeValue [createdGroup2, createdGroup3]
+    resources `shouldMatchSet` expected
 
   -- 3. Empty groups should have empty member list.
   respGroup4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "empty group" []
@@ -622,6 +974,20 @@ testSparScimUpdateUserGroup = do
       resp.json %. "displayName" `shouldMatch` "My even funkier group"
       memberValues <- (resp.json %. "members") >>= asListOf (\m -> m %. "value" >>= asString)
       memberValues `shouldMatchSet` [charlieId, dianaId]
+
+-- | Normalize on `Value` level
+--
+-- Recursively sorts all JSON arrays. This produces a canonical form, where the
+-- initial order of elements doesn't matter. Only use this function when that's
+-- desired (i.e. there is no value in the order of elements).
+normalizeValue :: (MakesValue a) => a -> App A.Value
+normalizeValue a = normalizeValueArrays <$> make a
+  where
+    normalizeValueArrays :: A.Value -> A.Value
+    normalizeValueArrays (A.Object o) = A.Object (normalizeValueArrays <$> o)
+    normalizeValueArrays (A.Array arr) =
+      A.Array . V.fromList . sort $ V.toList (normalizeValueArrays <$> arr)
+    normalizeValueArrays v = v
 
 testSparScimUpdateUserGroupRejectsInvalidMembers :: (HasCallStack) => App ()
 testSparScimUpdateUserGroupRejectsInvalidMembers = do
@@ -1017,7 +1383,7 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool requireExternal
     res.json %. "id" `shouldMatch` uid
     lookupField res.json "emails"
       `shouldMatch` ( if extIdIsEmail
-                        then Just [object ["value" .= oldEmail]]
+                        then Just [scimStoredEmail oldEmail]
                         else Nothing
                     )
 
@@ -1036,11 +1402,11 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool requireExternal
 
   updateScimUser OwnDomain tok uid newScimUser `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail]
 
   getScimUser OwnDomain tok uid `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail]
 
   when requireExternalEmailVerification $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
@@ -1104,7 +1470,7 @@ testScimUpdateEmailAddressAndExternalId = do
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "id" `shouldMatch` brigUserId
-    res.json %. "emails" `shouldMatch` [object ["value" .= extId1]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail extId1]
 
   findUsersByExternalId OwnDomain tok extId1 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1127,11 +1493,11 @@ testScimUpdateEmailAddressAndExternalId = do
   updateScimUser OwnDomain tok brigUserId newScimUser1 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "externalId" `shouldMatch` extId1
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail1]
 
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail1]
 
   findUsersByExternalId OwnDomain tok extId1 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1160,11 +1526,11 @@ testScimUpdateEmailAddressAndExternalId = do
   updateScimUser OwnDomain tok brigUserId newScimUser2 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "externalId" `shouldMatch` newExtId2
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail1]
 
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail1]
 
   findUsersByExternalId OwnDomain tok newExtId2 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1193,11 +1559,11 @@ testScimUpdateEmailAddressAndExternalId = do
   updateScimUser OwnDomain tok brigUserId newScimUser3 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "externalId" `shouldMatch` newEmail3
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail1]
 
   getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+    res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail1]
 
   findUsersByExternalId OwnDomain tok newEmail3 `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -1409,7 +1775,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
       su <- setField "emails" [object ["value" .= newEmail]] scimUser
       bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
         res.status `shouldMatchInt` 200
-        res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+        res.json %. "emails" `shouldMatch` [scimStoredEmail newEmail]
       activateEmail OwnDomain newEmail
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
@@ -1513,7 +1879,7 @@ testScimUserIsNotAllowedToChangeNameOnRegistering = do
     resp.json %. "name" `shouldMatch` scimUserDisplayName
 
   let newProfilename = "Takemiya Masaki"
-  registerUserWith OwnDomain email code newProfilename `bindResponse` \resp -> do
+  registerUserWithVersioned (ExplicitVersion 18) OwnDomain email code newProfilename `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "managed-by-scim"
 
@@ -1542,3 +1908,47 @@ testScimUserChangeNameOnRegisteringIgnoredV16 = do
   registerUserWithVersioned (ExplicitVersion 16) OwnDomain email code newProfilename `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "name" `shouldMatch` scimUserDisplayName
+
+-- | A pending email update (emailUnvalidated + activation code) must be
+-- invalidated when the user transitions to SCIM control.  Getting a Wire-managed
+-- user via the SCIM API triggers 'getUserById' -> 'synthesizeStoredUser' ->
+-- 'ManagedByScim' -> 'deletePendingEmailUpdate' in spar, which calls the brig
+-- internal endpoint that deletes both the activation code and the pending
+-- email entry.  See WPB-21744 / PR #5333.
+testSparScimInvalidatesPendingEmail :: (HasCallStack) => App ()
+testSparScimInvalidatesPendingEmail = do
+  -- 1. Create a team with an owner and one Wire-managed member.
+  (owner, _tid, [mem]) <- createTeam OwnDomain 2
+  memberId <- mem %. "id" >>= asString
+  memberEmail <- mem %. "email" >>= asString
+
+  -- 2. Login as the member and initiate an email update.  This creates a
+  --    pending emailUnvalidated entry plus an activation code for the new email.
+  (cookie, token) <-
+    login mem memberEmail defPassword `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      tok <- resp.json %. "access_token" & asString
+      let c = fromJust $ getCookie "zuid" resp
+      pure ("zuid=" <> c, tok)
+  newEmail <- randomEmail
+  updateEmail mem newEmail cookie token >>= assertSuccess
+
+  -- 3. Verify the activation code exists for the pending (unvalidated) email.
+  getActivationCode OwnDomain newEmail >>= assertStatus 200
+
+  -- 4. Transition the member to SCIM control.  Reading the user through the
+  --    SCIM API triggers getUserById -> synthesizeStoredUser -> (since the user
+  --    is email-only and not yet SCIM-managed) setManagedBy ManagedByScim and
+  --    deletePendingEmailUpdate.
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  getScimUser OwnDomain tok memberId >>= assertStatus 200
+
+  -- 5. The activation code for the pending email has been invalidated.
+  getActivationCode OwnDomain newEmail >>= assertStatus 404
+
+  -- 6. The member's email is unchanged: the SCIM transition must not promote
+  --    the unvalidated email, only drop the pending update.
+  bindResponse (getUsersId OwnDomain [memberId]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    u <- resp.json & asList >>= assertOne
+    u %. "email" `shouldMatch` memberEmail

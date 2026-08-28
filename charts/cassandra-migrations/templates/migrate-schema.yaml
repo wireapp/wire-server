@@ -166,7 +166,8 @@ spec:
 
       containers:
         - name: job-done
-          image: alpine:3.21.3
+          image: "{{ .Values.jobDoneImage.repository }}:{{ .Values.jobDoneImage.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}

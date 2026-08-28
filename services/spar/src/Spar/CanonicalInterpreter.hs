@@ -41,49 +41,49 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
-import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
-import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
-import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
-import Spar.Sem.Reporter (Reporter)
-import Spar.Sem.Reporter.Wai (reporterToTinyLogWai)
 import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
-import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
-import Spar.Sem.SamlProtocolSettings.Servant (sparRouteToServant)
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
-import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import Spar.Sem.Utils
-import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
-import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.User.Saml (TTLError)
 import Wire.BrigAPIAccess
 import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError, clientErrorToHttpError)
+import Wire.DefaultSsoStore (DefaultSsoCode)
+import Wire.DefaultSsoStore.Cassandra (defaultSsoCodeToCassandra)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IdPConfigStore (IdPConfigStore)
 import Wire.IdPConfigStore.Cassandra (idPToCassandra)
+import Wire.IdPRawMetadataStore (IdPRawMetadataStore)
+import Wire.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Wire.IdPSubsystem (IdPSubsystem)
 import Wire.IdPSubsystem.Interpreter (IdPSubsystemError, interpretIdPSubsystem)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
+import Wire.Reporter (Reporter)
+import Wire.Reporter.Wai (reporterToTinyLogWai)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.RpcException
+import Wire.SamlProtocolSettings (SamlProtocolSettings)
+import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
+import Wire.ScimExternalIdStore (ScimExternalIdStore)
+import Wire.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
+import Wire.ScimUserMetaStore (ScimUserMetaStore)
+import Wire.ScimUserMetaStore.Cassandra (scimUserMetaStoreToCassandra)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
+import Wire.VerdictFormatStore (VerdictFormatStore)
+import Wire.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 
 type CanonicalEffs =
   '[IdPSubsystem, ScimSubsystem]
@@ -104,7 +104,7 @@ type LowerLevelCanonicalEffs =
      Error IdPSubsystemError,
      Error ScimSubsystemError,
      ScimExternalIdStore,
-     ScimUserTimesStore,
+     ScimUserMetaStore,
      ScimTokenStore,
      DefaultSsoCode,
      IdPConfigStore,
@@ -147,7 +147,7 @@ runSparToIO ctx =
     . idPToCassandra
     . defaultSsoCodeToCassandra
     . scimTokenStoreToCassandra
-    . scimUserTimesStoreToCassandra
+    . scimUserMetaStoreToCassandra
     . scimExternalIdStoreToCassandra
     . mapScimSubsystemErrors
     . mapIdPSubsystemErrors

@@ -83,7 +83,7 @@ runAppSubsystem runUser runAuth =
       GetApps lusr tid -> getAppsImpl lusr tid
       UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
       RefreshAppCookie lusr tid appId password -> runError $ refreshAppCookieImpl lusr tid appId password
-      DeleteApp tid appId -> deleteAppImpl tid appId
+      InternalDeleteApp tid appId -> internalDeleteAppImpl tid appId
 
 createAppImpl ::
   ( Member UserStore r,
@@ -138,7 +138,7 @@ createAppImpl lusr tid newApp = do
   pure
     CreatedApp
       { user =
-          let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
+          let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u)) Nothing
               mbApp :: Maybe AppInfo = Just $ storedAppToAppInfo app
               lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
            in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
@@ -276,7 +276,6 @@ appNewStoredUser creator new = do
         country = loc.lCountry,
         providerId = Nothing,
         serviceId = Nothing,
-        handle = Nothing,
         expires = Nothing,
         teamId = creator.teamId,
         managedBy = defaultManagedBy,
@@ -287,10 +286,10 @@ appNewStoredUser creator new = do
 defAppSupportedProtocols :: Set BaseProtocolTag
 defAppSupportedProtocols = Set.singleton BaseProtocolMLSTag
 
-deleteAppImpl ::
+internalDeleteAppImpl ::
   (Member AppStore r) =>
   TeamId ->
   UserId ->
   Sem r ()
-deleteAppImpl teamId appId =
+internalDeleteAppImpl teamId appId =
   Store.deleteApp appId teamId

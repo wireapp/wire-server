@@ -7,6 +7,7 @@
 , aeson-qq
 , amazonka
 , amqp
+, arbiter-core
 , async
 , base
 , base64-bytestring
@@ -32,7 +33,7 @@
 , federator
 , filepath
 , galley-types
-, hasql-pool
+, hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , HsOpenSSL
@@ -77,7 +78,6 @@
 , sop-core
 , split
 , ssl-util
-, stm
 , streaming-commons
 , string-conversions
 , tagged
@@ -121,6 +121,7 @@ mkDerivation {
     aeson
     amazonka
     amqp
+    arbiter-core
     async
     base
     bilge
@@ -134,7 +135,7 @@ mkDerivation {
     exceptions
     extended
     galley-types
-    hasql-pool
+    hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     HsOpenSSL
@@ -162,7 +163,6 @@ mkDerivation {
     singletons
     split
     ssl-util
-    stm
     text
     time
     tinylog

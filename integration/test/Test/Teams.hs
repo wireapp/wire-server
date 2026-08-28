@@ -21,7 +21,7 @@ module Test.Teams where
 import API.Brig
 import qualified API.BrigInternal as I
 import API.Common
-import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
+import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications, setTeamFeatureConfig)
 import API.GalleyInternal (selectTeamMembers)
 import qualified API.GalleyInternal as I
 import API.Gundeck
@@ -34,6 +34,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Time.Clock
 import Data.Time.Format
+import MLS.Util (createMLSClient, uploadNewKeyPackage)
 import Notifications
 import SetupHelpers
 import Testlib.JSON
@@ -500,6 +501,56 @@ testListUsersEmailVisibility = do
       returnedUsers <- resp.json %. "found" >>= asList
       returnedEmails <- for returnedUsers ((%. "email") >=> asString)
       returnedEmails `shouldMatchSet` memEmails
+
+testListUsersContactStatus :: (HasCallStack) => App ()
+testListUsersContactStatus = do
+  (owner, tid, proteusUser : mlsUser : _) <- createTeam OwnDomain 3
+  noClientUser <- randomUser OwnDomain def
+  addClient proteusUser def >>= assertStatus 201
+  mlsClient <- createMLSClient def mlsUser
+  void $ uploadNewKeyPackage def mlsClient
+  putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
+  setTeamFeatureConfig
+    owner
+    tid
+    "mls"
+    ( object
+        [ "status" .= ("enabled" :: String),
+          "config"
+            .= object
+              [ "protocolToggleUsers" .= ([] :: [String]),
+                "defaultProtocol" .= ("mls" :: String),
+                "supportedProtocols" .= (["proteus", "mls"] :: [String]),
+                "allowedCipherSuites" .= ([2] :: [Int]),
+                "defaultCipherSuite" .= (2 :: Int)
+              ]
+        ]
+    )
+    >>= assertSuccess
+
+  let users = [noClientUser, proteusUser, mlsUser]
+  userIds <- for users objQidObject
+
+  listUsers owner userIds `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    for_ profiles $ \profile ->
+      lookupField profile "contact_status" `shouldMatch` (Nothing :: Maybe Value)
+
+  listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    assertContactStatus profiles noClientUser "non-contactable"
+    assertContactStatus profiles proteusUser "contactable"
+    assertContactStatus profiles mlsUser "contactable"
+  where
+    assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
+    assertContactStatus profiles user expected = do
+      uid <- user %. "id"
+      profile <- findM (fmap (== Just uid) . flip lookupField "id") profiles
+      case profile of
+        Nothing -> assertFailure "list-users did not return the requested user"
+        Just p -> p %. "contact_status.state" `shouldMatch` expected
 
 testGetTeamsInvitationInfo :: (HasCallStack) => App ()
 testGetTeamsInvitationInfo = do

@@ -23,6 +23,7 @@ where
 
 import AWS.Util (readAuthExpiration)
 import Amazonka qualified as AWS
+import Arbiter.Core qualified as ArbiterCore
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Concurrent.Async qualified as Async
@@ -44,7 +45,7 @@ import Galley.App qualified as App
 import Galley.Cassandra
 import Galley.Env
 import Galley.Monad
-import Galley.Queue qualified as Q
+import Hasql.Pool.Extended (rawPool)
 import Imports
 import Network.HTTP.Media.RenderHeader qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -66,6 +67,8 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.AWS (awsEnv)
+import Wire.BoundedQueue.STM qualified as Q
+import Wire.JobSubsystem.Migrations (mkArbiterConnectionString, runJobMigrations)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.Options.Galley
 import Wire.PostgresMigrations (runAllMigrations)
@@ -74,7 +77,13 @@ run :: Opts -> IO ()
 run opts = lowerCodensity do
   tracer <- withTracerC
   (app, env) <- mkApp opts
-  lift $ runAllMigrations env._hasqlPool env._applog
+  lift $ runAllMigrations env._hasqlPool.rawPool env._applog
+  arbiterConnStr <-
+    lift $
+      mkArbiterConnectionString
+        (opts ^. postgresql)
+        (opts ^. postgresqlPassword)
+  lift $ runJobMigrations arbiterConnStr ArbiterCore.defaultSchemaName
   let settings' =
         newSettings $
           defaultServer

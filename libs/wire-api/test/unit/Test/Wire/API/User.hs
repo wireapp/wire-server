@@ -135,7 +135,8 @@ testUserProfile = do
             profileSupportedProtocols = defSupportedProtocols,
             profileType = UserTypeRegular,
             profileApp = Nothing,
-            profileSearchable = True
+            profileSearchable = True,
+            profileContactStatus = Nothing
           }
   let profileJSONAsText = show $ Aeson.encode userProfile
   let msg = "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText

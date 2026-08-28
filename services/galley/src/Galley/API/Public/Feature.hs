@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
@@ -70,7 +71,7 @@ featureAPI =
     <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", PreventAdminlessGroupsConfig) getFeature
     <@> mkNamedAPI @"put-PreventAdminlessGroupsConfig@v16" setFeature
-    <@> mkNamedAPI @"put-PreventAdminlessGroupsConfig@v17" setFeature
+    <@> mkNamedAPI @"put-PreventAdminlessGroupsConfig@v18" setFeature
     <@> mkNamedAPI @'("get", CellsConfig) getFeature
     <@> mkNamedAPI @"put-CellsConfig@v13" setFeature
     <@> mkNamedAPI @'("put", CellsConfig) setFeature
@@ -83,8 +84,9 @@ featureAPI =
     <@> mkNamedAPI @'("get", StealthUsersConfig) getFeature
     <@> mkNamedAPI @'("get", CellsInternalConfig) getFeature
     <@> featureAPIGetPut @MeetingsConfig
-    <@> featureAPIGetPut @MeetingsPremiumConfig
-    <@> featureAPIGetPut @BackgroundEffectsConfig
+    <@> mkNamedAPI @'("get", MeetingsPremiumConfig) getFeature
+    <@> mkNamedAPI @'("put", MeetingsPremiumConfig) setFeature
+    <@> hoistAPI id featureAPIGetPut
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

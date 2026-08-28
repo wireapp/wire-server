@@ -24,6 +24,7 @@ import Test.Wire.API.Call.Config qualified as Call.Config
 import Test.Wire.API.Conversation qualified as Conversation
 import Test.Wire.API.MLS qualified as MLS
 import Test.Wire.API.MLS.Group qualified as Group
+import Test.Wire.API.Meeting qualified as Meeting
 import Test.Wire.API.OAuth qualified as OAuth
 import Test.Wire.API.RawJson qualified as RawJson
 import Test.Wire.API.Roundtrip.Aeson qualified as Roundtrip.Aeson
@@ -33,6 +34,7 @@ import Test.Wire.API.Roundtrip.HttpApiData qualified as Roundtrip.HttpApiData
 import Test.Wire.API.Roundtrip.MLS qualified as Roundtrip.MLS
 import Test.Wire.API.Roundtrip.PostgresMarshall as PostgresMarshall
 import Test.Wire.API.Routes qualified as Routes
+import Test.Wire.API.Routes.OAuthScopes qualified as Routes.OAuthScopes
 import Test.Wire.API.Routes.Version qualified as Routes.Version
 import Test.Wire.API.Routes.Version.Wai qualified as Routes.Version.Wai
 import Test.Wire.API.Swagger qualified as Swagger
@@ -62,7 +64,9 @@ main =
         Swagger.tests,
         Roundtrip.CSV.tests,
         Routes.tests,
+        Routes.OAuthScopes.tests,
         Conversation.tests,
+        Meeting.tests,
         MLS.tests,
         Group.tests,
         Routes.Version.tests,

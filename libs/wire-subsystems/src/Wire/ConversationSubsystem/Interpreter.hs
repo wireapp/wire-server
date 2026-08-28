@@ -71,7 +71,9 @@ import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget (FireAndForget)
 import Wire.HashPassword (HashPassword)
+import Wire.JobSubsystem (JobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.NotificationSubsystem as NS
 import Wire.Options.Galley (GuestLinkTTLSeconds)
 import Wire.ProposalStore (ProposalStore)
@@ -85,7 +87,8 @@ import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 
 interpretConversationSubsystem ::
-  ( Member (Error ConversationSubsystemError) r,
+  ( Member MeetingNotifier r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error JSONResponse) r,
     Member (Error DynError) r,
     Member UserGroupStore r,
@@ -115,6 +118,7 @@ interpretConversationSubsystem ::
     Member TeamStore r,
     Member ConvStore.MLSCommitLockStore r,
     Member FederationSubsystem r,
+    Member JobSubsystem r,
     Member Resource r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member UserClientIndexStore r,
@@ -211,6 +215,12 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.deleteLocalConversation lusr con lcnv
   InternalDeleteLocalConversation lcnv ->
     mapErrors $ Action.updateLocalConversationDeleteUnchecked lcnv
+  InternalDeleteLocalAdminlessGroup lusr lcnv ->
+    mapErrors $ Update.adminlessAutopromoteOrDelete lusr lcnv
+  InternalNotifyAdminlessReminder lusr lcnv deletionScheduledFor ->
+    mapErrors $ Update.adminlessAutopromoteOrSendReminder lusr lcnv deletionScheduledFor
+  SetupAdminlessGroupsCleanup lusr tid ->
+    mapErrors $ Update.setupAdminlessGroupsCleanup lusr tid
   GetMLSPublicKeys fmt ->
     mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->
@@ -261,8 +271,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.addQualifiedMembersUnqualified lusr con cnv invite
   AddMembers lusr zcon qcnv invite ->
     mapErrors $ Update.addMembers lusr zcon qcnv invite
-  ReplaceMembers lusr zcon qcnv invite ->
-    mapErrors $ Update.replaceMembers lusr zcon qcnv invite
+  ReplaceMembers responseMode lusr zcon qcnv invite ->
+    mapErrors $ Update.replaceMembers responseMode lusr zcon qcnv invite
   JoinConversationById lusr con cnv ->
     mapErrors $ Update.joinConversationById lusr con cnv
   JoinConversationByReusableCode lusr con req ->

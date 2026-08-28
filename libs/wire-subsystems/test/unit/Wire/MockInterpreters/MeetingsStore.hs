@@ -33,7 +33,7 @@ inMemoryMeetingsStoreInterpreter ::
   (Member (State (Map MeetingId StoredMeeting)) r, Member Now r, Member Random r) =>
   InterpreterFor MeetingsStore r
 inMemoryMeetingsStoreInterpreter = interpret $ \case
-  CreateMeeting title creator startTime endTime recurrence conversationId invitedEmails trial -> do
+  CreateMeeting title creator startTime endTime tzid recurrence conversationId invitedEmails trial -> do
     mid <- Random.newId
     now <- Now.get
     let sm =
@@ -43,6 +43,7 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
               creator = creator,
               startTime = startTime,
               endTime = endTime,
+              tzid = tzid,
               recurrence = recurrence,
               conversationId = conversationId,
               invitedEmails = invitedEmails,
@@ -53,7 +54,7 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
     modify (Map.insert mid sm)
     pure sm
   GetMeeting mid -> gets (Map.lookup mid)
-  UpdateMeeting mid title startTime endTime recurrence -> do
+  UpdateMeeting mid title startTime endTime tzid recurrence -> do
     sm <- gets (Map.lookup mid)
     case sm of
       Nothing -> pure Nothing
@@ -62,11 +63,14 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
         let updatedMeeting =
               meeting
                 { title = fromMaybe (meeting.title) title,
-                  startTime = fromMaybe meeting.startTime startTime,
+                  startTime = startTime',
                   endTime = fromMaybe meeting.endTime endTime,
+                  tzid = fromMaybe meeting.tzid tzid,
                   recurrence = fromMaybe meeting.recurrence recurrence,
                   updatedAt = now
                 }
+              where
+                startTime' = fromMaybe meeting.startTime startTime
         modify (Map.insert mid updatedMeeting) >> pure (Just updatedMeeting)
   ListMeetingsByUser userId cutoffTime ->
     gets $
@@ -120,6 +124,6 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
   GetOldMeetings cutoffTime batchSize ->
     gets $
       take batchSize
-        . List.sortOn (.endTime)
+        . List.sortOn effectiveEndTime
         . filter (\sm -> maybe False (< cutoffTime) (effectiveEndTime sm))
         . Map.elems

@@ -26,11 +26,12 @@ import CargoHold.S3 (S3AssetMeta)
 import qualified CargoHold.S3 as S3
 import qualified CargoHold.Types as V3
 import Data.ByteString.Conversion
+import Data.Domain (Domain)
 import Data.Qualified (Qualified)
 import Imports
 import URI.ByteString hiding (urlEncode)
 
-genSignedURL :: (ToByteString p) => Maybe (Qualified V3.Principal) -> Maybe S3AssetMeta -> p -> Maybe Text -> Handler URI
+genSignedURL :: (ToByteString p) => Maybe (Qualified V3.Principal) -> Maybe S3AssetMeta -> p -> Maybe Domain -> Handler URI
 genSignedURL quid mMeta path mbHost = do
   uri <-
     asks (.aws.cloudFront) >>= \case

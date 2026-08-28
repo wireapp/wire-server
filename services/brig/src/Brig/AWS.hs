@@ -69,6 +69,7 @@ import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
 import Wire.AWS (canRetry, sendCatch)
+import Wire.EmailSending.Options qualified as EmailOpt
 
 data Env = Env
   { _logger :: !Logger,
@@ -99,11 +100,11 @@ newtype Amazon a = Amazon
 instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
 
-mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
+mkEnv :: Logger -> Opt.AWSOpts -> Maybe EmailOpt.EmailAWSOpts -> Manager -> IO Env
 mkEnv lgr opts emailOpts mgr = do
   let g = Logger.clone (Just "aws.brig") lgr
   let pk = Opt.prekeyTable opts
-  let sesEndpoint = mkEndpoint SES.defaultService . Opt.sesEndpoint <$> emailOpts
+  let sesEndpoint = mkEndpoint SES.defaultService . EmailOpt.sesEndpoint <$> emailOpts
   let dynamoEndpoint = mkEndpoint DDB.defaultService <$> Opt.dynamoDBEndpoint opts
   e <-
     mkAwsEnv
@@ -111,7 +112,7 @@ mkEnv lgr opts emailOpts mgr = do
       sesEndpoint
       dynamoEndpoint
       (mkEndpoint SQS.defaultService (Opt.sqsEndpoint opts))
-  sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
+  sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . EmailOpt.sesQueue) emailOpts
   jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
   pure (Env g sq jq pk e)
   where

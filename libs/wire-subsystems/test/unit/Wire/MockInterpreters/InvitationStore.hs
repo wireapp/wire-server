@@ -17,19 +17,20 @@
 
 module Wire.MockInterpreters.InvitationStore where
 
-import Data.Id (InvitationId, TeamId)
+import Data.Id (InvitationId, TeamId, UserId)
 import Data.Map (alter, elems, (!?))
 import Data.Map qualified as M
 import Imports hiding ((!?))
 import Polysemy
 import Polysemy.State (State, get, gets, modify)
-import Wire.API.User (InvitationCode (..))
+import Wire.API.User (EmailAddress, InvitationCode (..))
 import Wire.InvitationStore
 
 inMemoryInvitationStoreInterpreter ::
   forall r.
   ( Member (State (Map (TeamId, InvitationId) StoredInvitation)) r,
-    Member (State (Map (InvitationCode) StoredInvitation)) r
+    Member (State (Map (InvitationCode) StoredInvitation)) r,
+    Member (State (Map (TeamId, EmailAddress) [UserId])) r
   ) =>
   InterpreterFor InvitationStore r
 inMemoryInvitationStoreInterpreter = interpret \case
@@ -49,7 +50,23 @@ inMemoryInvitationStoreInterpreter = interpret \case
   LookupInvitationsByEmail em ->
     let c i = guard (i.email == em) $> i
      in mapMaybe c . elems <$> get @(Map (TeamId, InvitationId) _)
+  InsertPendingScimUser tid email uid ->
+    modify @(Map (TeamId, EmailAddress) [UserId]) (M.insertWith (++) (tid, email) [uid])
+  LookupPendingScimUsers tid email ->
+    gets @(Map (TeamId, EmailAddress) [UserId]) (fromMaybe [] . (!? (tid, email)))
+  DeletePendingScimUser tid email uid ->
+    modify @(Map (TeamId, EmailAddress) [UserId]) $
+      M.alter
+        ( \case
+            Nothing -> Nothing
+            Just uids -> case filter (/= uid) uids of
+              [] -> Nothing
+              remaining -> Just remaining
+        )
+        (tid, email)
   LookupInvitationsPaginated {} -> error "LookupInvitationsPaginated"
-  CountInvitations tid -> gets (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))
+  CountInvitations tid ->
+    gets @(Map (TeamId, InvitationId) StoredInvitation)
+      (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))
   DeleteInvitation _tid _invId -> error "DeleteInvitation"
   DeleteAllTeamInvitations _tid -> error "DeleteAllTeamInvitations"

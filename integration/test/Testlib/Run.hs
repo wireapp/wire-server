@@ -177,7 +177,7 @@ runTests tests mXMLOutput cfg = do
             pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
       writeChan output Nothing
       wait displayThread
-      deleteFederationV0AndV1Queues genv
+      deleteFederationVQueues genv
       printReport report
       mapM_ (saveXMLReport report) mXMLOutput
       when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
@@ -216,8 +216,8 @@ runMigrations = do
       (_, _, _, ph) <- liftIO $ createProcess cp
       void $ liftIO $ waitForProcess ph
 
-deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
-deleteFederationV0AndV1Queues env = do
+deleteFederationVQueues :: GlobalEnv -> IO ()
+deleteFederationVQueues env = do
   let testDomains = env.gDomain1 : env.gDomain2 : env.gDynamicDomains
   putStrLn "Attempting to delete federation V0 queues..."
   (mV0User, mV0Pass) <- readCredsFromEnvWithSuffix "V0"
@@ -228,6 +228,11 @@ deleteFederationV0AndV1Queues env = do
   (mV1User, mV1Pass) <- readCredsFromEnvWithSuffix "V1"
   fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $
     deleteFederationQueues testDomains env.gRabbitMQConfigV1 <$> mV1User <*> mV1Pass
+
+  putStrLn "Attempting to delete federation V2 queues..."
+  (mV2User, mV2Pass) <- readCredsFromEnvWithSuffix "V2"
+  fromMaybe (putStrLn "No or incomplete credentials for fed V2 RabbitMQ") $
+    deleteFederationQueues testDomains env.gRabbitMQConfigV2 <$> mV2User <*> mV2Pass
   where
     readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
     readCredsFromEnvWithSuffix suffix =

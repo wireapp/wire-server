@@ -16,8 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.MeetingsCleanupWorker
-  ( startWorker,
-    CleanupConfig (..),
+  ( CleanupConfig (..),
+    runCleanupOldMeetings,
   )
 where
 
@@ -28,11 +28,10 @@ import Data.Time.Clock
 import Imports
 import Polysemy.Error (runError)
 import Prometheus (incCounter)
-import System.Cron (Job (..), forkJob)
 import System.Logger qualified as Log
-import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..), runAppT)
-import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
-import Wire.BackgroundWorker.Util (CleanupAction)
+import Wire.API.Error.Galley (MeetingError)
+import Wire.API.Meeting (defaultLegacyTimeZone)
+import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..))
 import Wire.Effects
 import Wire.ExternalAccess.External
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
@@ -44,37 +43,6 @@ data CleanupConfig = CleanupConfig
     batchSize :: Int
   }
   deriving (Show, Eq)
-
--- | Start the meetings cleanup worker thread
---
--- This worker runs periodically to clean up old meetings based on the configuration.
-startWorker ::
-  MeetingsCleanupConfig ->
-  AppT IO CleanupAction
-startWorker config = do
-  env <- ask
-  Log.info env.logger $
-    Log.msg (Log.val "Starting meetings cleanup worker")
-      . Log.field "schedule" (show config.schedule)
-      . Log.field "clean_older_than_hours" config.cleanOlderThanHours
-
-  void . liftIO $ do
-    forkJob $
-      Job config.schedule $
-        runAppT env $ do
-          Log.info env.logger $ Log.msg (Log.val "Starting scheduled meetings cleanup")
-          runCleanupOldMeetings (configFromOptions config)
-          liftIO $ incCounter env.meetingsCleanupMetrics.runsCounter
-
-  pure $ pure ()
-
--- | Convert MeetingsCleanupConfig to CleanupConfig
-configFromOptions :: MeetingsCleanupConfig -> CleanupConfig
-configFromOptions cfg =
-  CleanupConfig
-    { retentionHours = cfg.cleanOlderThanHours,
-      batchSize = cfg.batchSize
-    }
 
 -- | Main cleanup function that orchestrates the cleanup process
 runCleanupOldMeetings :: CleanupConfig -> AppT IO ()
@@ -95,6 +63,7 @@ runCleanupOldMeetings config = do
   Log.info env.logger $
     Log.msg (Log.val "Completed cleanup of old meetings")
       . Log.field "total_deleted" totalDeleted
+  liftIO $ incCounter env.meetingsCleanupMetrics.runsCounter
 
 cleanupLoop :: Env -> UTCTime -> NominalDiffTime -> Int -> Int64 -> AppT IO Int64
 cleanupLoop env cutoffTime validityPeriod batchSize totalSoFar = do
@@ -134,7 +103,10 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
     . runBackgroundWorkerEffects env extEnv (RequestId "meetings-cleanup") Nothing
     . interpretMeetingsStoreToPostgres
     . runError @MeetingError
-    . interpretMeetingsSubsystem validityPeriod
+    -- Cleanup performs no meeting updates, so the past-edit period is
+    -- unused; pass 0 to keep the (inert) limit as tight as possible.
+    . interpretMeetingsSubsystem
+      MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
     $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
 
 data WorkerException = WorkerException Text

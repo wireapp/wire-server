@@ -27,11 +27,11 @@ import qualified Data.Text.Encoding as T
 import Imports
 import Polysemy
 import SAML2.WebSSO
-import Spar.Sem.SamlProtocolSettings
-import Spar.Sem.SamlProtocolSettings.Servant (sparRouteToServant)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import URI.ByteString (aggressiveNormalization, normalizeURIRef)
+import Wire.SamlProtocolSettings
+import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 
 spec :: Spec
 spec = do

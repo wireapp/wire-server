@@ -1,5 +1,6 @@
 {-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -36,7 +37,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Kind
-import Data.Qualified (Local)
+import Data.Qualified
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.App
@@ -71,6 +72,7 @@ import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
+import Wire.JobSubsystem (JobSubsystem, cancelAdminlessJobsForTeam, scheduleAdminlessSetupJob)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Options.Galley
@@ -86,6 +88,7 @@ import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as SearchVisibilityData
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.Util
 
 type ComputeFeatureConstraints cfg r = (Member FeaturesConfigSubsystem r)
 
@@ -113,6 +116,7 @@ patchFeatureInternal tid patch = do
   prepareFeature tid patchedFeature
   patchDbFeature tid patch
   (returnedFeature :: LockableFeature cfg) <- getFeatureForTeam tid
+  afterFeatureSet @cfg Nothing tid dbFeatureWithDefaults returnedFeature
   pushFeatureEvent @cfg tid (mkUpdateEvent tid returnedFeature)
   pure returnedFeature
   where
@@ -136,16 +140,18 @@ setFeature ::
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeature uid tid feat = do
+  lusr <- qualifyLocal uid
   zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
   void $ TeamSubsystem.permissionCheck ChangeTeamFeature zusrMembership
-  setFeatureUnchecked tid feat
+  setFeatureUnchecked (Just lusr) tid feat
 
 setFeatureInternal ::
   forall cfg r.
@@ -164,7 +170,7 @@ setFeatureInternal ::
   Sem r (LockableFeature cfg)
 setFeatureInternal tid feat = do
   TeamSubsystem.assertTeamExists tid
-  setFeatureUnchecked tid feat
+  setFeatureUnchecked Nothing tid feat
 
 setFeatureUnchecked ::
   forall cfg r.
@@ -178,13 +184,14 @@ setFeatureUnchecked ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
+  Maybe (Local UserId) ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureUnchecked tid feat = do
+setFeatureUnchecked originUser tid feat = do
   (feat0 :: LockableFeature cfg) <- getFeatureForTeam tid
   guardLockStatus feat0.lockStatus
-  setFeatureForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
+  setFeatureForTeam @cfg originUser tid feat0 (withLockStatus feat0.lockStatus feat)
 
 updateLockStatus ::
   forall cfg r.
@@ -257,12 +264,15 @@ setFeatureForTeam ::
     Member TeamFeatureStore r,
     Member TeamSubsystem r
   ) =>
+  Maybe (Local UserId) ->
   TeamId ->
   LockableFeature cfg ->
+  LockableFeature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureForTeam tid feat = do
+setFeatureForTeam originUser tid oldFeature feat = do
   prepareFeature tid feat
   newFeat <- persistFeature tid feat
+  afterFeatureSet @cfg originUser tid oldFeature newFeat
   pushFeatureEvent @cfg tid (mkUpdateEvent tid newFeat)
   pure newFeat
 
@@ -287,6 +297,21 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
     Sem r ()
   default prepareFeature :: TeamId -> LockableFeature cfg -> Sem r ()
   prepareFeature _tid _feat = pure ()
+
+  afterFeatureSet ::
+    (SetFeatureForTeamConstraints cfg r) =>
+    Maybe (Local UserId) ->
+    TeamId ->
+    LockableFeature cfg ->
+    LockableFeature cfg ->
+    Sem r ()
+  default afterFeatureSet ::
+    Maybe (Local UserId) ->
+    TeamId ->
+    LockableFeature cfg ->
+    LockableFeature cfg ->
+    Sem r ()
+  afterFeatureSet _originUser _tid _oldFeature _newFeature = pure ()
 
 instance SetFeatureConfig SSOConfig where
   type
@@ -419,7 +444,21 @@ instance SetFeatureConfig MLSConfig where
 
 instance SetFeatureConfig ChannelsConfig
 
-instance SetFeatureConfig PreventAdminlessGroupsConfig
+instance SetFeatureConfig PreventAdminlessGroupsConfig where
+  type SetFeatureForTeamConstraints PreventAdminlessGroupsConfig r = Member JobSubsystem r
+
+  afterFeatureSet originUser tid oldFeature newFeature =
+    case (oldFeature.status, newFeature.status) of
+      (FeatureStatusDisabled, FeatureStatusEnabled) ->
+        scheduleAdminlessSetupJob originUser tid
+      (FeatureStatusEnabled, FeatureStatusDisabled) ->
+        cancelAdminlessJobsForTeam tid
+      (FeatureStatusEnabled, FeatureStatusEnabled)
+        | oldFeature.config /= newFeature.config -> do
+            cancelAdminlessJobsForTeam tid
+            scheduleAdminlessSetupJob originUser tid
+        | otherwise -> pure ()
+      _ -> pure ()
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 
@@ -490,23 +529,21 @@ instance SetFeatureConfig AppsConfig where
     SetFeatureForTeamConstraints AppsConfig (r :: EffectRow) =
       (Member BrigAPIAccess r)
 
-  prepareFeature tid feat = do
-    let newStatus = case feat.status of
-          FeatureStatusEnabled -> Active
-          FeatureStatusDisabled -> Suspended
-    appIds <- getAppIdsForTeam tid
-    -- NB: this will work as long as the only reason for suspending
-    -- apps is "payment plan expired", but should we ever introduce a
-    -- suspend button for team admins to let them temporarily disable
-    -- apps without deinstalling them, then we need to keep track of
-    -- the suspend reason and filter for the right one here.
-    --
-    -- NB(2): this is not terribly efficient, but it's a rarely called
-    -- operation with usually small numbers of apps.  tweak
-    -- opportunities: (a) only call this loop if enablement actually
-    -- changes; (b) do the loop over all appIds in postgres with one
-    -- query.
-    for_ appIds $ \uid -> setAccountStatus uid newStatus
+  prepareFeature tid feat = case feat.status of
+    -- WPB-25579: re-enabling the feature must NOT re-activate apps.  An app may
+    -- have been suspended for reasons other than this feature being disabled
+    -- (e.g. suspended individually), so we never blanket-reactivate here.
+    FeatureStatusEnabled ->
+      -- Do nothing.  Some apps may have been suspended for reasons
+      -- unrelated to the feature flag flipping.
+      pure ()
+    FeatureStatusDisabled -> do
+      appIds <- getAppIdsForTeam tid
+      -- NB: this is not terribly efficient, but it's a rarely called operation
+      -- with usually small numbers of apps.  tweak opportunities: (a) only call
+      -- this loop if enablement actually changes; (b) loop over all
+      -- appIds in postgres with one query.
+      for_ appIds $ \uid -> setAccountStatus uid Suspended
 
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 

@@ -93,6 +93,22 @@ data:
     backgroundJobs:
 {{ toYaml . | indent 6 }}
     {{- end }}
+    jobs:
+      # Arbiter dispatcher poll interval for all jobs.
+      # Lower values reduce discovery latency, but increase DB polling.
+      pollInterval: {{ .jobs.pollInterval }}
+      # Number of worker threads per job queue.
+      workerThreads: {{ .jobs.workerThreads }}
+      visibilityTimeout: {{ .jobs.visibilityTimeout }}
+      jobHeartbeatInterval: {{ .jobs.jobHeartbeatInterval }}
+      workerHeartbeatInterval: {{ .jobs.workerHeartbeatInterval }}
+      backoffBase: {{ .jobs.backoffBase }}
+      backoffCap: {{ .jobs.backoffCap }}
+      jitter: {{ .jobs.jitter }}
+      gracefulShutdownTimeout: {{ .jobs.gracefulShutdownTimeout }}
+      reaperInterval: {{ .jobs.reaperInterval }}
+      reaperTimeout: {{ .jobs.reaperTimeout }}
+      workerStaleThreshold: {{ .jobs.workerStaleThreshold }}
     {{- with .meetingsCleanup }}
     meetingsCleanup:
 {{ toYaml . | indent 6 }}

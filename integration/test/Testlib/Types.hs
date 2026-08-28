@@ -141,6 +141,7 @@ data GlobalEnv = GlobalEnv
     gRabbitMQConfig :: RabbitMqAdminOpts,
     gRabbitMQConfigV0 :: RabbitMqAdminOpts,
     gRabbitMQConfigV1 :: RabbitMqAdminOpts,
+    gRabbitMQConfigV2 :: RabbitMqAdminOpts,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
     gDNSMockServerConfig :: DNSMockServerConfig,
@@ -160,6 +161,7 @@ data IntegrationConfig = IntegrationConfig
     rabbitmq :: RabbitMqAdminOpts,
     rabbitmqV0 :: RabbitMqAdminOpts,
     rabbitmqV1 :: RabbitMqAdminOpts,
+    rabbitmqV2 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
     dnsMockServer :: DNSMockServerConfig,
     cellsEventQueue :: String
@@ -180,6 +182,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "rabbitmq-v0"
         <*> o .: fromString "rabbitmq-v1"
+        <*> o .: fromString "rabbitmq-v2"
         <*> o .: fromString "cassandra"
         <*> o .: fromString "dnsMockServer"
         <*> o .: fromString "cellsEventQueue"
@@ -252,6 +255,7 @@ stopQueueWatcher watcher = void $ tryPutMVar watcher.doneVar ()
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
+    requestIdCounter :: IORef Int,
     domain1 :: String,
     domain2 :: String,
     integrationTestHostName :: String,
@@ -263,8 +267,6 @@ data Env = Env
     apiVersionByDomain :: Map String Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
-    prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMqAdminOpts,

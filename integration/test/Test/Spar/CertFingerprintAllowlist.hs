@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Spar.CertFingerprintAllowlist where
 
 import API.GalleyInternal (setTeamFeatureStatus)
@@ -5,12 +22,11 @@ import API.Spar (createIdpWithZHostV2, updateIdp)
 import Control.Lens ((.~), (^.))
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
-import qualified Data.Text as T
 import Data.X509 (SignedCertificate)
-import qualified Data.X509.Extended as X509E
 import qualified SAML2.WebSSO.Test.Util as SAMLTest
 import qualified SAML2.WebSSO.Types as SAMLTypes
 import SetupHelpers
+import Testlib.Certs (fingerprintHex)
 import Testlib.Prelude
 import qualified Text.XML.DSig as XMLDSig
 
@@ -136,10 +152,6 @@ bogusFingerprint = "0000000000000000000000000000000000000000"
 -- | First cert in the descriptor's @AuthnResponse@ cert list.
 firstCert :: SAMLTypes.IdPMetadata -> SignedCertificate
 firstCert meta = NE.head $ meta ^. SAMLTypes.edCertAuthnResponse
-
--- | Cert's SHA-1 fingerprint in canonical @AA:BB:..@ hex form.
-fingerprintHex :: SignedCertificate -> String
-fingerprintHex = T.unpack . X509E.renderFingerprintHex . X509E.certSha1Fingerprint
 
 -- | First cert's SHA-1, canonical @AA:BB:..@ form.
 firstCertFingerprint :: SAMLTypes.IdPMetadata -> String

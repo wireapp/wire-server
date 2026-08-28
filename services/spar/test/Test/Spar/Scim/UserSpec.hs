@@ -28,10 +28,6 @@ import Polysemy.TinyLog
 import Spar.Scim.User (deleteScimUser)
 import Spar.Sem.SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem (samlUserStoreToMem)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
-import Spar.Sem.ScimUserTimesStore
-import Spar.Sem.ScimUserTimesStore.Mem (scimUserTimesStoreToMem)
 import System.Logger (Msg)
 import Test.Hspec
 import Test.QuickCheck
@@ -42,6 +38,10 @@ import Wire.BrigAPIAccess
 import Wire.IdPConfigStore
 import Wire.IdPConfigStore.Mem (idPToMem)
 import Wire.IdPConfigStore.Orphans ()
+import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
+import Wire.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
+import Wire.ScimUserMetaStore
+import Wire.ScimUserMetaStore.Mem (scimUserMetaStoreToMem)
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 
 spec :: Spec
@@ -85,7 +85,7 @@ deleteUserAndAssertDeletionInSpar ::
       '[ Logger (Msg -> Msg),
          BrigAPIAccess,
          ScimExternalIdStore.ScimExternalIdStore,
-         ScimUserTimesStore,
+         ScimUserMetaStore,
          SAMLUserStore,
          IdPConfigStore,
          Embed IO
@@ -108,7 +108,7 @@ deleteUserAndAssertDeletionInSpar acc tokenInfo = do
 type EffsWithoutBrigAPIAccess =
   '[ IdPConfigStore,
      SAMLUserStore,
-     ScimUserTimesStore,
+     ScimUserMetaStore,
      ScimExternalIdStore.ScimExternalIdStore,
      Logger (Msg -> Msg),
      Embed IO,
@@ -126,7 +126,7 @@ interpretWithBrigAPIAccessMock mock =
     . embedToFinal @IO
     . discardTinyLogs
     . ignoringState scimExternalIdStoreToMem
-    . ignoringState scimUserTimesStoreToMem
+    . ignoringState scimUserMetaStoreToMem
     . ignoringState samlUserStoreToMem
     . ignoringState idPToMem
     . mock

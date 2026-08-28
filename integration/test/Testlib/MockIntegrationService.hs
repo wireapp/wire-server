@@ -45,6 +45,7 @@ import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
+import Testlib.Prekeys
 import Testlib.Prelude hiding (IntegrationConfig (integrationTestHostName))
 import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async
@@ -127,7 +128,7 @@ instance (App ~ f) => Default (CreateMock f) where
   def =
     MkCreateMock
       { nextLastPrey = getLastPrekey,
-        somePrekeys = replicateM 3 getPrekey
+        somePrekeys = getPrekeys 3
       }
 
 data LhApiVersion = V0 | V1

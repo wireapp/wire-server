@@ -105,7 +105,6 @@ data UserStore m a where
   -- GetUsersTeams :: [UserId] -> UserStore m (Maybe [TeamId])
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
-  LookupRichInfos :: [UserId] -> UserStore m [(UserId, RichInfo)]
   UpdateRichInfo :: UserId -> RichInfoAssocList -> UserStore m ()
   UpsertHashedPassword :: UserId -> Password -> UserStore m ()
   LookupHashedPassword :: UserId -> UserStore m (Maybe Password)

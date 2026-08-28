@@ -21,7 +21,6 @@ module Spar.Data
     Env (..),
     mkEnv,
     mkTTLAssertions,
-    nominalDiffToSeconds,
     mkTTLAuthnRequests,
 
     -- * SAML Users

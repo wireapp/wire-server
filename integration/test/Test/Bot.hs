@@ -38,6 +38,7 @@ import Servant.Server
 import SetupHelpers
 import Testlib.Certs
 import Testlib.MockIntegrationService
+import Testlib.Prekeys
 import Testlib.Prelude
 import UnliftIO
 

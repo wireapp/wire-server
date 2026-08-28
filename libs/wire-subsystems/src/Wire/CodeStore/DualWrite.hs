@@ -21,6 +21,7 @@ module Wire.CodeStore.DualWrite
 where
 
 import Cassandra (ClientState)
+import Data.Domain (Domain)
 import Data.Misc
 import Imports
 import Polysemy
@@ -37,7 +38,7 @@ import Wire.Postgres (PGConstraints)
 -- | Cassandra is the source of truth during migration; writes are mirrored to Postgres.
 interpretCodeStoreToCassandraAndPostgres ::
   ( Member (Input ClientState) r,
-    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+    Member (Input (Either HttpsUrl (Map Domain HttpsUrl))) r,
     Member (ErrorS 'CodeStoreNotFound) r,
     PGConstraints r
   ) =>

@@ -98,25 +98,18 @@ library
     Brig.AWS
     Brig.AWS.SesNotification
     Brig.AWS.Types
-    Brig.Budget
     Brig.Calling
     Brig.Calling.API
     Brig.Calling.Internal
     Brig.CanonicalInterpreter
     Brig.Data.Activation
     Brig.Data.Connection
-    Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
     Brig.Data.Types
     Brig.Data.User
     Brig.DeleteQueue.Interpreter
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
-    Brig.Effects.JwtTools
-    Brig.Effects.PublicKeyBundle
-    Brig.Effects.SFT
-    Brig.Effects.UserPendingActivationStore
-    Brig.Effects.UserPendingActivationStore.Cassandra
     Brig.Index.Eval
     Brig.Index.Options
     Brig.Index.Types
@@ -189,6 +182,7 @@ library
     Brig.Schema.V90_DomainRegistrationTeamIndex
     Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl
     Brig.Schema.V92_AddUserType
+    Brig.Schema.V93_AddScimPendingUserEmail
     Brig.Team.API
     Brig.Team.Template
     Brig.Template
@@ -245,7 +239,7 @@ library
     , fsnotify                              >=0.4
     , galley-types                          >=0.75.3
     , hashable                              >=1.2
-    , hasql-pool
+    , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , HsOpenSSL                             >=0.10
@@ -356,7 +350,6 @@ executable brig-integration
     API.Team
     API.Team.Util
     API.TeamUserSearch
-    API.Template
     API.User
     API.User.Account
     API.User.Auth

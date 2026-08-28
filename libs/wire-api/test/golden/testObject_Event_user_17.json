@@ -1,0 +1,76 @@
+{
+    "conversation": "00007d9a-0000-4f23-0000-2b8a000057c1",
+    "data": {
+        "access": [
+            "private",
+            "invite"
+        ],
+        "access_role": "activated",
+        "access_role_v2": [
+            "team_member",
+            "non_team_member"
+        ],
+        "add_permission": null,
+        "cells_state": "disabled",
+        "creator": "00000000-0000-0000-0000-000400000001",
+        "group_conv_type": "meeting",
+        "history": null,
+        "id": "00000000-0000-0000-0000-000300000001",
+        "last_event": "0.0",
+        "last_event_time": "1970-01-01T00:00:00.000Z",
+        "members": {
+            "others": [
+                {
+                    "conversation_role": "wire_member",
+                    "id": "00000000-0000-0006-0000-000100000001",
+                    "qualified_id": {
+                        "domain": "golden.example.com",
+                        "id": "00000000-0000-0006-0000-000100000001"
+                    },
+                    "status": 0
+                }
+            ],
+            "self": {
+                "conversation_role": "wire_admin",
+                "hidden": false,
+                "hidden_ref": null,
+                "id": "00000002-0000-0000-0000-000000000001",
+                "otr_archived": false,
+                "otr_archived_ref": null,
+                "otr_muted_ref": null,
+                "otr_muted_status": null,
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000002-0000-0000-0000-000000000001"
+                },
+                "service": null,
+                "status": 0,
+                "status_ref": "0.0",
+                "status_time": "1970-01-01T00:00:00.000Z"
+            }
+        },
+        "message_timer": null,
+        "name": "Meeting Room",
+        "parent": null,
+        "protocol": "proteus",
+        "qualified_id": {
+            "domain": "golden.example.com",
+            "id": "00000000-0000-0000-0000-000300000001"
+        },
+        "receipt_mode": null,
+        "team": "00000000-0000-0005-0000-000100000001",
+        "type": 0
+    },
+    "from": "00005c6b-0000-6a17-0000-3e5b00006e2f",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00007d9a-0000-4f23-0000-2b8a000057c1"
+    },
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "00005c6b-0000-6a17-0000-3e5b00006e2f"
+    },
+    "time": "1864-05-20T12:14:33.001Z",
+    "type": "conversation.create-meeting",
+    "via": "user"
+}

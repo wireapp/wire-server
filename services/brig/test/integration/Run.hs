@@ -29,7 +29,6 @@ import API.Search qualified as Search
 import API.Settings qualified as Settings
 import API.Team qualified as Team
 import API.TeamUserSearch qualified as TeamUserSearch
-import API.Template qualified
 import API.User qualified as User
 import Bilge hiding (header, host, port)
 import Bilge qualified
@@ -64,6 +63,7 @@ import Util.Test.SQS qualified as SQS
 import Web.HttpApiData
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
+import Wire.EmailSending.Options qualified as EmailOpt
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
@@ -145,7 +145,6 @@ runTests iConf brigOpts otherArgs = do
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
   federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
-  emailTemplates <- API.Template.tests brigOpts mg
 
   let smtp = SMTP.tests mg lg
       oauthAPI = API.OAuth.tests mg db b n brigOpts
@@ -165,8 +164,7 @@ runTests iConf brigOpts otherArgs = do
         federationEndpoints,
         smtp,
         oauthAPI,
-        federationEnd2End,
-        emailTemplates
+        federationEnd2End
       ]
   where
     mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
@@ -187,11 +185,10 @@ runTests iConf brigOpts otherArgs = do
           _ -> s
         latestVersion :: Version
         latestVersion = maxBound
-
-    parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
+    parseEmailAWSOpts :: IO (Maybe EmailOpt.EmailAWSOpts)
     parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
-      (Opts.EmailAWS aws) -> pure (Just aws)
-      (Opts.EmailSMTP _) -> pure Nothing
+      (EmailOpt.EmailAWS aws) -> pure (Just aws)
+      (EmailOpt.EmailSMTP _) -> pure Nothing
 
 main :: IO ()
 main = withOpenSSL $ do

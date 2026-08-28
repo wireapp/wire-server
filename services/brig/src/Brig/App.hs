@@ -58,6 +58,7 @@ module Brig.App
     http2ManagerLens,
     extGetManagerLens,
     settingsLens,
+    publicKeyBundleLens,
     fsWatcherLens,
     turnEnvLens,
     sftEnvLens,
@@ -122,13 +123,17 @@ import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Error
+import Control.Exception qualified as Ex
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
+import Data.ByteString qualified as BS
+import Data.ByteString.Conversion (fromByteString)
 import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
 import Data.Misc
+import Data.PEMKeys (PEMKeys)
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -137,8 +142,8 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
-import Hasql.Pool qualified as HasqlPool
-import Hasql.Pool.Extended
+import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
@@ -164,6 +169,7 @@ import Wire.API.Routes.Version
 import Wire.API.User.Identity
 import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
+import Wire.EmailSending.Options qualified as EmailOpt
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
@@ -205,6 +211,7 @@ data Env = Env
     http2Manager :: Http2Manager,
     extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     settings :: Settings,
+    publicKeyBundle :: Maybe PEMKeys,
     fsWatcher :: FS.WatchManager,
     turnEnv :: Calling.TurnEnv,
     sftEnv :: Maybe Calling.SFTEnv,
@@ -224,6 +231,24 @@ data Env = Env
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
+
+-- | Read and parse the DPoP public key bundle once at startup. Returns
+-- 'Nothing' when no path is configured or the file is missing/unparseable; in
+-- the latter case a warning is logged to aid diagnosis.
+loadPublicKeyBundle :: Logger -> Maybe FilePath -> IO (Maybe PEMKeys)
+loadPublicKeyBundle lgr path = case path of
+  Nothing -> pure Nothing
+  Just fp -> do
+    contents :: Either Ex.IOException ByteString <- Ex.try $ BS.readFile fp
+    case contents of
+      Left _ -> do
+        Log.warn lgr (Log.msg ("Failed to read DPoP public key bundle from " <> fp))
+        pure Nothing
+      Right bs -> case fromByteString bs of
+        Nothing -> do
+          Log.warn lgr (Log.msg ("Failed to parse DPoP public key bundle from " <> fp))
+          pure Nothing
+        Just keys -> pure $ Just keys
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
@@ -276,6 +301,7 @@ newEnv opts = do
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
+  pubKeyBundle <- loadPublicKeyBundle lgr opts.settings.publicKeyBundle
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -303,6 +329,7 @@ newEnv opts = do
         http2Manager = h2Mgr,
         extGetManager = ext,
         settings = opts.settings,
+        publicKeyBundle = pubKeyBundle,
         turnEnv = turn,
         sftEnv = mSFTEnv,
         fsWatcher = w,
@@ -321,15 +348,15 @@ newEnv opts = do
         postgresMigration = opts.postgresMigration
       }
   where
-    emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
-    emailConn lgr (Opt.EmailSMTP s) = do
+    emailConn _ (EmailOpt.EmailAWS aws) = pure (Just aws, Nothing)
+    emailConn lgr (EmailOpt.EmailSMTP s) = do
       let h = s.smtpEndpoint.host
           p = Just . fromInteger . toInteger $ s.smtpEndpoint.port
-      smtpCredentials <- case Opt.smtpCredentials s of
-        Just (Opt.EmailSMTPCredentials u p') -> do
+      smtpCredentials <- case EmailOpt.smtpCredentials s of
+        Just (EmailOpt.EmailSMTPCredentials u p') -> do
           Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials p'
         _ -> pure Nothing
-      smtp <- SMTP.initSMTP lgr h p smtpCredentials (Opt.smtpConnType s)
+      smtp <- SMTP.initSMTP lgr h p smtpCredentials (EmailOpt.smtpConnType s)
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty
 

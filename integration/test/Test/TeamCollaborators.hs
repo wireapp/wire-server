@@ -17,7 +17,6 @@
 
 module Test.TeamCollaborators where
 
-import API.Brig
 import API.Galley
 import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra

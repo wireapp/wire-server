@@ -34,8 +34,6 @@ import Brig.API.User qualified as API
 import Brig.App as App
 import Brig.Data.Activation
 import Brig.Data.Connection qualified as Data
-import Brig.Data.MLS.KeyPackage qualified as Data
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
@@ -90,6 +88,7 @@ import Wire.API.UserGroup (UserGroup)
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AppStore (AppStore)
 import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem (AppSubsystem)
@@ -118,6 +117,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
@@ -128,10 +129,12 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
+import Wire.StoredUser (StoredUser (..))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User
@@ -186,7 +189,8 @@ servantSitemap ::
     Member AppStore r,
     Member AppSubsystem r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member MlsKeyPackageSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -222,7 +226,7 @@ ejpdAPI ::
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
-mlsAPI :: (Member ClientStore r) => ServerT BrigIRoutes.MLSAPI (Handler r)
+mlsAPI :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
   Named @"get-mls-clients" getMLSClientsH
     :<|> Named @"get-mls-client" getMLSClientH
@@ -282,11 +286,11 @@ accountAPI =
     :<|> Named @"iPutUserSsoId" updateSSOIdH
     :<|> Named @"iDeleteUserSsoId" deleteSSOIdH
     :<|> Named @"iPutManagedBy" updateManagedByH
+    :<|> Named @"iDeletePendingEmailUpdate" deletePendingEmailUpdateH
     :<|> Named @"iPutRichInfo" updateRichInfoH
     :<|> Named @"iPutHandle" updateHandleH
     :<|> Named @"iPutUserName" updateUserNameH
     :<|> Named @"iGetRichInfo" getRichInfoH
-    :<|> Named @"iGetRichInfoMulti" getRichInfoMultiH
     :<|> Named @"iHeadHandle" checkHandleInternalH
     :<|> Named @"iConnectionUpdate" updateConnectionInternalH
     :<|> Named @"iListClients" internalListClientsH
@@ -458,13 +462,13 @@ deleteAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handle
 deleteAccountConferenceCallingConfig uid =
   lift . liftSem $ UserStore.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getMLSClientH :: (Member ClientStore r) => UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
+getMLSClientH :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
 getMLSClientH usr cid suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   lift $ getMLSClient lusr cid suiteTag
 
-getMLSClientsH :: (Member ClientStore r) => UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClientsH :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> CipherSuite -> Handler r (Set ClientInfo)
 getMLSClientsH usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
@@ -473,13 +477,13 @@ getMLSClientsH usr suite = do
   pure $ Set.fromList clientInfos
 
 getMLSClient ::
-  (Member ClientStore r) =>
+  (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
   Local UserId ->
   ClientId ->
   CipherSuiteTag ->
   AppT r ClientInfo
 getMLSClient lusr cid suiteTag = do
-  numKeyPackages <- wrapClient $ Data.countKeyPackages lusr cid suiteTag
+  numKeyPackages <- liftSem $ Mls.countMlsKeyPackages (tUnqualified lusr) cid suiteTag
   mc <- liftSem $ ClientStore.lookupClient (tUnqualified lusr) cid
   let keys = foldMap (.clientMLSPublicKeys) mc
       ss = csSignatureScheme suiteTag
@@ -625,6 +629,7 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserStore r,
     Member TinyLog r,
     Member UserKeyStore r,
@@ -898,6 +903,20 @@ updateManagedByH :: (Member UserStore r) => UserId -> ManagedByUpdate -> (Handle
 updateManagedByH uid (ManagedByUpdate managedBy) = do
   NoContent <$ lift (liftSem $ UserStore.updateManagedBy uid managedBy)
 
+deletePendingEmailUpdateH ::
+  ( Member UserStore r,
+    Member ActivationCodeStore r
+  ) =>
+  UserId ->
+  (Handler r) NoContent
+deletePendingEmailUpdateH uid = do
+  mUser <- lift . liftSem $ UserStore.getUser uid
+  for_ (emailUnvalidated =<< mUser) $ \email ->
+    lift . liftSem $ do
+      ActivationCode.deleteActivationCode (mkEmailKey email)
+      UserStore.deleteEmailUnvalidated uid
+  pure NoContent
+
 updateRichInfoH :: (Member UserStore r) => UserId -> RichInfoUpdate -> (Handler r) NoContent
 updateRichInfoH uid rup =
   NoContent <$ do
@@ -946,10 +965,6 @@ getRichInfoH :: (Member UserStore r) => UserId -> Handler r RichInfo
 getRichInfoH uid =
   RichInfo . fromMaybe mempty
     <$> lift (liftSem $ UserStore.getRichInfo uid)
-
-getRichInfoMultiH :: (Member UserStore r) => Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
-getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
-  lift $ liftSem $ BrigIRoutes.GetRichInfoMultiResponse <$> UserStore.lookupRichInfos uids
 
 updateHandleH ::
   (Member UserSubsystem r) =>
@@ -1049,7 +1064,7 @@ deleteGroupManagedInternalH tid gid managedBy = do
   pure NoContent
 
 deleteAppH :: (Member AppSubsystem r) => TeamId -> UserId -> Handler r NoContent
-deleteAppH tid uid = lift . liftSem $ AppSubsystem.deleteApp tid uid >> pure NoContent
+deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> pure NoContent
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid

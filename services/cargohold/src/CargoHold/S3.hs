@@ -22,6 +22,8 @@ module CargoHold.S3
   ( S3AssetKey,
     S3AssetMeta (..),
     AssetAuditLogMetadata (..),
+    setAmzAuditLogMetadata,
+    getAmzAuditLogMetadata,
     uploadV3,
     downloadV3,
     getMetadataV3,
@@ -62,6 +64,7 @@ import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
+import Data.Domain (Domain, domainText)
 import qualified Data.HashMap.Lazy as HML
 import Data.Id
 import Data.Qualified (Qualified)
@@ -73,6 +76,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
+import qualified Network.HTTP.Types.URI as HTTPURI
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import Test.QuickCheck (Arbitrary (..))
@@ -273,7 +277,7 @@ updateMetadataV3 (s3Key . mkKey -> key) meta = do
 -- `Map` with the @Z-Host@ header's value as key. Otherwise (the default case
 -- that applies to most deployments), use the default AWS environment; i.e. the
 -- environment with @aws.s3DownloadEndpoint@.
-signedURL :: (ToByteString p) => p -> Maybe Text -> Handler URI
+signedURL :: (ToByteString p) => p -> Maybe Domain -> Handler URI
 signedURL path mbHost = do
   e <- awsEnvForHost
   now <- liftIO getCurrentTime
@@ -299,7 +303,7 @@ signedURL path mbHost = do
         then asks (.aws)
         else awsEnvForHost' mbHost multiIngressConf
       where
-        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> Handler AWS.Env
+        awsEnvForHost' :: Maybe Domain -> Map Domain AWS.Env -> Handler AWS.Env
         awsEnvForHost' Nothing _ = do
           Log.debug $
             msg (val "awsEnvForHost - multiIngress configured, but no Z-Host header provided.")
@@ -307,19 +311,19 @@ signedURL path mbHost = do
         awsEnvForHost' (Just host) multiIngressConf = do
           Log.debug $
             "host"
-              .= host
+              .= domainText host
               ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
-          case multiIngressConf ^. at (Text.unpack host) of
+          case multiIngressConf ^. at host of
             Nothing -> do
               Log.debug $
                 "host"
-                  .= host
+                  .= domainText host
                   ~~ msg (val "awsEnvForHost - multiIngress lookup failed, no config for provided Z-Host header.")
               throwE noMatchingAssetEndpoint
             Just hostAwsEnv -> do
               Log.debug $
                 "host"
-                  .= host
+                  .= domainText host
                   ~~ "s3DownloadEndpoint"
                     .= show hostAwsEnv.amazonkaDownloadEndpoint
                   ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
@@ -382,7 +386,8 @@ setAmzAuditLogMetadata :: AssetAuditLogMetadata -> (Text, Text)
 setAmzAuditLogMetadata t = (hAmzWireMetadata, encodeAuditLogMetadata t)
   where
     encodeAuditLogMetadata :: AssetAuditLogMetadata -> Text
-    encodeAuditLogMetadata meta = Text.decodeUtf8 (LBS.toStrict (A.encode meta))
+    encodeAuditLogMetadata meta =
+      decodeLatin1 . HTTPURI.urlEncode False . LBS.toStrict $ A.encode meta
 
 -------------------------------------------------------------------------------
 -- S3 Metadata Getters
@@ -417,7 +422,13 @@ getAmzAuditLogMetadata :: [(Text, Text)] -> Maybe AssetAuditLogMetadata
 getAmzAuditLogMetadata = lookupCI hAmzWireMetadata >=> parseAuditLogMetadata
   where
     parseAuditLogMetadata :: Text -> Maybe AssetAuditLogMetadata
-    parseAuditLogMetadata t = A.decode $ fromStrict $ encodeUtf8 t
+    parseAuditLogMetadata t = parseJSON t <|> parseJSONBytes (HTTPURI.urlDecode False (encodeUtf8 t))
+
+    parseJSON :: Text -> Maybe AssetAuditLogMetadata
+    parseJSON = parseJSONBytes . encodeUtf8
+
+    parseJSONBytes :: ByteString -> Maybe AssetAuditLogMetadata
+    parseJSONBytes = A.decode . fromStrict
 
 -------------------------------------------------------------------------------
 -- Utilities

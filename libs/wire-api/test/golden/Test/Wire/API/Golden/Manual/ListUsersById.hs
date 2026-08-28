@@ -56,7 +56,8 @@ profile1 =
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeRegular,
       profileApp = Nothing,
-      profileSearchable = True
+      profileSearchable = True,
+      profileContactStatus = Just (ContactStatus NonContactable)
     }
 profile2 =
   UserProfile
@@ -81,7 +82,8 @@ profile2 =
             { category = Category "other",
               description = unsafeRange "bloob"
             },
-      profileSearchable = True
+      profileSearchable = True,
+      profileContactStatus = Nothing
     }
 
 testObject_ListUsersById_user_1 :: ListUsersById

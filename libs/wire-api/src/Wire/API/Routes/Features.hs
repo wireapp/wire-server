@@ -19,6 +19,7 @@ module Wire.API.Routes.Features where
 
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
+import Wire.API.Routes.Version (Version (V18))
 import Wire.API.Team.Feature
 
 type family FeatureErrors cfg where
@@ -39,3 +40,8 @@ type family FeatureAPIDesc cfg where
   FeatureAPIDesc RequireExternalEmailVerificationConfig =
     "<p>Controls whether externally managed email addresses (from SAML or SCIM) must be verified by the user, or are auto-activated.</p><p>The external feature name is kept as <code>validateSAMLemails</code> for backward compatibility. That name is misleading because the feature also applies to SCIM-managed users, and it controls email ownership verification rather than generic email validation.</p>"
   FeatureAPIDesc _ = ""
+
+type family VersionedFeatureAPIDesc v cfg where
+  VersionedFeatureAPIDesc V18 PreventAdminlessGroupsConfig =
+    "<p>For API version 18, use duration strings for the timeout fields. The request body must have the following shape:</p><pre>{\n  &quot;config&quot;: {\n    &quot;deletionTimeoutDuration&quot;: &quot;7d&quot;,\n    &quot;promotionStrategy&quot;: &quot;alphabetical&quot;,\n    &quot;reminderTimeoutDurations&quot;: [\n      &quot;2d&quot;,\n      &quot;4d&quot;,\n      &quot;6d&quot;\n    ]\n  },\n  &quot;status&quot;: &quot;enabled&quot;\n}</pre><p>Older API versions use the legacy numeric fields <code>deletionTimeout</code> and <code>reminderTimeouts</code>.</p>"
+  VersionedFeatureAPIDesc _ cfg = FeatureAPIDesc cfg

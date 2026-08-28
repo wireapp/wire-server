@@ -29,6 +29,7 @@ import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
 import Data.Json.Util
+import Data.Map qualified as Map
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Range
@@ -199,7 +200,10 @@ data OAuthScope
   | ReadSelf
   | WriteConversations
   | WriteConversationsCode
-  deriving (Eq, Show, Generic, Ord)
+  | WriteConversationsName
+  | WriteMeetings
+  | AdminMeetings
+  deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
 class IsOAuthScope scope where
@@ -217,22 +221,32 @@ instance IsOAuthScope 'ReadSelf where
 instance IsOAuthScope 'ReadFeatureConfigs where
   toOAuthScope = ReadFeatureConfigs
 
+instance IsOAuthScope 'WriteConversationsName where
+  toOAuthScope = WriteConversationsName
+
+instance IsOAuthScope 'WriteMeetings where
+  toOAuthScope = WriteMeetings
+
+instance IsOAuthScope 'AdminMeetings where
+  toOAuthScope = AdminMeetings
+
 instance ToByteString OAuthScope where
   builder = \case
     WriteConversations -> "write:conversations"
     WriteConversationsCode -> "write:conversations_code"
+    WriteConversationsName -> "write:conversations_name"
+    WriteMeetings -> "write:meetings"
+    AdminMeetings -> "admin:meetings"
     ReadSelf -> "read:self"
     ReadFeatureConfigs -> "read:feature_configs"
 
 instance FromByteString OAuthScope where
   parser = do
-    s <- parser
-    case T.toLower s of
-      "write:conversations" -> pure WriteConversations
-      "write:conversations_code" -> pure WriteConversationsCode
-      "read:self" -> pure ReadSelf
-      "read:feature_configs" -> pure ReadFeatureConfigs
-      _ -> fail "invalid scope"
+    s <- (toByteString' . T.toLower) <$> parser
+    let table = Map.fromList [(toByteString' c, c) | c <- [(minBound :: OAuthScope) ..]]
+    case Map.lookup s table of
+      Just c -> pure c
+      Nothing -> fail $ "invalid scope: " <> show s
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
   deriving (Eq, Show, Generic, Monoid, Semigroup, Arbitrary)

@@ -328,6 +328,33 @@ spec = with app $ do
           }]}|]
           `shouldRespondWith` 400
         get "/0" `shouldRespondWith` smallUserGet {matchStatus = 200}
+      it "patches a multi-valued 'emails' value-path end-to-end" $ do
+        post "/" newBarbara `shouldRespondWith` 201
+        _ <- put "/0" smallUser
+        patch
+          "/0"
+          [scim|{
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [{
+              "op": "Replace",
+              "path": "emails[type eq \"work\"].value",
+              "value": "x@y.com"
+            }]
+          }|]
+          `shouldRespondWith` [scim|{
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "bjensen",
+            "displayName": "bjensen2",
+            "emails": [{"value":"x@y.com","type":"work"}],
+            "id": "0",
+            "meta": {
+              "resourceType": "User",
+              "location": "https://example.com/Users/id",
+              "created": "2018-01-01T00:00:00Z",
+              "version": "W/\"testVersion\"",
+              "lastModified": "2018-01-01T00:00:00Z"
+            }
+          }|]
     describe "Remove" $ do
       it "fails if no target" $ do
         post "/" newBarbara `shouldRespondWith` 201

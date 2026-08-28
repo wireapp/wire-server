@@ -96,6 +96,9 @@ data InvitationStore :: Effect where
   LookupInvitation :: TeamId -> InvitationId -> InvitationStore m (Maybe StoredInvitation)
   LookupInvitationByCode :: InvitationCode -> InvitationStore m (Maybe StoredInvitation)
   LookupInvitationsByEmail :: EmailAddress -> InvitationStore m [StoredInvitation]
+  InsertPendingScimUser :: TeamId -> EmailAddress -> UserId -> InvitationStore m ()
+  LookupPendingScimUsers :: TeamId -> EmailAddress -> InvitationStore m [UserId]
+  DeletePendingScimUser :: TeamId -> EmailAddress -> UserId -> InvitationStore m ()
   -- | Range is page size, it defaults to 100
   LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationStore m (PaginatedResult [StoredInvitation])
   CountInvitations :: TeamId -> InvitationStore m Int64

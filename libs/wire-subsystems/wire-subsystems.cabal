@@ -91,6 +91,9 @@ common common-all
     , amazonka-ses
     , amazonka-sqs
     , amqp
+    , arbiter-core
+    , arbiter-hasql
+    , arbiter-migrations
     , async
     , attoparsec
     , base
@@ -109,6 +112,7 @@ common common-all
     , contravariant
     , cookie
     , cql
+    , cron
     , crypton
     , crypton-asn1-encoding
     , crypton-asn1-types
@@ -129,7 +133,7 @@ common common-all
     , HaskellNet-SSL
     , hasql
     , hasql-migration
-    , hasql-pool
+    , hasql-resource-pool
     , hasql-th
     , hasql-transaction
     , hex
@@ -144,6 +148,7 @@ common common-all
     , imports
     , iproute
     , iso639
+    , jwt-tools
     , kan-extensions
     , lens
     , lens-aeson
@@ -155,10 +160,12 @@ common common-all
     , network-conduit-tls
     , network-uri
     , polysemy
+    , polysemy-check
     , polysemy-conc
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postgresql-connection-string
     , profunctors
     , prometheus-client
     , proto-lens
@@ -178,6 +185,7 @@ common common-all
     , sop-core
     , ssl-util
     , statistics
+    , stm
     , stomp-queue
     , tagged
     , template
@@ -233,8 +241,12 @@ library
     Wire.BackgroundJobsRunner.Interpreter
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
+    Wire.BoundedQueue
+    Wire.BoundedQueue.STM
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.BudgetStore
+    Wire.BudgetStore.Cassandra
     Wire.ClientStore
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB
@@ -303,6 +315,9 @@ library
     Wire.ConversationSubsystem.Util
     Wire.CustomBackendStore
     Wire.CustomBackendStore.Cassandra
+    Wire.DefaultSsoStore
+    Wire.DefaultSsoStore.Cassandra
+    Wire.DefaultSsoStore.Mem
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -315,6 +330,7 @@ library
     Wire.DomainVerificationChallengeStore.DualWrite
     Wire.DomainVerificationChallengeStore.Postgres
     Wire.EmailSending
+    Wire.EmailSending.Options
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
     Wire.EmailSubsystem
@@ -353,6 +369,9 @@ library
     Wire.IdPConfigStore.Cassandra
     Wire.IdPConfigStore.Mem
     Wire.IdPConfigStore.Orphans
+    Wire.IdPRawMetadataStore
+    Wire.IdPRawMetadataStore.Cassandra
+    Wire.IdPRawMetadataStore.Mem
     Wire.IdPSubsystem
     Wire.IdPSubsystem.Interpreter
     Wire.IndexedUserStore
@@ -363,6 +382,11 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.JobSubsystem
+    Wire.JobSubsystem.ArbiterAdapter
+    Wire.JobSubsystem.Interpreter
+    Wire.JobSubsystem.Migrations
+    Wire.JwtTools
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
@@ -370,12 +394,20 @@ library
     Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.ListItems.Team.Cassandra
+    Wire.MeetingNotifier
+    Wire.MeetingNotifier.Interpreter
+    Wire.MeetingNotifier.NoOpInterpreter
     Wire.MeetingsStore
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem
     Wire.MeetingsSubsystem.Interpreter
+    Wire.MeetingsSubsystem.Notification
     Wire.Migration
     Wire.MigrationLock
+    Wire.MlsKeyPackageStore
+    Wire.MlsKeyPackageStore.Cassandra
+    Wire.MlsKeyPackageSubsystem
+    Wire.MlsKeyPackageSubsystem.Interpreter
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.Options.Galley
@@ -397,17 +429,28 @@ library
     Wire.ProposalStore.Cassandra
     Wire.RateLimit
     Wire.RateLimit.Interpreter
+    Wire.Reporter
+    Wire.Reporter.Wai
     Wire.Rpc
     Wire.RpcException
     Wire.SAMLEmailSubsystem
     Wire.SAMLEmailSubsystem.Interpreter
+    Wire.SamlProtocolSettings
+    Wire.SamlProtocolSettings.Servant
+    Wire.ScimExternalIdStore
+    Wire.ScimExternalIdStore.Cassandra
+    Wire.ScimExternalIdStore.Mem
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
+    Wire.ScimUserMetaStore
+    Wire.ScimUserMetaStore.Cassandra
+    Wire.ScimUserMetaStore.Mem
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra
     Wire.SessionStore
     Wire.SessionStore.Cassandra
+    Wire.SFT
     Wire.SparAPIAccess
     Wire.SparAPIAccess.Rpc
     Wire.StoredConversation
@@ -449,6 +492,8 @@ library
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserList
+    Wire.UserPendingActivationStore
+    Wire.UserPendingActivationStore.Cassandra
     Wire.UserSearch.Metrics
     Wire.UserSearch.Migration
     Wire.UserSearch.Types
@@ -463,6 +508,9 @@ library
     Wire.UserSubsystem.Interpreter
     Wire.UserSubsystem.UserSubsystemConfig
     Wire.Util
+    Wire.VerdictFormatStore
+    Wire.VerdictFormatStore.Cassandra
+    Wire.VerdictFormatStore.Mem
     Wire.VerificationCode
     Wire.VerificationCodeGen
     Wire.VerificationCodeStore
@@ -525,6 +573,7 @@ library
     , network
     , network-conduit-tls
     , polysemy
+    , polysemy-check
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
@@ -586,10 +635,13 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.One2OneSpec
+    Wire.EmailSubsystem.TemplateFixtures
+    Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec
+    Wire.MeetingNotifierSpec
     Wire.MeetingsSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
@@ -599,6 +651,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore
+    Wire.MockInterpreters.ConversationStore
     Wire.MockInterpreters.ConversationSubsystem
     Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore
@@ -634,6 +687,7 @@ test-suite wire-subsystems-tests
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
     Wire.SAMLEmailSubsystem.InterpreterSpec
+    Wire.ScimExternalIdStore.MemSpec
     Wire.ScimSubsystem.InterpreterSpec
     Wire.StoredConversationSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec

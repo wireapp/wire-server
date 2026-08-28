@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.SAMLEmailSubsystem.InterpreterSpec (spec) where
 
 import Data.Default
@@ -39,6 +56,7 @@ import Wire.EmailSending
 import Wire.EmailSubsystem qualified as Email
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.TemplateFixtures
 import Wire.EmailSubsystem.Templates.Team
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters
@@ -76,32 +94,9 @@ spec = do
         flip zip ((replicate 5 enTextParts) ++ (replicate 2 deTextParts)) $
           parseLocalUnsafe <$> ["en", "en-EN", "en-GB", "es", "es-ES", "de", "de_DE"]
       parseLocalUnsafe = fromMaybe (error "Unknown locale") . parseLocale
-      teamOpts =
-        TeamOpts
-          { tInvitationUrl = "https://example.com/join/?team-code=${code}",
-            tExistingUserInvitationUrl = "https://example.com/accept-invitation/?team-code=${code}",
-            tActivationUrl = "https://example.com/verify/?key=${key}&code=${code}",
-            tCreatorWelcomeUrl = "https://example.com/creator-welcome-website",
-            tMemberWelcomeUrl = "https://example.com/member-welcome-website"
-          }
-      defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
-      emailSender = unsafeEmailAddress "wire" "example.com"
-      branding =
-        Map.fromList
-          [ ("brand", "Wire Test"),
-            ("brand_url", "https://wire.example.com"),
-            ("brand_label_url", "wire.example.com"),
-            ("brand_logo", "https://wire.example.com/p/img/email/logo-email-black.png"),
-            ("brand_service", "Wire Service Provider"),
-            ("copyright", "© WIRE SWISS GmbH"),
-            ("misuse", "misuse@wire.example.com"),
-            ("legal", "https://wire.example.com/legal/"),
-            ("forgot", "https://wire.example.com/forgot/"),
-            ("support", "https://support.wire.com/")
-          ]
 
   -- Run duplicated IO tasks here to save some time
-  teamTemplates :: Localised TeamTemplates <- runIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
+  teamTemplates :: Localised TeamTemplates <- runIO loadTestTeamTemplates
   newCerts <- runIO $ X509.readCertificates "test/resources/saml/certs.store"
 
   describe "SendSAMLIdPChanged" $ do
@@ -118,7 +113,7 @@ spec = do
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPCreated (Just uid) idp'
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -134,7 +129,7 @@ spec = do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPDeleted uid idp'
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -167,7 +162,7 @@ spec = do
                     )
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPUpdated uid idpOld' idpNew'
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -186,7 +181,7 @@ spec = do
               teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
               teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -201,7 +196,7 @@ spec = do
               teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
               teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -220,7 +215,7 @@ spec = do
                   )
                   users
 
-          (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap teamTemplates branding $ do
+          (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap teamTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -339,7 +334,6 @@ runInterpreters ::
   [StoredUser] ->
   Map TeamId [TeamMember] ->
   Localised TeamTemplates ->
-  Map Text Text ->
   Sem
     '[ SAMLEmailSubsystem,
        TeamSubsystem,
@@ -357,7 +351,7 @@ runInterpreters ::
      ]
     a ->
   IO ([Mail], [(Level, LByteString)], a)
-runInterpreters users teamMap teamTemplates branding action = do
+runInterpreters users teamMap teamTemplates action = do
   lr <- newLogRecorder
   (mails, res) <-
     runM

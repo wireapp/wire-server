@@ -39,6 +39,7 @@ import System.Logger (field, msg, val)
 import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
 import Wire.EmailSubsystem.Templates.Team
+import Wire.EmailSubsystem.Templates.User
 
 -- | Lookup a localised item from a 'Localised' structure.
 forLocale ::
@@ -252,3 +253,99 @@ loadTeamTemplates tOptions templatesDir defLocale sender = readLocalesDir defLoc
     tExistingUrl = template tOptions.tExistingUserInvitationUrl
     readTemplate' = readTemplateWithDefault templatesDir defLocale "team"
     readText' = readTextWithDefault templatesDir defLocale "team"
+
+-- | URL templates needed to render the user email templates. These are plain
+-- 'Text' 'Data.Text.Template.template' strings, mirroring the corresponding
+-- Brig configuration fields; 'loadUserTemplates' turns them into 'Template's.
+data UserTemplateOpts = UserTemplateOpts
+  { -- | Activation URL template
+    activationUrl :: !Text,
+    -- | Team activation URL template
+    teamActivationUrl :: !Text,
+    -- | Password reset URL template
+    passwordResetUrl :: !Text,
+    -- | Deletion URL template
+    deletionUrl :: !Text
+  }
+  deriving stock (Show, Generic)
+
+loadUserTemplates :: UserTemplateOpts -> FilePath -> Locale -> EmailAddress -> IO (Localised UserTemplates)
+loadUserTemplates opts templatesDir defLocale sender = readLocalesDir defLocale templatesDir "user" $ \fp ->
+  UserTemplates
+    <$> ( VerificationEmailTemplate activationUrl
+            <$> readTemplate' fp "email/verification-subject.txt"
+            <*> readTemplate' fp "email/verification.txt"
+            <*> readTemplate' fp "email/verification.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( ActivationEmailTemplate activationUrl
+            <$> readTemplate' fp "email/activation-subject.txt"
+            <*> readTemplate' fp "email/activation.txt"
+            <*> readTemplate' fp "email/activation.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( ActivationEmailTemplate activationUrl
+            <$> readTemplate' fp "email/update-subject.txt"
+            <*> readTemplate' fp "email/update.txt"
+            <*> readTemplate' fp "email/update.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( TeamActivationEmailTemplate teamActivationUrl
+            <$> readTemplate' fp "email/team-activation-subject.txt"
+            <*> readTemplate' fp "email/team-activation.txt"
+            <*> readTemplate' fp "email/team-activation.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( PasswordResetEmailTemplate passwordResetUrl
+            <$> readTemplate' fp "email/password-reset-subject.txt"
+            <*> readTemplate' fp "email/password-reset.txt"
+            <*> readTemplate' fp "email/password-reset.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( DeletionEmailTemplate deletionUrl
+            <$> readTemplate' fp "email/deletion-subject.txt"
+            <*> readTemplate' fp "email/deletion.txt"
+            <*> readTemplate' fp "email/deletion.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( NewClientEmailTemplate
+            <$> readTemplate' fp "email/new-client-subject.txt"
+            <*> readTemplate' fp "email/new-client.txt"
+            <*> readTemplate' fp "email/new-client.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( SecondFactorVerificationEmailTemplate
+            <$> readTemplate' fp "email/verification-login-subject.txt"
+            <*> readTemplate' fp "email/verification-login.txt"
+            <*> readTemplate' fp "email/verification-login.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( SecondFactorVerificationEmailTemplate
+            <$> readTemplate' fp "email/verification-scim-token-subject.txt"
+            <*> readTemplate' fp "email/verification-scim-token.txt"
+            <*> readTemplate' fp "email/verification-scim-token.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( SecondFactorVerificationEmailTemplate
+            <$> readTemplate' fp "email/verification-delete-team-subject.txt"
+            <*> readTemplate' fp "email/verification-delete-team.txt"
+            <*> readTemplate' fp "email/verification-delete-team.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+  where
+    activationUrl = template opts.activationUrl
+    teamActivationUrl = template opts.teamActivationUrl
+    passwordResetUrl = template opts.passwordResetUrl
+    deletionUrl = template opts.deletionUrl
+    readTemplate' = readTemplateWithDefault templatesDir defLocale "user"
+    readText' = readTextWithDefault templatesDir defLocale "user"

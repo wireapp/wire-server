@@ -19,7 +19,7 @@ calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
 ingress-nginx-controller nginx-ingress-services reaper \
 k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise \
-wire-ingress 
+wire-ingress
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 PSQL_DB               ?= backendA
@@ -276,15 +276,6 @@ formatf-all:
 formatc:
 	./tools/ormolu.sh -c
 
-# For any Haskell or Rust file, update or add a license header if necessary.
-# Headers should be added according to Ormolu's formatting rules, but please check just in case.
-.PHONY: add-license
-add-license:
-	command -v headroom
-	headroom run -a
-	@echo ""
-	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
-
 # without redirecting stdin/-out/-err, emacs does something weird that takes 3-5 seconds.
 .PHONY: treefmt
 treefmt:
@@ -356,9 +347,7 @@ cqlsh:
 
 .PHONY: psql
 psql:
-	@grep -q wire-server:wire-server ~/.pgpass || \
-	  echo "consider running 'echo localhost:5432:$(PSQL_DB):wire-server:posty-the-gres > ~/.pgpass ; chmod 600 ~/.pgpass '"
-	psql -h localhost -p 5432 $(PSQL_DB) -U wire-server -w || \
+	PGPASSWORD=posty-the-gres psql -h localhost -p 5432 $(PSQL_DB) -U wire-server -w || \
 	  echo 'if the database is missing, consider running "make postgres-reset", or setting $$PSQL_DB to the correct table space.'
 
 .PHONY: db-reset-package

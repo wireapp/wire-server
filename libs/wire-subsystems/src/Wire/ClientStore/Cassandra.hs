@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.ClientStore.Cassandra
   ( ClientStoreCassandraEnv (..),
     interpretClientStoreCassandra,
@@ -62,6 +79,7 @@ interpretClientStoreCassandra env =
       LookupClientsBulk uids -> runCasClient $ lookupClientsBulkImpl uids
       LookupPubClientsBulk uids -> runCasClient $ lookupPubClientsBulkImpl uids
       LookupPrekeyIds uid cid -> runCasClient $ lookupPrekeyIdsImpl uid cid
+      LookupPrekeyPresenceBulk pairs -> runCasClient $ lookupPrekeyPresenceBulkImpl pairs
       GetActivityTimestamps uid -> runCasClient $ getActivityTimestampsImpl uid
       -- Proteus
       UpdatePrekeys uid cid prekeys -> runCasClient $ updatePrekeysImpl uid cid prekeys
@@ -141,6 +159,15 @@ lookupPrekeyIdsImpl :: (MonadClient m) => UserId -> ClientId -> m [PrekeyId]
 lookupPrekeyIdsImpl u c =
   map runIdentity
     <$> retry x1 (query selectPrekeyIds (params LocalQuorum (u, c)))
+
+lookupPrekeyPresenceBulkImpl :: (MonadClient m, MonadUnliftIO m) => [(UserId, ClientId)] -> m (Set.Set (UserId, ClientId))
+lookupPrekeyPresenceBulkImpl pairs =
+  Set.fromList . map fst . filter snd
+    <$> pooledMapConcurrentlyN 16 (\pair@(u, c) -> (pair,) <$> lookupPrekeyPresenceImpl u c) pairs
+
+lookupPrekeyPresenceImpl :: (MonadClient m) => UserId -> ClientId -> m Bool
+lookupPrekeyPresenceImpl u c =
+  isJust <$> retry x1 (query1 selectPrekeyPresence (params LocalQuorum (u, c)))
 
 getActivityTimestampsImpl :: (MonadClient m) => UserId -> m [Maybe UTCTime]
 getActivityTimestampsImpl uid = do
@@ -318,6 +345,9 @@ userPrekeys = "SELECT key, data FROM prekeys where user = ? and client = ?"
 
 selectPrekeyIds :: PrepQuery R (UserId, ClientId) (Identity PrekeyId)
 selectPrekeyIds = "SELECT key FROM prekeys where user = ? and client = ?"
+
+selectPrekeyPresence :: PrepQuery R (UserId, ClientId) (Identity PrekeyId)
+selectPrekeyPresence = "SELECT key FROM prekeys where user = ? and client = ? LIMIT 1"
 
 removePrekey :: PrepQuery W (UserId, ClientId, PrekeyId) ()
 removePrekey = "DELETE FROM prekeys where user = ? and client = ? and key = ?"

@@ -31,8 +31,6 @@ import Brig.API.User (createUserInviteViaScim)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
-import Brig.Data.User (invitationIdToUserId)
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Template
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
@@ -62,7 +60,6 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig (TeamsAPI)
 import Wire.API.Team
-import Wire.API.Team.Collaborator
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Public (Invitation (..))
 import Wire.API.Team.Member (teamMembers)
@@ -81,12 +78,12 @@ import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -101,7 +98,6 @@ servantAPI ::
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
@@ -115,8 +111,6 @@ servantAPI =
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
-    :<|> Named @"add-team-collaborator" (\zuid tid (NewTeamCollaborator uid perms) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
-    :<|> Named @"get-team-collaborators" (\zuid tid -> lift . liftSem $ getAllTeamCollaborators zuid tid)
 
 teamSizePublic ::
   ( Member (Error UserSubsystemError) r,
@@ -152,6 +146,7 @@ createInvitationViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member InvitationStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member TeamInvitationSubsystem r,

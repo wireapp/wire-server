@@ -77,7 +77,6 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Team
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.App
-import Galley.Effects.Queue qualified as E
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
 import Polysemy
@@ -112,6 +111,7 @@ import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.Team.Size
 import Wire.API.User qualified as U
 import Wire.API.User.Search
+import Wire.BoundedQueue qualified as E
 import Wire.BrigAPIAccess
 import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
@@ -141,7 +141,7 @@ import Wire.Util
 getTeamH ::
   forall r.
   ( Member (ErrorS 'TeamNotFound) r,
-    Member (E.Queue DeleteItem) r,
+    Member (E.BoundedQueue DeleteItem) r,
     Member TeamStore r,
     Member TeamSubsystem r
   ) =>
@@ -187,7 +187,7 @@ getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 -- one.)
 getManyTeams ::
   ( Member TeamStore r,
-    Member (E.Queue DeleteItem) r,
+    Member (E.BoundedQueue DeleteItem) r,
     Member (ListItems LegacyPaging TeamId) r,
     Member TeamSubsystem r
   ) =>
@@ -200,7 +200,7 @@ getManyTeams zusr =
 
 lookupTeam ::
   ( Member TeamStore r,
-    Member (E.Queue DeleteItem) r,
+    Member (E.BoundedQueue DeleteItem) r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -329,7 +329,7 @@ deleteTeam ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS OperationDenied) r,
     Member (Error AuthenticationError) r,
-    Member (E.Queue DeleteItem) r,
+    Member (E.BoundedQueue DeleteItem) r,
     Member (ErrorS NotATeamMember) r,
     Member TeamStore r,
     Member TeamSubsystem r,
@@ -361,7 +361,7 @@ internalDeleteBindingTeam ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotAOneMemberTeam) r,
     Member (ErrorS 'DeleteQueueFull) r,
-    Member (E.Queue DeleteItem) r,
+    Member (E.BoundedQueue DeleteItem) r,
     Member TeamStore r,
     Member TeamSubsystem r
   ) =>
@@ -1205,7 +1205,7 @@ userIsTeamOwner tid uid = do
 -- Queues a team for async deletion
 queueTeamDeletion ::
   ( Member (ErrorS 'DeleteQueueFull) r,
-    Member (E.Queue DeleteItem) r
+    Member (E.BoundedQueue DeleteItem) r
   ) =>
   TeamId ->
   UserId ->

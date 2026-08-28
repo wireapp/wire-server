@@ -1351,7 +1351,7 @@ specProvisionScimAndSAMLUserWithRole = do
       let testCreateUserWithRole role = do
             scimUser <- do
               u <- ScimT.randomScimUser
-              pure $ u {Scim.roles = [cs $ toByteString $ role]}
+              pure $ u {Scim.roles = ScimT.mkScimRoles [cs $ toByteString $ role]}
             uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
             ScimT.checkTeamMembersRole tid owner uid role
       mapM_ testCreateUserWithRole [minBound .. maxBound]
@@ -1366,24 +1366,32 @@ specProvisionScimAndSAMLUserWithRole = do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- do
         u <- ScimT.randomScimUser
-        pure $ u {Scim.roles = ["member", "admin"]}
+        pure $ u {Scim.roles = ScimT.mkScimRoles ["member", "admin"]}
       ScimT.createUser' tok scimUser !!! do
         const 400 === statusCode
-        const (Just "A user cannot have more than one role.") =~= responseBody
+        ScimT.mkScimErrorResp
+          (Just "A user cannot have more than one role. (post)")
+          (Just "invalidValue")
+          "400"
+          === responseBody
     it "create user - fail if role name cannot be parsed correctly" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- do
         u <- ScimT.randomScimUser
-        pure $ u {Scim.roles = ["president"]}
+        pure $ u {Scim.roles = ScimT.mkScimRoles ["president"]}
       ScimT.createUser' tok scimUser !!! do
         const 400 === statusCode
-        const (Just "The role 'president' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
+        ScimT.mkScimErrorResp
+          (Just "The role 'president' is not valid. Valid roles are owner, admin, member, partner. (post)")
+          (Just "invalidValue")
+          "400"
+          === responseBody
     it "update user" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUserWithDefaultRole <- ScimT.randomScimUser
       uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUserWithDefaultRole
       let testUpdateUserWithRole role = do
-            let scimUserWithRole = scimUserWithDefaultRole {Scim.roles = [cs $ toByteString $ role]}
+            let scimUserWithRole = scimUserWithDefaultRole {Scim.roles = ScimT.mkScimRoles [cs $ toByteString $ role]}
             _ <- ScimT.updateUser tok uid scimUserWithRole
             ScimT.checkTeamMembersRole tid owner uid role
       mapM_ testUpdateUserWithRole [minBound .. maxBound]
@@ -1393,7 +1401,7 @@ specProvisionScimAndSAMLUserWithRole = do
           testUpdateUserWithDefaultRole role = do
             scimUser <- do
               u <- ScimT.randomScimUser
-              pure $ u {Scim.roles = [cs $ toByteString $ role]}
+              pure $ u {Scim.roles = ScimT.mkScimRoles [cs $ toByteString $ role]}
             uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
             _ <- ScimT.updateUser tok uid (scimUser {Scim.roles = []})
             ScimT.checkTeamMembersRole tid owner uid role
@@ -1402,16 +1410,24 @@ specProvisionScimAndSAMLUserWithRole = do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- ScimT.randomScimUser
       uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-      ScimT.updateUser' tok uid (scimUser {Scim.roles = ["admin", "member"]}) !!! do
+      ScimT.updateUser' tok uid (scimUser {Scim.roles = ScimT.mkScimRoles ["admin", "member"]}) !!! do
         const 400 === statusCode
-        const (Just "A user cannot have more than one role.") =~= responseBody
+        ScimT.mkScimErrorResp
+          (Just "A user cannot have more than one role. (put)")
+          (Just "invalidValue")
+          "400"
+          === responseBody
     it "updated user - fail if role name cannot be parsed correctly" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- ScimT.randomScimUser
       uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-      ScimT.updateUser' tok uid (scimUser {Scim.roles = ["hamlet"]}) !!! do
+      ScimT.updateUser' tok uid (scimUser {Scim.roles = ScimT.mkScimRoles ["hamlet"]}) !!! do
         const 400 === statusCode
-        const (Just "The role 'hamlet' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
+        ScimT.mkScimErrorResp
+          (Just "The role 'hamlet' is not valid. Valid roles are owner, admin, member, partner. (put)")
+          (Just "invalidValue")
+          "400"
+          === responseBody
 
 specAux :: SpecWith TestEnv
 specAux = do

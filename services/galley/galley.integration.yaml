@@ -19,7 +19,6 @@ postgresql:
 postgresqlPool:
   size: 20
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 
 brig:
@@ -94,6 +93,16 @@ settings:
 
   meetings:
     validityPeriod: "5s"
+    legacyTimeZone: "Europe/Berlin"
+    pastEditPeriod: "5s"
+    email:
+      from: meetings@integration.example.com
+      replyTo: reply@integration.example.com
+      transport:
+        smtpEndpoint:
+          host: localhost
+          port: 2525
+        smtpConnType: plain
 
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
@@ -244,10 +253,6 @@ settings:
       defaults:
         status: enabled
         lockStatus: unlocked
-    meetingsPremium:
-      defaults:
-        status: disabled
-        lockStatus: locked
 
 logLevel: Warn
 logNetStrings: false

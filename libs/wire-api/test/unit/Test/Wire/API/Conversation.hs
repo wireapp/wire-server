@@ -72,9 +72,11 @@ testIsCellsConversationEvent =
         ConvCreate -> isCellsConversationEvent e === True
         ConvCreateMeeting -> isCellsConversationEvent e === True
         ConvDelete -> isCellsConversationEvent e === True
+        ConvDeleteMeeting -> isCellsConversationEvent e === True
         ConvReset -> isCellsConversationEvent e === False
         ConvMessageTimerUpdate -> isCellsConversationEvent e === False
         ConvHistoryUpdate -> isCellsConversationEvent e === False
+        ConvAdminlessReminder -> isCellsConversationEvent e === False
         ConvReceiptModeUpdate -> isCellsConversationEvent e === False
         ConvRename -> isCellsConversationEvent e === True
         MemberJoin -> isCellsConversationEvent e === True

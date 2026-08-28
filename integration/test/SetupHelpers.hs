@@ -31,12 +31,15 @@ import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base16 as Base16
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import qualified Data.CaseInsensitive as CI
 import Data.Default
+import Data.Either.Extra (fromRight')
 import Data.Function
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
@@ -44,6 +47,7 @@ import qualified Data.UUID as UUID
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Vector (fromList)
+import qualified Data.X509 as X509
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
@@ -235,23 +239,34 @@ createMLSOne2OnePartner ::
   user ->
   convDomain ->
   App Value
-createMLSOne2OnePartner domain other convDomain = loop
+createMLSOne2OnePartner domain other convDomain = do
+  desiredConvDomain <- make convDomain & asString
+  go (0 :: Int) desiredConvDomain
   where
-    loop = do
-      u <- randomUser domain def
-      connectTwoUsers u other
-      apiVersion <- getAPIVersionFor domain
-      conv <-
-        if apiVersion < 6
-          then getMLSOne2OneConversation other u >>= getJSON 200
-          else getMLSOne2OneConversation other u >>= getJSON 200 >>= (%. "conversation")
+    maxAttempts = 128
+    go n desiredConvDomain
+      | n >= maxAttempts =
+          assertFailure $
+            "createMLSOne2OnePartner: gave up after "
+              <> show maxAttempts
+              <> " attempts to place the 1-1 conversation on domain "
+              <> desiredConvDomain
+      | otherwise = do
+          u <- randomUser domain def
+          connectTwoUsers u other
+          apiVersion <- getAPIVersionFor domain
+          conv <-
+            if apiVersion < 6
+              then getMLSOne2OneConversation other u >>= getJSON 200
+              else getMLSOne2OneConversation other u >>= getJSON 200 >>= (%. "conversation")
 
-      desiredConvDomain <- make convDomain & asString
-      actualConvDomain <- conv %. "qualified_id.domain" & asString
+          actualConvDomain <- conv %. "qualified_id.domain" & asString
 
-      if desiredConvDomain == actualConvDomain
-        then pure u
-        else loop
+          if desiredConvDomain == actualConvDomain
+            then pure u
+            else do
+              putConnection other u "blocked" >>= assertSuccess
+              go (n + 1) desiredConvDomain
 
 -- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
 randomToken :: (HasCallStack) => App String
@@ -399,18 +414,25 @@ randomScimUser :: App Value
 randomScimUser = randomScimUserWith def
 
 randomScimUserWithEmail :: String -> String -> App Value
-randomScimUserWithEmail extId email =
+randomScimUserWithEmail extId email = randomScimUserWithEmailAndMeta extId email Nothing Nothing
+
+randomScimUserWithEmailAndMeta :: String -> String -> Maybe String -> Maybe Bool -> App Value
+randomScimUserWithEmailAndMeta extId email ty pr =
   randomScimUserWith
     def
       { mkExternalId = pure extId,
         prependExternalIdToEmails = False,
-        mkOtherEmails = pure [email]
+        mkOtherEmails = pure [email],
+        mkEmailType = pure ty,
+        mkEmailPrimary = pure pr
       }
 
 data RandomScimUserParams = RandomScimUserParams
   { mkExternalId :: App String,
     prependExternalIdToEmails :: Bool, -- NB: this flag is also honored if externalId is not an email!
-    mkOtherEmails :: App [String]
+    mkOtherEmails :: App [String],
+    mkEmailType :: App (Maybe String), -- SCIM `type` attached to each email entry; emitted only when 'Just'.
+    mkEmailPrimary :: App (Maybe Bool) -- SCIM `primary` attached to each email entry; emitted only when 'Just'.
   }
 
 instance Default RandomScimUserParams where
@@ -418,14 +440,22 @@ instance Default RandomScimUserParams where
     RandomScimUserParams
       { mkExternalId = randomEmail,
         prependExternalIdToEmails = True,
-        mkOtherEmails = pure []
+        mkOtherEmails = pure [],
+        mkEmailType = pure Nothing,
+        mkEmailPrimary = pure Nothing
       }
 
 randomScimUserWith :: (HasCallStack) => RandomScimUserParams -> App Value
 randomScimUserWith params = do
   extId <- params.mkExternalId
+  ty <- params.mkEmailType
+  pr <- params.mkEmailPrimary
   emails <- do
-    let mk email = object ["value" .= email]
+    let mk email =
+          object $
+            ["value" .= email]
+              <> ["type" .= t | Just t <- [ty]]
+              <> ["primary" .= p | Just p <- [pr]]
         hd = [extId | params.prependExternalIdToEmails]
     tl <- params.mkOtherEmails
     pure $ Array (fromList (mk <$> (hd <> tl)))
@@ -676,6 +706,35 @@ nextSubject = do
       0 -> either (error . show) id . SAML.mkUNameIDEmail . cs <$> randomEmail
       1 -> liftIO $ SAML.mkUNameIDUnspecified . UUID.toText <$> nextRandom
   either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
+
+-- | Generate a random email address and the corresponding email-based `SAML.NameID`.
+randomEmailNameId :: (HasCallStack) => App (String, SAML.NameID)
+randomEmailNameId = do
+  email <- randomEmail
+  let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (Text.pack email)
+  pure (email, nameId)
+
+-- | Extract and decode base64 content from HTML error page <pre> tag.
+--
+-- This is meant to decode SAML errors embedded in HTML pages; e.g. from
+-- @/sso/finalize-login@.
+extractSAMLErrorPageContent :: (HasCallStack) => ByteString -> String
+extractSAMLErrorPageContent body =
+  let bdy = unpack body
+   in case bdy =~ ("<pre>([A-Za-z0-9+/=]+)</pre>" :: String) :: (String, String, String, [String]) of
+        (_, _, _, [b64Content]) -> cs $ Base64.decodeLenient (cs b64Content)
+        _ -> error "Could not extract base64 content from <pre> tag"
+
+-- | Helper to create IdP metadata with a fixed issuer suffix
+makeSampleIdPMetadataWithIssuer ::
+  (HasCallStack) =>
+  (SAML.SignPrivCreds, SAML.SignCreds, X509.SignedCertificate) -> String -> App SampleIdP
+makeSampleIdPMetadataWithIssuer (privcreds, creds, cert) suffix = do
+  let issuerUri = Text.pack $ "https://issuer.net/_" <> suffix
+      requriUri = Text.pack $ "https://requri.net/_req_" <> suffix
+      issuer = SAML.Issuer . fromRight' $ SAML.parseURI' issuerUri
+      requri = fromRight' $ SAML.parseURI' requriUri
+  pure $ SampleIdP (SAML.IdPMetadata issuer requri (cert NonEmpty.:| [])) privcreds creds cert
 
 -- helpers
 

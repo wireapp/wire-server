@@ -20,6 +20,7 @@ module Wire.Effects
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge qualified
 import Bilge.Retry
 import Cassandra (ClientState)
@@ -27,6 +28,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -35,7 +37,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Galley.Types.Error (InternalError, internalErrorDescription, legalHoldServiceUnavailable)
 import Hasql.Pool (UsageError)
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.Wai.Utilities.JSONResponse (JSONResponse (..))
@@ -89,9 +91,14 @@ import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword.Interpreter (runHashPassword)
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MeetingNotifier (MeetingNotifier)
+import Wire.MeetingNotifier.NoOpInterpreter (discardMeetingNotifier)
+import Wire.MigrationLock (MigrationLockError)
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley (GuestLinkTTLSeconds)
@@ -123,6 +130,8 @@ import Wire.TeamCollaboratorsSubsystem.Interpreter (interpretTeamCollaboratorsSu
 import Wire.TeamFeatureStore (TeamFeatureStore)
 import Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra)
 import Wire.TeamFeatureStore.Error (TeamFeatureStoreError)
+import Wire.TeamFeatureStore.Migrating (interpretTeamFeatureStoreToCassandraAndPostgres)
+import Wire.TeamFeatureStore.Postgres (interpretTeamFeatureStoreToPostgres)
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws (interpretTeamJournal)
 import Wire.TeamStore (TeamStore)
@@ -184,6 +193,7 @@ makeVerifiedRequestFreshManagerIO logger fpr url reqBuilder = do
 
 type BackgroundWorkerEffects =
   '[ ConversationSubsystem,
+     MeetingNotifier,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
      FeaturesConfigSubsystem,
@@ -209,6 +219,8 @@ type BackgroundWorkerEffects =
      Now,
      TeamJournal,
      LegalHoldStore,
+     JobSubsystem,
+     Input RequestId,
      TeamCollaboratorsStore,
      TeamStore,
      ConversationStore,
@@ -222,13 +234,13 @@ type BackgroundWorkerEffects =
      Input (Maybe GuestLinkTTLSeconds),
      Input (Maybe GroupInfoCheckEnabled),
      Input IntraListing,
-     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Input ExposeInvitationURLsAllowlist,
      Input LegalHoldEnv,
      Input ClientState,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      P.TinyLog,
      Error RateLimitExceeded,
      Error UnreachableBackendsLegacy,
@@ -241,6 +253,7 @@ type BackgroundWorkerEffects =
      Error (Tagged CodeStoreNotFound ()),
      Error TeamFeatureStoreError,
      Error TeamCollaboratorsError,
+     Error MigrationLockError,
      Error UnreachableBackends,
      Error InternalError,
      Error MigrationError,
@@ -289,6 +302,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @MigrationError (T.pack . show)
     . mapError @InternalError (TL.toStrict . internalErrorDescription)
     . mapError @UnreachableBackends (T.pack . show)
+    . mapError @MigrationLockError (const ("Migration lock error" :: Text))
     . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
     . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
     . mapError @(Tagged 'CodeStoreNotFound ()) (const ("Code store not found" :: Text))
@@ -301,13 +315,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @UnreachableBackendsLegacy (const ("Unreachable backends legacy" :: Text))
     . mapError @RateLimitExceeded (const ("Rate limit exceeded" :: Text))
     . interpretTinyLog
-    . runInputConst @Hasql.Pool env.hasqlPool
+    . runInputConst @HasqlPoolExt.Pool env.hasqlPool
     . runInputConst @(Local ()) (toLocalUnsafe env.federationDomain ())
     . runInputConst @(FeatureDefaults LegalholdConfig) (env.conversationSubsystemConfig.legalholdDefaults)
     . runInputConst @ClientState env.cassandraGalley
     . runInputConst @LegalHoldEnv legalHoldEnv
     . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.exposeInvitationURLsTeamAllowlist)
-    . runInputConst @(Either HttpsUrl (Map Text HttpsUrl)) env.convCodeURI
+    . runInputConst @(Either HttpsUrl (Map Domain HttpsUrl)) env.convCodeURI
     . runInputConst @IntraListing (IntraListing env.intraListing)
     . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.checkGroupInfo)
     . runInputConst @(Maybe GuestLinkTTLSeconds) env.guestLinkTTLSeconds
@@ -316,11 +330,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
-    . interpretTeamFeatureStoreToCassandra
+    . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
+    . runInputConst @RequestId requestId
+    . interpretJobSubsystem jobSubsystemConfig
     . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
     . interpretTeamJournal Nothing
     . nowToIO
@@ -352,13 +368,18 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runFeaturesConfigSubsystem
     . runInputSem getAllTeamFeaturesForServer
     . interpretTeamCollaboratorsSubsystem
+    . discardMeetingNotifier
     . interpretConversationSubsystem
   where
-    convCodesStoreInterpreter =
-      case env.postgresMigration.conversationCodes of
-        CassandraStorage -> interpretCodeStoreToCassandra
-        MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
-        PostgresqlStorage -> interpretCodeStoreToPostgres
+    interpretTeamFeatureStore = case env.postgresMigration.teamFeatures of
+      CassandraStorage -> interpretTeamFeatureStoreToCassandra
+      MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
+
+    convCodesStoreInterpreter = case env.postgresMigration.conversationCodes of
+      CassandraStorage -> interpretCodeStoreToCassandra
+      MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretCodeStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
@@ -370,6 +391,10 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
           federatorEndpoint = Just env.federatorInternal,
           http2Manager = env.http2Manager,
           requestId = requestId
+        }
+    jobSubsystemConfig =
+      JobSubsystemConfig
+        { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
         }
     backendQueueEnv =
       BackendNotificationQueueAccess.Env

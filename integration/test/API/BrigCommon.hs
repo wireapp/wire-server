@@ -20,6 +20,7 @@ module API.BrigCommon where
 import API.Common
 import Data.Aeson.Types (Pair)
 import Data.Maybe
+import Testlib.Prekeys
 import Testlib.Prelude as Prelude
 
 data AddClient = AddClient

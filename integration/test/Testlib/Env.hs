@@ -42,7 +42,6 @@ import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
-import Testlib.Prekeys
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.Read (readMaybe)
@@ -134,13 +133,14 @@ mkGlobalEnv cfgFile = do
         gFederationV1Domain = intConfig.federationV1.originDomain,
         gFederationV2Domain = intConfig.federationV2.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
-        gDefaultAPIVersion = 17,
+        gDefaultAPIVersion = 18,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gRabbitMQConfigV0 = intConfig.rabbitmqV0,
         gRabbitMQConfigV1 = intConfig.rabbitmqV1,
+        gRabbitMQConfigV2 = intConfig.rabbitmqV2,
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds,
         gDNSMockServerConfig = intConfig.dnsMockServer,
@@ -168,14 +168,14 @@ mkEnv :: Maybe String -> GlobalEnv -> Codensity IO Env
 mkEnv currentTestName ge = do
   mls <- liftIO . newIORef =<< mkMLSState
   liftIO $ do
-    pks <- newIORef (zip [1 ..] somePrekeys)
-    lpks <- newIORef someLastPrekeys
     curlTrace <- newIORef []
+    reqId <- newIORef 0
     pure
       Env
         { serviceMap = gServiceMap ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
+          requestIdCounter = reqId,
           integrationTestHostName = gIntegrationTestHostName ge,
           federationV0Domain = gFederationV0Domain ge,
           federationV1Domain = gFederationV1Domain ge,
@@ -193,8 +193,6 @@ mkEnv currentTestName ge = do
               ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
-          prekeys = pks,
-          lastPrekeys = lpks,
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,

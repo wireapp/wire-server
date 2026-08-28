@@ -108,8 +108,7 @@ data IsWorking = Working | NotWorking
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
   putLHWhitelistTeam tid !!! const 200 === statusCode
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+  member <- (^. userId) <$> addUserToTeamWithRole (Just RoleMember) owner tid
   -- Random port, hopefully nothing is runing here!
   brokenService <- newLegalHoldService 4242
   -- not allowed to create if team is not whitelisted
@@ -165,8 +164,8 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
   (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member noPermissions Nothing
+  memberTm <- addUserToTeamWithRole (Just RoleMember) owner tid
+  updateTeamMemberPermissions owner memberTm tid noPermissions
   -- fails if LH for team is disabled
   deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-disable-unimplemented")
 
@@ -180,12 +179,12 @@ testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do
 
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
-  member <- randomUser
+  nonMember <- randomUser
   (owner, tid) <- createBindingTeam
   -- user without team can't add LH device
-  tryout member
+  tryout nonMember
   -- team member can't add LH device
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+  member <- (^. userId) <$> addUserToTeamWithRole (Just RoleMember) owner tid
   tryout member
   -- team owner can't add LH device
   tryout owner

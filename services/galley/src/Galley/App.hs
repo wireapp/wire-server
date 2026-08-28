@@ -42,26 +42,27 @@ module Galley.App
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.Effects.Queue qualified as GE
+import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Monad (runApp)
-import Galley.Queue
-import Galley.Queue qualified as Q
 import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -86,16 +87,20 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
-import Wire.API.Error.Galley (GalleyError (..), NonFederatingBackends, OperationDenied, UnreachableBackends)
+import Wire.API.Error.Galley (GalleyError (..), MeetingError, NonFederatingBackends, OperationDenied, UnreachableBackends)
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
+import Wire.API.Meeting (defaultLegacyTimeZone, parseTimeZone)
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
+import Wire.BoundedQueue (BoundedQueue)
+import Wire.BoundedQueue.STM
+import Wire.BoundedQueue.STM qualified as Q
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc
 import Wire.CodeStore (CodeStore)
@@ -122,6 +127,8 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
@@ -130,6 +137,8 @@ import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
   )
+import Wire.MeetingNotifier (MeetingNotifier)
+import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore (MeetingsStore)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem (MeetingsSubsystem)
@@ -189,6 +198,9 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     MeetingNotifier,
+     JobSubsystem,
+     Input RequestId,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -236,10 +248,10 @@ type GalleyEffects =
      Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
      Input (Maybe GroupInfoCheckEnabled),
      Input Opts,
-     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Now,
-     GE.Queue DeleteItem,
-     Error Meeting.MeetingError,
+     BoundedQueue DeleteItem,
+     Error MeetingError,
      Error DynError,
      Error RateLimitExceeded,
      Error ConversationSubsystemError,
@@ -266,7 +278,7 @@ type GalleyEffects =
      ErrorS 'InvalidOperation,
      Error RpcException,
      Input ClientState,
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
      Error MigrationLockError,
@@ -293,8 +305,20 @@ type GalleyEffects =
      Final IO
    ]
 
+-- | Resolved meeting system config, with defaults 48h validity / 24h
+-- past-edit period.
+meetingSystemConfig :: Opts -> Meeting.MeetingSystemConfig
+meetingSystemConfig o =
+  Meeting.MeetingSystemConfig
+    { legacyTimeZone = fromMaybe defaultLegacyTimeZone (m >>= view legacyTimeZone >>= parseTimeZone),
+      validityPeriod = realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
+      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod)
+    }
+  where
+    m = o ^. settings . meetings
+
 -- Define some invariants for the options used
-validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
+validateOptions :: Opts -> IO (Either HttpsUrl (Map Domain HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit settings'._maxTeamSize settings'._maxFanoutSize
@@ -302,6 +326,9 @@ validateOptions o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
+  let meetingsCfg = meetingSystemConfig o
+  when (meetingsCfg.pastEditPeriod < 0 || meetingsCfg.pastEditPeriod > meetingsCfg.validityPeriod) $
+    error "settings.meetings.pastEditPeriod must be non-negative and cannot be greater than settings.meetings.validityPeriod"
   case (o ^. O.federator, o ^. rabbitmq) of
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
@@ -496,8 +523,8 @@ evalGalley e =
         . mapError toResponse -- Error ConversationSubsystemError,
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
-        . mapError meetingError
-        . interpretQueue (e ^. deleteQueue)
+        . mapError toResponse -- Error MeetingError
+        . interpretBoundedQueue (e ^. deleteQueue)
         . nowToIO
         . runInputConst (e ^. convCodeURI)
         . runInputConst (e ^. options)
@@ -547,11 +574,15 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . runInputConst (e ^. reqId)
+        . interpretJobSubsystem
+          JobSubsystemConfig
+            { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+            }
+        . interpretMeetingNotifier
         . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
+        . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
   where
-    meetingValidityPeriod =
-      realToFrac $ maybe (48 * 3600) (.duration) (e ^. options . settings . meetings >>= view validityPeriod)
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)
@@ -565,10 +596,3 @@ interpretTeamFeatureSpecialContext e =
 
 mapTeamFeatureStoreError :: TeamFeatureStoreError -> InternalError
 mapTeamFeatureStoreError (TeamFeatureStoreErrorInternalError msg) = InternalErrorWithDescription msg
-
-meetingError :: Meeting.MeetingError -> Servant.Tagged 'InvalidOperation ()
-meetingError =
-  \case
-    Meeting.InvalidTimes -> Servant.Tagged @'InvalidOperation ()
-    Meeting.EmptyUpdate -> Servant.Tagged @'InvalidOperation ()
-    Meeting.MeetingsFeatureDisabled -> Servant.Tagged @'InvalidOperation ()

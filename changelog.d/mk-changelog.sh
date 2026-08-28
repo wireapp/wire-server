@@ -15,6 +15,10 @@ get_pr_number() {
 
 for d in "$DIR"/*; do
     if [[ ! -d "$d" ]]; then continue; fi
+    # 99-pending: entries deferred out of the upcoming release. Since renaming a
+    # file breaks get_pr_number (git log does not follow renames), each parked
+    # entry must bake its PR number into its text, e.g. " (#1234)".
+    if [[ "$(basename "$d")" == "99-pending" ]]; then continue; fi
 
     entries=("$d"/*[^~])
 

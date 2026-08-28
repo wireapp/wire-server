@@ -1,5 +1,22 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Meetings where
 
 import API.Galley
@@ -9,30 +26,14 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
+import Data.Time.Format.ISO8601 (iso8601ParseM)
 import MLS.Util
-import Notifications (isConvCreateMeetingNotif)
+import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
 import Text.Regex.TDFA ((=~))
 import UnliftIO.Concurrent (threadDelay)
-
--- Helper to extract meetingId and domain from a meeting JSON object
-getMeetingIdAndDomain :: (HasCallStack) => Value -> App (String, String)
-getMeetingIdAndDomain meeting = do
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
-  pure (meetingId, domain)
-
--- Helper to create a default new meeting JSON object
-defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
-defaultMeetingJson title startTime endTime invitedEmails =
-  object
-    [ "title" .= title,
-      "start_time" .= startTime,
-      "end_time" .= endTime,
-      "invited_emails" .= invitedEmails
-    ]
 
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
@@ -48,11 +49,19 @@ testMeetingCreate = do
       resp <- postMeetings owner newMeeting
       assertSuccess resp
       void $ awaitMatch isConvCreateMeetingNotif ws
-      getJSON 201 resp
+      m <- getJSON 201 resp
+      -- the creator's other client connection (this websocket) now receives meeting.create
+      void $ awaitMatch isMeetingCreateNotif ws
+      pure m
 
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
   meeting %. "invited_emails" `shouldMatch` (["alice@example.com", "bob@example.com"] :: [String])
+
+  -- The full conversation is returned alongside the legacy field
+  assertConversationMatchesLegacy meeting
+
+  meeting %. "conversation" %. "access" `shouldMatchSet` ["invite", "code"]
 
   -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -84,14 +93,82 @@ testMeetingMLSAddParticipant = do
   convId <- objConvId conv
   createGroup def alice1 convId
 
-  -- Before the fix, this add commit fails with 403 access-denied at the
-  -- server (getJSON 201 below throws). After the fix it succeeds.
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  memberAddNotif <-
+    withWebSocket bob $ \ws -> do
+      void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+      let isMeetingAddSequenceNotif notif = do
+            isMemberJoin <- isMemberJoinNotif notif
+            isMeetingMemberAdd <- isMeetingMemberAddNotif notif
+            isWelcome <- isWelcomeNotif notif
+            pure $ isMemberJoin || isMeetingMemberAdd || isWelcome
+      sequenceNotifs <- replicateM 3 (awaitMatch isMeetingAddSequenceNotif ws)
+      sequenceTypes <- for sequenceNotifs $ \notif -> notif %. "payload.0.type" >>= asString
+      sequenceTypes
+        `shouldMatchSet` [ "conversation.member-join",
+                           "meeting.member-add",
+                           "conversation.mls-welcome"
+                         ]
+      case [n | (t, n) <- zip sequenceTypes sequenceNotifs, t == "meeting.member-add"] of
+        (notif : _) -> pure notif
+        [] -> assertFailure "expected a meeting.member-add notification in the add sequence"
+
+  assertMeetingNotif memberAddNotif (meeting %. "qualified_id")
+  memberAddNotif %. "payload.0.qualified_conversation" `shouldMatch` convQid
 
   bindResponse (getConversation alice convQid) $ \res -> do
     res.status `shouldMatchInt` 200
     (length <$> (res.json %. "members.others" & asList)) `shouldMatchInt` 1
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
+
+-- | Helper to extract meetingId and domain from a meeting JSON object
+getMeetingIdAndDomain :: (HasCallStack) => Value -> App (String, String)
+getMeetingIdAndDomain meeting = do
+  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
+  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  pure (meetingId, domain)
+
+-- | On create/update responses, the full @conversation@ object is returned
+-- alongside the legacy @qualified_conversation@ field. This asserts that both
+-- refer to the same conversation.
+assertConversationMatchesLegacy :: (HasCallStack) => Value -> App ()
+assertConversationMatchesLegacy meeting = do
+  convId <- meeting %. "conversation" %. "qualified_id"
+  legacyConvId <- meeting %. "qualified_conversation"
+  convId `shouldMatch` legacyConvId
+
+-- | Assert a meeting lifecycle notification carries the meeting's qualified id flat
+-- at payload.0.qualified_id and has NO "data" wrapper (proves the no-nesting
+-- contract).
+assertMeetingNotif ::
+  (HasCallStack, MakesValue notif, MakesValue qid) =>
+  notif ->
+  qid ->
+  App ()
+assertMeetingNotif notif qid = do
+  notif %. "payload.0.qualified_id" `shouldMatch` qid
+  assertFieldMissing notif "payload.0.data"
+
+-- | Helper to create a default new meeting JSON object
+defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
+defaultMeetingJson title startTime endTime invitedEmails =
+  object
+    [ "title" .= title,
+      "start_time" .= startTime,
+      "end_time" .= endTime,
+      "tzid" .= ("Europe/Berlin" :: String),
+      "invited_emails" .= invitedEmails
+    ]
+
+-- | Legacy (V15/V16) meeting JSON: carries @end_time@ and no @tzid@ (V17 adds
+-- @tzid@). Used to exercise the legacy endpoints in interop tests.
+defaultMeetingJsonLegacy :: String -> UTCTime -> UTCTime -> [String] -> Value
+defaultMeetingJsonLegacy title startTime endTime invitedEmails =
+  object
+    [ "title" .= title,
+      "start_time" .= startTime,
+      "end_time" .= endTime,
+      "invited_emails" .= invitedEmails
+    ]
 
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
@@ -99,41 +176,6 @@ testMeetingGetNotFound = do
   fakeMeetingId <- randomId
 
   getMeeting owner "example.com" fakeMeetingId >>= assertLabel 404 "meeting-not-found"
-
--- Test that personal (non-team) users create trial meetings
-testMeetingCreatePersonalUserTrial :: (HasCallStack) => App ()
-testMeetingCreatePersonalUserTrial = do
-  personalUser <- randomUser OwnDomain def
-  now <- liftIO getCurrentTime
-  let startTime = addUTCTime 3600 now
-      endTime = addUTCTime 7200 now
-      newMeeting = defaultMeetingJson "Personal Meeting" startTime endTime []
-
-  r <- postMeetings personalUser newMeeting
-  assertSuccess r
-
-  meeting <- getJSON 201 r
-  meeting %. "trial" `shouldMatch` True
-
--- Test that paying team members create non-trial meetings
-testMeetingCreatePayingTeamNonTrial :: (HasCallStack) => App ()
-testMeetingCreatePayingTeamNonTrial = do
-  (owner, tid, _members) <- createTeam OwnDomain 1
-
-  let firstMeeting = object ["status" .= "enabled"]
-  I.setTeamFeatureLockStatus owner tid "meetingsPremium" "unlocked"
-  I.setTeamFeatureConfig owner tid "meetingsPremium" firstMeeting >>= assertStatus 200
-
-  now <- liftIO getCurrentTime
-  let startTime = addUTCTime 3600 now
-      endTime = addUTCTime 7200 now
-      newMeeting = defaultMeetingJson "Paying Team Meeting" startTime endTime []
-
-  r <- postMeetings owner newMeeting
-  assertSuccess r
-
-  meeting <- getJSON 201 r
-  meeting %. "trial" `shouldMatch` False
 
 -- Test that disabled MeetingsConfig feature blocks creation
 testMeetingsConfigDisabledBlocksCreate :: (HasCallStack) => App ()
@@ -149,6 +191,62 @@ testMeetingsConfigDisabledBlocksCreate = do
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
+
+  postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
+
+-- | Read endpoints (@GET /meetings/list@, @GET /meetings/{domain}/{id}@) treat a
+-- team with the @meetings@ feature disabled as "no meetings" (list -> @200 []@,
+-- get -> @404 meeting-not-found@) instead of @403 invalid-op@, while write
+-- endpoints (@POST /meetings@) keep the hard gate and still return @403
+-- invalid-op@. See WPB-27329.
+testMeetingsReadsWhenDisabled :: (HasCallStack) => App ()
+testMeetingsReadsWhenDisabled = do
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "test meeting" startTime endTime []
+
+  -- Enabled (default): create a meeting to use as the read target later.
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Positive control while enabled: the created meeting is directly findable.
+  getMeeting owner domain meetingId >>= assertStatus 200
+
+  -- Disable the meetings feature for the team.
+  let disabled = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
+  I.setTeamFeatureConfig owner tid "meetings" disabled >>= assertStatus 200
+
+  -- Read paths treat a disabled feature as "no meetings": list -> 200 [], get -> 404.
+  getMeetingsList owner `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    meetings <- resp.json & asList
+    shouldBeEmpty meetings
+
+  getMeeting owner domain meetingId >>= assertLabel 404 "meeting-not-found"
+
+  -- Write paths keep the hard gate: create -> 403 invalid-op (unchanged behavior).
+  postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
+
+  -- Re-enable: the previously-created meeting is readable again.
+  let enabled = object ["status" .= "enabled", "lockStatus" .= "unlocked"]
+  I.setTeamFeatureConfig owner tid "meetings" enabled >>= assertStatus 200
+
+  listResp2 <- getMeetingsList owner
+  assertSuccess listResp2
+  meetings2 <- listResp2.json & asList
+  fetchedIds <- forM meetings2 $ \m -> m %. "qualified_id" %. "id" >>= asString
+  (meetingId `elem` fetchedIds) `shouldMatch` True
+
+-- Test that creating a meeting with a start time in the past is rejected
+testMeetingCreatePastStartTime :: (HasCallStack) => App ()
+testMeetingCreatePastStartTime = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime (negate 3600) now
+      endTime = addUTCTime 3600 now
+      newMeeting = defaultMeetingJson "Past Meeting" startTime endTime []
 
   postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
 
@@ -170,6 +268,7 @@ testMeetingRecurrence = do
           [ "title" .= "Daily Standup with Recurrence",
             "start_time" .= startTime,
             "end_time" .= endTime,
+            "tzid" .= ("Europe/Berlin" :: String),
             "recurrence" .= recurrence,
             "invited_emails" .= ["charlie@example.com"]
           ]
@@ -192,14 +291,21 @@ testMeetingRecurrence = do
             "recurrence" .= updatedRecurrence
           ]
 
-  r2 <- putMeeting owner domain meetingId updatedMeeting
-  assertSuccess r2
+  r2 <- withWebSocket owner $ \ws -> do
+    resp <- putMeeting owner domain meetingId updatedMeeting
+    assertSuccess resp
+    -- the creator's other client connection (this websocket) now receives meeting.update
+    void $ awaitMatch isMeetingUpdateNotif ws
+    pure resp
 
   updated <- getJSON 200 r2
   updated %. "title" `shouldMatch` ("Updated Standup" :: String)
   recurrence' <- updated %. "recurrence"
   recurrence' %. "frequency" `shouldMatch` "weekly"
   recurrence' %. "interval" `shouldMatchInt` 2
+
+  -- The full conversation is still returned on update
+  assertConversationMatchesLegacy updated
 
 testMeetingUpdateNotFound :: (HasCallStack) => App ()
 testMeetingUpdateNotFound = do
@@ -239,6 +345,32 @@ testMeetingUpdateUnauthorized = do
           ]
 
   putMeeting otherUser domain meetingId update >>= assertStatus 404
+
+-- | WPB-28272: PUT /meetings/{domain}/{id} accepts an optional @tzid@ and
+-- updates the stored time zone; omitting it (as legacy clients do) keeps the
+-- stored value; an invalid tzid is rejected at decode time.
+testMeetingUpdateTzid :: (HasCallStack) => App ()
+testMeetingUpdateTzid = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let newMeeting = defaultMeetingJson "Tzid Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  meeting %. "tzid" `shouldMatch` ("Europe/Berlin" :: String)
+
+  updated <- putMeeting owner domain meetingId (object ["tzid" .= ("America/New_York" :: String)]) >>= getJSON 200
+  updated %. "tzid" `shouldMatch` ("America/New_York" :: String)
+  updated %. "title" `shouldMatch` ("Tzid Meeting" :: String)
+
+  fetched <- getMeeting owner domain meetingId >>= getJSON 200
+  fetched %. "tzid" `shouldMatch` ("America/New_York" :: String)
+
+  putMeeting owner domain meetingId (object ["title" .= ("Renamed" :: String)]) >>= assertStatus 200
+  fetched2 <- getMeeting owner domain meetingId >>= getJSON 200
+  fetched2 %. "tzid" `shouldMatch` ("America/New_York" :: String)
+  fetched2 %. "title" `shouldMatch` ("Renamed" :: String)
+
+  putMeeting owner domain meetingId (object ["tzid" .= ("not-a-zone" :: String)]) >>= assertLabel 400 "bad-request"
 
 testMeetingListEmpty :: (HasCallStack) => App ()
 testMeetingListEmpty = do
@@ -423,6 +555,7 @@ testMeetingDelete = do
           [ "title" .= "Team Standup",
             "start_time" .= startTime,
             "end_time" .= endTime,
+            "tzid" .= ("Europe/Berlin" :: String),
             "invited_emails" .= ([] :: [String]),
             "recurrence" .= recurrence
           ]
@@ -430,8 +563,73 @@ testMeetingDelete = do
   assertSuccess r1
   meeting <- getJSON 201 r1
   (meetingId, domain) <- getMeetingIdAndDomain meeting
-  deleteMeeting owner domain meetingId >>= assertStatus 200
+  withWebSocket owner $ \ws -> do
+    deleteMeeting owner domain meetingId >>= assertStatus 200
+    void $ awaitMatch isConvDeleteMeetingNotif ws
+    -- the creator's other client connection (this websocket) now receives meeting.delete
+    void $ awaitMatch isMeetingDeleteNotif ws
   getMeeting owner domain meetingId >>= assertStatus 404
+
+-- | WPB-27907: meeting lifecycle events are delivered to all conversation
+-- members; only the originating client connection is excluded (no redundant
+-- echo), while the initiator's other client connections and all other members
+-- receive them. This test covers the non-initiator member path: a member who
+-- joined the meeting conversation after creation receives 'meeting.update' and
+-- 'meeting.delete'. The originating-client-connection exclusion is covered in
+-- 'testMeetingOriginatingConnectionExcluded'; the multi-member recipient set
+-- is covered at the unit level in "Wire.MeetingsSubsystem.InterpreterSpec".
+testMeetingLifecycleEventsDeliveredToMembers :: (HasCallStack) => App ()
+testMeetingLifecycleEventsDeliveredToMembers = do
+  (owner, _tid, [participant]) <- createTeam OwnDomain 2
+  ownerClient <- createMLSClient def owner
+  participantClient <- createMLSClient def participant
+  _ <- uploadNewKeyPackage def participantClient
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Lifecycle Meeting" startTime endTime []
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Add the second team member to the meeting conversation via MLS, so that
+  -- they are among the recipients of subsequent lifecycle events.
+  convQid <- meeting %. "qualified_conversation"
+  conv <- getConversation owner convQid >>= getJSON 200
+  convId <- objConvId conv
+  createGroup def ownerClient convId
+  void $ createAddCommit ownerClient convId [participant] >>= sendAndConsumeCommitBundle
+
+  -- The non-initiator member receives 'meeting.update'; the originating-
+  -- client-connection exclusion is asserted in 'testMeetingOriginatingConnectionExcluded'.
+  updateNotif <-
+    withWebSocket participant $ \ws -> do
+      putMeeting owner domain meetingId (object ["title" .= "Updated Lifecycle Meeting"]) >>= assertSuccess
+      awaitMatch isMeetingUpdateNotif ws
+  assertMeetingNotif updateNotif (meeting %. "qualified_id")
+
+  -- The non-initiator member receives 'meeting.delete'. The preceding
+  -- 'conversation.delete-meeting' event is expected and skipped by 'awaitMatch'.
+  deleteNotif <-
+    withWebSocket participant $ \ws -> do
+      deleteMeeting owner domain meetingId >>= assertStatus 200
+      awaitMatch isMeetingDeleteNotif ws
+  assertMeetingNotif deleteNotif (meeting %. "qualified_id")
+
+testMeetingOriginatingConnectionExcluded :: (HasCallStack) => App ()
+testMeetingOriginatingConnectionExcluded = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let newMeeting = defaultMeetingJson "Origin Conn" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+  withWebSocket (owner, "conn") $ \wsOrigin ->
+    withWebSocket owner $ \wsOther -> do
+      _ <- postMeetings owner newMeeting >>= assertSuccess
+      void $ awaitMatch isMeetingCreateNotif wsOther
+      -- The originating client connection still receives conversation.create-meeting
+      -- (the conversation event is not client-connection-excluded), but it must NOT
+      -- receive meeting.create (excluded via the request's client connection "conn").
+      void $ awaitMatch isConvCreateMeetingNotif wsOrigin
+      assertNoEvent 1 wsOrigin
 
 testMeetingDeleteNotFound :: (HasCallStack) => App ()
 testMeetingDeleteNotFound = do
@@ -460,15 +658,15 @@ testMeetingCleanup = do
     -- 2 minutes timeout
     (owner, _tid, _members) <- createTeam OwnDomain 1
     now <- liftIO getCurrentTime
-    -- Create a meeting that ends now.
+    -- Create a meeting that starts now and ends 1s later.
     -- Configured retention is 0.0014 hours (~5 seconds).
     -- cutoffTime will be now' - 5s.
     -- We need end_date < cutoffTime.
-    -- If we wait 6 seconds, now' = now + 6s.
-    -- cutoffTime = now + 6s - 5s = now + 1s.
-    -- end_date (now) < cutoffTime (now + 1s).
-    let startTime = addUTCTime (negate 3600) now
-        endTime = now
+    -- If we wait 7 seconds, now' = now + 7s.
+    -- cutoffTime = now + 7s - 5s = now + 2s.
+    -- end_date (now + 1s) < cutoffTime (now + 2s).
+    let startTime = now
+        endTime = addUTCTime 1 now
         newMeeting = defaultMeetingJson "Cleanup Test" startTime endTime []
 
     r1 <- postMeetings owner newMeeting
@@ -476,8 +674,8 @@ testMeetingCleanup = do
     meeting <- getJSON 201 r1
     (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-    -- Wait 6 seconds to ensure meeting is old enough
-    liftIO $ threadDelay 6_000_000
+    -- Wait 7 seconds to ensure meeting is old enough
+    liftIO $ threadDelay 7_000_000
 
     -- Wait for cleanup job to run
     waitForCleanupJob OwnDomain
@@ -525,9 +723,9 @@ testMeetingExpiration :: (HasCallStack) => App ()
 testMeetingExpiration = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   now <- liftIO getCurrentTime
-  let startTime = addUTCTime (negate 3600) now
+  let startTime = now
       -- meetingValidityPeriodSeconds is configured to 5 seconds in galley.integration.yaml
-      endTime = now
+      endTime = addUTCTime 1 now
       newMeeting = defaultMeetingJson "Expiring Meeting" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
@@ -535,11 +733,11 @@ testMeetingExpiration = do
   meeting <- getJSON 201 r1
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  -- Check it is accessible immediately (endDate = now, so valid until now + 5s)
+  -- Check it is accessible immediately (endTime = now+1, well within the 5s validity)
   getMeeting owner domain meetingId >>= assertStatus 200
 
-  -- Wait 6 seconds
-  liftIO $ threadDelay 6_000_000
+  -- Wait 7 seconds so endTime (now+1) is past the validity cutoff (now+7-5 = now+2)
+  liftIO $ threadDelay 7_000_000
 
   -- Check it is expired
   getMeeting owner domain meetingId >>= assertStatus 404
@@ -551,11 +749,11 @@ testMeetingListRecurringNotExpired :: (HasCallStack) => App ()
 testMeetingListRecurringNotExpired = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   now <- liftIO getCurrentTime
-  -- endTime = now: it only becomes "past" after the threadDelay below;
-  -- the recurrence window stays open for 30 days.
+  -- startTime = now, endTime = now+1: the slot only becomes "past" after the
+  -- threadDelay below; the recurrence window stays open for 30 days.
   -- meetingValidityPeriodSeconds is 5s in galley.integration.yaml.
-  let startTime = addUTCTime (negate 3600) now
-      endTime = now
+  let startTime = now
+      endTime = addUTCTime 1 now
       recurrenceUntil = Time.formatTime Time.defaultTimeLocale "%FT%TZ" $ addUTCTime (30 * nominalDay) now
       recurrence =
         object
@@ -568,6 +766,7 @@ testMeetingListRecurringNotExpired = do
           [ "title" .= "Recurring Past Meeting",
             "start_time" .= startTime,
             "end_time" .= endTime,
+            "tzid" .= ("Europe/Berlin" :: String),
             "recurrence" .= recurrence,
             "invited_emails" .= ([] :: [String])
           ]
@@ -575,8 +774,8 @@ testMeetingListRecurringNotExpired = do
   meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  -- Wait beyond the validity period so a non-recurring meeting would expire.
-  liftIO $ threadDelay 6_000_000
+  -- Wait 7s beyond the validity period so a non-recurring meeting would expire.
+  liftIO $ threadDelay 7_000_000
 
   -- Still accessible directly.
   getMeeting owner domain meetingId >>= assertStatus 200
@@ -586,3 +785,58 @@ testMeetingListRecurringNotExpired = do
   assertSuccess resp
   meetings <- resp.json & asList
   length meetings `shouldMatchInt` 1
+
+-- | A meeting created via the V17 shape (@end_time + tzid@) is visible to legacy
+-- clients (< V17) with an @end_time@; V17 reads carry @end_time@ too.
+testMeetingInteropNewToLegacy :: (HasCallStack) => App ()
+testMeetingInteropNewToLegacy = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 3600 startTime
+      newMeeting = defaultMeetingJson "Interop New" startTime endTime []
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  -- V17 read shape: carries end_time + tzid.
+  startV17 <- meeting %. "start_time" >>= asString
+  endV17 <- meeting %. "end_time" >>= asString
+  startT <- assertJust ("could not parse start_time: " <> startV17) $ iso8601ParseM @Maybe @UTCTime startV17
+  endT <- assertJust ("could not parse end_time: " <> endV17) $ iso8601ParseM @Maybe @UTCTime endV17
+  -- end_time - start_time == 3600s regardless of client/server clock skew; both
+  -- come back from Postgres at microsecond precision.
+  endT `shouldMatch` addUTCTime 3600 startT
+  tzid <- meeting %. "tzid" >>= asString
+  tzid `shouldMatch` ("Europe/Berlin" :: String)
+  -- A meeting whose end is 1h after start (formerly sent as "1h") still reads
+  -- back with end_time = start_time + 3600s on the legacy path.
+  let startTime2 = addUTCTime 7200 now
+      endTime2 = addUTCTime 3600 startTime2
+      newMeeting2 = defaultMeetingJson "Interop New (1h)" startTime2 endTime2 []
+  meeting2 <- postMeetings owner newMeeting2 >>= getJSON 201
+  (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
+  legacy2 <- getMeetingV16 owner domain2 meetingId2 >>= getJSON 200
+  start2Str <- legacy2 %. "start_time" >>= asString
+  end2Str <- legacy2 %. "end_time" >>= asString
+  start2T <- assertJust ("could not parse start_time: " <> start2Str) $ iso8601ParseM @Maybe @UTCTime start2Str
+  end2T <- assertJust ("could not parse end_time: " <> end2Str) $ iso8601ParseM @Maybe @UTCTime end2Str
+  end2T `shouldMatch` addUTCTime 3600 start2T
+
+-- | A meeting created via the legacy shape (@end_time@) is visible to V17 clients
+-- with @end_time@ and the injected default @tzid@ (Europe/Berlin).
+testMeetingInteropLegacyToNew :: (HasCallStack) => App ()
+testMeetingInteropLegacyToNew = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJsonLegacy "Interop Legacy" startTime endTime []
+  meeting <- postMeetingsV16 owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  -- V17 read shape: end_time is present, tzid is the injected default.
+  modern <- getMeeting owner domain meetingId >>= getJSON 200
+  startStr <- modern %. "start_time" >>= asString
+  endStr <- modern %. "end_time" >>= asString
+  startT <- assertJust ("could not parse start_time: " <> startStr) $ iso8601ParseM @Maybe @UTCTime startStr
+  endT <- assertJust ("could not parse end_time: " <> endStr) $ iso8601ParseM @Maybe @UTCTime endStr
+  endT `shouldMatch` addUTCTime 3600 startT
+  tzid <- modern %. "tzid" >>= asString
+  tzid `shouldMatch` ("Europe/Berlin" :: String)

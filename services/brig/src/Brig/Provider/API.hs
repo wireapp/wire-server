@@ -710,7 +710,7 @@ updateServiceWhitelist ::
   TeamId ->
   Public.UpdateServiceWhitelist ->
   (Handler r) UpdateServiceWhitelistResp
-updateServiceWhitelist uid con tid upd = do
+updateServiceWhitelist uid _con tid upd = do
   -- Preconditions
   guardSecondFactorDisabled (Just uid)
   let pid = updateServiceWhitelistProvider upd
@@ -735,7 +735,12 @@ updateServiceWhitelist uid con tid upd = do
           .| C.mapM_
             ( unsafePooledMapConcurrentlyN_
                 16
-                (uncurry (deleteBot uid (Just con)))
+                ( \(bid, cid) ->
+                    -- Each bot removes itself: the team admin de-whitelisting
+                    -- the service is not necessarily allowed to remove members in the
+                    -- conversations the bots are in.
+                    deleteBot (botUserId bid) Nothing bid cid
+                )
             )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
@@ -841,7 +846,6 @@ addBot zuid zcon cid add = do
             country = locale.lCountry,
             serviceId = Just sid,
             providerId = Just pid,
-            handle = Nothing,
             teamId = Nothing,
             managedBy = ManagedByWire,
             supportedProtocols = defSupportedProtocols,

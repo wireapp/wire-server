@@ -5,6 +5,7 @@
 module Test.MLS.KeyPackage where
 
 import API.Brig
+import API.BrigInternal
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
@@ -27,12 +28,26 @@ testDeleteKeyPackages = do
 
 testClaimKeyPackagesUserDeleted :: App ()
 testClaimKeyPackagesUserDeleted = do
-  (_, _, [alice]) <- createTeam OwnDomain 2
-  alice1 <- createMLSClient def alice
+  (owner, _, [alice]) <- createTeam OwnDomain 2
   API.Brig.deleteUser alice >>= assertSuccess
-  bindResponse (claimKeyPackages def alice1 alice) $ \resp -> do
+  bindResponse (claimKeyPackages def owner alice) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "invalid-user"
+
+testClaimKeyPackagesUserSuspended :: App ()
+testClaimKeyPackagesUserSuspended = do
+  (owner, _, [alice]) <- createTeam OwnDomain 2
+  API.BrigInternal.setAccountStatus alice "suspended" >>= assertSuccess
+  bindResponse (claimKeyPackages def owner alice) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-user"
+
+testClaimKeyPackagesEphemeralUser :: App ()
+testClaimKeyPackagesEphemeralUser = do
+  user <- randomUser OwnDomain def
+  tempUser <- ephemeralUser OwnDomain
+  bindResponse (claimKeyPackages def user tempUser) $ \resp -> do
+    resp.status `shouldMatchInt` 200
 
 testKeyPackageMultipleCiphersuites :: App ()
 testKeyPackageMultipleCiphersuites = do

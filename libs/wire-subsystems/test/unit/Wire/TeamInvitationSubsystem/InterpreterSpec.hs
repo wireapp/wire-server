@@ -41,9 +41,11 @@ import Test.QuickCheck
 import Wire.API.EnterpriseLogin
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
+import Wire.API.Password (Password)
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
+import Wire.API.Team.Role (defaultRole)
 import Wire.API.User
 import Wire.EmailSubsystem
 import Wire.EnterpriseLoginSubsystem
@@ -61,6 +63,7 @@ import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 import Wire.Util
 
@@ -75,6 +78,7 @@ type AllEffects =
     UserKeyStore,
     State (Map (TeamId, InvitationId) StoredInvitation),
     State (Map (InvitationCode) StoredInvitation),
+    State (Map (TeamId, EmailAddress) [UserId]),
     Now,
     State UTCTime,
     Error TeamInvitationSubsystemError,
@@ -84,6 +88,7 @@ type AllEffects =
     State (Map EmailAddress [SentMail]),
     UserSubsystem,
     UserStore,
+    State [UserId],
     UserKeyStore
   ]
 
@@ -94,17 +99,49 @@ data RunAllEffectsArgs = RunAllEffectsArgs
   }
   deriving (Eq, Show)
 
+data InviteScenarioObservation = InviteScenarioObservation
+  { -- 'Nothing' means the manual invitation was created successfully.
+    invitationResult :: Maybe TeamInvitationSubsystemError,
+    -- User IDs passed to 'UserStore.DeleteUser' during reconciliation.
+    deletedUserIds :: [UserId],
+    -- The candidate user's record after reconciliation, if it still exists.
+    observedUser :: Maybe StoredUser,
+    -- User IDs still present in the pending SCIM index after reconciliation.
+    observedPendingScimUsers :: [UserId]
+  }
+  deriving (Eq, Show)
+
+data InviteScenarioInput = InviteScenarioInput
+  { invitationTeam :: TeamId,
+    inviter :: StoredUser,
+    otherUsers :: [StoredUser],
+    pendingScimUsers :: [(TeamId, EmailAddress, UserId)],
+    liveInvitations :: [InsertInvitation],
+    inviteeEmail :: EmailAddress,
+    observedUid :: UserId
+  }
+  deriving (Eq, Show)
+
 runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either LocalErrors a
-runAllEffects args =
+runAllEffects args = runAllEffectsWithUserKeys args.initialUsers args
+
+runAllEffectsWithUserKeys :: [StoredUser] -> RunAllEffectsArgs -> Sem AllEffects a -> Either LocalErrors a
+runAllEffectsWithUserKeys initialUsers args =
   run
-    . runInMemoryUserKeyStoreIntepreterWithStoredUsers args.initialUsers
-    . runInMemoryUserStoreInterpreter args.initialUsers mempty
+    . runInMemoryUserKeyStoreIntepreterWithStoredUsers initialUsers
+    . evalState ([] :: [UserId])
+    . evalState mempty
+    . evalState args.initialUsers
+    . inMemoryUserStoreInterpreterWithDeleteHook (\uid -> modify @[UserId] (uid :))
+    . raiseUnder @(State [StoredUser])
+    . raiseUnder @(State (Map UserId Password))
     . inMemoryUserSubsystemInterpreter
     . evalState mempty
     . noopEmailSubsystemInterpreter
     . runLocalErrors
     . evalState defaultTime
     . interpretNowAsState
+    . evalState mempty
     . evalState mempty
     . evalState mempty
     . (evalState mempty . inMemoryUserKeyStoreInterpreter . raiseUnder)
@@ -115,6 +152,49 @@ runAllEffects args =
     . interpretTeamSubsystemToGalleyAPI
     . discardTinyLogs
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
+
+runInviteScenarioObserved ::
+  InviteScenarioInput ->
+  Either LocalErrors InviteScenarioObservation
+runInviteScenarioObserved input =
+  runAllEffectsWithUserKeys [input.inviter] args . runTeamInvitationSubsystem config $ do
+    for_ input.liveInvitations $ \inv -> void $ insertInvitation inv 3_000_000
+    for_ input.pendingScimUsers $ \(indexTeam, email, uid) ->
+      deleteKey (mkEmailKey email) >> insertPendingScimUser indexTeam email uid
+    result <- catch (inviteUser inviterLuid input.invitationTeam invitationRequest >> pure Nothing) (pure . Just)
+    deletedUsers <- get @[UserId]
+    observedUser <- UserStore.getUser input.observedUid
+    observedIndex <- lookupPendingScimUsers input.invitationTeam input.inviteeEmail
+    pure
+      InviteScenarioObservation
+        { invitationResult = result,
+          deletedUserIds = deletedUsers,
+          observedUser,
+          observedPendingScimUsers = observedIndex
+        }
+  where
+    inviterLuid = toLocalUnsafe testDomain input.inviter.id
+    inviterMember = mkTeamMember input.inviter.id fullPermissions Nothing UserLegalHoldDisabled
+    invitationRequest =
+      InvitationRequest
+        { locale = Nothing,
+          role = Nothing,
+          inviteeName = Nothing,
+          inviteeEmail = input.inviteeEmail,
+          allowExisting = False
+        }
+    config =
+      TeamInvitationSubsystemConfig
+        { maxTeamSize = 50,
+          teamInvitationTimeout = 3_000_000,
+          blockedDomains = HashSet.empty
+        }
+    args =
+      RunAllEffectsArgs
+        { teams = Map.singleton input.invitationTeam [inviterMember],
+          initialUsers = input.inviter : input.otherUsers,
+          constGuardResult = Nothing
+        }
 
 data LocalErrors
   = ETeamMemberNotFound
@@ -139,7 +219,250 @@ runLocalErrors = fmap toLocalErrors . runError . runError . runError
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
-    prop "honors dommain config from `brig.domain_registration`" $
+    prop "rejects a manual invitation when a matching SCIM invitation is pending" $
+      \(tid :: TeamId)
+       (inviter0 :: StoredUser)
+       (scimUser0 :: StoredUser)
+       (inviterEmail :: EmailAddress)
+       (inviteeEmail :: EmailAddress)
+       (code :: InvitationCode) ->
+          inviter0.id /= scimUser0.id ==>
+            let inviter :: StoredUser
+                inviter =
+                  inviter0
+                    { email = Just inviterEmail,
+                      activated = True,
+                      status = Just Active,
+                      teamId = Just tid,
+                      managedBy = Just ManagedByWire,
+                      userType = Just UserTypeRegular
+                    }
+
+                scimUser :: StoredUser
+                scimUser =
+                  scimUser0
+                    { email = Just inviteeEmail,
+                      emailUnvalidated = Nothing,
+                      activated = False,
+                      status = Just PendingInvitation,
+                      teamId = Just tid,
+                      managedBy = Just ManagedByScim,
+                      userType = Just UserTypeRegular
+                    }
+
+                storedInvitation =
+                  MkInsertInvitation
+                    { invitationId = Id (toUUID scimUser.id),
+                      teamId = tid,
+                      role = defaultRole,
+                      createdAt = defaultTime,
+                      createdBy = Just inviter.id,
+                      inviteeEmail = inviteeEmail,
+                      inviteeName = Nothing,
+                      code = code
+                    }
+
+                outcome =
+                  runInviteScenarioObserved
+                    InviteScenarioInput
+                      { invitationTeam = tid,
+                        inviter,
+                        otherUsers = [scimUser],
+                        pendingScimUsers = [(tid, inviteeEmail, scimUser.id)],
+                        liveInvitations = [storedInvitation],
+                        inviteeEmail,
+                        observedUid = scimUser.id
+                      }
+             in counterexample (show (inviter, scimUser, storedInvitation)) $
+                  outcome
+                    === Right
+                      InviteScenarioObservation
+                        { invitationResult = Just TeamInvitationEmailTaken,
+                          deletedUserIds = [],
+                          observedUser = Just scimUser,
+                          observedPendingScimUsers = [scimUser.id]
+                        }
+
+    prop "allows a manual invitation after a matching SCIM invitation expired" $
+      \(tid :: TeamId)
+       (inviter0 :: StoredUser)
+       (scimUser0 :: StoredUser)
+       (inviterEmail :: EmailAddress)
+       (inviteeEmail :: EmailAddress) ->
+          inviter0.id /= scimUser0.id ==>
+            let inviter =
+                  inviter0
+                    { email = Just inviterEmail,
+                      activated = True,
+                      status = Just Active,
+                      teamId = Just tid,
+                      managedBy = Just ManagedByWire,
+                      userType = Just UserTypeRegular
+                    } ::
+                    StoredUser
+                scimUser =
+                  scimUser0
+                    { email = Just inviteeEmail,
+                      activated = False,
+                      status = Just PendingInvitation,
+                      teamId = Just tid,
+                      managedBy = Just ManagedByScim,
+                      userType = Just UserTypeRegular
+                    } ::
+                    StoredUser
+                outcome =
+                  runInviteScenarioObserved
+                    InviteScenarioInput
+                      { invitationTeam = tid,
+                        inviter,
+                        otherUsers = [scimUser],
+                        pendingScimUsers = [(tid, inviteeEmail, scimUser.id)],
+                        liveInvitations = [],
+                        inviteeEmail,
+                        observedUid = scimUser.id
+                      }
+             in outcome
+                  === Right
+                    InviteScenarioObservation
+                      { invitationResult = Nothing,
+                        deletedUserIds = [scimUser.id],
+                        observedUser = Nothing,
+                        observedPendingScimUsers = []
+                      }
+
+    prop "rejects a manual invitation for an active SCIM account" $
+      \(tid :: TeamId)
+       (inviter0 :: StoredUser)
+       (scimUser0 :: StoredUser)
+       (inviterEmail :: EmailAddress)
+       (inviteeEmail :: EmailAddress) ->
+          inviter0.id /= scimUser0.id ==>
+            let inviter =
+                  inviter0
+                    { email = Just inviterEmail,
+                      activated = True,
+                      status = Just Active,
+                      teamId = Just tid,
+                      managedBy = Just ManagedByWire,
+                      userType = Just UserTypeRegular
+                    } ::
+                    StoredUser
+                scimUser =
+                  scimUser0
+                    { email = Just inviteeEmail,
+                      activated = True,
+                      status = Just Active,
+                      teamId = Just tid,
+                      managedBy = Just ManagedByScim,
+                      userType = Just UserTypeRegular
+                    } ::
+                    StoredUser
+                outcome =
+                  runInviteScenarioObserved
+                    InviteScenarioInput
+                      { invitationTeam = tid,
+                        inviter,
+                        otherUsers = [scimUser],
+                        pendingScimUsers = [(tid, inviteeEmail, scimUser.id)],
+                        liveInvitations = [],
+                        inviteeEmail,
+                        observedUid = scimUser.id
+                      }
+             in outcome
+                  === Right
+                    InviteScenarioObservation
+                      { invitationResult = Just TeamInvitationEmailTaken,
+                        deletedUserIds = [],
+                        observedUser = Just scimUser,
+                        observedPendingScimUsers = [scimUser.id]
+                      }
+
+    prop "allows a manual invitation when the SCIM index entry is stale" $
+      \(tid :: TeamId)
+       (inviter :: StoredUser)
+       (staleUid :: UserId)
+       (inviterEmail :: EmailAddress)
+       (inviteeEmail :: EmailAddress) ->
+          inviter.id /= staleUid ==>
+            let preparedInviter =
+                  inviter
+                    { email = Just inviterEmail,
+                      activated = True,
+                      status = Just Active,
+                      teamId = Just tid,
+                      managedBy = Just ManagedByWire,
+                      userType = Just UserTypeRegular
+                    } ::
+                    StoredUser
+                outcome =
+                  runInviteScenarioObserved
+                    InviteScenarioInput
+                      { invitationTeam = tid,
+                        inviter = preparedInviter,
+                        otherUsers = [],
+                        pendingScimUsers = [(tid, inviteeEmail, staleUid)],
+                        liveInvitations = [],
+                        inviteeEmail,
+                        observedUid = staleUid
+                      }
+             in outcome
+                  === Right
+                    InviteScenarioObservation
+                      { invitationResult = Nothing,
+                        deletedUserIds = [],
+                        observedUser = Nothing,
+                        observedPendingScimUsers = []
+                      }
+
+    prop "allows a manual invitation in another team despite a pending SCIM invitation" $
+      \(scimTeam :: TeamId)
+       (manualTeam :: TeamId)
+       (inviter0 :: StoredUser)
+       (scimUser0 :: StoredUser)
+       (inviterEmail :: EmailAddress)
+       (inviteeEmail :: EmailAddress) ->
+          scimTeam /= manualTeam && inviter0.id /= scimUser0.id ==>
+            let inviter =
+                  inviter0
+                    { email = Just inviterEmail,
+                      activated = True,
+                      status = Just Active,
+                      teamId = Just manualTeam,
+                      managedBy = Just ManagedByWire,
+                      userType = Just UserTypeRegular
+                    } ::
+                    StoredUser
+                scimUser =
+                  scimUser0
+                    { email = Just inviteeEmail,
+                      activated = False,
+                      status = Just PendingInvitation,
+                      teamId = Just scimTeam,
+                      managedBy = Just ManagedByScim,
+                      userType = Just UserTypeRegular
+                    } ::
+                    StoredUser
+                outcome =
+                  runInviteScenarioObserved
+                    InviteScenarioInput
+                      { invitationTeam = manualTeam,
+                        inviter,
+                        otherUsers = [scimUser],
+                        pendingScimUsers = [(scimTeam, inviteeEmail, scimUser.id)],
+                        liveInvitations = [],
+                        inviteeEmail,
+                        observedUid = scimUser.id
+                      }
+             in outcome
+                  === Right
+                    InviteScenarioObservation
+                      { invitationResult = Nothing,
+                        deletedUserIds = [],
+                        observedUser = Just scimUser,
+                        observedPendingScimUsers = []
+                      }
+
+    prop "honors domain config from `brig.domain_registration`" $
       \(tid :: TeamId)
        (preDomRegUpd :: DomainRegistrationUpdate)
        (preInviter :: StoredUser)

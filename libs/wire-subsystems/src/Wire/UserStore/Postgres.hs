@@ -1,6 +1,23 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.UserStore.Postgres (interpretUserStorePostgres) where
 
 import Cassandra (GeneralPaginationState (PaginationStatePostgres), PageWithState (..), paginationStatePostgres)
@@ -68,7 +85,6 @@ interpretUserStorePostgres =
     GetUserTeam uid -> getUserTeamImpl uid
     UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
     GetRichInfo uid -> getRichInfoImpl uid
-    LookupRichInfos uids -> lookupRichInfosImpl uids
     UpsertHashedPassword uid pw -> upsertHashedPasswordImpl uid pw
     LookupHashedPassword uid -> lookupHashedPasswordImpl uid
     GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
@@ -82,8 +98,7 @@ type InsertUserRow =
   ( UserId, Name, Maybe TextStatus, Pict, Maybe EmailAddress,
     Maybe UserSSOId, ColourId, Maybe Password, Bool, AccountStatus,
     Maybe UTCTimeMillis, Language, Maybe Country, Maybe ProviderId, Maybe ServiceId,
-    Maybe Handle, Maybe TeamId, ManagedBy, Set BaseProtocolTag, Bool,
-    UserType
+    Maybe TeamId, ManagedBy, Set BaseProtocolTag, Bool, UserType
   )
 type
   SelectUserRow =
@@ -166,7 +181,6 @@ createUserImpl new mbConv =
         new.country,
         new.providerId,
         new.serviceId,
-        new.handle,
         new.teamId,
         new.managedBy,
         new.supportedProtocols,
@@ -182,14 +196,12 @@ createUserImpl new mbConv =
            (id, name, text_status, picture, email,
            sso_id, accent_id, password, activated, account_status,
            expires, language, country, provider, service,
-           handle, team, managed_by, supported_protocols, searchable,
-           user_type)
+           team, managed_by, supported_protocols, searchable, user_type)
            VALUES
            ($1 :: uuid, $2 :: text, $3 :: text?, $4 :: jsonb, $5 :: text?,
             $6 :: jsonb?, $7 :: integer, $8 :: text?, $9 :: boolean, $10 :: integer,
             $11 :: timestamptz?, $12 :: text, $13 :: text?, $14 :: uuid?, $15 :: uuid?,
-            $16 :: text?, $17 :: uuid?, $18 :: integer, $19 :: integer, $20 :: boolean,
-            $21 :: integer)
+            $16 :: uuid?, $17 :: integer, $18 :: integer, $19 :: boolean, $20 :: integer)
            ON CONFLICT (id) DO UPDATE
            SET name = EXCLUDED.name,
                text_status = EXCLUDED.text_status,
@@ -205,7 +217,6 @@ createUserImpl new mbConv =
                country = EXCLUDED.country,
                provider = EXCLUDED.provider,
                service = EXCLUDED.service,
-               handle = EXCLUDED.handle,
                team = EXCLUDED.team,
                managed_by = EXCLUDED.managed_by,
                supported_protocols = EXCLUDED.supported_protocols,
@@ -690,15 +701,6 @@ updateRichInfoImpl uid richInfo =
     update =
       dimapPG
         [resultlessStatement|UPDATE wire_user SET rich_info = $2 :: jsonb WHERE id = $1 :: uuid|]
-
-lookupRichInfosImpl :: (PGConstraints r) => [UserId] -> Sem r [(UserId, RichInfo)]
-lookupRichInfosImpl uids =
-  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi) <$> runStatement uids select
-  where
-    select :: Hasql.Statement [UserId] [(UserId, Maybe RichInfoAssocList)]
-    select =
-      dimapPG @(Vector _)
-        [vectorStatement|SELECT id :: uuid, rich_info :: json? FROM wire_user WHERE id = ANY($1 :: uuid[])|]
 
 upsertHashedPasswordImpl :: (PGConstraints r) => UserId -> Password -> Sem r ()
 upsertHashedPasswordImpl uid pw = runStatement (uid, pw) upsert

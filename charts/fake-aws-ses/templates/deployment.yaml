@@ -17,6 +17,7 @@ spec:
       labels:
         app: {{ template "fullname" . }}
     spec:
+      automountServiceAccountToken: false
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"

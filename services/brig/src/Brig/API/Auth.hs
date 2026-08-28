@@ -55,6 +55,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
+import Wire.BudgetStore
 import Wire.ClientStore (ClientStore)
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
@@ -133,7 +134,8 @@ sendLoginCode _ =
   throwStd (errorToWai @'E.InvalidPhone)
 
 login ::
-  ( Member TinyLog r,
+  ( Member BudgetStore r,
+    Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
     Member Events r,

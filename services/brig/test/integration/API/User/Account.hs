@@ -807,7 +807,8 @@ testMultipleUsers opts brig = do
             profileSupportedProtocols = defSupportedProtocols,
             profileType = UserTypeRegular,
             profileApp = Nothing,
-            profileSearchable = True
+            profileSearchable = True,
+            profileContactStatus = Nothing
           }
       users = [u1, u2, u3]
       q = ListUsersByIds $ u5 : u4 : map userQualifiedId users

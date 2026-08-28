@@ -42,6 +42,7 @@ interpretActivationCodeStoreToCassandra casClient =
         liftIO (mkActivationKey ek)
           >>= retry x1 . query1 cql . params LocalQuorum . Identity
       NewActivationCode ek timeout uid -> newActivationCodeImpl ek timeout uid
+      DeleteActivationCode ek -> deleteActivationCodeImpl ek
   where
     cql :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
     cql =
@@ -72,6 +73,15 @@ newActivationCodeImpl uk timeout u = do
       ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
         <$> randIntegerZeroToNMinusOne 1000000
 
+-- | Delete a pending activation code for a given 'EmailKey', if any.
+deleteActivationCodeImpl ::
+  (MonadClient m) =>
+  EmailKey ->
+  m ()
+deleteActivationCodeImpl uk = do
+  key <- liftIO $ mkActivationKey uk
+  retry x5 . write keyDelete $ params LocalQuorum (Identity key)
+
 --------------------------------------------------------------------------------
 -- Utilities
 
@@ -90,6 +100,9 @@ keyInsert =
   "INSERT INTO activation_keys \
   \(key, key_type, key_text, code, user, retries) VALUES \
   \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
+
+keyDelete :: PrepQuery W (Identity ActivationKey) ()
+keyDelete = "DELETE FROM activation_keys WHERE key = ?"
 
 -- | Max. number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32

@@ -82,11 +82,18 @@ defConv :: ConversationProtocol -> CreateConv
 defConv ConversationProtocolProteus = defProteus
 defConv ConversationProtocolMLS = defMLS
 
+allowAll :: CreateConv -> CreateConv
+allowAll cc =
+  cc
+    { access = Just ["code", "link", "invite"],
+      accessRole = Just ["team_member", "guest", "non_team_member", "service"]
+    }
+
 allowGuests :: CreateConv -> CreateConv
 allowGuests cc =
   cc
     { access = Just ["code"],
-      accessRole = Just ["team_member", "guest"]
+      accessRole = Just ["team_member", "non_team_member", "service"]
     }
 
 instance MakesValue CreateConv where
@@ -102,7 +109,7 @@ instance MakesValue CreateConv where
             <> catMaybes
               [ "name" .=? cc.name,
                 "access" .=? cc.access,
-                "access_role_v2" .=? cc.access,
+                "access_role" .=? cc.accessRole,
                 "team" .=? (cc.team <&> \tid -> Aeson.object ["teamid" .= tid, "managed" .= False]),
                 "message_timer" .=? cc.messageTimer,
                 "receipt_mode" .=? cc.receiptMode,
@@ -303,6 +310,11 @@ listConversationsVersioned version user cnvs = do
   submit "POST"
     $ req
     & addJSONObject ["qualified_ids" .= cnvs]
+
+getConversationsVersioned :: (MakesValue user) => Versioned -> user -> String -> App Response
+getConversationsVersioned version user ids = do
+  req <- baseRequest user Galley version "/conversations"
+  submit "GET" $ addQueryParams [("ids", ids)] req
 
 getMLSPublicKeys :: (HasCallStack, MakesValue user) => user -> App Response
 getMLSPublicKeys user = do
@@ -587,6 +599,19 @@ getJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -
 getJoinCodeConv u k v = do
   req <- baseRequest u Galley Versioned (joinHttpPath ["conversations", "join"])
   submit "GET" (req & addQueryParams [("key", k), ("code", v)])
+
+postJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+postJoinCodeConv u k v = do
+  req <- baseRequest u Galley Versioned (joinHttpPath ["conversations", "join"])
+  submit
+    "POST"
+    ( req
+        & zType "access"
+        & addJSONObject
+          [ "key" .= k,
+            "code" .= v
+          ]
+    )
 
 -- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_conversations__cnv_domain___cnv__name
 changeConversationName ::
@@ -967,6 +992,22 @@ resetConversation user groupId epoch = do
   let payload = object ["group_id" .= groupId, "epoch" .= epoch]
   submit "POST" $ req & addJSON payload
 
+addTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
+addTeamCollaborator owner tid collaborator permissions = do
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators"]
+  (_, collabId) <- objQid collaborator
+  submit "POST"
+    $ req
+    & addJSONObject
+      [ "user" .= collabId,
+        "permissions" .= permissions
+      ]
+
+getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
+getAllTeamCollaborators owner tid = do
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators"]
+  submit "GET" req
+
 updateTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
 updateTeamCollaborator owner tid collaborator permissions = do
   (_, collabId) <- objQid collaborator
@@ -1061,3 +1102,13 @@ putMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> Str
 putMeetingInvitation user domain meetingId invitation = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations"])
   submit "PUT" $ req & addJSON invitation
+
+postMeetingsV16 :: (HasCallStack, MakesValue user) => user -> Value -> App Response
+postMeetingsV16 user newMeeting = do
+  req <- baseRequest user Galley (ExplicitVersion 16) "/meetings"
+  submit "POST" $ req & addJSON newMeeting
+
+getMeetingV16 :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getMeetingV16 user domain meetingId = do
+  req <- baseRequest user Galley (ExplicitVersion 16) (joinHttpPath ["meetings", domain, meetingId])
+  submit "GET" req

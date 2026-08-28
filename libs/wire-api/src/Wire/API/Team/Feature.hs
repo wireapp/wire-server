@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -1435,13 +1436,13 @@ instance ToSchema (Versioned V16 PreventAdminlessGroupsConfig) where
 instance ToObjectSchema (Versioned V16 PreventAdminlessGroupsConfig) where
   objectSchema = field "config" schema
 
-instance ToSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+instance ToSchema (Versioned V18 PreventAdminlessGroupsConfig) where
   schema =
     object $
       Versioned
         <$> unVersioned .= durationPreventAdminlessGroupsConfigObjectSchema
 
-instance ToObjectSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+instance ToObjectSchema (Versioned V18 PreventAdminlessGroupsConfig) where
   objectSchema = field "config" schema
 
 oldPreventAdminlessGroupsConfigObjectSchema :: ObjectSchema SwaggerDoc PreventAdminlessGroupsConfig
@@ -1624,7 +1625,16 @@ instance IsFeatureConfig MlsE2EIdConfig where
 
 data MlsMigrationConfigB t f = MlsMigrationConfig
   { startTime :: Wear t f (Maybe UTCTime),
-    finaliseRegardlessAfter :: Wear t f (Maybe UTCTime)
+    finaliseRegardlessAfter :: Wear t f (Maybe UTCTime),
+    -- | Allow users to manually trigger migrations from Proteus to MLS for
+    -- group conversations.
+    --
+    -- There is no logic behind this flag in the backend. It is solely meant for
+    -- clients to decide if they should show a button (to facilitate MLS
+    -- migration for a group conversation) or not.
+    --
+    -- The default is `False`.
+    allowManualMigration :: Wear t f Bool
   }
   deriving (BareB, Generic)
 
@@ -1647,24 +1657,27 @@ deriving via (BarbieFeature MlsMigrationConfigB) instance (ToSchema MlsMigration
 deriving via (RenderableTypeName MlsMigrationConfig) instance (RenderableSymbol MlsMigrationConfig)
 
 instance Default MlsMigrationConfig where
-  def = MlsMigrationConfig Nothing Nothing
+  def = MlsMigrationConfig Nothing Nothing False
 
 instance Arbitrary MlsMigrationConfig where
   arbitrary = do
     startTime <- fmap fromUTCTimeMillis <$> arbitrary
     finaliseRegardlessAfter <- fmap fromUTCTimeMillis <$> arbitrary
+    allowManualMigration <- arbitrary
     pure
       MlsMigrationConfig
         { startTime = startTime,
-          finaliseRegardlessAfter = finaliseRegardlessAfter
+          finaliseRegardlessAfter = finaliseRegardlessAfter,
+          allowManualMigration = allowManualMigration
         }
 
-instance (Typeable f, NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f) where
+instance (Typeable f, NestedMaybe f, OptWithDefault f) => ToSchema (MlsMigrationConfigB Covered f) where
   schema =
     object $
       MlsMigrationConfig
         <$> startTime .= nestedMaybeField "startTime" (unnamed utcTimeSchema)
         <*> finaliseRegardlessAfter .= nestedMaybeField "finaliseRegardlessAfter" (unnamed utcTimeSchema)
+        <*> allowManualMigration .= fromOpt (optField "allowManualMigration" (schema @Bool))
 
 instance Default (LockableFeature MlsMigrationConfig) where
   def = defLockedFeature
@@ -2399,8 +2412,12 @@ instance ToObjectSchema MeetingsConfig where
 --------------------------------------------------------------------------------
 -- MeetingPremium Feature
 --
--- Indicates whether a team has premium meetings features. When enabled, meetings
--- created by team members are not marked as trial. When disabled, meetings are trial.
+-- /Deprecated (WPB-26771)./ This feature flag no longer affects meeting
+-- behaviour: team meetings are always non-trial. It is kept solely for API
+-- compatibility (the public\/internal endpoints still exist) and defaults to
+-- /enabled and locked/. Scheduled for removal in a future release.
+
+{-# DEPRECATED MeetingsPremiumConfig "Deprecated (WPB-26771): no longer affects meeting trial status; kept for API compatibility." #-}
 
 data MeetingsPremiumConfig = MeetingsPremiumConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
@@ -2412,7 +2429,7 @@ instance ToSchema MeetingsPremiumConfig where
   schema = object objectSchema
 
 instance Default (LockableFeature MeetingsPremiumConfig) where
-  def = defLockedFeature
+  def = defLockedFeature {status = FeatureStatusEnabled}
 
 instance IsFeatureConfig MeetingsPremiumConfig where
   type FeatureSymbol MeetingsPremiumConfig = "meetingsPremium"
@@ -2423,9 +2440,12 @@ instance ToObjectSchema MeetingsPremiumConfig where
 
 --------------------------------------------------------------------------------
 -- BackgroundEffects Feature
---
--- Controls whether background effects are available in meetings.
 
+{-# DEPRECATED BackgroundEffectsConfig "Deprecated (WPB-27912): no longer affects meeting behaviour; kept for API compatibility." #-}
+
+-- | /Deprecated (WPB-27912)./ This feature flag no longer affects meeting
+-- behaviour and is kept solely for API compatibility. It defaults to
+-- /enabled and locked/. Scheduled for removal in a future release.
 data BackgroundEffectsConfig = BackgroundEffectsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform BackgroundEffectsConfig)
@@ -2436,7 +2456,7 @@ instance ToSchema BackgroundEffectsConfig where
   schema = object objectSchema
 
 instance Default (LockableFeature BackgroundEffectsConfig) where
-  def = defLockedFeature
+  def = defLockedFeature {status = FeatureStatusEnabled}
 
 instance IsFeatureConfig BackgroundEffectsConfig where
   type FeatureSymbol BackgroundEffectsConfig = "backgroundEffects"

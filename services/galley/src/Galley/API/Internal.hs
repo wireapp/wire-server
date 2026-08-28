@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
@@ -43,7 +44,6 @@ import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
 import Galley.App
 import Galley.Monad
-import Galley.Queue qualified as Q
 import Galley.Types.Clients
 import Galley.Types.Error
 import Imports hiding (head)
@@ -77,6 +77,7 @@ import Wire.API.Team.LegalHold (UserLegalHoldStatusEntry (..))
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
+import Wire.BoundedQueue.STM qualified as Q
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore hiding (getConversations)
 import Wire.ConversationStore qualified as ConversationStore

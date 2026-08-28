@@ -15,12 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Like "Brig.Budget", but in-memory, per host (not per service), and with an strict/exact
+-- | Like "Wire.BudgetStore", but in-memory, per host (not per service), and with an strict/exact
 -- upper bound.  Like https://hackage.haskell.org/package/token-bucket, but takes the entire
 -- run-time of the actions into account, not just the number of executions.
 -- http://hackage.haskell.org/package/rate-limit also looks related.
 -- https://github.com/juspay/fencer does what this module does, but as a networked service, so
--- in that way it works more like "Brig.Budget".
+-- in that way it works more like "Wire.BudgetStore".
 --
 -- FUTUREWORK: https://github.com/layer-3-communications/lockpool seems like almost exactly
 -- the same thing, but I only found this after ThreadBudget was done.  Before considering to

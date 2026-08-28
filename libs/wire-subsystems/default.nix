@@ -11,6 +11,9 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, arbiter-core
+, arbiter-hasql
+, arbiter-migrations
 , async
 , attoparsec
 , base
@@ -30,6 +33,7 @@
 , contravariant
 , cookie
 , cql
+, cron
 , crypton
 , crypton-asn1-encoding
 , crypton-asn1-types
@@ -53,7 +57,7 @@
 , HaskellNet-SSL
 , hasql
 , hasql-migration
-, hasql-pool
+, hasql-resource-pool
 , hasql-th
 , hasql-transaction
 , hex
@@ -70,6 +74,7 @@
 , imports
 , iproute
 , iso639
+, jwt-tools
 , kan-extensions
 , lens
 , lens-aeson
@@ -83,10 +88,12 @@
 , network-conduit-tls
 , network-uri
 , polysemy
+, polysemy-check
 , polysemy-conc
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, postgresql-connection-string
 , postgresql-error-codes
 , profunctors
 , prometheus-client
@@ -110,6 +117,7 @@
 , sop-core
 , ssl-util
 , statistics
+, stm
 , stomp-queue
 , string-conversions
 , tagged
@@ -152,6 +160,9 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
+    arbiter-hasql
+    arbiter-migrations
     async
     attoparsec
     base
@@ -171,6 +182,7 @@ mkDerivation {
     contravariant
     cookie
     cql
+    cron
     crypton
     crypton-asn1-encoding
     crypton-asn1-types
@@ -192,7 +204,7 @@ mkDerivation {
     HaskellNet-SSL
     hasql
     hasql-migration
-    hasql-pool
+    hasql-resource-pool
     hasql-th
     hasql-transaction
     hex
@@ -208,6 +220,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    jwt-tools
     kan-extensions
     lens
     lens-aeson
@@ -220,10 +233,12 @@ mkDerivation {
     network-conduit-tls
     network-uri
     polysemy
+    polysemy-check
     polysemy-conc
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postgresql-connection-string
     postgresql-error-codes
     profunctors
     prometheus-client
@@ -244,6 +259,7 @@ mkDerivation {
     sop-core
     ssl-util
     statistics
+    stm
     stomp-queue
     tagged
     template
@@ -281,6 +297,9 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
+    arbiter-hasql
+    arbiter-migrations
     async
     attoparsec
     base
@@ -299,6 +318,7 @@ mkDerivation {
     contravariant
     cookie
     cql
+    cron
     crypton
     crypton-asn1-encoding
     crypton-asn1-types
@@ -322,7 +342,7 @@ mkDerivation {
     HaskellNet-SSL
     hasql
     hasql-migration
-    hasql-pool
+    hasql-resource-pool
     hasql-th
     hasql-transaction
     hex
@@ -337,6 +357,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    jwt-tools
     kan-extensions
     lens
     lens-aeson
@@ -348,10 +369,12 @@ mkDerivation {
     network-conduit-tls
     network-uri
     polysemy
+    polysemy-check
     polysemy-conc
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postgresql-connection-string
     profunctors
     prometheus-client
     proto-lens
@@ -374,6 +397,7 @@ mkDerivation {
     sop-core
     ssl-util
     statistics
+    stm
     stomp-queue
     string-conversions
     tagged

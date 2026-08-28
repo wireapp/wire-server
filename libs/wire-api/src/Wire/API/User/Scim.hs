@@ -70,7 +70,7 @@ import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (Gen)
+import Test.QuickCheck (Gen, elements)
 import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
@@ -358,7 +358,15 @@ data ValidScimUser = ValidScimUser
   { externalId :: ValidScimId,
     handle :: Handle,
     name :: BT.Name,
-    emails :: [EmailAddress],
+    -- | The (at most one) email address Wire stores for this user: brig keeps a
+    -- single email, so the SCIM @emails@ list is reduced to one entry by
+    -- @scimEmailsToEmail@ (the entry marked @primary@, else the
+    -- first).  'emailType' and 'emailPrimary' are the @type@\/@primary@
+    -- metadata of that same single entry ('Nothing' = not supplied, echoed as
+    -- absent).
+    emails :: Maybe EmailAddress,
+    emailType :: Maybe Text,
+    emailPrimary :: Maybe Bool,
     richInfo :: RI.RichInfo,
     active :: Bool,
     locale :: Maybe Locale,
@@ -515,3 +523,9 @@ newtype ScimTokenName = ScimTokenName {fromScimTokenName :: Text}
 
 instance ToSchema ScimTokenName where
   schema = object $ ScimTokenName <$> fromScimTokenName .= field "name" schema
+
+data ScimUserCreationStatus = ScimUserCreating | ScimUserCreated
+  deriving (Eq, Show, Generic)
+
+instance Arbitrary ScimUserCreationStatus where
+  arbitrary = elements [ScimUserCreating, ScimUserCreated]

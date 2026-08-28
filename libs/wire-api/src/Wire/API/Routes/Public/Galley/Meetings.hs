@@ -23,6 +23,7 @@ import Servant
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Meeting
+import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -30,37 +31,77 @@ import Wire.API.Routes.Version
 
 type MeetingsAPI =
   Named
-    "create-meeting"
+    "create-meeting@v15"
     ( Summary "Create a new meeting"
         :> From 'V15
+        :> Until 'V17
         :> ZLocalUser
+        :> ZConn
         :> "meetings"
-        :> ReqBody '[JSON] NewMeeting
-        :> CanThrow 'InvalidOperation
+        :> ReqBody '[JSON] NewMeetingV16
+        :> CanThrow MeetingError
         :> CanThrow UnreachableBackends
         :> MultiVerb
              'POST
              '[JSON]
-             '[Respond 201 "Meeting created" Meeting]
-             Meeting
+             '[Respond 201 "Meeting created" MeetingWithConversationV16]
+             MeetingWithConversationV16
     )
     :<|> Named
-           "update-meeting"
+           "create-meeting"
+           ( Summary "Create a new meeting"
+               :> DescriptionOAuthScope 'WriteMeetings
+               :> From 'V17
+               :> ZLocalUser
+               :> ZConn
+               :> "meetings"
+               :> ReqBody '[JSON] NewMeeting
+               :> CanThrow MeetingError
+               :> CanThrow UnreachableBackends
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 201 "Meeting created" MeetingWithConversation]
+                    MeetingWithConversation
+           )
+    :<|> Named
+           "update-meeting@v15"
            ( Summary "Update an existing meeting"
                :> From 'V15
+               :> Until 'V17
                :> ZLocalUser
+               :> ZConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
-               :> CanThrow 'InvalidOperation
+               :> CanThrow MeetingError
+               :> ReqBody '[JSON] UpdateMeetingV16
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[Respond 200 "Meeting updated" MeetingWithConversationV16]
+                    MeetingWithConversationV16
+           )
+    :<|> Named
+           "update-meeting"
+           ( Summary "Update an existing meeting"
+               :> From 'V17
+               :> ZLocalUser
+               :> ZConn
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] UpdateMeeting
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    '[Respond 200 "Meeting updated" Meeting]
-                    Meeting
+                    '[Respond 200 "Meeting updated" MeetingWithConversation]
+                    MeetingWithConversation
            )
     :<|> Named
            "delete-meeting"
@@ -73,6 +114,7 @@ type MeetingsAPI =
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> MultiVerb
                     'DELETE
                     '[JSON]
@@ -80,9 +122,24 @@ type MeetingsAPI =
                     ()
            )
     :<|> Named
-           "get-meeting"
+           "get-meeting@v15"
            ( Summary "Get a single meeting by ID"
                :> From 'V15
+               :> Until 'V17
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "A single meeting by ID" MeetingV16)
+           )
+    :<|> Named
+           "get-meeting"
+           ( Summary "Get a single meeting by ID"
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
@@ -91,9 +148,22 @@ type MeetingsAPI =
                :> Get '[JSON] Meeting
            )
     :<|> Named
-           "list-meetings"
+           "list-meetings@v16"
            ( Summary "List all meetings for the authenticated user"
                :> From 'V16
+               :> Until 'V17
+               :> ZLocalUser
+               :> "meetings"
+               :> "list"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "List of meetings for the authenticated user" [MeetingV16])
+           )
+    :<|> Named
+           "list-meetings"
+           ( Summary "List all meetings for the authenticated user"
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> "list"
@@ -110,6 +180,7 @@ type MeetingsAPI =
                :> "invitations"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'POST
@@ -129,6 +200,7 @@ type MeetingsAPI =
                :> "delete"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'POST
@@ -147,6 +219,7 @@ type MeetingsAPI =
                :> "invitations"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
                :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'PUT

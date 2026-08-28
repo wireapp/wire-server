@@ -93,8 +93,7 @@ data IsWorking = Working | NotWorking
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
   (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+  member <- (^. Team.userId) <$> addUserToTeamWithRole (Just RoleMember) owner tid
   -- Random port, hopefully nothing is runing here!
   brokenService <- newLegalHoldService 4242
   -- not allowed to create if team setting is disabled
@@ -150,8 +149,9 @@ testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
   (owner, tid) <- createBindingTeam
   stranger <- randomUser
-  member <- randomUser
-  addTeamMemberInternal tid member noPermissions Nothing
+  memberTm <- addUserToTeamWithRole (Just RoleMember) owner tid
+  updateTeamMemberPermissions owner memberTm tid noPermissions
+  let member = memberTm ^. Team.userId
   -- fails if LH for team is disabled
   deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-not-enabled")
   withDummyTestServiceForTeam' owner tid $ \lhPort chan -> do
@@ -228,12 +228,12 @@ testAddTeamUserTooLargeWithLegalhold = do
 
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
-  member <- randomUser
+  nonMember <- randomUser
   (owner, tid) <- createBindingTeam
   -- user without team can't add LH device
-  tryout member
+  tryout nonMember
   -- team member can't add LH device
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+  member <- (^. Team.userId) <$> addUserToTeamWithRole (Just RoleMember) owner tid
   tryout member
   -- team owner can't add LH device
   tryout owner
@@ -257,8 +257,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
 testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
   (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+  member <- (^. Team.userId) <$> addUserToTeamWithRole (Just RoleMember) owner tid
 
   let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
       findMemberStatus ms =

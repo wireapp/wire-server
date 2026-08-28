@@ -91,7 +91,19 @@ pushAsyncImpl ::
   ) =>
   Push ->
   Sem r (Async (Maybe ()))
-pushAsyncImpl p = async $ do
+pushAsyncImpl p = async $ pushBestEffort p
+
+pushBestEffort ::
+  forall r.
+  ( Member GundeckAPIAccess r,
+    Member (Input NotificationSubsystemConfig) r,
+    Member P.Async r,
+    Member (Final IO) r,
+    Member P.TinyLog r
+  ) =>
+  Push ->
+  Sem r ()
+pushBestEffort p = do
   reqId <- inputs requestId
   errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl [p]) >>= \case
     Left e ->

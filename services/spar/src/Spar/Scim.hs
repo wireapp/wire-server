@@ -59,6 +59,7 @@ module Spar.Scim
 
     -- * API implementation
     apiScim,
+    sparResourceTypes,
   )
 where
 
@@ -83,17 +84,15 @@ import Spar.Options
 import Spar.Scim.Auth
 import Spar.Scim.Group ()
 import Spar.Scim.User
-import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import System.Logger (Msg)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Group as Scim.Group
 import qualified Web.Scim.Class.User as Scim.User
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
+import qualified Web.Scim.Schema.ResourceType as Scim.ResourceType
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
@@ -101,7 +100,10 @@ import Wire.API.User.Scim
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.IdPConfigStore (IdPConfigStore)
+import Wire.Reporter (Reporter)
+import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimSubsystem
+import Wire.ScimUserMetaStore (ScimUserMetaStore)
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -125,7 +127,7 @@ apiScim ::
     Member BrigAPIAccess r,
     Member ScimSubsystem r,
     Member ScimExternalIdStore r,
-    Member ScimUserTimesStore r,
+    Member ScimUserMetaStore r,
     Member ScimTokenStore r,
     Member Reporter r,
     Member IdPConfigStore r,
@@ -190,7 +192,23 @@ server ::
   ScimSite tag (AsServerT (Scim.ScimHandler m))
 server conf =
   ScimSite
-    { config = toServant $ Scim.configServer conf,
+    { config = toServant $ Scim.configServer conf sparResourceTypes,
       users = \authData -> toServant (Scim.userServer @tag authData),
       groups = \authData -> toServant (Scim.groupServer @tag authData)
     }
+
+-- | The SCIM resource types advertised at @/ResourceTypes@.  Unlike the hscim
+-- default, the @User@ resource declares the Wire schema extensions that our user
+-- responses actually contain (see 'userSchemas'), so that the advertised schemas
+-- match the responses as required by RFC 7643 section 6 (issue #5436).
+sparResourceTypes :: [Scim.ResourceType.Resource]
+sparResourceTypes =
+  [ Scim.ResourceType.usersResource
+      { Scim.ResourceType.schemaExtensions =
+          [ Scim.ResourceType.SchemaExtension sch False
+          | sch <- userSchemas,
+            sch /= Scim.Schema.User20
+          ]
+      },
+    Scim.ResourceType.groupsResource
+  ]

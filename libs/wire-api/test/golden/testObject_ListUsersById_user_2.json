@@ -3,6 +3,9 @@
         {
             "accent_id": 0,
             "assets": [],
+            "contact_status": {
+                "state": "non-contactable"
+            },
             "id": "4f201a43-935e-4e19-8fe0-0a878d3d6e74",
             "legalhold_status": "disabled",
             "name": "user1",

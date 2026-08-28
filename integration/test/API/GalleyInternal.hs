@@ -85,6 +85,21 @@ getFederationStatus user domains =
           $ req
           & addJSONObject ["domains" .= domainList]
 
+-- | Poll until the user's backend is fully connected to all given domains
+assertFullyConnected ::
+  ( HasCallStack,
+    MakesValue user
+  ) =>
+  user ->
+  [String] ->
+  App ()
+assertFullyConnected user domains =
+  eventually
+    $ bindResponse (getFederationStatus user domains)
+    $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "fully-connected"
+
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/put_i_legalhold_whitelisted_teams__tid_
 legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
 legalholdWhitelistTeam tid uid = do

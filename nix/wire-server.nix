@@ -159,6 +159,22 @@ let
     inherit hlib mls-test-cli;
   });
 
+  # 'Test.Wire.API.Routes.OAuthScopes' checks the OAuth scopes nginz enforces
+  # against the ones the swagger docs advertise, so it needs
+  # charts/nginz/values.yaml at compile time.  Only a package's own directory is
+  # copied into the build sandbox, so splice the chart in -- and by making it
+  # part of 'src', changing the chart also invalidates the build.
+  wireApiWithNginzChart = hself: hsuper: {
+    wire-api = hlib.overrideCabal hsuper.wire-api (old: {
+      src = pkgs.runCommand "wire-api-src" { } ''
+        cp -r ${old.src} $out
+        chmod -R u+w $out
+        mkdir -p $out/test/unit/generated
+        cp ${../charts/nginz/values.yaml} $out/test/unit/generated/nginz-values.yaml
+      '';
+    });
+  };
+
   executables = hself: hsuper:
     attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath hsuper.${e});
 
@@ -173,6 +189,7 @@ let
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
+      wireApiWithNginzChart
       manualOverrides
       executables
       staticExecutables
@@ -390,7 +407,24 @@ let
   };
   wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll { } { }));
 
-  hoogle = (hPkgs localModsOnlyDocs).hoogleWithPackages (p: builtins.map (e: p.${e}) wireServerPackages);
+  # Haddock for the hoogle image: the image serves the hoogle database and
+  # haddock HTML (nixpkgs hoogle.nix).  The quickjump index is not needed
+  # for hoogle search: galley's haddock has hung indefinitely in CI right
+  # before "Documentation created" (task timed out after 1h10m).  Haddock
+  # (and the -O0 compile) are also forced serial: parallel haddock
+  # (-j$NIX_BUILD_CORES) is the prime deadlock suspect.  This only affects
+  # the hoogle image, not the production docker images (built from
+  # imagesNoDocs, enableDocs = false).
+  hoogleHaddockOverrides = hself: hsuper:
+    builtins.mapAttrs
+      (_: drv:
+        hlib.overrideCabal
+          (hlib.disableParallelBuilding drv)
+          (old: { doHaddockQuickjump = false; }))
+      (lib.genAttrs wireServerPackages (name: hsuper.${name}));
+
+  hoogle = ((hPkgs localModsOnlyDocs).extend hoogleHaddockOverrides).hoogleWithPackages
+    (p: builtins.map (e: p.${e}) wireServerPackages);
 
   # More about dockerTools.streamLayeredImage:
   # https://nixos.org/manual/nixpkgs/unstable/#ssec-pkgs-dockerTools-streamLayeredImage
@@ -436,6 +470,7 @@ let
     pkgs.cfssl
     pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
+    (hlib.justStaticExecutables pkgs.haskellPackages.headroom)
     (hlib.justStaticExecutables pkgs.haskellPackages.weeder)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
@@ -519,7 +554,6 @@ let
     pkgs.nix-prefetch-git
     pkgs.haskellPackages.cabal-plan
     pkgs.lsof
-    pkgs.haskellPackages.headroom
     profileEnv
   ]
     ++ ghcWithPackages

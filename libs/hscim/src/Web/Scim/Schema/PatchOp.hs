@@ -22,7 +22,7 @@ import Control.Monad (guard)
 import Control.Monad.Except
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON), Value (String), object, withObject, withText, (.:), (.:?), (.=))
+import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON), Value (String), object, withObject, withText, (.:), (.=))
 import qualified Data.Aeson.Types as Aeson
 import Data.Attoparsec.ByteString (Parser, endOfInput, parseOnly)
 import Data.Bifunctor (first)
@@ -107,7 +107,12 @@ operationFromJSON schemas' =
     Operation
       <$> (o .: "op")
       <*> Aeson.explicitParseFieldMaybe (pathFromJSON schemas') o "path"
-      <*> (o .:? "value")
+      -- RFC 7643 §2.5 (Unassigned and Null Values): "Unassigned attributes,
+      -- the null value, or an empty array [...] SHALL be considered to be
+      -- equivalent in 'state'." Keep an explicit `"value": null` (Just Null)
+      -- distinct from an absent `value` member (Nothing) so consumers can
+      -- implement null-unassignment.
+      <*> pure (KeyMap.lookup "value" o)
 
 pathFromJSON :: [Schema] -> Value -> Aeson.Parser Path
 pathFromJSON schemas' =

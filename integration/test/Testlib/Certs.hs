@@ -27,7 +27,9 @@ import Data.Hourglass
 import Data.Hourglass.Const
 import Data.PEM (PEM (PEM), pemWriteBS)
 import Data.String.Conversions (cs)
+import qualified Data.Text as T
 import Data.X509
+import Data.X509.Extended
 import Testlib.Prelude
 
 type RSAKeyPair = (RSA.PublicKey, RSA.PrivateKey)
@@ -139,3 +141,7 @@ mkSignedCert pubKey privKey caName ownerName =
               certPubKey = PubKeyRSA pubKey,
               certExtensions = Extensions Nothing
             }
+
+-- | Cert's SHA-1 fingerprint in canonical @AA:BB:..@ hex form.
+fingerprintHex :: SignedCertificate -> String
+fingerprintHex = T.unpack . renderFingerprintHex . certSha1Fingerprint

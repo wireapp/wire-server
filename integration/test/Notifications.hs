@@ -173,6 +173,9 @@ isConvNameChangeNotif n = fieldEquals n "payload.0.type" "conversation.rename"
 isMemberUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isMemberUpdateNotif n = fieldEquals n "payload.0.type" "conversation.member-update"
 
+isConvSystemMemberUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvSystemMemberUpdateNotif n = fieldEquals n "payload.0.type" "conversation.system.member-update"
+
 isReceiptModeUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isReceiptModeUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.receipt-mode-update"
@@ -196,6 +199,26 @@ isConvCreateMeetingNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateMeetingNotif n =
   fieldEquals n "payload.0.type" "conversation.create-meeting"
 
+isConvDeleteMeetingNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvDeleteMeetingNotif n =
+  fieldEquals n "payload.0.type" "conversation.delete-meeting"
+
+isMeetingCreateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingCreateNotif n =
+  fieldEquals n "payload.0.type" "meeting.create"
+
+isMeetingMemberAddNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingMemberAddNotif n =
+  fieldEquals n "payload.0.type" "meeting.member-add"
+
+isMeetingUpdateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingUpdateNotif n =
+  fieldEquals n "payload.0.type" "meeting.update"
+
+isMeetingDeleteNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isMeetingDeleteNotif n =
+  fieldEquals n "payload.0.type" "meeting.delete"
+
 -- | like 'isConvCreateNotif' but excludes self conversations
 isConvCreateNotifNotSelf :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateNotifNotSelf n =
@@ -203,7 +226,20 @@ isConvCreateNotifNotSelf n =
     &&~ do not <$> fieldEquals n "payload.0.data.access" ["private"]
 
 isConvDeleteNotif :: (HasCallStack, MakesValue a) => a -> App Bool
-isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
+isConvDeleteNotif n =
+  fieldEquals n "payload.0.type" "conversation.delete"
+    ||~ fieldEquals n "payload.0.type" "conversation.system.delete"
+
+isNotifTeamConvDelete :: (HasCallStack, MakesValue conv, MakesValue a) => conv -> a -> App Bool
+isNotifTeamConvDelete conv n =
+  isNotifConv conv n
+    &&~ fieldEquals n "payload.0.type" "conversation.delete"
+
+isConvAdminlessReminderNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvAdminlessReminderNotif n = fieldEquals n "payload.0.type" "conversation.adminless-reminder"
+
+isConvSystemAdminlessReminderNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvSystemAdminlessReminderNotif n = fieldEquals n "payload.0.type" "conversation.system.adminless-reminder"
 
 notifTypeIsEqual :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ

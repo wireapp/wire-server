@@ -105,6 +105,7 @@ library
     Wire.API.Event.Federation
     Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
+    Wire.API.Event.Meeting
     Wire.API.Event.Team
     Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
@@ -112,6 +113,7 @@ library
     Wire.API.History
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
+    Wire.API.Jobs
     Wire.API.Locale
     Wire.API.Meeting
     Wire.API.Message
@@ -217,6 +219,7 @@ library
     Wire.API.Routes.Public.Gundeck
     Wire.API.Routes.Public.Proxy
     Wire.API.Routes.Public.Spar
+    Wire.API.Routes.Public.Swagger
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
     Wire.API.Routes.SpecialiseToVersion
@@ -283,6 +286,7 @@ library
   build-depends:
     , aeson                      >=2.0.1.0
     , amqp
+    , arbiter-core
     , attoparsec                 >=0.10
     , barbies
     , base                       >=4        && <5
@@ -374,6 +378,7 @@ library
     , tinylog
     , transformers
     , types-common               >=0.16
+    , tz
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2
     , utf8-string
@@ -615,6 +620,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
     Test.Wire.API.Golden.Manual.Activate_user
+    Test.Wire.API.Golden.Manual.AdminlessJobs
     Test.Wire.API.Golden.Manual.App
     Test.Wire.API.Golden.Manual.CannonId
     Test.Wire.API.Golden.Manual.ClientCapability
@@ -643,7 +649,10 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.Login_user
     Test.Wire.API.Golden.Manual.LoginId_user
+    Test.Wire.API.Golden.Manual.Meeting
+    Test.Wire.API.Golden.Manual.MeetingEvent
     Test.Wire.API.Golden.Manual.MLSKeys
+    Test.Wire.API.Golden.Manual.MlsMigrationConfig
     Test.Wire.API.Golden.Manual.Pagination
     Test.Wire.API.Golden.Manual.Presence
     Test.Wire.API.Golden.Manual.Push
@@ -707,6 +716,7 @@ test-suite wire-api-tests
     Paths_wire_api
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
+    Test.Wire.API.Meeting
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
     Test.Wire.API.OAuth
@@ -718,6 +728,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Roundtrip.PostgresMarshall
     Test.Wire.API.Routes
+    Test.Wire.API.Routes.OAuthScopes
     Test.Wire.API.Routes.Version
     Test.Wire.API.Routes.Version.Wai
     Test.Wire.API.Run
@@ -742,6 +753,8 @@ test-suite wire-api-tests
     , cassava
     , containers             >=0.5
     , crypton
+    , data-default
+    , file-embed
     , filepath
     , hex
     , hspec
@@ -755,6 +768,7 @@ test-suite wire-api-tests
     , QuickCheck
     , ram
     , random
+    , regex-tdfa
     , schema-profunctor
     , servant
     , servant-server
@@ -763,6 +777,7 @@ test-suite wire-api-tests
     , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
+    , template-haskell
     , text
     , time
     , types-common           >=0.16
@@ -771,6 +786,7 @@ test-suite wire-api-tests
     , vector
     , wai
     , wire-api
+    , yaml
 
   ghc-options:
     -threaded -with-rtsopts=-N -Wunused-packages -Wno-x-partial

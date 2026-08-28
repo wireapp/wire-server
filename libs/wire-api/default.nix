@@ -8,6 +8,7 @@
 , aeson-pretty
 , aeson-qq
 , amqp
+, arbiter-core
 , async
 , attoparsec
 , barbies
@@ -40,6 +41,7 @@
 , errors
 , extended
 , extra
+, file-embed
 , filepath
 , generics-sop
 , ghc-prim
@@ -105,12 +107,14 @@
 , tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
+, template-haskell
 , text
 , these
 , time
 , tinylog
 , transformers
 , types-common
+, tz
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -123,6 +127,7 @@
 , wai-websockets
 , websockets
 , wire-message-proto-lens
+, yaml
 , zauth
 }:
 mkDerivation {
@@ -132,6 +137,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    arbiter-core
     attoparsec
     barbies
     base
@@ -223,6 +229,7 @@ mkDerivation {
     tinylog
     transformers
     types-common
+    tz
     unordered-containers
     uri-bytestring
     utf8-string
@@ -252,6 +259,8 @@ mkDerivation {
     crypton
     crypton-pem
     currency-codes
+    data-default
+    file-embed
     filepath
     hex
     hspec
@@ -269,6 +278,7 @@ mkDerivation {
     QuickCheck
     ram
     random
+    regex-tdfa
     saml2-web-sso
     schema-profunctor
     servant
@@ -278,6 +288,7 @@ mkDerivation {
     tasty-hspec
     tasty-hunit
     tasty-quickcheck
+    template-haskell
     text
     time
     types-common
@@ -287,6 +298,7 @@ mkDerivation {
     vector
     wai
     wire-message-proto-lens
+    yaml
   ];
   license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }

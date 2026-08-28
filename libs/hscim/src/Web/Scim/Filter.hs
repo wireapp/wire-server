@@ -128,7 +128,10 @@ data Filter
 -- TODO(arianvp): This is a slight simplification at the moment as we
 -- don't support the complete Filter grammar. This should be a
 -- valFilter, not a FILTER.
-data ValuePath = ValuePath AttrPath Filter
+data ValuePath = ValuePath
+  { valuePathAttrPath :: AttrPath,
+    valuePathFilter :: Filter
+  }
   deriving (Eq, Show)
 
 -- | subAttr   = "." ATTRNAME

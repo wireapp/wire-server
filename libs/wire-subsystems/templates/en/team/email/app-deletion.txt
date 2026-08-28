@@ -1,0 +1,20 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+APP DELETED
+${actor} has deleted an app in your team.
+
+App name: ${app_name}
+Date: ${date}
+
+Team name: ${team_name}
+Team ID: ${team_id}
+
+Open Team Management [${url}]If you have any questions, please contact us [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

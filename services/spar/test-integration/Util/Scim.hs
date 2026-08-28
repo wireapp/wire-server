@@ -25,6 +25,8 @@ import Bilge
 import Bilge.Assert
 import Control.Lens
 import Control.Monad.Random
+import qualified Data.Aeson as Aeson
+import Data.Aeson.Lens (key, _String)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle, parseHandle)
@@ -62,12 +64,21 @@ import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import qualified Web.Scim.Schema.User.Role as Scim.Role
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider hiding (handle, team)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
+
+-- | Build a SCIM @roles@ list (RFC 7643 complex form) from plain role-name strings.
+mkScimRoles :: [Text] -> [Scim.Role.Role]
+mkScimRoles = map (\v -> Scim.Role.Role (Just v) Nothing Nothing Nothing)
+
+-- | Extract the role-name strings from a SCIM @roles@ list.
+scimRoleValues :: [Scim.Role.Role] -> [Text]
+scimRoleValues = mapMaybe Scim.Role.value
 
 -- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
 runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
@@ -162,7 +173,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
           Scim.User.externalId = Just externalId,
           Scim.User.emails = [],
           Scim.User.phoneNumbers = phones,
-          Scim.User.roles = ["member"]
+          Scim.User.roles = mkScimRoles ["member"]
           -- if we don't add this role here explicitly, some tests may show confusing failures
           -- involving [] or null being changed to ["member"] during a create or update
           -- operation.
@@ -724,7 +735,7 @@ setDefaultRoleAndEmailsIfEmpty :: Scim.User.User a -> Scim.User.User a
 setDefaultRoleAndEmailsIfEmpty u =
   u
     { Scim.User.roles = case Scim.User.roles u of
-        [] -> [cs $ toByteString' defaultRole]
+        [] -> mkScimRoles [cs $ toByteString' defaultRole]
         xs -> xs,
       -- when the emails field is empty, we try to populate it with the externalId
       Scim.User.emails = case Scim.User.emails u of
@@ -757,3 +768,35 @@ checkTeamMembersRole :: (HasCallStack) => TeamId -> UserId -> UserId -> Role -> 
 checkTeamMembersRole tid owner uid role = do
   [member] <- filter ((== uid) . (^. Member.userId)) <$> getTeamMembers owner tid
   liftIO $ (member ^. Member.permissions . to Member.permissionsRole) `shouldBe` Just role
+
+-- | Create the body of a scim error response (rfc7644, section 3.12).  The arguments are the
+-- @detail@, @scimType@ and @status@ fields; @schemas@ is the same for every scim error and is
+-- filled in here.
+--
+-- Both 'Maybe' arguments mean different things when they are 'Nothing':
+--
+--   * @detail@: the message is /not tested/.  Whatever the response contains is echoed into the
+--     expected value, so this field can never make the comparison fail.
+--
+--   * @scimType@: the key must be /absent/.  That is what the server does when there is no error
+--     type, as opposed to rendering it as @null@.
+--
+-- > deleteUser_ Nothing (Just uid) spar !!! do
+-- >   const 401 === statusCode
+-- >   mkScimErrorResp Nothing Nothing "401" === responseBody
+mkScimErrorResp ::
+  Maybe Text ->
+  Maybe Text ->
+  Text ->
+  Response (Maybe LByteString) ->
+  Maybe LByteString
+mkScimErrorResp mDetail scimType status resp =
+  Just . Aeson.encode . Aeson.object . catMaybes $
+    [ ("detail" Aeson..=) <$> (mDetail <|> actualDetail),
+      Just ("schemas" Aeson..= ["urn:ietf:params:scim:api:messages:2.0:Error" :: Text]),
+      ("scimType" Aeson..=) <$> scimType,
+      Just ("status" Aeson..= status)
+    ]
+  where
+    actualDetail :: Maybe Text
+    actualDetail = responseBody resp >>= (^? key "detail" . _String)

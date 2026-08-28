@@ -246,8 +246,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
   (owner, tid) <- createBindingTeam
   setHandle owner
   mems <- replicateM n $ do
-    member1 <- randomUser
-    addTeamMemberInternal tid member1 (Team.rolePermissions RoleMember) Nothing
+    member1 <- (^. Team.userId) <$> addUserToTeamWithRole (Just RoleMember) owner tid
     setHandle member1
     pure member1
   pure (owner, tid, mems)
@@ -410,17 +409,6 @@ getTeamMemberInternal tid mid = do
   r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
   responseJsonError r
 
--- | FUTUREWORK: do not use this, it's broken!!  use 'addUserToTeam' instead!  https://wearezeta.atlassian.net/browse/SQSERVICES-471
-addTeamMemberInternal :: (HasCallStack) => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
-addTeamMemberInternal tid muid mperms mmbinv = addTeamMemberInternal' tid muid mperms mmbinv !!! const 200 === statusCode
-
--- | FUTUREWORK: do not use this, it's broken!!  use 'addUserToTeam' instead!  https://wearezeta.atlassian.net/browse/SQSERVICES-471
-addTeamMemberInternal' :: (HasCallStack) => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ResponseLBS
-addTeamMemberInternal' tid muid mperms mmbinv = do
-  g <- viewGalley
-  let payload = json (mkNewTeamMember muid mperms mmbinv)
-  post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
-
 addUserToTeam :: (HasCallStack) => UserId -> TeamId -> TestM TeamMember
 addUserToTeam = addUserToTeamWithRole Nothing
 
@@ -465,9 +453,23 @@ addUserToTeamWithSSO hasEmail tid = do
   getTeamMember uid tid uid
 
 makeOwner :: (HasCallStack) => UserId -> TeamMember -> TeamId -> TestM ()
-makeOwner owner mem tid = do
+makeOwner owner mem tid = updateTeamMemberPermissions owner mem tid fullPermissions
+
+-- | Update an existing team member's permissions via the public
+-- @PUT /teams/:tid/members@ endpoint. Use this together with
+-- 'addUserToTeamWithRole' when a test needs a member with custom
+-- 'Permissions' that do not correspond to a 'Role' (the invitation flow
+-- only accepts a 'Role').
+updateTeamMemberPermissions ::
+  (HasCallStack) =>
+  UserId ->
+  TeamMember ->
+  TeamId ->
+  Permissions ->
+  TestM ()
+updateTeamMemberPermissions owner mem tid perms = do
   galley <- viewGalley
-  let changeMember = mkNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
+  let changeMember = mkNewTeamMember (mem ^. Team.userId) perms (mem ^. Team.invitation)
   put
     ( galley
         . paths ["teams", toByteString' tid, "members"]
@@ -686,29 +688,6 @@ updateTeamConv zusr convid upd = do
         . zType "access"
         . json upd
     )
-
-createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM ResponseLBS
-createOne2OneTeamConv u1 u2 n tid = do
-  g <- viewGalley
-  let conv =
-        NewConv
-          [u2]
-          []
-          (n >>= checked)
-          mempty
-          Nothing
-          (Just $ ConvTeamInfo tid)
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          BaseProtocolProteusTag
-          GroupConversation
-          False
-          Nothing
-          False
-          Nothing
-          def
-  post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
   UserId ->
@@ -2615,7 +2594,8 @@ mkProfile quid name =
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeRegular,
       profileApp = Nothing,
-      profileSearchable = True
+      profileSearchable = True,
+      profileContactStatus = Nothing
     }
 
 -- mock federator

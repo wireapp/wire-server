@@ -59,6 +59,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem.Error
 import Wire.ClientSubsystem.Error (ClientError)
@@ -1142,3 +1143,98 @@ spec = describe "UserSubsystem.Interpreter" do
                         contactType = fromMaybe UserTypeRegular searchee.userType
                       }
               pure $ result.searchResults === [expectedContact | fromMaybe True searchee.searchable]
+
+  describe "getLocalAppProfiles" $ do
+    prop "does *not* include apps that are collaborators from other teams" $
+      \(NotPendingStoredUser appUser_)
+       (NotPendingStoredUser ownerA_)
+       (NotPendingStoredUser ownerB_)
+       (teamAId :: TeamId)
+       (teamBId :: TeamId)
+       config ->
+          teamAId /= teamBId ==>
+            let localDomain = Domain "localdomain"
+                ownerA = ownerA_ {teamId = Just teamAId} :: StoredUser
+                ownerB = ownerB_ {teamId = Just teamBId} :: StoredUser
+                teamAOwnerId = toLocalUnsafe localDomain ownerA.id
+                teamBOwnerId = toLocalUnsafe localDomain ownerB.id
+                appUser =
+                  appUser_ {userType = Just UserTypeApp, teamId = Just teamBId} :: StoredUser
+                storedApp =
+                  AppStore.StoredApp
+                    { id = appUser.id,
+                      teamId = teamBId,
+                      meta = mempty,
+                      category = Category "other",
+                      description = unsafeRange "test app",
+                      creator = appUser.id
+                    }
+                collab =
+                  TeamCollaborator
+                    { gUser = appUser.id,
+                      gTeam = teamAId,
+                      gPermissions = mempty
+                    }
+                localBackend =
+                  def
+                    { users = [appUser, ownerA, ownerB],
+                      apps = [storedApp],
+                      teamCollaborators = Map.fromList [(teamAId, [collab])]
+                    }
+                teams =
+                  Map.fromList
+                    [ (teamAId, [mkTeamMember ownerA.id fullPermissions Nothing defUserLegalHoldStatus]),
+                      ( teamBId,
+                        [ mkTeamMember ownerB.id fullPermissions Nothing defUserLegalHoldStatus,
+                          mkTeamMember appUser.id fullPermissions Nothing defUserLegalHoldStatus
+                        ]
+                      )
+                    ]
+                result :: ([UserId], [UserId]) =
+                  runNoFederationStack localBackend teams config $ do
+                    let getAppId tid caller =
+                          qUnqualified . (.profileQualifiedId)
+                            <$$> getLocalAppProfiles caller tid
+                     in (,)
+                          <$> getAppId teamAId teamAOwnerId
+                          <*> getAppId teamBId teamBOwnerId
+             in result === ([], [appUser.id])
+
+    prop "denies access when the caller's own team is not the requested team" . withMaxSuccess 1 $
+      \(NotPendingStoredUser caller_)
+       (NotPendingStoredUser appUser_)
+       (callerTeamId :: TeamId)
+       (targetTeamId :: TeamId)
+       config ->
+          callerTeamId /= targetTeamId ==>
+            let localDomain = Domain "localdomain"
+                caller = caller_ {teamId = Just callerTeamId} :: StoredUser
+                callerId = toLocalUnsafe localDomain caller.id
+                appUser = appUser_ {userType = Just UserTypeApp, teamId = Just targetTeamId} :: StoredUser
+                storedApp =
+                  AppStore.StoredApp
+                    { id = appUser.id,
+                      teamId = targetTeamId,
+                      meta = mempty,
+                      category = Category "other",
+                      description = unsafeRange "test app",
+                      creator = appUser.id
+                    }
+                localBackend =
+                  def
+                    { users = [caller, appUser],
+                      apps = [storedApp]
+                    }
+                teams =
+                  Map.fromList
+                    [ ( callerTeamId,
+                        [mkTeamMember caller.id fullPermissions Nothing defUserLegalHoldStatus]
+                      ),
+                      ( targetTeamId,
+                        [mkTeamMember appUser.id fullPermissions Nothing defUserLegalHoldStatus]
+                      )
+                    ]
+                result :: Either UserSubsystemError [UserProfile] =
+                  runNoFederationStackUserSubsystemErrorEither localBackend teams config $
+                    getLocalAppProfiles callerId targetTeamId
+             in result === Left UserSubsystemProfileNotFound

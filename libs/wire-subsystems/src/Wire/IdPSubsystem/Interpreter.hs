@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.IdPSubsystem.Interpreter
   ( interpretIdPSubsystem,
     IdPSubsystemError (..),
@@ -16,6 +33,7 @@ import Polysemy
 import Polysemy.Error
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User
 import Wire.API.User.IdentityProvider qualified as IP
 import Wire.BrigAPIAccess
@@ -82,7 +100,7 @@ getSsoCodeByEmailImpl ::
     Member GalleyAPIAccess r,
     Member IdPConfigStore r
   ) =>
-  Bool -> Maybe Text -> EmailAddress -> Sem r (Maybe SAML.IdPId)
+  Bool -> Maybe ZHostValue -> EmailAddress -> Sem r (Maybe SAML.IdPId)
 getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
   do
     if not enableIdPByEmailDiscovery
@@ -92,7 +110,7 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
         case users of
           [] -> pure Nothing
           [user] -> do
-            if isScimOrSsoUser user
+            if isSsoUser user
               then do
                 mbTeam <- getTeamId (userId user)
                 case mbTeam of
@@ -111,9 +129,11 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
     userIdToText :: Qualified UserId -> Text
     userIdToText uid = idToText (qUnqualified uid) <> "@" <> domainText (qDomain uid)
 
-    isScimOrSsoUser :: User -> Bool
-    isScimOrSsoUser user =
-      userManagedBy user == ManagedByScim && isJust (userSSOId user)
+    -- This used to check if the user is SCIM AND SSO! The RFC ("2025-05-12
+    -- RFC: Default SSO flow for team by host domain") is ambiguous about this.
+    -- The customer currently provisions non-SCIM, so this fits their usecase.
+    isSsoUser :: User -> Bool
+    isSsoUser = isJust . userSSOId
 
     findIdPByDomain :: (Member (Logger (Log.Msg -> Log.Msg)) r) => [IP.IdP] -> Sem r (Maybe SAML.IdPId)
     findIdPByDomain [] = pure Nothing
@@ -124,6 +144,6 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
       when (length matches > 1) $
         Logger.warn $
           Log.msg @Text "Found more than one IdP config for domain"
-            . Log.field "domain" (fromMaybe "None" mbHost)
+            . Log.field "domain" (maybe "None" domainText mbHost)
             . Log.field "idpIds" (intercalate "," $ (UUID.toString . SAML.fromIdPId) <$> matches)
       pure $ listToMaybe matches

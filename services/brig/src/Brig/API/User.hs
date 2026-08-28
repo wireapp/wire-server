@@ -72,8 +72,6 @@ import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
 import Brig.Effects.ConnectionStore
-import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
-import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
 import Brig.User.Auth.Cookie qualified as Auth
@@ -149,6 +147,8 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
+import Wire.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
+import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem as User
@@ -239,9 +239,9 @@ createUserSpar new = do
       tid = newUserSparTeamId new
 
   -- Create account
-  account <- lift $ newStoredUser new' Nothing (Just tid) handle'
+  account <- lift $ newStoredUser new' Nothing (Just tid)
   domain <- viewFederationDomain
-  let u = newStoredUserToUser (Qualified account domain)
+  let u = newStoredUserToUser (Qualified account domain) handle'
   lift . liftSem $ do
     let uid = account.id
 
@@ -488,9 +488,9 @@ createUserWith normalizeScimDisplayName rateLimitKey new = do
         traverse
           (liftSem . HashPassword.hashPassword8 rateLimitKey)
           new'.newUserPassword
-      newStoredUser new' {newUserPassword = mHashedPassword} mbInv tid mbHandle
+      newStoredUser new' {newUserPassword = mHashedPassword} mbInv tid
   domain <- viewFederationDomain
-  let u = newStoredUserToUser (Qualified account domain)
+  let u = newStoredUserToUser (Qualified account domain) mbHandle
   let uid = account.id
   lift . liftSem $ do
     Log.debug $ field "user" (toByteString uid) . field "action" (val "User.createUser")
@@ -637,6 +637,7 @@ createUserInviteViaScim ::
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
+    Member InvitationStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Input (Local ())) r
@@ -657,8 +658,10 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
     pure $ addUTCTime (realToFrac ttl) now
   lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
-  lift . liftSem $ UserStore.createUser account Nothing
-  newStoredUserToUser . Qualified account <$> viewFederationDomain
+  lift . liftSem $ do
+    UserStore.createUser account Nothing
+    InvitationStore.insertPendingScimUser tid email uid
+  flip newStoredUserToUser Nothing . Qualified account <$> viewFederationDomain
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser password -> ExceptT RegisterError (AppT r) ()
@@ -1012,6 +1015,7 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserStore r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
@@ -1087,6 +1091,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member InvitationStore r,
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
@@ -1119,6 +1124,7 @@ ensureAccountDeleted ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member InvitationStore r,
     Member UserKeyStore r,
     Member UserStore r,
     Member Events r,
@@ -1172,6 +1178,7 @@ deleteAccount ::
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
+    Member InvitationStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
@@ -1190,6 +1197,9 @@ deleteAccount user = do
 
     PropertySubsystem.onUserDeleted uid
     UserStore.deleteUser user
+    for_ (userEmail user) $ \email ->
+      for_ (userTeam user) $ \tid ->
+        InvitationStore.deletePendingScimUser tid email uid
 
   traverse_ (removeUserFromAllGroups uid) user.userTeam
 
