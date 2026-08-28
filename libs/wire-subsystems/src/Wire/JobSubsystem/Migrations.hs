@@ -19,11 +19,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.JobSubsystem.Migrations
-  ( mkArbiterConnectionString,
+  ( defaultSchemaName,
+    mkArbiterConnectionString,
     runJobMigrations,
   )
 where
 
+import Arbiter.Core (defaultSchemaName)
 import Arbiter.Migrations qualified as ArbiterMigrations
 import Control.Exception (bracket, bracket_, throwIO)
 import Data.Hashable qualified as Hashable
