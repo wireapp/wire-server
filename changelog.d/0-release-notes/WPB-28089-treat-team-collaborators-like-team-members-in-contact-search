@@ -1,0 +1,24 @@
+`GET /contacts/search` returns apps (and regular users) that collaborate with the searcher's team.
+
+This means that `brig-index-migrate-data` now requires you to
+configure the `elasticsearch-index` chart's postgres setup, and have a
+postgres instance reachable with that setup, eg., like this:
+
+```
+# in charts/elasticsearch-index/values.yaml
+postgresql:
+  host: postgresql # DNS name without protocol
+  port: "5432"
+  user: wire-server
+  dbname: wire-server
+postgresqlPool:
+  size: 100
+  acquisitionTimeout: 10s
+  idlenessTimeout: 10m
+
+postgresMigration:
+  user: cassandra
+```
+
+[More
+info](https://docs.wire.com/latest/developer/reference/config-options.html?h=config#configure-postgresql)
