@@ -31,7 +31,6 @@ import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
-import Wire.API.BackgroundJobs qualified as BackgroundJobs
 import Wire.API.Call.Config qualified as Call.Config
 import Wire.API.Connection qualified as Connection
 import Wire.API.Conversation qualified as Conversation
@@ -384,7 +383,6 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
       testRoundTrip @TeamsIntra.TeamName,
-      testRoundTrip @BackgroundJobs.BackgroundJob,
       testRoundTrip @User.ManagedByUpdate,
       testRoundTrip @User.Auth.ReAuthUser,
       testRoundTrip @User.RichInfoUpdate,

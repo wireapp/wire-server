@@ -90,10 +90,6 @@ data:
 
     backendNotificationPusher:
 {{ toYaml .backendNotificationPusher | indent 6 }}
-    {{- with .backgroundJobs }}
-    backgroundJobs:
-{{ toYaml . | indent 6 }}
-    {{- end }}
     jobs:
       # Arbiter dispatcher poll interval for all jobs.
       # Lower values reduce discovery latency, but increase DB polling.

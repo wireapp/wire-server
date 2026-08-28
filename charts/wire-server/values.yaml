@@ -1019,15 +1019,6 @@ background-worker:
       pushBackoffMaxWait: 300000000 # microseconds, so 300s
       remotesRefreshInterval: 300000000 # microseconds, so 300s
 
-    # Background jobs consumer configuration
-    backgroundJobs:
-      # Maximum number of in-flight jobs per process
-      concurrency: 8
-      # Per-attempt timeout in seconds
-      jobTimeout: 60s
-      # Total attempts, including the first try
-      maxAttempts: 3
-
     # Job dispatcher configuration.
     jobs:
       # Arbiter dispatcher poll interval for all jobs.

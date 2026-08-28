@@ -31,7 +31,6 @@ import Util.Options
 import Wire.BackendNotificationPusher qualified as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
-import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Workers as Workers
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
@@ -85,11 +84,6 @@ run opts galleyOpts = do
           withNamedLogger "migrate-users" $
             Migrations.users opts.migrationOptions
       else pure $ pure ()
-
-  cleanupJobs <-
-    runAppT env $
-      withNamedLogger "background-job-consumer" $
-        Jobs.startWorker amqpEP
   cleanupJobRunner <-
     runAppT env $
       withNamedLogger "job-runner" $
@@ -106,7 +100,6 @@ run opts galleyOpts = do
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupJobRunner
-              <*> Concurrently cleanupJobs
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   let settings = newSettings server

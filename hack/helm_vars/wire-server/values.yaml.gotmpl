@@ -650,10 +650,6 @@ background-worker:
       port: "5432"
       user: wire-server
       dbname: wire-server
-    backgroundJobs:
-      concurrency: 8
-      jobTimeout: 60s
-      maxAttempts: 3
     jobs:
       pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests
       workerThreads: 1

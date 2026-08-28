@@ -60,12 +60,6 @@ migrateTeamFeatures: false
 migrateDomainRegistration: false
 migrateUsers: false
 
-# Background jobs consumer configuration for integration
-backgroundJobs:
-  concurrency: 4
-  jobTimeout: 5s
-  maxAttempts: 3
-
 # Job dispatcher configuration for integration
 jobs:
   pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests

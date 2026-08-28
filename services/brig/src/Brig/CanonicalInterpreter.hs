@@ -17,6 +17,7 @@
 
 module Brig.CanonicalInterpreter where
 
+import Arbiter.Core qualified as ArbiterCore
 import Brig.AWS (amazonkaEnv, prekeyTable)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
@@ -65,7 +66,7 @@ import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq (interpretBackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
-import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
+import Wire.BackgroundJobsPublisher.Arbiter (interpretBackgroundJobPublisherArbiter)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.BudgetStore
@@ -109,6 +110,7 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.JobSubsystem (JobSubsystemConfig (..))
 import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
@@ -498,7 +500,7 @@ runBrigToIO e (AppT ma) = do
               . interpretMlsKeyPackageSubsystem e.settings.keyPackageMaximumLifetime e.keyPackageLocalLock
               . interpretUserKeyStoreCassandra e.casClient
               . interpretRateLimit e.rateLimitEnv
-              . interpretBackgroundJobPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
+              . interpretBackgroundJobPublisherArbiter e.requestId (JobSubsystemConfig ArbiterCore.defaultSchemaName)
               . interpretBackendNotificationQueueAccess (Just backendNotificationQueueEnv)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
