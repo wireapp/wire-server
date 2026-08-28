@@ -93,9 +93,6 @@ spec:
       secret:
         secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef.name }}
 
-    - name: redis-ca
-      secret:
-        secretName: {{ .Values.config.redis.tlsCaSecretRef.name }}
 
     - name: rabbitmq-ca
       secret:
@@ -276,9 +273,6 @@ spec:
     - name: elasticsearch-ca
       mountPath: /etc/wire/brig/elasticsearch-ca
 
-    - name: redis-ca
-      mountPath: /etc/wire/gundeck/redis-ca
-
     - name: rabbitmq-ca
       mountPath: /etc/wire/brig/rabbitmq-ca
 
@@ -342,20 +336,6 @@ spec:
           key: rabbitmq-password
     - name: ENABLE_FEDERATION_V{{$version}}
       value: "1"
-    {{- end }}
-    {{- if hasKey .Values.secrets "redisUsername" }}
-    - name: REDIS_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: integration
-          key: redisUsername
-    {{- end }}
-    {{- if hasKey .Values.secrets "redisPassword" }}
-    - name: REDIS_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: integration
-          key: redisPassword
     {{- end }}
     - name: TEST_XML
       value: /tmp/result.xml

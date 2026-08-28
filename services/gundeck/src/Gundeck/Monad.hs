@@ -33,10 +33,6 @@ module Gundeck.Monad
     runGundeck,
     posixTime,
     getRabbitMqChan,
-
-    -- * Select which redis to target
-    runWithDefaultRedis,
-    runWithAdditionalRedis,
     msToUTCSecs,
   )
 where
@@ -53,9 +49,7 @@ import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import Database.Redis qualified as Redis
 import Gundeck.Env
-import Gundeck.Redis qualified as Redis
 import Imports
 import Network.AMQP
 import Network.HTTP.Types
@@ -67,7 +61,6 @@ import System.Logger (Logger)
 import System.Logger qualified as Logger
 import System.Logger.Class qualified as Log
 import System.Timeout
-import UnliftIO (async)
 
 -- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should
 -- probably explain this here.
@@ -90,72 +83,6 @@ newtype Gundeck a = Gundeck
 -- This can be derived if we resolve the TODO above.
 instance MonadMonitor Gundeck where
   doIO = liftIO
-
--- | 'Gundeck' doesn't have an instance for 'MonadRedis' because it contains two
--- connections to two redis instances. When using 'WithDefaultRedis', any redis
--- operation will only target the default redis instance (configured under
--- 'redis:' in the gundeck config). To write to both redises use
--- 'WithAdditionalRedis'.
-newtype WithDefaultRedis a = WithDefaultRedis {runWithDefaultRedis :: Gundeck a}
-  deriving newtype
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch,
-      MonadMask,
-      MonadReader Env,
-      MonadClient,
-      MonadUnliftIO,
-      Log.MonadLogger
-    )
-
-instance Redis.MonadRedis WithDefaultRedis where
-  liftRedis action = do
-    defaultConn <- view rstate
-    Redis.runRobust defaultConn action
-
-instance Redis.RedisCtx WithDefaultRedis (Either Redis.Reply) where
-  returnDecode :: (Redis.RedisResult a) => Redis.Reply -> WithDefaultRedis (Either Redis.Reply a)
-  returnDecode = Redis.liftRedis . Redis.returnDecode
-
--- | 'Gundeck' doesn't have an instance for 'MonadRedis' because it contains two
--- connections to two redis instances. When using 'WithAdditionalRedis', any
--- redis operation will target both redis instances (configured under 'redis:'
--- and 'redisAddtionalWrite:' in the gundeck config). To write to only the
--- default redis use 'WithDefaultRedis'.
-newtype WithAdditionalRedis a = WithAdditionalRedis {runWithAdditionalRedis :: Gundeck a}
-  deriving newtype
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch,
-      MonadMask,
-      MonadReader Env,
-      MonadClient,
-      MonadUnliftIO,
-      Log.MonadLogger
-    )
-
-instance Redis.MonadRedis WithAdditionalRedis where
-  liftRedis action = do
-    defaultConn <- view rstate
-    ret <- Redis.runRobust defaultConn action
-
-    mAdditionalRedisConn <- view rstateAdditionalWrite
-    for_ mAdditionalRedisConn $ \additionalRedisConn ->
-      -- We just fire and forget this call, as there is not much we can do if
-      -- this fails.
-      async $ Redis.runRobust additionalRedisConn action
-
-    pure ret
-
-instance Redis.RedisCtx WithAdditionalRedis (Either Redis.Reply) where
-  returnDecode :: (Redis.RedisResult a) => Redis.Reply -> WithAdditionalRedis (Either Redis.Reply a)
-  returnDecode = Redis.liftRedis . Redis.returnDecode
 
 instance Log.MonadLogger Gundeck where
   log l m = do

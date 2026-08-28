@@ -13,11 +13,11 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws ingre
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE := wire-server redis-ephemeral rabbitmq rabbitmq-external databases-ephemeral	\
+CHARTS_RELEASE := wire-server rabbitmq rabbitmq-external databases-ephemeral	\
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-ingress-nginx-controller nginx-ingress-services reaper \
+ingress-nginx-controller nginx-ingress-services \
 k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise \
 wire-ingress
 KIND_CLUSTER_NAME     := wire-server

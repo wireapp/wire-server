@@ -2,7 +2,6 @@ You now have an in-memory, non-persistent, non-highly-available set of databases
 
 * cassandra-ephemeral
 * elasticsearch-ephemeral
-* redis-ephemeral
 
 !! WARNING WARNING !!
 This is fine for testing and demo purposes, but NOT for a production use case.

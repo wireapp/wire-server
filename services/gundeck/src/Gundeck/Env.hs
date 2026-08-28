@@ -23,30 +23,19 @@ import Bilge hiding (host, port)
 import Cassandra (ClientState)
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
-import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
-import Control.Retry (capDelay, exponentialBackoff)
-import Data.ByteString.Char8 qualified as BSChar8
 import Data.Id
 import Data.Misc (Milliseconds (..))
-import Data.Text qualified as Text
-import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Data.X509.CertificateStore as CertStore
-import Database.Redis qualified as Redis
 import Gundeck.Aws qualified as Aws
-import Gundeck.Options as Opt hiding (host, port)
-import Gundeck.Options qualified as O
-import Gundeck.Redis qualified as Redis
+import Gundeck.Options
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.AMQP (Channel)
 import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import Network.TLS as TLS
-import Network.TLS.Extra qualified as TLS
-import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
 
 data Env = Env
@@ -55,8 +44,7 @@ data Env = Env
     _applog :: !Logger.Logger,
     _manager :: !Manager,
     _cstate :: !ClientState,
-    _rstate :: !Redis.RobustConnection,
-    _rstateAdditionalWrite :: !(Maybe Redis.RobustConnection),
+    _hasqlPool :: !HasqlPoolExt.Pool,
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
@@ -65,7 +53,7 @@ data Env = Env
 
 makeLenses ''Env
 
-createEnv :: Opts -> IO ([Async ()], Env)
+createEnv :: Opts -> IO Env
 createEnv o = do
   l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   n <-
@@ -76,17 +64,7 @@ createEnv o = do
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
 
-  redisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_USERNAME"
-  redisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_PASSWORD"
-  (rThread, r) <- createRedisPool l (o ^. redis) redisUsername redisPassword "main-redis"
-
-  (rAdditionalThreads, rAdditional) <- case o ^. redisAdditionalWrite of
-    Nothing -> pure ([], Nothing)
-    Just additionalRedis -> do
-      additionalRedisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_USERNAME"
-      addtionalRedisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
-      (rAddThread, rAdd) <- createRedisPool l additionalRedis additionalRedisUsername addtionalRedisPassword "additional-write-redis"
-      pure ([rAddThread], Just rAdd)
+  pgPool <- HasqlPoolExt.initPostgresPool (o ^. postgresqlPool) (o ^. postgresql) (o ^. postgresqlPassword)
 
   p <-
     initCassandraForService
@@ -104,55 +82,8 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar
+  pure $! Env (RequestId defRequestId) o l n p pgPool a io mtbs rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
-
-createRedisPool :: Logger.Logger -> RedisEndpoint -> Maybe ByteString -> Maybe ByteString -> ByteString -> IO (Async (), Redis.RobustConnection)
-createRedisPool l ep username password identifier = do
-  customCertStore <- case ep._tlsCa of
-    Nothing -> pure Nothing
-    Just caPath -> CertStore.readCertificateStore caPath
-  let defClientParams = defaultParamsClient (Text.unpack ep._host) ""
-      tlsParams =
-        guard ep._enableTls
-          $> defClientParams
-            { clientHooks =
-                if ep._insecureSkipVerifyTls
-                  then defClientParams.clientHooks {onServerCertificate = \_ _ _ _ -> pure []}
-                  else defClientParams.clientHooks,
-              clientShared =
-                case customCertStore of
-                  Nothing -> defClientParams.clientShared
-                  Just sharedCAStore -> defClientParams.clientShared {sharedCAStore},
-              clientSupported =
-                defClientParams.clientSupported
-                  { supportedVersions = [TLS.TLS13, TLS.TLS12],
-                    supportedCiphers = TLS.ciphersuite_strong
-                  }
-            }
-  let redisConnInfo =
-        Redis.defaultConnectInfo
-          { Redis.connectAddr = Redis.ConnectAddrHostPort (Text.unpack ep._host) (fromIntegral ep._port),
-            Redis.connectUsername = username,
-            Redis.connectAuth = password,
-            Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
-            Redis.connectMaxConnections = 100,
-            Redis.connectTLSParams = tlsParams
-          }
-
-  Log.info l $
-    Log.msg (Log.val $ "starting connection to " <> identifier <> "...")
-      . Log.field "connectionMode" (show $ ep ^. O.connectionMode)
-      . Log.field "connInfo" (safeShowConnInfo redisConnInfo)
-  let connectWithRetry = Redis.connectRobust l (capDelay 1000000 (exponentialBackoff 50000))
-  r <- case ep ^. O.connectionMode of
-    Master -> connectWithRetry $ Redis.checkedConnect redisConnInfo
-    Cluster -> connectWithRetry $ Redis.checkedConnectCluster redisConnInfo
-  Log.info l $ Log.msg (Log.val $ "Established connection to " <> identifier <> ".")
-  pure r
-
-safeShowConnInfo :: Redis.ConnectInfo -> String
-safeShowConnInfo connInfo = show $ connInfo {Redis.connectAuth = "[REDACTED]" <$ Redis.connectAuth connInfo}

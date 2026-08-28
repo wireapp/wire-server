@@ -41,26 +41,10 @@ data:
       {{- end }}
     {{- end }}
 
-    redis:
-      host: {{ .redis.host }}
-      port: {{ .redis.port }}
-      connectionMode: {{ .redis.connectionMode }}
-      enableTls: {{ .redis.enableTls }}
-      insecureSkipVerifyTls: {{ .redis.insecureSkipVerifyTls }}
-      {{- if eq (include "gundeck.configureRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/redis-ca/{{ include "gundeck.redisTlsSecretKey" . }}
-      {{- end }}
-
-    {{- if .redisAdditionalWrite }}
-    redisAdditionalWrite:
-      host: {{ .redisAdditionalWrite.host }}
-      port: {{ .redisAdditionalWrite.port }}
-      connectionMode: {{ .redisAdditionalWrite.connectionMode }}
-      enableTls: {{ .redisAdditionalWrite.enableTls }}
-      insecureSkipVerifyTls: {{ .redisAdditionalWrite.insecureSkipVerifyTls }}
-      {{- if eq (include "gundeck.configureAdditionalRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "gundeck.additionalRedisTlsSecretKey" . }}
-      {{- end }}
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+    {{- if hasKey $.Values.gundeck.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/gundeck/secrets/pgPassword
     {{- end }}
 
     # Gundeck uses discovery for AWS access key / secrets

@@ -1512,6 +1512,21 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
+-- Name: presence; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.presence (
+    user_id uuid NOT NULL,
+    conn_id text NOT NULL,
+    resource text NOT NULL,
+    client_id text,
+    created_at bigint NOT NULL
+);
+
+
+ALTER TABLE public.presence OWNER TO "wire-server";
+
+--
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1965,6 +1980,14 @@ ALTER TABLE ONLY public.mls_group_member_client
 
 ALTER TABLE ONLY public.mls_history_client
     ADD CONSTRAINT mls_history_client_pkey PRIMARY KEY (group_id, id);
+
+
+--
+-- Name: presence presence_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.presence
+    ADD CONSTRAINT presence_pkey PRIMARY KEY (user_id, conn_id);
 
 
 --

@@ -106,46 +106,6 @@
 {{- end -}}
 {{- end -}}
 
-{{- define "gundeck.configureRedisCa" -}}
-{{ or (hasKey .redis "tlsCa") (hasKey .redis "tlsCaSecretRef") }}
-{{- end -}}
-
-{{- define "gundeck.redisTlsSecretName" -}}
-{{- if .redis.tlsCaSecretRef -}}
-{{ .redis.tlsCaSecretRef.name }}
-{{- else }}
-{{- print "gundeck-redis-ca" -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "gundeck.redisTlsSecretKey" -}}
-{{- if .redis.tlsCaSecretRef -}}
-{{ .redis.tlsCaSecretRef.key }}
-{{- else }}
-{{- print "ca.pem" -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "gundeck.configureAdditionalRedisCa" -}}
-{{ and (hasKey . "redisAdditionalWrite") (or (hasKey .redis "additionalTlsCa") (hasKey .redis "additionalTlsCaSecretRef")) }}
-{{- end -}}
-
-{{- define "gundeck.additionalRedisTlsSecretName" -}}
-{{- if .redis.additionalTlsCaSecretRef -}}
-{{ .redis.additionalTlsCaSecretRef.name }}
-{{- else }}
-{{- print "gundeck-additional-redis-ca" -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "gundeck.additionalRedisTlsSecretKey" -}}
-{{- if .redis.additionalTlsCaSecretRef -}}
-{{ .redis.additionalTlsCaSecretRef.key }}
-{{- else }}
-{{- print "ca.pem" -}}
-{{- end -}}
-{{- end -}}
-
 {{/* SPAR */}}
 {{- define "spar.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}

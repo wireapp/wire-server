@@ -770,7 +770,6 @@ fakePresence userId clientId_ = Presence {..}
     connId = fakeConnId clientId_
     resource = URI . fromJust $ URI.parseURI "http://127.0.0.1:8080"
     createdAt = 0
-    __field = mempty
 
 -- | See also: 'fakePresence'.
 fakeConnId :: ClientId -> ConnId

@@ -744,35 +744,19 @@ gundeck:
       # tlsCaSecretRef:
       #   name: <secret-name>
       #   key: <ca-attribute>
-    redis:
-      host: redis-ephemeral
-      port: 6379
-      connectionMode: "master" # master | cluster
-      enableTls: false
-      insecureSkipVerifyTls: false
-      # To configure custom TLS CA, please provide one of these:
-      # tlsCa: <CA in PEM format (can be self-signed)>
-      #
-      # Or refer to an existing secret (containing the CA):
-      # tlsCaSecretRef:
-      #   name: <secret-name>
-      #   key: <ca-attribute>
-
-    # To enable additional writes during a migration:
-    # redisAdditionalWrite:
-    #   host: redis-two
-    #   port: 6379
-    #   connectionMode: master
-    #   enableTls: false
-    #   insecureSkipVerifyTls: false
+    # Postgres connection settings for presence tracking.
     #
-    # # To configure custom TLS CA, please provide one of these:
-    # # tlsCa: <CA in PEM format (can be self-signed)>
-    # #
-    # # Or refer to an existing secret (containing the CA):
-    # # tlsCaSecretRef:
-    # #   name: <secret-name>
-    # #   key: <ca-attribute>
+    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    # To set the password via a gundeck secret see `secrets.pgPassword`.
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
     aws:
       region: "eu-west-1"
     proxy: {}

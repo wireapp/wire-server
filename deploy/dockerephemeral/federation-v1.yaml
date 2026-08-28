@@ -127,8 +127,6 @@ services:
         condition: service_completed_successfully
       aws_cli:
         condition: service_completed_successfully
-      redis-v1:
-        condition: service_started
     environment:
       - AWS_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=dummykey
@@ -249,14 +247,6 @@ services:
         condition: service_healthy
       background_worker-v1:
         condition: service_healthy
-
-  # We have to run a separate redis instance for each version of wire-server we
-  # want. This is because gundeck just assumes the whole redis is for itself
-  redis-v1:
-    container_name: redis-federation-v1
-    image: redis:6.0-alpine
-    networks:
-      - demo_wire
 
 
   # This coredns serves slightly different SRV records, so federator running in

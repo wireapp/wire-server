@@ -28,7 +28,6 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, wait)
-import Control.Concurrent.Async qualified as Async
 import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson
@@ -47,8 +46,6 @@ import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
 import Data.UUID.V4
-import Gundeck.Options
-import Gundeck.Options qualified as O
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.URI (parseURI)
@@ -59,7 +56,6 @@ import System.Timeout (timeout)
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
-import Util (runRedisProxy, withEnvOverrides, withSettingsOverrides)
 import Wire.API.Event.Gundeck
 import Wire.API.Internal.Notification
 import Wire.API.Presence
@@ -76,8 +72,7 @@ tests s =
           test s "Remove stale presence" removeStalePresence,
           test s "Single user push" singleUserPush,
           test s "Single user push with large message" singleUserPushLargeMessage,
-          test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
-          test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
+          test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback
         ],
       testGroup
         "Notifications"
@@ -108,10 +103,6 @@ tests s =
           test s "control pings with payload produce pongs with the same payload" testControlPingPongWithData,
           test s "data non-pings are ignored" testNoPingNoPong
         ],
-      testGroup
-        "Redis migration"
-        [ test s "redis migration should work" testRedisMigration
-        ],
       -- TODO: The following tests require (at the moment), the usage real AWS
       --       services so they are kept in a separate group to simplify testing
       testGroup
@@ -135,8 +126,8 @@ replacePresence = do
   con <- randomConnId
   let localhost8080 = URI . fromJust $ parseURI "http://localhost:8080"
   let localhost8081 = URI . fromJust $ parseURI "http://localhost:8081"
-  let pres1 = Presence uid (ConnId "dummy_dev") localhost8080 Nothing 0 ""
-  let pres2 = Presence uid (ConnId "dummy_dev") localhost8081 Nothing 0 ""
+  let pres1 = Presence uid (ConnId "dummy_dev") localhost8080 Nothing 0
+  let pres2 = Presence uid (ConnId "dummy_dev") localhost8081 Nothing 0
   void $ connectUser ca uid con
   setPresence gu pres1 !!! const 201 === statusCode
   sendPush (push uid [uid])
@@ -268,28 +259,6 @@ sendMultipleUsers = do
     pload = NonEmpty.singleton pevent
     pevent = KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
-
-storeNotificationsEvenWhenRedisIsDown :: TestM ()
-storeNotificationsEvenWhenRedisIsDown = do
-  ally <- randomId
-  origRedisEndpoint <- view $ tsOpts . redis
-  let proxyPort = 10112
-  redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. O.host) (origRedisEndpoint ^. O.port) proxyPort
-  withSettingsOverrides
-    ( \gundeckSettings ->
-        gundeckSettings
-          & redis . Gundeck.Options.host .~ "localhost"
-          & redis . Gundeck.Options.port .~ proxyPort
-    )
-    $ do
-      let pload = textPayload "hello"
-          push = buildPush ally [(ally, RecipientClientsAll)] pload
-      gu <- view tsGundeck
-      liftIO $ Async.cancel redisProxyServer
-      post (runGundeckR gu . path "i/push/v2" . json [push]) !!! const 200 === statusCode
-
-  ns <- listNotifications ally Nothing
-  liftIO $ assertEqual ("Expected 1 notification, got: " <> show ns) 1 (length ns)
 
 -----------------------------------------------------------------------------
 -- Notifications
@@ -728,36 +697,6 @@ testLongPushToken = do
   -- GCM token over 8192 bytes should fail (actual token sizes are twice the tSize)
   tkn4 <- randomToken clt gcmToken {tSize = 5000}
   registerPushTokenRequest uid tkn4 !!! const 413 === statusCode
-
--- * Redis Migration
-
-testRedisMigration :: TestM ()
-testRedisMigration = do
-  uid <- randomUser
-  con <- randomConnId
-  cannonURI <- Wire.API.Presence.parse "http://cannon.example"
-  let presence = Presence uid con cannonURI Nothing 1 ""
-  redis2 <- view tsRedis2
-
-  withSettingsOverrides (redisAdditionalWrite ?~ redis2) $ do
-    g <- view tsGundeck
-    setPresence g presence
-      !!! const 201
-        === statusCode
-    retrievedPresence <-
-      map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
-    liftIO $ assertEqual "With both redises: presences should match the set presences" [cannonURI] retrievedPresence
-
-  redis2CredsAsRedis1Creds <- do
-    username <- ("REDIS_USERNAME",) <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_USERNAME"
-    password <- ("REDIS_PASSWORD",) <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
-    pure $ catMaybes [username, password]
-
-  withEnvOverrides redis2CredsAsRedis1Creds $ withSettingsOverrides (redis .~ redis2) $ do
-    g <- view tsGundeck
-    retrievedPresence <-
-      map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
-    liftIO $ assertEqual "With only second redis: presences should match the set presences" [cannonURI] retrievedPresence
 
 -- * Helpers
 

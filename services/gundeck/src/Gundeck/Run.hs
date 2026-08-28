@@ -42,23 +42,25 @@ import Cassandra.Schema (versionCheck)
 import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
+import Control.Monad.Catch (catchAll)
 import Control.Monad.Extra
 import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import Database.Redis qualified as Redis
 import Gundeck.API.Internal as Internal (InternalAPI, servantSitemap)
 import Gundeck.API.Public as Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
-import Gundeck.Options hiding (host, port)
+import Gundeck.Options
+import Gundeck.Presence.Data qualified as PresenceData
 import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended (Pool (rawPool))
 import Imports
 import Network.AMQP
 import Network.AMQP.Types
@@ -81,11 +83,13 @@ import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry
+import Wire.PostgresMigrations qualified as PostgresMigrations
 
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
-  (rThreads, env) <- createEnv opts
+  env <- createEnv opts
   let logger = env ^. applog
+  PostgresMigrations.runAllMigrations (env ^. hasqlPool).rawPool logger
 
   runDirect env setUpRabbitMqExchangesAndQueues
 
@@ -93,10 +97,10 @@ run opts = withTracer \tracer -> do
     versionCheck lastSchemaVersion
   let s = newSettings $ defaultServer (unpack . host $ opts ^. gundeck) (port $ opts ^. gundeck) logger
   let throttleMillis = fromMaybe defSqsThrottleMillis $ opts ^. (settings . sqsThrottleMillis)
-
   lst <- Async.async $ Aws.execute (env ^. awsEnv) (Aws.listen throttleMillis (runDirect env . onEvent))
   wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
+  pcleanup <- Async.async $ runDirect env $ cleanupPresenceLoop logger
 
   app <- middleware env <*> pure (mkApp env)
   inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
@@ -104,10 +108,8 @@ run opts = withTracer \tracer -> do
     shutdown (env ^. cstate)
     Async.cancel lst
     Async.cancel wCollectAuth
+    Async.cancel pcleanup
     forM_ wtbs Async.cancel
-    forM_ rThreads Async.cancel
-    Redis.disconnect =<< takeMVar (env ^. rstate)
-    whenJust (env ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (env ^. applog)
   where
     setUpRabbitMqExchangesAndQueues :: Gundeck ()
@@ -178,3 +180,19 @@ collectAuthMetrics env = do
       mbRemaining <- readAuthExpiration env
       gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000
+
+-- | Hourly janitor replacing the redis key TTL: deletes presence rows older
+-- than a week (leak guard for abnormally dead pods).  Never let a transient DB
+-- error kill the thread — log and retry next hour.
+cleanupPresenceLoop :: Log.Logger -> Gundeck ()
+cleanupPresenceLoop logger =
+  forever $
+    (PresenceData.cleanup >> threadDelay cleanupInterval)
+      `catchAll` \e -> do
+        liftIO . Log.err logger $
+          Log.msg (Log.val "presence cleanup failed")
+            . Log.field "error" (displayException (e :: SomeException))
+        threadDelay cleanupInterval
+
+cleanupInterval :: Int
+cleanupInterval = 3_600_000_000 -- one hour, in microseconds

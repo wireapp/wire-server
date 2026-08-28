@@ -24,6 +24,7 @@ import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
@@ -102,30 +103,6 @@ deriveFromJSON toOptionFieldName ''MaxConcurrentNativePushes
 
 makeLenses ''MaxConcurrentNativePushes
 
-data RedisConnectionMode
-  = Master
-  | Cluster
-  deriving (Show, Generic)
-
-deriveJSON defaultOptions {constructorTagModifier = map toLower} ''RedisConnectionMode
-
-data RedisEndpoint = RedisEndpoint
-  { _host :: !Text,
-    _port :: !Word16,
-    _connectionMode :: !RedisConnectionMode,
-    _enableTls :: !Bool,
-    -- | When not specified, use system CA bundle
-    _tlsCa :: !(Maybe FilePath),
-    -- | When 'True', uses TLS but does not verify hostname or CA or validity of
-    -- the cert. Not recommended to set to 'True'.
-    _insecureSkipVerifyTls :: !Bool
-  }
-  deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''RedisEndpoint
-
-makeLenses ''RedisEndpoint
-
 makeLenses ''Settings
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -135,8 +112,11 @@ data Opts = Opts
     _gundeck :: !Endpoint,
     _brig :: !Endpoint,
     _cassandra :: !CassandraOpts,
-    _redis :: !RedisEndpoint,
-    _redisAdditionalWrite :: !(Maybe RedisEndpoint),
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    _postgresql :: !(Map Text Text),
+    _postgresqlPassword :: !(Maybe FilePathSecrets),
+    _postgresqlPool :: !PoolConfig,
     _aws :: !AWSOpts,
     _rabbitmq :: !AmqpEndpoint,
     _discoUrl :: !(Maybe Text),

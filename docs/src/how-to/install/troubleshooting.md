@@ -252,7 +252,7 @@ These are some steps you can take to debug what is going on when the installatio
 
 As an example, we’ll take a case where we try installing `wire-server` with `helm`, but it fails due to `cassandra` being broken in some way.
 
-This guide, while focusing on a `cassandra` related issue, will also provide general steps to debug problems that could be related to other components like `rabbitmq`, `redis`, etc.
+This guide, while focusing on a `cassandra` related issue, will also provide general steps to debug problems that could be related to other components like `rabbitmq`, etc.
 
 Our first step is to identify and isolate which component is causing the issue.
 
@@ -266,7 +266,6 @@ fake-aws-sns-76fb45cf4f-t6mg6   2/2     Running   0          75m
 fake-aws-sqs-6495cd7c98-w8f8w   2/2     Running   0          75m
 rabbitmq-external-0             0/1     Pending   0          78m
 reaper-84cfbf746d-wk8nc         1/1     Running   0          75m
-redis-ephemeral-master-0        1/1     Running   0          76m
 ```
 
 We then run the `wire-server` helm installation command:
@@ -294,7 +293,6 @@ fake-aws-sns-76fb45cf4f-t6mg6   2/2     Running   0          95m
 fake-aws-sqs-6495cd7c98-w8f8w   2/2     Running   0          95m
 rabbitmq-external-0             0/1     Pending   0          98m
 reaper-84cfbf746d-wk8nc         1/1     Running   0          95m
-redis-ephemeral-master-0        1/1     Running   0          96m
 ```
 
 (You can also do `d kubectl get pods -o wide` to get more details though that’s not necessary here)

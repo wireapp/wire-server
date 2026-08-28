@@ -2,7 +2,7 @@
 # Specific pods can be accessed within the cluster at cannon-<n>.cannon.<namespace>
 # (the second 'cannon' is the name of the headless service)
 # Note: In fact, cannon-<n>.cannon can also be used to access the service but assuming
-# that we can have multiple namespaces accessing the same redis cluster, appending `.<namespace>`
+# that we can have multiple namespaces accessing the same cannon cluster, appending `.<namespace>`
 # makes the service unambiguous
 apiVersion: apps/v1
 kind: StatefulSet

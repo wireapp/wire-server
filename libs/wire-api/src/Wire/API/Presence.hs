@@ -23,7 +23,6 @@ import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Char8 qualified as Bytes
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
 import Data.Misc (Milliseconds)
 import Data.OpenApi qualified as S
@@ -35,7 +34,6 @@ import Imports
 import Network.URI qualified as Net
 import Servant.API (ToHttpApiData (toUrlPiece))
 
--- FUTUREWORK: use Network.URI and toss this newtype.  servant should have all these instances for us these days.
 newtype URI = URI
   { fromURI :: Net.URI
   }
@@ -77,9 +75,7 @@ data Presence = Presence
     -- operating the team settings pages without the need for
     -- end-to-end crypto.
     clientId :: !(Maybe ClientId),
-    createdAt :: !Milliseconds,
-    -- | REFACTOR: temp. addition to ease migration
-    __field :: !Lazy.ByteString
+    createdAt :: !Milliseconds
   }
   deriving (Eq, Ord, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Presence)
@@ -94,7 +90,6 @@ instance ToSchema Presence where
           <*> clientId .= optField "client_id" (maybeWithDefault A.Null schema) -- keep null for backwards compat
           <*> createdAt .= (fromMaybe 0 <$> (optField "created_at" schema))
       )
-        <&> ($ ("" :: Lazy.ByteString))
 
 uriSchema :: ValueSchema NamedSwaggerDoc URI
 uriSchema = mkSchema desc uriFromJSON (Just . uriToJSON)
