@@ -51,6 +51,7 @@ import Polysemy.TinyLog (TinyLog)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options
+import Wire.API.Team.Collaborator (TeamCollaboratorsError)
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
@@ -65,6 +66,8 @@ import Wire.Rpc
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics.IO
+import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
+import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
@@ -75,6 +78,7 @@ import Wire.UserStore.Postgres (interpretUserStorePostgres)
 type BrigIndexEffectStack =
   [ UserKeyStore,
     UserStore,
+    TeamCollaboratorsStore,
     IndexedUserStore,
     Error IndexedUserStoreError,
     IndexedUserMigrationStore,
@@ -86,6 +90,7 @@ type BrigIndexEffectStack =
     TinyLog,
     Input Hasql.Pool,
     Error UsageError,
+    Error TeamCollaboratorsError,
     Error ClientError,
     Embed IO,
     Final IO
@@ -132,6 +137,7 @@ runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationI
   runFinal
     . embedToFinal
     . throwErrorToIOFinal @ClientError
+    . throwErrorToIOFinal @TeamCollaboratorsError
     . throwPostgresUsageErrorToIOFinal
     . runInputConst pgPool
     . loggerToTinyLogReqId reqId logger
@@ -143,6 +149,7 @@ runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationI
     . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
+    . interpretTeamCollaboratorsStoreToPostgres
     . userStoreInterpreter
     . interpretUserKeyStoreCassandra casClient
     $ action
@@ -169,10 +176,14 @@ runCommand l = \case
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    skipped <- IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    when (skipped /= 0) do
+      throwM . IndexMigrationError $ "Reindex: failed to sync " <> show skipped <> " documents."
   ReindexSameOrNewer es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    skipped <- IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    when (skipped /= 0) do
+      throwM . IndexMigrationError $ "ReindexSameOrNewer: failed to sync " <> show skipped <> " documents."
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
@@ -252,6 +263,11 @@ waitForTaskToComplete timeoutSeconds taskNodeId = do
 
     errTaskGet :: ES.EsError -> m x
     errTaskGet e = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
+
+newtype IndexMigrationError = IndexMigrationError String
+  deriving (Show)
+
+instance Exception IndexMigrationError
 
 newtype ReindexFromAnotherIndexError = ReindexFromAnotherIndexError String
   deriving (Show)
