@@ -126,8 +126,8 @@ indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
 indexUserToVersion role iu =
   mkIndexVersion [Just $ Writetime iu.updatedAt, const () <$$> fmap writetime role]
 
-indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound mRole IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> [TeamId] -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mRole collaboratingTeams IndexUser {..} =
   if shouldIndex
     then
       UserDoc
@@ -148,7 +148,8 @@ indexUserToDoc searchVisInbound mRole IndexUser {..} =
           udHandle = handle,
           udNormalized = Just $ normalized name.fromName,
           udName = Just name,
-          udTeam = teamId
+          udTeam = teamId,
+          udCollaboratingTeams = collaboratingTeams
         }
     else -- We insert a tombstone-style user here, as it's easier than
     -- deleting the old one. It's mostly empty, but having the status here
@@ -209,5 +210,6 @@ emptyUserDoc uid =
       udNormalized = Nothing,
       udName = Nothing,
       udTeam = Nothing,
+      udCollaboratingTeams = [],
       udId = uid
     }

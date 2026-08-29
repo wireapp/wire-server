@@ -47,6 +47,7 @@ import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
 import Polysemy.Resource
 import Polysemy.TinyLog (TinyLog)
+import Util.Options (Endpoint)
 import Wire.API.Error (ErrorS, errorToWai)
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client qualified
@@ -68,6 +69,8 @@ import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess.Local (interpretBrigAPIAccessLocally)
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
 import Wire.ClientStore (ClientStore)
@@ -130,6 +133,7 @@ import Wire.PropertySubsystem.Interpreter
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.RpcException (RpcException)
 import Wire.SAMLEmailSubsystem
 import Wire.SAMLEmailSubsystem.Interpreter
 import Wire.SFT (SFT, interpretSFT)
@@ -189,13 +193,12 @@ type RecursiveEffects =
   '[ AuthenticationSubsystem,
      UserSubsystem,
      AppSubsystem,
-     ClientSubsystem
+     ClientSubsystem,
+     BrigAPIAccess,
+     TeamCollaboratorsSubsystem
    ]
 
-type NonRecursiveEffects2 =
-  '[ TeamCollaboratorsSubsystem
-   ]
-    `Append` BrigLowerLevelEffects
+type NonRecursiveEffects2 = BrigLowerLevelEffects
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
@@ -276,6 +279,7 @@ type BrigLowerLevelEffects =
      Embed Cas.Client,
      Error ClientError,
      Error ParseException,
+     Error RpcException,
      Error ErrorCall,
      Error SomeException,
      Error HttpError,
@@ -297,9 +301,11 @@ type BrigLowerLevelEffects =
 -- Cloned from "Wire.MiniBackend".
 runRecursiveEffects ::
   (Members NonRecursiveEffects2 r) =>
+  -- | Brig's own endpoint; see 'interpretBrigAPIAccessLocally'.
+  Endpoint ->
   Sem (RecursiveEffects `Append` r) a ->
   Sem r a
-runRecursiveEffects = runClient . runApp . runUser . runAuth
+runRecursiveEffects selfEndpoint = runTeamCollaborators . runBrigAPIAccess . runClient . runApp . runUser . runAuth
   where
     runAuth :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor AuthenticationSubsystem r
     runAuth = interpretAuthenticationSubsystem runUser
@@ -312,6 +318,12 @@ runRecursiveEffects = runClient . runApp . runUser . runAuth
 
     runClient :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor ClientSubsystem r
     runClient = runClientSubsystem runAuth runUser
+
+    runBrigAPIAccess :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor BrigAPIAccess r
+    runBrigAPIAccess = interpretBrigAPIAccessLocally selfEndpoint runUser
+
+    runTeamCollaborators :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor TeamCollaboratorsSubsystem r
+    runTeamCollaborators = interpretTeamCollaboratorsSubsystem runBrigAPIAccess
 
 runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
@@ -433,6 +445,7 @@ runBrigToIO e (AppT ma) = do
               . rethrowHttpErrorIO
               . runError @SomeException
               . mapError @ErrorCall SomeException
+              . mapError @RpcException SomeException
               . mapError @ParseException SomeException
               . mapError clientErrorToHttpError
               . interpretClientToIO e.casClient
@@ -510,8 +523,7 @@ runBrigToIO e (AppT ma) = do
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
               . samlEmailSubsystemInterpreter
-              . interpretTeamCollaboratorsSubsystem
-              . runRecursiveEffects
+              . runRecursiveEffects e.brigEndpoint
               . interpretUserGroupSubsystem
               . maybe
                 runEnterpriseLoginSubsystemNoConfig
