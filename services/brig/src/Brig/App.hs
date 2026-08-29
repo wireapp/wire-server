@@ -36,6 +36,7 @@ module Brig.App
     cargoholdLens,
     galleyLens,
     galleyEndpointLens,
+    brigEndpointLens,
     sparEndpointLens,
     gundeckEndpointLens,
     cargoholdEndpointLens,
@@ -189,6 +190,10 @@ data Env = Env
   { cargohold :: RPC.Request,
     galley :: RPC.Request,
     galleyEndpoint :: Endpoint,
+    -- | Brig's own listen address.  Used only to call ourselves over HTTP for
+    -- 'BrigAPIAccess' operations that have no local implementation yet; see
+    -- 'Wire.BrigAPIAccess.Local'.
+    brigEndpoint :: Endpoint,
     sparEndpoint :: Endpoint,
     gundeckEndpoint :: Endpoint,
     cargoholdEndpoint :: Endpoint,
@@ -307,6 +312,7 @@ newEnv opts = do
       { cargohold = mkEndpoint $ opts.cargohold,
         galley = mkEndpoint $ opts.galley,
         galleyEndpoint = opts.galley,
+        brigEndpoint = opts.brig,
         sparEndpoint = opts.spar,
         gundeckEndpoint = opts.gundeck,
         cargoholdEndpoint = opts.cargohold,
