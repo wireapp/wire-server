@@ -90,6 +90,12 @@
       url = "github:wireapp/hasql-migration?ref=allow-no-transaction";
       flake = false;
     };
+
+    postgresql-connection-string = {
+      url =
+        "github:wireapp/postgresql-connection-string?ref=wire-patches";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, sbomnix, ... }:
