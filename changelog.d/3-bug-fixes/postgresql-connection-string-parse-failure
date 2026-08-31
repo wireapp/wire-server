@@ -1,0 +1,3 @@
+Postgresql connection strings with mismatched host/port counts in service
+configurations now lead to immediate failure with a clear error message instead
+of silently producing an erroneous connection.

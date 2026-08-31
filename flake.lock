@@ -314,6 +314,23 @@
         "type": "github"
       }
     },
+    "postgresql-connection-string": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787930090,
+        "narHash": "sha256-ti+XZdhoCiDxgyUilva7EpV8SOfMlmwuKr28XkJ62N0=",
+        "owner": "wireapp",
+        "repo": "postgresql-connection-string",
+        "rev": "bd5a2d72c15fa4ffe561e3b3f441e5809050f918",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "ref": "wire-patches",
+        "repo": "postgresql-connection-string",
+        "type": "github"
+      }
+    },
     "postie": {
       "flake": false,
       "locked": {
@@ -345,6 +362,7 @@
         "nixpkgs": "nixpkgs",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "nixpkgs_24_11": "nixpkgs_24_11",
+        "postgresql-connection-string": "postgresql-connection-string",
         "postie": "postie",
         "sbomnix": "sbomnix",
         "servant-openapi3": "servant-openapi3",
