@@ -420,17 +420,6 @@ galley:
           defaults:
             status: enabled
             lockStatus: unlocked
-        preventAdminlessGroups:
-          # FUTUREWORK: This feature should be unlocked in the main
-          # `values.yaml` file. It is just disabled & locked there due to open
-          # bugs.
-          defaults:
-            status: disabled
-            lockStatus: unlocked
-            config:
-              promotionStrategy: alphabetical
-              deletionTimeoutDuration: 7d
-              reminderTimeoutDurations: [2d, 4d, 6d]
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
