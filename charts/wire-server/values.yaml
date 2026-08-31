@@ -9,5 +9,4 @@ tags:
   legalhold: false
   federation: false # see also {background-worker, brig, cargohold, galley}.config.enableFederation
   backoffice: false
-  mlsstats: false
   integration: false
