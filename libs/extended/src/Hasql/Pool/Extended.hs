@@ -18,6 +18,7 @@
 module Hasql.Pool.Extended where
 
 import Data.Aeson
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Hasql.Connection qualified
 import Hasql.Connection.Settings qualified as HasqlConnSettings
@@ -25,6 +26,7 @@ import Hasql.Pool qualified as HasqlPool
 import Imports
 import PostgresqlConnectionString qualified
 import Prometheus
+import Text.Megaparsec qualified as Megaparsec
 import UnliftIO.IO (getMonotonicTime)
 import Util.Options
 
@@ -108,6 +110,27 @@ startHasqlPoolStatsReporter pool = void $ forkIO $ forever $ do
   recordHasqlPoolStats pool
   threadDelay (5 * 1_000_000) -- 5s
 
+-- | Run a postgresql-connection-string parser, turning a parse failure into
+-- an IO exception whose message is the parser's failure text, so the
+-- reason is visible wherever this call site's crash output is captured.
+--
+-- 'Megaparsec.errorBundlePretty' is avoided because 'fromKeyValueParams'
+-- never consumes the (always-empty) input stream, so its source-position
+-- pointer would be meaningless noise around the actual message.
+runConnStrParser :: Megaparsec.Parsec Void Text a -> IO a
+runConnStrParser p =
+  either
+    ( fail
+        . dropWhileEnd isSpace
+        . Megaparsec.parseErrorTextPretty
+        . NonEmpty.head
+        . Megaparsec.bundleErrors
+    )
+    pure
+    $ let file = ""
+          input = ""
+       in Megaparsec.parse p file input
+
 -- | Creates a pool from postgres config params.
 --
 -- 'acquisitionTimeout' is mapped to the pool acquisition timeout,
@@ -115,8 +138,9 @@ startHasqlPoolStatsReporter pool = void $ forkIO $ forever $ do
 initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO Pool
 initPostgresPool config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
+  connStr <- runConnStrParser $ PostgresqlConnectionString.fromKeyValueParams pgConfig
   let pgSettings =
-        HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl $ PostgresqlConnectionString.fromKeyValueParams pgConfig)
+        HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl connStr)
           <> foldMap HasqlConnSettings.password mPw
   metrics <- mkHasqlPoolMetrics
   rawPool <-
