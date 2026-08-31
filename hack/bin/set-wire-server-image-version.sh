@@ -29,3 +29,15 @@ sed -i "s/^    tag: .*/    tag: $target_version/g" "$CHARTS_DIR/nginz/values.yam
 # Anchored to quay.io/wire/ repository: lines so non-wire images (cannon's alpine
 # configuratorImage) keep their own tag instead of being stamped.
 sed -i -E "/^[[:space:]]*repository: quay\.io\/wire\//{n; s/^([[:space:]]*)tag: .*/\1tag: $target_version/}" "$CHARTS_DIR/wire-server/values.yaml"
+
+# HIP-0015: a chart's helm.sh/images annotation cannot know the tag its own
+# images will be published under, so charts commit the placeholder :do-not-use
+# and it is stamped here.
+#
+# Applied to every chart rather than the list above, because charts carrying an
+# annotation are not the same set as charts whose values.yaml needs a tag
+# rewrite. Charts without the placeholder are unaffected.
+for chart_yaml in "$CHARTS_DIR"/*/Chart.yaml; do
+    [[ -f "$chart_yaml" ]] || continue
+    sed -i "s|:do-not-use|:$target_version|g" "$chart_yaml"
+done
