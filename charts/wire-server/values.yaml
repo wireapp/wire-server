@@ -260,10 +260,9 @@ galley:
               allowed_to_open_channels: team-members
             lockStatus: locked
         preventAdminlessGroups:
-          # This feature has known errors. Thus, it must stay disabled for now.
           defaults:
             status: disabled
-            lockStatus: locked
+            lockStatus: unlocked
             config:
               promotionStrategy: alphabetical
               deletionTimeoutDuration: 7d
