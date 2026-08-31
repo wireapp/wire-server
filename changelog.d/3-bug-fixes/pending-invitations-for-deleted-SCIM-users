@@ -1,0 +1,2 @@
+Deleted SCIM users could still have pending team invitations. These are now
+deleted (invalidated) with the SCIM user.
