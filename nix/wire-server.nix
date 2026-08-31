@@ -89,7 +89,7 @@ let
     team-info = [ "team-info" ];
     wire-server-enterprise = [ "wire-server-enterprise" ];
     migrate-features = [ "migrate-features" ];
-    mls-stats = [ "mls-stats" ];
+    mlsstats = [ "mlsstats" ];
   };
 
   inherit (lib) attrsets;
