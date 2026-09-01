@@ -103,8 +103,8 @@ import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
-import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
-import Wire.TeamCollaboratorsStore qualified as TeamCollaboratorsStore
+import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamCollaboratorsSubsystem qualified as TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
@@ -144,7 +144,7 @@ runUserSubsystem ::
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
-    Member TeamCollaboratorsStore r,
+    Member TeamCollaboratorsSubsystem r,
     Member UserGroupStore r,
     Member (Input (Local any)) r
   ) =>
@@ -715,7 +715,7 @@ updateUserProfileImpl ::
     Member Events r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
+    Member TeamCollaboratorsSubsystem r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -777,7 +777,7 @@ updateHandleImpl ::
     Member Events r,
     Member UserStore r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
+    Member TeamCollaboratorsSubsystem r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -846,7 +846,7 @@ syncUserIndex ::
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
     Member Metrics r,
-    Member TeamCollaboratorsStore r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   UserId ->
   Sem r ()
@@ -867,7 +867,7 @@ syncUserIndex uid =
           teamSearchVisibilityInbound
           indexUser.teamId
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
-      collabTeams <- map gTeam <$> TeamCollaboratorsStore.getTeamCollaborations uid
+      collabTeams <- map gTeam <$> TeamCollaboratorsSubsystem.internalGetTeamCollaborations uid
       let mRole = tm >>= mkRoleWithWriteTime
           userDoc = indexUserToDoc vis (value <$> mRole) collabTeams indexUser
           -- GTE, not GT: the version comes from the user row alone, but the document also
@@ -1191,7 +1191,7 @@ acceptTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
+    Member TeamCollaboratorsSubsystem r,
     Member Metrics r,
     Member Events r,
     Member AuthenticationSubsystem r,
@@ -1256,7 +1256,7 @@ removeEmailEitherImpl ::
     Member UserStore r,
     Member Events r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
+    Member TeamCollaboratorsSubsystem r,
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r,
     Member Metrics r
@@ -1293,7 +1293,7 @@ setUserSearchableImpl ::
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
+    Member TeamCollaboratorsSubsystem r,
     Member Metrics r
   ) =>
   Local UserId ->
