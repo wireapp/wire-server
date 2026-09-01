@@ -101,7 +101,7 @@ run opts = withTracer \tracer -> do
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
-  inSpan tracer "brig" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
+  inSpan tracer "brig" defaultSpanArguments {kind = Otel.Server} (runSettingsWithCleanup (flush e.appLogger) s app Nothing) `finally` do
     Async.cancelMany $
       [internalEventListener, pendingActivationCleanupAsync, authMetrics]
         <> catMaybes [emailListener, sftDiscovery]

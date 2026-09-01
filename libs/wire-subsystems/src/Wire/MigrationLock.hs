@@ -86,6 +86,8 @@ data MigrationLockError = TimedOutAcquiringLock
 instance APIError MigrationLockError where
   toResponse = waiErrorToJSONResponse . migrationLockErrorToWai
 
+instance Exception MigrationLockError
+
 migrationLockErrorToHttpError :: MigrationLockError -> HttpError
 migrationLockErrorToHttpError = StdError . migrationLockErrorToWai
 
@@ -117,7 +119,8 @@ withMigrationLocks lockType maxWait lockables action = do
 
       pool <- (.rawPool) <$> input @HasqlPoolExt.Pool
       lockThread <- async . embed . Hasql.use pool $ do
-        let lockIds = fmap lockKey lockables
+        -- Sort lockIds to avoid deadlocks
+        let lockIds = sort $ fmap lockKey lockables
         Session.statement lockIds acquireLocks
 
         liftIO $ putMVar lockAcquired ()

@@ -431,7 +431,7 @@ runBrigToIO e (AppT ma) = do
         case e.postgresMigration.user of
           CassandraStorage -> interpretUserStoreCassandra e.casClient
           PostgresqlStorage -> interpretUserStorePostgres
-          MigrationToPostgresql -> error "Migration not implemented for user"
+          MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
   ( either throwM pure
       <=< ( runFinal

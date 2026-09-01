@@ -1025,6 +1025,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.
     migrateDomainRegistration: false
+    # This will start the migration of users
+    # It's important to set `settings.postgresMigration.users` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateUsers: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

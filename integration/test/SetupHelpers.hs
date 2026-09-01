@@ -605,10 +605,14 @@ getCookieWithSamlLogin ::
   App (Maybe String, SAML.SignedAuthnResponse)
 getCookieWithSamlLogin mbZHost domain expectSuccess tid nameId mLabel (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
-  spmeta <- getSPMetadataWithZHost domain mbZHost tid
-  authnreq <- initiateSamlLoginWithZHostAndLabel domain mbZHost mLabel iid
-  let spMetaData = toSPMetaData spmeta.body
-      parsedAuthnReq = parseAuthnReqResp authnreq.body
+  spMetaData <-
+    getSPMetadataWithZHost domain mbZHost tid `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      pure $ toSPMetaData resp.body
+  parsedAuthnReq <-
+    initiateSamlLoginWithZHostAndLabel domain mbZHost mLabel iid `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      pure $ parseAuthnReqResp resp.body
   authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
   mCookie <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
   pure (mCookie, authnReqResp)
@@ -653,13 +657,14 @@ makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq =
 
 -- | extract an `AuthnRequest` from the html form in the http response from /sso/initiate-login
 parseAuthnReqResp ::
+  (HasCallStack) =>
   ByteString ->
   SAML.AuthnRequest
 parseAuthnReqResp bs = reqBody
   where
     xml :: XML.Document
     xml =
-      fromRight (error "malformed html in response body") $
+      fromRight (error $ "malformed html in response body: \n" <> show bs) $
         XML.parseText XML.def (cs bs)
 
     reqBody :: SAML.AuthnRequest
@@ -855,12 +860,12 @@ createNewIndex = do
     ExitFailure _ -> assertFailure $ prefix <> "failed to create index"
     ExitSuccess -> pure indexName
 
-reindexUsers :: (HasCallStack) => BackendResource -> Int -> App ()
-reindexUsers ber pageSize = do
+reindexUsers :: (HasCallStack) => BackendResource -> ServiceOverrides -> Int -> App ()
+reindexUsers ber serviceOverrides pageSize = do
   testName <- asks (fromMaybe "NoTest" . (.currentTestName))
   let indexName = ber.berElasticsearchIndex
   let prefix = "[reindex-users:" <> indexName <> ":" <> testName <> "] "
-  getBrigConfig <- readAndUpdateConfig (defaultOverrides ber) ber Brig
+  getBrigConfig <- readAndUpdateConfig (defaultOverrides ber <> serviceOverrides) ber Brig
   brigConfig <- liftIO $ getBrigConfig
   esServer <- brigConfig %. "elasticsearch.url" & asString
   esCredentials <- brigConfig %. "elasticsearch.credentials" & asString

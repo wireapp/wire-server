@@ -2187,6 +2187,7 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
+- `user` -> `migrateUsers`
 
 **Migration pattern per migration setting**
 
@@ -2205,13 +2206,15 @@ The current settings and their background-worker flags are:
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
-         domainRegistration: cassandra
+         domainRegistration: migration-to-postgresql
+         user: migration-to-postgresql
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migrateUsers: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2226,6 +2229,7 @@ The current settings and their background-worker flags are:
        migrateConversationCodes: true
        migrateTeamFeatures: true
        migrateDomainRegistration: true
+       migrateUsers: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2241,6 +2245,16 @@ The current settings and their background-worker flags are:
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
+   - `user`: `wire_user_migration_finished`
+
+   > ⚠️ For user migrations please watch the logs for `Invalid user found,
+   > skipping`. This would be accompanied by an error which is either
+   > `UserHasNoName` or `UserHasNoActivated`. These users are invalid and all
+   > interactions with them were resulting in errors. If these warnings are
+   > ignored, these users will stop existing in the system. If these users are
+   > to be saved, the operator must insert some value as `name` and/or
+   > `activated` and then re-trigger the migration **after** the background
+   > worker finishes migrating the valid users.
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2253,13 +2267,15 @@ The current settings and their background-worker flags are:
          conversation: postgresql
          conversationCodes: postgresql
          teamFeatures: postgresql
-         domainRegistration: cassandra
+         domainRegistration: postgresql
+         user: postgresql
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migrateUsers: false
    ```
 
 **How to run migrations independently or in batches**

@@ -27,17 +27,16 @@ import Data.Conduit.List qualified as C
 import Data.Domain
 import Data.Id
 import Database.CQL.Protocol (Record (asRecord), TupleType)
-import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as Hasql
 import Imports hiding (lookup)
 import Polysemy
 import Polysemy.Async
+import Polysemy.AtomicState
 import Polysemy.Conc (interpretRace)
 import Polysemy.Conc.Effect.Race hiding (Timeout)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIOFinal)
-import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -55,7 +54,7 @@ import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 type EffectStack =
-  [ State Int,
+  [ AtomicState Int,
     Input ClientState,
     Input Hasql.Pool,
     Resource,
@@ -97,14 +96,14 @@ interpreter cassClient pgPool logger name =
     . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
-    . runState 0
+    . atomicStateToIO 0
 
 migrateAllDomainRegistrations ::
   ( Member (Input Hasql.Pool) r,
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member TinyLog r,
-    Member (State Int) r,
+    Member (AtomicState Int) r,
     Member Async r,
     Member Race r,
     Member Resource r
@@ -122,7 +121,7 @@ migrateAllDomainRegistrations migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllDomainRegistrations")
   withCount (paginateSem selectAllRegistrations (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize asRecord
-    .| C.mapM_ (traverse_ (\row -> handleRegistrationErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row -> handleLockAndDBErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migOpts migCounter migDuration row)))
 
 migrateDomainRegistrationRow ::
   ( PGConstraints r,
@@ -175,24 +174,3 @@ selectAllRegistrations =
 selectAllChallenges :: PrepQuery R () (ChallengeId, Domain, Token, DnsVerificationToken, Int32)
 selectAllChallenges =
   "SELECT id, domain, challenge_token_hash, dns_verification_token, ttl(challenge_token_hash) FROM domain_registration_challenge"
-
-handleRegistrationErrors ::
-  ( Member (State Int) r,
-    Member TinyLog r
-  ) =>
-  ByteString ->
-  (Sem (Error MigrationLockError : Error UsageError : r) ()) ->
-  Sem r ()
-handleRegistrationErrors key action = do
-  eithErr <- runError (runError action)
-  case eithErr of
-    Right (Right _) -> pure ()
-    Right (Left e) -> logError (show e)
-    Left e -> logError (show e)
-  where
-    logError e = do
-      warn $
-        Log.msg (Log.val "error occurred during migration")
-          . Log.field "key" (show key)
-          . Log.field "error" e
-      modify (+ 1)

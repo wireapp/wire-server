@@ -55,6 +55,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
 import Data.Word
+import qualified Database.CQL.IO as Cassandra
 import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
@@ -147,7 +148,8 @@ data GlobalEnv = GlobalEnv
     gDNSMockServerConfig :: DNSMockServerConfig,
     gCellsEventQueue :: String,
     gCellsEventWatchersLock :: MVar (),
-    gCellsEventWatchers :: IORef (Map String QueueWatcher)
+    gCellsEventWatchers :: IORef (Map String QueueWatcher),
+    gCassClient :: Cassandra.ClientState
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -276,7 +278,8 @@ data Env = Env
     cellsEventQueue :: String,
     cellsEventWatchersLock :: MVar (),
     cellsEventWatchers :: IORef (Map String QueueWatcher),
-    curlTrace :: IORef [String]
+    curlTrace :: IORef [String],
+    cassClient :: Cassandra.ClientState
   }
 
 data Response = Response
@@ -487,6 +490,18 @@ newtype App a = App {unApp :: ReaderT Env IO a}
 
 instance MonadRandom App where
   getRandomBytes n = liftIO (getRandomBytes n)
+
+instance Cassandra.MonadClient App where
+  liftClient :: Cassandra.Client a -> App a
+  liftClient action = do
+    clientState <- asks (.cassClient)
+    liftIO $ Cassandra.runClient clientState action
+
+  localState :: (Cassandra.ClientState -> Cassandra.ClientState) -> App a -> App a
+  localState f action = do
+    env <- ask
+    let newClientState = f env.cassClient
+    liftIO $ runAppWithEnv (env {cassClient = newClientState}) action
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e

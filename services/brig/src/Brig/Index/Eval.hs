@@ -45,8 +45,11 @@ import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Network.HTTP.Client (Manager)
 import Polysemy
+import Polysemy.Async (Async, asyncToIOFinal)
+import Polysemy.Conc (Race, interpretRace)
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, runResource)
 import Polysemy.TinyLog (TinyLog)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
@@ -60,6 +63,7 @@ import Wire.IndexedUserStore.Bulk.ElasticSearch qualified as IndexedUserStoreBul
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.IndexedUserStore.MigrationStore (IndexedUserMigrationStore)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch
+import Wire.MigrationLock
 import Wire.ParseException
 import Wire.PostgresMigrationOpts
 import Wire.Rpc
@@ -83,6 +87,7 @@ type BrigIndexEffectStack =
     Error IndexedUserStoreError,
     IndexedUserMigrationStore,
     Error MigrationException,
+    Error MigrationLockError,
     GalleyAPIAccess,
     Error ParseException,
     Rpc,
@@ -92,6 +97,9 @@ type BrigIndexEffectStack =
     Error UsageError,
     Error TeamCollaboratorsError,
     Error ClientError,
+    Resource,
+    Race,
+    Async,
     Embed IO,
     Final IO
   ]
@@ -132,10 +140,13 @@ runSem :: SemDeps -> UserStorageLocation -> Endpoint -> Logger -> Sem BrigIndexE
 runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) userStorage galleyEndpoint logger action = do
   let userStoreInterpreter = case userStorage.userStorageLocation of
         CassandraStorage -> interpretUserStoreCassandra casClient
-        MigrationToPostgresql -> error "Migration not implemented for user"
+        MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres casClient
         PostgresqlStorage -> interpretUserStorePostgres
   runFinal
     . embedToFinal
+    . asyncToIOFinal
+    . interpretRace
+    . runResource
     . throwErrorToIOFinal @ClientError
     . throwErrorToIOFinal @TeamCollaboratorsError
     . throwPostgresUsageErrorToIOFinal
@@ -145,6 +156,7 @@ runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationI
     . runRpcWithHttp mgr reqId
     . throwErrorToIOFinal @ParseException
     . interpretGalleyAPIAccessToRpc mempty galleyEndpoint
+    . throwErrorToIOFinal @MigrationLockError
     . throwErrorToIOFinal @MigrationException
     . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError

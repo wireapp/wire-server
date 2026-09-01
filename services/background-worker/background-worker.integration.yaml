@@ -58,6 +58,7 @@ migrationOptions:
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
+migrateUsers: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:

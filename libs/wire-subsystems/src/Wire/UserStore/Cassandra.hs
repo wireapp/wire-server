@@ -15,27 +15,42 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.UserStore.Cassandra (interpretUserStoreCassandra) where
+module Wire.UserStore.Cassandra
+  ( interpretUserStoreCassandra,
+    interpretUserStoreToCassandraAndPostgres,
+  )
+where
 
 import Cassandra
 import Cassandra.Exec (prepared)
 import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
-import Database.CQL.Protocol
+import Data.Map qualified as Map
+import Data.UUID qualified as UUID
+import Database.CQL.Protocol hiding (Error)
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Conc (Race)
 import Polysemy.Embed
 import Polysemy.Error
+import Polysemy.Resource (Resource)
+import Polysemy.Time
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SetSearchable (SetSearchable))
+import Wire.MigrationLock
+import Wire.Postgres (PGConstraints)
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserStore qualified as UserStore
 import Wire.UserStore.IndexUser hiding (userId)
+import Wire.UserStore.Postgres (interpretUserStorePostgres)
 import Wire.UserStore.Unique
 
 interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
@@ -78,6 +93,197 @@ interpretUserStoreCassandra casClient =
       DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
       LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid (paginationStateCassandra =<< mPagingState)
       LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid (paginationStateCassandra =<< mPagingState)
+
+interpretUserStoreToCassandraAndPostgres ::
+  ( PGConstraints r,
+    Member Async r,
+    Member TinyLog r,
+    Member Race r,
+    Member Resource r,
+    Member (Error MigrationLockError) r
+  ) =>
+  ClientState -> InterpreterFor UserStore r
+interpretUserStoreToCassandraAndPostgres casClient =
+  interpret $ \case
+    CreateUser new mbConv -> do
+      -- Store new users in postgresql
+      withMigrationLocks LockShared (MilliSeconds 500) [new.id] $ do
+        isUserInCass <- interpretUserStoreCassandra casClient $ UserStore.doesUserExist new.id
+        if isUserInCass
+          then interpretUserStoreCassandra casClient $ UserStore.createUser new mbConv
+          else interpretUserStorePostgres $ UserStore.createUser new mbConv
+    ActivateUser uid identity ->
+      runAppropriateInterpreter casClient uid $ UserStore.activateUser uid identity
+    DeactivateUser uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.deactivateUser uid
+    GetUsers uids ->
+      withMigrationLocks LockShared (Seconds 2) uids $ do
+        let indexByUserId = foldr (\storedUser -> Map.insert storedUser.id storedUser) Map.empty
+        cassUsers <- indexByUserId <$> interpretUserStoreCassandra casClient (UserStore.getUsers uids)
+        pgUsers <- indexByUserId <$> interpretUserStorePostgres (UserStore.getUsers uids)
+        pure $ mapMaybe (\uid -> Map.lookup uid pgUsers <|> Map.lookup uid cassUsers) uids
+    DoesUserExist uid -> do
+      withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+        isUserInPg <- interpretUserStorePostgres $ UserStore.doesUserExist uid
+        if isUserInPg
+          then pure True
+          else interpretUserStoreCassandra casClient $ UserStore.doesUserExist uid
+    GetIndexUser uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getIndexUser uid
+    GetIndexUsersPaginated pageSize mPagingState -> do
+      paginateOverCassandraAndPostgres
+        (\size state -> interpretUserStoreCassandra casClient $ UserStore.getIndexUsersPaginated size state)
+        (\size state -> interpretUserStorePostgres $ UserStore.getIndexUsersPaginated size state)
+        (PagingExitingUsers $ Id UUID.nil)
+        pageSize
+        mPagingState
+    UpdateUser uid update ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateUser uid update
+    UpdateEmail uid email ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateEmail uid email
+    DeleteEmail uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.deleteEmail uid
+    UpdateEmailUnvalidated uid email ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateEmailUnvalidated uid email
+    DeleteEmailUnvalidated uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.deleteEmailUnvalidated uid
+    LookupName uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupName uid
+    LookupHandle hdl -> do
+      let action = UserStore.lookupHandle hdl
+      interpretUserStorePostgres action >>= \case
+        Nothing -> interpretUserStoreCassandra casClient action
+        Just user -> pure $ Just user
+    GlimpseHandle hdl -> do
+      let action = UserStore.glimpseHandle hdl
+      interpretUserStorePostgres action >>= \case
+        Nothing -> interpretUserStoreCassandra casClient action
+        Just uid -> pure $ Just uid
+    UpdateUserHandleEither uid update -> do
+      -- There is no easy way to handle the race condition that Alice in
+      -- Cassandra and Bob in Postgresql don't claim the same handle. If they
+      -- race to claim a handle, they _can_ both succeed. In this case, the
+      -- migration code _could_ fail to migrate the Alice user, so it has to be
+      -- careful about handling this case.
+      withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+        let glimpseAction = UserStore.glimpseHandle update.new
+        cassGlimpse <- interpretUserStoreCassandra casClient glimpseAction
+        pgGlimpse <- interpretUserStorePostgres glimpseAction
+        case (cassGlimpse, pgGlimpse) of
+          (_, Just pgClaimer)
+            | pgClaimer == uid -> pure $ Right ()
+            | otherwise -> pure $ Left StoredUserUpdateHandleExists
+          (Just casClaimer, Nothing)
+            | casClaimer == uid -> pure $ Right ()
+            | otherwise -> pure $ Left StoredUserUpdateHandleExists
+          (Nothing, Nothing) -> do
+            isUserInPg <- interpretUserStorePostgres $ UserStore.doesUserExist uid
+            let action = UserStore.updateUserHandleEither uid update
+            if isUserInPg
+              then interpretUserStorePostgres action
+              else interpretUserStoreCassandra casClient action
+    UpdateSSOId uid ssoId ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateSSOId uid ssoId
+    UpdateManagedBy uid managedBy ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateManagedBy uid managedBy
+    UpdateAccountStatus uid accountStatus ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateAccountStatus uid accountStatus
+    UpdateRichInfo uid richInfo ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateRichInfo uid richInfo
+    UpdateFeatureConferenceCalling uid feat ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateFeatureConferenceCalling uid feat
+    LookupFeatureConferenceCalling uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupFeatureConferenceCalling uid
+    DeleteUser user ->
+      runAppropriateInterpreter casClient (userId user) $ UserStore.deleteUser user
+    LookupStatus uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupStatus uid
+    IsActivated uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.isActivated uid
+    LookupLocale uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupLocale uid
+    GetUserTeam uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getUserTeam uid
+    UpdateUserTeam uid tid ->
+      runAppropriateInterpreter casClient uid $ UserStore.updateUserTeam uid tid
+    GetRichInfo uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getRichInfo uid
+    UpsertHashedPassword uid pw ->
+      runAppropriateInterpreter casClient uid $ UserStore.upsertHashedPassword uid pw
+    LookupHashedPassword uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.lookupHashedPassword uid
+    GetUserAuthenticationInfo uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.getUserAuthenticationInfo uid
+    SetUserSearchable uid searchable ->
+      runAppropriateInterpreter casClient uid $ UserStore.setUserSearchable uid searchable
+    DeleteServiceUser pid sid bid ->
+      runAppropriateInterpreter casClient (botUserId bid) $ UserStore.deleteServiceUser pid sid bid
+    LookupServiceUsers pid sid mPagingState ->
+      -- Ignoring the size paramter here makes us potentially return upto 199
+      -- bots instead of 100, but this is ok as this is temporary and the
+      -- callers are not doing anything wrong with a longer list.
+      paginateOverCassandraAndPostgres
+        (\_size state -> interpretUserStoreCassandra casClient $ UserStore.lookupServiceUsers pid sid state)
+        (\_size state -> interpretUserStorePostgres $ UserStore.lookupServiceUsers pid sid state)
+        (BotId $ Id UUID.nil)
+        100
+        mPagingState
+    LookupServiceUsersForTeam pid sid tid mPagingState ->
+      -- Ignoring the size paramter here makes us potentially return upto 199
+      -- bots instead of 100, but this is ok as this is temporary and the
+      -- callers are not doing anything wrong with a longer list.
+      paginateOverCassandraAndPostgres
+        (\_size state -> interpretUserStoreCassandra casClient $ UserStore.lookupServiceUsersForTeam pid sid tid state)
+        (\_size state -> interpretUserStorePostgres $ UserStore.lookupServiceUsersForTeam pid sid tid state)
+        (BotId $ Id UUID.nil)
+        100
+        mPagingState
+
+runAppropriateInterpreter ::
+  ( PGConstraints r,
+    Member TinyLog r,
+    Member (Error MigrationLockError) r,
+    Member Async r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  ClientState -> UserId -> InterpreterFor UserStore r
+runAppropriateInterpreter casClient uid action =
+  withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+    isUserInPg <- interpretUserStorePostgres $ UserStore.doesUserExist uid
+    if isUserInPg
+      then interpretUserStorePostgres action
+      else interpretUserStoreCassandra casClient action
+
+paginateOverCassandraAndPostgres ::
+  (Int32 -> Maybe (GeneralPaginationState pgMarker) -> Sem r (PageWithState pgMarker pageItem)) ->
+  (Int32 -> Maybe (GeneralPaginationState pgMarker) -> Sem r (PageWithState pgMarker pageItem)) ->
+  pgMarker ->
+  Int32 ->
+  Maybe (GeneralPaginationState pgMarker) ->
+  Sem r (PageWithState pgMarker pageItem)
+paginateOverCassandraAndPostgres getCasPage getPgPage pgStartingMarker pageSize mPagingState = do
+  let getPageFromCassandra = do
+        casPage <- getCasPage pageSize mPagingState
+        if pwsHasMore casPage
+          then pure casPage
+          else do
+            let casSize = fromIntegral (length casPage.pwsResults)
+                remainingSize = pageSize - casSize
+            if remainingSize > 0
+              then do
+                pgPage <- getPageFromPostgres remainingSize Nothing
+                pure
+                  PageWithState
+                    { pwsResults = casPage.pwsResults <> pgPage.pwsResults,
+                      pwsState = pgPage.pwsState
+                    }
+              else pure $ casPage {pwsState = Just (PaginationStatePostgres pgStartingMarker)}
+      getPageFromPostgres remainingSize mPgMarker =
+        getPgPage remainingSize (PaginationStatePostgres <$> mPgMarker)
+  case mPagingState of
+    Just (PaginationStatePostgres pgMarker) -> getPageFromPostgres pageSize (Just pgMarker)
+    _ -> getPageFromCassandra
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
