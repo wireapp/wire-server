@@ -118,6 +118,7 @@ data Env = Env
 
 data BackendNotificationMetrics = BackendNotificationMetrics
   { pushedCounter :: Vector Text Counter,
+    droppedUnsupportedVersionCounter :: Vector Text Counter,
     errorCounter :: Vector Text Counter,
     stuckQueuesGauge :: Vector Text Gauge
   }
@@ -130,6 +131,7 @@ mkBackendNotificationMetrics :: IO BackendNotificationMetrics
 mkBackendNotificationMetrics =
   BackendNotificationMetrics
     <$> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_pushed" "Number of notifications pushed")
+    <*> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_dropped_unsupported_version" "Number of notifications dropped because the target backend supports no compatible federation API version")
     <*> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_errors" "Number of errors that occurred while pushing notifications")
     <*> register (vector "targetDomain" $ gauge $ Prometheus.Info "wire_backend_notifications_stuck_queues" "Set to 1 when pushing notifications is stuck")
 

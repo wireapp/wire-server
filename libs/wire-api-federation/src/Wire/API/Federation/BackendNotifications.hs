@@ -75,6 +75,26 @@ instance ToSchema BackendNotification where
         <*> bodyVersions .= maybe_ (optField "bodyVersions" schema)
         <*> (.requestId) .= maybe_ (optField "requestId" schema)
 
+data UnsupportedVersionPolicy
+  = KeepQueued
+  | DropIfUnsupported
+  deriving stock (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON) via (Schema UnsupportedVersionPolicy)
+
+instance ToSchema UnsupportedVersionPolicy where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "keep_queued" KeepQueued,
+          element "drop_if_unsupported" DropIfUnsupported
+        ]
+
+-- Keeping the notification queued is the safe choice if representations
+-- configured with different policies are accidentally combined.
+instance Semigroup UnsupportedVersionPolicy where
+  DropIfUnsupported <> DropIfUnsupported = DropIfUnsupported
+  _ <> _ = KeepQueued
+
 -- | Convert a federation endpoint to a backend notification to be enqueued to a
 -- RabbitMQ queue.
 fedNotifToBackendNotif ::
@@ -104,17 +124,29 @@ fedNotifToBackendNotif rid ownDomain payload =
           requestId = Just rid
         }
 
-newtype PayloadBundle (c :: Component) = PayloadBundle
-  { notifications :: NE.NonEmpty BackendNotification
+data PayloadBundle (c :: Component) = PayloadBundle
+  { notifications :: NE.NonEmpty BackendNotification,
+    unsupportedVersionPolicy :: UnsupportedVersionPolicy
   }
   deriving (A.ToJSON, A.FromJSON) via (Schema (PayloadBundle c))
-  deriving newtype (Semigroup)
+  deriving stock (Eq, Show)
+
+instance Semigroup (PayloadBundle c) where
+  bundle1 <> bundle2 =
+    PayloadBundle
+      { notifications = bundle1.notifications <> bundle2.notifications,
+        unsupportedVersionPolicy = bundle1.unsupportedVersionPolicy <> bundle2.unsupportedVersionPolicy
+      }
 
 instance (Typeable c) => ToSchema (PayloadBundle c) where
   schema =
     object $
       PayloadBundle
         <$> notifications .= field "notifications" (nonEmptyArray schema)
+        <*> unsupportedVersionPolicy
+          .= fmap
+            (fromMaybe KeepQueued)
+            (optField "unsupportedVersionPolicy" schema)
 
 toBundle ::
   forall {k} (tag :: k).
@@ -130,7 +162,10 @@ toBundle ::
   PayloadBundle (NotificationComponent k)
 toBundle reqId originDomain payload =
   let notif = fedNotifToBackendNotif @tag reqId originDomain payload
-   in PayloadBundle . pure $ notif
+   in PayloadBundle
+        { notifications = pure notif,
+          unsupportedVersionPolicy = KeepQueued
+        }
 
 makeBundle ::
   forall {k} (tag :: k) c.
