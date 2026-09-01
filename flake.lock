@@ -249,23 +249,6 @@
         "type": "github"
       }
     },
-    "headroom": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1788175700,
-        "narHash": "sha256-7Pj8dP56vbFzx6SnjFpA2vRY/hDCNvx6yIyc2A2B7NU=",
-        "owner": "xwinus",
-        "repo": "headroom",
-        "rev": "010ed0ca68f0af9026bb613800cbeae80be6ebbd",
-        "type": "github"
-      },
-      "original": {
-        "owner": "xwinus",
-        "repo": "headroom",
-        "rev": "010ed0ca68f0af9026bb613800cbeae80be6ebbd",
-        "type": "github"
-      }
-    },
     "hsaml2": {
       "flake": false,
       "locked": {
@@ -409,7 +392,6 @@
         "flake-utils": "flake-utils",
         "hasql-migration": "hasql-migration",
         "hasql-resource-pool": "hasql-resource-pool",
-        "headroom": "headroom",
         "hsaml2": "hsaml2",
         "hspec-wai": "hspec-wai",
         "http-client": "http-client",
