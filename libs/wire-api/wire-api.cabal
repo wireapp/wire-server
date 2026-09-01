@@ -107,6 +107,7 @@ library
     Wire.API.Event.LeaveReason
     Wire.API.Event.Meeting
     Wire.API.Event.Team
+    Wire.API.Event.Transmit
     Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
@@ -716,6 +717,7 @@ test-suite wire-api-tests
     Paths_wire_api
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
+    Test.Wire.API.Event.Transmit
     Test.Wire.API.Meeting
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group

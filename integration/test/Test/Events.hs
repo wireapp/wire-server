@@ -595,7 +595,7 @@ testChannelLimit = withModifiedBackend
 
       -- the first client fails to connect because the server runs out of channels
       do
-        eithWS <- createEventsWebSocketEither alice (Just client0) Nothing
+        eithWS <- createEventsWebSocketEither alice (Just client0) Nothing Nothing
         case eithWS of
           Left (WS.MalformedResponse respHead _) ->
             lift $ respHead.responseCode `shouldMatchInt` 503
@@ -958,16 +958,21 @@ createEventWebSockets ::
   Codensity App [EventWebSocket]
 createEventWebSockets = traverse (uncurry createEventsWebSocket)
 
+requireConnectedWebSocket ::
+  (HasCallStack) =>
+  Either WS.HandshakeException EventWebSocket ->
+  Codensity App EventWebSocket
+requireConnectedWebSocket = \case
+  Left e -> lift $ assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
+  Right ws -> pure ws
+
 createEventsWebSocket ::
   (HasCallStack, MakesValue user) =>
   user ->
   Maybe String ->
   Codensity App EventWebSocket
-createEventsWebSocket user cid = do
-  eithWS <- createEventsWebSocketEither user cid Nothing
-  case eithWS of
-    Left e -> lift $ assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
-    Right ws -> pure ws
+createEventsWebSocket user cid =
+  createEventsWebSocketEither user cid Nothing Nothing >>= requireConnectedWebSocket
 
 createEventsWebSocketWithSync ::
   (HasCallStack, MakesValue user) =>
@@ -976,22 +981,32 @@ createEventsWebSocketWithSync ::
   Codensity App (String, EventWebSocket)
 createEventsWebSocketWithSync user cid = do
   syncMarker <- lift randomId
-  eithWS <- createEventsWebSocketEither user cid (Just syncMarker)
-  case eithWS of
+  createEventsWebSocketEither user cid (Just syncMarker) Nothing >>= \case
     Left e -> lift $ assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
     Right ws -> pure (syncMarker, ws)
+
+-- | 'createEventsWebSocket', but connecting at an explicit API version.
+createEventsWebSocketAtVersion ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  Maybe String ->
+  Int ->
+  Codensity App EventWebSocket
+createEventsWebSocketAtVersion user cid v =
+  createEventsWebSocketEither user cid Nothing (Just v) >>= requireConnectedWebSocket
 
 createEventsWebSocketEither ::
   (HasCallStack, MakesValue user) =>
   user ->
   Maybe String ->
   Maybe String ->
+  Maybe Int ->
   Codensity App (Either WS.HandshakeException EventWebSocket)
-createEventsWebSocketEither user cid mSyncMarker = do
+createEventsWebSocketEither user cid mSyncMarker mApiVersion = do
   eventsChan <- liftIO newChan
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
-  apiVersion <- lift $ getAPIVersionFor $ objDomain user
+  apiVersion <- maybe (lift $ getAPIVersionFor $ objDomain user) pure mApiVersion
   wsStarted <- newEmptyMVar
   let minAPIVersion = 8
   lift

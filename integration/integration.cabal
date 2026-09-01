@@ -196,6 +196,7 @@ library
     Test.MLS.Unreachable
     Test.NginxZAuthModule
     Test.Notifications
+    Test.NotificationsVersioned
     Test.OAuth
     Test.One2OneTeamConv
     Test.PasswordReset
