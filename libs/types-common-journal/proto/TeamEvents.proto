@@ -22,7 +22,9 @@ message TeamEvent {
         // are guaranteed to be present).
         //
         // for backwards compatibility, clients should make these
-        // fields optional, and assume '0' if missing.
+        // fields optional, and assume '0' if missing.  wire-server
+        // always sets these fields and never receives team events
+        // from clients, so we make the fields as "required".
         required int32  apps = 4;
         required int32  collaborators = 5;
     }
