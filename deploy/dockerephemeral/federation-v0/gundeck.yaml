@@ -26,7 +26,7 @@ redis:
 aws:
   queueName: integration-gundeck-events-federation-v0
   region: eu-west-1
-  account: "123456789012" # Default account nr used by localstack
+  account: "123456789012" # Default account number used by local AWS emulators
   arnEnv: integration
   sqsEndpoint: http://demo_wire_sqs:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://demo_wire_sns:4575 # https://sns.eu-west-1.amazonaws.com
