@@ -13,6 +13,14 @@ tags:
   integration: false
   proxy: false
 
+# OpenTelemetry configuration for services.
+# Set enabled: true to inject OTEL_* environment variables into service pods.
+otel:
+  enabled: false
+  endpoint: http://otel-collector:4318
+  protocol: http/protobuf
+  insecure: true
+
 galley:
   replicaCount: 3
   image:

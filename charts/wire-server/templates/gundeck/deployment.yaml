@@ -160,6 +160,18 @@ spec:
             value: {{ join "," .noProxyList | quote }}
           {{- end }}
           {{- end }} 
+          {{- if .Values.otel.enabled }}
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: {{ .Values.otel.endpoint | quote }}
+          - name: OTEL_EXPORTER_OTLP_PROTOCOL
+            value: {{ .Values.otel.protocol | quote }}
+          - name: OTEL_EXPORTER_OTLP_INSECURE
+            value: {{ .Values.otel.insecure | toString | quote }}
+          - name: OTEL_SERVICE_NAME
+            value: gundeck
+          - name: OTEL_TRACES_EXPORTER
+            value: otlp
+          {{- end }}
           ports:
             - containerPort: {{ .Values.gundeck.service.internalPort }}
           livenessProbe:
