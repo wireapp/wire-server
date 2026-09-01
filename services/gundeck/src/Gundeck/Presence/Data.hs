@@ -32,6 +32,8 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (Milliseconds (..))
 import Data.Text (pack, unpack)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.UUID (UUID)
 import Data.Vector qualified as Vector
 import Gundeck.Env (hasqlPool)
@@ -52,7 +54,7 @@ add p = do
   nowMs <- posixTime
   runPool $
     statement
-      (toUUID (userId p), connIdText (connId p), uriText (resource p), clientToText <$> clientId p, fromIntegral (ms nowMs))
+      (toUUID (userId p), connIdText (connId p), uriText (resource p), clientToText <$> clientId p, msToUtc (fromIntegral (ms nowMs)))
       upsertPresence
 
 -- | Read all presences of a single user.
@@ -84,10 +86,15 @@ listAll uu = do
 -- than the given one (a newer re-registration with the same conn id must not
 -- be deleted by a stale disconnect).
 deleteAll :: [Presence] -> Gundeck ()
-deleteAll pp = runPool $ for_ pp $ \p ->
-  statement
-    (toUUID (userId p), connIdText (connId p), fromIntegral (ms (createdAt p)))
-    deleteOne
+deleteAll [] = pure ()
+deleteAll pp =
+  runPool . statement params $ deleteMany
+  where
+    params =
+      ( Vector.fromList (toUUID . userId <$> pp),
+        Vector.fromList (connIdText . connId <$> pp),
+        Vector.fromList (msToUtc . fromIntegral . ms . createdAt <$> pp)
+      )
 
 -- | Delete presences older than a week.  Normal disconnects delete their
 -- presence rows; this only guards against leaks from abnormally dead pods
@@ -95,10 +102,18 @@ deleteAll pp = runPool $ for_ pp $ \p ->
 cleanup :: Gundeck ()
 cleanup = do
   nowMs <- posixTime
-  let cutoff = fromIntegral (ms nowMs - 7 * 24 * 60 * 60 * 1000) :: Int64
+  let cutoff = msToUtc (fromIntegral (ms nowMs - 7 * 24 * 60 * 60 * 1000))
   runPool $ statement cutoff deleteStale
 
 -- Helpers -------------------------------------------------------------------
+
+-- | Millis <-> UTC. Exact (milliseconds nest inside timestamptz's microseconds);
+-- do NOT reuse 'Gundeck.Monad.msToUTCSecs', it truncates to whole seconds.
+msToUtc :: Int64 -> UTCTime
+msToUtc p = posixSecondsToUTCTime (fromRational (fromIntegral p / 1000 :: Rational))
+
+utcToMs :: UTCTime -> Int64
+utcToMs = floor . (* 1000) . utcTimeToPOSIXSeconds
 
 newtype PresenceDbError = PresenceDbError Text deriving (Show)
 
@@ -115,45 +130,49 @@ connIdText = decodeUtf8 . fromConnId
 uriText :: URI -> Text
 uriText = decodeUtf8 . toByteString'
 
-readPresenceRow :: UUID -> Text -> Text -> Maybe Text -> Int64 -> Maybe Presence
+readPresenceRow :: UUID -> Text -> Text -> Maybe Text -> UTCTime -> Maybe Presence
 readPresenceRow u c r cl t = do
   uri <- parse (unpack r)
   cid <- traverse parseClient cl
-  pure (Presence (Id u) (ConnId (encodeUtf8 c)) uri cid (Ms (fromIntegral t)))
+  pure (Presence (Id u) (ConnId (encodeUtf8 c)) uri cid (Ms (fromIntegral (utcToMs t))))
   where
     parseClient = fromByteString . encodeUtf8
 
-upsertPresence :: Statement (UUID, Text, Text, Maybe Text, Int64) ()
+upsertPresence :: Statement (UUID, Text, Text, Maybe Text, UTCTime) ()
 upsertPresence =
   [resultlessStatement|
     INSERT INTO presence (user_id, conn_id, resource, client_id, created_at)
-    VALUES ($1 :: uuid, $2 :: text, $3 :: text, $4 :: text?, $5 :: int8)
+    VALUES ($1 :: uuid, $2 :: text, $3 :: text, $4 :: text?, $5 :: timestamptz)
     ON CONFLICT (user_id, conn_id) DO UPDATE
     SET resource = EXCLUDED.resource,
         client_id = EXCLUDED.client_id,
         created_at = EXCLUDED.created_at
   |]
 
-selectByUsers :: Statement (Vector.Vector UUID) (Vector.Vector (UUID, Text, Text, Maybe Text, Int64))
+selectByUsers :: Statement (Vector.Vector UUID) (Vector.Vector (UUID, Text, Text, Maybe Text, UTCTime))
 selectByUsers =
   [vectorStatement|
-    SELECT user_id :: uuid, conn_id :: text, resource :: text, client_id :: text?, created_at :: int8
+    SELECT user_id :: uuid, conn_id :: text, resource :: text, client_id :: text?, created_at :: timestamptz
     FROM presence
     WHERE user_id = ANY ($1 :: uuid[])
   |]
 
-deleteOne :: Statement (UUID, Text, Int64) ()
-deleteOne =
+-- | Compare-and-delete, in one round trip: only delete each stored presence
+-- if it is not newer than the given one (a newer re-registration with the
+-- same conn id must not be deleted by a stale disconnect).
+deleteMany :: Statement (Vector.Vector UUID, Vector.Vector Text, Vector.Vector UTCTime) ()
+deleteMany =
   [resultlessStatement|
-    DELETE FROM presence
-    WHERE user_id = ($1 :: uuid)
-      AND conn_id = ($2 :: text)
-      AND created_at <= ($3 :: int8)
+    DELETE FROM presence p
+    USING unnest($1 :: uuid[], $2 :: text[], $3 :: timestamptz[]) AS d (user_id, conn_id, created_at)
+    WHERE p.user_id = d.user_id
+      AND p.conn_id = d.conn_id
+      AND p.created_at <= d.created_at
   |]
 
-deleteStale :: Statement Int64 ()
+deleteStale :: Statement UTCTime ()
 deleteStale =
   [resultlessStatement|
     DELETE FROM presence
-    WHERE created_at < ($1 :: int8)
+    WHERE created_at < ($1 :: timestamptz)
   |]

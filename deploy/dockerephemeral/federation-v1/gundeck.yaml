@@ -13,14 +13,15 @@ cassandra:
   keyspace: gundeck_test_federation_v1
   # filterNodesByDatacentre: datacenter1
 
+redis:
+  host: redis-federation-v1
+  port: 6379
+  connectionMode: master
 
-
-postgresql:
-  host: postgres
-  port: "5432"
-  user: wire-server
-  dbname: backendA
-  password: posty-the-gres
+# redisAdditionalWrite:
+#   host: 127.0.0.1
+#   port: 6379
+#   connectionMode: master
 
 aws:
   queueName: integration-gundeck-events-federation-v1

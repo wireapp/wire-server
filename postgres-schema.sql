@@ -1520,7 +1520,7 @@ CREATE TABLE public.presence (
     conn_id text NOT NULL,
     resource text NOT NULL,
     client_id text,
-    created_at bigint NOT NULL
+    created_at timestamp with time zone NOT NULL
 );
 
 
@@ -2460,6 +2460,13 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: presence_created_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX presence_created_at_idx ON public.presence USING btree (created_at);
 
 
 --

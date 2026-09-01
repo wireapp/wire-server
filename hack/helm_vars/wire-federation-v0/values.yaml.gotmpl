@@ -205,12 +205,9 @@ gundeck:
     cassandra:
       host: cassandra-ephemeral
       replicaCount: 1
-    postgresql:
-      host: postgresql
-      port: "5432"
-      user: wire-server
-      dbname: backendA
-      password: posty-the-gres
+    redis:
+      host: redis-ephemeral
+      connectionMode: master
     aws:
       account: "123456789012"
       region: eu-west-1
