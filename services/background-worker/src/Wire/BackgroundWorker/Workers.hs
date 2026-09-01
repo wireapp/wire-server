@@ -36,14 +36,16 @@ import System.IO.Error (userError)
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
 import Wire.API.Jobs
+import Wire.ActivationKeysCleanupWorker (runCleanupExpiredActivationKeys)
 import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob, runAdminlessSetupJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
-import Wire.BackgroundWorker.Options (JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
+import Wire.BackgroundWorker.Options (ActivationKeysCleanupConfig (..), JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util
 import Wire.ExternalAccess.External
 import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Migrations (runJobMigrations)
 import Wire.MeetingsCleanupWorker
+import Wire.PostgresMigrationOpts (StorageLocation (..), activationKeys)
 
 -- | Runtime settings shared by every job runner in a process.
 --
@@ -68,12 +70,13 @@ data JobWorkerSettings = JobWorkerSettings
 data JobRunnerConfig registry = JobRunnerConfig
   { jobRunnerLogger :: Log.Logger,
     jobRunnerSchedule :: CronSchedule,
+    jobRunnerActivationKeysSchedule :: CronSchedule,
     jobRunnerSchemaName :: Text,
     jobRunnerSettings :: JobWorkerSettings
   }
 
-startWorker :: JobConfig -> MeetingsCleanupConfig -> AppT IO CleanupAction
-startWorker scheduledConfig meetingsCleanupConfig = do
+startWorker :: JobConfig -> MeetingsCleanupConfig -> ActivationKeysCleanupConfig -> AppT IO CleanupAction
+startWorker scheduledConfig meetingsCleanupConfig activationKeysCleanupConfig = do
   env <- ask
   extEnv <- liftIO $ initExtEnv True
   let cleanupConfig =
@@ -100,6 +103,7 @@ startWorker scheduledConfig meetingsCleanupConfig = do
         JobRunnerConfig
           { jobRunnerLogger = env.logger,
             jobRunnerSchedule = meetingsCleanupConfig.schedule,
+            jobRunnerActivationKeysSchedule = activationKeysCleanupConfig.schedule,
             jobRunnerSchemaName = ArbiterCore.defaultSchemaName,
             jobRunnerSettings = workerSettings
           } ::
@@ -119,10 +123,10 @@ toJobJitter = \case
 -- | Start the worker pools for the job queues.
 --
 -- Each domain queue has its own Arbiter table and worker pool. The meetings
--- pool owns the recurring cleanup cron job, while the conversations pool owns
--- the adminless one-off jobs. Both pools are supervised by Arbiter's
--- multi-pool runner, so they share the process lifecycle without sharing a
--- payload type or queue.
+-- pool and the activation-keys pool each own a recurring cleanup cron job,
+-- while the conversations pool owns the adminless one-off jobs. All pools are
+-- supervised by Arbiter's multi-pool runner, so they share the process
+-- lifecycle without sharing a payload type or queue.
 runJobRunner ::
   Env ->
   ExtEnv ->
@@ -132,8 +136,9 @@ runJobRunner ::
 runJobRunner env extEnv runnerConfig cleanupConfig = do
   Log.info runnerConfig.jobRunnerLogger $
     Log.msg (Log.val "Starting job worker")
-      . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
+      . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName, activationKeysQueueName])
       . Log.field "schedule" (show runnerConfig.jobRunnerSchedule)
+      . Log.field "activation_keys_schedule" (show runnerConfig.jobRunnerActivationKeysSchedule)
 
   let arbiterEnv = mkNewWireArbiterEnv runnerConfig.jobRunnerSchemaName env.hasqlPool
       meetingsWorkerHandler _conn job = liftIO $ do
@@ -154,6 +159,14 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           AdminlessDeletion payload -> runAppT env $ runAdminlessDeletionJob extEnv (mapJobPayload (const payload) job)
           AdminlessReminder payload -> runAppT env $ runAdminlessReminderJob extEnv (mapJobPayload (const payload) job)
 
+      activationKeysWorkerHandler _conn job = liftIO $ do
+        Log.info runnerConfig.jobRunnerLogger $
+          Log.msg (Log.val "Running job")
+            . Log.field "queue_name" activationKeysQueueName
+            . Log.field "payload_type" (activationKeysJobPayloadTypeName job.payload)
+        case job.payload of
+          ActivationKeysCleanup _ -> runAppT env $ runCleanupExpiredActivationKeys
+
   cronJob <- case ArbiterWorkerCron.cronJob
     "meetings-cleanup"
     (serializeCronSchedule runnerConfig.jobRunnerSchedule)
@@ -165,6 +178,19 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           }
     ) of
     Left err -> throwIO . userError $ "Invalid cron schedule for meetings-cleanup: " <> err
+    Right job -> pure job
+
+  activationKeysCronJob <- case ArbiterWorkerCron.cronJob
+    "activation-keys-cleanup"
+    (serializeCronSchedule runnerConfig.jobRunnerActivationKeysSchedule)
+    ArbiterWorkerCron.SkipOverlap
+    ( \_ scheduledFor ->
+        (ArbiterCore.defaultGroupedJob "activation-keys-cleanup" (ActivationKeysCleanup ActivationKeysCleanupJob))
+          { ArbiterCore.notVisibleUntil = Just scheduledFor,
+            ArbiterCore.maxAttempts = Just 3
+          }
+    ) of
+    Left err -> throwIO . userError $ "Invalid cron schedule for activation-keys-cleanup: " <> err
     Right job -> pure job
 
   meetingsWorkerConfig <-
@@ -189,6 +215,17 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           )
     )
 
+  activationKeysWorkerConfig <-
+    ( ArbiterWorker.transactionalWorkerConfig
+        runnerConfig.jobRunnerSettings.jobWorkerThreads
+        activationKeysWorkerHandler ::
+        IO
+          ( ArbiterWorker.WorkerConfig
+              (WireArbiter JobRegistry)
+              ActivationKeysJobPayload
+          )
+    )
+
   let meetingsWorkerConfig' =
         applyExplicitDefaults
           runnerConfig.jobRunnerSettings
@@ -199,9 +236,20 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
         applyExplicitDefaults
           runnerConfig.jobRunnerSettings
           conversationsWorkerConfig
+      activationKeysWorkerConfig' =
+        applyExplicitDefaults
+          runnerConfig.jobRunnerSettings
+          activationKeysWorkerConfig
+            { ArbiterWorkerConfig.cronJobs = case activationKeys env.postgresMigration of
+                -- In cassandra mode the Cassandra TTL already expires rows,
+                -- so no cleanup cron is registered.
+                CassandraStorage -> []
+                _ -> [activationKeysCronJob]
+            }
       workerPools =
         [ ArbiterWorker.namedWorkerPool meetingsWorkerConfig',
-          ArbiterWorker.namedWorkerPool conversationsWorkerConfig'
+          ArbiterWorker.namedWorkerPool conversationsWorkerConfig',
+          ArbiterWorker.namedWorkerPool activationKeysWorkerConfig'
         ]
 
   workerAsync <-
@@ -222,6 +270,10 @@ conversationsJobPayloadTypeName = \case
   AdminlessSetup _ -> "adminless_setup"
   AdminlessDeletion _ -> "adminless_deletion"
   AdminlessReminder _ -> "adminless_reminder"
+
+activationKeysJobPayloadTypeName :: ActivationKeysJobPayload -> Text
+activationKeysJobPayloadTypeName = \case
+  ActivationKeysCleanup _ -> "activation_keys_cleanup"
 
 mapJobPayload :: (a -> b) -> ArbiterCore.JobRead a -> ArbiterCore.JobRead b
 mapJobPayload f job =

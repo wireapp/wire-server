@@ -39,10 +39,12 @@ import Data.Data (Proxy (Proxy))
 import Data.OpenApi (ToParamSchema)
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text (pack)
 import Data.Text.Ascii
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.Locale
+import Wire.API.PostgresMarshall
 import Wire.API.User.Identity
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -76,6 +78,12 @@ instance FromHttpApiData ActivationKey where
 
 deriving instance C.Cql ActivationKey
 
+instance PostgresMarshall Text ActivationKey where
+  postgresMarshall = toText . fromActivationKey
+
+instance PostgresUnmarshall Text ActivationKey where
+  postgresUnmarshall = bimap pack ActivationKey . validateBase64Url
+
 --------------------------------------------------------------------------------
 -- ActivationCode
 
@@ -100,6 +108,12 @@ deriving instance C.Cql ActivationCode
 
 -- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
 type ActivationPair = (ActivationKey, ActivationCode)
+
+instance PostgresMarshall Text ActivationCode where
+  postgresMarshall = toText . fromActivationCode
+
+instance PostgresUnmarshall Text ActivationCode where
+  postgresUnmarshall = bimap pack ActivationCode . validateBase64Url
 
 --------------------------------------------------------------------------------
 -- Activate
