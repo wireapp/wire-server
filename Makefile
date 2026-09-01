@@ -317,6 +317,30 @@ upload-hoogle-image:
 	nix -v --show-trace -L build ".#wireServer.hoogleImage" --out-link $(HOOGLE_IMAGE_DIR)/image --fallback
 	./hack/bin/upload-image.sh $(HOOGLE_IMAGE_DIR)/image
 
+# Envoy proxy image linked against AWS-LC instead of BoringSSL, so the Gateway
+# can offer the SecP256r1MLKEM768 / SecP384r1MLKEM1024 post-quantum key
+# agreement groups named by BSI TR-02102-2, which BoringSSL does not implement.
+#
+# Unlike every other image here this is not built by nix: the AWS-LC genrule
+# needs Bazel's own downloaded LLVM toolchain plus pinned cmake/ninja/go, which
+# nixpkgs' Envoy derivation patches out. It drives Envoy's build container
+# instead — expect a multi-hour build and ~60G of disk.
+#
+# ENVOY_VERSION must match the Envoy your Envoy Gateway ships, since Envoy
+# Gateway generates bootstrap config for a specific version.
+# See hack/envoy-aws-lc/README.md and charts/wire-ingress/README.md.
+#
+#   make build-envoy-aws-lc-image
+#   make build-envoy-aws-lc-image PUSH=1 ENVOY_VERSION=v1.39.0
+ENVOY_VERSION ?= v1.38.3
+
+.PHONY: build-envoy-aws-lc-image
+build-envoy-aws-lc-image:
+	ENVOY_VERSION=$(ENVOY_VERSION) \
+	IMAGE=$(DOCKER_USER)/envoy-aws-lc \
+	PUSH=$(PUSH) \
+	./hack/envoy-aws-lc/build.sh
+
 #################################
 ## cassandra / postgres management
 

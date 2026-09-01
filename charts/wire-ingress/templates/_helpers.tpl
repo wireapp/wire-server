@@ -206,3 +206,88 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp = printf "%s upgrade-insecure-requests" $csp -}}
 {{- $csp -}}
 {{- end -}}
+
+{{/*
+TLS parameters shared by every ClientTrafficPolicy this chart renders.
+
+These constrain what Envoy will negotiate with clients, and exist so the
+deployment can stay conformant with BSI TR-02102-2 ("Cryptographic Mechanisms:
+Recommendations and Key Lengths — Part 2: Use of Transport Layer Security"),
+which the nginx-based ingress used to enforce via the `ssl-protocols`,
+`ssl-ciphers` and `ssl_conf_command Ciphersuites` settings of
+`charts/ingress-nginx-controller`.
+
+Emits the `minVersion` / `maxVersion` / `ciphers` / `ecdhCurves` /
+`signatureAlgorithms` keys of an Envoy Gateway `ClientTrafficPolicy`
+`spec.tls`, unindented. Call with the root context and `nindent` the result.
+
+Renders nothing when `gateway.tls.enabled` is false; callers guard on that so
+they do not emit a stray blank line.
+*/}}
+{{- define "wire-ingress.tlsParameters" -}}
+{{- $tls := .Values.gateway.tls -}}
+{{- if $tls.enabled -}}
+{{- $minVersion := $tls.minVersion | default "" | toString -}}
+{{- $lib := $tls.sslLibrary | default "boringssl" -}}
+{{- if not (has $lib (list "boringssl" "aws-lc" "openssl")) -}}
+{{- fail (printf "gateway.tls.sslLibrary: %q is not one of boringssl, aws-lc, openssl" $lib) -}}
+{{- end -}}
+{{- if $minVersion }}
+minVersion: {{ $minVersion | quote }}
+{{- end }}
+{{- if $tls.maxVersion }}
+maxVersion: {{ $tls.maxVersion | toString | quote }}
+{{- end }}
+{{- /*
+`ciphers` only applies to TLS 1.0-1.2 — TLS 1.3 suites are fixed by BoringSSL
+and cannot be selected. Envoy Gateway rejects the resource outright (CEL
+validation) if `ciphers` is set alongside `minVersion: "1.3"`, so drop it.
+*/ -}}
+{{- if and $tls.ciphers (ne $minVersion "1.3") }}
+ciphers:
+  {{- range $tls.ciphers }}
+  - {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- if $tls.ecdhCurves }}
+{{- /*
+Envoy joins this list with ":" and hands it to SSL_CTX_set1_curves_list; if the
+linked crypto library does not know a name, the whole listener is rejected and
+the only trace is a line in the proxy log. Which names exist depends on how the
+proxy image was built, so validate against the library named in
+gateway.tls.sslLibrary. Unknown names are passed through — new groups appear
+faster than this chart is updated — but a name that some OTHER library supports
+is almost certainly a mismatch between the value and the running image.
+*/ -}}
+{{- $groups := dict
+    "boringssl" (list "P-224" "P-256" "P-384" "P-521" "X25519" "X25519Kyber768Draft00" "X25519MLKEM768" "MLKEM1024")
+    "aws-lc" (list "P-224" "P-256" "P-384" "P-521" "X25519" "SecP256r1MLKEM768" "X25519MLKEM768" "SecP384r1MLKEM1024" "MLKEM512" "MLKEM768" "MLKEM1024") -}}
+{{- if hasKey $groups $lib }}
+{{- $ok := index $groups $lib }}
+{{- $anyLib := concat (index $groups "boringssl") (index $groups "aws-lc") }}
+{{- range $curve := $tls.ecdhCurves }}
+{{- if and (has $curve $anyLib) (not (has $curve $ok)) }}
+{{- fail (printf "gateway.tls.ecdhCurves: %q is not implemented by %s, which gateway.tls.sslLibrary says the proxy image links against — Envoy would reject the listener at config load. SecP256r1MLKEM768 and SecP384r1MLKEM1024, the hybrid groups TR-02102-2 intends to recommend, exist only in AWS-LC: run an Envoy built with `--config=aws-lc-fips` and set gateway.tls.sslLibrary: aws-lc. On the stock BoringSSL image the only hybrid available is X25519MLKEM768. See the chart README." $curve $lib) }}
+{{- end }}
+{{- if not (has $curve $anyLib) }}
+{{- range $known := $anyLib }}
+{{- if eq (lower $curve) (lower $known) }}
+{{- fail (printf "gateway.tls.ecdhCurves: %q is spelled wrong — these are crypto-library group names and are case sensitive. Use %q. (Note the NIST curves are P-256 / P-384 / P-521, not secp256r1 / secp384r1 / secp521r1.)" $curve $known) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+ecdhCurves:
+  {{- range $tls.ecdhCurves }}
+  - {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- if $tls.signatureAlgorithms }}
+signatureAlgorithms:
+  {{- range $tls.signatureAlgorithms }}
+  - {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+{{- end -}}
