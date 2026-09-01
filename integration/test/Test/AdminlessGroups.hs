@@ -25,6 +25,7 @@ import Control.Concurrent (threadDelay)
 import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
+import Testlib.Assertions
 import Testlib.Prelude
 
 testOnLastAdminLeaveReturnEligibleMembers :: (HasCallStack) => App ()
@@ -634,6 +635,55 @@ testOnLastAdminSelfDeletionAutopromotes = do
       resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
       members <- resp.json %. "members.others" & asList
       shouldBeEmpty members
+
+testAdminlessWithFederation :: (HasCallStack) => App ()
+testAdminlessWithFederation = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  (bob, _, _) <- createTeam OtherDomain 1
+  connectTwoUsers alice bob
+
+  setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [bob]
+  convId <- objQidObject conv
+
+  withWebSocket bob $ \wsBob -> do
+    -- consume all events
+    eventually $ shouldBeNull $ awaitAnyEvent 1 wsBob
+
+    -- alice leaves the conv
+    removeMember alice conv alice >>= assertSuccess
+
+    -- bob gets the conversation.member-leave event
+    void $ awaitMatch isConvLeaveNotif wsBob
+    -- and conversation.mls-message-add event
+    void $ awaitMatch isNewMLSMessageNotif wsBob
+
+    -- the remote user can see the conversation
+    void $ listConversations bob [convId] >>= getJSON 200 >>= (%. "found") >>= asList >>= assertOne
+    getConversation bob convId >>= assertSuccess
+    -- configure to delete right away, no reminders
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+
+    -- but he does not get the conversation.delete event
+    -- (because without sender it is not supported by federation yet)
+    assertNoEvent 5 wsBob
+
+    -- assert that the conversation is gone via internal endpoint
+    eventually $ GalleyI.getConversation conv >>= assertStatus 404
+
+    -- after the conversation is deleted
+    -- the id is still listed for bob
+    ids <- listConversationIds bob def >>= getJSON 200 >>= (%. "qualified_conversations") >>= asList
+    ids `shouldContain` [convId]
+    -- however it is not in the result of /conversations/list-ids
+    shouldBeEmpty $ listConversations bob [convId] >>= getJSON 200 >>= (%. "found") >>= asList
+    -- and GET /conversations/... returns 404
+    getConversation bob convId >>= assertStatus 404
 
 -----------------------------------------------------------------------------------------------------------------------------
 -- UTILS
