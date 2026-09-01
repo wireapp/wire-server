@@ -579,30 +579,29 @@ testAppReceivesMemberJoinNotification = do
 testTeamSizeWithApps :: (HasCallStack) => TaggedBool "test internal api" -> App ()
 testTeamSizeWithApps (TaggedBool testInternalApi) = do
   domain <- make OwnDomain
-  numRegulars <- liftIO $ randomRIO (1 :: Int, 3)
+  numRegulars <- liftIO $ randomRIO (2 :: Int, 4)
   numApps <- liftIO $ randomRIO (1 :: Int, 3)
 
-  (owner, tid, extraMembers) <- createTeam domain (numRegulars + 1)
+  (owner, tid, extraMembers) <- createTeam domain numRegulars
 
   apps <- replicateM numApps $ bindResponse (createApp owner tid def) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
   let checkSize :: (HasCallStack) => Int -> Int -> App ()
-      checkSize wantRegulars wantApps =
-        (if testInternalApi then BrigI.getTeamSize else Brig.getTeamSize) owner tid `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
-          resp.json %. "teamSize" `shouldMatchInt` (1 + wantRegulars + wantApps)
-          resp.json %. "teamSizeRegulars" `shouldMatchInt` (1 + wantRegulars)
-          resp.json %. "teamSizeApps" `shouldMatchInt` wantApps
+      checkSize wantRegulars wantApps = do
+        BrigI.refreshIndex domain
+        eventually $ do
+          (if testInternalApi then BrigI.getTeamSize else Brig.getTeamSize) owner tid `bindResponse` \resp -> do
+            resp.status `shouldMatchInt` 200
+            resp.json %. "teamSize" `shouldMatchInt` wantRegulars
+            resp.json %. "apps" `shouldMatchInt` wantApps
+            resp.json %. "collaborators" `shouldMatchInt` 0
 
-  BrigI.refreshIndex domain
-  eventually $ do
-    checkSize numRegulars numApps
+  checkSize numRegulars numApps
 
   deleteTeamMember tid owner (head apps) >>= assertSuccess
-  deleteTeamMember tid owner (head extraMembers) >>= assertSuccess
+  checkSize numRegulars (numApps - 1)
 
-  BrigI.refreshIndex domain
-  eventually $ do
-    checkSize (numRegulars - 1) (numApps - 1)
+  deleteTeamMember tid owner (head extraMembers) >>= assertSuccess
+  checkSize (numRegulars - 1) (numApps - 1)
