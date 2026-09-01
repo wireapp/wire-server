@@ -2282,6 +2282,12 @@ migrationOptions:
   # Required migration timeout for a single migration attempt.
   timeout: 5s
 
+# Background jobs consumer
+backgroundJobs:
+  concurrency: 8     # in-flight jobs per process
+  jobTimeout: 60s    # per attempt
+  maxAttempts: 3     # total attempts incl. first run
+
 # Jobs
 jobs:
   pollInterval: 5s   # how often due jobs are discovered
@@ -2316,11 +2322,13 @@ The job runner uses polling rather than LISTEN/NOTIFY. It therefore does not
 open a separate listener connection; new jobs are discovered according to
 `jobs.pollInterval`.
 
-`jobs` configures the Arbiter-backed PostgreSQL job queues (meetings,
-conversations, and user groups), covering immediate and scheduled or recurring
-jobs, and controls their dispatcher, worker-pool, visibility, retry, and
-reaper behavior. User-group synchronization jobs run on the `user-groups`
-queue; jobs for the same user group are serialized via their group key.
+`jobs` configures the Arbiter-backed PostgreSQL queues (meetings, conversations,
+and user groups), covering immediate and scheduled or recurring jobs, and
+controls their dispatcher, worker-pool, visibility, retry, and reaper behavior.
+`backgroundJobs` configures the legacy RabbitMQ consumer, which this release
+keeps only to drain `background-jobs` queue entries still published by the
+previous release's brig; brig no longer publishes to RabbitMQ, so the queue
+only shrinks, and the consumer will be removed in the next release.
 
 # Required for addressing local vs remote backends
 federationDomain: example.org
@@ -2357,6 +2365,7 @@ Notes
 - RabbitMQ admin fields (`adminHost`, `adminPort`) are templated only when `config.enableFederation` is true.
 - In the Helm charts, `background-worker` reads `postgresMigration` from `galley.config.postgresMigration`.
 - The `migrate...` flags control the corresponding PostgreSQL backfill jobs for the current migration settings; leave them `false` for new installs and after migration.
+- `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the legacy RabbitMQ `background-jobs` consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
 - `jobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
 - `jobs.pollInterval` controls how often the background worker wakes up to check for due jobs.

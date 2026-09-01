@@ -17,6 +17,8 @@ library
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Health
+    Wire.BackgroundWorker.Jobs.Consumer
+    Wire.BackgroundWorker.Jobs.Registry
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.BackgroundWorker.Workers
@@ -44,8 +46,10 @@ library
     , cassandra-util
     , containers
     , cron
+    , data-timeout
     , exceptions
     , extended
+    , extra
     , galley-types
     , hasql-resource-pool
     , HsOpenSSL

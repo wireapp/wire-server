@@ -57,7 +57,8 @@ data Opts = Opts
     migrateDomainRegistration :: !Bool,
     migrateUsers :: !Bool,
     jobs :: JobConfig,
-    meetingsCleanup :: MeetingsCleanupConfig
+    meetingsCleanup :: MeetingsCleanupConfig,
+    backgroundJobs :: BackgroundJobsConfig
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts
@@ -88,6 +89,17 @@ instance FromJSON RabbitMqOpts where
       <$> ( (Right <$> parseJSON v)
               <|> (Left <$> parseJSON v)
           )
+
+data BackgroundJobsConfig = BackgroundJobsConfig
+  { -- | Maximum parallel jobs processed by this process
+    concurrency :: Range 1 1000 Int,
+    -- | Per-attempt timeout (seconds)
+    jobTimeout :: Duration,
+    -- | Total attempts including first run
+    maxAttempts :: Range 1 1000 Int
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON) via Generically BackgroundJobsConfig
 
 data JobConfig = JobConfig
   { -- | Arbiter dispatcher poll interval for jobs.

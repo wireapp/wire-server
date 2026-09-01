@@ -355,7 +355,14 @@ spec = do
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+          backgroundJobsConfig =
+            BackgroundJobsConfig
+              { concurrency = toRange (Proxy @1),
+                jobTimeout = Duration 100,
+                maxAttempts = toRange (Proxy @3)
+              }
           hasqlPool = undefined
+          amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
           postgresMigration =
@@ -412,7 +419,14 @@ spec = do
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+          backgroundJobsConfig =
+            BackgroundJobsConfig
+              { concurrency = toRange (Proxy @1),
+                jobTimeout = Duration 100,
+                maxAttempts = toRange (Proxy @3)
+              }
           hasqlPool = undefined
+          amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
           postgresMigration =

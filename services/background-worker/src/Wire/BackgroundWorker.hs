@@ -29,6 +29,7 @@ import Servant.Server.Generic
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util.Options
 import Wire.BackendNotificationPusher qualified as BackendNotificationPusher
+import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Options
@@ -88,10 +89,14 @@ run opts galleyOpts = do
     runAppT env $
       withNamedLogger "job-runner" $
         Workers.startWorker opts.jobs opts.meetingsCleanup
+  cleanupJobs <-
+    runAppT env $
+      withNamedLogger "background-job-consumer" $
+        Jobs.startWorker amqpEP
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,)
+            (,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -100,6 +105,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupJobRunner
+              <*> Concurrently cleanupJobs
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   let settings = newSettings server

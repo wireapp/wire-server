@@ -56,6 +56,12 @@ data:
     backgroundWorker:
       host: background-worker.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
+      # Background jobs defaults for integration tests
+      backgroundJobs:
+        concurrency: 4
+        jobTimeout: 5s
+        maxAttempts: 3
+
     stern:
       host: stern.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080

@@ -22,6 +22,8 @@ module Test.Wire.Util where
 import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Misc
+import Data.Proxy
+import Data.Range
 import Data.Secret (secretText)
 import Imports
 import Network.HTTP.Client hiding (Proxy)
@@ -60,7 +62,14 @@ testEnv = do
       rabbitmqVHost = undefined
       defederationTimeout = responseTimeoutNone
       backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+      backgroundJobsConfig =
+        BackgroundJobsConfig
+          { concurrency = toRange (Proxy @1),
+            jobTimeout = Duration 100,
+            maxAttempts = toRange (Proxy @3)
+          }
       hasqlPool = undefined
+      amqpJobsPublisherChannel = undefined
       amqpBackendNotificationsChannel = undefined
       federationDomain = Domain "local"
       gundeckEndpoint = undefined

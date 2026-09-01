@@ -15,8 +15,10 @@
 , containers
 , cron
 , data-default
+, data-timeout
 , exceptions
 , extended
+, extra
 , federator
 , galley-types
 , hasql-resource-pool
@@ -75,8 +77,10 @@ mkDerivation {
     cassandra-util
     containers
     cron
+    data-timeout
     exceptions
     extended
+    extra
     galley-types
     hasql-resource-pool
     HsOpenSSL

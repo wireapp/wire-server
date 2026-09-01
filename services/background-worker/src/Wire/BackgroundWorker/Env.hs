@@ -64,12 +64,14 @@ type IsWorking = Bool
 data Worker
   = BackendNotificationPusher
   | DeadUserNotificationWatcher
+  | BackgroundJobConsumer
   deriving (Eq, Ord)
 
 workerName :: Worker -> Text
 workerName = \case
   BackendNotificationPusher -> "backend-notification-pusher"
   DeadUserNotificationWatcher -> "dead-user-notification-watcher"
+  BackgroundJobConsumer -> "background-job-consumer"
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -82,6 +84,7 @@ data Env = Env
     backendNotificationMetrics :: BackendNotificationMetrics,
     meetingsCleanupMetrics :: MeetingsCleanupMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
+    backgroundJobsConfig :: BackgroundJobsConfig,
     workerRunningGauge :: Vector Text Gauge,
     statuses :: IORef (Map Worker IsWorking),
     cassandra :: ClientState,
@@ -90,7 +93,8 @@ data Env = Env
     hasqlPool :: Hasql.Pool,
     -- May contain the PostgreSQL password. Do not unwrap outside the Arbiter boundary.
     arbiterConnStr :: SecretText,
-    -- Dedicated AMQP channel per concern
+    -- Dedicated AMQP channels per concern
+    amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
     federationDomain :: Domain,
     postgresMigration :: PostgresMigrationOpts,
@@ -166,11 +170,13 @@ mkEnv opts galleyOpts = do
   statuses <-
     newIORef $
       Map.fromList
-        [ (BackendNotificationPusher, False)
+        [ (BackendNotificationPusher, False),
+          (BackgroundJobConsumer, False)
         ]
   backendNotificationMetrics <- mkBackendNotificationMetrics
   meetingsCleanupMetrics <- mkMeetingsCleanupMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
+      backgroundJobsConfig = opts.backgroundJobs
       federationDomain = galleyOpts._settings._federationDomain
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
@@ -189,6 +195,10 @@ mkEnv opts galleyOpts = do
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   arbiterConnStr <- mkArbiterConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword
+  Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
+  amqpJobsPublisherChannel <-
+    mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
+      either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-backend-notifications..."
   amqpBackendNotificationsChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
