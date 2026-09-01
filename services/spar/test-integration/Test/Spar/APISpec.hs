@@ -1685,22 +1685,25 @@ specReAuthSsoUserWithPassword =
           newClientVerificationCode = Nothing
         }
 
-    deleteClient :: (MonadIO m, MonadReader TestEnv m) => BrigReq -> UserId -> ClientId -> Maybe Text -> Int -> m ()
-    deleteClient brig u c pw expectedStatus =
-      void $
-        call $
-          delete $
-            brig
-              . paths ["clients", toByteString' c]
-              . zUser u
-              . zConn "conn"
-              . contentJson
-              . body payload
-              . expectStatus ((==) expectedStatus)
+    deleteClient :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => BrigReq -> UserId -> ClientId -> Maybe Text -> Int -> m ()
+    deleteClient brig u c pw expectedStatus = do
+      resp <-
+        retryNUntil transientRetries (\r -> statusCode r `notElem` transientStatuses) $
+          call $
+            delete $
+              brig
+                . paths ["clients", toByteString' c]
+                . zUser u
+                . zConn "conn"
+                . contentJson
+                . body payload
+      liftIO $ statusCode resp `shouldBe` expectedStatus
       where
         payload =
           RequestBodyLBS . encode . object . maybeToList $
             fmap ("password" .=) pw
+        transientStatuses = [500, 502, 503, 504]
+        transientRetries = 10
 
 ----------------------------------------------------------------------
 -- tests for bsi audit
