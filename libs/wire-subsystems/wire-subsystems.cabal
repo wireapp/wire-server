@@ -417,6 +417,9 @@ library
     Wire.ParseException
     Wire.PasswordResetCodeStore
     Wire.PasswordResetCodeStore.Cassandra
+    Wire.PasswordResetCodeStore.DualWrite
+    Wire.PasswordResetCodeStore.Migration
+    Wire.PasswordResetCodeStore.Postgres
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.Postgres

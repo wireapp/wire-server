@@ -2151,12 +2151,14 @@ galley:
       teamFeatures: postgresql
       domainRegistration: postgresql
       user: postgresql
+      passwordReset: postgresql
 background-worker:
   config:
     migrateConversations: false
     migrateConversationCodes: false
     migrateTeamFeatures: false
     migrateDomainRegistration: false
+    migratePasswordReset: false
 ```
 
 #### Migration for existing installations
@@ -2187,6 +2189,7 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
+- `passwordReset` -> `migratePasswordReset`
 
 **Migration pattern per migration setting**
 
@@ -2206,12 +2209,14 @@ The current settings and their background-worker flags are:
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
          domainRegistration: cassandra
+         passwordReset: cassandra
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migratePasswordReset: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2226,6 +2231,7 @@ The current settings and their background-worker flags are:
        migrateConversationCodes: true
        migrateTeamFeatures: true
        migrateDomainRegistration: true
+       migratePasswordReset: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2241,6 +2247,7 @@ The current settings and their background-worker flags are:
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
+   - `passwordReset`: `wire_password_reset_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2254,12 +2261,14 @@ The current settings and their background-worker flags are:
          conversationCodes: postgresql
          teamFeatures: postgresql
          domainRegistration: cassandra
+         passwordReset: cassandra
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migratePasswordReset: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2348,6 +2357,7 @@ migrateConversations: false
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
+migratePasswordReset: false
 
 # migration settings
 migrationOptions:

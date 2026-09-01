@@ -84,6 +84,7 @@ data:
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
+    migratePasswordReset: {{ .migratePasswordReset }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
