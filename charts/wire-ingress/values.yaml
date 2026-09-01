@@ -5,10 +5,17 @@ httpRoute:
 
 gateway:
   # If true, a Gateway resource is created by this chart.
-  # If false, set gateway.name to reference an existing Gateway.
+  # The chart always creates a ListenerSet and Routes attach to it.
+  # If false, set gateway.name and optionally gateway.namespace to reference an
+  # existing parent Gateway.
   create: true
-  # Name of the Gateway. Defaults to <release-name>-wire-ingress-gateway if empty.
+  # Name of the parent Gateway. Defaults to <release-name>-wire-ingress-gateway
+  # if empty.
   name: ""
+  # Namespace of the parent Gateway. Defaults to the release namespace when
+  # empty. Only needed when referencing an existing Gateway in another
+  # namespace.
+  namespace: ""
   # Name of the GatewayClass installed by the Envoy Gateway controller.
   className: ""
   envoyProxy:
@@ -28,6 +35,10 @@ gateway:
     # Free-form EnvoyProxy spec, merged verbatim at the spec root.
     # Only used when create: true.
     # See https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec
+    # The chart also injects a safe default access log format that strips query
+    # strings, so access_token query params never appear in Envoy logs.
+    # Override gateway.envoyProxy.spec.telemetry.accessLog here if you need a
+    # custom format or different sinks.
     # Example - shared load balancer across Gateways (single wire-ingress chart):
     #   spec:
     #     mergeGateways: true
@@ -58,13 +69,16 @@ gateway:
     annotations: {}
   # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
   # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
-  # ClientTrafficPolicy targeting the Gateway.
+  # ClientTrafficPolicy targeting the parent Gateway (which applies to the
+  # ListenerSet listeners; Envoy Gateway does not allow targeting a ListenerSet
+  # directly).
   proxyProtocol:
     enabled: false
     # If true, connections without a PROXY protocol header are also accepted.
     # Use this only if some traffic bypasses the load balancer (e.g. direct node access).
     optional: false
   listeners:
+    # Listener configuration owned by the release's ListenerSet.
     https:
       port: 443
       # Required. Hostname restriction for the HTTPS listener.
@@ -77,8 +91,11 @@ gateway:
       # Gateway object with multiple listeners. See the Gateway API docs.
       hostname: ""
     # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
-    # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
-    # See the README for configuration details.
+    # gatewayHTTPRoute solver. The chart also annotates the generated Certificate with
+    # acme.cert-manager.io/http01-parentreffallback: "true" so cert-manager can attach
+    # the challenge HTTPRoute via the parent Gateway when using ListenerSet support.
+    # The parent Gateway must allow HTTPRoutes from the release namespace.
+    # See the README for configuration details and cert-manager version requirements.
     http:
       enabled: false
       port: 80
@@ -88,7 +105,9 @@ gateway:
   # ALPN configuration for HTTP/2 support with multiple listeners.
   # When using multiple listeners with overlapping certificate SANs,
   # Envoy Gateway may downgrade to HTTP/1.1. This ClientTrafficPolicy
-  # explicitly configures ALPN to allow HTTP/2.
+  # explicitly configures ALPN. It targets the parent Gateway, which applies
+  # to every listener including those contributed by the ListenerSet (Envoy
+  # Gateway does not allow targeting a ListenerSet directly).
   alpn:
     enabled: true
     protocols:
@@ -102,7 +121,8 @@ gateway:
     # Set to true when the GatewayClass uses mergeGateways: true.
     # With mergeGateways, EnvoyPatchPolicy must target the GatewayClass
     # rather than the individual Gateway. Default false targets the Gateway,
-    # which is correct for single-Gateway (non-merged) deployments.
+    # which is correct for single-Gateway (non-merged) deployments in the
+    # release namespace.
     targetGatewayClass: false
 
 # NOTE: Please provide names. Here are naming suggestions:
@@ -278,4 +298,4 @@ certManager:
 #
 # When federator.enabled is true, a ConfigMap named `federator-ca` with a `ca.crt` key
 # must exist in the release namespace. It is created by the wire-server chart
-# and is referenced by the ClientTrafficPolicy for mTLS.
+# and is referenced by the ClientTrafficPolicy for mTLS on the parent Gateway.

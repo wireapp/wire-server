@@ -13,6 +13,9 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   gatewayClassName: {{ .Values.gateway.className | quote }}
+  allowedListeners:
+    namespaces:
+      from: Same
   {{- $envoyProxyName := "" }}
   {{- if .Values.gateway.envoyProxy.create }}
   {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.gatewayName" .) }}
@@ -33,29 +36,26 @@ spec:
     {{- end }}
   {{- end }}
   listeners:
-    {{- $domains := include "wire-ingress.domains" . | fromJsonArray }}
-    {{- range $domain := $domains }}
-    - name: {{ $domain.section }}
-      port: {{ $.Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "an HTTPS listener hostname is required (gateway.listeners.https.hostname for single-domain, or config.domains[].base/hostname)" $domain.hostname | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ $domain.secretName | quote }}
-            kind: Secret
-    {{- end }}
-    {{- if .Values.federator.enabled }}
-    - name: federator
+    {{/* Placeholder HTTPS listener. The real listeners live on the ListenerSet;
+         the Gateway API still requires the parent Gateway to declare at least
+         one listener. It is non-routable (allowedRoutes.namespaces.from: Same
+         but no route targets its section) and reuses the primary domain's
+         TLS secret, which is always created (secret.yaml or certificate.yaml)
+         — unlike a hardcoded certificateSecretName, which a primary domain that
+         overrides its own tls.secretName would leave uncreated. */}}
+    {{- $primaryDomain := index (include "wire-ingress.domains" . | fromJsonArray) 0 }}
+    - name: gateway
       port: {{ .Values.gateway.listeners.https.port }}
       protocol: HTTPS
-      hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}
+      hostname: {{ include "wire-ingress.gatewayDummyHostname" . | quote }}
+      allowedRoutes:
+        namespaces:
+          from: Same
       tls:
         mode: Terminate
         certificateRefs:
-          - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
+          - name: {{ $primaryDomain.secretName | quote }}
             kind: Secret
-    {{- end }}
     {{- if .Values.gateway.listeners.http.enabled }}
     - name: http
       port: {{ .Values.gateway.listeners.http.port }}

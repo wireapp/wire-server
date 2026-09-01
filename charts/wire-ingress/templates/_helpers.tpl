@@ -69,8 +69,10 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{- define "wire-ingress.gatewayName" -}}
 {{- if .Values.gateway.name -}}
 {{ .Values.gateway.name }}
-{{- else -}}
+{{- else if .Values.gateway.create -}}
 {{ include "wire-ingress.fullname" . }}-gateway
+{{- else -}}
+{{- fail "gateway.name must be set when gateway.create is false" -}}
 {{- end -}}
 {{- end -}}
 
@@ -205,4 +207,33 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp = printf "%s script-src-attr 'none';" $csp -}}
 {{- $csp = printf "%s upgrade-insecure-requests" $csp -}}
 {{- $csp -}}
+{{- end -}}
+
+{{/*
+Name of the ListenerSet resource. One ListenerSet is created per release.
+*/}}
+{{- define "wire-ingress.listenerSetName" -}}
+{{ include "wire-ingress.fullname" . }}-listeners
+{{- end -}}
+
+{{/*
+Namespace of the parent Gateway. When the chart creates the Gateway, the
+parent Gateway is always in the release namespace. When attaching to an
+existing Gateway, gateway.namespace can override that default.
+*/}}
+{{- define "wire-ingress.parentGatewayNamespace" -}}
+{{- if .Values.gateway.create -}}
+{{ .Release.Namespace }}
+{{- else -}}
+{{ default .Release.Namespace .Values.gateway.namespace }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Hostname for the placeholder Gateway listener required by the current Gateway
+API validation. It is intentionally non-routable and must not overlap with the
+real ListenerSet hostnames.
+*/}}
+{{- define "wire-ingress.gatewayDummyHostname" -}}
+{{ printf "%s.invalid" (include "wire-ingress.fullname" .) }}
 {{- end -}}

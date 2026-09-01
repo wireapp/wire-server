@@ -5,13 +5,17 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: ClientTrafficPolicy
 metadata:
-  name: {{ include "wire-ingress.gatewayName" . }}-alpn
+  name: {{ include "wire-ingress.listenerSetName" . }}-alpn
   namespace: {{ .Release.Namespace }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
+  {{/* Envoy Gateway v1.8.x rejects ListenerSet as a ClientTrafficPolicy
+       targetRef (only Gateway is allowed). Targeting the parent Gateway with
+       no sectionName applies ALPN to every listener on the Gateway, including
+       the ones contributed by the ListenerSet. */}}
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
