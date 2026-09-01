@@ -63,6 +63,22 @@ testCreateTeamCollaborator = do
     res %. "team" `shouldMatch` team
     res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]
 
+  -- Collaborators are not team members, so they don't show up in the team
+  -- member end-points.
+  bindResponse (getTeamMembers owner team) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members" >>= asList
+    memIds <- (asString . (%. "user")) `mapM` mems
+    memIds
+      `shouldMatchSet` sequence
+        [ asString $ owner %. "qualified_id.id",
+          asString $ alice %. "qualified_id.id"
+        ]
+
+  bindResponse (getTeamMember owner team userId) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "no-team-member"
+
 testTeamCollaboratorEndpointsForbiddenForOtherTeams :: (HasCallStack) => App ()
 testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
   (owner, _team, _members) <- createTeam OwnDomain 2
