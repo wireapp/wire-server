@@ -55,6 +55,7 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     migrateDomainRegistration :: !Bool,
+    migrateProposals :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig

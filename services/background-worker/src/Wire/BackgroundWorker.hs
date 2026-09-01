@@ -78,6 +78,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-domain-registration" $
             Migrations.domainRegistration opts.migrationOptions
       else pure $ pure ()
+  cleanupProposalsMigration <-
+    if opts.migrateProposals
+      then
+        runAppT env $
+          withNamedLogger "migrate-mls-proposal-refs" $
+            Migrations.proposals opts.migrationOptions
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -89,13 +96,14 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,)
+            (,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
               <*> Concurrently cleanUpConvCodesMigration
               <*> Concurrently cleanupTeamFeaturesMigration
               <*> Concurrently cleanupDomainRegistrationMigration
+              <*> Concurrently cleanupProposalsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

@@ -26,6 +26,7 @@ import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
 import Wire.DomainRegistrationStore.Migration
+import Wire.ProposalStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.TeamFeatureStore.Migration
 
@@ -106,4 +107,22 @@ domainRegistration migOpts = do
   Log.info logger $ Log.msg (Log.val "started domain registration migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
+    cancel migrationLoop
+
+proposals :: MigrationOptions -> AppT IO CleanupAction
+proposals migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting mls proposal refs migration")
+  count <- register $ counter $ Prometheus.Info "wire_mls_proposal_refs_migrated_to_pg" "Number of mls proposal refs migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_mls_proposal_refs_migration_finished" "Whether the mls proposal refs migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_mls_proposal_refs_migration_failed" "Whether the mls proposal refs migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_mls_proposal_refs_migration_duration_seconds" "Duration of mls proposal ref migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateProposalsLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started mls proposal refs migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling mls proposal refs migration")
     cancel migrationLoop

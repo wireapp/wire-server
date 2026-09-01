@@ -428,6 +428,9 @@ library
     Wire.PropertySubsystem.Interpreter
     Wire.ProposalStore
     Wire.ProposalStore.Cassandra
+    Wire.ProposalStore.DualWrite
+    Wire.ProposalStore.Migration
+    Wire.ProposalStore.Postgres
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Reporter
