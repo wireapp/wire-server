@@ -348,6 +348,7 @@ spec = do
       let cassandra = undefined
           cassandraGalley = undefined
           cassandraBrig = undefined
+          cassandraSpar = undefined
           federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -413,6 +414,7 @@ spec = do
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
           cassandraBrig = undefined
+          cassandraSpar = undefined
           http2Manager = undefined
           statuses = undefined
           rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin

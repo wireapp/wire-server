@@ -90,6 +90,7 @@ data Env = Env
     cassandra :: ClientState,
     cassandraGalley :: ClientState,
     cassandraBrig :: ClientState,
+    cassandraSpar :: ClientState,
     hasqlPool :: Hasql.Pool,
     -- May contain the PostgreSQL password. Do not unwrap outside the Arbiter boundary.
     arbiterConnStr :: SecretText,
@@ -156,6 +157,8 @@ mkEnv opts galleyOpts = do
   cassandraGalley <- defInitCassandra galleyOpts._cassandra =<< setLoggerName "cassandra-galley" logger
   Log.info logger $ Log.msg @Text "Connecting to Cassandra (brig)..."
   cassandraBrig <- defInitCassandra opts.cassandraBrig =<< setLoggerName "cassandra-brig" logger
+  Log.info logger $ Log.msg @Text "Connecting to Cassandra (spar)..."
+  cassandraSpar <- defInitCassandra opts.cassandraSpar =<< setLoggerName "cassandra-spar" logger
   Log.info logger $ Log.msg @Text "Cassandra connections established"
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings

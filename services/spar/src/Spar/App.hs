@@ -38,6 +38,7 @@ where
 
 import Bilge
 import qualified Cassandra as Cas
+import qualified Hasql.Pool.Extended as HasqlPoolExt
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
@@ -127,7 +128,8 @@ data Env = Env
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
     sparCtxRequestId :: RequestId,
-    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig,
+    sparCtxHasqlPool :: HasqlPoolExt.Pool
   }
 
 -- | Get a user by UserRef, no matter what the team.
