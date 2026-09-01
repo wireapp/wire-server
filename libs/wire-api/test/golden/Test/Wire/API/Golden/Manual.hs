@@ -30,6 +30,7 @@ import Test.Wire.API.Golden.Manual.Contact
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationEvent
 import Test.Wire.API.Golden.Manual.ConversationPagingState
+import Test.Wire.API.Golden.Manual.ConversationProtocol qualified as ConversationProtocol
 import Test.Wire.API.Golden.Manual.ConversationRemoveMembers
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
@@ -182,6 +183,8 @@ tests =
           [ (testObject_Meeting_manual_1, "testObject_Meeting_manual_1.json"),
             (testObject_Meeting_manual_2, "testObject_Meeting_manual_2.json")
           ],
+      testGroup "ConversationProtocol" $
+        testObjects ConversationProtocol.testPairs,
       testGroup "GetPaginatedConversationIds" $
         testObjects
           [ (testObject_GetPaginatedConversationIds_1, "testObject_GetPaginatedConversationIds_1.json"),
