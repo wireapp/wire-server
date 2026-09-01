@@ -63,6 +63,7 @@ import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
 import System.IO
@@ -459,14 +460,23 @@ checkFederationIngress origin target = do
         . (addJSONObject [])
   checkStatus <- appToIO $ do
     submit "POST" req `bindResponse` \res -> do
-      let is200 = res.status == 200
-      mInner <- lookupField res.json "inner"
-      isFedDenied <- case mInner of
-        Nothing -> pure False
-        Just inner -> do
-          label <- inner %. "label" & asString
-          pure $ res.status == 533 && label == "federation-denied"
-      pure (is200 || isFedDenied)
+      case res.json of
+        -- A federator can briefly return an empty or JSON-null body while the
+        -- backend is warming up. Keep the retry alive instead of letting
+        -- lookupField turn that transient response into a test failure.
+        Just (Object _) -> do
+          let is200 = res.status == 200
+          mInner <- lookupField res.json "inner"
+          isFedDenied <- case mInner of
+            Nothing -> pure False
+            Just inner ->
+              ( do
+                  label <- inner %. "label" & asString
+                  pure $ res.status == 533 && label == "federation-denied"
+              )
+                `catch` \(_ :: AssertionFailure) -> pure False
+          pure (is200 || isFedDenied)
+        _ -> pure False
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
@@ -674,23 +684,39 @@ logToConsoleDebug mOutput colorize prefix hdl = do
 federatorIngressDelay :: Int
 federatorIngressDelay = 30 * 1000 * 1000
 
--- | Pre-warm the static 'domain1' <-> 'domain2' federation path once, before
--- the test suite bursts. 'ensureBackendReachable' only warms /dynamic/ backends
--- (it skips the two static domains), so the very first cross-domain call
--- between them can fail with a transient federator-transport error
--- (521 connection refused, 525 SSL, 533 unreachable backend). Polling the
--- federator ingress in both directions here removes that cold-start race
--- globally, rather than retrying individual requests whose execution order is
--- not guaranteed.
+-- | Pre-warm the static federation paths once, before the test suite bursts.
+-- 'ensureBackendReachable' only warms dynamic backends, so static federation
+-- paths must be warmed here before tests run concurrently.
 warmupFederation :: (HasCallStack) => App ()
 warmupFederation = do
   env <- ask
-  let checkBoth =
+  enabledFedDomains <- liftIO
+    $ fmap catMaybes
+    $ for
+      [ (env.federationV0Domain, "ENABLE_FEDERATION_V0"),
+        (env.federationV1Domain, "ENABLE_FEDERATION_V1"),
+        (env.federationV2Domain, "ENABLE_FEDERATION_V2")
+      ]
+    $ \(domain, flag) -> do
+      enabled <- lookupEnv flag
+      pure $ if enabled == Just "1" then Just domain else Nothing
+  let primaryDomains = [env.domain1, env.domain2]
+      federationPairs =
+        [(env.domain1, env.domain2), (env.domain2, env.domain1)]
+          <> [ (origin, fedDomain)
+             | fedDomain <- enabledFedDomains,
+               origin <- primaryDomains
+             ]
+          <> [ (fedDomain, origin)
+             | fedDomain <- enabledFedDomains,
+               origin <- primaryDomains
+             ]
+      checkAll =
         and
           <$> traverse
             (uncurry checkFederationIngress)
-            [(env.domain1, env.domain2), (env.domain2, env.domain1)]
-  retryRequestUntil checkBoth "Static federator ingress (domain1 <-> domain2)"
+            federationPairs
+  retryRequestUntil checkAll "Static federator ingress"
 
 retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
 retryRequestUntil = retryRequestUntilDebug federatorIngressDelay Nothing
