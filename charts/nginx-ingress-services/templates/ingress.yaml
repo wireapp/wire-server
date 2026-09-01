@@ -54,7 +54,7 @@ metadata:
         {{if .Values.websockets.enabled}}
         set $CSP "${CSP} wss://{{ .Values.config.dns.ssl }}";
         {{end}}
-        set $CSP "${CSP} https://*.{{ .Values.config.dns.base }};";
+        set $CSP "${CSP} https://*.{{ .Values.config.dns.base }}{{- if .Values.config.cspExtraConnectSrc }} {{ .Values.config.cspExtraConnectSrc }}{{- end }};";
         set $CSP "${CSP} default-src 'self';";
         set $CSP "${CSP} font-src 'self' data:;";
         set $CSP "${CSP} frame-src https://*.soundcloud.com https://*.spotify.com https://*.vimeo.com https://*.youtube-nocookie.com;";

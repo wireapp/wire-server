@@ -114,7 +114,7 @@ nginz:
         backendWSURL: "https://nginz-ssl.example.com"
         teamsURL: "https://teams.example.com"
         accountsURL: "https://account.example.com"
-        blackListURL: "https://clientblacklist.example.com/prod"
+        blackListURL: "https://clientblacklist.wire.com/prod"
         websiteURL: "https://example.com"
       supportEmail: "support@example.com" # (optional)
       apiProxy: # (optional)
@@ -145,7 +145,7 @@ nginz:
         backendWSURL: "https://nginz-ssl.default.example.com"
         teamsURL: "https://teams.default.example.com"
         accountsURL: "https://account.default.example.com"
-        blackListURL: "https://clientblacklist.default.example.com/prod"
+        blackListURL: "https://clientblacklist.wire.com/prod"
         websiteURL: "https://default.example.com"
       apiProxy: # (optional)
         host: "socks5.proxy.com"
@@ -161,7 +161,7 @@ nginz:
         endpoints:
           backendURL: "https://nginz-https.red.example.com"
           backendWSURL: "https://nginz-ssl.red.example.com"
-          blackListURL: "https://clientblacklist.red.example.com/prod"
+          blackListURL: "https://clientblacklist.wire.com/prod"
           teamsURL: "https://teams.red.example.com"
           accountsURL: "https://account.red.example.com"
           websiteURL: "https://red.example.com"
@@ -175,7 +175,7 @@ nginz:
         endpoints:
           backendURL: "https://nginz-https.green.example.org"
           backendWSURL: "https://nginz-ssl.green.example.org"
-          blackListURL: "https://clientblacklist.green.example.org/prod"
+          blackListURL: "https://clientblacklist.wire.com/prod"
           teamsURL: "https://teams.green.example.org"
           accountsURL: "https://account.green.example.org"
           websiteURL: "https://green.example.org"
@@ -184,7 +184,7 @@ nginz:
         endpoints:
           backendURL: "https://nginz-https.blue.example.net"
           backendWSURL: "https://nginz-ssl.blue.example.net"
-          blackListURL: "https://clientblacklist.blue.example.net/prod"
+          blackListURL: "https://clientblacklist.wire.com/prod"
           teamsURL: "https://teams.blue.example.net"
           accountsURL: "https://account.blue.example.net"
           websiteURL: "https://blue.example.net"
@@ -213,7 +213,7 @@ Otherwise you need to create a `.json` file, and host it somewhere users can get
       "backendWSURL" : "https://prod-nginz-ssl.wire.com",
       "blackListURL" : "https://clientblacklist.wire.com/prod",
       "teamsURL" : "https://teams.wire.com",
-      "accountsURL" : "https://accounts.wire.com",
+      "accountsURL" : "https://account.wire.com",
       "websiteURL" : "https://wire.com"
    },
    "apiProxy" : {
