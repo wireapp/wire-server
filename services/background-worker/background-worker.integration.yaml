@@ -45,6 +45,46 @@ rabbitmq:
   caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
+# Email transport for the background-worker (same shape as brig's emailSMS.email).
+# SES takes precedence over SMTP when both are configured.
+# Email templates for composing the emails queued by brig;
+# mirrors the values brig used to configure in its emailSMS block.
+emailTemplates:
+  templateDir: ../../libs/wire-subsystems/templates
+  emailSender: backend-integration@wire.com
+  templateBranding:
+    brand: Wire
+    brandUrl: https://wire.com
+    brandLabelUrl: wire.com # This is the text in the label for the above URL
+    brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+    brandService: Wire Service Provider
+    copyright: © WIRE SWISS GmbH
+    misuse: misuse@wire.com
+    legal: https://wire.com/legal/
+    forgot: https://wire.com/forgot/
+    support: https://support.wire.com/
+  user:
+    activationUrl: https://example.com/verify/?key=${key}&code=${code}
+    teamActivationUrl: https://example.com/verify/?key=${key}&code=${code}
+    passwordResetUrl: https://example.com/reset/?key=${key}&code=${code}
+    deletionUrl: https://example.com/d/?key=${key}&code=${code}
+  team:
+    tInvitationUrl: https://example.com/join/?team-code=${code}
+    tExistingUserInvitationUrl: https://example.com/accept-invitation/?team-code=${code}
+    tActivationUrl: https://example.com/verify/?key=${key}&code=${code}
+    tCreatorWelcomeUrl: https://example.com/creator-welcome-website
+    tMemberWelcomeUrl: https://example.com/member-welcome-website
+  provider:
+    homeUrl: https://provider.localhost/
+    providerActivationUrl: http://127.0.0.1:8080/verify/bot/?key=${key}&code=${code}
+    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
+    approvalTo: success@simulator.amazonses.com
+    providerPwResetUrl: http://127.0.0.1:8080/reset/bot/?key=${key}&code=${code}
+
+email:
+  sesQueue: integration-brig-events
+  sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+
 backendNotificationPusher:
   pushBackoffMinWait: 1000 # 1ms
   pushBackoffMaxWait: 1000000 # 1s
@@ -82,9 +122,9 @@ jobs:
 
 # Meetings cleanup configuration for integration
 meetingsCleanup:
-  cleanOlderThanHours: 0.0014  # Clean meetings older than ~5 seconds
+  cleanOlderThanHours: 0.0014 # Clean meetings older than ~5 seconds
   batchSize: 100
-  schedule: "* * * * *"  # Run every minute
+  schedule: "* * * * *" # Run every minute
 
 postgresMigration:
   conversation: postgresql

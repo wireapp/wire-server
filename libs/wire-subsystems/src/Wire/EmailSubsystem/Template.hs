@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -40,6 +41,80 @@ import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
+
+-- | Invitation URL templates (config-derived, locale-independent). Used by
+-- brig to render invitation URLs for API responses, and by the composer for
+-- invitation emails.
+data InvitationUrlTemplates = InvitationUrlTemplates
+  { personalUser :: Template,
+    newUser :: Template
+  }
+
+-- | Customizable branding text for emails/sms/calls, mirroring the former
+-- Brig configuration.
+data BrandingOpts = BrandingOpts
+  { brand :: !Text,
+    brandUrl :: !Text,
+    brandLabelUrl :: !Text,
+    brandLogoUrl :: !Text,
+    brandService :: !Text,
+    copyright :: !Text,
+    misuse :: !Text,
+    legal :: !Text,
+    forgot :: !Text,
+    support :: !Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
+
+-- | Function to be applied everywhere where email/sms/call
+-- templating is used (ensures that placeholders are replaced
+-- by the appropriate branding, typically Wire)
+genTemplateBranding :: BrandingOpts -> TemplateBranding
+genTemplateBranding BrandingOpts {..} = fn
+  where
+    fn "brand" = brand
+    fn "brand_url" = brandUrl
+    fn "brand_label_url" = brandLabelUrl
+    fn "brand_logo" = brandLogoUrl
+    fn "brand_service" = brandService
+    fn "copyright" = copyright
+    fn "misuse" = misuse
+    fn "legal" = legal
+    fn "forgot" = forgot
+    fn "support" = support
+    fn other = other
+
+genTemplateBrandingMap :: BrandingOpts -> Map Text Text
+genTemplateBrandingMap opts =
+  Map.fromList
+    [ ("brand", opts.brand),
+      ("brand_url", opts.brandUrl),
+      ("brand_label_url", opts.brandLabelUrl),
+      ("brand_logo", opts.brandLogoUrl),
+      ("brand_service", opts.brandService),
+      ("copyright", opts.copyright),
+      ("misuse", opts.misuse),
+      ("legal", opts.legal),
+      ("forgot", opts.forgot),
+      ("support", opts.support)
+    ]
+
+-- | Provider settings, mirroring the former Brig configuration.
+data ProviderOpts = ProviderOpts
+  { -- | Homepage URL
+    homeUrl :: !Text,
+    -- | Activation URL template
+    providerActivationUrl :: !Text,
+    -- | Approval URL template
+    approvalUrl :: !Text,
+    -- | Approval email recipient
+    approvalTo :: !EmailAddress,
+    -- | Password reset URL template
+    providerPwResetUrl :: !Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
 
 -- | Lookup a localised item from a 'Localised' structure.
 forLocale ::
@@ -268,6 +343,7 @@ data UserTemplateOpts = UserTemplateOpts
     deletionUrl :: !Text
   }
   deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
 
 loadUserTemplates :: UserTemplateOpts -> FilePath -> Locale -> EmailAddress -> IO (Localised UserTemplates)
 loadUserTemplates opts templatesDir defLocale sender = readLocalesDir defLocale templatesDir "user" $ \fp ->
@@ -349,3 +425,18 @@ loadUserTemplates opts templatesDir defLocale sender = readLocalesDir defLocale 
     deletionUrl = template opts.deletionUrl
     readTemplate' = readTemplateWithDefault templatesDir defLocale "user"
     readText' = readTextWithDefault templatesDir defLocale "user"
+
+-- | All options needed to load the full set of email templates (worker-side
+-- email composition). Mirrors the email-template settings brig used to
+-- configure.
+data EmailTemplatesOpts = EmailTemplatesOpts
+  { templateDir :: !FilePath,
+    defaultLocale :: !(Maybe Locale),
+    emailSender :: !EmailAddress,
+    templateBranding :: !BrandingOpts,
+    user :: !UserTemplateOpts,
+    team :: !TeamOpts,
+    provider :: !ProviderOpts
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)

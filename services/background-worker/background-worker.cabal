@@ -24,6 +24,7 @@ library
     Wire.BackgroundWorker.Workers
     Wire.DeadUserNotificationWatcher
     Wire.Effects
+    Wire.EmailJobsWorker
     Wire.MeetingsCleanupWorker
     Wire.PostgresMigrations
 
@@ -36,6 +37,8 @@ library
 
   build-depends:
       aeson
+    , amazonka
+    , amazonka-ses
     , amqp
     , arbiter-core
     , arbiter-worker

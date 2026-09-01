@@ -126,74 +126,31 @@ instance FromJSON InternalEventsOpts where
     InternalEventsOpts <$> parseJSON (Object o)
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
-  { -- | Email, SMS, ... template directory
-    templateDir :: !FilePath,
-    -- | Email sender address
+  { -- | Email sender address (used by SCIM invitations and the enterprise
+    -- audit email; all other email is composed and sent by the
+    -- background-worker)
     emailSender :: !EmailAddress,
     -- | Twilio sender identifier (sender phone number in E.104 format)
     --   or twilio messaging sender ID - see
     --   https://www.twilio.com/docs/sms/send-messages#use-an-alphanumeric-sender-id
-    smsSender :: !Text,
-    -- | Customizable branding text for
-    --   emails/sms/calls
-    templateBranding :: !BrandingOpts
+    smsSender :: !Text
   }
   deriving (Show, Generic)
 
 instance FromJSON EmailSMSGeneralOpts
 
-data BrandingOpts = BrandingOpts
-  { brand :: !Text,
-    brandUrl :: !Text,
-    brandLabelUrl :: !Text,
-    brandLogoUrl :: !Text,
-    brandService :: !Text,
-    copyright :: !Text,
-    misuse :: !Text,
-    legal :: !Text,
-    forgot :: !Text,
-    support :: !Text
-  }
-  deriving (Show, Generic)
-
-instance FromJSON BrandingOpts
-
 data EmailUserOpts = EmailUserOpts
-  { -- | Activation URL template
-    activationUrl :: !Text,
-    -- | SMS activation URL template
-    smsActivationUrl :: !Text,
-    -- | Password reset URL template
-    passwordResetUrl :: !Text,
-    -- | Deletion URL template
-    deletionUrl :: !Text
+  { -- | SMS activation URL template
+    smsActivationUrl :: !Text
   }
   deriving (Show, Generic)
 
 instance FromJSON EmailUserOpts
 
--- | Provider settings
-data ProviderOpts = ProviderOpts
-  { -- | Homepage URL
-    homeUrl :: !Text,
-    -- | Activation URL template
-    providerActivationUrl :: !Text,
-    -- | Approval URL template
-    approvalUrl :: !Text,
-    -- | Approval email recipient
-    approvalTo :: !EmailAddress,
-    -- | Password reset URL template
-    providerPwResetUrl :: !Text
-  }
-  deriving (Show, Generic)
-
-instance FromJSON ProviderOpts
-
 data EmailSMSOpts = EmailSMSOpts
   { email :: !EmailOpts,
     general :: !EmailSMSGeneralOpts,
     user :: !EmailUserOpts,
-    provider :: !ProviderOpts,
     team :: !TeamOpts
   }
   deriving (Show, Generic)

@@ -33,15 +33,18 @@ import Imports
 import Network.Mail.Mime (Address (..), Mail (..), Part (..), PartContent (..))
 import Polysemy
 import Polysemy.Error (runError)
+import Polysemy.Output
 import Polysemy.State
 import SAML2.WebSSO
 import System.FilePath
+import System.IO.Unsafe (unsafePerformIO)
 import System.Logger qualified as Logger
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Text.Email.Parser (unsafeEmailAddress)
 import URI.ByteString
+import Wire.API.BackgroundJobs.Email (SendEmailRequest)
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Locale
@@ -52,12 +55,11 @@ import Wire.API.Team.Permission (fullPermissions)
 import Wire.API.Team.Role (Role (..))
 import Wire.API.User.EmailAddress (fromEmail)
 import Wire.API.User.IdentityProvider
-import Wire.EmailSending
+import Wire.EmailSending.Composer (EmailTemplates (..), composeEmail)
+import Wire.EmailSending.Queueing (EmailQueueing (QueueEmail))
 import Wire.EmailSubsystem qualified as Email
 import Wire.EmailSubsystem.Interpreter
-import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.TemplateFixtures
-import Wire.EmailSubsystem.Templates.Team
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters
 import Wire.SAMLEmailSubsystem
@@ -68,6 +70,7 @@ import Wire.StoredUser (StoredUser (..))
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI (interpretTeamSubsystemToGalleyAPI)
 import Wire.UserStore
+import Prelude qualified
 
 data RenderedTextParts = RenderedTextParts
   { created :: LText,
@@ -96,7 +99,6 @@ spec = do
       parseLocalUnsafe = fromMaybe (error "Unknown locale") . parseLocale
 
   -- Run duplicated IO tasks here to save some time
-  teamTemplates :: Localised TeamTemplates <- runIO loadTestTeamTemplates
   newCerts <- runIO $ X509.readCertificates "test/resources/saml/certs.store"
 
   describe "SendSAMLIdPChanged" $ do
@@ -113,7 +115,7 @@ spec = do
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPCreated (Just uid) idp'
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -129,7 +131,7 @@ spec = do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPDeleted uid idp'
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -162,7 +164,7 @@ spec = do
                     )
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPUpdated uid idpOld' idpNew'
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -181,7 +183,7 @@ spec = do
               teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
               teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -196,7 +198,7 @@ spec = do
               teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
               teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -215,7 +217,7 @@ spec = do
                   )
                   users
 
-          (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -333,7 +335,6 @@ assertMailTextPartWithFile mail expectedTextPart = do
 runInterpreters ::
   [StoredUser] ->
   Map TeamId [TeamMember] ->
-  Localised TeamTemplates ->
   Sem
     '[ SAMLEmailSubsystem,
        TeamSubsystem,
@@ -343,31 +344,59 @@ runInterpreters ::
        State (Map UserId Password),
        GalleyAPIAccess,
        Logger (Logger.Msg -> Logger.Msg),
-       EmailSending,
-       State [Mail],
+       Output SendEmailRequest,
        ErrorS 'TeamMemberNotFound,
        ErrorS 'TeamNotFound,
        Embed IO
      ]
     a ->
   IO ([Mail], [(Level, LByteString)], a)
-runInterpreters users teamMap teamTemplates action = do
+runInterpreters users teamMap action = do
   lr <- newLogRecorder
-  (mails, res) <-
+  (reqs, res) <-
     runM
       . fmap (either (error . show) (either (error . show) Imports.id))
       . runError @(Tagged 'TeamNotFound ())
       . runError @(Tagged 'TeamMemberNotFound ())
-      . runState @[Mail] [] -- Use runState to capture and return the Mail state
-      . recordingEmailSendingInterpreter
+      . runOutputList @SendEmailRequest
       . recordLogs lr
       . miniGalleyAPIAccess teamMap def
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
       . inMemoryUserStoreInterpreter
-      . emailSubsystemInterpreter undefined teamTemplates branding
+      . emailSubsystemToOutput
       . interpretTeamSubsystemToGalleyAPI
       . samlEmailSubsystemInterpreter
       $ action
   logs <- readIORef lr.recordedLogs
+  let (errs, mails) = run . runOutputList @Text $ traverse (composeEmail emailTemplatesFixture) reqs
+  errs `shouldBe` []
   pure (mails, logs, res)
+
+-- | Templates used to compose the recorded requests into mails. Loaded once
+-- (the test suite runs with the package directory as working directory).
+emailTemplatesFixture :: EmailTemplates
+emailTemplatesFixture = unsafePerformIO $ do
+  user <- loadTestUserTemplates
+  teamTpls <- loadTestTeamTemplates
+  provider <- loadTestProviderTemplates
+  pure
+    EmailTemplates
+      { userTemplates = user,
+        teamTemplates = teamTpls,
+        providerTemplates = provider,
+        brandingFn = Prelude.id,
+        brandingMap = branding
+      }
+{-# NOINLINE emailTemplatesFixture #-}
+
+-- | Interpret 'EmailSubsystem' by enqueueing into the 'Output' effect, so the
+-- recorded requests can be composed to mails afterwards.
+emailSubsystemToOutput ::
+  (Member (Output SendEmailRequest) r) =>
+  Sem (Email.EmailSubsystem : r) a ->
+  Sem r a
+emailSubsystemToOutput =
+  interpret @EmailQueueing (\case QueueEmail req -> Polysemy.Output.output req)
+    . emailSubsystemInterpreter
+    . raiseUnder @EmailQueueing

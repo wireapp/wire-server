@@ -31,6 +31,7 @@ import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input, runInputConst)
+import Polysemy.Output (ignoreOutput)
 import Polysemy.TinyLog
 import System.Logger.Message as Log
 import URI.ByteString
@@ -44,6 +45,8 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
+import Wire.EmailSubsystem.Template (InvitationUrlTemplates (..))
 import Wire.EnterpriseLoginSubsystem
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -83,7 +86,8 @@ runTeamInvitationSubsystem ::
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
     Member TeamSubsystem r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member (Input InvitationUrlTemplates) r
   ) =>
   TeamInvitationSubsystemConfig ->
   InterpreterFor TeamInvitationSubsystem r
@@ -111,7 +115,8 @@ inviteUserImpl ::
     Member EnterpriseLoginSubsystem r,
     Member TeamSubsystem r,
     Member UserKeyStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member (Input InvitationUrlTemplates) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -209,6 +214,7 @@ createInvitation' ::
     Member Random r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
+    Member (Input InvitationUrlTemplates) r,
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
     Member UserKeyStore r
@@ -271,14 +277,20 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
               }
        in Store.insertInvitation insertInv timeout
 
-    let sendOp = case invitationFlow of
-          InviteExistingUser -> sendTeamInvitationMailPersonalUser
-          InviteNewUser ->
-            -- NB: this is not guarded by the `validateSAMLEmails` feature, so auto-activation
-            -- is not supported here.
-            sendTeamInvitationMail
-
-    invitationUrl <- sendOp email tid inviterEmail code invRequest.locale
+    case invitationFlow of
+      InviteExistingUser -> sendTeamInvitationMailPersonalUser email tid inviterEmail code invRequest.locale
+      InviteNewUser ->
+        -- NB: this is not guarded by the `validateSAMLEmails` feature, so auto-activation
+        -- is not supported here.
+        sendTeamInvitationMail email tid inviterEmail code invRequest.locale
+    -- The invitation URL in API responses is rendered here (config-derived,
+    -- locale-independent); the email itself is composed by the worker.
+    urlTemplate <-
+      input @InvitationUrlTemplates
+        <&> case invitationFlow of
+          InviteExistingUser -> (.personalUser)
+          InviteNewUser -> (.newUser)
+    invitationUrl <- ignoreOutput $ renderInvitationUrl urlTemplate tid code
     inv <- toInvitation invitationUrl showInvitationUrl newInv
     pure (inv, code)
   where

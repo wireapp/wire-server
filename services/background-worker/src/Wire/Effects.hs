@@ -64,7 +64,7 @@ import Wire.API.Team.Feature (AllTeamFeatures, LegalholdConfig)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults, FeatureFlags, currentFanoutLimit)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
-import Wire.BackgroundWorker.Env (Env (..))
+import Wire.BackgroundWorker.Env (EmailTransport (..), Env (..))
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError)
@@ -76,6 +76,9 @@ import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (..), interpretConversationSubsystem)
+import Wire.EmailSending (EmailSending)
+import Wire.EmailSending.SES (emailViaSESInterpreter)
+import Wire.EmailSending.SMTP (emailViaSMTPInterpreter)
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getAllTeamFeaturesForServer)
@@ -192,7 +195,8 @@ makeVerifiedRequestFreshManagerIO logger fpr url reqBuilder = do
   makeVerifiedRequestWithManagerIO logger mgr verifyFingerprints fpr url reqBuilder
 
 type BackgroundWorkerEffects =
-  '[ ConversationSubsystem,
+  '[ EmailSending,
+     ConversationSubsystem,
      MeetingNotifier,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -370,6 +374,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTeamCollaboratorsSubsystem (interpretBrigAccess env.brigEndpoint)
     . discardMeetingNotifier
     . interpretConversationSubsystem
+    . emailSendingInterpreter env
   where
     interpretTeamFeatureStore = case env.postgresMigration.teamFeatures of
       CassandraStorage -> interpretTeamFeatureStoreToCassandra
@@ -413,3 +418,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       case mJobId of
         Nothing -> field "request" (unRequestId requestId)
         Just jId -> field "request" (unRequestId requestId) . field "job" (idToText jId)
+
+-- | Interpret 'EmailSending' for the background-worker: SMTP or SES, whichever
+-- transport 'mkEnv' built from the required @email@ config (a sum, so the
+-- "no transport" state is unrepresentable). Used by the Arbiter @emails@ worker
+-- pool ("Wire.EmailJobsWorker"); send failures are retried by Arbiter's
+-- bounded retry/backoff and eventually land in the queue's DLQ.
+emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
+emailSendingInterpreter env = case env.emailTransport of
+  EmailTransportSMTP smtp -> emailViaSMTPInterpreter env.logger smtp
+  EmailTransportSES ses -> emailViaSESInterpreter ses

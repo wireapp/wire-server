@@ -70,6 +70,8 @@ testEnv = do
           }
       hasqlPool = undefined
       amqpJobsPublisherChannel = undefined
+      emailTransport = undefined
+      emailComposition = undefined
       amqpBackendNotificationsChannel = undefined
       federationDomain = Domain "local"
       gundeckEndpoint = undefined

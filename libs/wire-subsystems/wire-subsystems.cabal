@@ -331,12 +331,15 @@ library
     Wire.DomainVerificationChallengeStore.DualWrite
     Wire.DomainVerificationChallengeStore.Postgres
     Wire.EmailSending
+    Wire.EmailSending.Composer
     Wire.EmailSending.Options
+    Wire.EmailSending.Queueing
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
     Wire.EmailSubsystem
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
+    Wire.EmailSubsystem.Templates.Provider
     Wire.EmailSubsystem.Templates.Team
     Wire.EmailSubsystem.Templates.User
     Wire.EnterpriseLoginSubsystem
@@ -636,6 +639,7 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.One2OneSpec
+    Wire.EmailSending.ComposerSpec
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec

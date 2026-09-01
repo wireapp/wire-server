@@ -40,6 +40,7 @@ import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJo
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
 import Wire.BackgroundWorker.Options (JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util
+import Wire.EmailJobsWorker (runSendEmailJob)
 import Wire.ExternalAccess.External
 import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Migrations (runJobMigrations)
@@ -119,10 +120,10 @@ toJobJitter = \case
 -- | Start the worker pools for the job queues.
 --
 -- Each domain queue has its own Arbiter table and worker pool. The meetings
--- pool owns the recurring cleanup cron job, while the conversations pool owns
--- the adminless one-off jobs. Both pools are supervised by Arbiter's
--- multi-pool runner, so they share the process lifecycle without sharing a
--- payload type or queue.
+-- pool owns the recurring cleanup cron job, the conversations pool owns the
+-- adminless one-off jobs, and the emails pool sends the outbound mail queued
+-- by brig. All pools are supervised by Arbiter's multi-pool runner, so they
+-- share the process lifecycle without sharing a payload type or queue.
 runJobRunner ::
   Env ->
   ExtEnv ->
@@ -132,7 +133,7 @@ runJobRunner ::
 runJobRunner env extEnv runnerConfig cleanupConfig = do
   Log.info runnerConfig.jobRunnerLogger $
     Log.msg (Log.val "Starting job worker")
-      . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
+      . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName, emailsQueueName])
       . Log.field "schedule" (show runnerConfig.jobRunnerSchedule)
 
   let arbiterEnv = mkNewWireArbiterEnv runnerConfig.jobRunnerSchemaName env.hasqlPool
@@ -153,6 +154,14 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           AdminlessSetup payload -> runAppT env $ runAdminlessSetupJob extEnv (mapJobPayload (const payload) job)
           AdminlessDeletion payload -> runAppT env $ runAdminlessDeletionJob extEnv (mapJobPayload (const payload) job)
           AdminlessReminder payload -> runAppT env $ runAdminlessReminderJob extEnv (mapJobPayload (const payload) job)
+
+      emailsWorkerHandler _conn job = liftIO $ do
+        Log.info runnerConfig.jobRunnerLogger $
+          Log.msg (Log.val "Running job")
+            . Log.field "queue_name" emailsQueueName
+            . Log.field "payload_type" (emailsJobPayloadTypeName job.payload)
+        case job.payload of
+          SendEmail payload -> runAppT env $ runSendEmailJob extEnv (mapJobPayload (const payload) job)
 
   cronJob <- case ArbiterWorkerCron.cronJob
     "meetings-cleanup"
@@ -189,6 +198,17 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           )
     )
 
+  emailsWorkerConfig <-
+    ( ArbiterWorker.transactionalWorkerConfig
+        runnerConfig.jobRunnerSettings.jobWorkerThreads
+        emailsWorkerHandler ::
+        IO
+          ( ArbiterWorker.WorkerConfig
+              (WireArbiter JobRegistry)
+              EmailsJobPayload
+          )
+    )
+
   let meetingsWorkerConfig' =
         applyExplicitDefaults
           runnerConfig.jobRunnerSettings
@@ -199,9 +219,14 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
         applyExplicitDefaults
           runnerConfig.jobRunnerSettings
           conversationsWorkerConfig
+      emailsWorkerConfig' =
+        applyExplicitDefaults
+          runnerConfig.jobRunnerSettings
+          emailsWorkerConfig
       workerPools =
         [ ArbiterWorker.namedWorkerPool meetingsWorkerConfig',
-          ArbiterWorker.namedWorkerPool conversationsWorkerConfig'
+          ArbiterWorker.namedWorkerPool conversationsWorkerConfig',
+          ArbiterWorker.namedWorkerPool emailsWorkerConfig'
         ]
 
   workerAsync <-
@@ -222,6 +247,10 @@ conversationsJobPayloadTypeName = \case
   AdminlessSetup _ -> "adminless_setup"
   AdminlessDeletion _ -> "adminless_deletion"
   AdminlessReminder _ -> "adminless_reminder"
+
+emailsJobPayloadTypeName :: EmailsJobPayload -> Text
+emailsJobPayloadTypeName = \case
+  SendEmail _ -> "send_email"
 
 mapJobPayload :: (a -> b) -> ArbiterCore.JobRead a -> ArbiterCore.JobRead b
 mapJobPayload f job =

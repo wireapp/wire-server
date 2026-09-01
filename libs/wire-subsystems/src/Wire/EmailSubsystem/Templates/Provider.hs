@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Provider.Template
+-- | Provider email templates, loaded from the @provider@ subtree of the
+-- bundled templates directory. Moved from brig: the
+-- background-worker composes provider emails, so it needs the loaders.
+module Wire.EmailSubsystem.Templates.Provider
   ( ProviderTemplates (..),
     ActivationEmailTemplate (..),
     ApprovalRequestEmailTemplate (..),
@@ -25,15 +28,14 @@ module Brig.Provider.Template
   )
 where
 
-import Brig.Options
 import Data.ByteString.Conversion (fromByteString)
 import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Template
 import Imports
-import Wire.API.User.Identity
+import Wire.API.Locale (Locale)
+import Wire.API.User.EmailAddress (EmailAddress)
 import Wire.EmailSubsystem.Template hiding (readTemplate, readText)
-import Wire.EmailSubsystem.Templates.User
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,
@@ -41,6 +43,15 @@ data ProviderTemplates = ProviderTemplates
     approvalRequestEmail :: !ApprovalRequestEmailTemplate,
     approvalConfirmEmail :: !ApprovalConfirmEmailTemplate,
     passwordResetEmail :: !PasswordResetEmailTemplate
+  }
+
+data ActivationEmailTemplate = ActivationEmailTemplate
+  { activationEmailUrl :: !Template,
+    activationEmailSubject :: !Template,
+    activationEmailBodyText :: !Template,
+    activationEmailBodyHtml :: !Template,
+    activationEmailSender :: !EmailAddress,
+    activationEmailSenderName :: !Text
   }
 
 data ApprovalRequestEmailTemplate = ApprovalRequestEmailTemplate
@@ -62,28 +73,37 @@ data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
     approvalConfirmEmailHomeUrl :: !HttpsUrl
   }
 
-loadProviderTemplates :: Opts -> IO (Localised ProviderTemplates)
-loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provider" $ \fp ->
+data PasswordResetEmailTemplate = PasswordResetEmailTemplate
+  { passwordResetEmailUrl :: !Template,
+    passwordResetEmailSubject :: !Template,
+    passwordResetEmailBodyText :: !Template,
+    passwordResetEmailBodyHtml :: !Template,
+    passwordResetEmailSender :: !EmailAddress,
+    passwordResetEmailSenderName :: !Text
+  }
+
+loadProviderTemplates :: ProviderOpts -> FilePath -> Locale -> EmailAddress -> IO (Localised ProviderTemplates)
+loadProviderTemplates pOptions templatesDir defLocale sender = readLocalesDir defLocale templatesDir "provider" $ \fp ->
   ProviderTemplates
     <$> ( ActivationEmailTemplate activationUrl'
             <$> readTemplate fp "email/activation-subject.txt"
             <*> readTemplate fp "email/activation.txt"
             <*> readTemplate fp "email/activation.html"
-            <*> pure (emailSender gOptions)
+            <*> pure sender
             <*> readText fp "email/sender.txt"
         )
     <*> ( ActivationEmailTemplate activationUrl'
             <$> readTemplate fp "email/update-subject.txt"
             <*> readTemplate fp "email/update.txt"
             <*> readTemplate fp "email/update.html"
-            <*> pure (emailSender gOptions)
+            <*> pure sender
             <*> readText fp "email/sender.txt"
         )
     <*> ( ApprovalRequestEmailTemplate approvalUrl'
             <$> readTemplate fp "email/approval-request-subject.txt"
             <*> readTemplate fp "email/approval-request.txt"
             <*> readTemplate fp "email/approval-request.html"
-            <*> pure (emailSender gOptions)
+            <*> pure sender
             <*> readText fp "email/sender.txt"
             <*> pure (approvalTo pOptions)
         )
@@ -91,7 +111,7 @@ loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provi
             <$> readTemplate fp "email/approval-confirm-subject.txt"
             <*> readTemplate fp "email/approval-confirm.txt"
             <*> readTemplate fp "email/approval-confirm.html"
-            <*> pure (emailSender gOptions)
+            <*> pure sender
             <*> readText fp "email/sender.txt"
             <*> pure (fromMaybe (error "Invalid HTTPS URL") maybeUrl)
         )
@@ -99,16 +119,13 @@ loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provi
             <$> readTemplate fp "email/password-reset-subject.txt"
             <*> readTemplate fp "email/password-reset.txt"
             <*> readTemplate fp "email/password-reset.html"
-            <*> pure (emailSender gOptions)
+            <*> pure sender
             <*> readText fp "email/sender.txt"
         )
   where
     maybeUrl = fromByteString . encodeUtf8 $ pOptions.homeUrl
-    gOptions = o.emailSMS.general
-    pOptions = o.emailSMS.provider
-    defLocale = defaultTemplateLocale o.settings
-    readTemplate = readTemplateWithDefault gOptions.templateDir defLocale "provider"
-    readText = readTextWithDefault gOptions.templateDir defLocale "provider"
+    readTemplate = readTemplateWithDefault templatesDir defLocale "provider"
+    readText = readTextWithDefault templatesDir defLocale "provider"
     -- URL templates
     activationUrl' = template pOptions.providerActivationUrl
     approvalUrl' = template pOptions.approvalUrl

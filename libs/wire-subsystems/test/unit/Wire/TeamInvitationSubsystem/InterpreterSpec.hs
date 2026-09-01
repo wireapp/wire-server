@@ -28,10 +28,12 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text.Encoding
+import Data.Text.Template (template)
 import Data.Time
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (runInputConst)
 import Polysemy.State
 import Polysemy.TinyLog
 import System.Random (StdGen, mkStdGen)
@@ -48,6 +50,7 @@ import Wire.API.Team.Permission
 import Wire.API.Team.Role (defaultRole)
 import Wire.API.User
 import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Template (InvitationUrlTemplates (..))
 import Wire.EnterpriseLoginSubsystem
 import Wire.GalleyAPIAccess
 import Wire.InvitationStore
@@ -153,11 +156,18 @@ runAllEffectsWithUserKeys initialUsers args =
     . discardTinyLogs
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
 
+testInvitationUrlTemplates :: InvitationUrlTemplates
+testInvitationUrlTemplates =
+  InvitationUrlTemplates
+    { personalUser = template "https://example.com/accept-invitation/?team-code=${code}",
+      newUser = template "https://example.com/join/?team-code=${code}"
+    }
+
 runInviteScenarioObserved ::
   InviteScenarioInput ->
   Either LocalErrors InviteScenarioObservation
 runInviteScenarioObserved input =
-  runAllEffectsWithUserKeys [input.inviter] args . runTeamInvitationSubsystem config $ do
+  runAllEffectsWithUserKeys [input.inviter] args . runInputConst testInvitationUrlTemplates . runTeamInvitationSubsystem config $ do
     for_ input.liveInvitations $ \inv -> void $ insertInvitation inv 3_000_000
     for_ input.pendingScimUsers $ \(indexTeam, email, uid) ->
       deleteKey (mkEmailKey email) >> insertPendingScimUser indexTeam email uid
@@ -541,7 +551,7 @@ spec = do
               -- run the test
               --
               outcome :: Either LocalErrors ()
-              outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
+              outcome = runAllEffects args . runInputConst testInvitationUrlTemplates . runTeamInvitationSubsystem cfg $ do
                 void $ inviteUser inviterLuid tid invReq
 
               -- result invariants
@@ -632,6 +642,6 @@ spec = do
                   }
 
               outcome :: Either LocalErrors ()
-              outcome = runAllEffects interpreterArgs . runTeamInvitationSubsystem config $ do
+              outcome = runAllEffects interpreterArgs . runInputConst testInvitationUrlTemplates . runTeamInvitationSubsystem config $ do
                 void $ inviteUser inviterLuid tid invitationRequest
            in pure $ outcome === Left (ESubsystem TeamInvitationBlockedDomain)

@@ -2448,3 +2448,118 @@ Notes
 - `jobs.workerThreads` controls the number of worker threads in each job queue. The default is `1`; increasing it allows jobs in that queue to run in parallel when their group keys permit it.
 - Both job queues share the same PostgreSQL pool. Increasing `jobs.workerThreads` can increase the number of connections needed when more jobs run concurrently, but it does not create a permanently dedicated connection per thread or queue.
 - The job runner is poll-only and does not require an additional PostgreSQL listener connection.
+
+## Background worker: Email sending
+
+
+The background-worker delivers the email jobs enqueued by brig on the `emails`
+Arbiter queue (PostgreSQL). It requires an `email` transport (AWS SES or SMTP),
+the same shape brig uses for `emailSMS.email`. Configuration is supplied via
+Helm under `background-worker.config` and rendered into the `email` block of
+`background-worker.yaml`.
+
+The transport is selected by `background-worker.config.useSES`:
+
+- `useSES: true` (default) renders an SES block. `aws.sesQueue` is required and
+  `aws.sesEndpoint` selects the SES endpoint. The worker also needs the
+  `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` environment
+  variables, injected from `background-worker.config.aws.region` and the
+  `awsKeyId`/`awsSecretKey` secrets (the same pattern brig uses).
+- `useSES: false` renders an SMTP block using the `smtp.*` settings. The SMTP
+  password is read from the file named by `smtp.passwordFile` (mounted from the
+  `smtpPassword` secret).
+
+Rendered config (`background-worker.yaml`):
+
+```yaml
+# SES:
+email:
+  sesQueue: wire-brig-events
+  sesEndpoint: https://email.eu-west-1.amazonaws.com
+# SMTP (xor SES):
+# email:
+#   smtpEndpoint: { host: smtp.example.com, port: 587 }
+#   smtpConnType: tls
+#   smtpCredentials:
+#     smtpUsername: wire
+#     smtpPassword: /etc/wire/background-worker/secrets/smtp-password.txt
+```
+
+Helm values (under `background-worker`):
+
+```yaml
+config:
+  useSES: true
+  aws:
+    region: "eu-west-1"
+    sesEndpoint: https://email.eu-west-1.amazonaws.com
+    sesQueue: wire-brig-events   # required when useSES is true
+  smtp:
+    passwordFile: /etc/wire/background-worker/secrets/smtp-password.txt
+secrets:
+  awsKeyId: <aws-access-key-id>          # SES only
+  awsSecretKey: <aws-secret-access-key>  # SES only
+  smtpPassword: <smtp-password>          # SMTP only
+```
+
+Notes
+
+- `email` is required: the worker fails to start without a transport.
+- For SES, the worker reads `AWS_REGION` from `config.aws.region` and the AWS
+  credentials from the `awsKeyId`/`awsSecretKey` secrets, mirroring brig.
+- For SMTP, the password is mounted at
+  `/etc/wire/background-worker/secrets/smtp-password.txt` (from the
+  `smtpPassword` secret); `config.smtp.passwordFile` must point at it.
+- Email jobs are inserted by brig into the `emails` table of the default
+  Arbiter schema (created at startup by the Arbiter migrations). Failed sends
+  are retried with bounded exponential backoff and eventually moved to the
+  queue's dead-letter queue, so transient worker downtime does not lose email
+  jobs.
+- The `emails` queue and its dead-letter table live in the shared PostgreSQL
+  database and contain the queued request data (including one-time codes,
+  recipient addresses and reset URLs for jobs that were never delivered). Keep
+  database access least-privileged and monitor DLQ growth.
+
+## Background worker: Email templates
+
+The background-worker does not only deliver email, it **composes** it: brig
+enqueues the composing payload (email type, locale and inputs such as
+recipient, keys/codes, team names) as `send_email` jobs, and the worker
+selects the localized template, renders the placeholders and builds the MIME
+mail right before sending. The templates directory ships in the
+background-worker image at `/usr/share/wire/templates`.
+
+Configure it via Helm under `background-worker.config.emailTemplates`
+(rendered into the `emailTemplates` block of `background-worker.yaml`). These
+settings were previously brig's `emailSMS` template/URL/branding settings;
+brig no longer has them, so deployments must carry them on the worker instead
+(they must match what brig used to configure, or emails will render with
+different URLs/branding than before):
+
+```yaml
+config:
+  emailTemplates:
+    templateDir: /usr/share/wire/templates
+    # defaultLocale: en       # optional; falls back to en
+    emailSender: backend@wire.com
+    templateBranding:         # the 10 branding placeholders
+      brand: Wire
+      brandUrl: https://wire.com
+      # ...
+    user:                     # user email URL templates
+      activationUrl: https://<nginz>/activate?key=${key}&code=${code}
+      teamActivationUrl: https://<nginz>/register?team=${team}&team_code=${code}
+      passwordResetUrl: https://<nginz>/password-reset/${key}?code=${code}
+      deletionUrl: https://<nginz>/users/delete?key=${key}&code=${code}
+    team:                     # team email URL templates
+      tInvitationUrl: https://<nginz>/register?team=${team}&team_code=${code}
+      # ...
+    provider:                 # provider email URL templates
+      homeUrl: https://provider.example.com/
+      # ...
+```
+
+brig still configures `emailSMS.general.emailSender` (used for SCIM
+invitations and the enterprise audit email configuration) and the team
+invitation URL templates (`emailSMS.team`, rendered into API responses);
+everything else email-related lives on the worker.

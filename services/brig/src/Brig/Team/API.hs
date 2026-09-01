@@ -31,7 +31,6 @@ import Brig.API.User (createUserInviteViaScim)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
-import Brig.Template
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
@@ -70,6 +69,7 @@ import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
+import Wire.EmailSubsystem.Template (InvitationUrlTemplates (..))
 import Wire.Error
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))

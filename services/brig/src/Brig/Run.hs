@@ -18,6 +18,7 @@
 module Brig.Run (run, mkApp, migratePostgres) where
 
 import AWS.Util (readAuthExpiration)
+import Arbiter.Core qualified as ArbiterCore
 import Brig.API.Federation
 import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
@@ -69,6 +70,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
+import Wire.JobSubsystem.Migrations (mkArbiterConnectionString, runJobMigrations)
 import Wire.OpenTelemetry (withTracer)
 import Wire.PostgresMigrations
 import Wire.Sem.Paging qualified as P
@@ -84,6 +86,11 @@ run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (app, e) <- mkApp opts
   runAllMigrations e.hasqlPool.rawPool e.appLogger
+  arbiterConnStr <-
+    mkArbiterConnectionString
+      opts.postgresql
+      opts.postgresqlPassword
+  runJobMigrations arbiterConnStr ArbiterCore.defaultSchemaName
   let s = Server.newSettings (server e)
   internalEventListener <-
     Async.async $

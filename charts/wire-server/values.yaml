@@ -371,8 +371,7 @@ galley:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
@@ -1074,6 +1073,66 @@ background-worker:
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
 
+    # Email transport for the background-worker (delivers the email jobs
+    # enqueued by brig). Same SES/SMTP shape as brig's emailSMS.email.
+    # `useSES` selects the transport: when true, the worker sends via AWS SES
+    # using `aws.sesQueue`/`aws.sesEndpoint` together with the AWS_ACCESS_KEY_ID
+    # / AWS_SECRET_ACCESS_KEY secrets and the AWS_REGION below. When false, it
+    # sends via SMTP using the `smtp.*` settings.
+    useSES: true
+    aws:
+      region: "eu-west-1"
+      sesEndpoint: https://email.eu-west-1.amazonaws.com
+      # sesQueue is required when useSES is true (deployment-specific), e.g.:
+      # sesQueue: wire-brig-events
+
+    # SMTP transport (used when useSES is false). The ConfigMap renders these
+    # into the `email` block; mirrors brig's `smtp` settings.
+    smtp:
+      passwordFile: /etc/wire/background-worker/secrets/smtp-password.txt
+
+    # Email templates used to compose the emails queued by brig.
+    # The background-worker composes all outbound email from these localized
+    # templates (bundled in the image at templateDir); brig no longer has any
+    # template/URL/branding settings, so these values must match what brig
+    # used to configure.
+    emailTemplates:
+      templateDir: /usr/share/wire/templates
+      emailSender: backend@wire.com
+      templateBranding:
+        brand: Wire
+        brandUrl: https://wire.com
+        brandLabelUrl: wire.com
+        brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+        brandService: Wire Service Provider
+        copyright: © WIRE SWISS GmbH
+        misuse: misuse@wire.com
+        legal: https://wire.com/legal/
+        forgot: https://wire.com/forgot/
+        support: https://support.wire.com/
+      user:
+        activationUrl: https://<nginz>/activate?key=${key}&code=${code}
+        teamActivationUrl: https://<nginz>/register?team=${team}&team_code=${code}
+        passwordResetUrl: https://<nginz>/password-reset/${key}?code=${code}
+        deletionUrl: https://<nginz>/users/delete?key=${key}&code=${code}
+      team:
+        tInvitationUrl: https://<nginz>/register?team=${team}&team_code=${code}
+        tExistingUserInvitationUrl: https://<nginz>/register?invitation_code=${code}
+        tActivationUrl: https://<nginz>/register?team=${team}&team_code=${code}
+        tCreatorWelcomeUrl: https://example.com/login
+        tMemberWelcomeUrl: https://example.com/download
+      provider:
+        homeUrl: https://provider.localhost/
+        providerActivationUrl: https://<nginz>/provider/activate?key=${key}&code=${code}
+        approvalUrl: https://<nginz>/provider/approve?key=${key}&code=${code}
+        approvalTo: success@simulator.amazonses.com
+        providerPwResetUrl: https://<nginz>/provider/password-reset?key=${key}&code=${code}
+
+  # Optional secret keys (see templates/background-worker/secret.yaml):
+  #   awsKeyId: <aws-access-key-id>          # required for SES; rendered as AWS_ACCESS_KEY_ID
+  #   awsSecretKey: <aws-secret-access-key>   # required for SES; rendered as AWS_SECRET_ACCESS_KEY
+  #   smtpPassword: <smtp-password>           # mounted at /etc/wire/background-worker/secrets/smtp-password.txt;
+  #                                          # consumed via config.smtp.passwordFile (mirrors brig/galley)
   secrets: {}
 
   podSecurityContext:
@@ -1191,19 +1250,6 @@ brig:
       acquisitionTimeout: 10s
       idlenessTimeout: 10m
 
-    emailSMS:
-      general:
-        templateBranding:
-          brand: Wire
-          brandUrl: https://wire.com
-          brandLabelUrl: wire.com
-          brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
-          brandService: Wire Service Provider
-          copyright: © WIRE SWISS GmbH
-          misuse: misuse@wire.com
-          legal: https://wire.com/legal/
-          forgot: https://wire.com/forgot/
-          support: https://support.wire.com/
     authSettings:
       keyIndex: 1
       userTokenTimeout: 4838400
@@ -1323,8 +1369,7 @@ brig:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
