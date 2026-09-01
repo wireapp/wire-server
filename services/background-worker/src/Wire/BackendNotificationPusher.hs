@@ -207,10 +207,23 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         -- compute the best usable version in a notification
         let bestVersion = bodyVersions >=> flip latestCommonVersion remoteVersions
         case pairedMaximumOn bestVersion (toList (notifications bundle)) of
-          (_, Nothing) ->
-            Log.fatal $
-              Log.msg (Log.val "No federation API version in common, the notification will be ignored")
-                . Log.field "domain" (domainText targetDomain)
+          (_, Nothing) -> do
+            metrics <- asks backendNotificationMetrics
+            case bundle.unsupportedVersionPolicy of
+              KeepQueued -> do
+                Log.fatal $
+                  Log.msg (Log.val "No federation API version in common; the notification will remain queued")
+                    . Log.field "domain" (domainText targetDomain)
+                    . Log.field "paths" (Text.intercalate "," $ map (.path) $ toList bundle.notifications)
+                withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 1)
+              DropIfUnsupported -> do
+                Log.warn $
+                  Log.msg (Log.val "Dropping notification because the target backend supports no compatible federation API version")
+                    . Log.field "domain" (domainText targetDomain)
+                    . Log.field "paths" (Text.intercalate "," $ map (.path) $ toList bundle.notifications)
+                lift $ ack envelope
+                withLabel metrics.droppedUnsupportedVersionCounter (domainText targetDomain) incCounter
+                withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
           (notif, cveVersion) -> do
             ceFederator <- asks (.federatorInternal)
             ceHttp2Manager <- asks http2Manager
