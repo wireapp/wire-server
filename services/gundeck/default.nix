@@ -15,6 +15,7 @@
 , auto-update
 , base
 , base16-bytestring
+, base64-bytestring
 , bilge
 , bytestring
 , bytestring-conversion
@@ -22,6 +23,7 @@
 , conduit
 , containers
 , criterion
+, crypton
 , crypton-x509-store
 , data-timeout
 , errors
@@ -29,6 +31,7 @@
 , extended
 , extra
 , foldl
+, hasql-pool
 , hedis
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -41,6 +44,7 @@
 , lens
 , lens-aeson
 , lib
+, memory
 , metrics-core
 , metrics-wai
 , MonadRandom
@@ -49,6 +53,7 @@
 , network
 , network-uri
 , optparse-applicative
+, polysemy
 , prometheus-client
 , psqueues
 , QuickCheck
@@ -78,6 +83,7 @@
 , types-common-aws
 , unliftio
 , unordered-containers
+, uri-bytestring
 , uuid
 , wai
 , wai-extra
@@ -86,6 +92,7 @@
 , websockets
 , wire-api
 , wire-otel
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -105,11 +112,13 @@ mkDerivation {
     attoparsec
     auto-update
     base
+    base64-bytestring
     bilge
     bytestring
     bytestring-conversion
     cassandra-util
     containers
+    crypton
     crypton-x509-store
     data-timeout
     errors
@@ -117,6 +126,7 @@ mkDerivation {
     extended
     extra
     foldl
+    hasql-pool
     hedis
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -126,10 +136,12 @@ mkDerivation {
     imports
     lens
     lens-aeson
+    memory
     metrics-core
     metrics-wai
     mtl
     network-uri
+    polysemy
     prometheus-client
     psqueues
     raw-strings-qq
@@ -147,6 +159,7 @@ mkDerivation {
     types-common-aws
     unliftio
     unordered-containers
+    uri-bytestring
     uuid
     wai
     wai-extra
@@ -154,6 +167,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-otel
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
@@ -204,12 +218,19 @@ mkDerivation {
     amqp
     async
     base
+    base64-bytestring
+    bytestring
     bytestring-conversion
     containers
+    crypton
     exceptions
+    extended
+    hasql-pool
     HsOpenSSL
+    http-types
     imports
     lens
+    memory
     MonadRandom
     mtl
     multiset
@@ -224,9 +245,11 @@ mkDerivation {
     tasty-quickcheck
     text
     these
+    time
     tinylog
     types-common
     wire-api
+    wire-subsystems
   ];
   benchmarkHaskellDepends = [
     amazonka

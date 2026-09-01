@@ -29,6 +29,12 @@ data:
       tlsCa: /etc/wire/gundeck/cassandra/{{- (include "gundeck.tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+    {{- if hasKey $.Values.gundeck.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/gundeck/secrets/pgPassword
+    {{- end }}
+
     {{- with .rabbitmq }}
     rabbitmq:
       host: {{ .host }}

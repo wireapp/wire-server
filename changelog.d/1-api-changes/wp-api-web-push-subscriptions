@@ -1,0 +1,1 @@
+In API version V17, gundeck adds new web push subscription endpoints under `POST/DELETE/GET /push/web/subscriptions` for delivering notifications to web browsers via the W3C Push API (RFC 8030/8291/8292).
