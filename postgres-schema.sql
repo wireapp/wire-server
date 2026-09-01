@@ -1544,6 +1544,22 @@ CREATE TABLE public.schema_migrations (
 ALTER TABLE public.schema_migrations OWNER TO "wire-server";
 
 --
+-- Name: service; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.service (
+    provider uuid NOT NULL,
+    id uuid NOT NULL,
+    base_url bytea NOT NULL,
+    auth_token bytea NOT NULL,
+    fingerprints bytea[] DEFAULT '{}'::bytea[] NOT NULL,
+    enabled boolean NOT NULL
+);
+
+
+ALTER TABLE public.service OWNER TO "wire-server";
+
+--
 -- Name: subconversation; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1962,6 +1978,14 @@ ALTER TABLE ONLY public.mls_history_client
 
 ALTER TABLE ONLY public.remote_conversation_local_member
     ADD CONSTRAINT remote_conversation_local_member_pkey PRIMARY KEY ("user", conv_remote_domain, conv_remote_id);
+
+
+--
+-- Name: service service_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.service
+    ADD CONSTRAINT service_pkey PRIMARY KEY (provider, id);
 
 
 --

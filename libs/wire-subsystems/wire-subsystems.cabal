@@ -449,6 +449,10 @@ library
     Wire.ScimUserMetaStore.Mem
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra
+    Wire.ServiceStore.Cassandra.Queries
+    Wire.ServiceStore.DualWrite
+    Wire.ServiceStore.Migration
+    Wire.ServiceStore.Postgres
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SFT

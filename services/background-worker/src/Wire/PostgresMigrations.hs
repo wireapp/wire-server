@@ -27,6 +27,7 @@ import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
+import Wire.ServiceStore.Migration
 import Wire.TeamFeatureStore.Migration
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
@@ -106,4 +107,22 @@ domainRegistration migOpts = do
   Log.info logger $ Log.msg (Log.val "started domain registration migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
+    cancel migrationLoop
+
+service :: MigrationOptions -> AppT IO CleanupAction
+service migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting service migration")
+  count <- register $ counter $ Prometheus.Info "wire_service_migrated_to_pg" "Number of services migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_service_migration_finished" "Whether the service migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_service_migration_failed" "Whether the service migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_service_migration_duration_seconds" "Duration of service migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateServicesLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started service migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling service migration")
     cancel migrationLoop
