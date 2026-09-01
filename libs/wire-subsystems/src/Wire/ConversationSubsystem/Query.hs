@@ -361,8 +361,9 @@ getRemoteConversationsWithFailures lusr convs = do
           . Logger.field "error" (displayException e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
     handleFailure locallyFound (Right response) = do
-      let returnedIds = Set.fromList $ map (qualifyAs response . (.id)) (tUnqualified response).convs
-          missingConversations = filter (`Set.notMember` returnedIds) locallyFound
+      let locallyFoundForDomain = filter ((== tDomain response) . tDomain) locallyFound
+          returnedIds = Set.fromList $ map (qualifyAs response . (.id)) (tUnqualified response).convs
+          missingConversations = filter (`Set.notMember` returnedIds) locallyFoundForDomain
       unless (null missingConversations) $ do
         for_ missingConversations $ \conv ->
           ConversationStore.deleteMembersInRemoteConversation conv [tUnqualified lusr]
