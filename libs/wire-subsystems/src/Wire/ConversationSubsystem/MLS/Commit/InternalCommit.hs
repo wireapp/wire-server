@@ -197,29 +197,41 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                         ( mlsProtocolError
                             "The first commit in a 1-1 conversation should add exactly 1 other user"
                         )
-                  -- notify otherUser about being added to this 1-1 conversation
+                  -- Only emit a member-join if someone is actually newly
+                  -- joining. A reset leaves membership intact but re-enters
+                  -- this branch (epoch back to 0), so on re-establish both
+                  -- users are already members -- emitting a join then would be
+                  -- a spurious "X added you" for a conversation they're
+                  -- already in.
                   let bm = convBotsAndMembers conv
-                  members <-
-                    note
+                      newMembers =
+                        filter
+                          (flip Set.notMember (existingMembers lconv))
+                          (bmQualifiedMembers lconv bm)
+                  void
+                    . note
                       ( InternalErrorWithDescription
                           "Unexpected empty member list in MLS 1-1 conversation"
                       )
-                      $ nonEmpty (bmQualifiedMembers lconv bm)
-                  update <-
-                    sendConversationActionNotifications
-                      SConversationJoinTag
-                      senderUser
-                      False
-                      con
-                      lconv
-                      bm
-                      ConversationJoin
-                        { users = members,
-                          role = roleNameWireMember,
-                          joinType = def
-                        }
-                      def
-                  pure [update]
+                    $ nonEmpty (bmQualifiedMembers lconv bm)
+                  case nonEmpty newMembers of
+                    Nothing -> pure []
+                    Just membersNE -> do
+                      update <-
+                        sendConversationActionNotifications
+                          SConversationJoinTag
+                          senderUser
+                          False
+                          con
+                          lconv
+                          bm
+                          ConversationJoin
+                            { users = membersNE,
+                              role = roleNameWireMember,
+                              joinType = def
+                            }
+                          def
+                      pure [update]
             SubConv _ _ -> pure []
             Conv _ -> do
               -- remove users from the conversation and send events

@@ -19,7 +19,7 @@ module Test.MLS.Reset where
 
 import API.Galley
 import MLS.Util
-import Notifications (isConvResetNotif)
+import Notifications (isConvResetNotif, isWelcomeNotif)
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
@@ -113,6 +113,42 @@ testResetOne2OneConversation = do
   conv'' <- getConversation user convId >>= getJSON 200
   conv'' %. "epoch" `shouldMatchInt` 1
   conv'' %. "group_id" `shouldMatch` (conv' %. "group_id")
+
+-- | Regression test for WPB-22820: after an MLS 1:1 conversation is reset
+-- (epoch back to 0, group id rotated, membership unchanged) and
+-- re-established, the backend must not report either participant as newly
+-- joining the conversation, since both were already members before the reset.
+testResetOne2OneNoSpuriousMemberJoin :: (HasCallStack) => App ()
+testResetOne2OneNoSpuriousMemberJoin = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [aliceClient, bobClient] <- traverse (createMLSClient def) [alice, bob]
+  void . for [aliceClient, bobClient] $ \cid -> replicateM 2 $ uploadNewKeyPackage def cid
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  convId <- objConvId (conv %. "conversation")
+
+  -- establish the 1:1 conversation at epoch 1
+  resetOne2OneGroup def aliceClient conv
+  void $ createAddCommit aliceClient convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- reset back to epoch 0 (group id rotates, membership stays: alice + bob)
+  conv' <- resetMLSConversation aliceClient (conv %. "conversation")
+  convId' <- objConvId conv'
+  resetOne2OneGroupGeneric def aliceClient conv' (conv %. "public_keys")
+
+  withWebSocket alice $ \wsAlice ->
+    withWebSocket bob $ \wsBob -> do
+      void $ createAddCommit aliceClient convId' [bob] >>= sendAndConsumeCommitBundle
+
+      -- Bob rejoins the rotated group (legitimate welcome), but since he was
+      -- already a member of this 1:1 conversation, he must not additionally be
+      -- told (via member-join) that he was just added.
+      void $ awaitMatch isWelcomeNotif wsBob
+      mEvent <- awaitAnyEvent 2 wsBob
+      for_ mEvent $ \n -> n %. "payload.0.type" `shouldNotMatch` "conversation.member-join"
+
+      -- Alice issued the commit and isn't newly joining anything either;
+      -- So, we expect no event for her.
+      awaitAnyEvent 2 wsAlice `shouldMatch` (Nothing :: Maybe Value)
 
 testResetMixedConversation :: (HasCallStack) => Domain -> App ()
 testResetMixedConversation domain = do
