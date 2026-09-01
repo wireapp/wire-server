@@ -744,6 +744,53 @@ testEndOfInitialSync = withModifiedBackend (enableConsumableNotifications def) $
       ackEvent ws e
     assertNoEvent_ ws
 
+testSyncMarkerMissingAcrossConnections :: (HasCallStack) => App ()
+testSyncMarkerMissingAcrossConnections = do
+  (alice, _, cid) <- mkUserPlusClient
+  emptyQueue alice cid
+
+  lowerCodensity $ do
+    -- open first websocket
+    (_, ws1) <- createEventsWebSocketWithSync alice (Just cid)
+    -- ...and close it immediately
+    -- if the first websocket is not closed, all evenets including the marker of the second connection
+    -- will be received on the first socket
+    -- but if closed, the sync markers are not ACKed and we expect them to be received by the second web socket that will be opened
+    lift $ killWebSocket ws1
+    -- open second websocket
+    (marker2, ws2) <- createEventsWebSocketWithSync alice (Just cid)
+    lift $ do
+      let timeoutMicros = 2_000_000
+      -- collect markers on both websockets
+      markers1Async <- async (collectSyncMarkers ws1 timeoutMicros)
+      markers2Async <- async (collectSyncMarkers ws2 timeoutMicros)
+      markers1 <- wait markers1Async
+      markers2 <- wait markers2Async
+      let allMarkersReceived = markers1 <> markers2
+      -- assert that the second marker has arrived
+      unless (marker2 `elem` allMarkersReceived) $ assertFailure $ "Expected sync marker not observed: " <> marker2
+  where
+    killWebSocket :: EventWebSocket -> App ()
+    killWebSocket ws = do
+      void $ tryPutMVar ws.kill ()
+      void $ timeout 1_000_000 (takeMVar ws.done)
+
+    collectSyncMarkers :: (HasCallStack) => EventWebSocket -> Int -> App [String]
+    collectSyncMarkers ws timeoutMicros = go []
+      where
+        go markers =
+          timeout timeoutMicros (readChan ws.events) >>= \case
+            Nothing -> pure (reverse markers)
+            Just (Left e) -> assertFailure $ "Websocket closed while waiting for synchronization message " <> displayException e
+            Just (Right e) -> do
+              ackEvent ws e
+              t <- e %. "type" & asString
+              if (t == "synchronization")
+                then do
+                  markerId <- e %. "data.marker_id" & asString
+                  go (markerId : markers)
+                else go markers
+
 testEndOfInitialSyncMoreEventsAfterSyncMessage :: (HasCallStack) => App ()
 testEndOfInitialSyncMoreEventsAfterSyncMessage = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
   (alice, uid, cid) <- mkUserPlusClientWithDomain domain
