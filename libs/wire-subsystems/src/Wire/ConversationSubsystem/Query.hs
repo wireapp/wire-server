@@ -346,18 +346,30 @@ getRemoteConversationsWithFailures lusr convs = do
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
   bimap (localFailures <>) (map remoteView . concat)
     . partitionEithers
-    <$> traverse handleFailure resp
+    <$> traverse (handleFailure locallyFound) resp
   where
     handleFailure ::
-      (Member P.TinyLog r) =>
+      ( Member ConversationStore.ConversationStore r,
+        Member P.TinyLog r
+      ) =>
+      [Remote ConvId] ->
       Either (Remote [ConvId], FederationError) (Remote GetRemoteConversationViewsResponse) ->
       Sem r (Either FailedGetConversation [Remote RemoteConversationView])
-    handleFailure (Left (rcids, e)) = do
+    handleFailure _ (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
           . Logger.field "error" (displayException e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
-    handleFailure (Right c) = pure . Right . traverse (.convs) $ c
+    handleFailure locallyFound (Right response) = do
+      let returnedIds = Set.fromList $ map (qualifyAs response . (.id)) (tUnqualified response).convs
+          missingConversations = filter (`Set.notMember` returnedIds) locallyFound
+      unless (null missingConversations) $ do
+        for_ missingConversations $ \conv ->
+          ConversationStore.deleteMembersInRemoteConversation conv [tUnqualified lusr]
+        P.info $
+          Logger.msg ("Removed stale local memberships for remote conversations" :: ByteString)
+            . Logger.field "convIds" (show $ map tUntagged missingConversations)
+      pure . Right . traverse (.convs) $ response
 
 getConversationRoles ::
   ( Member ConversationStore.ConversationStore r,
@@ -529,9 +541,6 @@ listConversations luser (Public.ListConversations ids) = do
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- current user should be considered removed from this conversation at this
-    -- point.
     P.warn $
       Logger.msg ("Some locally found conversation ids were not returned by remotes" :: ByteString)
         . Logger.field "convIds" (show remoteNotFoundRemoteIds)

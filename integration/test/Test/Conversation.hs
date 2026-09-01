@@ -582,6 +582,120 @@ testGetOneOnOneConvInStatusSentFromRemote domain = do
   resp <- getConversation d1User d2ConvId
   resp.status `shouldMatchInt` 200
 
+testReconcileStaleLocalMembershipsForDeletedRemoteConversation :: (HasCallStack) => App ()
+testReconcileStaleLocalMembershipsForDeletedRemoteConversation = do
+  owner <- randomUser OwnDomain def
+  alice <- randomUser OtherDomain def
+  charlie <- randomUser OtherDomain def
+  for_ [alice, charlie] $ connectTwoUsers owner
+
+  conv <- registerMissingRemoteConversation owner [alice, charlie]
+
+  eventually $ do
+    assertConversationMembership alice conv True
+    assertConversationMembership charlie conv True
+
+  -- A successful response from the owning backend that omits the conversation
+  -- proves that Alice's locally stored membership is stale.
+  getConversation alice conv >>= assertLabel 404 "no-conversation"
+  assertConversationMembership alice conv False
+  assertConversationMembership charlie conv True
+
+  -- The bulk endpoint performs the same reconciliation for Charlie.
+  bindResponse (listConversations charlie [conv]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "found" `shouldMatch` ([] :: [Value])
+    resp.json %. "not_found" `shouldMatch` [conv]
+    resp.json %. "failed" `shouldMatch` ([] :: [Value])
+  assertConversationMembership charlie conv False
+
+  -- Reconciliation is idempotent once the local membership has been removed.
+  getConversation alice conv >>= assertLabel 404 "no-conversation"
+
+testPreserveRemoteMembershipOnFederationFailure :: (HasCallStack) => App ()
+testPreserveRemoteMembershipOnFederationFailure = do
+  resourcePool <- asks resourcePool
+  runCodensity (acquireResources 1 resourcePool) $ \[remoteBackend] -> do
+    (alice, convQid) <- runCodensity (startDynamicBackend remoteBackend mempty) $ \_ -> do
+      owner <- randomUser remoteBackend.berDomain def
+      alice <- randomUser OwnDomain def
+      connectTwoUsers owner alice
+      conv <-
+        postConversation owner (defProteus {qualifiedUsers = [alice]})
+          >>= getJSON 201
+      convQid <- objQidObject conv
+      eventually $ assertConversationMembership alice convQid True
+      pure (alice, convQid)
+
+    bindResponse (listConversations alice [convQid]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "failed" `shouldMatch` [convQid]
+    assertConversationMembership alice convQid True
+
+-- | This function only submits the on-conversation-created event
+-- to the remote backend without actually having created a local conversation.
+registerMissingRemoteConversation :: (HasCallStack) => Value -> [Value] -> App Value
+registerMissingRemoteConversation owner members = do
+  originDomain <- objDomain owner
+  originUserId <- objId owner
+  convId <- randomId
+  targetDomain <- case members of
+    [] -> assertFailure "A remote conversation needs at least one local member"
+    firstMember : remainingMembers -> do
+      domain <- objDomain firstMember
+      for_ remainingMembers $ \remoteMember -> do
+        memberDomain <- objDomain remoteMember
+        memberDomain `shouldMatch` domain
+      pure domain
+  memberPayloads <- for members $ \remoteMember -> do
+    memberId <- objId remoteMember
+    memberQid <- objQidObject remoteMember
+    pure
+      $ object
+        [ "id" .= memberId,
+          "qualified_id" .= memberQid,
+          "status" .= (0 :: Int),
+          "conversation_role" .= ("wire_member" :: String)
+        ]
+  req <-
+    rawBaseRequest
+      originDomain
+      FederatorInternal
+      Unversioned
+      (joinHttpPath ["rpc", targetDomain, "galley", "on-conversation-created"])
+  bindResponse
+    ( submit "POST"
+        $ req
+        & addHeader "Wire-Origin-Domain" originDomain
+        & addJSONObject
+          [ "time" .= ("2026-01-01T00:00:00.000Z" :: String),
+            "orig_user_id" .= originUserId,
+            "cnv_id" .= convId,
+            "cnv_type" .= (0 :: Int),
+            "cnv_access" .= ["invite" :: String, "code"],
+            "cnv_access_roles" .= ["team_member" :: String, "non_team_member"],
+            "cnv_name" .= Aeson.Null,
+            "non_creator_members" .= memberPayloads,
+            "message_timer" .= Aeson.Null,
+            "receipt_mode" .= Aeson.Null,
+            "protocol" .= object ["protocol" .= ("proteus" :: String)],
+            "group_conv_type" .= ("group_conversation" :: String),
+            "channel_add_permission" .= Aeson.Null,
+            "history" .= Aeson.Null
+          ]
+    )
+    $ \resp -> resp.status `shouldMatchInt` 200
+  pure $ object ["domain" .= originDomain, "id" .= convId]
+
+assertConversationMembership :: (HasCallStack) => Value -> Value -> Bool -> App ()
+assertConversationMembership user conv expected =
+  bindResponse (listConversationIds user def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    conversationIds <- resp.json %. "qualified_conversations" & asList
+    if expected
+      then conversationIds `shouldContain` [conv]
+      else conversationIds `shouldNotContain` [conv]
+
 testAddingUserNonFullyConnectedFederation :: (HasCallStack) => StaticDomain -> App ()
 testAddingUserNonFullyConnectedFederation domain = do
   let overrides =
@@ -1029,8 +1143,13 @@ testOnUserDeletedConversations = do
 
       do
         -- Bob is not in the one-to-one conversation with Alice any more
-        conv <- getConversation alice ooConvId >>= getJSON 200
-        shouldBeEmpty $ conv %. "members.others"
+        resp <- getConversation alice ooConvId
+        case resp.status of
+          200 -> do
+            conv <- getJSON 200 resp
+            shouldBeEmpty $ conv %. "members.others"
+          404 -> resp.json %. "label" `shouldMatch` ("no-conversation" :: String)
+          status -> assertFailure $ "Unexpected status while fetching one-to-one conversation: " <> show status
       do
         -- Bob is not in the main conversation any more
         mainConvAfter <- getConversation alice (mainConvBefore %. "qualified_id") >>= getJSON 200
