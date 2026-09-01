@@ -196,6 +196,7 @@ testDeleteAppFromTeam = do
   appId <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user.id" & asString
+  BrigI.refreshIndex domain
 
   let appIdObject = object ["domain" .= domain, "id" .= appId]
 

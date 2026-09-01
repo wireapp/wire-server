@@ -786,7 +786,20 @@ deleteTeamMember' lusr zcon tid remove mBody = do
           Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
           _ -> UserTypeFilterRegular
       teamSizeAfterDelete <- do
-        before <- E.getSize tid
+        before <-
+          -- ES may not be in sync with cassandra/postgres, eg., if we
+          -- add and remove a member very quickly.  So, if we call
+          -- E.getSize here, we get the wrong answer, and this may
+          -- result in the `TeamSize` naturals to underflow (5xx error).
+          --
+          -- Two solutions: (1) force-sync the index here (it doesn't
+          -- drift, the approximate value is only used for the
+          -- journal); (2) accept that `E.getSize` gives us an
+          -- approximation and circumvent the 5xx errors by
+          -- lower-bounding the fields before the substraction.
+          --
+          -- We apply (2).
+          E.getSize tid <&> \s -> s {teamSize = min 1 s.teamSize, apps = min 1 s.apps}
         pure case uType of
           UserTypeFilterRegular -> before {teamSize = before.teamSize - 1}
           UserTypeFilterApp -> before {apps = before.apps - 1}
