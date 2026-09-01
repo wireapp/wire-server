@@ -17,7 +17,7 @@ HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 
 changed_files=$(git --no-pager diff-tree --no-commit-id -r --name-only HEAD)
 
-if [[ "$WIRE_INGRESS_MODE" != "nginx" ]] && echo "$changed_files" | grep -q "^charts/nginx-ingress-services"; then
+if [[ "$WIRE_INGRESS_MODE" != "nginx" ]] && echo "$changed_files" | grep -qE "^charts/nginx-ingress-services/(templates/|values\.yaml)"; then
   echo "ERROR: Changes detected in charts/nginx-ingress-services but WIRE_INGRESS_MODE is '${WIRE_INGRESS_MODE}'."
   echo "This failure is intentional: changes to nginx-ingress-services are not exercised by the"
   echo "integration test suite when running in envoy mode, and would be merged without any test coverage."
