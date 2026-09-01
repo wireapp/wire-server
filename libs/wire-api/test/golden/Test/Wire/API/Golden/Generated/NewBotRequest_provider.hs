@@ -85,10 +85,7 @@ import Wire.API.Provider.Bot
   )
 import Wire.API.Provider.External (NewBotRequest (..))
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
-import Wire.API.User.Profile
-  ( ColourId (ColourId, fromColourId),
-    Name (Name, fromName),
-  )
+import Wire.API.User
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -117,6 +114,7 @@ testObject_NewBotRequest_provider_1 =
           [ OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
+                omType = UserTypeBot,
                 omService =
                   Just
                     ( ServiceRef
@@ -131,12 +129,14 @@ testObject_NewBotRequest_provider_1 =
             OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+                omType = UserTypeApp,
                 omService = Nothing,
                 omConvRoleName = fromJust (parseRoleName "3m_oredfy0jqp1jvrociab2vq4z1rzklzs6_bpd04ht0")
               },
             OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                omType = UserTypeApp,
                 omService = Nothing,
                 omConvRoleName =
                   fromJust
@@ -193,6 +193,7 @@ testObject_NewBotRequest_provider_3 =
           [ OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -283,6 +284,7 @@ testObject_NewBotRequest_provider_6 =
           [ OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -297,6 +299,7 @@ testObject_NewBotRequest_provider_6 =
             OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -314,6 +317,7 @@ testObject_NewBotRequest_provider_6 =
             OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -395,6 +399,7 @@ testObject_NewBotRequest_provider_9 =
           [ OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -412,6 +417,7 @@ testObject_NewBotRequest_provider_9 =
             OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -519,6 +525,7 @@ testObject_NewBotRequest_provider_13 =
           [ OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -627,6 +634,7 @@ testObject_NewBotRequest_provider_17 =
           [ OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -640,6 +648,7 @@ testObject_NewBotRequest_provider_17 =
             OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -680,6 +689,7 @@ testObject_NewBotRequest_provider_18 =
           [ OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef
@@ -693,6 +703,7 @@ testObject_NewBotRequest_provider_18 =
             OtherMember
               { omQualifiedId =
                   Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
+                omType = UserTypeApp,
                 omService =
                   Just
                     ( ServiceRef

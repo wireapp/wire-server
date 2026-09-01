@@ -39,6 +39,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
 import Wire.API.History
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
+import Wire.API.User
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -203,6 +204,7 @@ testObject_Event_user_8 =
                       [ OtherMember
                           { omQualifiedId =
                               Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                            omType = UserTypeRegular,
                             omService = Nothing,
                             omConvRoleName =
                               fromJust
@@ -404,6 +406,7 @@ testObject_Event_user_17 =
                       [ OtherMember
                           { omQualifiedId =
                               Qualified (Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000100000001"))) domain,
+                            omType = UserTypeApp,
                             omService = Nothing,
                             omConvRoleName = fromJust (parseRoleName "wire_member")
                           }

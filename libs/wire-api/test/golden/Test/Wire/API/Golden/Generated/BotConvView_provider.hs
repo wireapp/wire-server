@@ -28,6 +28,7 @@ import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Provider.Bot (BotConvView, botConvView)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
+import Wire.API.User
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -39,6 +40,7 @@ testObject_BotConvView_provider_1 =
     Nothing
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,
+          omType = UserTypeBot,
           omService =
             Just
               ( ServiceRef
@@ -50,11 +52,13 @@ testObject_BotConvView_provider_1 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName = fromJust (parseRoleName "bi8z5mc78lg3bqqk29yd36x2_haz6b05t6ybil8p7zbkj")
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -66,6 +70,7 @@ testObject_BotConvView_provider_1 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+          omType = UserTypeApp,
           omService =
             Just
               ( ServiceRef
@@ -81,6 +86,7 @@ testObject_BotConvView_provider_1 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -103,12 +109,14 @@ testObject_BotConvView_provider_2 =
     Nothing
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName =
             fromJust (parseRoleName "1p003q7r9_fcclm1gcds98jwmgt7ilnw2p50cvvdmgu0gp2swep5k9kjs_iilqse9qkqtj7b")
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -120,6 +128,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -131,6 +140,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -143,6 +153,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName =
             fromJust
@@ -152,6 +163,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -163,11 +175,13 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName = fromJust (parseRoleName "vp2rd8w7lmf6vrs10fm7pulw")
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -179,6 +193,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -190,6 +205,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -205,11 +221,13 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName = fromJust (parseRoleName "i567cp5_vkae2dtra19lvhwcwj9ssgkg_r19ozt9it9gqzo14k9xed87kxpx27")
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -221,6 +239,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -236,6 +255,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -247,6 +267,7 @@ testObject_BotConvView_provider_2 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -269,6 +290,7 @@ testObject_BotConvView_provider_3 =
     (Just "n\44648")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName =
             fromJust
@@ -278,6 +300,7 @@ testObject_BotConvView_provider_3 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName =
             fromJust
@@ -287,6 +310,7 @@ testObject_BotConvView_provider_3 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -305,6 +329,7 @@ testObject_BotConvView_provider_4 =
     (Just "\ESC`G1w\FS\6340:")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -327,6 +352,7 @@ testObject_BotConvView_provider_5 =
     (Just "\1075229\1009724#nzj\173391")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -345,6 +371,7 @@ testObject_BotConvView_provider_6 =
     Nothing
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName = fromJust (parseRoleName "wmap0y")
         }
@@ -357,6 +384,7 @@ testObject_BotConvView_provider_7 =
     (Just "\n\167215&;&S")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -372,6 +400,7 @@ testObject_BotConvView_provider_7 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -383,11 +412,13 @@ testObject_BotConvView_provider_7 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName = fromJust (parseRoleName "lxp4vgb4v2ij1rkqwm3uv4sybo5p0dku54d3")
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -418,6 +449,7 @@ testObject_BotConvView_provider_10 =
     (Just "\1062483#\179740\165276")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName = fromJust (parseRoleName "mofz")
         }
@@ -441,6 +473,7 @@ testObject_BotConvView_provider_13 =
     (Just "O$:")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -456,6 +489,7 @@ testObject_BotConvView_provider_13 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -471,6 +505,7 @@ testObject_BotConvView_provider_13 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName =
             fromJust
@@ -480,6 +515,7 @@ testObject_BotConvView_provider_13 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -491,6 +527,7 @@ testObject_BotConvView_provider_13 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -509,6 +546,7 @@ testObject_BotConvView_provider_14 =
     (Just "T")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -520,6 +558,7 @@ testObject_BotConvView_provider_14 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -531,6 +570,7 @@ testObject_BotConvView_provider_14 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -553,6 +593,7 @@ testObject_BotConvView_provider_15 =
     (Just "")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -571,6 +612,7 @@ testObject_BotConvView_provider_16 =
     (Just "\6249y\ETX\167710K")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -586,6 +628,7 @@ testObject_BotConvView_provider_16 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -597,6 +640,7 @@ testObject_BotConvView_provider_16 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -612,11 +656,13 @@ testObject_BotConvView_provider_16 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService = Nothing,
           omConvRoleName = fromJust (parseRoleName "bl59s90cn3twutjvl959knjlt")
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -639,6 +685,7 @@ testObject_BotConvView_provider_17 =
     Nothing
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -654,6 +701,7 @@ testObject_BotConvView_provider_17 =
         },
       OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -673,6 +721,7 @@ testObject_BotConvView_provider_18 =
     (Just "e\"")
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000002"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
@@ -691,6 +740,7 @@ testObject_BotConvView_provider_19 =
     Nothing
     [ OtherMember
         { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000000"))) domain,
+          omType = UserTypeRegular,
           omService =
             Just
               ( ServiceRef
