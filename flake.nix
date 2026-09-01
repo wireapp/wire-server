@@ -114,6 +114,13 @@
       url = "github:velveteer/arbiter?rev=b9c57eb1f8277d97616aa449bea471fe9ce14eda";
       flake = false;
     };
+
+    headroom = {
+      # https://github.com/xwinus/headroom/issues/117
+      # this pin should be removed once 0.5.0.0 has been released.
+      url = "github:xwinus/headroom?rev=010ed0ca68f0af9026bb613800cbeae80be6ebbd";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, nixpkgs_24_11, flake-utils, tom-bombadil, sbomnix, ... }:
