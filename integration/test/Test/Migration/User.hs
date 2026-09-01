@@ -721,7 +721,7 @@ testMigrationOfInvalidUsers = do
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let domain = backend.berDomain
         brigKeyspace = backend.berBrigKeyspace
-    (validUser, noName, noActivated) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
+    (validUser, noName, noNameId, noActivated, noActivatedId) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
       validUser <- randomUser domain def
 
       noName <- randomUser domain def
@@ -740,7 +740,7 @@ testMigrationOfInvalidUsers = do
       getSelf noName >>= assertStatus 500
       getSelf noActivated >>= assertStatus 500
 
-      pure (validUser, noName, noActivated)
+      pure (validUser, noName, noNameId, noActivated, noActivatedId)
 
     runCodensity (startDynamicBackend backend phase3Overrides) $ \_ -> do
       waitForMigration domain userMigrationFinishedCounterName
@@ -749,6 +749,13 @@ testMigrationOfInvalidUsers = do
       getSelf validUser >>= assertStatus 200
       getSelf noName >>= assertStatus 404
       getSelf noActivated >>= assertStatus 404
+
+    -- Delete invalid users from cassandra so they don't trip other tests. These
+    -- other tests are usually reindexing the users, the reindex code doesn't
+    -- deal with invalid users so well.
+    let deleteUserRow :: PrepQuery W (Identity UUID) () = fromString $ "DELETE FROM " <> brigKeyspace <> ".user WHERE id = ?"
+    write deleteUserRow $ defQueryParams LocalQuorum (Identity noNameId)
+    write deleteUserRow $ defQueryParams LocalQuorum (Identity noActivatedId)
 
 -- * Test Helpers
 
