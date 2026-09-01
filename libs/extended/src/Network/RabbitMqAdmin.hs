@@ -30,6 +30,56 @@ instance (ToJSON a) => ToJSON (Page a) where
         { fieldLabelModifier = camelTo2 '_'
         }
 
+-- | Target(s) of a `RabbitMQPolicy`
+--
+-- This type is incomplete. Add more constructors when needed.
+data RabbitMQPolicyTarget = Queues
+  deriving (Show, Generic)
+
+instance FromJSON RabbitMQPolicyTarget
+
+instance ToJSON RabbitMQPolicyTarget
+
+data RabbitMQPolicyDefinition = RabbitMQPolicyDefinition
+  { expires :: Maybe Word
+  }
+  deriving (Show, Generic)
+
+instance FromJSON RabbitMQPolicyDefinition
+
+instance ToJSON RabbitMQPolicyDefinition
+
+data RabbitMQPolicy = RabbitMQPolicy
+  { polPattern :: Text,
+    polApplyTo :: RabbitMQPolicyTarget,
+    polDefinition :: RabbitMQPolicyDefinition
+  }
+  deriving (Show, Generic)
+
+dropPrefixLabelModifier :: String -> String
+dropPrefixLabelModifier = lowerFirst . dropPrefix
+  where
+    lowerFirst :: String -> String
+    lowerFirst (x : xs) = toLower x : xs
+    lowerFirst [] = ""
+
+    dropPrefix :: String -> String
+    dropPrefix = drop (length ("pol" :: String))
+
+instance FromJSON RabbitMQPolicy where
+  parseJSON =
+    genericParseJSON $
+      defaultOptions
+        { fieldLabelModifier = dropPrefixLabelModifier
+        }
+
+instance ToJSON RabbitMQPolicy where
+  toJSON =
+    genericToJSON $
+      defaultOptions
+        { fieldLabelModifier = dropPrefixLabelModifier
+        }
+
 -- | Upstream Docs:
 -- https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.12.0/deps/rabbitmq_management/priv/www/api/index.html
 data AdminAPI route = AdminAPI
@@ -50,6 +100,14 @@ data AdminAPI route = AdminAPI
           :> Capture "vhost" VHost
           :> Capture "queue" QueueName
           :> DeleteNoContent,
+    addPolicy ::
+      route
+        :- "api"
+          :> "policies"
+          :> Capture "vhost" VHost
+          :> Capture "policy_name" Text
+          :> ReqBody '[JSON] RabbitMQPolicy
+          :> PutNoContent,
     listConnectionsByVHost ::
       route
         :- "api"
