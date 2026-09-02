@@ -244,7 +244,6 @@ library
     Wire.BoundedQueue
     Wire.BoundedQueue.STM
     Wire.BrigAPIAccess
-    Wire.BrigAPIAccess.Local
     Wire.BrigAPIAccess.Rpc
     Wire.BudgetStore
     Wire.BudgetStore.Cassandra
@@ -653,7 +652,6 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.AuthenticationSubsystem
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
-    Wire.MockInterpreters.BrigAPIAccess
     Wire.MockInterpreters.ClientStore
     Wire.MockInterpreters.ConversationStore
     Wire.MockInterpreters.ConversationSubsystem

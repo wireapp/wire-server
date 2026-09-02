@@ -79,10 +79,7 @@ data UserDoc = UserDoc
     udScimExternalId :: Maybe Text,
     udSso :: Maybe Sso,
     udEmailUnvalidated :: Maybe EmailAddress,
-    udSearchable :: Maybe Bool,
-    -- | Teams that have added this user as a collaborator.
-    -- Updated separately via 'syncUserIndexCollaborations' when collaborator relationships change.
-    udCollaboratingTeams :: [TeamId]
+    udSearchable :: Maybe Bool
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDoc)
@@ -107,8 +104,7 @@ instance ToJSON UserDoc where
         "scim_external_id" .= udScimExternalId ud,
         "sso" .= udSso ud,
         "email_unvalidated" .= udEmailUnvalidated ud,
-        "searchable" .= udSearchable ud,
-        "collaborating_teams" .= udCollaboratingTeams ud
+        "searchable" .= udSearchable ud
       ]
 
 instance FromJSON UserDoc where
@@ -132,7 +128,6 @@ instance FromJSON UserDoc where
       <*> o .:? "sso"
       <*> o .:? "email_unvalidated"
       <*> o .:? "searchable"
-      <*> o .:? "collaborating_teams" .!= []
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"

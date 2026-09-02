@@ -60,7 +60,6 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
-import Wire.API.Team.Collaborator (gTeam)
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -103,8 +102,6 @@ import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
-import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
-import Wire.TeamCollaboratorsStore qualified as TeamCollaboratorsStore
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
@@ -144,7 +141,6 @@ runUserSubsystem ::
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
-    Member TeamCollaboratorsStore r,
     Member UserGroupStore r,
     Member (Input (Local any)) r
   ) =>
@@ -715,7 +711,6 @@ updateUserProfileImpl ::
     Member Events r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -777,7 +772,6 @@ updateHandleImpl ::
     Member Events r,
     Member UserStore r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -845,8 +839,7 @@ syncUserIndex ::
   ( Member UserStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member Metrics r,
-    Member TeamCollaboratorsStore r
+    Member Metrics r
   ) =>
   UserId ->
   Sem r ()
@@ -867,13 +860,9 @@ syncUserIndex uid =
           teamSearchVisibilityInbound
           indexUser.teamId
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
-      collabTeams <- map gTeam <$> TeamCollaboratorsStore.getTeamCollaborations uid
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) collabTeams indexUser
-          -- GTE, not GT: the version comes from the user row alone, but the document also
-          -- holds data that changes without touching that row (collaborations), and under
-          -- GT those updates would be dropped as version conflicts.  Older writes still lose.
-          version = ES.ExternalGTE . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
+          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
 
@@ -1191,7 +1180,6 @@ acceptTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
     Member Metrics r,
     Member Events r,
     Member AuthenticationSubsystem r,
@@ -1256,7 +1244,6 @@ removeEmailEitherImpl ::
     Member UserStore r,
     Member Events r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r,
     Member Metrics r
@@ -1293,7 +1280,6 @@ setUserSearchableImpl ::
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->

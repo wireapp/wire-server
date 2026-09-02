@@ -42,7 +42,6 @@ data MigrationException
   | PutMappingFailed String
   | TargetIndexAbsent
   | VersionSourceMissing (ES.SearchResult MigrationVersion)
-  | SyncIncomplete
   deriving (Show)
 
 instance Exception MigrationException

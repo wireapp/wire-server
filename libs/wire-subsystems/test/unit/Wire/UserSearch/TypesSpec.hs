@@ -50,7 +50,6 @@ userDoc1 =
   UserDoc
     { udId = fromJust . hush . parseIdFromText $ "0a96b396-57d6-11ea-a04b-7b93d1a5c19c",
       udTeam = hush . parseIdFromText $ "17c59b18-57d6-11ea-9220-8bbf5eee961a",
-      udCollaboratingTeams = either (error . show) (: []) . parseIdFromText $ "17c59b18-57d6-11ea-9220-8bbf5eee961a",
       udName = Just . Name $ "Carl Phoomp",
       udNormalized = Just $ "carl phoomp",
       udHandle = Just . fromJust . parseHandle $ "phoompy",
@@ -69,5 +68,6 @@ userDoc1 =
       udType = Nothing
     }
 
+-- Dont touch this. This represents serialized legacy data.
 userDoc1ByteString :: LByteString
-userDoc1ByteString = "{\"collaborating_teams\":[\"17c59b18-57d6-11ea-9220-8bbf5eee961a\"],\"email\":\"phoompy@example.com\",\"account_status\":\"active\",\"handle\":\"phoompy\",\"managed_by\":\"scim\",\"role\":\"admin\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"created_at\":\"2020-08-29T21:50:00.000Z\",\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"saml_idp\":\"https://issuer.net/214234\"}"
+userDoc1ByteString = "{\"email\":\"phoompy@example.com\",\"account_status\":\"active\",\"handle\":\"phoompy\",\"managed_by\":\"scim\",\"role\":\"admin\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"created_at\":\"2020-08-29T21:50:00.000Z\",\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"saml_idp\":\"https://issuer.net/214234\"}"
