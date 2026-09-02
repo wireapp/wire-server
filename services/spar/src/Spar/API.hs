@@ -1138,12 +1138,17 @@ internalDeleteScimUser ::
   ( Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserMetaStore r,
-    Member SAMLUserStore r
+    Member SAMLUserStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   TeamId ->
   UserId ->
   Sem r NoContent
 internalDeleteScimUser teamId uid = do
+  Logger.info $
+    Log.msg ("Attempting to delete SCIM user data" :: String)
+      . Log.field "team" (idToText teamId)
+      . Log.field "user" (idToText uid)
   BrigAPIAccess.getAccount WithPendingInvitations uid >>= \case
     Just user
       | userTeam user == Just teamId
