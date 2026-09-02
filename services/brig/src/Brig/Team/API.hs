@@ -69,6 +69,7 @@ import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
+import Wire.ClientStore (ClientStore)
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.Error
 import Wire.Events (Events)
@@ -77,18 +78,20 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
+import Wire.NotificationSubsystem (NotificationSubsystem)
+import Wire.PropertySubsystem (PropertySubsystem)
 import Wire.Sem.Concurrency
 import Wire.SparAPIAccess (SparAPIAccess)
-import qualified Wire.SparAPIAccess as SparAPIAccess
+import Wire.SparAPIAccess qualified as SparAPIAccess
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserKeyStore
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Wire.UserPendingActivationStore as UserPendingActivationStore
+import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
 import Wire.UserStore
-import qualified Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 
@@ -105,6 +108,13 @@ servantAPI ::
     Member IndexedUserStore r,
     Member TeamSubsystem r,
     Member SparAPIAccess r,
+    Member (Embed App.HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member ClientStore r,
+    Member PropertySubsystem r,
+    Member UserGroupSubsystem r,
+    Member Events r,
+    Member AuthenticationSubsystem r,
     Member UserStore r,
     Member UserKeyStore r,
     Member (UserPendingActivationStore p) r
@@ -216,6 +226,14 @@ deleteInvitation ::
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r,
     Member SparAPIAccess r,
+    Member TinyLog r,
+    Member (Embed App.HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member ClientStore r,
+    Member PropertySubsystem r,
+    Member UserGroupSubsystem r,
+    Member Events r,
+    Member AuthenticationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
     Member UserKeyStore r,
@@ -241,14 +259,16 @@ deleteInvitation uid tid iid = do
             && user.userStatus == PendingInvitation
             && userEmail user == Just inv.email
             && scimUid `elem` pendingScimUsers
-        ) $ do
+        )
+        $ do
           -- Remove Spar's external-id mapping before deleting the Brig account.
           -- Otherwise a SCIM retry still sees the old external ID as owned.
           SparAPIAccess.deleteScimUser tid scimUid
-          deleteKeyForUser scimUid (mkEmailKey inv.email)
           UserPendingActivationStore.remove scimUid
-          UserStore.deleteUser user
-          Store.deletePendingScimUser tid inv.email scimUid
+          -- Use the same complete deletion logic as the asynchronous user
+          -- deletion worker, but run it synchronously before the invitation is
+          -- removed so a replacement SCIM invitation can be created safely.
+          API.deleteAccount user
   Store.deleteInvitation tid iid
 
 listInvitations ::
