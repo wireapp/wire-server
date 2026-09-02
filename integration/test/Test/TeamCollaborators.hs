@@ -64,6 +64,7 @@ testCreateTeamCollaborator = do
     res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]
 
   -- team size counts collaborators separately
+  BrigI.refreshIndex OwnDomain
   bindResponse (getTeamSize owner team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "teamSize" `shouldMatchInt` 2
