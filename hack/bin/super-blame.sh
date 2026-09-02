@@ -41,7 +41,7 @@ while read -r tag; do
 done < <(git tag --merged master 'chart/*.0' | sort -V) > "$releases_tmp"
 
 annotate() {
-  sort -k1,1n | while read -r commit_ts rest; do
+  while read -r commit_ts rest; do
     commit=$(echo "$rest" | awk '{print $4}')
     release=""
     release_date=""
@@ -53,7 +53,7 @@ annotate() {
       fi
     done < <(sort -n "$releases_tmp")
     if [ -n "$release" ]; then
-      echo "$rest [$release $release_date]"
+      echo "$rest [$release, $release_date]"
     else
       echo "$rest [unreleased]"
     fi
@@ -87,10 +87,11 @@ for arg in "$@"; do
         start="$r"
         end="$r"
       fi
-      git log -L "${start},${end}:${file}" --format="%ct %ai %H %s" 2>/dev/null \
-        | grep -E '^[0-9]{10} [0-9]{4}-' >> "$commits_tmp"
+      git log -L "${start},${end}:${file}" -s --format="%ct %ai %H %s" >> "$commits_tmp"
     done
-    awk '!seen[$2]++' "$commits_tmp" | annotate
+    # Each line-range query may return the same commit. `sort -u`
+    # deduplicates and sorts by timestamp (field 1).
+    sort -u -k1,1n "$commits_tmp" | annotate
     rm -f "$commits_tmp"
   fi
 
