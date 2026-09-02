@@ -30,6 +30,8 @@ if [ "$1" = "-h" ]; then
   usage
 fi
 
+git fetch --tags
+
 releases_tmp=$(mktemp)
 trap 'rm -f "$releases_tmp"' EXIT
 
@@ -38,7 +40,7 @@ while read -r tag; do
   ts=$(git log -1 --format="%ct" "$commit")
   date=$(git log -1 --format="%ai" "$commit")
   echo "${ts} ${tag} ${date}"
-done < <(git tag --merged master 'chart/*.0' | sort -V) > "$releases_tmp"
+done < <(git tag --merged origin/master 'chart/*.0' | sort -V) > "$releases_tmp"
 
 annotate() {
   while read -r commit_ts rest; do
