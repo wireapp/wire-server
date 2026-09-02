@@ -22,6 +22,7 @@ module Brig.API.User
   ( -- * User Accounts / Profiles
     upgradePersonalToTeam,
     createUser,
+    createUserV16,
     createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
@@ -174,6 +175,21 @@ identityErrorToBrigError :: IdentityError -> HttpError
 identityErrorToBrigError = \case
   IdentityErrorBlacklistedEmail -> StdError $ errorToWai @'E.BlacklistedEmail
   IdentityErrorUserKeyExists -> StdError $ errorToWai @'E.UserKeyExists
+
+-- SCIM invites carry a canonical display name end-to-end. The invitation info
+-- endpoint exposes it to the client, and when it is present the client locks the
+-- field and reuses that same value in the register request. Brig stores the same
+-- value in the pending SCIM user account, so in the SCIM case it is correct to
+-- validate the incoming request against `userDisplayName` rather than treating
+-- the request as user-chosen input.
+guardUserDisplayname ::
+  NewUser a ->
+  User ->
+  ExceptT RegisterError (AppT r) ()
+guardUserDisplayname new user =
+  when (user.userManagedBy == ManagedByScim) $
+    unless (new.newUserDisplayName == user.userDisplayName) $
+      throwE RegisterErrorScimDisplayNameMismatch
 
 verifyUniquenessAndCheckBlacklist ::
   ( Member BlockListStore r,
@@ -356,7 +372,60 @@ createUser ::
   RateLimitKey ->
   NewUser PlainTextPassword8 ->
   ExceptT RegisterError (AppT r) CreateUserResult
-createUser rateLimitKey new = do
+createUser =
+  createUserWith $ \existingAccount newUser -> do
+    guardUserDisplayname newUser existingAccount
+    pure newUser
+
+createUserV16 ::
+  forall r p.
+  ( Member BlockListStore r,
+    Member GalleyAPIAccess r,
+    Member (UserPendingActivationStore p) r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member TinyLog r,
+    Member Events r,
+    Member (Input (Local ())) r,
+    Member PasswordResetCodeStore r,
+    Member HashPassword r,
+    Member InvitationStore r,
+    Member ActivationCodeStore r,
+    Member RateLimit r
+  ) =>
+  RateLimitKey ->
+  NewUser PlainTextPassword8 ->
+  ExceptT RegisterError (AppT r) CreateUserResult
+createUserV16 =
+  createUserWith $ \existingAccount newUser ->
+    pure $
+      case existingAccount.userManagedBy of
+        ManagedByScim -> newUser {newUserDisplayName = existingAccount.userDisplayName}
+        _ -> newUser
+
+createUserWith ::
+  forall r p.
+  ( Member BlockListStore r,
+    Member GalleyAPIAccess r,
+    Member (UserPendingActivationStore p) r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member TinyLog r,
+    Member Events r,
+    Member (Input (Local ())) r,
+    Member PasswordResetCodeStore r,
+    Member HashPassword r,
+    Member InvitationStore r,
+    Member ActivationCodeStore r,
+    Member RateLimit r
+  ) =>
+  (User -> NewUser PlainTextPassword8 -> ExceptT RegisterError (AppT r) (NewUser PlainTextPassword8)) ->
+  RateLimitKey ->
+  NewUser PlainTextPassword8 ->
+  ExceptT RegisterError (AppT r) CreateUserResult
+createUserWith normalizeScimDisplayName rateLimitKey new = do
   email <- fetchAndValidateEmail new
 
   -- get invitation and existing account
@@ -384,9 +453,14 @@ createUser rateLimitKey new = do
             luid :: Local UserId <- qualifyLocal' (coerce invid)
             User.getLocalAccountBy WithPendingInvitations luid
 
+  newForRegistration <-
+    case mbExistingAccount of
+      Nothing -> pure new
+      Just existingAccount -> normalizeScimDisplayName existingAccount new
+
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
-          ( new {newUserIdentity = newIdentity email (newUserSSOId new)},
+          ( newForRegistration {newUserIdentity = newIdentity email (newUserSSOId new)},
             Nothing
           )
         Just existingAccount ->
@@ -400,7 +474,7 @@ createUser rateLimitKey new = do
                   (Just _, Just em, ManagedByScim, _) ->
                     Just $ UserScimExternalId (fromEmail em)
                   _ -> newUserSSOId new
-           in ( new
+           in ( newForRegistration
                   { newUserManagedBy = Just existingAccount.userManagedBy,
                     newUserIdentity = newIdentity email mbSSOid
                   },

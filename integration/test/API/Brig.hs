@@ -914,13 +914,19 @@ revokeApplicationAccess user cid password = do
   submit "DELETE" $ req & addJSONObject ["password" .= password]
 
 registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
-registerUser domain email inviteeCode = do
-  req <- baseRequest domain Brig Versioned "register"
+registerUser domain email inviteeCode = registerUserWith domain email inviteeCode "Alice"
+
+registerUserWith :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+registerUserWith = registerUserWithVersioned Versioned
+
+registerUserWithVersioned :: (HasCallStack, MakesValue domain) => Versioned -> domain -> String -> String -> String -> App Response
+registerUserWithVersioned versioned domain email inviteeCode name = do
+  req <- baseRequest domain Brig versioned "register"
   submit "POST" $
     req
       & addClientIP
       & addJSONObject
-        [ "name" .= "Alice",
+        [ "name" .= name,
           "email" .= email,
           "password" .= defPassword,
           "team_code" .= inviteeCode
