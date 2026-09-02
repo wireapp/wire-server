@@ -29,8 +29,6 @@ data TeamCollaboratorsStore m a where
   GetAllTeamCollaborators :: TeamId -> TeamCollaboratorsStore m [TeamCollaborator]
   GetTeamCollaborator :: TeamId -> UserId -> TeamCollaboratorsStore m (Maybe TeamCollaborator)
   GetTeamCollaborations :: UserId -> TeamCollaboratorsStore m ([TeamCollaborator])
-  -- | Batched 'GetTeamCollaborations', for callers that process users in pages.
-  GetTeamCollaborationsForUsers :: Set UserId -> TeamCollaboratorsStore m [TeamCollaborator]
   GetTeamCollaboratorsWithIds :: Set TeamId -> Set UserId -> TeamCollaboratorsStore m [TeamCollaborator]
   UpdateTeamCollaborator :: UserId -> TeamId -> Set CollaboratorPermission -> TeamCollaboratorsStore m ()
   RemoveTeamCollaborator :: UserId -> TeamId -> TeamCollaboratorsStore m ()
