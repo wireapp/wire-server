@@ -247,17 +247,18 @@ deleteInvitation ::
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   mInvitation <- Store.lookupInvitation tid iid
-  for_ mInvitation $ \inv -> do
-    let scimUid = invitationIdToUserId iid
-    mUser <- getAccountNoFilter =<< qualifyLocal' scimUid
-    pendingScimUsers <- Store.lookupPendingScimUsers tid inv.email
-    for_ mUser $ \user ->
+  let scimUid = invitationIdToUserId iid
+  mUser <- getAccountNoFilter =<< qualifyLocal' scimUid
+  for_ mUser $ \user ->
+    for_ (userEmail user) $ \email -> do
+      pendingScimUsers <- Store.lookupPendingScimUsers tid email
+      let invitationMatches = maybe True (\inv -> inv.email == email) mInvitation
       when
         ( userId user == scimUid
             && user.userTeam == Just tid
             && user.userManagedBy == ManagedByScim
             && user.userStatus == PendingInvitation
-            && userEmail user == Just inv.email
+            && invitationMatches
             && scimUid `elem` pendingScimUsers
         )
         $ do
