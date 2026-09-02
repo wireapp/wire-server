@@ -41,6 +41,7 @@ module Spar.Scim.User
     mkValidScimId,
     scimFindUserByExternalId,
     deleteScimUser,
+    deleteScimUserData,
   )
 where
 
@@ -865,6 +866,20 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
           ScimExternalIdStore.delete stiTeam veid.validScimIdExternal
       lift $ ScimUserTimesStore.delete uid
+
+deleteScimUserData ::
+  ( Member ScimExternalIdStore r,
+    Member SAMLUserStore r,
+    Member ScimUserTimesStore r
+  ) =>
+  TeamId ->
+  User ->
+  Sem r ()
+deleteScimUserData teamId account = do
+  for_ (Intra.oldVeidFromBrigUser account) $ \veid -> do
+    for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete (userId account))
+    ScimExternalIdStore.delete teamId veid.validScimIdExternal
+  ScimUserTimesStore.delete (userId account)
 
 ----------------------------------------------------------------------------
 -- Utilities

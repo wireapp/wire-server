@@ -124,6 +124,36 @@ testTeamInvitationWhenScimInvitationPending = do
   user %. "managed_by" `shouldMatch` "scim"
   user %. "status" `shouldMatch` "pending-invitation"
 
+testScimReinviteAfterRevoke :: (HasCallStack) => App ()
+testScimReinviteAfterRevoke = do
+  let settings =
+        def
+          { brigCfg =
+              -- Controls when asynchronous cleanup removes expired SCIM pending accounts.
+              setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
+          }
+  withModifiedBackend settings $ \domain -> do
+    (owner, tid, _) <- createTeam domain 1
+    token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+    email <- randomEmail
+    externalId <- randomExternalId
+    scimUser <- randomScimUserWithEmail externalId email
+    scid <- createScimUser domain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+    handle <- scimUser %. "userName" >>= asString
+
+    -- assert that the SCIM handle is claimed
+    putHandle owner handle >>= assertStatus 409
+
+    -- cancel the invitation
+    void $ Brig.listInvitations owner tid >>= getJSON 200 >>= (%. "invitations") >>= asList >>= assertOne
+    Brig.deleteTeamInvitation owner tid scid >>= assertSuccess
+    void $ Brig.listInvitations owner tid >>= getJSON 200 >>= (%. "invitations") >>= shouldBeEmpty
+
+    -- retry the invite should work
+    createScimUser domain token scimUser `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+
 testTeamInvitationWhenScimAccountExists :: (HasCallStack) => App ()
 testTeamInvitationWhenScimAccountExists = do
   (owner, tid, _) <- createTeam OwnDomain 1

@@ -32,6 +32,7 @@ import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.Template
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
@@ -71,6 +72,7 @@ import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
+import Wire.ClientStore (ClientStore)
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.Error
 import Wire.Events (Events)
@@ -79,18 +81,24 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
+import Wire.NotificationSubsystem (NotificationSubsystem)
+import Wire.PropertySubsystem (PropertySubsystem)
 import Wire.Sem.Concurrency
+import Wire.SparAPIAccess (SparAPIAccess)
+import Wire.SparAPIAccess qualified as SparAPIAccess
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 
 servantAPI ::
+  forall p r.
   ( Member GalleyAPIAccess r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
@@ -101,7 +109,18 @@ servantAPI ::
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member SparAPIAccess r,
+    Member (Embed App.HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member ClientStore r,
+    Member PropertySubsystem r,
+    Member UserGroupSubsystem r,
+    Member Events r,
+    Member AuthenticationSubsystem r,
+    Member UserStore r,
+    Member UserKeyStore r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -207,9 +226,24 @@ logInvitationRequest context action =
         pure (Right result)
 
 deleteInvitation ::
+  forall p r.
   ( Member InvitationStore r,
     Member (Error UserSubsystemError) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member SparAPIAccess r,
+    Member TinyLog r,
+    Member (Embed App.HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member ClientStore r,
+    Member PropertySubsystem r,
+    Member UserGroupSubsystem r,
+    Member Events r,
+    Member AuthenticationSubsystem r,
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member UserKeyStore r,
+    Member (UserPendingActivationStore p) r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
@@ -217,6 +251,30 @@ deleteInvitation ::
   Sem r ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
+  mInvitation <- Store.lookupInvitation tid iid
+  let scimUid = invitationIdToUserId iid
+  mUser <- getAccountNoFilter =<< qualifyLocal' scimUid
+  for_ mUser $ \user ->
+    for_ (userEmail user) $ \email -> do
+      pendingScimUsers <- Store.lookupPendingScimUsers tid email
+      let invitationMatches = maybe True (\inv -> inv.email == email) mInvitation
+      when
+        ( userId user == scimUid
+            && user.userTeam == Just tid
+            && user.userManagedBy == ManagedByScim
+            && user.userStatus == PendingInvitation
+            && invitationMatches
+            && scimUid `elem` pendingScimUsers
+        )
+        $ do
+          -- Remove Spar's external-id mapping before deleting the Brig account.
+          -- Otherwise a SCIM retry still sees the old external ID as owned.
+          SparAPIAccess.deleteScimUser tid scimUid
+          UserPendingActivationStore.remove scimUid
+          -- Use the same complete deletion logic as the asynchronous user
+          -- deletion worker, but run it synchronously before the invitation is
+          -- removed so a replacement SCIM invitation can be created safely.
+          API.deleteAccount user
   Store.deleteInvitation tid iid
 
 listInvitations ::

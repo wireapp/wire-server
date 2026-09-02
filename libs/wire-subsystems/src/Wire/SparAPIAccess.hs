@@ -27,6 +27,7 @@ import Wire.API.User.IdentityProvider
 data SparAPIAccess m a where
   GetIdentityProviders :: TeamId -> SparAPIAccess m IdPList
   DeleteTeam :: TeamId -> SparAPIAccess m ()
+  DeleteScimUser :: TeamId -> UserId -> SparAPIAccess m ()
   LookupScimUserInfo :: UserId -> SparAPIAccess m ScimUserInfo
 
 makeSem ''SparAPIAccess
