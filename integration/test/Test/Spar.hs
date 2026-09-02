@@ -143,8 +143,6 @@ testScimReinviteAfterRevoke = do
     (owner, tid, _) <- createTeam domain 1
     token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
 
-    -- Create a SCIM user and let its invitation expire. Cleanup is deliberately
-    -- delayed so the expired pending account still exists at this point.
     email <- randomEmail
     externalId <- randomExternalId
     scimUser <- randomScimUserWithEmail externalId email
