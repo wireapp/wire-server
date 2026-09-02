@@ -38,6 +38,7 @@ import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
 import Wire.ClientStore (ClientStore)
 import Wire.Events (Events)
+import Wire.InvitationStore (InvitationStore)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
@@ -59,6 +60,7 @@ onEvent ::
     Member (Input (Local ())) r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member InvitationStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,

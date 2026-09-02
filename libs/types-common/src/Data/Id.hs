@@ -41,6 +41,7 @@ module Data.Id
     parseIdFromText,
     idToText,
     idToString,
+    invitationIdToUserId,
     idObjectSchema,
     IdObject (..),
 
@@ -100,6 +101,10 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import System.Logger (ToBytes)
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
+
+-- | Pending invitation users reuse the invitation UUID as the user UUID.
+invitationIdToUserId :: InvitationId -> UserId
+invitationIdToUserId = Id . toUUID
 
 data IdTag
   = Asset

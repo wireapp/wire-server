@@ -38,12 +38,117 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
 import qualified SAML2.WebSSO.XML as SAMLXML
 import SetupHelpers
+import Testlib.Assertions
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
 
 ----------------------------------------------------------------------
 -- scim stuff
+
+testTeamInvitationWhenScimInvitationExpired :: (HasCallStack) => App ()
+testTeamInvitationWhenScimInvitationExpired = do
+  let settings =
+        def
+          { brigCfg =
+              -- timeout for both SCIM and team invitations
+              setField "optSettings.setTeamInvitationTimeout" (2 :: Int)
+                -- Controls when asynchronous cleanup removes expired SCIM pending accounts.
+                . setField "optSettings.setExpiredUserCleanupTimeout" (3600 :: Int)
+          }
+  withModifiedBackend settings $ \domain -> do
+    (owner, _tid, _) <- createTeam domain 1
+    token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+    -- Create a SCIM user and let its invitation expire. Cleanup is deliberately
+    -- delayed so the expired pending account still exists at this point.
+    email <- randomEmail
+    externalId <- randomExternalId
+    scimUser <- randomScimUserWithEmail externalId email
+    scid <- createScimUser domain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+    handle <- scimUser %. "userName" >>= asString
+
+    -- assert that the SCIM handle is claimed
+    putHandle owner handle >>= assertStatus 409
+
+    -- Wait until the SCIM invitation has expired.
+    eventually $ getInvitationByEmail domain email >>= assertStatus 404
+
+    -- Create and accept a manual team invitation for the same email. This is
+    -- expected to succeed after the expired SCIM account has been cleaned up.
+    invitation <- postInvitation owner (def {email = Just email}) >>= getJSON 201
+    code <- getInvitationCode owner invitation >>= getJSON 200 >>= (%. "code") >>= asString
+    registerUserWith domain email code "Alice" >>= assertStatus 201
+    user <- getUsersByEmail domain [email] >>= getJSON 200 >>= asList >>= assertOne
+    manualUserId <- user %. "id" >>= asString
+
+    -- The handle previously held by the SCIM account is available again.
+    putHandle user handle >>= assertSuccess
+
+    manualUser <- getUsersId domain [manualUserId] >>= getJSON 200 >>= asList >>= assertOne
+    manualUser %. "id" `shouldMatch` manualUserId
+    manualUser %. "email" `shouldMatch` email
+    manualUser %. "handle" `shouldMatch` handle
+    manualUser %. "managed_by" `shouldMatch` "wire"
+    manualUser %. "status" `shouldMatch` "active"
+
+    -- The regular internal users API filters deleted records, so it cannot
+    -- distinguish a deleted SCIM account from an account that is not found.
+    shouldBeEmpty $ getUsersId domain [scid] >>= getJSON 200 >>= asList
+
+testTeamInvitationWhenScimInvitationPending :: (HasCallStack) => App ()
+testTeamInvitationWhenScimInvitationPending = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  (otherOwner, _otherTid, _) <- createTeam OwnDomain 1
+  token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- Create a SCIM user; this sends a SCIM invitation that remains pending.
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scid <- createScimUser OwnDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  handle <- scimUser %. "userName" >>= asString
+
+  -- The SCIM invitation is still pending. A second team invitation for the
+  -- same email and team must be rejected with a conflict.
+  postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+  -- The email must still be invit-able by a different team; otherwise a
+  -- pending SCIM invitation could be used for an email-registration DoS.
+  postInvitation otherOwner (def {email = Just email}) >>= assertStatus 201
+
+  users <- getUsersIdIncludingPending OwnDomain [scid] >>= getJSON 200 >>= asList
+  user <- assertOne users
+  user %. "email" `shouldMatch` email
+  user %. "handle" `shouldMatch` handle
+  user %. "managed_by" `shouldMatch` "scim"
+  user %. "status" `shouldMatch` "pending-invitation"
+
+testTeamInvitationWhenScimAccountExists :: (HasCallStack) => App ()
+testTeamInvitationWhenScimAccountExists = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  token <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- Create a SCIM user and accept the resulting SCIM invitation below.
+  email <- randomEmail
+  externalId <- randomExternalId
+  scimUser <- randomScimUserWithEmail externalId email
+  scid <- createScimUser OwnDomain token scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  handle <- scimUser %. "userName" >>= asString
+
+  -- Accept the SCIM invitation so the SCIM-managed account is active.
+  registerInvitedUser OwnDomain tid email
+
+  -- An active SCIM account already owns the email. A second team invitation
+  -- for the same email must therefore be rejected with a conflict.
+  postInvitation owner (def {email = Just email}) >>= assertStatus 409
+
+  users <- getUsersId OwnDomain [scid] >>= getJSON 200 >>= asList
+  user <- assertOne users
+  user %. "email" `shouldMatch` email
+  user %. "handle" `shouldMatch` handle
+  user %. "managed_by" `shouldMatch` "scim"
+  user %. "status" `shouldMatch` "active"
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do

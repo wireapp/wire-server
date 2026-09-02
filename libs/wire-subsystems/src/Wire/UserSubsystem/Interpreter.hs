@@ -1141,6 +1141,8 @@ acceptTeamInvitationImpl luid pw code = do
   unless added $ throw UserSubsystemTooManyTeamMembers
   updateUserTeam uid tid
   deleteInvitation inv.teamId inv.invitationId
+  for_ (userEmail . selfUser =<< mSelfProfile) $ \email ->
+    deletePendingScimUser tid email uid
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
