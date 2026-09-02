@@ -24,21 +24,14 @@ import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Error.Galley
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Feature
-import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member qualified as TeamMember
-import Wire.API.Team.Size (TeamSize (..))
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPIAccess
 import Wire.Error
-import Wire.FeaturesConfigSubsystem
-import Wire.LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.TeamCollaboratorsStore qualified as Store
@@ -48,11 +41,6 @@ import Wire.TeamSubsystem.Util
 
 interpretTeamCollaboratorsSubsystem ::
   ( Member TeamSubsystem r,
-    Member (Input FanoutLimit) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member (ErrorS TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member LegalHoldStore r,
-    Member FeaturesConfigSubsystem r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
@@ -63,7 +51,7 @@ interpretTeamCollaboratorsSubsystem ::
 interpretTeamCollaboratorsSubsystem brigAPIAccess =
   interpret $
     brigAPIAccess . \case
-      CreateTeamCollaborator zUser team new -> createTeamCollaboratorImpl zUser team new
+      CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
       GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
       InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
       InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
@@ -88,11 +76,6 @@ internalGetTeamCollaborationsImpl userId = do
 
 createTeamCollaboratorImpl ::
   ( Member TeamSubsystem r,
-    Member (Input FanoutLimit) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member (ErrorS TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member LegalHoldStore r,
-    Member FeaturesConfigSubsystem r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
@@ -100,15 +83,14 @@ createTeamCollaboratorImpl ::
     Member BrigAPIAccess r
   ) =>
   Local UserId ->
+  UserId ->
   TeamId ->
-  NewTeamCollaborator ->
+  Set CollaboratorPermission ->
   Sem r ()
-createTeamCollaboratorImpl zUser team (NewTeamCollaborator user perms) = do
+createTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.GetTeamCollaborators InsufficientRights
-  BrigAPIAccess.getSize team >>= \n ->
-    ensureNotTooLargeForLegalHold team (n.teamSize + n.apps + n.collaborators + 1)
-
   Store.createTeamCollaborator user team perms
+
   generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
   -- Reindex the collaborator with their new collaboration team

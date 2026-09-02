@@ -259,7 +259,6 @@ type GalleyEffects =
      ErrorS 'AccessDenied,
      ErrorS 'TeamMemberNotFound,
      ErrorS 'HistoryNotSupported,
-     ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
      ErrorS 'NotATeamMember,
      ErrorS 'ConvAccessDenied,
      ErrorS 'NotConnected,
@@ -517,7 +516,6 @@ evalGalley e =
         . mapError toResponse -- ErrorS 'NotConnected
         . mapError toResponse -- ErrorS 'ConvAccessDenied
         . mapError toResponse -- ErrorS 'NotATeamMember
-        . mapError toResponse -- ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
         . mapError toResponse -- ErrorS 'HistoryNotSupported
         . mapError toResponse -- ErrorS 'TeamMemberNotFound
         . mapError toResponse -- ErrorS 'AccessDenied

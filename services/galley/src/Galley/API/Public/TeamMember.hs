@@ -25,6 +25,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Size
+import Wire.BrigAPIAccess (getSize)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
@@ -38,7 +39,12 @@ teamMemberAPI =
     <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
     <@> mkNamedAPI @"update-team-member" updateTeamMember
     <@> mkNamedAPI @"get-team-members-csv" Export.getTeamMembersCSV
-    <@> mkNamedAPI @"add-team-collaborator" createTeamCollaborator
+    <@> mkNamedAPI @"add-team-collaborator"
+      ( \zuid tid (NewTeamCollaborator uid perms) -> do
+          n <- getSize tid
+          TeamSubsystem.ensureNotTooLargeForLegalHold tid (n.teamSize + n.apps + n.collaborators + 1)
+          createTeamCollaborator zuid uid tid perms
+      )
     <@> mkNamedAPI @"get-team-collaborators" getAllTeamCollaborators
     <@> mkNamedAPI @"update-team-collaborator" updateTeamCollaborator
     <@> mkNamedAPI @"remove-team-collaborator" removeTeamCollaborator
