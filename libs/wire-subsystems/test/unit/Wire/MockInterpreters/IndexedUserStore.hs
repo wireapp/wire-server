@@ -87,12 +87,16 @@ inMemoryIndexedUserStoreInterpreter =
       error "IndexedUserStore: unimplemented in memory interpreter"
     GetTeamSize tid ->
       gets $ \index ->
-        let regulars = help [Just UserTypeRegular, Nothing]
+        let teamSize = help [Just UserTypeRegular, Nothing]
             apps = help [Just UserTypeApp]
             help allowedTypes =
               fromIntegral
                 . length
                 $ Map.filter (\(doc, _) -> doc.udTeam == Just tid && doc.udType `elem` allowedTypes) index.docs
+            collaborators =
+              fromIntegral
+                . length
+                $ Map.filter (\(doc, _) -> tid `elem` doc.udCollaboratingTeams) index.docs
          in TeamSize {..}
 
 upsertImpl :: (Member (State UserIndex) r) => ES.DocId -> UserDoc -> ES.VersionControl -> Sem r ()

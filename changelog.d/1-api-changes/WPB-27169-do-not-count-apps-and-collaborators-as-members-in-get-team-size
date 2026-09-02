@@ -1,0 +1,1 @@
+Do not count apps and collaborators as members in get-team-size.  New schema: `{"teamSize": num, "apps": num, "collaborators": num}` (non-overlapping).  `teamSize` has been the label since the dawn of time, only the other two have changed.  The protobuf schema for TeamEvents changed accordingly.

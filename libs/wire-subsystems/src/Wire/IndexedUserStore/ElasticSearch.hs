@@ -90,7 +90,7 @@ getTeamSizeImpl cfg tid = do
   result <- either (embed . throwIO . IndexLookupError) pure (r :: Either ES.EsError (ES.SearchResult UserDoc))
   let aggs = fromMaybe mempty (ES.aggregations result)
       getCount name = maybe 0 (.filterDocCount) $ M.lookup name aggs >>= parseMaybe (parseJSON @FilterResult)
-  pure $ TeamSize (getCount "regulars") (getCount "apps")
+  pure $ TeamSize (getCount "teamSize") (getCount "apps") (getCount "collaborators")
   where
     teamQ = termQ "team" (idToText tid)
 
@@ -119,13 +119,18 @@ getTeamSizeImpl cfg tid = do
           { ES.boolQueryMustMatch = [teamQ, termQ "type" "app"]
           }
 
+    -- Collaborators are not members of the team, they are users (of other teams
+    -- or of no team) that collaborate with it.
+    collaboratorQuery = termQ "collaborating_teams" (idToText tid)
+
     search =
       (ES.mkSearch Nothing Nothing)
         { ES.size = ES.Size 0,
           ES.aggBody =
             Just $
-              ES.mkAggregations "regulars" (ES.FilterAgg (ES.FilterAggregation (ES.Filter regularQuery) Nothing))
+              ES.mkAggregations "teamSize" (ES.FilterAgg (ES.FilterAggregation (ES.Filter regularQuery) Nothing))
                 <> ES.mkAggregations "apps" (ES.FilterAgg (ES.FilterAggregation (ES.Filter appQuery) Nothing))
+                <> ES.mkAggregations "collaborators" (ES.FilterAgg (ES.FilterAggregation (ES.Filter collaboratorQuery) Nothing))
         }
 
 upsertImpl ::

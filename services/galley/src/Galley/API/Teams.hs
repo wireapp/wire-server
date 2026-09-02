@@ -49,7 +49,6 @@ module Galley.API.Teams
     uncheckedUpdateTeamMember,
     userIsTeamOwner,
     canUserJoinTeam,
-    ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
     internalDeleteBindingTeam,
     updateTeamCollaborator,
@@ -279,8 +278,8 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       -- We could also write `updateTeamSize 1 size 0` here, but it seems clearer to do it
       -- inline.
       teamSize <- do
-        (TeamSize numRegulars numApps) <- E.getSize tid
-        pure $ TeamSize (max 1 numRegulars) numApps
+        (TeamSize numRegulars numApps numCollaborators) <- E.getSize tid
+        pure $ TeamSize (max 1 numRegulars) numApps numCollaborators
       Journal.teamActivate tid teamSize c teamCreationTime
     runJournal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: (Member (ErrorS 'InvalidTeamStatusUpdate) r) => (TeamStatus, TeamStatus) -> Sem r Bool
@@ -787,8 +786,23 @@ deleteTeamMember' lusr zcon tid remove mBody = do
           Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
           _ -> UserTypeFilterRegular
       teamSizeAfterDelete <- do
-        before <- E.getSize tid
-        pure $ updateTeamSize uType before (-1)
+        before <-
+          -- ES may not be in sync with cassandra/postgres, eg., if we
+          -- add and remove a member very quickly.  So, if we call
+          -- E.getSize here, we get the wrong answer, and this may
+          -- result in the `TeamSize` naturals to underflow (5xx error).
+          --
+          -- Two solutions: (1) force-sync the index here (it doesn't
+          -- drift, the approximate value is only used for the
+          -- journal); (2) accept that `E.getSize` gives us an
+          -- approximation and circumvent the 5xx errors by
+          -- lower-bounding the fields before the substraction.
+          --
+          -- We apply (2).
+          E.getSize tid <&> \s -> s {teamSize = max 1 s.teamSize, apps = max 1 s.apps}
+        pure case uType of
+          UserTypeFilterRegular -> before {teamSize = before.teamSize - 1}
+          UserTypeFilterApp -> before {apps = before.apps - 1}
       E.deleteUser remove
       case uType of
         UserTypeFilterRegular -> pure ()
@@ -1017,31 +1031,6 @@ ensureNotElevated targetPermissions member =
     )
     $ throwS @'InvalidPermissions
 
--- | Ensure that a team doesn't exceed the member count limit for the LegalHold
--- feature. A team with more members than the fanout limit is too large, because
--- the fanout limit would prevent turning LegalHold feature _off_ again (for
--- details see 'Galley.API.LegalHold.removeSettings').
---
--- If LegalHold is configured for whitelisted teams only we consider the team
--- size unlimited, because we make the assumption that these teams won't turn
--- LegalHold off after activation.
---  FUTUREWORK: Find a way around the fanout limit.
-ensureNotTooLargeForLegalHold ::
-  forall r.
-  ( Member LegalHoldStore r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member (Input FanoutLimit) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FeaturesConfigSubsystem r
-  ) =>
-  TeamId ->
-  TeamSize ->
-  Sem r ()
-ensureNotTooLargeForLegalHold tid teamSize =
-  whenM (isLegalHoldEnabledForTeam tid) $
-    unlessM (teamSizeBelowLimit teamSize) $
-      throwS @'TooManyTeamMembersOnTeamWithLegalhold
-
 addTeamMemberInternal ::
   ( Member E.BrigAPIAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
@@ -1068,13 +1057,21 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeAfterAdd <- do
-    n <- ensureNotTooLarge tid
+    maxSize <- inputs @Opts (^. settings . maxTeamSize)
+    n <- TeamSubsystem.ensureNotTooLarge maxSize tid
     uType <-
       E.getUser (new ^. userId) <&> \case
         Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
         _ -> UserTypeFilterRegular
-    pure $ updateTeamSize uType n 1
-  ensureNotTooLargeForLegalHold tid sizeAfterAdd
+    pure case uType of
+      UserTypeFilterRegular -> n {teamSize = n.teamSize + 1}
+      UserTypeFilterApp ->
+        -- FUTUREWORK: this shouldn't happen, apps are not team
+        -- members!  See also:
+        -- https://wearezeta.atlassian.net/browse/WPB-28095
+        -- https://wearezeta.atlassian.net/browse/WPB-25521
+        n {apps = n.apps + 1}
+  TeamSubsystem.ensureNotTooLargeForLegalHold tid (sizeAfterAdd.teamSize + sizeAfterAdd.apps + sizeAfterAdd.collaborators)
 
   admins <- E.getTeamAdmins tid
   let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
@@ -1100,20 +1097,6 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeAfterAdd
-  where
-    ensureNotTooLarge ::
-      ( Member E.BrigAPIAccess r,
-        Member (ErrorS 'TooManyTeamMembers) r,
-        Member (Input Opts) r
-      ) =>
-      TeamId ->
-      Sem r TeamSize
-    ensureNotTooLarge teamid = do
-      o <- input
-      teamSize <- E.getSize teamid
-      unless (teamSizeTotal teamSize < fromIntegral (o ^. settings . maxTeamSize)) $
-        throwS @'TooManyTeamMembers
-      pure teamSize
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
@@ -1155,14 +1138,8 @@ canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
     sizeBeforeJoin <- E.getSize tid
-    let uType =
-          -- We do not have a `UserId` to check here.  Also,
-          -- `canUserJoinTeam` is called by Brig during user
-          -- registration via invitation (POST /register), where apps
-          -- never go.  So it is safe to assume "regular"
-          UserTypeFilterRegular
-    let sizeAfterJoin = updateTeamSize uType sizeBeforeJoin 1
-    ensureNotTooLargeForLegalHold tid sizeAfterJoin
+    let sizeAfterJoin = sizeBeforeJoin {teamSize = sizeBeforeJoin.teamSize + 1}
+    TeamSubsystem.ensureNotTooLargeForLegalHold tid (sizeAfterJoin.teamSize + sizeAfterJoin.apps + sizeAfterJoin.collaborators)
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
