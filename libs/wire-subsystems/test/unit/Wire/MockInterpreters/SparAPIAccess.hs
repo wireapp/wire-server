@@ -31,6 +31,7 @@ miniSparAPIAccess = interpret $ \case
   GetIdentityProviders tid ->
     Map.findWithDefault (IdPList []) tid <$> input
   DeleteTeam {} -> error "DeleteTeam not implemented in miniSparAPIAccess"
+  DeleteScimUser {} -> error "DeleteScimUser not implemented in miniSparAPIAccess"
   LookupScimUserInfo {} -> error "LookupScimUserInfo not implemented in miniSparAPIAccess"
 
 emptySparAPIAccess :: InterpreterFor SparAPIAccess r
