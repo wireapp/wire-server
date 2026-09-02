@@ -71,6 +71,10 @@ let
       };
     };
 
+    headroom = {
+      src = inputs.headroom;
+    };
+
     bloodhound = {
       src = inputs.bloodhound;
     };
@@ -149,7 +153,7 @@ let
     # N.B. only the listed packages work. If you want to use another:
     # - list it here
     # - patch it on the fork (if required)
-    # 
+    #
     # Can't currently be removed because amazonka-dynamodb-attributevalue
     # does not exist on hackage
     amazonka = {
