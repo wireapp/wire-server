@@ -1145,7 +1145,11 @@ internalDeleteScimUser ::
   Sem r NoContent
 internalDeleteScimUser teamId uid = do
   BrigAPIAccess.getAccount WithPendingInvitations uid >>= \case
-    Just user | userTeam user == Just teamId -> deleteScimUserData teamId user
+    Just user
+      | userTeam user == Just teamId
+          && userManagedBy user == ManagedByScim
+          && userStatus user == PendingInvitation ->
+          deleteScimUserData teamId user
     _ -> pure ()
   pure NoContent
 
