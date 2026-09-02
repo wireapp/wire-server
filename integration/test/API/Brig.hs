@@ -967,6 +967,11 @@ getInvitationByCode user code = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "info"]
   submit "GET" (req & addQueryParams [("code", code)])
 
+deleteTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteTeamInvitation user tid iid = do
+  req <- baseRequest user Brig Versioned (joinHttpPath ["teams", tid, "invitations", iid])
+  submit "DELETE" req
+
 passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 passwordReset domain email = do
   req <- baseRequest domain Brig Versioned "password-reset"
