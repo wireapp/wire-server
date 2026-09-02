@@ -80,13 +80,14 @@ import Type.Reflection
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Error (ErrorS)
-import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound, TooManyTeamMembersOnTeamWithLegalhold))
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.Password
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults, defaultFanoutLimit)
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Activation (ActivationCode)
@@ -112,14 +113,16 @@ import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.FederationConfigStore
-import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess hiding (GetAllTeamFeaturesForUser)
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationStore
+import Wire.LegalHoldStore
 import Wire.MlsKeyPackageSubsystem
 import Wire.MockInterpreters
 import Wire.NotificationSubsystem
@@ -300,7 +303,10 @@ type MiniBackendLowerEffects =
      Random,
      Now,
      ErrorS 'TeamMemberNotFound,
-     ErrorS 'TeamNotFound
+     ErrorS 'TeamNotFound,
+     LegalHoldStore,
+     FeaturesConfigSubsystem,
+     ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
    ]
     `Append` InputEffects
     `Append` '[ Metrics
@@ -324,6 +330,10 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . stateEffectsInterpreters mb
     . ignoreMetrics
     . inputEffectsInterpreters usrCfg appCfg localBackend.teamIdps
+    . fmap (either (error . show) Imports.id)
+    . runError @(Tagged 'TooManyTeamMembersOnTeamWithLegalhold ())
+    . mockFeaturesConfigSubsystem galleyConfigs
+    . mockLegalHoldStore
     . fmap (either (error . show) Imports.id)
     . runError @(Tagged 'TeamNotFound ())
     . fmap (either (error . show) Imports.id)
@@ -386,6 +396,36 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
       HasMlsKeyPackagesBulk {} -> pure mempty
       _ -> error "Unimplemented MlsKeyPackageSubsystem operation in mock"
 
+    mockLegalHoldStore :: forall r'. InterpreterFor LegalHoldStore r'
+    mockLegalHoldStore = interpret $ \case
+      CreateSettings _ -> pure ()
+      GetSettings _ -> pure Nothing
+      RemoveSettings _ -> pure ()
+      InsertPendingPrekeys _ _ -> pure ()
+      SelectPendingPrekeys _ -> pure Nothing
+      DropPendingPrekeys _ -> pure ()
+      SetUserLegalHoldStatus {} -> pure ()
+      SetTeamLegalholdWhitelisted _ -> pure ()
+      UnsetTeamLegalholdWhitelisted _ -> pure ()
+      IsTeamLegalholdWhitelisted _ -> pure False
+      _ -> error "Unimplemented LegalHoldStore operation in mock"
+
+    mockFeaturesConfigSubsystem :: AllTeamFeatures -> InterpreterFor FeaturesConfigSubsystem r'
+    mockFeaturesConfigSubsystem configs = interpret $ \case
+      GetDbFeatureRawInternal _ -> pure def
+      GetFeature _ _ -> pure def
+      GetFeatureForTeam _ -> pure $ npProject configs
+      GetFeatureForServer -> pure def
+      GetFeatureForTeamUser _ _ -> pure def
+      GetAllTeamFeaturesForTeamMember _ _ -> pure configs
+      GetAllTeamFeaturesForTeam _ -> pure configs
+      GetAllTeamFeaturesForServer -> pure configs
+      GuardSecondFactorDisabled _ _ -> pure ()
+      FeatureEnabledForTeam _ _ -> pure True
+      GetAllTeamFeaturesForUser _ -> pure configs
+      GetSingleFeatureForUser _ -> pure def
+      GetFeatureInternal _ -> pure def
+
 type StateEffects =
   '[ State [Push],
      State (Map (TeamId) [TeamCollaborator]),
@@ -436,6 +476,8 @@ type InputEffects =
      Input VerificationCodeThrottleTTL,
      Input AuthenticationSubsystemConfig,
      Input ClientSubsystemConfig,
+     Input FanoutLimit,
+     Input (FeatureDefaults LegalholdConfig),
      Input (Local ())
    ]
 
@@ -492,6 +534,8 @@ inputEffectsInterpreters ::
   Sem r a
 inputEffectsInterpreters usrCfg appCfg teamIdps =
   runInputConst defaultLocalDomain
+    . runInputConst (def @(FeatureDefaults LegalholdConfig))
+    . runInputConst defaultFanoutLimit
     . runInputConst defaultClientSubsystemConfig
     . runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst (VerificationCodeThrottleTTL 60)

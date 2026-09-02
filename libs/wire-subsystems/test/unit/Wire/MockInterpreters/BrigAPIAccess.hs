@@ -19,12 +19,14 @@ module Wire.MockInterpreters.BrigAPIAccess where
 
 import Imports
 import Polysemy
+import Wire.API.Team.Size
 import Wire.BrigAPIAccess
 
 -- | Errors out on everything except 'UpdateSearchIndex', which is a no-op.
 mockBrigAPIAccess :: InterpreterFor BrigAPIAccess r
 mockBrigAPIAccess = interpret $ \case
   UpdateSearchIndex _ -> pure ()
+  GetSize {} -> pure (TeamSize 1 0 0)
   -- everything else is not implemented
   GetConnectionsUnqualified {} -> error "GetConnectionsUnqualified: implement on demand (mockBrigAPIAccess)"
   GetConnections {} -> error "GetConnections: implement on demand (mockBrigAPIAccess)"
@@ -34,7 +36,6 @@ mockBrigAPIAccess = interpret $ \case
   GetUsers {} -> error "GetUsers: implement on demand (mockBrigAPIAccess)"
   DeleteUser {} -> error "DeleteUser: implement on demand (mockBrigAPIAccess)"
   GetContactList {} -> error "GetContactList: implement on demand (mockBrigAPIAccess)"
-  GetSize {} -> error "GetSize: implement on demand (mockBrigAPIAccess)"
   LookupClients {} -> error "LookupClients: implement on demand (mockBrigAPIAccess)"
   LookupClientsFull {} -> error "LookupClientsFull: implement on demand (mockBrigAPIAccess)"
   NotifyClientsAboutLegalHoldRequest {} -> error "NotifyClientsAboutLegalHoldRequest: implement on demand (mockBrigAPIAccess)"

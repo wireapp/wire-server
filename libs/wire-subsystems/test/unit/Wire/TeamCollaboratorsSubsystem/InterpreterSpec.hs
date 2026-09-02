@@ -28,7 +28,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Member
+import Wire.API.Team.Member hiding (NewTeamCollaborator)
 import Wire.API.Team.Role
 import Wire.MiniBackend
 import Wire.MockInterpreters.Error
@@ -53,7 +53,7 @@ spec = do
               teamMap = Map.singleton tid [ownerTeamMember]
            in runNoFederationStack localBackend teamMap config $
                 do
-                  createTeamCollaborator authUser collaborator.id tid collabPerms
+                  createTeamCollaborator authUser tid (NewTeamCollaborator collaborator.id collabPerms)
                   collaborators <- getAllTeamCollaborators authUser tid
                   pure $ collaborators === [TeamCollaborator collaborator.id tid collabPerms]
 
@@ -92,7 +92,7 @@ spec = do
                     teamMap
                     config
                     $ catchExpectedError @TeamCollaboratorsError
-                      (createTeamCollaborator authUser collaborator.id tid collabPerms)
+                      (createTeamCollaborator authUser tid (NewTeamCollaborator collaborator.id collabPerms))
                 pure $ res === InsufficientRights
 
     prop "getting fails if the caller has insufficient permissions" $
@@ -120,7 +120,7 @@ spec = do
                     teamMap
                     config
                     $ do
-                      createTeamCollaborator eligibleAuthUser collaborator.id tid collabPerms
+                      createTeamCollaborator eligibleAuthUser tid (NewTeamCollaborator collaborator.id collabPerms)
                       catchExpectedError @TeamCollaboratorsError $ getAllTeamCollaborators nonEligibleAuthUser tid
                 pure $ res === InsufficientRights
 
@@ -138,7 +138,7 @@ spec = do
                 res <-
                   runNoFederationStack localBackend teamMap config $
                     catchExpectedError @TeamCollaboratorsError
-                      (createTeamCollaborator authUser collaborator.id tid collabPerms)
+                      (createTeamCollaborator authUser tid (NewTeamCollaborator collaborator.id collabPerms))
                 pure $ res === InsufficientRights
 
     prop "getting fails if team does not exist" $
@@ -175,7 +175,7 @@ spec = do
              in runNoFederationStack localBackend teamMap config $ do
                   conjoin <$$> forM (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) -> do
                     forM_ (collaboratorTeams Map.! collaborator) \tid ->
-                      createTeamCollaborator authUser collaborator.id tid collabPerms
+                      createTeamCollaborator authUser tid (NewTeamCollaborator collaborator.id collabPerms)
                     collaborators <- internalGetTeamCollaborations collaborator.id
                     let collaboratorTids = Set.fromList $ map gTeam collaborators
                         expectedCollaboratorTids = collaboratorTeams Map.! collaborator
@@ -201,7 +201,7 @@ spec = do
              in runNoFederationStack localBackend teamMap config $ do
                   forM_ (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) ->
                     forM_ (collaboratorTeams Map.! collaborator) \tid ->
-                      createTeamCollaborator authUser collaborator.id tid collabPerms
+                      createTeamCollaborator authUser tid (NewTeamCollaborator collaborator.id collabPerms)
                   collaborators <-
                     internalGetTeamCollaboratorsWithIds
                       (Set.fromList (concat (Map.elems collaboratorTeams)))
@@ -226,7 +226,7 @@ spec = do
              in runNoFederationStack localBackend teamMap config $ do
                   forM_ (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) ->
                     forM_ (collaboratorTeams Map.! collaborator) \tid ->
-                      createTeamCollaborator authUser collaborator.id tid collabPerms
+                      createTeamCollaborator authUser tid (NewTeamCollaborator collaborator.id collabPerms)
                   collaborators <-
                     internalGetTeamCollaboratorsWithIds
                       (Set.fromList (concat (Map.elems collaboratorTeams)))
