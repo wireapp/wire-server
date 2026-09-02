@@ -263,6 +263,7 @@ apiINTERNAL ::
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member SAMLUserStore r,
+    Member ScimExternalIdStore r,
     Member ScimUserMetaStore r,
     Member (Logger (Msg -> Msg)) r,
     Member Random r,
@@ -273,6 +274,7 @@ apiINTERNAL ::
 apiINTERNAL =
   Named @"i_status" internalStatus
     :<|> Named @"i_delete_team" internalDeleteTeam
+    :<|> Named @"i_delete_scim_user" internalDeleteScimUser
     :<|> Named @"i_put_sso_settings" internalPutSsoSettings
     :<|> Named @"i_post_scim_user_info" internalGetScimUserInfo
     :<|> Named @"i_get_identity_providers" idpGetAllByTeamId
@@ -1130,6 +1132,21 @@ internalDeleteTeam ::
   Sem r NoContent
 internalDeleteTeam teamId = do
   deleteTeam teamId
+  pure NoContent
+
+internalDeleteScimUser ::
+  ( Member BrigAPIAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserMetaStore r,
+    Member SAMLUserStore r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r NoContent
+internalDeleteScimUser teamId uid = do
+  BrigAPIAccess.getAccount WithPendingInvitations uid >>= \case
+    Just user | userTeam user == Just teamId -> deleteScimUserData teamId user
+    _ -> pure ()
   pure NoContent
 
 internalPutSsoSettings ::

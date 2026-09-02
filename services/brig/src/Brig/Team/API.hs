@@ -78,17 +78,22 @@ import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
+import Wire.SparAPIAccess (SparAPIAccess)
+import qualified Wire.SparAPIAccess as SparAPIAccess
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
+import qualified Wire.UserPendingActivationStore as UserPendingActivationStore
 import Wire.UserStore
+import qualified Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 
 servantAPI ::
+  forall p r.
   ( Member GalleyAPIAccess r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
@@ -98,7 +103,11 @@ servantAPI ::
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member SparAPIAccess r,
+    Member UserStore r,
+    Member UserKeyStore r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -202,9 +211,16 @@ logInvitationRequest context action =
         pure (Right result)
 
 deleteInvitation ::
+  forall p r.
   ( Member InvitationStore r,
     Member (Error UserSubsystemError) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member SparAPIAccess r,
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member UserKeyStore r,
+    Member (UserPendingActivationStore p) r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
@@ -212,6 +228,27 @@ deleteInvitation ::
   Sem r ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
+  mInvitation <- Store.lookupInvitation tid iid
+  for_ mInvitation $ \inv -> do
+    let scimUid = invitationIdToUserId iid
+    mUser <- getAccountNoFilter =<< qualifyLocal' scimUid
+    pendingScimUsers <- Store.lookupPendingScimUsers tid inv.email
+    for_ mUser $ \user ->
+      when
+        ( userId user == scimUid
+            && user.userTeam == Just tid
+            && user.userManagedBy == ManagedByScim
+            && user.userStatus == PendingInvitation
+            && userEmail user == Just inv.email
+            && scimUid `elem` pendingScimUsers
+        ) $ do
+          -- Remove Spar's external-id mapping before deleting the Brig account.
+          -- Otherwise a SCIM retry still sees the old external ID as owned.
+          SparAPIAccess.deleteScimUser tid scimUid
+          deleteKeyForUser scimUid (mkEmailKey inv.email)
+          UserPendingActivationStore.remove scimUid
+          UserStore.deleteUser user
+          Store.deletePendingScimUser tid inv.email scimUid
   Store.deleteInvitation tid iid
 
 listInvitations ::
