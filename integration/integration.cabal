@@ -188,12 +188,12 @@ library
     Test.Migration.MeetingLinks
     Test.Migration.Nonce
     Test.Migration.PasswordReset
-    Test.Migration.MLSCommitLock
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util
     Test.MLS
     Test.MLS.Clients
+    Test.MLS.CommitLock
     Test.MLS.History
     Test.MLS.KeyPackage
     Test.MLS.Keys

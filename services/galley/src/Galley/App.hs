@@ -108,9 +108,7 @@ import Wire.CodeStore.Cassandra
 import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
-import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
-import Wire.MLSCommitLockStore.DualWrite (interpretMLSCommitLockStoreToCassandraAndPostgres)
-import Wire.MLSCommitLockStore.Postgres (interpretMLSCommitLockStoreToPostgres)
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
@@ -144,6 +142,7 @@ import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
   )
+import Wire.MLSCommitLockStore.Postgres (interpretMLSCommitLockStoreToPostgres)
 import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore (MeetingsStore)
@@ -451,12 +450,7 @@ evalGalley e =
         case (e ^. options . postgresMigration).customBackend of
           CassandraStorage -> interpretCustomBackendStoreToCassandra
           MigrationToPostgresql -> interpretCustomBackendStoreToCassandraAndPostgres
-          PostgresqlStorage -> interpretCustomBackendStoreToPostgres,
-      mlsCommitLockStoreInterpreter =
-        case (e ^. options . postgresMigration).mlsCommitLocks of
-          CassandraStorage -> interpretMLSCommitLockStoreToCassandra (e ^. cstate)
-          MigrationToPostgresql -> interpretMLSCommitLockStoreToCassandraAndPostgres (e ^. cstate)
-          PostgresqlStorage -> interpretMLSCommitLockStoreToPostgres
+          PostgresqlStorage -> interpretCustomBackendStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -564,7 +558,7 @@ evalGalley e =
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
         . teamFeatureStoreInterpreter
-        . mlsCommitLockStoreInterpreter
+        . interpretMLSCommitLockStoreToPostgres
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)

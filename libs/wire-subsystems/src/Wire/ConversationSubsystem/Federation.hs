@@ -709,7 +709,6 @@ sendMLSCommitBundle ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member Resource r,
     Member TeamStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
@@ -927,7 +926,6 @@ leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
-    Member Resource r,
     Member TeamSubsystem r,
     Member E.MLSCommitLockStore r,
     Member (Input ConversationSubsystemConfig) r,
@@ -963,7 +961,6 @@ leaveSubConversation domain lscr = do
 deleteSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
-    Member Resource r,
     Member TeamSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TinyLog r,
