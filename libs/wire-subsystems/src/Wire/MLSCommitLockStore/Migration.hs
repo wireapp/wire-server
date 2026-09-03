@@ -32,7 +32,7 @@ import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
 import Polysemy.Input
 import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
-import Polysemy.State
+import Polysemy.AtomicState
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -48,7 +48,7 @@ import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 type EffectStack =
-  [ State Int,
+  [ AtomicState Int,
     Input ClientState,
     Input Hasql.Pool,
     Resource,
@@ -90,14 +90,14 @@ interpreter cassClient pgPool logger name =
     . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
-    . runState 0
+    . atomicStateToIO 0
 
 migrateAllCommitLocks ::
   ( Member (Input Hasql.Pool) r,
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member TinyLog r,
-    Member (State Int) r,
+    Member (AtomicState Int) r,
     Member Resource r,
     Member Race r
   ) =>
@@ -111,13 +111,10 @@ migrateAllCommitLocks migOpts migCounter migDuration = do
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_ (traverse_ (\row@(gId, _) -> handleErrors (unGroupId gId) (migrateCommitLockRow migOpts migCounter migDuration row)))
 
--- | The lifetime an acquired commit lock is given. Cassandra auto-purges expired
--- rows, so every row read by the migration is live; we copy it with the same
--- lifetime the runtime uses (see 'withCommitLock' in
--- Wire.ConversationSubsystem.MLS.Util).
-commitLockMigrationTtl :: NominalDiffTime
-commitLockMigrationTtl = fromIntegral (600 :: Int)
-
+-- | Acquire (and immediately release) the Postgres advisory lock for a lock
+-- row read from Cassandra. Advisory locks are runtime-only state, so there is
+-- nothing persistent to copy; this validates that the lock slot is free and
+-- counts the row as migrated.
 migrateCommitLockRow ::
   ( PGConstraints r,
     Member TinyLog r,
@@ -129,15 +126,14 @@ migrateCommitLockRow ::
   Prometheus.Vector Text Prometheus.Histogram ->
   (GroupId, Epoch) ->
   Sem r ()
-migrateCommitLockRow migOpts migCounter migDuration (gId, epoch) =
-  do
+migrateCommitLockRow migOpts migCounter migDuration (gId, epoch) = do
     let keyText = T.pack (show gId)
     outcomeRef <- liftIO $ IORef.newIORef @Text "error"
     bracket
       (liftIO getCurrentTime)
       (observeDuration migDuration outcomeRef)
       ( const $ do
-          timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.interpretMLSCommitLockStoreToPostgres $ CommitLockStore.acquireCommitLock gId epoch commitLockMigrationTtl
+          timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ void $ Postgres.interpretMLSCommitLockStoreToPostgres $ CommitLockStore.holdCommitLock gId epoch (pure ())
           case timeoutResult of
             Left timedOutAfter -> do
               markOutcome outcomeRef "timeout"
