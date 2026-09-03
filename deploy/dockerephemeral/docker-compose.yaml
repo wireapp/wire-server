@@ -160,7 +160,7 @@ services:
 
   cassandra:
     container_name: demo_wire_cassandra
-    image: cassandra:4.1.11
+    image: cassandra:4.1.12
     ports:
       - "127.0.0.1:9042:9042"
     ulimits:
