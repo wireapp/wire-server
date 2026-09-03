@@ -36,6 +36,8 @@
 
 module Wire.MigrationLock where
 
+import Control.Exception (onException)
+import Control.Concurrent.Async qualified as Async
 import Data.Bits
 import Data.Hashable (hash)
 import Data.Id
@@ -60,6 +62,7 @@ import Polysemy.Time.Data.TimeUnit
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger.Message qualified as Log
+import System.Timeout qualified
 import Wire.API.Error
 import Wire.API.PostgresMarshall
 import Wire.Error
@@ -175,6 +178,121 @@ withMigrationLocks lockType maxWait lockables action = do
             [resultlessStatement|SELECT (1 :: int)
                                  FROM (SELECT pg_advisory_unlock_shared(lockId)
                                        FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+
+-- | Non-blocking variant of 'withMigrationLocks' for a single lock: acquires a
+-- session-scoped advisory lock for the key on a dedicated pooled connection,
+-- runs the action, releases. Returns 'Nothing' without running the action if
+-- the key is already locked. This is a try-lock (instead of the blocking
+-- 'withMigrationLocks') because instant 'Nothing' preserves the existing
+-- not-acquired -> stale-message client behavior.
+--
+-- The release is bracketed with 'Polysemy.Resource.bracket', so it also runs
+-- when the action short-circuits via other effects (e.g. an error response).
+tryWithMigrationLock ::
+  forall x a r.
+  ( PGConstraints r,
+    Member Resource r,
+    Member TinyLog r,
+    MigrationLockable x
+  ) =>
+  x ->
+  Sem r a ->
+  Sem r (Maybe a)
+tryWithMigrationLock lockable action =
+  tryAcquireMigrationLock lockable >>= \case
+    Nothing -> pure Nothing
+    Just token ->
+      Just
+        <$> bracket
+          (pure ())
+          (const (releaseMigrationLock lockable token))
+          (const action)
+
+-- | Opaque handle to the connection holding an acquired advisory lock.
+data MigrationLockToken = MigrationLockToken
+  { actionCompleted :: MVar (),
+    lockThread :: Async.Async ()
+  }
+
+-- | Non-blocking acquire of a session-scoped advisory lock for the key on a
+-- dedicated pooled connection. Returns 'Nothing' without side effects if the
+-- key is already locked.
+tryAcquireMigrationLock ::
+  forall x r.
+  ( PGConstraints r,
+    MigrationLockable x
+  ) =>
+  x ->
+  Sem r (Maybe MigrationLockToken)
+tryAcquireMigrationLock lockable = do
+  lockAcquired <- embed newEmptyMVar
+  actionCompleted <- embed newEmptyMVar
+
+  pool <- (.rawPool) <$> input @HasqlPoolExt.Pool
+  lockThread <-
+    embed . Async.async $
+      let holdSession =
+            Hasql.use pool $ do
+              ok <- Session.statement (lockKey lockable) tryAcquireLock
+              liftIO $ putMVar lockAcquired (Right ok)
+              when ok $ do
+                liftIO $ takeMVar actionCompleted
+                Session.statement [lockKey lockable] releaseLock
+          -- If the session failed before signaling (e.g. connection error),
+          -- the caller would otherwise block forever on 'lockAcquired'.
+          signalFailure = \case
+            Left e -> void (tryPutMVar lockAcquired (Left e))
+            Right _ -> pure ()
+       in holdSession >>= signalFailure
+
+  -- Cancelling the thread ends its session, which releases any advisory lock
+  -- it may already have taken; without this an async exception while waiting
+  -- here would leak the lock.
+  acquired <- embed $ takeMVar lockAcquired `onException` Async.cancel lockThread
+  case acquired of
+    Left e -> do
+      embed $ Async.cancel lockThread
+      throw e
+    Right False -> do
+      embed $ Async.cancel lockThread
+      pure Nothing
+    Right True ->
+      pure . Just $ MigrationLockToken {actionCompleted, lockThread}
+
+-- | Release a lock acquired with 'tryAcquireMigrationLock'. Signals the
+-- holding connection to unlock and gives it ~1s to finish cleanly.
+releaseMigrationLock ::
+  forall x r.
+  ( PGConstraints r,
+    Member TinyLog r,
+    MigrationLockable x
+  ) =>
+  x ->
+  MigrationLockToken ->
+  Sem r ()
+releaseMigrationLock lockable token = do
+  let MigrationLockToken {actionCompleted, lockThread} = token
+      logError errorStr =
+        TinyLog.warn $
+          Log.msg (Log.val "Failed to cleanly unlock the migration locks")
+            . Log.field ("scope_" <> lockScope @x) (lockKey lockable)
+            . Log.field "error" errorStr
+  _ <- embed $ tryPutMVar actionCompleted ()
+  mRes <- embed $ System.Timeout.timeout 1_000_000 (Async.wait lockThread)
+  case mRes of
+    Nothing -> logError ("timed out waiting for unlock" :: Text)
+    Just () -> pure ()
+
+tryAcquireLock :: Hasql.Statement Int64 Bool
+tryAcquireLock =
+  [singletonStatement|SELECT (pg_try_advisory_lock($1 :: bigint) :: bool)|]
+
+releaseLock :: Hasql.Statement [Int64] ()
+releaseLock =
+  lmapPG @(Vector _)
+    [resultlessStatement|SELECT (1 :: int)
+                         FROM (SELECT pg_advisory_unlock(lockId)
+                               FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
 
 --------------------------------------------------------------------------------
 -- INSTANCES

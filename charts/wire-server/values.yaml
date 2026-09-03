@@ -90,7 +90,6 @@ galley:
       teamFeatures: cassandra
       domainRegistration: cassandra
       user: cassandra
-      mlsCommitLocks: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1018,10 +1017,6 @@ background-worker:
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.
     migrateDomainRegistration: false
-    # This will start the migration of mls commit locks.
-    # It's important to set `settings.postgresMigration.mlsCommitLocks` to `migration-to-postgresql`
-    # before starting the migration.
-    migrateMLSCommitLocks: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

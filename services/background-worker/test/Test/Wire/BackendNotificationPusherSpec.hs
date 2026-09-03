@@ -371,8 +371,7 @@ spec = do
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
                 domainRegistration = CassandraStorage,
-                user = CassandraStorage,
-                mlsCommitLocks = CassandraStorage
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -436,8 +435,7 @@ spec = do
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
                 domainRegistration = CassandraStorage,
-                user = CassandraStorage,
-                mlsCommitLocks = CassandraStorage
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
