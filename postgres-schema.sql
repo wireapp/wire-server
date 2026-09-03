@@ -1481,20 +1481,6 @@ CREATE TABLE public.meetings (
 
 ALTER TABLE public.meetings OWNER TO "wire-server";
 
---
--- Name: mls_commit_locks; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.mls_commit_locks (
-    group_id bytea NOT NULL,
-    epoch bigint NOT NULL,
-    expires_at timestamp with time zone NOT NULL
-);
-
-
-ALTER TABLE public.mls_commit_locks OWNER TO "wire-server";
-
---
 -- Name: mls_group_member_client; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1962,14 +1948,6 @@ ALTER TABLE ONLY public.local_conversation_remote_member
 
 ALTER TABLE ONLY public.meetings
     ADD CONSTRAINT meetings_pkey PRIMARY KEY (id);
-
-
---
--- Name: mls_commit_locks mls_commit_locks_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.mls_commit_locks
-    ADD CONSTRAINT mls_commit_locks_pkey PRIMARY KEY (group_id, epoch);
 
 
 --

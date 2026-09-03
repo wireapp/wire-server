@@ -28,7 +28,7 @@ import Data.Text qualified as T
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Resource (Resource, bracket, onException)
+
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
@@ -100,8 +100,7 @@ getPendingBackendRemoveProposals gid epoch = do
 
 withCommitLock ::
   forall r.
-  ( Member Resource r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member MLSCommitLockStore r,
     Member TinyLog r
@@ -110,43 +109,33 @@ withCommitLock ::
   GroupId ->
   Epoch ->
   Codensity (Sem r) ()
-withCommitLock lConvOrSubId gid epoch =
-  Codensity $ \k ->
-    bracket
-      ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
-          when (lockAcquired == NotAcquired) $ do
-            logStaleCommitLock
-              "commit-lock-not-acquired"
-              lConvOrSubId
-              gid
-              epoch
-              Nothing
-            throwS @'MLSStaleMessage
-      )
-      ( const $ do
-          releaseCommitLock gid epoch
-            `onException` (logCommitLockFailure "release" lConvOrSubId gid epoch)
-      )
-      ( const $
-          ( do
-              actualEpoch <-
-                fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
-                  Conv cnv -> getConversationEpoch cnv
-                  SubConv cnv sub -> getSubConversationEpoch cnv sub
-              unless (actualEpoch == epoch) $ do
-                logStaleCommitLock
-                  "commit-lock-epoch-mismatch"
-                  lConvOrSubId
-                  gid
-                  epoch
-                  (Just actualEpoch)
-                throwS @'MLSStaleMessage
-              k ()
-          )
-            `onException` logCommitLockFailure "operation" lConvOrSubId gid epoch
-      )
-  where
-    ttl = fromIntegral (600 :: Int) -- 10 minutes
+withCommitLock lConvOrSubId gid epoch = Codensity $ \k -> do
+  committed <- holdCommitLock gid epoch $ do
+    actualEpoch <-
+      fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
+        Conv cnv -> getConversationEpoch cnv
+        SubConv cnv sub -> getSubConversationEpoch cnv sub
+    unless (actualEpoch == epoch) $ do
+      logStaleCommitLock
+        "commit-lock-epoch-mismatch"
+        lConvOrSubId
+        gid
+        epoch
+        (Just actualEpoch)
+      throwS @'MLSStaleMessage
+    k ()
+  maybe
+    ( do
+        logStaleCommitLock
+          "commit-lock-not-acquired"
+          lConvOrSubId
+          gid
+          epoch
+          Nothing
+        throwS @'MLSStaleMessage
+    )
+    pure
+    committed
 
 logCommitLockFailure ::
   (Member TinyLog r) =>

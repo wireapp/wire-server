@@ -50,8 +50,7 @@ testEnv = do
             conversationCodes = CassandraStorage,
             teamFeatures = CassandraStorage,
             domainRegistration = CassandraStorage,
-            user = CassandraStorage,
-            mlsCommitLocks = CassandraStorage
+            user = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
