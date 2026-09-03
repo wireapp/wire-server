@@ -349,8 +349,6 @@ updateToMLSProtocol client cnv =
 updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
 updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
 
-
-
 removeTeamConv :: TeamId -> ConvId -> Client ()
 removeTeamConv tid cid = liftClient $ do
   retry x5 . batch $ do
@@ -848,7 +846,6 @@ isConversationOutOfSync :: ConvId -> Client Bool
 isConversationOutOfSync cid =
   maybe False (fromMaybe False . runIdentity)
     <$> retry x1 (query1 Cql.lookupConvOutOfSync (params LocalQuorum (Identity cid)))
-
 
 interpretConversationStoreToCassandra ::
   forall r a.

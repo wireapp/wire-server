@@ -107,4 +107,3 @@ domainRegistration migOpts = do
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
     cancel migrationLoop
-

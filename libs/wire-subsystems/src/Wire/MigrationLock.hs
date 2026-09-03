@@ -36,8 +36,8 @@
 
 module Wire.MigrationLock where
 
-import Control.Exception (onException)
 import Control.Concurrent.Async qualified as Async
+import Control.Exception (onException)
 import Data.Bits
 import Data.Hashable (hash)
 import Data.Id
