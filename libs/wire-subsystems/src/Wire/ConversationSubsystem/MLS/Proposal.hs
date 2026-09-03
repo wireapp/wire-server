@@ -243,9 +243,8 @@ applyProposal _activeData _ = pure mempty
 
 processProposal ::
   ( HasProposalEffects r,
-    Member (ErrorS 'MLSUnsupportedMessage) r
-  ) =>
-  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
