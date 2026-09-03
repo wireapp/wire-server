@@ -25,12 +25,13 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.BlockListStore.Migration
 import Wire.CodeStore.Migration
-import Wire.ConversationStore.Migration
+import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.MLSCommitLockStore.Migration (migrateMLSCommitLocksLoop)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
+import Wire.UserStore.Migration qualified as UserStore
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
 conversations migOpts = do
@@ -48,8 +49,8 @@ conversations migOpts = do
   userMigFailed <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_failed" "Whether the migration of remote conversation membership data to Postgresql has failed"
   userMigDuration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_user_remote_convs_migration_duration_seconds" "Duration of remote conversation membership migration attempts") defaultBuckets
 
-  convLoop <- async . lift $ migrateConvsLoop migOpts cassClient pgPool logger convMigCounter convMigFinished convMigFailed convMigDuration
-  userLoop <- async . lift $ migrateUsersLoop migOpts cassClient pgPool logger userMigCounter userMigFinished userMigFailed userMigDuration
+  convLoop <- async . lift $ ConversationStore.migrateConvsLoop migOpts cassClient pgPool logger convMigCounter convMigFinished convMigFailed convMigDuration
+  userLoop <- async . lift $ ConversationStore.migrateUsersLoop migOpts cassClient pgPool logger userMigCounter userMigFinished userMigFailed userMigDuration
 
   Log.info logger $ Log.msg (Log.val "started conversation migration")
   pure $ do
