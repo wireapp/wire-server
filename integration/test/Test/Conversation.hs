@@ -595,18 +595,28 @@ testReconcileStaleLocalMembershipsForDeletedRemoteConversation = do
     assertConversationMembership alice conv True
     assertConversationMembership charlie conv True
 
+  let isSystemDeleteFor conversation event =
+        fieldEquals event "payload.0.type" "conversation.system.delete"
+          &&~ isNotifConv conversation event
+
   -- A successful response from the owning backend that omits the conversation
   -- proves that Alice's locally stored membership is stale.
-  getConversation alice conv >>= assertLabel 404 "no-conversation"
-  assertConversationMembership alice conv False
-  assertConversationMembership charlie conv True
+  withWebSockets [alice, charlie] $ \[wsAlice, wsCharlie] -> do
+    getConversation alice conv >>= assertLabel 404 "no-conversation"
+    e <- awaitMatch (isSystemDeleteFor conv) wsAlice
+    printJSON e
+    assertConversationMembership alice conv False
+    assertConversationMembership charlie conv True
 
-  -- The bulk endpoint performs the same reconciliation for Charlie.
-  bindResponse (listConversations charlie [conv]) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "found" `shouldMatch` ([] :: [Value])
-    resp.json %. "not_found" `shouldMatch` [conv]
-    resp.json %. "failed" `shouldMatch` ([] :: [Value])
+    -- The bulk endpoint performs the same reconciliation for Charlie.
+    bindResponse (listConversations charlie [conv]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "found" `shouldMatch` ([] :: [Value])
+      resp.json %. "not_found" `shouldMatch` [conv]
+      resp.json %. "failed" `shouldMatch` ([] :: [Value])
+    void $ awaitMatch (isSystemDeleteFor conv) wsCharlie
+
+  assertConversationMembership alice conv False
   assertConversationMembership charlie conv False
 
   -- Reconciliation is idempotent once the local membership has been removed.
