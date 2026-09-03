@@ -1591,6 +1591,7 @@ CREATE TABLE public.meetings (
 
 ALTER TABLE public.meetings OWNER TO "wire-server";
 
+--
 -- Name: mls_group_member_client; Type: TABLE; Schema: public; Owner: wire-server
 --
 
