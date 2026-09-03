@@ -26,15 +26,13 @@ import Testlib.Prelude
 -- interpreter. A leaked lock would fail the second commit.
 testMLSCommitLock :: (HasCallStack) => App ()
 testMLSCommitLock = do
-  alice <- randomUser OwnDomain def
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
   alice1 <- createMLSClient def alice
-  bob <- randomUser OwnDomain def
   bob1 <- createMLSClient def bob
   void $ uploadNewKeyPackage def bob1
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
-  charlie <- randomUser OwnDomain def
   charlie1 <- createMLSClient def charlie
   void $ uploadNewKeyPackage def charlie1
   void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
