@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
@@ -76,6 +77,7 @@ instance MigrationLockable (GroupId, Epoch) where
     (fromIntegral (hash (unGroupId gId)) :: Int64) `rotateL` 31
       `xor` fromIntegral (epochNumber epoch)
   toText (gId, epoch) =
-    "0x" <> decodeUtf8 (hex (unGroupId gId))
+    "0x"
+      <> decodeUtf8 (hex (unGroupId gId))
       <> ":"
       <> Text.pack (show (epochNumber epoch))
