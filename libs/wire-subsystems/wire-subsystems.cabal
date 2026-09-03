@@ -236,6 +236,7 @@ library
     Wire.BackendNotificationQueueAccess
     Wire.BackendNotificationQueueAccess.RabbitMq
     Wire.BackgroundJobsPublisher
+    Wire.BackgroundJobsPublisher.Arbiter
     Wire.BackgroundJobsPublisher.RabbitMQ
     Wire.BackgroundJobsRunner
     Wire.BackgroundJobsRunner.Interpreter

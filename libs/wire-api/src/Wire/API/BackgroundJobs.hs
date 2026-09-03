@@ -73,7 +73,7 @@ data SyncUserGroupAndChannel = SyncUserGroupAndChannel
     actor :: Maybe UserId
   }
   deriving (Show, Eq, Generic)
-  deriving (Aeson.ToJSON, Aeson.FromJSON) via (Schema SyncUserGroupAndChannel)
+  deriving (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema) via (Schema SyncUserGroupAndChannel)
   deriving (Arbitrary) via GenericUniform SyncUserGroupAndChannel
 
 instance ToSchema SyncUserGroupAndChannel where
@@ -91,7 +91,7 @@ data SyncUserGroup = SyncUserGroup
     actor :: Maybe UserId
   }
   deriving (Show, Eq, Generic)
-  deriving (Aeson.ToJSON, Aeson.FromJSON) via (Schema SyncUserGroup)
+  deriving (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema) via (Schema SyncUserGroup)
   deriving (Arbitrary) via GenericUniform SyncUserGroup
 
 instance ToSchema SyncUserGroup where
