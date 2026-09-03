@@ -182,13 +182,14 @@ library
     Test.Migration.ConversationCodes
     Test.Migration.CustomBackend
     Test.Migration.DomainRegistration
-    Test.Migration.PasswordReset
     Test.Migration.MLSCommitLock
+    Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util
     Test.MLS
     Test.MLS.Clients
+    Test.MLS.CommitLock
     Test.MLS.History
     Test.MLS.KeyPackage
     Test.MLS.Keys

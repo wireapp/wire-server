@@ -29,8 +29,8 @@ import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.CustomBackendStore.Migration,
 import Wire.ConversationStore.Migration
 import Wire.DomainRegistrationStore.Migration
-import Wire.MLSCommitLockStore.Migration
 import Wire.Migration (MigrationOptions)
+import Wire.MLSCommitLockStore.Migration (migrateMLSCommitLocksLoop)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
 
@@ -129,6 +129,24 @@ mlsCommitLocks migOpts = do
   Log.info logger $ Log.msg (Log.val "started mls commit locks migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling mls commit locks migration")
+    cancel migrationLoop
+
+users :: MigrationOptions -> AppT IO CleanupAction
+users migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting user migration")
+  count <- register $ counter $ Prometheus.Info "wire_users_migrated_to_pg" "Number of user rows migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_users_migration_finished" "Whether the user migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_users_migration_failed" "Whether the user migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_users_migration_duration_seconds" "Duration of user migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ UserStore.migrateUsersLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started user migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling user migration")
     cancel migrationLoop
 
 blockList :: MigrationOptions -> AppT IO CleanupAction

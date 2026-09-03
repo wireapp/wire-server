@@ -23,7 +23,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -44,14 +43,12 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
 
-data LockAcquired
-  = Acquired
-  | NotAcquired
-  deriving (Show, Eq)
 
 data MLSCommitLockStore m a where
-  AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> MLSCommitLockStore m LockAcquired
-  ReleaseCommitLock :: GroupId -> Epoch -> MLSCommitLockStore m ()
+  -- | Runs the action while holding an exclusive lock for @(groupId, epoch)@.
+  -- Returns 'Nothing' without running the action when another holder is active
+  -- (callers respond 'MLSStaleMessage').
+  HoldCommitLock :: GroupId -> Epoch -> m a -> MLSCommitLockStore m (Maybe a)
 
 data ConversationSearch = ConversationSearch
   { team :: TeamId,

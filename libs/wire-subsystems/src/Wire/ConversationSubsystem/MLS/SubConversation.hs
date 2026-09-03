@@ -39,7 +39,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.Resource
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
@@ -203,7 +202,6 @@ deleteSubConversation ::
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member Resource r,
     Member Conversation.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member TinyLog r
@@ -270,7 +268,6 @@ leaveSubConversation ::
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member (Error ConversationSubsystemError) r,
-    Member Resource r,
     Members LeaveSubConversationStaticErrors r,
     Member Conversation.MLSCommitLockStore r,
     Member TeamSubsystem r,
@@ -296,7 +293,6 @@ leaveLocalSubConversation ::
     Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
-    Member Resource r,
     Member Conversation.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
@@ -368,7 +364,6 @@ leaveRemoteSubConversation cid rcnv sub = do
 resetLocalSubConversation ::
   ( Member Conversation.ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member Resource r,
     Member Conversation.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member TinyLog r

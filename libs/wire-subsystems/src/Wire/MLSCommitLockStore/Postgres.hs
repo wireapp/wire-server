@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
@@ -20,65 +21,61 @@ module Wire.MLSCommitLockStore.Postgres
   )
 where
 
-import Hasql.Statement qualified as Hasql
-import Hasql.TH
+import Data.Bits (rotateL, xor)
+import Data.Hashable (hash)
+import Data.Hex (hex)
+import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8)
 import Imports
 import Polysemy
-import Wire.API.MLS.Epoch (Epoch)
-import Wire.API.MLS.Group (GroupId)
-import Wire.API.PostgresMarshall (dimapPG, lmapPG)
-import Wire.ConversationStore (LockAcquired (..), MLSCommitLockStore (..))
-import Wire.Postgres (PGConstraints, runStatement)
+import Polysemy.Resource (Resource)
+import Polysemy.TinyLog (TinyLog)
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
+import Wire.ConversationStore (MLSCommitLockStore (..))
+import Wire.MigrationLock
+import Wire.Postgres (PGConstraints)
 
 -- | Postgres interpreter for 'MLSCommitLockStore'.
 --
--- Acquire replicates Cassandra's @INSERT ... IF NOT EXISTS USING TTL@ as an
--- @INSERT ... ON CONFLICT DO UPDATE ... WHERE expires_at < now() RETURNING@:
+-- Implements the lock as a session-scoped pg advisory lock (via
+-- 'tryWithMigrationLock') on a dedicated pooled connection, held for the
+-- duration of the action and released on completion — or when the holding
+-- connection dies, which replaces the Cassandra 10-minute TTL as the crash
+-- guard. Contention returns 'Nothing' immediately so callers respond with
+-- @stale-message@ without waiting.
 --
--- * no existing row            -> INSERT succeeds           -> 'Acquired'
--- * existing row, still live   -> WHERE is false, no return -> 'NotAcquired'
--- * existing row, expired      -> UPDATE succeeds           -> 'Acquired'
---
--- The last case is essential: unlike Cassandra (which purges expired TTL rows),
--- Postgres keeps the dead row, so we must treat an expired lock as re-acquirable
--- or a crashed holder would block its @(group_id, epoch)@ forever.
---
--- Unlike Cassandra, Postgres never auto-purges expired rows, but the expired
--- branch above /reuses/ the existing row in place (UPDATE rather than INSERT),
--- so a re-acquired @(group_id, epoch)@ does not accumulate a second row.
--- Successful commits delete their row on release; only commits whose holder
--- crashed before release leave a dead row, which is unaddressable by future
--- commits (epochs are monotonic) and self-expires via @expires_at@. If dead-row
--- growth ever becomes operationally significant, a periodic
--- @DELETE FROM mls_commit_locks WHERE expires_at < now()@ (plus an index on
--- @expires_at@) can be added.
+-- Accepted trade-offs (inherent to advisory locks): there is no TTL, so a
+-- hung-but-alive holder blocks the group until its connection drops; locks
+-- are not replicated and vanish on a Postgres failover; and the key is a
+-- hashed @Int64@, so a hash collision yields a spurious stale response (the
+-- same approach accepted for the existing @(TeamId, Text)@ instance).
 interpretMLSCommitLockStoreToPostgres ::
-  (PGConstraints r) =>
+  ( PGConstraints r,
+    Member Resource r,
+    Member TinyLog r
+  ) =>
   InterpreterFor MLSCommitLockStore r
-interpretMLSCommitLockStoreToPostgres = interpret $ \case
-  AcquireCommitLock gId epoch ttl -> do
-    let ttlSecs = round ttl :: Int32
-    acquired <- runStatement (gId, epoch, ttlSecs) acquireStmt
-    pure $ maybe NotAcquired (const Acquired) acquired
-  ReleaseCommitLock gId epoch ->
-    runStatement (gId, epoch) releaseStmt
+interpretMLSCommitLockStoreToPostgres = interpretH $ \case
+  HoldCommitLock gId epoch action -> do
+    m <- runT action
+    let run_it = raise . interpretMLSCommitLockStoreToPostgres
+    r <- run_it $
+      tryWithMigrationLock (gId, epoch) $ do
+        fa <- m
+        pure (Just <$> fa)
+    case r of
+      Just x -> pure x
+      Nothing -> pureT Nothing
 
-acquireStmt :: Hasql.Statement (GroupId, Epoch, Int32) (Maybe Bool)
-acquireStmt =
-  dimapPG
-    [maybeStatement|
-      INSERT INTO mls_commit_locks (group_id, epoch, expires_at)
-      VALUES ($1 :: bytea, $2 :: int8, now() + make_interval(secs => $3 :: int4))
-      ON CONFLICT (group_id, epoch) DO UPDATE
-        SET expires_at = excluded.expires_at
-        WHERE mls_commit_locks.expires_at < now()
-      RETURNING true :: bool
-    |]
-
-releaseStmt :: Hasql.Statement (GroupId, Epoch) ()
-releaseStmt =
-  lmapPG
-    [resultlessStatement|
-      DELETE FROM mls_commit_locks
-      WHERE group_id = ($1 :: bytea) AND epoch = ($2 :: int8)
-    |]
+-- | Combines group id and epoch into one lock key; rotate+xor mixes the two
+-- hashes to reduce collisions.
+instance MigrationLockable (GroupId, Epoch) where
+  lockScope = "mls_commit_lock"
+  lockKey (gId, epoch) =
+    (fromIntegral (hash (unGroupId gId)) :: Int64) `rotateL` 31
+      `xor` fromIntegral (epochNumber epoch)
+  toText (gId, epoch) =
+    "0x" <> decodeUtf8 (hex (unGroupId gId))
+      <> ":"
+      <> Text.pack (show (epochNumber epoch))
