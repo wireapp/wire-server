@@ -180,12 +180,12 @@ library
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
-    Test.Migration.MLSCommitLock
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util
     Test.MLS
     Test.MLS.Clients
+    Test.MLS.CommitLock
     Test.MLS.History
     Test.MLS.KeyPackage
     Test.MLS.Keys

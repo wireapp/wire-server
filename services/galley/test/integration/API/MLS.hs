@@ -24,7 +24,6 @@ import API.MLS.Util
 import API.Util
 import Bilge hiding (empty, head)
 import Bilge.Assert
-import Cassandra hiding (Set)
 import Control.Lens (view)
 import Control.Lens.Extras
 import Control.Monad.State qualified as State
@@ -94,7 +93,6 @@ tests s =
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
-          test s "return error when commit is locked" testCommitLock,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit
         ],
       testGroup
@@ -483,47 +481,6 @@ testAddRemotesSomeUnreachable = do
     liftIO $ do
       memId (cmSelf (cnvMembers convAfter)) @?= alice
       cmOthers (cnvMembers convAfter) @?= []
-
-testCommitLock :: (HasCallStack) => TestM ()
-testCommitLock = do
-  users <- createAndConnectUsers (replicate 4 Nothing)
-
-  runMLSTest $ do
-    [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
-    (groupId, _) <- setupMLSGroup alice1
-    traverse_ uploadNewKeyPackage [bob1, charlie1, dee1]
-
-    -- alice adds add bob
-    void $ createAddCommit alice1 [cidQualifiedUser bob1] >>= sendAndConsumeCommitBundle
-
-    -- alice adds charlie
-    void $ createAddCommit alice1 [cidQualifiedUser charlie1] >>= sendAndConsumeCommitBundle
-
-    -- simulate concurrent commit by blocking epoch
-    casClient <- view tsCass
-    runClient casClient $ insertLock groupId (Epoch 2)
-
-    -- commit should fail due to competing lock
-    do
-      commit <- createAddCommit alice1 [cidQualifiedUser dee1]
-      bundle <- createBundle commit
-      err <-
-        responseJsonError
-          =<< localPostCommitBundle alice1 bundle
-            <!! const 409 === statusCode
-      liftIO $ Wai.label err @?= "mls-stale-message"
-  where
-    lock :: PrepQuery W (GroupId, Epoch) ()
-    lock = "insert into mls_commit_locks (group_id, epoch) values (?, ?)"
-
-    insertLock groupId epoch =
-      retry x5 $
-        write
-          lock
-          ( params
-              LocalQuorum
-              (groupId, epoch)
-          )
 
 testUnknownProposalRefCommit :: (HasCallStack) => TestM ()
 testUnknownProposalRefCommit = do

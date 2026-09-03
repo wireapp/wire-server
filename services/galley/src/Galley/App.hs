@@ -108,8 +108,7 @@ import Wire.CodeStore.Cassandra
 import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
-import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
-import Wire.MLSCommitLockStore.DualWrite (interpretMLSCommitLockStoreToCassandraAndPostgres)
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration)
 import Wire.MLSCommitLockStore.Postgres (interpretMLSCommitLockStoreToPostgres)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
@@ -442,11 +441,6 @@ evalGalley e =
           CassandraStorage -> interpretTeamFeatureStoreToCassandra
           MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
-      mlsCommitLockStoreInterpreter =
-        case (e ^. options . postgresMigration).mlsCommitLocks of
-          CassandraStorage -> interpretMLSCommitLockStoreToCassandra (e ^. cstate)
-          MigrationToPostgresql -> interpretMLSCommitLockStoreToCassandraAndPostgres (e ^. cstate)
-          PostgresqlStorage -> interpretMLSCommitLockStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -549,7 +543,7 @@ evalGalley e =
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
         . teamFeatureStoreInterpreter
-        . mlsCommitLockStoreInterpreter
+        . interpretMLSCommitLockStoreToPostgres
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)

@@ -26,7 +26,6 @@ import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
 import Wire.DomainRegistrationStore.Migration
-import Wire.MLSCommitLockStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.TeamFeatureStore.Migration
 
@@ -109,20 +108,3 @@ domainRegistration migOpts = do
     Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
     cancel migrationLoop
 
-mlsCommitLocks :: MigrationOptions -> AppT IO CleanupAction
-mlsCommitLocks migOpts = do
-  cassClient <- asks (.cassandraGalley)
-  pgPool <- asks (.hasqlPool)
-  logger <- asks (.logger)
-  Log.info logger $ Log.msg (Log.val "starting mls commit locks migration")
-  count <- register $ counter $ Prometheus.Info "wire_mls_commit_locks_migrated_to_pg" "Number of mls commit locks migrated to Postgresql"
-  finished <- register $ counter $ Prometheus.Info "wire_mls_commit_locks_migration_finished" "Whether the mls commit locks migration to Postgresql is finished successfully"
-  failed <- register $ counter $ Prometheus.Info "wire_mls_commit_locks_migration_failed" "Whether the mls commit locks migration to Postgresql has failed"
-  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_mls_commit_locks_migration_duration_seconds" "Duration of mls commit lock migration attempts") defaultBuckets
-
-  migrationLoop <- async . lift $ migrateMLSCommitLocksLoop migOpts cassClient pgPool logger count finished failed duration
-
-  Log.info logger $ Log.msg (Log.val "started mls commit locks migration")
-  pure $ do
-    Log.info logger $ Log.msg (Log.val "cancelling mls commit locks migration")
-    cancel migrationLoop

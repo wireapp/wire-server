@@ -404,8 +404,6 @@ library
     Wire.MeetingsSubsystem.Notification
     Wire.Migration
     Wire.MigrationLock
-    Wire.MLSCommitLockStore.DualWrite
-    Wire.MLSCommitLockStore.Migration
     Wire.MLSCommitLockStore.Postgres
     Wire.MlsKeyPackageStore
     Wire.MlsKeyPackageStore.Cassandra

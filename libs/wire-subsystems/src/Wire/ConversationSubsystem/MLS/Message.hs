@@ -47,7 +47,6 @@ import Polysemy.Async (Async)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output
-import Polysemy.Resource (Resource)
 import Polysemy.TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
@@ -176,7 +175,6 @@ postMLSCommitBundle ::
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
-    Member Resource r,
     Members MLSMessageStaticErrors r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
@@ -214,7 +212,6 @@ postMLSCommitBundleFromLocalUser ::
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Random r,
-    Member Resource r,
     Members MLSMessageStaticErrors r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
@@ -252,7 +249,6 @@ postMLSCommitBundleToLocalConv ::
     Member (Input EnableOutOfSyncCheck) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
-    Member Resource r,
     Members MLSMessageStaticErrors r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
