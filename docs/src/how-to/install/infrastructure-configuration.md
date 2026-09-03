@@ -27,7 +27,6 @@ gundeck:
         - "10.0.0.0/8"
         - "elasticsearch-external"
         - "cassandra-external"
-        - "redis-ephemeral"
         - "fake-aws-sqs"
         - "fake-aws-dynamodb"
         - "fake-aws-sns"
@@ -415,8 +414,8 @@ cassandra cannot reliably be installed on kubernetes. Some people have
 tried, e.g. [this
 project](https://github.com/instaclustr/cassandra-operator) though at
 the time of writing (Nov 2018), this does not yet work as advertised. We
-recommend therefore to install cassandra, (possibly also elasticsearch
-and redis) separately, i.e. outside of kubernetes (using 3 nodes each).
+recommend therefore to install cassandra, (possibly also elasticsearch)
+separately, i.e. outside of kubernetes (using 3 nodes each).
 
 For further higher-availability:
 

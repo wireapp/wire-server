@@ -81,19 +81,6 @@ install_certs "$TEMP/es" "$ROOT_DIR/deploy/dockerephemeral/docker" \
 install_certs "$TEMP/es" "$ROOT_DIR/hack/helm_vars/certs" \
     elasticsearch-ca elasticsearch-ca-key
 
-# redis
-mkdir -p "$TEMP/redis"
-gen_ca "$TEMP/redis" redis.ca.example.com
-REDIS="$ROOT_DIR/deploy/dockerephemeral/docker"
-cp "$TEMP/redis/ca.pem" "$REDIS/redis-ca.pem"
-for redis_node in $(seq 1 6); do
-  gen_cert "$TEMP/redis" "DNS:redis-${redis_node}, IP:172.20.0.3${redis_node}"
-  chmod 0644 "$TEMP/redis/key.pem"
-  install_certs "$TEMP/redis" "$REDIS" "" "" \
-      "redis-node-${redis_node}-cert" \
-      "redis-node-${redis_node}-key"
-done
-
 # rabbitmq
 RABBITMQ="$ROOT_DIR/deploy/dockerephemeral/rabbitmq-config/certificates"
 gen_ca "$RABBITMQ" rabbitmq.ca.example.com

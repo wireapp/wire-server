@@ -492,13 +492,11 @@ gundeck:
       tlsCaSecretRef:
         name: "rabbitmq-certificate"
         key: "ca.crt"
-    redis:
-      host: redis-ephemeral
-      connectionMode: master
-      enableTls: true
-      tlsCaSecretRef:
-        name: "redis-certificate"
-        key: "ca.crt"
+    postgresql:
+      host: "postgresql"
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
     aws:
       account: "123456789012"
       region: eu-west-1
@@ -514,7 +512,7 @@ gundeck:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
-    redisPassword: very-secure-redis-master-password
+    pgPassword: posty-the-gres
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
@@ -529,7 +527,6 @@ gundeck:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
       {{- end }}
-      redisAdditionalWritePassword: very-secure-redis-master-password-2
 
 nginz:
   replicaCount: 1
@@ -729,10 +726,6 @@ integration:
       tlsCaSecretRef:
         name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"
-    redis:
-      tlsCaSecretRef:
-        name: "redis-certificate"
-        key: "ca.crt"
     rabbitmq:
       tlsCaSecretRef:
         name: "rabbitmq-certificate"
@@ -746,7 +739,6 @@ integration:
     uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
     uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
     {{- end }}
-    redisPassword: very-secure-redis-master-password
   tls:
     caNamespace: wire-federation-v0
 

@@ -13,13 +13,6 @@ dependencies:
 # since cassandra-migrations did not yet run; but the cassandra-migrations hook
 # requires all pods to be in a 'Ready' state before starting (condition for post-install); this is impossible.
 #####################################################
-- name: redis-ephemeral
-  version: "0.0.42"
-  repository: "file://../redis-ephemeral"
-  tags:
-    - redis-ephemeral
-    - databases-ephemeral
-    - demo
 - name: elasticsearch-ephemeral
   version: "0.0.42"
   repository: "file://../elasticsearch-ephemeral"

@@ -1,0 +1,1 @@
+Gundeck presence tracking moved from redis to postgres; redis and the gundeck redis configuration options are gone. (WPB-28377)

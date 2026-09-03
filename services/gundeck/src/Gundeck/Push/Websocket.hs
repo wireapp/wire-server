@@ -64,7 +64,7 @@ class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
 
 instance MonadBulkPush Gundeck where
   mbpBulkSend = bulkSend
-  mbpDeleteAllPresences = runWithAdditionalRedis . Presence.deleteAll
+  mbpDeleteAllPresences = Presence.deleteAll
   mbpPosixTime = posixTime
   mbpMapConcurrently = mapConcurrently
   mbpMonitorBadCannons = monitorBadCannons
@@ -315,7 +315,7 @@ push ::
 push notif (toList -> tgts) originUser originConn conns = do
   pp <- handleAny noPresences listPresences
   (ok, gone) <- foldM onResult ([], []) =<< send notif pp
-  runWithAdditionalRedis $ Presence.deleteAll gone
+  Presence.deleteAll gone
   pure ok
   where
     listPresences =
@@ -324,7 +324,7 @@ push notif (toList -> tgts) originUser originConn conns = do
         . concat
         . filterByClient
         . zip tgts
-        <$> runWithDefaultRedis (Presence.listAll (view targetUser <$> tgts))
+        <$> Presence.listAll (view targetUser <$> tgts)
     noPresences exn = do
       Log.err $
         Log.field "error" (displayException exn)

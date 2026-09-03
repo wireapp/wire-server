@@ -18,11 +18,6 @@ spec:
       secret:
         secretName: {{ (include "gundeck.tlsSecretRef" .Values.gundeck.config | fromYaml).name }}
     {{- end }}
-    {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
-    - name: "redis-ca"
-      secret:
-        secretName: {{ include "gundeck.redisTlsSecretName" .Values.gundeck.config }}
-    {{- end }}
     {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
       secret:
@@ -73,10 +68,6 @@ spec:
     - name: "gundeck-cassandra"
       mountPath: "/etc/wire/gundeck/cassandra"
     {{- end }}
-    {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
-    - name: "redis-ca"
-      mountPath: "/etc/wire/gundeck/redis-ca/"
-    {{- end }}
     {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
       mountPath: "/etc/wire/gundeck/rabbitmq-ca/"
@@ -96,34 +87,6 @@ spec:
       value: "guest"
     - name: RABBITMQ_PASSWORD
       value: "guest"
-    {{- if hasKey .Values.gundeck.secrets "redisUsername" }}
-    - name: REDIS_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: gundeck
-          key: redisUsername
-    {{- end }}
-    {{- if hasKey .Values.gundeck.secrets "redisPassword" }}
-    - name: REDIS_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: gundeck
-          key: redisPassword
-    {{- end }}
-    {{- if and (hasKey .Values.gundeck.tests "secrets") (hasKey .Values.gundeck.tests.secrets "redisAdditionalWriteUsername") }}
-    - name: REDIS_ADDITIONAL_WRITE_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: gundeck-integration
-          key: redisAdditionalWriteUsername
-    {{- end }}
-    {{- if and (hasKey .Values.gundeck.tests "secrets") (hasKey .Values.gundeck.tests.secrets "redisAdditionalWritePassword") }}
-    - name: REDIS_ADDITIONAL_WRITE_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: gundeck-integration
-          key: redisAdditionalWritePassword
-    {{- end }}
     {{- if .Values.gundeck.tests.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
       value: {{ .Values.gundeck.tests.config.uploadXml.baseUrl }}

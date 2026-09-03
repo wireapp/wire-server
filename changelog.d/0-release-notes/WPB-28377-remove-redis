@@ -1,0 +1,17 @@
+Gundeck no longer uses redis: presence tracking is stored in PostgreSQL.
+
+Operators must:
+
+- Remove redis deployments that were only used by gundeck, and the gundeck
+  `redis:` and `redisAdditionalWrite:` configuration, the `REDIS_USERNAME`,
+  `REDIS_PASSWORD`, `REDIS_ADDITIONAL_WRITE_USERNAME` and
+  `REDIS_ADDITIONAL_WRITE_PASSWORD` environment variables, and gundeck redis
+  TLS secrets (`redisUsername`/`redisPassword`/`redisAdditionalWrite*` secrets
+  and the redis CA certificates).
+- Add the new required configuration `gundeck.config.postgresql` (plus
+  `postgresqlPool`, and optionally `secrets.pgPassword` for the password file),
+  following the same format as brig's postgresql settings.
+- Restart all cannons after deployment is successful. Presence data does
+  not carry over, this will make sure all clients reconnect after the
+  presence data is being written to PostgreSQL.
+- Stop deploying `redis-ephemeral` and `reaper`, these have been removed.

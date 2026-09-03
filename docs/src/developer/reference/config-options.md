@@ -1952,96 +1952,6 @@ elasticsearch-index:
     insecureSkipVerifyTls: true
 ```
 
-## Configure Redis authentication
-
-If the redis used needs authentication with either username and password or just
-password (legacy auth), it can be configured like this:
-
-```yaml
-gundeck:
-  secrets:
-    redisUsername: <username>
-    redisPassword: <password>
-```
-
-**NOTE**: When using redis < 6, the `redisUsername` must not be set at all (not
-even set to `null` or empty string, the key must be absent from the config).
-When using redis >= 6 and using legacy auth, the `redisUsername` must either be
-not set at all or set to `"default"`.
-
-While doing migrations to another redis instance, the credentials for the
-addtional redis can be set as follows:
-
-```yaml
-gundeck:
-  secrets:
-    redisAdditionalWriteUsername: <username>  # Do not set this at all when using legacy auth
-    redisAdditionalWritePassword: <password>
-```
-
-**NOTE**: `redisAddtiionalWriteUsername` follows same restrictions as
-`redisUsername` when using legacy auth.
-
-## Configure TLS for Redis
-
-If the redis instance requires TLS, it can be configured like this:
-
-```yaml
-gundeck:
-  config:
-    redis:
-      enableTls: true
-```
-
-In case a custom CA certificate is required it can be provided like this:
-
-```yaml
-gundeck:
-  config:
-    redis:
-      tlsCa: <PEM encoded CA certificates>
-```
-
-There is another way to provide this, in case there already exists a kubernetes
-secret containing the CA certificate(s):
-
-```yaml
-gundeck:
-  config:
-    redis:
-      tlsCaSecretRef:
-        name: <Name of the secret>
-        key: <Key in the secret containing pem encoded CA Cert>
-```
-
-For configuring `redisAdditionalWrite` in gundeck (this is required during a
-migration from one redis instance to another), the settings need to be like
-this:
-
-```yaml
-gundeck:
-  config:
-    redisAdditionalWrite:
-      enableTls: true
-      # One or none of these:
-      # tlsCa: <similar to tlsCa>
-      # tlsCaSecretRef: <similar to tlsCaSecretRef>
-```
-
-**WARNING:** Please do this only if you know what you’re doing.
-
-In case it is not possible to verify TLS certificate of the redis
-server, it can be turned off without tuning off TLS like this:
-
-```yaml
-gundeck:
-  config:
-    redis:
-      insecureSkipVerifyTls: true
-    redisAdditionalWrite:
-      insecureSkipVerifyTls: true
-```
-
 ## Configure RabbitMQ
 
 RabbitMQ authentication must be configured on brig, galley and background-worker. For example:
@@ -2074,7 +1984,7 @@ server, verification can be turned off by settings `insecureSkipVerifyTls` to
 
 ## Configure PostgreSQL
 
-`brig`, `galley`, and `background-worker` require a PostgreSQL database. The configured user needs to
+`brig`, `galley`, `gundeck`, and `background-worker` require a PostgreSQL database. The configured user needs to
 be able to write data and change the schema (e.g. create and alter tables.)
 
 The internal configuration YAML file format and the Helm charts for `brig` and
@@ -2131,7 +2041,7 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
+The `postgresqlPassword` file is read by `brig`, `galley`, `gundeck`, and `background-worker`. Its content is
 used as `password` field.
 
 ### Using PostgreSQL for storing Cassandra-backed data

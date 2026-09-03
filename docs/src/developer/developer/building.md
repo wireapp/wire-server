@@ -166,7 +166,6 @@ These services require most of the deployment dependencies as seen in the archit
 - Required internal dependencies:
   - cassandra (with the correct schema)
   - elasticsearch (with the correct schema)
-  - redis
 - Required external dependencies are the following configured AWS services (or “fake” replacements providing the same API):
   - SES
   - SQS

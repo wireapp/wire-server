@@ -69,6 +69,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
+import Wire.JobSubsystem.Migrations (defaultSchemaName, mkArbiterConnectionString, runJobMigrations)
 import Wire.OpenTelemetry (withTracer)
 import Wire.PostgresMigrations
 import Wire.Sem.Paging qualified as P
@@ -117,6 +118,10 @@ migratePostgres opts resetFirst = do
   pool <- (.rawPool) <$> initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   when resetFirst $ resetSchema pool logger
   runAllMigrations pool logger
+  -- Also create the arbiter job schema, so that this command yields the full
+  -- database schema (e.g. for `make postgres-schema`).
+  arbiterConnStr <- mkArbiterConnectionString opts.postgresql opts.postgresqlPassword
+  runJobMigrations arbiterConnStr defaultSchemaName
   flush logger
 
 mkApp :: Opts -> IO (Wai.Application, Env)
