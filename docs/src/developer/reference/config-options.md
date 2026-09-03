@@ -249,6 +249,28 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Meetings validity and past-edit periods
+
+`settings.meetings.validityPeriod` (default `48h`) is how long a meeting stays
+alive (readable and editable) after its effective end time — its `end_time`, or
+the end of its recurrence window for recurring meetings; open-ended recurring
+meetings never expire. `settings.meetings.pastEditPeriod` (default `24h`) bounds how
+far into the past `PUT /meetings/{domain}/{id}` may move a meeting's
+`start_time`/`end_time`, so past and ongoing meetings can be corrected to what
+actually happened. Only provided time values are checked against this cutoff;
+unchanged stored times are not re-validated — but the effective times (provided
+or stored) must still satisfy `end_time > start_time`. Galley refuses to start
+if `pastEditPeriod` is negative or greater than `validityPeriod`, so a meeting
+edited to past times stays inside the validity window and remains visible and editable.
+
+```yaml
+# galley.yaml
+settings:
+  meetings:
+    validityPeriod: "48h"
+    pastEditPeriod: "24h"
+```
+
 ### Meetings email sender and transport
 
 The optional `settings.meetings.email` block enables emailing meeting
@@ -282,6 +304,13 @@ points at the path where the SMTP password is read, and
 path into `transport.smtpCredentials.smtpPassword`, the same pattern Brig uses
 for `smtp.passwordFile`.
 
+### Meetings time settings
+
+The `galley.config.settings.meetings.legacyTimeZone` Helm value is an IANA time
+zone id (e.g. `"Europe/Berlin"`, the default) used as the `tzid` for meetings
+created by legacy clients (< V17), which send an `end_time` instead of the V17
+`duration` + `tzid` fields. It has no effect on V17+ clients.
+
 ### Meetings Premium (deprecated)
 
 > **Deprecated (WPB-26771).** The `meetingsPremium` feature flag no longer
@@ -300,19 +329,20 @@ The aggregate list endpoints (`GET /feature-configs`,
 `GET /teams/:tid/features`) continue to include `meetingsPremium` at all API
 versions, including v17.
 
-### Background Effects
+### Background Effects (deprecated)
 
-The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is disabled and locked by default. If you want a different configuration, use the following syntax: 
-```yaml
-backgroundEffects:
-  defaults:
-    status: disabled|enabled
-    lockStatus: locked|unlocked
-```
+> **Deprecated (WPB-27912).** The `backgroundEffects` feature flag no longer
+> affects meeting behaviour. The flag, its data type and its public/internal
+> endpoints are retained for backward compatibility and are scheduled for
+> removal in a future release.
 
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/backgroundEffects/(un)?locked`).
-
-The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+The flag now defaults to **enabled and locked** and the Helm configuration
+override has been removed (operators can no longer change it via Helm). The
+`GET/PUT /teams/:tid/features/backgroundEffects` and internal lock-status
+endpoints return 404 at API version v17; they remain available through v16.
+The aggregate endpoints `GET /feature-configs` and
+`GET /teams/:tid/features` continue to include `backgroundEffects` at all API
+versions, including v17.
 
 ### File Sharing
 
@@ -362,6 +392,21 @@ The settings mean:
 - `deletionTimeoutDuration`: how long to keep an adminless conversation before it is deleted.
 - `reminderTimeoutDurations`: when before deletion reminder notifications should be sent.
 
+In federated conversations, automatic senderless deletion is skipped when the
+conversation contains remote members because the corresponding system delete
+event cannot yet be sent safely to the remote backend. This applies both when
+the feature is enabled and existing conversations are scanned without an
+origin user, and when a previously scheduled senderless deletion job runs.
+Reminders for a skipped deletion are also skipped because they would be
+misleading. The skipped deletion is logged at info level.
+
+Autopromotion still runs because the conversation-owning backend stores the
+authoritative member roles. Remote clients may miss the immediate senderless
+member-update notification, but a subsequent conversation fetch obtains the
+current role from the owning backend. Member updates and deletions with an
+origin user continue to use the existing ordinary federation events and are
+not skipped.
+
 Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`. It is **not** recommended or supported to set these below a day in production environments.
 
 Feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`, and `GET /teams/:tid/features/preventAdminlessGroups`, include the duration fields:
@@ -380,7 +425,7 @@ Feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`,
 
 From a client's perspective, API versioning works like this:
 
-- API version V17 and newer should send the duration fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
+- API version V18 and newer should send the duration fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
 - Feature responses include the duration fields for clients to read.
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/preventAdminlessGroups/(un)?locked`).
@@ -2142,6 +2187,7 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
+- `user` -> `migrateUsers`
 
 **Migration pattern per migration setting**
 
@@ -2160,13 +2206,15 @@ The current settings and their background-worker flags are:
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
-        domainRegistration: cassandra
+         domainRegistration: migration-to-postgresql
+         user: migration-to-postgresql
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
-      migrateDomainRegistration: false
+       migrateDomainRegistration: false
+       migrateUsers: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2180,7 +2228,8 @@ The current settings and their background-worker flags are:
        migrateConversations: true
        migrateConversationCodes: true
        migrateTeamFeatures: true
-      migrateDomainRegistration: true
+       migrateDomainRegistration: true
+       migrateUsers: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2196,6 +2245,16 @@ The current settings and their background-worker flags are:
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
+   - `user`: `wire_user_migration_finished`
+
+   > ⚠️ For user migrations please watch the logs for `Invalid user found,
+   > skipping`. This would be accompanied by an error which is either
+   > `UserHasNoName` or `UserHasNoActivated`. These users are invalid and all
+   > interactions with them were resulting in errors. If these warnings are
+   > ignored, these users will stop existing in the system. If these users are
+   > to be saved, the operator must insert some value as `name` and/or
+   > `activated` and then re-trigger the migration **after** the background
+   > worker finishes migrating the valid users.
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2208,13 +2267,15 @@ The current settings and their background-worker flags are:
          conversation: postgresql
          conversationCodes: postgresql
          teamFeatures: postgresql
-        domainRegistration: cassandra
+         domainRegistration: postgresql
+         user: postgresql
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
-      migrateDomainRegistration: false
+       migrateDomainRegistration: false
+       migrateUsers: false
    ```
 
 **How to run migrations independently or in batches**

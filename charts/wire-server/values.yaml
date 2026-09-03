@@ -141,6 +141,8 @@ galley:
 
       meetings:
         validityPeriod: "48h"
+        legacyTimeZone: "Europe/Berlin"
+        pastEditPeriod: "24h"
         # Optional. When set, meeting invitation emails are sent with this
         # sender over the configured transport (SES xor SMTP). `useSES` selects
         # the transport; `aws` is used when true, `smtp` when false (mirrors
@@ -240,6 +242,8 @@ galley:
               finaliseRegardlessAfter: null # "2029-10-17T00:00:00.000Z"
               usersThreshold: 100
               clientsThreshold: 100
+              # Allow group-wise migration by clients
+              allowManualMigration: false
             lockStatus: locked
         limitedEventFanout:
           defaults:
@@ -338,10 +342,6 @@ galley:
             status: disabled
             lockStatus: locked
         meetings:
-          defaults:
-            status: disabled
-            lockStatus: locked
-        backgroundEffects:
           defaults:
             status: disabled
             lockStatus: locked
@@ -517,6 +517,14 @@ cannon:
   nginzImage:
     repository: quay.io/wire/nginz
     tag: do-not-use
+    pullPolicy: IfNotPresent
+  # Image for the cannon-configurator initContainer, which only runs a
+  # single `echo` into a shared volume. Override repository to pull from a
+  # mirror registry, e.g. my-mirror.example/library/alpine
+  # renovate: datasource=docker depName=alpine
+  configuratorImage:
+    repository: alpine
+    tag: "3.24.1"
     pullPolicy: IfNotPresent
   config:
     logLevel: Info
@@ -1017,6 +1025,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.
     migrateDomainRegistration: false
+    # This will start the migration of users
+    # It's important to set `settings.postgresMigration.users` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateUsers: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms
