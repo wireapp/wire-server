@@ -100,10 +100,7 @@ deleteAll pp =
 -- presence rows; this only guards against leaks from abnormally dead pods
 -- (replaces the redis key TTL).
 cleanup :: Gundeck ()
-cleanup = do
-  nowMs <- posixTime
-  let cutoff = msToUtc (fromIntegral (ms nowMs - 7 * 24 * 60 * 60 * 1000))
-  runPool $ statement cutoff deleteStale
+cleanup = runPool $ statement () deleteStale
 
 -- Helpers -------------------------------------------------------------------
 
@@ -170,9 +167,9 @@ deleteMany =
       AND p.created_at <= d.created_at
   |]
 
-deleteStale :: Statement UTCTime ()
+deleteStale :: Statement () ()
 deleteStale =
   [resultlessStatement|
     DELETE FROM presence
-    WHERE created_at < ($1 :: timestamptz)
+    WHERE created_at < now() - interval '7 days'
   |]

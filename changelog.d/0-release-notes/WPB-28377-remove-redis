@@ -11,6 +11,7 @@ Operators must:
 - Add the new required configuration `gundeck.config.postgresql` (plus
   `postgresqlPool`, and optionally `secrets.pgPassword` for the password file),
   following the same format as brig's postgresql settings.
-- Presence data does not carry over: the presence cache starts empty on
-  upgrade and refills as clients reconnect.
-- The `redis-ephemeral` and `reaper` helm charts have been removed.
+- Restart all cannons after deployment is successful. Presence data does
+  not carry over, this will make sure all clients reconnect after the
+  presence data is being written to PostgreSQL.
+- Stop deploying `redis-ephemeral` and `reaper`, these have been removed.
