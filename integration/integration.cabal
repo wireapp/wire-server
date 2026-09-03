@@ -181,7 +181,6 @@ library
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
-    Test.Migration.MLSCommitLock
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
     Test.Migration.User
