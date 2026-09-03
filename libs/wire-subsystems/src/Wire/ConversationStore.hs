@@ -43,7 +43,6 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
 
-
 data MLSCommitLockStore m a where
   -- | Runs the action while holding an exclusive lock for @(groupId, epoch)@.
   -- Returns 'Nothing' without running the action when another holder is active
