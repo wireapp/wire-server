@@ -84,6 +84,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation (SystemEvent (..), SystemEventData (EdSystemConvDelete))
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient, getNegotiatedVersion)
@@ -106,12 +107,16 @@ import Wire.ConversationSubsystem.Fetch (getConversationIdsImpl)
 import Wire.ConversationSubsystem.MLS
 import Wire.ConversationSubsystem.MLS.Enabled (assertMLSEnabled, getMLSPrivateKeys, isMLSEnabled)
 import Wire.ConversationSubsystem.MLS.One2One (localMLSOne2OneConversation, remoteMLSOne2OneConversation)
+import Wire.ConversationSubsystem.Notify qualified as Notify
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
+import Wire.NotificationSubsystem
 import Wire.RateLimit
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
@@ -184,6 +189,8 @@ getConversation ::
     Member (Error FederationError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
+    Member Now r,
+    Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -205,6 +212,8 @@ getOwnConversation ::
     Member (Error InternalError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
+    Member Now r,
+    Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -222,7 +231,9 @@ getRemoteConversation ::
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
-    Member (E.FederationAPIAccess FederatorClient) r
+    Member (E.FederationAPIAccess FederatorClient) r,
+    Member Now r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -239,7 +250,9 @@ getRemoteConversations ::
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member Now r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -308,7 +321,9 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 getRemoteConversationsWithFailures ::
   ( Member ConversationStore.ConversationStore r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member Now r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -346,18 +361,38 @@ getRemoteConversationsWithFailures lusr convs = do
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
   bimap (localFailures <>) (map remoteView . concat)
     . partitionEithers
-    <$> traverse handleFailure resp
+    <$> traverse (handleFailure locallyFound) resp
   where
     handleFailure ::
-      (Member P.TinyLog r) =>
+      ( Member ConversationStore.ConversationStore r,
+        Member P.TinyLog r,
+        Member Now r,
+        Member NotificationSubsystem r
+      ) =>
+      [Remote ConvId] ->
       Either (Remote [ConvId], FederationError) (Remote GetRemoteConversationViewsResponse) ->
       Sem r (Either FailedGetConversation [Remote RemoteConversationView])
-    handleFailure (Left (rcids, e)) = do
+    handleFailure _ (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
           . Logger.field "error" (displayException e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
-    handleFailure (Right c) = pure . Right . traverse (.convs) $ c
+    handleFailure locallyFound (Right response) = do
+      let locallyFoundForDomain = filter ((== tDomain response) . tDomain) locallyFound
+          returnedIds = Set.fromList $ map (qualifyAs response . (.id)) (tUnqualified response).convs
+          missingConversations = filter (`Set.notMember` returnedIds) locallyFoundForDomain
+      unless (null missingConversations) $ do
+        now <- Now.get
+        for_ missingConversations $ \conv -> do
+          ConversationStore.deleteMembersInRemoteConversation conv [tUnqualified lusr]
+          Notify.pushSystemEvent
+            Nothing
+            (SystemEvent (tUntagged conv) Nothing now Nothing EdSystemConvDelete)
+            (Set.singleton $ tUnqualified lusr)
+        P.info $
+          Logger.msg ("Removed stale local memberships for remote conversations" :: ByteString)
+            . Logger.field "convIds" (show $ map tUntagged missingConversations)
+      pure . Right . traverse (.convs) $ response
 
 getConversationRoles ::
   ( Member ConversationStore.ConversationStore r,
@@ -505,7 +540,9 @@ listConversations ::
   ( Member ConversationStore.ConversationStore r,
     Member (Error InternalError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member Now r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   Public.ListConversations ->
@@ -529,9 +566,6 @@ listConversations luser (Public.ListConversations ids) = do
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- current user should be considered removed from this conversation at this
-    -- point.
     P.warn $
       Logger.msg ("Some locally found conversation ids were not returned by remotes" :: ByteString)
         . Logger.field "convIds" (show remoteNotFoundRemoteIds)
@@ -591,7 +625,9 @@ getSelfMember ::
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
-    Member (E.FederationAPIAccess FederatorClient) r
+    Member (E.FederationAPIAccess FederatorClient) r,
+    Member Now r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   Qualified ConvId ->
