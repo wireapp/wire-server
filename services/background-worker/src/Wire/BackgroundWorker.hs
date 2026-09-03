@@ -29,9 +29,9 @@ import Servant.Server.Generic
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util.Options
 import Wire.BackendNotificationPusher qualified as BackendNotificationPusher
-import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
+import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Workers as Workers
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
@@ -96,7 +96,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,)
+            (,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
