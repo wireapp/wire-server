@@ -78,6 +78,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-domain-registration" $
             Migrations.domainRegistration opts.migrationOptions
       else pure $ pure ()
+  cleanupUsersMigration <-
+    if opts.migrateUsers
+      then
+        runAppT env $
+          withNamedLogger "migrate-users" $
+            Migrations.users opts.migrationOptions
+      else pure $ pure ()
   cleanupMLSLocksMigration <-
     if opts.migrateMLSCommitLocks
       then
