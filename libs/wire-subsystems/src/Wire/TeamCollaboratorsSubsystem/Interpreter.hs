@@ -29,6 +29,8 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Member qualified as TeamMember
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess qualified as BrigAPIAccess
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -44,15 +46,18 @@ interpretTeamCollaboratorsSubsystem ::
     Member Now r,
     Member NotificationSubsystem r
   ) =>
+  InterpreterFor BrigAPIAccess r ->
   InterpreterFor TeamCollaboratorsSubsystem r
-interpretTeamCollaboratorsSubsystem = interpret $ \case
-  CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
-  GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
-  InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
-  InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
-  InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
-  InternalUpdateTeamCollaborator user team perms -> internalUpdateTeamCollaboratorImpl user team perms
-  InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
+interpretTeamCollaboratorsSubsystem brigAPIAccess =
+  interpret $
+    brigAPIAccess . \case
+      CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
+      GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
+      InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
+      InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
+      InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+      InternalUpdateTeamCollaborator user team perms -> internalUpdateTeamCollaboratorImpl user team perms
+      InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -74,7 +79,8 @@ createTeamCollaboratorImpl ::
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   UserId ->
@@ -85,8 +91,10 @@ createTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.GetTeamCollaborators InsufficientRights
   Store.createTeamCollaborator user team perms
 
-  -- TODO: Review the event's values
   generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
+
+  -- Reindex the collaborator with their new collaboration team
+  BrigAPIAccess.updateSearchIndex user
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -109,21 +117,25 @@ internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
 internalUpdateTeamCollaboratorImpl ::
-  (Member Store.TeamCollaboratorsStore r) =>
+  (Member Store.TeamCollaboratorsStore r, Member BrigAPIAccess r) =>
   UserId ->
   TeamId ->
   Set CollaboratorPermission ->
   Sem r ()
 internalUpdateTeamCollaboratorImpl user team perms = do
   Store.updateTeamCollaborator user team perms
+  -- Reindex collaborator when permissions change
+  BrigAPIAccess.updateSearchIndex user
 
 internalRemoveTeamCollaboratorImpl ::
-  (Member Store.TeamCollaboratorsStore r) =>
+  (Member Store.TeamCollaboratorsStore r, Member BrigAPIAccess r) =>
   UserId ->
   TeamId ->
   Sem r ()
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
+  -- Reindex collaborator when removed
+  BrigAPIAccess.updateSearchIndex user
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.
