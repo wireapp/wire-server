@@ -64,6 +64,7 @@ import Data.UUID qualified as UUID
 import Database.Bloodhound qualified as ES
 import Federation.Util
 import Imports
+import Network.HTTP.Client qualified as HTTPClient
 import Network.HTTP.ReverseProxy (waiProxyTo)
 import Network.HTTP.ReverseProxy qualified as Wai
 import Network.HTTP.Types qualified as HTTP
@@ -993,9 +994,12 @@ testCollaboratorFoundNewIndex brig galley = do
 testCollaboratorNotFoundOldIndex :: (TestConstraints m) => Opts -> Brig -> Galley -> m ()
 testCollaboratorNotFoundOldIndex opts brig galley = do
   (tidA, ownerA, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (_, _, [userQualifiedId -> memberB]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (_, _, [memberB]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  let memberBQid = userQualifiedId memberB
+      memberBUid = qUnqualified memberBQid
+      memberBName = fromName (userDisplayName memberB)
 
-  let payload = NewTeamCollaborator (qUnqualified memberB) (Set.fromList [CreateTeamConversation, ImplicitConnection])
+  let payload = NewTeamCollaborator memberBUid (Set.fromList [CreateTeamConversation, ImplicitConnection])
    in post (galley . paths ["teams", toByteString' tidA, "collaborators"] . zUser (userId ownerA) . json payload)
         !!! const 200 === statusCode
 
@@ -1005,16 +1009,72 @@ testCollaboratorNotFoundOldIndex opts brig galley = do
   -- resulting in the 404.
   --
   -- Solution: update the index separately, after the call to galley,
-  -- thus
-  withOldIndex opts defaultMigrationIndexName $ do
-    post (brig . paths ["i", "index", "update", toByteString' (qUnqualified memberB)]) !!! const 200 === statusCode
-    refreshIndex brig
+  -- thus.  We use 'optsForOldIndex' rather than 'withOldIndex' because we need
+  -- the index name for the diagnostics below, and because 'withOldIndex'
+  -- deletes the index the moment the block ends (so nothing that runs *after*
+  -- the block can observe it).
+  (oldOpts, oldIndex) <- optsForOldIndex opts defaultMigrationIndexName
+  let ES.IndexName defaultIndex = opts ^. Opt.elasticsearchLens . Opt.indexLens
 
-  -- refreshIndex brig
-  res <- searchResults <$> executeSearch brig (userId ownerA) ""
+  dumpEsState opts "default index (new mapping), before reindex" defaultIndex tidA memberBUid
+  dumpEsState opts "old-mapping index, before reindex" oldIndex tidA memberBUid
+
+  -- Search against the *old* index, i.e. from inside the session.
+  (resOldByName, resOldByEmptyTerm) <- withSettingsOverrides oldOpts $ do
+    post (brig . paths ["i", "index", "update", toByteString' memberBUid]) !!! const 200 === statusCode
+    refreshIndex brig
+    dumpEsState opts "old-mapping index, after reindex" oldIndex tidA memberBUid
+    (,)
+      <$> (searchResults <$> executeSearch brig (userId ownerA) memberBName)
+      <*> (searchResults <$> executeSearch brig (userId ownerA) "")
+
+  -- Search against the default index, for contrast.
+  refreshIndex brig
+  resDefaultByName <- searchResults <$> executeSearch brig (userId ownerA) memberBName
+  dumpEsState opts "default index (new mapping), after reindex" defaultIndex tidA memberBUid
+
+  liftIO $ do
+    putStrLn $ "### searcher:    " <> show (userId ownerA) <> " (team " <> show tidA <> ")"
+    putStrLn $ "### looking for: " <> show memberBQid <> " (name " <> show memberBName <> ")"
+    putStrLn $ "### brig search, old index,     term = name:  " <> show (map contactQualifiedId resOldByName)
+    putStrLn $ "### brig search, old index,     term = \"\":    " <> show (map contactQualifiedId resOldByEmptyTerm)
+    putStrLn $ "### brig search, default index, term = name:  " <> show (map contactQualifiedId resDefaultByName)
+
+  deleteIndex opts oldIndex
+
   liftIO $
     assertBool "collaborator should NOT be found on old mapping" $
-      memberB `notElem` map contactQualifiedId res
+      memberBQid `notElem` map contactQualifiedId resOldByName
+
+-- | Throwaway diagnostics: dump the mapping of an ES index, the document we
+-- care about, and what a direct query on @collaborating_teams@ turns up.
+dumpEsState :: (MonadIO m) => Opt.Opts -> String -> Text -> TeamId -> UserId -> m ()
+dumpEsState opts label idx tid uid = do
+  let ES.MappingName mpp = mappingName
+      uid' = cs (toByteString' uid)
+      tid' = cs (toByteString' tid)
+  mapping <- esGet opts (cs idx <> "/_mapping")
+  doc <- esGet opts (cs idx <> "/" <> cs mpp <> "/" <> uid')
+  allDocs <- esGet opts (cs idx <> "/_search?size=100")
+  byTeam <- esGet opts (cs idx <> "/_search?q=collaborating_teams:" <> tid')
+  liftIO $ do
+    putStrLn $ "\n### === " <> label <> " (index " <> cs idx <> ") ==="
+    putStrLn $ "### mapping mentions collaborating_teams: " <> show ("collaborating_teams" `Text.isInfixOf` cs mapping)
+    putStrLn $ "### mapping:            " <> cs mapping
+    putStrLn $ "### document " <> uid' <> ": " <> cs doc
+    putStrLn $ "### all documents:      " <> cs allDocs
+    putStrLn $ "### q=collaborating_teams:" <> tid' <> " -> " <> cs byTeam
+
+-- | Raw GET against ES, for diagnostics.  Goes through 'mkBHEnv' so we inherit
+-- its credentials and TLS setup.
+esGet :: (MonadIO m) => Opt.Opts -> String -> m LByteString
+esGet opts urlPath = liftIO $ do
+  let (ES.Server esURL) = opts ^. Opt.elasticsearchLens . Opt.urlLens
+  mgr <- initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
+  let bEnv = mkBHEnv esURL mgr
+  baseReq <- HTTPClient.parseRequest (cs esURL <> "/" <> urlPath)
+  req <- ES.bhRequestHook bEnv baseReq
+  HTTPClient.responseBody <$> HTTPClient.httpLbs req (ES.bhManager bEnv)
 
 -- | Non-collaborator from another team is not found on any index
 testNonCollaboratorNotFound :: (TestConstraints m) => Brig -> Galley -> m ()
