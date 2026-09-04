@@ -244,7 +244,7 @@ defAllFeatures =
                   "collabora" .= object ["edition" .= "COOL"],
                   "storage"
                     .= object
-                      [ "totalLimitBytes" .= "1000000000000",
+                      [ "totalLimitBytes" .= "-1",
                         "perUserQuotaBytes" .= "-1"
                       ]
                 ]
