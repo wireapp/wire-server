@@ -34,7 +34,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input)
-import Polysemy.Resource (Resource)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
@@ -77,7 +76,6 @@ processInternalCommit ::
     Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member Resource r,
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
