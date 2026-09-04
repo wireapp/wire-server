@@ -51,10 +51,12 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (Value, decode)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens qualified as Aeson
+import Data.ByteString.Conversion
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
 import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Set qualified as Set
 import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -79,6 +81,7 @@ import UnliftIO (Concurrently (..), async, bracket, cancel, runConcurrently)
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
+import Wire.API.Team.Collaborator (CollaboratorPermission (..), NewTeamCollaborator (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Permission
@@ -166,7 +169,12 @@ tests opts additionalElasticSearch mgr galley brig = do
           ],
         test mgr "user with unvalidated email" $ testSearchWithUnvalidatedEmail brig,
         test mgr "testSearchableMissing: searchable field missing defaults to true" $
-          testSearchableMissing opts brig galley
+          testSearchableMissing opts brig galley,
+        testGroup "collaborator search" $
+          [ test mgr "collaborator found on new index" $ testCollaboratorFoundNewIndex brig galley,
+            test mgr "collaborator not found on old index" $ testCollaboratorNotFoundOldIndex opts brig galley,
+            testWithBothIndices opts mgr "non-collaborator not found" $ testNonCollaboratorNotFound brig galley
+          ]
       ]
   where
     -- Since the tests are about querying only, we only need 1 creation
@@ -967,6 +975,60 @@ runBH opts action = do
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
+
+-- | Collaborator from another team is found on new index
+testCollaboratorFoundNewIndex :: (TestConstraints m) => Brig -> Galley -> m ()
+testCollaboratorFoundNewIndex brig galley = do
+  (tidA, ownerA, []) <- createPopulatedBindingTeamWithNamesAndHandles brig 0
+  (_, _, [memberB]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+
+  let payload = NewTeamCollaborator (qUnqualified (userQualifiedId memberB)) (Set.fromList [CreateTeamConversation, ImplicitConnection])
+   in post (galley . paths ["teams", toByteString' tidA, "collaborators"] . zUser (userId ownerA) . json payload)
+        !!! const 200 === statusCode
+
+  refreshIndex brig
+  assertCanFind brig (userId ownerA) (userQualifiedId memberB) (fromName $ userDisplayName memberB)
+
+-- | Collaborator from another team is NOT found on old index, but search must not crash
+testCollaboratorNotFoundOldIndex :: (TestConstraints m) => Opts -> Brig -> Galley -> m ()
+testCollaboratorNotFoundOldIndex opts brig galley = do
+  (tidA, ownerA, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (_, _, [userQualifiedId -> memberB]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+
+  let payload = NewTeamCollaborator (qUnqualified memberB) (Set.fromList [CreateTeamConversation, ImplicitConnection])
+   in post (galley . paths ["teams", toByteString' tidA, "collaborators"] . zUser (userId ownerA) . json payload)
+        !!! const 200 === statusCode
+
+  -- 'withOldIndex' uses 'withSettingsOverrides', which pulls the
+  -- affected service out of the cluster.  So if we wrap this test
+  -- into 'withOldIndex', the rpc to galley will hit the brig API,
+  -- resulting in the 404.
+  --
+  -- Solution: update the index separately, after the call to galley,
+  -- thus
+  withOldIndex opts defaultMigrationIndexName $ do
+    post (brig . paths ["i", "index", "update", toByteString' (qUnqualified memberB)]) !!! const 200 === statusCode
+    refreshIndex brig
+
+  -- refreshIndex brig
+  res <- searchResults <$> executeSearch brig (userId ownerA) ""
+  liftIO $
+    assertBool "collaborator should NOT be found on old mapping" $
+      memberB `notElem` map contactQualifiedId res
+
+-- | Non-collaborator from another team is not found on any index
+testNonCollaboratorNotFound :: (TestConstraints m) => Brig -> Galley -> m ()
+testNonCollaboratorNotFound brig _galley = do
+  (_, ownerA, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (_, _, [memberB]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+
+  -- Do NOT add memberB as collaborator
+  -- Search should not find memberB regardless of index version
+  refreshIndex brig
+  res <- searchResults <$> executeSearch brig (userId ownerA) ""
+  liftIO $
+    assertBool "non-collaborator should not be found" $
+      userQualifiedId memberB `notElem` map contactQualifiedId res
 
 -- | This was generated from Brig.User.Search.Index.indexMapping at commit 18885bc
 -- how to generate:
