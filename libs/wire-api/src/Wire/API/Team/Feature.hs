@@ -2180,7 +2180,7 @@ instance Default CellsInternalConfig where
         collabora = CellsCollabora Cool,
         storage =
           CellsStorage
-            { totalLimitBytes = Just $ QuotaBytesFinite $ NumBytes $ BigIntString 1000000000000, -- 1 TB
+            { totalLimitBytes = Just QuotaBytesUnlimited,
               perUserQuotaBytes = QuotaBytesUnlimited
             }
       }
