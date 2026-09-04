@@ -681,120 +681,89 @@ testStaleCommit = do
     resp.status `shouldMatchInt` 409
     resp.json %. "label" `shouldMatch` "mls-stale-message"
 
-testPropInvalidEpoch :: (HasCallStack) => App ()
-testPropInvalidEpoch = do
-  users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 OwnDomain)
-  [alice1, bob1, charlie1, dee1] <- traverse (createMLSClient def def) users
-  convId <- createNewGroup def alice1
-
-  -- Add bob -> epoch 1
-  void $ uploadNewKeyPackage def bob1
-  gsBackup <- getClientGroupState alice1
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
-  gsBackup2 <- getClientGroupState alice1
-
-  -- try to send a proposal from an old epoch (0)
-  do
-    setClientGroupState alice1 gsBackup
-    void $ uploadNewKeyPackage def dee1
-    [prop] <- createAddProposals convId alice1 [dee]
-    bindResponse (postMLSMessage alice1 prop.message) $ \resp -> do
-      resp.status `shouldMatchInt` 409
-      resp.json %. "label" `shouldMatch` "mls-stale-message"
-
-  -- try to send a proposal from a newer epoch (2)
-  do
-    void $ uploadNewKeyPackage def dee1
-    void $ uploadNewKeyPackage def charlie1
-    setClientGroupState alice1 gsBackup2
-    void $ createAddCommit alice1 convId [charlie] -- --> epoch 2
-    [prop] <- createAddProposals convId alice1 [dee]
-    bindResponse (postMLSMessage alice1 prop.message) $ \resp -> do
-      resp.status `shouldMatchInt` 409
-      resp.json %. "label" `shouldMatch` "mls-stale-message"
-    -- remove charlie from users expected to get a welcome message
-    modifyMLSState $ \mls -> mls {convs = Map.adjust (\conv -> conv {newMembers = mempty}) convId mls.convs}
-
-  -- alice send a well-formed proposal and commits it
-  void $ uploadNewKeyPackage def dee1
-  setClientGroupState alice1 gsBackup2
-  createAddProposals convId alice1 [dee] >>= traverse_ sendAndConsumeMessage
-  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
-
---- | This test submits a ReInit proposal, which is currently ignored by the
--- backend, in order to check that unsupported proposal types are accepted.
-testPropUnsupported :: (HasCallStack) => App ()
-testPropUnsupported = do
-  users@[_alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
-  [alice1, bob1] <- traverse (createMLSClient def def) users
-  void $ uploadNewKeyPackage def bob1
-  convId <- createNewGroup def alice1
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
-
-  mp <- createReInitProposal convId alice1
-
-  -- we cannot consume this message, because the membership tag is fake
-  void $ postMLSMessage mp.sender mp.message >>= getJSON 201
-
-testAddUserBareProposalCommit :: (HasCallStack) => App ()
-testAddUserBareProposalCommit = do
-  [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+testBareProposalRejected :: (HasCallStack) => App ()
+testBareProposalRejected = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   convId <- createNewGroup def alice1
   void $ uploadNewKeyPackage def bob1
-  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
-
-  createAddProposals convId alice1 [bob]
-    >>= traverse_ sendAndConsumeMessage
-  commit <- createPendingProposalCommit convId alice1
-  void $ assertJust "Expected welcome" commit.welcome
-  void $ sendAndConsumeCommitBundle commit
-
-  -- check that bob can now see the conversation
-  convs <- getAllConvs bob
-  convIds <- traverse objConvId convs
-  void
-    $ assertBool
-      "Users added to an MLS group should find it when listing conversations"
-      (convId `elem` convIds)
-
-testPropExistingConv :: (HasCallStack) => App ()
-testPropExistingConv = do
-  [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
   void $ uploadNewKeyPackage def bob1
-  convId <- createNewGroup def alice1
-  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
-  res <- createAddProposals convId alice1 [bob] >>= traverse sendAndConsumeMessage >>= assertOne
-  shouldBeEmpty (res %. "events")
+  [proposal] <- createAddProposals convId alice1 [bob]
+  postMLSMessage alice1 proposal.message >>= flip withResponse \resp -> do
+    resp.status `shouldMatchInt` 422
+    resp.json %. "label" `shouldMatch` "mls-unsupported-message"
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 --
--- This test verifies that the server rejects any commit that does not
--- reference all pending proposals in an MLS group.
+-- This test verifies that rejected bare proposals do not create pending
+-- backend proposals, and that the corresponding membership change succeeds
+-- when submitted as a commit.
 testCommitNotReferencingAllProposals :: (HasCallStack) => App ()
 testCommitNotReferencingAllProposals = do
-  users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
-
-  [alice1, bob1, charlie1] <- traverse (createMLSClient def def) users
+  [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   convId <- createNewGroup def alice1
-  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
+  void $ uploadNewKeyPackage def bob1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
-  gsBackup <- getClientGroupState alice1
+  groupStateBeforeRemoval <- getClientGroupState alice1
+  let isRemoveProposal e = do
+        isNewMLSMessageNotif e &&~ do
+          msgData <- e %. "payload.0.data" & asByteString
+          msg <- showMessage def alice1 msgData
+          fieldEquals msg "message.content.body.Proposal.Remove.removed" (1 :: Int)
 
-  -- create proposals for bob and charlie
-  createAddProposals convId alice1 [bob, charlie]
-    >>= traverse_ sendAndConsumeMessage
+  withWebSocket alice1 $ \ws -> do
+    deleteUser bob
+    void $ consumeMessageWithPredicate isRemoveProposal convId def alice1 Nothing ws
 
-  -- now create a commit referencing only the first proposal
-  setClientGroupState alice1 gsBackup
-  commit <- createPendingProposalCommit convId alice1
+  groupStateWithRemovalProposal <- getClientGroupState alice1
+  bobUser <- asString $ bob %. "id"
+  -- Keep the integration-test conversation model in sync with the backend
+  -- deletion. The backend has removed Bob from the Wire conversation and
+  -- created a backend remove proposal, but the harness's 'mls.convs' map is
+  -- not updated when Alice consumes that proposal. The client MLS group state
+  -- still contains Bob's leaf until the commit is applied, so this update is
+  -- separate from the 'setClientGroupState' calls below.
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            ( \conv ->
+                conv
+                  { members = Set.filter (\m -> m.user /= bobUser) conv.members
+                  }
+            )
+            convId
+            mls.convs
+      }
 
-  -- send commit and expect and error
-  bindResponse (postMLSCommitBundle alice1 (mkBundle commit)) $ \resp -> do
+  -- Restore the state before the backend proposal was consumed and submit a
+  -- commit that does not reference it.
+  setClientGroupState alice1 groupStateBeforeRemoval
+  alice2 <- createMLSClient def def alice
+  void $ uploadNewKeyPackage def alice2
+  commitWithoutRemoval <- createAddCommit alice1 convId [alice]
+
+  bindResponse (postMLSCommitBundle alice1 (mkBundle commitWithoutRemoval)) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-commit-missing-references"
+  -- 'createAddCommit' updates the harness optimistically with a pending
+  -- welcome recipient, even though the backend rejects this commit because it
+  -- omits the pending remove proposal. Clear that bookkeeping before consuming
+  -- the valid removal commit; otherwise the harness would wait for a welcome
+  -- for a client that was never added.
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust (\conv -> conv {newMembers = mempty}) convId mls.convs
+      }
+
+  -- Restore the state containing the backend proposal and submit the commit
+  -- generated from it.
+  setClientGroupState alice1 groupStateWithRemovalProposal
+  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
 
 -- @END
 

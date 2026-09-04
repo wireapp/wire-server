@@ -233,8 +233,9 @@ applyProposal _ciphersuite _groupId (RemoveProposal idx) = do
 applyProposal _activeData _groupId _ = pure mempty
 
 processProposal ::
-  (HasProposalEffects r) =>
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( HasProposalEffects r,
+    Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r
   ) =>
   Qualified UserId ->
@@ -248,6 +249,13 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
   let mlsMeta = (tUnqualified lConvOrSub).mlsMeta
   -- Check if the group ID matches that of a conversation
   unless (groupId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
+
+  -- Proposals from existing members are not authorized independently of the
+  -- commit that applies them. They must therefore only be submitted as part
+  -- of a commit bundle, where the committer's conversation role can be
+  -- checked. External proposals are retained for the join flow and are
+  -- restricted by 'checkExternalProposalUser' below.
+  unless (isExternal pub.sender) $ throwS @'MLSUnsupportedMessage
 
   case cnvmlsActiveData mlsMeta of
     Nothing -> throw $ mlsProtocolError "Bare proposals at epoch 0 are not supported"
