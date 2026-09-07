@@ -811,7 +811,7 @@ config:
             collabora:
               edition: COOL
             storage:
-              totalLimitBytes: "1000000000000" # 1 TB
+              totalLimitBytes: "-1"
               perUserQuotaBytes: "-1"
 ```
 
