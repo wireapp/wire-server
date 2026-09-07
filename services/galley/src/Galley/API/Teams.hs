@@ -799,7 +799,10 @@ deleteTeamMember' lusr zcon tid remove mBody = do
           -- lower-bounding the fields before the substraction.
           --
           -- We apply (2).
-          E.getSize tid <&> \s -> s {teamSize = max 1 s.teamSize, apps = max 1 s.apps}
+          E.getSize tid <&> \s -> case uType of
+             UserTypeFilterRegular -> s {teamSize = max 1 s.teamSize}
+             UserTypeFilterApp -> s {apps = max 1 s.apps}
+
         pure case uType of
           UserTypeFilterRegular -> before {teamSize = before.teamSize - 1}
           UserTypeFilterApp -> before {apps = before.apps - 1}
