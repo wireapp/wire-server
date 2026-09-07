@@ -45,16 +45,6 @@ and go and grab a coffee. ☕
 Your system will likely not build much, but it will definitely
 spend some time fetching things from different caches.
 
-### initializing the cabal mirrors
-
-There are a few dependencies that are not provided by the nix env, for these, please run
-
-```bash
-cabal update
-```
-
-now that you’re in the devshell.
-
 ### building wire-server
 
 #### with cabal
