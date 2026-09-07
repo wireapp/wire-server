@@ -188,14 +188,14 @@ runCommand l = \case
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    skipped <- IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    (skipped, errors) <- IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
     when (skipped /= 0) do
-      throwM . IndexMigrationError $ "Reindex: failed to sync " <> show skipped <> " documents."
+      throwM . IndexMigrationError $ "Reindex: failed to sync " <> show skipped <> " documents. Errors: " <> show errors
   ReindexSameOrNewer es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    skipped <- IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+    (skipped, errors) <- IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
     when (skipped /= 0) do
-      throwM . IndexMigrationError $ "ReindexSameOrNewer: failed to sync " <> show skipped <> " documents."
+      throwM . IndexMigrationError $ "ReindexSameOrNewer: failed to sync " <> show skipped <> " documents. Errors: " <> show errors
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
