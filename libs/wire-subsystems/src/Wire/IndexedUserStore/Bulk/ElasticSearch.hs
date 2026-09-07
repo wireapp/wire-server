@@ -22,7 +22,6 @@ import Cassandra.Util (Writetime (Writetime))
 import Conduit (ConduitT, runConduit, (.|))
 import Control.Error (headMay)
 import Control.Exception (try)
-import Control.Monad.Extra (mapMaybeM)
 import Data.Conduit.Combinators qualified as Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as CL
@@ -59,25 +58,26 @@ type IOInterpreter r = forall a. Sem r a -> IO a
 expectedMigrationVersion :: MigrationVersion
 expectedMigrationVersion = MigrationVersion 7
 
-syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO Int
+syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO (Int, [String])
 syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGT
 
-forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO Int
+forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO (Int, [String])
 forceSyncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE
 
 -- | Returns the number of users that could not be indexed because some of the
--- data needed to build their document was unavailable.  Those users have been
--- logged individually by 'logAndHush'.
-syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO Int
+-- data needed to build their document was unavailable, together with a list
+-- of error messages describing the failures (one per skipped user).  Those
+-- users have been logged individually by 'logFailures'.
+syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO (Int, [String])
 syncAllUsersWithVersion interpreter pageSize mkVersion =
-  fmap getSum . runConduit $
+  fmap (\(Sum skipped, errors) -> (skipped, errors)) . runConduit $
     zipSources (CL.sourceList [1 ..]) (paginateWithStateC (interpreter . getIndexUsersPaginated pageSize))
       .| logPage
       .| mkUserDocs
       .| Conduit.foldMapM upsertPage
   where
-    upsertPage :: (Int, [(ES.DocId, UserDoc, ES.VersionControl)]) -> IO (Sum Int)
-    upsertPage (skipped, docs) = Sum skipped <$ interpreter (IndexedUserStore.bulkUpsert docs)
+    upsertPage :: (Int, [String], [(ES.DocId, UserDoc, ES.VersionControl)]) -> IO (Sum Int, [String])
+    upsertPage (skipped, errors, docs) = (Sum skipped, errors) <$ interpreter (IndexedUserStore.bulkUpsert docs)
 
     logPage :: ConduitT (Int32, [IndexUser]) [IndexUser] IO ()
     logPage = Conduit.mapM $ \(pageNumber, page) -> do
@@ -89,8 +89,9 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
       pure page
 
     -- Emits the documents to be indexed together with the number of users of
-    -- this page that had to be skipped.
-    mkUserDocs :: ConduitT [IndexUser] (Int, [(ES.DocId, UserDoc, ES.VersionControl)]) IO ()
+    -- this page that had to be skipped and the error messages for each of
+    -- those skipped users.
+    mkUserDocs :: ConduitT [IndexUser] (Int, [String], [(ES.DocId, UserDoc, ES.VersionControl)]) IO ()
     mkUserDocs = Conduit.mapM $ \page -> do
       -- FUTUREWORK: extract team visibilities, roles and user type
       -- more efficiently sending one query per page
@@ -126,7 +127,7 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           getRoles t (fmap (.userId) us)
 
       -- One query for the whole page.  A failure here fails every document of the
-      -- page, which 'logAndHush' then logs and skips.
+      -- page, which 'logFailures' then logs and skips.
       eithCollabTeams :: Either SomeException (Map UserId [TeamId]) <-
         try . fmap (Map.fromListWith (<>) . map (\tc -> (gUser tc, [gTeam tc]))) . interpreter $
           getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
@@ -150,23 +151,25 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           docsWithErrors :: (e ~ Either SomeException) => [(ES.DocId, e UserDoc, e ES.VersionControl)]
           docsWithErrors = map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
 
-      docs <- interpreter . flip mapMaybeM docsWithErrors $ logAndHush
-      let skipped = length docsWithErrors - length docs
-      pure (skipped, docs)
+      results <- interpreter $ traverse logFailures docsWithErrors
+      let (errors, docs) = partitionEithers results
+          skipped = length errors
+          cappedErrors = take 1000 errors
+      pure (skipped, cappedErrors, docs)
 
     rightSecond :: (a, b) -> (a, Either c b)
     rightSecond (a, b) = (a, Right b)
 
-    logAndHush :: (Member TinyLog r) => (ES.DocId, Either SomeException UserDoc, Either SomeException ES.VersionControl) -> Sem r (Maybe (ES.DocId, UserDoc, ES.VersionControl))
-    logAndHush (docId@(ES.DocId idText), eithUserDoc, eithVersion) =
+    logFailures :: (Member TinyLog r) => (ES.DocId, Either SomeException UserDoc, Either SomeException ES.VersionControl) -> Sem r (Either String (ES.DocId, UserDoc, ES.VersionControl))
+    logFailures (docId@(ES.DocId idText), eithUserDoc, eithVersion) =
       case (,) <$> eithUserDoc <*> eithVersion of
         Left e -> do
           Log.err $
             Log.msg (Log.val "Error ocurred while indexing user")
               . Log.field "userId" idText
               . Log.field "error" (show e)
-          pure Nothing
-        Right (userDoc, version) -> pure $ Just (docId, userDoc, version)
+          pure $ Left $ show idText <> ": " <> show e
+        Right (userDoc, version) -> pure $ Right (docId, userDoc, version)
 
     mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (UserId, WithWritetime Role)
     mkRoleWithWriteTime tmi =
@@ -196,7 +199,7 @@ migrateData interpreter pageSize = interpreter $ do
         Log.msg (Log.val "Migration necessary.")
           . Log.field "expectedVersion" expectedMigrationVersion
           . Log.field "foundVersion" foundVersion
-      skipped <- embed $ forceSyncAllUsers interpreter pageSize
+      (skipped, errors) <- embed $ forceSyncAllUsers interpreter pageSize
       if skipped == 0
         then MigrationStore.persistMigrationVersion expectedMigrationVersion
         else do
@@ -204,6 +207,7 @@ migrateData interpreter pageSize = interpreter $ do
             Log.msg (Log.val "Migration incomplete, not persisting migration version.")
               . Log.field "expectedVersion" expectedMigrationVersion
               . Log.field "skippedUsers" skipped
+              . Log.field "errors" (show errors)
           throw $ SyncIncomplete
     else do
       Log.info $
