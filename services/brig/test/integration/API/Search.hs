@@ -25,7 +25,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module API.Search
-  ( tests,
+  ( TestConstraints,
+    tests,
     testWithBothIndices,
   )
 where
