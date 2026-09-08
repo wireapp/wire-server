@@ -132,9 +132,10 @@ sendSystemMemberUpdate ::
   SystemMemberUpdateNotification ->
   Sem r ()
 sendSystemMemberUpdate targets notification =
-  void $
-    enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
-      makeSystemMemberUpdateBundle notification
+  do
+    void $
+      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
+        makeSystemMemberUpdateBundle notification >>= sendBundle
 
 sendSystemDelete ::
   ( Member BackendNotificationQueueAccess r,
@@ -144,9 +145,10 @@ sendSystemDelete ::
   SystemDeleteNotification ->
   Sem r ()
 sendSystemDelete targets notification =
-  void $
-    enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
-      makeSystemDeleteBundle notification
+  do
+    void $
+      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
+        makeSystemDeleteBundle notification >>= sendBundle
 
 sendSystemAdminlessReminder ::
   ( Member BackendNotificationQueueAccess r,
@@ -156,6 +158,7 @@ sendSystemAdminlessReminder ::
   SystemAdminlessReminderNotification ->
   Sem r ()
 sendSystemAdminlessReminder targets notification =
-  void $
-    enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
-      makeSystemAdminlessReminderBundle notification
+  do
+    void $
+      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
+        makeSystemAdminlessReminderBundle notification >>= sendBundle

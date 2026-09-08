@@ -215,7 +215,8 @@ instance ToSchema ConversationUpdate
 data SystemMemberUpdateNotification = SystemMemberUpdateNotification
   { time :: UTCTime,
     conversation :: ConvId,
-    update :: MemberUpdateData
+    update :: MemberUpdateData,
+    alreadyPresentUsers :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SystemMemberUpdateNotification)
@@ -225,7 +226,8 @@ instance ToSchema SystemMemberUpdateNotification
 
 data SystemDeleteNotification = SystemDeleteNotification
   { time :: UTCTime,
-    conversation :: ConvId
+    conversation :: ConvId,
+    alreadyPresentUsers :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SystemDeleteNotification)
@@ -236,7 +238,8 @@ instance ToSchema SystemDeleteNotification
 data SystemAdminlessReminderNotification = SystemAdminlessReminderNotification
   { time :: UTCTime,
     conversation :: ConvId,
-    reminder :: AdminlessReminder
+    reminder :: AdminlessReminder,
+    alreadyPresentUsers :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SystemAdminlessReminderNotification)

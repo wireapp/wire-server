@@ -217,25 +217,22 @@ onConversationUpdated requestingDomain cu = do
   pure EmptyResponse
 
 onSystemMemberUpdate ::
-  ( Member E.ConversationStore r,
-    Member NotificationSubsystem r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Domain ->
   SystemMemberUpdateNotification ->
   Sem r EmptyResponse
 onSystemMemberUpdate requestingDomain e = do
-  mconv <- E.getConversation e.conversation
-  for_ mconv $ \conv -> do
-    pushSystemEvent
-      Nothing
-      ( SystemEvent
-          (Qualified e.conversation requestingDomain)
-          Nothing
-          e.time
-          conv.metadata.cnvmTeam
-          (EdSystemMemberUpdate e.update)
-      )
-      (Set.fromList (map (.id_) conv.localMembers))
+  let localMembers = e.alreadyPresentUsers
+  pushSystemEvent
+    Nothing
+    ( SystemEvent
+        (Qualified e.conversation requestingDomain)
+        Nothing
+        e.time
+        Nothing
+        (EdSystemMemberUpdate e.update)
+    )
+    (Set.fromList localMembers)
   pure EmptyResponse
 
 onSystemDelete ::
@@ -246,43 +243,38 @@ onSystemDelete ::
   SystemDeleteNotification ->
   Sem r EmptyResponse
 onSystemDelete requestingDomain e = do
-  mconv <- E.getConversation e.conversation
-  for_ mconv $ \conv -> do
-    let rconvId = toRemoteUnsafe requestingDomain e.conversation
-        localMembers = map (.id_) conv.localMembers
-    E.deleteMembersInRemoteConversation rconvId localMembers
-    pushSystemEvent
-      Nothing
-      ( SystemEvent
-          (Qualified e.conversation requestingDomain)
-          Nothing
-          e.time
-          conv.metadata.cnvmTeam
-          EdSystemConvDelete
-      )
-      (Set.fromList localMembers)
+  let rconvId = toRemoteUnsafe requestingDomain e.conversation
+      localMembers = e.alreadyPresentUsers
+  E.deleteMembersInRemoteConversation rconvId localMembers
+  pushSystemEvent
+    Nothing
+    ( SystemEvent
+        (Qualified e.conversation requestingDomain)
+        Nothing
+        e.time
+        Nothing
+        EdSystemConvDelete
+    )
+    (Set.fromList localMembers)
   pure EmptyResponse
 
 onSystemAdminlessReminder ::
-  ( Member E.ConversationStore r,
-    Member NotificationSubsystem r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Domain ->
   SystemAdminlessReminderNotification ->
   Sem r EmptyResponse
 onSystemAdminlessReminder requestingDomain notification = do
-  mconv <- E.getConversation notification.conversation
-  for_ mconv $ \conv ->
-    pushSystemEvent
-      Nothing
-      ( SystemEvent
-          (Qualified notification.conversation requestingDomain)
-          Nothing
-          notification.time
-          conv.metadata.cnvmTeam
-          (EdSystemAdminlessReminder notification.reminder)
-      )
-      (Set.fromList (map (.id_) conv.localMembers))
+  let localMembers = notification.alreadyPresentUsers
+  pushSystemEvent
+    Nothing
+    ( SystemEvent
+        (Qualified notification.conversation requestingDomain)
+        Nothing
+        notification.time
+        Nothing
+        (EdSystemAdminlessReminder notification.reminder)
+    )
+    (Set.fromList localMembers)
   pure EmptyResponse
 
 -- as of now this will not generate the necessary events on the leaver's domain

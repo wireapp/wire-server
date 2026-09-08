@@ -1420,13 +1420,20 @@ adminlessTryAutopromote mlusr lcnv altAction = do
                     def
               Nothing -> do
                 now <- Now.get
-                Notify.sendSystemMemberUpdate
-                  (Set.fromList (map (.id_) conv.remoteMembers))
-                  SystemMemberUpdateNotification
-                    { time = now,
-                      conversation = tUnqualified lcnv,
-                      update = memberUpdateData candidate update
-                    }
+                let remoteMembersByDomain =
+                      Map.fromListWith Set.union
+                        [ (tDomain member.id_, Set.singleton member.id_)
+                        | member <- conv.remoteMembers
+                        ]
+                for_ (Map.elems remoteMembersByDomain) $ \remoteMembers ->
+                  Notify.sendSystemMemberUpdate
+                    remoteMembers
+                    SystemMemberUpdateNotification
+                      { time = now,
+                        conversation = tUnqualified lcnv,
+                        update = memberUpdateData candidate update,
+                        alreadyPresentUsers = map tUnqualified (Set.toList remoteMembers)
+                      }
                 Notify.pushSystemEvent
                   Nothing
                   ( SystemEvent
@@ -1494,12 +1501,19 @@ adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orA
                   def
             Nothing -> do
               now <- Now.get
-              Notify.sendSystemDelete
-                (Set.fromList (map (.id_) conv.remoteMembers))
-                SystemDeleteNotification
-                  { time = now,
-                    conversation = tUnqualified lcnv
-                  }
+              let remoteMembersByDomain =
+                    Map.fromListWith Set.union
+                      [ (tDomain member.id_, Set.singleton member.id_)
+                      | member <- conv.remoteMembers
+                      ]
+              for_ (Map.elems remoteMembersByDomain) $ \remoteMembers ->
+                Notify.sendSystemDelete
+                  remoteMembers
+                  SystemDeleteNotification
+                    { time = now,
+                      conversation = tUnqualified lcnv,
+                      alreadyPresentUsers = map tUnqualified (Set.toList remoteMembers)
+                    }
               Notify.pushSystemEvent
                 Nothing
                 (SystemEvent (tUntagged lcnv) Nothing now conv.metadata.cnvmTeam EdSystemConvDelete)
@@ -1537,24 +1551,31 @@ adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTr
                   (conv.metadata.cnvmTeam)
                   (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
           pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
-        Nothing ->
-          Notify.sendSystemAdminlessReminder
-            (Set.fromList (map (.id_) conv.remoteMembers))
-            SystemAdminlessReminderNotification
-              { time = now,
-                conversation = tUnqualified lcnv,
-                reminder = AdminlessReminder deletionScheduledFor
-              }
-            >> Notify.pushSystemEvent
-              Nothing
-              ( SystemEvent
-                  (tUntagged lcnv)
-                  Nothing
-                  now
-                  conv.metadata.cnvmTeam
-                  (EdSystemAdminlessReminder (AdminlessReminder deletionScheduledFor))
-              )
-              (Set.fromList (map (.id_) conv.localMembers))
+        Nothing -> do
+          let remoteMembersByDomain =
+                Map.fromListWith Set.union
+                  [ (tDomain member.id_, Set.singleton member.id_)
+                  | member <- conv.remoteMembers
+                  ]
+          for_ (Map.elems remoteMembersByDomain) $ \remoteMembers ->
+            Notify.sendSystemAdminlessReminder
+              remoteMembers
+              SystemAdminlessReminderNotification
+                { time = now,
+                  conversation = tUnqualified lcnv,
+                  reminder = AdminlessReminder deletionScheduledFor,
+                  alreadyPresentUsers = map tUnqualified (Set.toList remoteMembers)
+                }
+          Notify.pushSystemEvent
+            Nothing
+            ( SystemEvent
+                (tUntagged lcnv)
+                Nothing
+                now
+                conv.metadata.cnvmTeam
+                (EdSystemAdminlessReminder (AdminlessReminder deletionScheduledFor))
+            )
+            (Set.fromList (map (.id_) conv.localMembers))
 
 -- Use eight random bytes and fold them into a big-endian Word64. This keeps
 -- the helper small, deterministic under tests, and free of extra Random API.
