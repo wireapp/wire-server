@@ -217,12 +217,15 @@ onConversationUpdated requestingDomain cu = do
   pure EmptyResponse
 
 onSystemMemberUpdate ::
-  (Member NotificationSubsystem r) =>
+  ( Member E.ConversationStore r,
+    Member NotificationSubsystem r,
+    Member P.TinyLog r
+  ) =>
   Domain ->
   SystemMemberUpdateNotification ->
   Sem r EmptyResponse
 onSystemMemberUpdate requestingDomain e = do
-  let localMembers = e.alreadyPresentUsers
+  localMembers <- filterSystemNotificationRecipients requestingDomain e.conversation e.alreadyPresentUsers
   pushSystemEvent
     Nothing
     ( SystemEvent
@@ -237,14 +240,15 @@ onSystemMemberUpdate requestingDomain e = do
 
 onSystemDelete ::
   ( Member E.ConversationStore r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member P.TinyLog r
   ) =>
   Domain ->
   SystemDeleteNotification ->
   Sem r EmptyResponse
 onSystemDelete requestingDomain e = do
   let rconvId = toRemoteUnsafe requestingDomain e.conversation
-      localMembers = e.alreadyPresentUsers
+  localMembers <- filterSystemNotificationRecipients requestingDomain e.conversation e.alreadyPresentUsers
   E.deleteMembersInRemoteConversation rconvId localMembers
   pushSystemEvent
     Nothing
@@ -259,12 +263,19 @@ onSystemDelete requestingDomain e = do
   pure EmptyResponse
 
 onSystemAdminlessReminder ::
-  (Member NotificationSubsystem r) =>
+  ( Member E.ConversationStore r,
+    Member NotificationSubsystem r,
+    Member P.TinyLog r
+  ) =>
   Domain ->
   SystemAdminlessReminderNotification ->
   Sem r EmptyResponse
 onSystemAdminlessReminder requestingDomain notification = do
-  let localMembers = notification.alreadyPresentUsers
+  localMembers <-
+    filterSystemNotificationRecipients
+      requestingDomain
+      notification.conversation
+      notification.alreadyPresentUsers
   pushSystemEvent
     Nothing
     ( SystemEvent
@@ -276,6 +287,26 @@ onSystemAdminlessReminder requestingDomain notification = do
     )
     (Set.fromList localMembers)
   pure EmptyResponse
+
+filterSystemNotificationRecipients ::
+  ( Member E.ConversationStore r,
+    Member P.TinyLog r
+  ) =>
+  Domain ->
+  ConvId ->
+  [UserId] ->
+  Sem r [UserId]
+filterSystemNotificationRecipients requestingDomain conversation users = do
+  let rconvId = toRemoteUnsafe requestingDomain conversation
+  (members, allMembers) <- E.selectRemoteMembers users rconvId
+  unless allMembers $
+    P.warn $
+      Log.field "conversation" (toByteString' conversation)
+        Log.~~ Log.field "domain" (toByteString' requestingDomain)
+        Log.~~ Log.field "users" (show users)
+        Log.~~ Log.msg
+          ("Federated system notification contained users that are not members of the conversation" :: ByteString)
+  pure members
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
