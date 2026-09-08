@@ -349,7 +349,7 @@ testAdminlessSetupDeletesWithOriginAndRemoteMembers = do
     conversationIds <- resp.json %. "qualified_conversations" & asList
     conversationIds `shouldContain` [convQid]
 
-  withWebSockets [remoteUser] $ \[wsRemoteUser] -> do
+  withWebSocket remoteUser $ \wsRemoteUser -> do
     setTeamFeatureConfigVersioned (ExplicitVersion 18) alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "1s" []) >>= assertSuccess
 
     deleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsRemoteUser
@@ -360,10 +360,9 @@ testAdminlessSetupDeletesWithOriginAndRemoteMembers = do
       conversationIds <- resp.json %. "qualified_conversations" & asList
       conversationIds `shouldNotContain` [convQid]
 
-testAdminlessSetupSkipsDeletionForRemoteMembers :: (HasCallStack) => App ()
-testAdminlessSetupSkipsDeletionForRemoteMembers = do
-  -- Senderless deletion is skipped when remote members are present because
-  -- remote backends do not support the system delete event yet.
+testAdminlessSetupDeletesWithSystemEventAndRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupDeletesWithSystemEventAndRemoteMembers = do
+  -- The integration backends support the senderless system-delete event.
   (alice, tid, _) <- createTeam OwnDomain 1
   remoteUser <- randomUser OtherDomain def
   connectTwoUsers alice remoteUser
@@ -375,29 +374,34 @@ testAdminlessSetupSkipsDeletionForRemoteMembers = do
   traverse_ (uploadNewKeyPackage def) [alice1, remoteUser1]
 
   conv <- createTeamMLSConversation alice tid alice1 [remoteUser]
+  convQid <- objQidObject conv
 
   -- Create an adminless conversation while the feature is disabled. Enabling
   -- the feature later exercises the system-triggered setup path.
   removeMember alice conv alice >>= assertSuccess
 
-  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" ["1s"]
+  withWebSocket remoteUser $ \wsRemoteUser -> do
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
 
-  -- The setup job must not schedule deletion or reminders for this
-  -- conversation because it contains a remote member.
-  liftIO $ threadDelay 2_000_000
-  bindResponse (GalleyI.getConversation conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    void $ awaitMatchFor 20 isConvSystemDeleteNotif wsRemoteUser
 
-testAdminlessSetupSkipsReminderForRemoteMembers :: (HasCallStack) => App ()
-testAdminlessSetupSkipsReminderForRemoteMembers = do
-  -- A remote member prevents senderless deletion. The remaining local app is
-  -- not eligible for promotion, but would receive a system reminder if one
-  -- were emitted.
+    eventually $ bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
+    eventually $ bindResponse (listConversationIds remoteUser def) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      conversationIds <- resp.json %. "qualified_conversations" & asList
+      conversationIds `shouldNotContain` [convQid]
+
+testAdminlessSetupSendsReminderWithRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupSendsReminderWithRemoteMembers = do
+  -- The remaining local app is not eligible for promotion and receives the
+  -- senderless reminder even though the conversation has a remote member.
   (alice, tid, _) <- createTeam OwnDomain 1
   remoteUser <- randomUser OtherDomain def
   connectTwoUsers alice remoteUser
 
-  configureAdminlessGroupsFeature OwnDomain tid "disabled" "5s" ["4s"]
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "10s" ["1s"]
 
   alice1 <- createMLSClient def alice
   remoteUser1 <- createMLSClient def remoteUser
@@ -411,11 +415,14 @@ testAdminlessSetupSkipsReminderForRemoteMembers = do
   -- it through the internal path runs senderless setup cleanup.
   removeMember alice conv alice >>= assertSuccess
 
-  withWebSockets [app] $ \[wsApp] -> do
-    configureAdminlessGroupsFeature OwnDomain tid "enabled" "2s" ["1s"]
+  withWebSockets [app, remoteUser] $ \[wsApp, wsRemoteUser] -> do
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" ["1s"]
 
-    reminderResult <- awaitNMatchesResultFor 5 1 isConvSystemAdminlessReminderNotif wsApp
-    reminderResult.success `shouldMatch` False
+    reminder <- awaitMatchFor 20 isConvSystemAdminlessReminderNotif wsApp
+    reminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+
+    remoteReminder <- awaitMatchFor 20 isConvSystemAdminlessReminderNotif wsRemoteUser
+    remoteReminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
     bindResponse (GalleyI.getConversation conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
@@ -423,8 +430,8 @@ testAdminlessSetupSkipsReminderForRemoteMembers = do
 testAdminlessSetupAutopromotesWithRemoteMembers :: (HasCallStack) => App ()
 testAdminlessSetupAutopromotesWithRemoteMembers = do
   -- Autopromotion is safe with remote members because the owning backend is
-  -- authoritative for roles, even though remote clients do not receive the
-  -- senderless system member-update event yet.
+  -- authoritative for roles. The remote member receives the senderless
+  -- system member-update event.
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   remoteUser <- randomUser OtherDomain def
   connectTwoUsers alice remoteUser
@@ -442,12 +449,18 @@ testAdminlessSetupAutopromotesWithRemoteMembers = do
   -- the feature later promotes Bob through a system action.
   removeMember alice conv alice >>= assertSuccess
 
-  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+  withWebSocket remoteUser $ \wsRemoteUser -> do
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
 
-  liftIO $ threadDelay 2_000_000
-  bindResponse (getConversation bob conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+    liftIO $ threadDelay 2_000_000
+    bindResponse (getConversation bob conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+
+    memberUpdate <- awaitMatchFor 20 isConvSystemMemberUpdateNotif wsRemoteUser
+    memberUpdate %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    memberUpdate %. "payload.0.data.qualified_target" `shouldMatch` objQidObject bob
+    memberUpdate %. "payload.0.data.conversation_role" `shouldMatch` "wire_admin"
 
 testAdminlessJobsCancelledOnFeatureDisable :: (HasCallStack) => App ()
 testAdminlessJobsCancelledOnFeatureDisable = do
