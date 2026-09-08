@@ -26,6 +26,7 @@ import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
 import Testlib.Prelude
+import Testlib.VersionedFed (FedDomain)
 
 testOnLastAdminLeaveReturnEligibleMembers :: (HasCallStack) => App ()
 testOnLastAdminLeaveReturnEligibleMembers = do
@@ -392,6 +393,38 @@ testAdminlessSetupDeletesWithSystemEventAndRemoteMembers = do
       resp.status `shouldMatchInt` 200
       conversationIds <- resp.json %. "qualified_conversations" & asList
       conversationIds `shouldNotContain` [convQid]
+
+testAdminlessSetupSkipsDeletionForUnsupportedRemote :: (HasCallStack) => FedDomain 2 -> App ()
+testAdminlessSetupSkipsDeletionForUnsupportedRemote fedDomain = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser fedDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+
+  alice1 <- createMLSClient def alice
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [remoteUser]
+
+  -- Create an adminless conversation while the feature is disabled. The
+  -- setup scan must skip it because the remote backend does not support the
+  -- senderless system-delete notification.
+  removeMember alice conv alice >>= assertSuccess
+
+  withWebSocket remoteUser $ \wsRemoteUser -> do
+    configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+
+    -- Allow the setup scan and deletion worker to run, and assert that neither
+    -- senderless notification is emitted for the unsupported backend.
+    deleteResult <- awaitNMatchesResultFor 8 1 isConvSystemDeleteNotif wsRemoteUser
+    deleteResult.success `shouldMatch` False
+    reminderResult <- awaitNMatchesResultFor 8 1 isConvSystemAdminlessReminderNotif wsRemoteUser
+    reminderResult.success `shouldMatch` False
+
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
 
 testAdminlessSetupSendsReminderWithRemoteMembers :: (HasCallStack) => App ()
 testAdminlessSetupSendsReminderWithRemoteMembers = do
