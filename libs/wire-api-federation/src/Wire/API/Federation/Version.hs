@@ -24,9 +24,11 @@ module Wire.API.Federation.Version
     V1Sym0,
     V2Sym0,
     V3Sym0,
+    V4Sym0,
     intToVersion,
     versionInt,
     versionText,
+    supportsVersionRange,
     supportedVersions,
     VersionInfo (..),
     versionInfo,
@@ -54,7 +56,7 @@ import Imports
 import Servant.API (ToHttpApiData (..))
 import Wire.API.MLS.Group.Serialisation
 
-data Version = V0 | V1 | V2 | V3
+data Version = V0 | V1 | V2 | V3 | V4
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
@@ -67,9 +69,13 @@ versionInt V0 = 0
 versionInt V1 = 1
 versionInt V2 = 2
 versionInt V3 = 3
+versionInt V4 = 4
 
 versionText :: Version -> Text
 versionText = ("v" <>) . Text.pack . show . versionInt
+
+supportsVersionRange :: VersionRange -> VersionInfo -> Bool
+supportsVersionRange range = any (maybe False (inVersionRange range) . intToVersion) . (.vinfoSupported)
 
 versionByteString :: Version -> ByteString
 versionByteString = ("v" <>) . BS.pack . show . versionInt
@@ -83,7 +89,8 @@ instance ToSchema Version where
       [ element 0 V0,
         element 1 V1,
         element 2 V2,
-        element 3 V3
+        element 3 V3,
+        element 4 V4
       ]
 
 supportedVersions :: Set Version

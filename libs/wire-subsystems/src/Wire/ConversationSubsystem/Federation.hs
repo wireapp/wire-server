@@ -87,6 +87,7 @@ import Wire.ConversationSubsystem.MLS.SubConversation hiding (leaveSubConversati
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.MLS.Welcome
 import Wire.ConversationSubsystem.Message
+import Wire.ConversationSubsystem.Notify (pushSystemEvent)
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem
@@ -213,6 +214,75 @@ onConversationUpdated ::
 onConversationUpdated requestingDomain cu = do
   let rcu = toRemoteUnsafe requestingDomain cu
   void $ updateLocalStateOfRemoteConv rcu Nothing
+  pure EmptyResponse
+
+onSystemMemberUpdate ::
+  ( Member E.ConversationStore r,
+    Member NotificationSubsystem r
+  ) =>
+  Domain ->
+  SystemMemberUpdateNotification ->
+  Sem r EmptyResponse
+onSystemMemberUpdate requestingDomain e = do
+  mconv <- E.getConversation e.conversation
+  for_ mconv $ \conv -> do
+    pushSystemEvent
+      Nothing
+      ( SystemEvent
+          (Qualified e.conversation requestingDomain)
+          Nothing
+          e.time
+          conv.metadata.cnvmTeam
+          (EdSystemMemberUpdate e.update)
+      )
+      (Set.fromList (map (.id_) conv.localMembers))
+  pure EmptyResponse
+
+onSystemDelete ::
+  ( Member E.ConversationStore r,
+    Member NotificationSubsystem r
+  ) =>
+  Domain ->
+  SystemDeleteNotification ->
+  Sem r EmptyResponse
+onSystemDelete requestingDomain e = do
+  mconv <- E.getConversation e.conversation
+  for_ mconv $ \conv -> do
+    let rconvId = toRemoteUnsafe requestingDomain e.conversation
+        localMembers = map (.id_) conv.localMembers
+    E.deleteMembersInRemoteConversation rconvId localMembers
+    pushSystemEvent
+      Nothing
+      ( SystemEvent
+          (Qualified e.conversation requestingDomain)
+          Nothing
+          e.time
+          conv.metadata.cnvmTeam
+          EdSystemConvDelete
+      )
+      (Set.fromList localMembers)
+  pure EmptyResponse
+
+onSystemAdminlessReminder ::
+  ( Member E.ConversationStore r,
+    Member NotificationSubsystem r
+  ) =>
+  Domain ->
+  SystemAdminlessReminderNotification ->
+  Sem r EmptyResponse
+onSystemAdminlessReminder requestingDomain notification = do
+  mconv <- E.getConversation notification.conversation
+  for_ mconv $ \conv ->
+    pushSystemEvent
+      Nothing
+      ( SystemEvent
+          (Qualified notification.conversation requestingDomain)
+          Nothing
+          notification.time
+          conv.metadata.cnvmTeam
+          (EdSystemAdminlessReminder notification.reminder)
+      )
+      (Set.fromList (map (.id_) conv.localMembers))
   pure EmptyResponse
 
 -- as of now this will not generate the necessary events on the leaver's domain

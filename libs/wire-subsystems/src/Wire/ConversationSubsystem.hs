@@ -304,6 +304,18 @@ data ConversationSubsystem m a where
     Domain ->
     ConversationUpdate ->
     ConversationSubsystem m EmptyResponse
+  FederationOnSystemMemberUpdate ::
+    Domain ->
+    SystemMemberUpdateNotification ->
+    ConversationSubsystem m EmptyResponse
+  FederationOnSystemDelete ::
+    Domain ->
+    SystemDeleteNotification ->
+    ConversationSubsystem m EmptyResponse
+  FederationOnSystemAdminlessReminder ::
+    Domain ->
+    SystemAdminlessReminderNotification ->
+    ConversationSubsystem m EmptyResponse
   FederationOnUserDeleted ::
     Domain ->
     UserDeletedConversationsNotification ->

@@ -18,6 +18,9 @@
 module Wire.ConversationSubsystem.Notify
   ( notifyConversationActionImpl,
     pushSystemEvent,
+    sendSystemMemberUpdate,
+    sendSystemDelete,
+    sendSystemAdminlessReminder,
   )
 where
 
@@ -34,8 +37,8 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
-import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley.Notifications
 import Wire.API.Federation.Error
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently)
 import Wire.ConversationSubsystem.Util
@@ -120,3 +123,39 @@ pushSystemEvent con event targets = do
           isCellsEvent = True
         }
     ]
+
+sendSystemMemberUpdate ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Set (Remote UserId) ->
+  SystemMemberUpdateNotification ->
+  Sem r ()
+sendSystemMemberUpdate targets notification =
+  void $
+    enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
+      makeSystemMemberUpdateBundle notification
+
+sendSystemDelete ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Set (Remote UserId) ->
+  SystemDeleteNotification ->
+  Sem r ()
+sendSystemDelete targets notification =
+  void $
+    enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
+      makeSystemDeleteBundle notification
+
+sendSystemAdminlessReminder ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Set (Remote UserId) ->
+  SystemAdminlessReminderNotification ->
+  Sem r ()
+sendSystemAdminlessReminder targets notification =
+  void $
+    enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
+      makeSystemAdminlessReminderBundle notification

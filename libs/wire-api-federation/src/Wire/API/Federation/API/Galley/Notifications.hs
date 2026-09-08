@@ -32,6 +32,7 @@ import Imports
 import Servant.API
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation (AdminlessReminder, MemberUpdateData)
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
@@ -49,6 +50,9 @@ data GalleyNotificationTag
   | OnConversationUpdatedTagV0
   | OnConversationUpdatedTag
   | OnUserDeletedConversationsTag
+  | OnSystemMemberUpdateTag
+  | OnSystemDeleteTag
+  | OnSystemAdminlessReminderTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
 instance IsNotificationTag GalleyNotificationTag where
@@ -85,6 +89,21 @@ instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
   type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
   type NotificationPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
 
+instance HasNotificationEndpoint 'OnSystemMemberUpdateTag where
+  type Payload 'OnSystemMemberUpdateTag = SystemMemberUpdateNotification
+  type NotificationPath 'OnSystemMemberUpdateTag = "on-conversation-system-member-update"
+  type NotificationMods 'OnSystemMemberUpdateTag = '[From 'V4]
+
+instance HasNotificationEndpoint 'OnSystemDeleteTag where
+  type Payload 'OnSystemDeleteTag = SystemDeleteNotification
+  type NotificationPath 'OnSystemDeleteTag = "on-conversation-system-delete"
+  type NotificationMods 'OnSystemDeleteTag = '[From 'V4]
+
+instance HasNotificationEndpoint 'OnSystemAdminlessReminderTag where
+  type Payload 'OnSystemAdminlessReminderTag = SystemAdminlessReminderNotification
+  type NotificationPath 'OnSystemAdminlessReminderTag = "on-conversation-system-adminless-reminder"
+  type NotificationMods 'OnSystemAdminlessReminderTag = '[From 'V4]
+
 -- | All the notification endpoints return an 'EmptyResponse'.
 type GalleyNotificationAPI =
   NotificationFedEndpoint 'OnClientRemovedTag
@@ -93,6 +112,9 @@ type GalleyNotificationAPI =
     :<|> NotificationFedEndpoint 'OnConversationUpdatedTagV0
     :<|> NotificationFedEndpoint 'OnConversationUpdatedTag
     :<|> NotificationFedEndpoint 'OnUserDeletedConversationsTag
+    :<|> NotificationFedEndpoint 'OnSystemMemberUpdateTag
+    :<|> NotificationFedEndpoint 'OnSystemDeleteTag
+    :<|> NotificationFedEndpoint 'OnSystemAdminlessReminderTag
 
 data ClientRemovedRequest = ClientRemovedRequest
   { user :: UserId,
@@ -189,6 +211,38 @@ instance ToJSON ConversationUpdate
 instance FromJSON ConversationUpdate
 
 instance ToSchema ConversationUpdate
+
+data SystemMemberUpdateNotification = SystemMemberUpdateNotification
+  { time :: UTCTime,
+    conversation :: ConvId,
+    update :: MemberUpdateData
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SystemMemberUpdateNotification)
+  deriving (ToJSON, FromJSON) via (CustomEncoded SystemMemberUpdateNotification)
+
+instance ToSchema SystemMemberUpdateNotification
+
+data SystemDeleteNotification = SystemDeleteNotification
+  { time :: UTCTime,
+    conversation :: ConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SystemDeleteNotification)
+  deriving (ToJSON, FromJSON) via (CustomEncoded SystemDeleteNotification)
+
+instance ToSchema SystemDeleteNotification
+
+data SystemAdminlessReminderNotification = SystemAdminlessReminderNotification
+  { time :: UTCTime,
+    conversation :: ConvId,
+    reminder :: AdminlessReminder
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SystemAdminlessReminderNotification)
+  deriving (ToJSON, FromJSON) via (CustomEncoded SystemAdminlessReminderNotification)
+
+instance ToSchema SystemAdminlessReminderNotification
 
 conversationUpdateToV0 :: ConversationUpdate -> ConversationUpdateV0
 conversationUpdateToV0 cu =

@@ -1196,17 +1196,32 @@ isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
     && maybe True (== GroupConversation) conv.metadata.cnvmGroupConvType
 
-shouldSkipSystemAdminlessDeletion :: Maybe (Local UserId) -> StoredConversation -> Bool
-shouldSkipSystemAdminlessDeletion mlusr conv =
-  isNothing mlusr
-    && not (null conv.remoteMembers)
+systemAdminlessDeletionSupported ::
+  (Member (E.FederationAPIAccess FederatorClient) r) =>
+  StoredConversation ->
+  Sem r Bool
+systemAdminlessDeletionSupported conv =
+  E.allRemoteBackendsSupportNotification @'OnSystemDeleteTag
+    (remoteBackendsForConversation conv)
 
-logSkippedSystemAdminlessDeletion :: (Member TinyLog r) => Text -> StoredConversation -> Sem r ()
+remoteBackendsForConversation :: StoredConversation -> [Remote ()]
+remoteBackendsForConversation conv =
+  Set.toList . Set.fromList $
+    [ toRemoteUnsafe (tDomain member.id_) ()
+    | member <- conv.remoteMembers
+    ]
+
+logSkippedSystemAdminlessDeletion ::
+  (Member TinyLog r) =>
+  Text ->
+  StoredConversation ->
+  Sem r ()
 logSkippedSystemAdminlessDeletion action conv =
   info $
-    Log.msg (Log.val "Skipping senderless adminless deletion for conversation with remote members")
+    Log.msg (Log.val "Skipping system-triggered adminless deletion")
       . Log.field "conversation_id" (idToText conv.id_)
       . Log.field "action" action
+      . Log.field "reason" (Log.val "remote backend does not support system delete")
 
 setupAdminlessGroupsCleanup ::
   ( Member ConversationStore r,
@@ -1221,7 +1236,8 @@ setupAdminlessGroupsCleanup ::
     Member FeaturesConfigSubsystem r,
     Member (Input (Local ())) r,
     Member JobSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (E.FederationAPIAccess FederatorClient) r
   ) =>
   Maybe (Local UserId) ->
   TeamId ->
@@ -1230,10 +1246,14 @@ setupAdminlessGroupsCleanup mUsr tid = do
   teamConvIds <- E.getTeamConversations tid
   for_ teamConvIds $ \cnv -> do
     lcnv <- qualifyLocal cnv
-    adminlessTryAutopromote mUsr lcnv $ \conv feature _ ->
-      if shouldSkipSystemAdminlessDeletion mUsr conv
-        then logSkippedSystemAdminlessDeletion "schedule_for_deletion" conv
-        else scheduleDeletion lcnv mUsr tid feature
+    adminlessTryAutopromote mUsr lcnv $ \conv feature _ -> do
+      supported <-
+        if isNothing mUsr
+          then systemAdminlessDeletionSupported conv
+          else pure True
+      if supported
+        then scheduleDeletion lcnv mUsr tid feature
+        else logSkippedSystemAdminlessDeletion "scan" conv
 
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
@@ -1400,6 +1420,13 @@ adminlessTryAutopromote mlusr lcnv altAction = do
                     def
               Nothing -> do
                 now <- Now.get
+                Notify.sendSystemMemberUpdate
+                  (Set.fromList (map (.id_) conv.remoteMembers))
+                  SystemMemberUpdateNotification
+                    { time = now,
+                      conversation = tUnqualified lcnv,
+                      update = memberUpdateData candidate update
+                    }
                 Notify.pushSystemEvent
                   Nothing
                   ( SystemEvent
@@ -1437,6 +1464,7 @@ adminlessAutopromoteOrDelete ::
     Member FeaturesConfigSubsystem r,
     Member ProposalStore r,
     Member CodeStore r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member TinyLog r
   ) =>
   Maybe (Local UserId) ->
@@ -1444,10 +1472,13 @@ adminlessAutopromoteOrDelete ::
   Sem r ()
 adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orAlternativelyDeleteConv
   where
-    orAlternativelyDeleteConv conv _ _ =
-      if shouldSkipSystemAdminlessDeletion mlusr conv
-        then logSkippedSystemAdminlessDeletion "deletion" conv
-        else do
+    orAlternativelyDeleteConv conv _ _ = do
+      canDelete <-
+        if isNothing mlusr && not (null conv.remoteMembers)
+          then systemAdminlessDeletionSupported conv
+          else pure True
+      if canDelete
+        then do
           removeConversation (qualifyAs lcnv conv)
           case mlusr of
             Just lusr ->
@@ -1463,10 +1494,17 @@ adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orA
                   def
             Nothing -> do
               now <- Now.get
+              Notify.sendSystemDelete
+                (Set.fromList (map (.id_) conv.remoteMembers))
+                SystemDeleteNotification
+                  { time = now,
+                    conversation = tUnqualified lcnv
+                  }
               Notify.pushSystemEvent
                 Nothing
                 (SystemEvent (tUntagged lcnv) Nothing now conv.metadata.cnvmTeam EdSystemConvDelete)
                 (Set.fromList (map (.id_) conv.localMembers))
+        else logSkippedSystemAdminlessDeletion "deletion" conv
 
 adminlessAutopromoteOrSendReminder ::
   ( Member ConversationStore r,
@@ -1478,8 +1516,7 @@ adminlessAutopromoteOrSendReminder ::
     Member Now r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member FeaturesConfigSubsystem r,
-    Member TinyLog r
+    Member FeaturesConfigSubsystem r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
@@ -1487,33 +1524,37 @@ adminlessAutopromoteOrSendReminder ::
   Sem r ()
 adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
-    orAlternativelySendReminder conv _ _ =
-      if shouldSkipSystemAdminlessDeletion mlusr conv
-        then logSkippedSystemAdminlessDeletion "reminder" conv
-        else do
-          now <- Now.get
-          case mlusr of
-            Just lusr -> do
-              let event =
-                    Event
-                      (tUntagged lcnv)
-                      Nothing
-                      (EventFromUser (tUntagged lusr))
-                      now
-                      (conv.metadata.cnvmTeam)
-                      (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
-              pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
-            Nothing ->
-              Notify.pushSystemEvent
-                Nothing
-                ( SystemEvent
-                    (tUntagged lcnv)
-                    Nothing
-                    now
-                    conv.metadata.cnvmTeam
-                    (EdSystemAdminlessReminder (AdminlessReminder deletionScheduledFor))
-                )
-                (Set.fromList (map (.id_) conv.localMembers))
+    orAlternativelySendReminder conv _ _ = do
+      now <- Now.get
+      case mlusr of
+        Just lusr -> do
+          let event =
+                Event
+                  (tUntagged lcnv)
+                  Nothing
+                  (EventFromUser (tUntagged lusr))
+                  now
+                  (conv.metadata.cnvmTeam)
+                  (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
+          pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
+        Nothing ->
+          Notify.sendSystemAdminlessReminder
+            (Set.fromList (map (.id_) conv.remoteMembers))
+            SystemAdminlessReminderNotification
+              { time = now,
+                conversation = tUnqualified lcnv,
+                reminder = AdminlessReminder deletionScheduledFor
+              }
+            >> Notify.pushSystemEvent
+              Nothing
+              ( SystemEvent
+                  (tUntagged lcnv)
+                  Nothing
+                  now
+                  conv.metadata.cnvmTeam
+                  (EdSystemAdminlessReminder (AdminlessReminder deletionScheduledFor))
+              )
+              (Set.fromList (map (.id_) conv.localMembers))
 
 -- Use eight random bytes and fold them into a big-endian Word64. This keeps
 -- the helper small, deterministic under tests, and free of extra Random API.

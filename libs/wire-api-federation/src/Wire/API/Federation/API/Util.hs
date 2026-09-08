@@ -27,3 +27,15 @@ makeConversationUpdateBundle ::
   FedQueueClient 'Galley (PayloadBundle 'Galley)
 makeConversationUpdateBundle update =
   (<>) <$> makeBundle update <*> makeBundle (conversationUpdateToV0 update)
+
+makeSystemMemberUpdateBundle :: SystemMemberUpdateNotification -> FedQueueClient 'Galley (PayloadBundle 'Galley)
+makeSystemMemberUpdateBundle =
+  fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnSystemMemberUpdateTag
+
+makeSystemDeleteBundle :: SystemDeleteNotification -> FedQueueClient 'Galley (PayloadBundle 'Galley)
+makeSystemDeleteBundle =
+  fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnSystemDeleteTag
+
+makeSystemAdminlessReminderBundle :: SystemAdminlessReminderNotification -> FedQueueClient 'Galley (PayloadBundle 'Galley)
+makeSystemAdminlessReminderBundle =
+  fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnSystemAdminlessReminderTag
