@@ -96,6 +96,7 @@ import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.State (evalState, get, modify)
 import Polysemy.TinyLog
 import System.Logger qualified as Log
 import Wire.API.Bot hiding (addBot)
@@ -1243,17 +1244,33 @@ setupAdminlessGroupsCleanup ::
   TeamId ->
   Sem r ()
 setupAdminlessGroupsCleanup mUsr tid = do
-  teamConvIds <- E.getTeamConversations tid
-  for_ teamConvIds $ \cnv -> do
-    lcnv <- qualifyLocal cnv
-    adminlessTryAutopromote mUsr lcnv $ \conv feature _ -> do
-      supported <-
-        if isNothing mUsr
-          then systemAdminlessDeletionSupported conv
-          else pure True
-      if supported
-        then scheduleDeletion lcnv mUsr tid feature
-        else logSkippedSystemAdminlessDeletion "scan" conv
+  evalState mempty $ do
+    teamConvIds <- E.getTeamConversations tid
+    for_ teamConvIds $ \cnv -> do
+      lcnv <- qualifyLocal cnv
+      adminlessTryAutopromote mUsr lcnv $ \conv feature _ -> do
+        supported <-
+          if isNothing mUsr
+            then systemAdminlessDeletionSupportedCached conv
+            else pure True
+        if supported
+          then scheduleDeletion lcnv mUsr tid feature
+          else logSkippedSystemAdminlessDeletion "scan" conv
+  where
+    systemAdminlessDeletionSupportedCached conv =
+      and
+        <$> for
+          (remoteBackendsForConversation conv)
+          ( \remoteBackend -> do
+              cached <- get
+              case Map.lookup (tDomain remoteBackend) cached of
+                Just supported -> pure supported
+                Nothing -> do
+                  supported <-
+                    E.allRemoteBackendsSupportNotification @'OnSystemDeleteTag [remoteBackend]
+                  modify (Map.insert (tDomain remoteBackend) supported)
+                  pure supported
+          )
 
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
