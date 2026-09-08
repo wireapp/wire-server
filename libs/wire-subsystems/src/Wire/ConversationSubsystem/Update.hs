@@ -1421,7 +1421,8 @@ adminlessTryAutopromote mlusr lcnv altAction = do
               Nothing -> do
                 now <- Now.get
                 let remoteMembersByDomain =
-                      Map.fromListWith Set.union
+                      Map.fromListWith
+                        Set.union
                         [ (tDomain member.id_, Set.singleton member.id_)
                         | member <- conv.remoteMembers
                         ]
@@ -1502,7 +1503,8 @@ adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orA
             Nothing -> do
               now <- Now.get
               let remoteMembersByDomain =
-                    Map.fromListWith Set.union
+                    Map.fromListWith
+                      Set.union
                       [ (tDomain member.id_, Set.singleton member.id_)
                       | member <- conv.remoteMembers
                       ]
@@ -1553,7 +1555,8 @@ adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTr
           pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
         Nothing -> do
           let remoteMembersByDomain =
-                Map.fromListWith Set.union
+                Map.fromListWith
+                  Set.union
                   [ (tDomain member.id_, Set.singleton member.id_)
                   | member <- conv.remoteMembers
                   ]
