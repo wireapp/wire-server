@@ -81,7 +81,7 @@ versionByteString :: Version -> ByteString
 versionByteString = ("v" <>) . BS.pack . show . versionInt
 
 intToVersion :: Int -> Maybe Version
-intToVersion intV = find (\v -> versionInt v == intV) [minBound ..]
+intToVersion intV = find (\v -> versionInt v == intV) [minBound .. maxBound]
 
 instance ToSchema Version where
   schema =
