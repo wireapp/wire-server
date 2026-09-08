@@ -396,5 +396,12 @@ data:
       setNomadProfiles: {{ index . "setNomadProfiles" }}
       {{- end }}
       setConsumableNotifications: false
+      {{- /* Derived from spar's multi-ingress config. Keep in sync with
+             templates/spar/configmap.yaml and SAML.WebSSO.Config.isMultiIngressConfig. */}}
+      {{- $ssoIdpChangeDetectionEnabled := false }}
+      {{- if and $.Values.spar $.Values.spar.config $.Values.spar.config.domainConfigs $.Values.spar.config.idpCertFingerprintAllowlist }}
+      {{-   $ssoIdpChangeDetectionEnabled = true }}
+      {{- end }}
+      setSsoIdpChangeDetectionEnabled: {{ $ssoIdpChangeDetectionEnabled }}
     {{- end }}
   {{- end }}

@@ -549,6 +549,10 @@ data Settings = Settings
     ephemeralUserCreationEnabled :: !Bool,
     -- | Determines if this backend supports nomad profiles.
     nomadProfiles :: !(Maybe Bool),
+    -- | Whether clients should compare the stored SSO IdP ID with the IdP ID of
+    -- the current login. Derived at deploy time from the spar multi-ingress
+    -- config (see charts/wire-server/templates/brig/configmap.yaml).
+    ssoIdpChangeDetectionEnabled :: !(Maybe Bool),
     -- | Determines if consumable notifications are enabled
     consumableNotifications :: !Bool
   }

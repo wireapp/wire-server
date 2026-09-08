@@ -1673,7 +1673,11 @@ getSystemSettingsInternal = do
           { setRestrictUserCreation = fromMaybe False optSettings.restrictUserCreation,
             nomadProfiles = optSettings.nomadProfiles
           }
-      iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
+      iSettings =
+        SystemSettingsInternal
+          { ssiSetEnableMls = fromMaybe False optSettings.enableMLS,
+            ssiSetSsoIdpChangeDetectionEnabled = fromMaybe False optSettings.ssoIdpChangeDetectionEnabled
+          }
   pure $ SystemSettings pSettings iSettings
 
 authorizeTeam ::

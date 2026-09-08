@@ -1320,6 +1320,28 @@ brig:
 stored. The challenge (`StoredDomainVerificationChallenge`) will be deleted
 after this period.
 
+### SSO Settings
+
+#### `setSsoIdpChangeDetectionEnabled`
+
+When enabled, the authenticated `GET /system/settings` endpoint reports
+`ssoIdpChangeDetectionEnabled: true`, telling clients to compare the stored SSO
+IdP ID with the IdP ID used for the current login and to keep existing locally
+decrypted messages when they match. When false or absent, clients treat an IdP
+change as before. Only the authenticated endpoint reports this field; the
+public `/system/settings/unauthorized` endpoint does not.
+
+The wire-server Helm chart derives this value from spar's configuration
+(`spar.config.domainConfigs` present and `spar.config.idpCertFingerprintAllowlist`
+non-empty). Only set it manually if you deploy brig outside the wire-server
+chart, and keep it consistent with your spar multi-ingress configuration.
+
+```default
+# [brig.yaml]
+optSettings:
+  setSsoIdpChangeDetectionEnabled: false
+```
+
 ## Settings in cargohold
 
 AWS S3 (or an alternative provider / service) is used to upload and download

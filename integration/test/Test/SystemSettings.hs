@@ -47,3 +47,25 @@ testGetSettingsInternal (MkTagged enableMls) = do
     getSystemSettingsInternal user `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "setEnableMls" `shouldMatch` fromMaybe False enableMls
+
+testGetSettingsInternalSsoIdpChangeDetection ::
+  (HasCallStack) =>
+  Tagged "sso-idp-change-detection" (Maybe Bool) ->
+  App ()
+testGetSettingsInternalSsoIdpChangeDetection (MkTagged flag) = do
+  let conf =
+        def
+          { brigCfg =
+              maybe
+                (removeField "optSettings.setSsoIdpChangeDetectionEnabled")
+                (setField "optSettings.setSsoIdpChangeDetectionEnabled")
+                flag
+          }
+  withModifiedBackend conf \domain -> do
+    user <- randomUser domain def
+    getSystemSettingsInternal user `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "ssoIdpChangeDetectionEnabled" `shouldMatch` fromMaybe False flag
+    getSystemSettingsPublic domain `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      lookupField resp.json "ssoIdpChangeDetectionEnabled" `shouldMatch` (Nothing :: Maybe Value)
