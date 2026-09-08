@@ -134,8 +134,12 @@ sendSystemMemberUpdate ::
 sendSystemMemberUpdate targets notification =
   do
     void $
-      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
-        makeSystemMemberUpdateBundle notification >>= sendBundle
+      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+        case notification of
+          SystemMemberUpdateNotification time conversation update _ ->
+            makeSystemMemberUpdateBundle
+              (SystemMemberUpdateNotification time conversation update (tUnqualified ruids))
+              >>= sendBundle
 
 sendSystemDelete ::
   ( Member BackendNotificationQueueAccess r,
@@ -147,8 +151,12 @@ sendSystemDelete ::
 sendSystemDelete targets notification =
   do
     void $
-      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
-        makeSystemDeleteBundle notification >>= sendBundle
+      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+        case notification of
+          SystemDeleteNotification time conversation _ ->
+            makeSystemDeleteBundle
+              (SystemDeleteNotification time conversation (tUnqualified ruids))
+              >>= sendBundle
 
 sendSystemAdminlessReminder ::
   ( Member BackendNotificationQueueAccess r,
@@ -160,5 +168,9 @@ sendSystemAdminlessReminder ::
 sendSystemAdminlessReminder targets notification =
   do
     void $
-      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \_ ->
-        makeSystemAdminlessReminderBundle notification >>= sendBundle
+      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+        case notification of
+          SystemAdminlessReminderNotification time conversation reminder _ ->
+            makeSystemAdminlessReminderBundle
+              (SystemAdminlessReminderNotification time conversation reminder (tUnqualified ruids))
+              >>= sendBundle
