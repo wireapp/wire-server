@@ -41,6 +41,7 @@ import Galley.Types.Error
 import Imports
 import Network.Wai.Utilities.Exception
 import Polysemy
+import Polysemy.Async (Async)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
@@ -603,7 +604,8 @@ sendMLSCommitBundle ::
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member FeaturesConfigSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member Async r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -891,8 +893,6 @@ onMLSMessageSent domain rmm =
 mlsSendWelcome ::
   ( Member (Error InternalError) r,
     Member NotificationSubsystem r,
-    Member ExternalAccess r,
-    Member P.TinyLog r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Input (Local ())) r,
     Member Now r

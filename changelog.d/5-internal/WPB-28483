@@ -1,0 +1,1 @@
+MLS commit-bundles are processed with less sequential I/O: proposal references are resolved from a single store read, client and client-store updates fan out concurrently, and welcome pushes no longer block the response.

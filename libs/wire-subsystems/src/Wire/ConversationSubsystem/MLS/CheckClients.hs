@@ -31,6 +31,8 @@ import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Async qualified as P
 import Polysemy.Error
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -50,7 +52,8 @@ checkClients ::
     Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSClientMismatch) r,
     Member (ErrorS MLSIdentityMismatch) r,
-    Member (Error MLSProtocolError) r
+    Member (Error MLSProtocolError) r,
+    Member Async r
   ) =>
   Local ConvOrSubConv ->
   CipherSuiteTag ->
@@ -59,9 +62,20 @@ checkClients ::
 checkClients lConvOrSub ciphersuite newCM = do
   let convOrSub = tUnqualified lConvOrSub
       cm = convOrSub.members
-  fmap catMaybes . forM (Map.assocs (unClientMap newCM)) $
-    \(qtarget, newclients) -> do
-      mClientData <- getClientData lConvOrSub ciphersuite qtarget
+      assocs = Map.assocs (unClientMap newCM)
+  -- Fetch client data from brig concurrently. getClientData is total: it
+  -- reports failures via Maybe, never via an Error effect, so parallel
+  -- results cannot be silently swallowed by sequenceConcurrently.
+  -- Validation below runs serially so that Error-effect throws abort the
+  -- whole commit exactly as in the fully serial implementation.
+  -- getClientData is Error-free, so the outer 'Maybe' that
+  -- sequenceConcurrently attaches to every child result is always 'Just'.
+  mClientDatas <-
+    fmap (map (fromMaybe Nothing)) . P.sequenceConcurrently $
+      flip fmap assocs $ \(qtarget, _) ->
+        getClientData lConvOrSub ciphersuite qtarget
+  fmap catMaybes . forM (zip assocs mClientDatas) $
+    \((qtarget, newclients), mClientData) -> do
       unreachable <- case (mClientData, cmLookup qtarget cm) of
         -- user is already present, skip check in this case
         (_, Just existingClients) -> do
@@ -103,9 +117,9 @@ checkClients lConvOrSub ciphersuite newCM = do
           pure False
 
       -- Check that new leaf nodes are using the registered signature keys.
-      for_ mClientData $ \clientData ->
+      for_ mClientData $ \cd ->
         for_ (Map.assocs newclients) $ \(cid, (_, mKp)) ->
-          checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid clientData.infoMap)
+          checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid cd.infoMap)
 
       pure $ guard unreachable $> qtarget
 

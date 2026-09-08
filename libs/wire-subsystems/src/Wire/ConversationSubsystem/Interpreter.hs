@@ -29,6 +29,7 @@ import Data.Qualified
 import Imports
 import Network.Wai.Utilities.JSONResponse (JSONResponse)
 import Polysemy
+import Polysemy.Async (Async)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource)
@@ -123,7 +124,8 @@ interpretConversationSubsystem ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member UserClientIndexStore r,
     Member (Input FanoutLimit) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member Async r
   ) =>
   InterpreterFor ConversationSubsystem r
 interpretConversationSubsystem = interpret $ \case

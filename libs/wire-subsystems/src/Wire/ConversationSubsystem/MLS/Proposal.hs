@@ -17,7 +17,7 @@
 
 module Wire.ConversationSubsystem.MLS.Proposal
   ( -- * Proposal processing
-    derefOrCheckProposal,
+    derefOrCheckProposalFrom,
     checkProposal,
     processProposal,
     proposalProcessingStage,
@@ -145,24 +145,26 @@ type HasProposalEffects r =
     Member TeamCollaboratorsSubsystem r
   )
 
-derefOrCheckProposal ::
+-- | Dereference a commit proposal, looking up refs in a prefetched list of
+-- pending proposals instead of issuing one point-read per ref.
+derefOrCheckProposalFrom ::
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member ProposalStore r,
     Member (State IndexMap) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
+  [StoredProposal] ->
   Epoch ->
   CipherSuiteTag ->
   GroupId ->
   ProposalOrRef ->
   Sem r Proposal
-derefOrCheckProposal epoch _ciphersuite groupId (Ref ref) = do
-  p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
-  pure p.value
-derefOrCheckProposal _epoch ciphersuite _ (Inline p) = do
+derefOrCheckProposalFrom stored _epoch _ciphersuite _groupId (Ref ref) =
+  noteS @'MLSProposalNotFound $
+    (.proposal.value) <$> find ((== ref) . (.ref)) stored
+derefOrCheckProposalFrom _stored _epoch ciphersuite _ (Inline p) = do
   im <- get
   checkProposal ciphersuite im p
   pure p

@@ -32,6 +32,8 @@ import Data.Tuple.Extra
 import Galley.Types.Error
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Async qualified as P
 import Polysemy.Error
 import Polysemy.Input (Input)
 import Polysemy.Resource (Resource)
@@ -78,6 +80,7 @@ processInternalCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member Resource r,
+    Member Async r,
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
@@ -93,14 +96,14 @@ processInternalCommit ::
   Epoch ->
   ProposalAction ->
   Commit ->
+  [StoredProposal] ->
   Codensity (Sem r) [LocalConversationUpdate]
-processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit = do
+processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit storedProposals = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity.client
       cm = convOrSub.members
       newUserClients = Map.assocs (unClientMap (paAdd action))
-
-  lift $ checkReferences convOrSub epoch commit
+  lift $ checkReferences storedProposals commit
 
   -- check update path
   lift $ traverse_ (checkUpdatePath lConvOrSub senderIdentity ciphersuite) commit.path
@@ -244,9 +247,14 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       removeMLSClients gid qtarget (Map.keysSet clients)
 
     -- add clients to the conversation state
-    for_ newUserClients $ \(qtarget, newClients) -> do
-      addMLSClients gid qtarget $
-        Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
+    -- Note: safe to run concurrently because the children only perform store
+    -- writes on disjoint rows; their failures surface as IO exceptions, which
+    -- sequenceConcurrently propagates. If an Error-effect throw is ever added
+    -- here, it would be swallowed — keep children Error-free.
+    void . P.sequenceConcurrently $
+      flip fmap newUserClients $ \(qtarget, newClients) ->
+        addMLSClients gid qtarget $
+          Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
 
     for_ action.paHistoryClientAdd $ uncurry (addHistoryClient gid)
 
@@ -256,9 +264,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     when ciphersuiteUpdate $ case convOrSub.id of
       Conv cid -> setConversationCipherSuite cid ciphersuite
       SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
-
     -- increment epoch number
-    for_ lConvOrSub incrementEpoch
+    for_ lConvOrSub incrementEpochNoRead
 
     pure events
 
@@ -330,12 +337,9 @@ existingMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
 
 checkReferences ::
-  ( Member ProposalStore r,
-    Member (ErrorS MLSCommitMissingReferences) r
-  ) =>
-  ConvOrSubConv -> Epoch -> Commit -> Sem r ()
-checkReferences convOrSub epoch commit = do
-  allPendingProposals <- getAllPendingProposals (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  (Member (ErrorS MLSCommitMissingReferences) r) =>
+  [StoredProposal] -> Commit -> Sem r ()
+checkReferences allPendingProposals commit = do
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview _Ref x) commit.proposals
   let (includedProposals, missingProposals) =
         partition
