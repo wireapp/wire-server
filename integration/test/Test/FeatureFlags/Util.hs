@@ -180,7 +180,8 @@ defAllFeatures =
             "config"
               .= object
                 [ "startTime" .= "2029-05-16T10:11:12.123Z",
-                  "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+                  "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z",
+                  "allowManualMigration" .= False
                 ]
           ],
       "enforceFileDownloadLocation"
@@ -346,7 +347,8 @@ defAllConfiguredFeatures =
                 "config"
                   .= object
                     [ "startTime" .= "2029-05-16T10:11:12.123Z",
-                      "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+                      "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z",
+                      "allowManualMigration" .= False
                     ]
               ]
           ),

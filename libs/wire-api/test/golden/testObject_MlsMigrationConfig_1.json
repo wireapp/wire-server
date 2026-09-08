@@ -1,0 +1,9 @@
+{
+    "config": {
+        "allowManualMigration": true,
+        "finaliseRegardlessAfter": "2018-03-23T00:00:00Z",
+        "startTime": "2018-01-01T00:00:00Z"
+    },
+    "status": "enabled",
+    "ttl": "unlimited"
+}

@@ -1,0 +1,8 @@
+{
+    "config": {
+        "allowManualMigration": false
+    },
+    "lockStatus": "unlocked",
+    "status": "enabled",
+    "ttl": "unlimited"
+}
