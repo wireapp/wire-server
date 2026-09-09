@@ -396,12 +396,16 @@ data:
       setNomadProfiles: {{ index . "setNomadProfiles" }}
       {{- end }}
       setConsumableNotifications: false
-      {{- /* Derived from spar's multi-ingress config. Keep in sync with
-             templates/spar/configmap.yaml and SAML.WebSSO.Config.isMultiIngressConfig. */}}
-      {{- $ssoIdpChangeDetectionEnabled := false }}
-      {{- if and $.Values.spar $.Values.spar.config $.Values.spar.config.domainConfigs $.Values.spar.config.idpCertFingerprintAllowlist }}
-      {{-   $ssoIdpChangeDetectionEnabled = true }}
+      {{- /* Raw spar multi-ingress inputs (schema: spar.config in values.yaml).
+             Brig derives setSsoIdpChangeDetectionEnabled from them at runtime
+             (see Brig.Options.deriveSsoIdpChangeDetectionEnabled). Keep the
+             rendered keys in sync with its FromJSON instance. */}}
+      {{- with $.Values.spar }}
+      {{-   with .config }}
+      setSsoIdpChangeDetectionInputs:
+        multiIngressDomainConfigs: {{ .domainConfigs | default (dict) | toJson }}
+        idpCertFingerprintAllowlist: {{ .idpCertFingerprintAllowlist | default (list) | toJson }}
+      {{-   end }}
       {{- end }}
-      setSsoIdpChangeDetectionEnabled: {{ $ssoIdpChangeDetectionEnabled }}
     {{- end }}
   {{- end }}

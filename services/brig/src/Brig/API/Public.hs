@@ -1676,7 +1676,8 @@ getSystemSettingsInternal = do
       iSettings =
         SystemSettingsInternal
           { ssiSetEnableMls = fromMaybe False optSettings.enableMLS,
-            ssiSetSsoIdpChangeDetectionEnabled = fromMaybe False optSettings.ssoIdpChangeDetectionEnabled
+            ssiSetSsoIdpChangeDetectionEnabled =
+              deriveSsoIdpChangeDetectionEnabled optSettings.ssoIdpChangeDetectionInputs
           }
   pure $ SystemSettings pSettings iSettings
 

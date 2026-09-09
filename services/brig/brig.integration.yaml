@@ -241,7 +241,6 @@ optSettings:
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: ../../libs/wire-subsystems/test/resources/jwt/ecdsa_secp256r1_sha256_key.pem
   setEnableMLS: true
-  setSsoIdpChangeDetectionEnabled: false
   # To only allow specific email address domains to register, uncomment and update the setting below
   # setAllowlistEmailDomains:
   #   - wire.com

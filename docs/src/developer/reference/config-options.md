@@ -1322,25 +1322,34 @@ after this period.
 
 ### SSO Settings
 
-#### `setSsoIdpChangeDetectionEnabled`
+#### `setSsoIdpChangeDetectionInputs`
 
-When enabled, the authenticated `GET /system/settings` endpoint reports
-`ssoIdpChangeDetectionEnabled: true`, telling clients to compare the stored SSO
-IdP ID with the IdP ID used for the current login and to keep existing locally
+When the reported `ssoIdpChangeDetectionEnabled` is `true`, the authenticated
+`GET /system/settings` endpoint tells clients to compare the stored SSO IdP ID
+with the IdP ID used for the current login and to keep existing locally
 decrypted messages when they match. When false or absent, clients treat an IdP
 change as before. Only the authenticated endpoint reports this field; the
 public `/system/settings/unauthorized` endpoint does not.
 
-The wire-server Helm chart derives this value from spar's configuration
-(`spar.config.domainConfigs` present and `spar.config.idpCertFingerprintAllowlist`
-non-empty). Only set it manually if you deploy brig outside the wire-server
-chart, and keep it consistent with your spar multi-ingress configuration.
+Brig derives `ssoIdpChangeDetectionEnabled` from these raw spar inputs: it
+reports `true` iff `multiIngressDomainConfigs` and
+`idpCertFingerprintAllowlist` are both non-empty. The wire-server Helm chart
+renders them from `spar.config`; deployments outside the chart should mirror
+their spar multi-ingress configuration, and the absence of this setting
+disables the feature.
 
 ```default
 # [brig.yaml]
 optSettings:
-  setSsoIdpChangeDetectionEnabled: false
+  setSsoIdpChangeDetectionInputs:
+    multiIngressDomainConfigs:
+      nginz-https.example.com:
+        appUri: https://webapp.example.com
+        ssoUri: https://nginz-https.example.com/sso
+    idpCertFingerprintAllowlist:
+      - "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD"
 ```
+
 
 ## Settings in cargohold
 
