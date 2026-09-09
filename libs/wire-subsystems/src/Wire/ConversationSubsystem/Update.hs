@@ -83,6 +83,7 @@ import Data.Code
 import Data.Default
 import Data.Id
 import Data.Json.Util
+import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..), appendList, nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
@@ -1207,7 +1208,7 @@ systemAdminlessDeletionSupported conv =
 
 remoteBackendsForConversation :: StoredConversation -> [Remote ()]
 remoteBackendsForConversation conv =
-  Set.toList . Set.fromList $
+  nubOrd $
     [ toRemoteUnsafe (tDomain member.id_) ()
     | member <- conv.remoteMembers
     ]
