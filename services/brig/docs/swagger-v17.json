@@ -2742,10 +2742,10 @@
         ],
         "type": "object"
       },
-      "Featur_Vsiond_17PvAmlGpCfgBIy_LTIzMjQ4MDk1V17": {
+      "Featur_Vsiond_16PvAmlGpCfgBIy_MjY0MDMyNDA1V16": {
         "properties": {
           "config": {
-            "$ref": "#/components/schemas/Versiond_17_PvtAmlGupCfgBaIy_LTY1MTkyNDcw"
+            "$ref": "#/components/schemas/Versiond_16_PvtAmlGupCfgBaIy_NDc4OTU0NTE3"
           },
           "status": {
             "$ref": "#/components/schemas/FeatureStatus_LTMzMTUwODEw"
@@ -8064,6 +8064,9 @@
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
+          },
+          "tzid": {
+            "$ref": "#/components/schemas/TimeZone"
           }
         },
         "type": "object"
@@ -8746,7 +8749,7 @@
       "VersionInfo_NTEzMTgzNDQ0": {
         "example": {
           "development": [
-            17
+            18
           ],
           "domain": "example.com",
           "federation": false,
@@ -8768,7 +8771,8 @@
             14,
             15,
             16,
-            17
+            17,
+            18
           ]
         },
         "properties": {
@@ -8818,29 +8822,34 @@
           14,
           15,
           16,
-          17
+          17,
+          18
         ],
         "type": "integer"
       },
-      "Versiond_17_PvtAmlGupCfgBaIy_LTY1MTkyNDcw": {
+      "Versiond_16_PvtAmlGupCfgBaIy_NDc4OTU0NTE3": {
         "properties": {
-          "deletionTimeoutDuration": {
-            "type": "string"
+          "deletionTimeout": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "promotionStrategy": {
             "$ref": "#/components/schemas/PreventAdminlessGroupsPromotionStrategy_Mjc1ODA2MDU1"
           },
-          "reminderTimeoutDurations": {
+          "reminderTimeouts": {
             "items": {
-              "type": "string"
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
             },
             "type": "array"
           }
         },
         "required": [
           "promotionStrategy",
-          "deletionTimeoutDuration",
-          "reminderTimeoutDurations"
+          "deletionTimeout",
+          "reminderTimeouts"
         ],
         "type": "object"
       },
@@ -15160,8 +15169,8 @@
         "summary": "Add qualified members to an existing conversation."
       },
       "put": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"replace-members-in-conversation\"]\n\nThis will add any members not already in the conversation, and remove any members not in the provided list except users that are associated via a user group. The given role in the request body will be applied to all added members. The roles of already existing members will not be changed even if these members are included in the request body and their role differs from the role provided in this request.",
-        "operationId": "replace-members-in-conversation",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"replace-members-in-conversation@v16\"]\n\nThis will add any members not already in the conversation, and remove any members not in the provided list except users that are associated via a user group. The given role in the request body will be applied to all added members. The roles of already existing members will not be changed even if these members are included in the request body and their role differs from the role provided in this request.",
+        "operationId": "replace-members-in-conversation@v16",
         "parameters": [
           {
             "in": "path",
@@ -15273,7 +15282,7 @@
                 }
               }
             },
-            "description": "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent (label: `missing-legalhold-consent`)\n\nUsers are not connected (label: `not-connected`)\n\nRequesting user is not a team member (label: `no-team-member`)\n\nConversation access denied (label: `access-denied`)\n\nMaximum number of members per conversation reached (label: `too-many-members`)\n\nInvalid operation (label: `invalid-op`)\n\nThe conversation would be left without an admin\n\nInsufficient authorization (missing leave_conversation) (label: `action-denied`)\n\nInsufficient authorization (missing remove_conversation_member) (label: `action-denied`)\n\nInsufficient authorization (missing add_conversation_member) (label: `action-denied`)"
+            "description": "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent (label: `missing-legalhold-consent`)\n\nUsers are not connected (label: `not-connected`)\n\nRequesting user is not a team member (label: `no-team-member`)\n\nConversation access denied (label: `access-denied`)\n\nMaximum number of members per conversation reached (label: `too-many-members`)\n\nInvalid operation (label: `invalid-op`)\n\nInsufficient authorization (missing leave_conversation) (label: `action-denied`)\n\nInsufficient authorization (missing remove_conversation_member) (label: `action-denied`)\n\nInsufficient authorization (missing add_conversation_member) (label: `action-denied`)"
           },
           "404": {
             "content": {
@@ -15750,7 +15759,7 @@
     },
     "/conversations/{cnv_domain}/{cnv}/name": {
       "put": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"update-conversation-name\"]\n\n",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"update-conversation-name\"]\n\n\nOAuth scope: `write:conversations_name`",
         "operationId": "update-conversation-name",
         "parameters": [
           {
@@ -19804,7 +19813,7 @@
     },
     "/meetings": {
       "post": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"create-meeting\"]\n\n",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"create-meeting\"]\n\n\nOAuth scope: `write:meetings`",
         "operationId": "create-meeting",
         "requestBody": {
           "content": {
@@ -26007,8 +26016,8 @@
     },
     "/register": {
       "post": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"register\"]\n\nIf the environment where the registration takes place is private and a registered email address is not whitelisted, a 403 error is returned.",
-        "operationId": "register",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"register@v16\"]\n\nIf the environment where the registration takes place is private and a registered email address is not whitelisted, a 403 error is returned.",
+        "operationId": "register@v16",
         "parameters": [
           {
             "in": "header",
@@ -33963,8 +33972,8 @@
         "summary": "Get config for preventAdminlessGroups"
       },
       "put": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"put-PreventAdminlessGroupsConfig@v17\"]\n\n<p>For API version 17, use duration strings for the timeout fields. The request body must have the following shape:</p><pre>{\n  &quot;config&quot;: {\n    &quot;deletionTimeoutDuration&quot;: &quot;7d&quot;,\n    &quot;promotionStrategy&quot;: &quot;alphabetical&quot;,\n    &quot;reminderTimeoutDurations&quot;: [\n      &quot;2d&quot;,\n      &quot;4d&quot;,\n      &quot;6d&quot;\n    ]\n  },\n  &quot;status&quot;: &quot;enabled&quot;\n}</pre><p>Older API versions use the legacy numeric fields <code>deletionTimeout</code> and <code>reminderTimeouts</code>.</p>",
-        "operationId": "put-PreventAdminlessGroupsConfig@v17",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"put-PreventAdminlessGroupsConfig@v16\"]\n\n",
+        "operationId": "put-PreventAdminlessGroupsConfig@v16",
         "parameters": [
           {
             "in": "path",
@@ -33980,7 +33989,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/Featur_Vsiond_17PvAmlGpCfgBIy_LTIzMjQ4MDk1V17"
+                "$ref": "#/components/schemas/Featur_Vsiond_16PvAmlGpCfgBIy_MjY0MDMyNDA1V16"
               }
             }
           },
