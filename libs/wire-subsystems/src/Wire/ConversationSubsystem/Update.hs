@@ -1249,7 +1249,7 @@ setupAdminlessGroupsCleanup mUsr tid = do
     teamConvIds <- E.getTeamConversations tid
     for_ teamConvIds $ \cnv -> do
       lcnv <- qualifyLocal cnv
-      adminlessTryAutopromote mUsr lcnv $ \conv feature _ -> do
+      adminlessTryAutopromote mUsr lcnv $ \conv feature -> do
         supported <-
           if isNothing mUsr
             then systemAdminlessDeletionSupportedCached conv
@@ -1408,7 +1408,7 @@ adminlessTryAutopromote ::
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
-  (StoredConversation -> LockableFeature PreventAdminlessGroupsConfig -> [(Qualified UserId, User.Name)] -> Sem r ()) ->
+  (StoredConversation -> LockableFeature PreventAdminlessGroupsConfig -> Sem r ()) ->
   Sem r ()
 adminlessTryAutopromote mlusr lcnv altAction = do
   conv <- getConversationWithError lcnv
@@ -1456,7 +1456,7 @@ adminlessTryAutopromote mlusr lcnv altAction = do
                       (EdSystemMemberUpdate (memberUpdateData candidate update))
                   )
                   (Set.fromList (map (.id_) conv.localMembers))
-        [] -> altAction conv feature eligibleMembers
+        [] -> altAction conv feature
   where
     memberUpdateData candidate memberUpdate' =
       MemberUpdateData
@@ -1491,7 +1491,7 @@ adminlessAutopromoteOrDelete ::
   Sem r ()
 adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orAlternativelyDeleteConv
   where
-    orAlternativelyDeleteConv conv _ _ = do
+    orAlternativelyDeleteConv conv _ = do
       canDelete <-
         if isNothing mlusr && not (null conv.remoteMembers)
           then systemAdminlessDeletionSupported conv
@@ -1544,7 +1544,7 @@ adminlessAutopromoteOrSendReminder ::
   Sem r ()
 adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
-    orAlternativelySendReminder conv _ _ = do
+    orAlternativelySendReminder conv _ = do
       now <- Now.get
       case mlusr of
         Just lusr -> do
