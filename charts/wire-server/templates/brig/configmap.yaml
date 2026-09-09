@@ -397,7 +397,7 @@ data:
       {{- end }}
       setConsumableNotifications: false
       {{- /* Raw spar multi-ingress inputs (schema: spar.config in values.yaml).
-             Brig derives setSsoIdpChangeDetectionEnabled from them at runtime
+             Brig derives ssoIdpChangeDetectionEnabled from them at runtime
              (see Brig.Options.deriveSsoIdpChangeDetectionEnabled). Keep the
              rendered keys in sync with its FromJSON instance. */}}
       {{- with $.Values.spar }}
