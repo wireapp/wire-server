@@ -103,7 +103,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
 -- change.  See also documentation in the *docs* directory.
 -- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
-data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12 | V13 | V14 | V15 | V16 | V17 | V18
+data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12 | V13 | V14 | V15 | V16 | V17 | V18 | V19
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
@@ -144,6 +144,8 @@ instance RenderableSymbol V17 where renderSymbol = "V17"
 
 instance RenderableSymbol V18 where renderSymbol = "V18"
 
+instance RenderableSymbol V19 where renderSymbol = "V19"
+
 -- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
 --
 -- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
@@ -170,6 +172,7 @@ versionInt V15 = 15
 versionInt V16 = 16
 versionInt V17 = 17
 versionInt V18 = 18
+versionInt V19 = 19
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
@@ -295,7 +298,8 @@ isDevelopmentVersion V14 = False
 isDevelopmentVersion V15 = False
 isDevelopmentVersion V16 = False
 isDevelopmentVersion V17 = False
-isDevelopmentVersion V18 = True
+isDevelopmentVersion V18 = False
+isDevelopmentVersion V19 = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
