@@ -248,13 +248,22 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
     -- add clients to the conversation state
     -- Note: safe to run concurrently because the children only perform store
-    -- writes on disjoint rows; their failures surface as IO exceptions, which
-    -- sequenceConcurrently propagates. If an Error-effect throw is ever added
-    -- here, it would be swallowed — keep children Error-free.
-    void . P.sequenceConcurrently $
-      flip fmap newUserClients $ \(qtarget, newClients) ->
-        addMLSClients gid qtarget $
-          Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
+    -- writes on disjoint rows. The store children fail via IO exceptions
+    -- (addMLSClients runs through embedClient, a pure IO embed), which the
+    -- Async interpretation rethrows. An 'Error'-effect throw in a child
+    -- would collapse to 'Nothing' (the error interpreters sit outside
+    -- asyncToIOFinal in Galley.App); the 'Nothing' guard below turns that
+    -- into a hard commit failure instead of a silently dropped write.
+    results <-
+      P.sequenceConcurrently $
+        flip fmap newUserClients $ \(qtarget, newClients) ->
+          addMLSClients gid qtarget $
+            Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
+    when (Nothing `elem` results) $
+      throw
+        ( InternalErrorWithDescription
+            "A concurrent client-store write failed while processing commit"
+        )
 
     for_ action.paHistoryClientAdd $ uncurry (addHistoryClient gid)
 

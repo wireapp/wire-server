@@ -29,6 +29,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
+import Galley.Types.Error (InternalError (..))
 import Imports
 import Polysemy
 import Polysemy.Async (Async)
@@ -53,6 +54,7 @@ checkClients ::
     Member (ErrorS MLSClientMismatch) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error MLSProtocolError) r,
+    Member (Error InternalError) r,
     Member Async r
   ) =>
   Local ConvOrSubConv ->
@@ -63,18 +65,31 @@ checkClients lConvOrSub ciphersuite newCM = do
   let convOrSub = tUnqualified lConvOrSub
       cm = convOrSub.members
       assocs = Map.assocs (unClientMap newCM)
-  -- Fetch client data from brig concurrently. getClientData is total: it
-  -- reports failures via Maybe, never via an Error effect, so parallel
-  -- results cannot be silently swallowed by sequenceConcurrently.
+  -- Fetch client data from brig concurrently. getClientData is total with
+  -- respect to 'FederationError' (hushed inside getClientData): an inner
+  -- 'Nothing' is a legitimate "user unreachable" result.
+  --
+  -- sequenceConcurrently attaches an outer 'Maybe' to every child result.
+  -- Under galley's production stack (asyncToIOFinal below pure
+  -- runError/mapError interpreters, cf. Galley.App), an 'Error'-effect
+  -- throw inside a spawned child (e.g. RpcException/ParseException from
+  -- interpretBrigAccess) has no interpreter inside the async boundary and
+  -- Polysemy collapses the child result to 'Nothing'. That is a crashed
+  -- child, not "no client data", and must abort the commit with an
+  -- internal error instead of being conflated with the unreachable case.
+  --
   -- Validation below runs serially so that Error-effect throws abort the
   -- whole commit exactly as in the fully serial implementation.
-  -- getClientData is Error-free, so the outer 'Maybe' that
-  -- sequenceConcurrently attaches to every child result is always 'Just'.
   mClientDatas <-
-    fmap (map (fromMaybe Nothing)) . P.sequenceConcurrently $
+    P.sequenceConcurrently $
       flip fmap assocs $ \(qtarget, _) ->
         getClientData lConvOrSub ciphersuite qtarget
-  fmap catMaybes . forM (zip assocs mClientDatas) $
+  clientDatas <-
+    forM mClientDatas $
+      maybe
+        (throw (InternalErrorWithDescription "Concurrent brig client-data fetch failed while processing commit"))
+        pure
+  fmap catMaybes . forM (zip assocs clientDatas) $
     \((qtarget, newclients), mClientData) -> do
       unreachable <- case (mClientData, cmLookup qtarget cm) of
         -- user is already present, skip check in this case
