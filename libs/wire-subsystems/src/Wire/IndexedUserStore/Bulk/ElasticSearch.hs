@@ -20,7 +20,7 @@ module Wire.IndexedUserStore.Bulk.ElasticSearch where
 import Cassandra.Exec (paginateWithStateC)
 import Cassandra.Util (Writetime (Writetime))
 import Conduit (ConduitT, runConduit, (.|))
-import Control.Error (headMay)
+import Control.Error (headMay, hush)
 import Control.Exception (try)
 import Data.Conduit.Combinators qualified as Conduit
 import Data.Conduit.Internal (zipSources)
@@ -104,25 +104,23 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           teams = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
 
       visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
-        x <- try $ interpreter $ teamSearchVisibilityInbound t
+        x <- try @SomeException $ interpreter $ teamSearchVisibilityInbound t
         pure (t, x)
 
-      let getRoles :: TeamId -> [UserId] -> IO (Map UserId (Either SomeException (WithWritetime Role)))
+      let -- Accounts that have no team, can have no role.  If a role
+          -- can't be found on brig for an account, that account does
+          -- not have role info in their index or document any more.
+          -- This is fine because it only affects accounts that are
+          -- already inconsistent accross cassandras (user entry with
+          -- team ref, but no team member entry).
+          getRoles :: TeamId -> [UserId] -> IO (Map UserId (WithWritetime Role))
           getRoles tid uids = do
-            eithMembers <- try $ interpreter $ (.members) <$> selectTeamMemberInfos tid uids
-            case eithMembers of
-              Left e -> do
-                let lenUids = length uids
-                if lenUids <= 1
-                  then pure . Map.fromList $ map (,Left e) uids
-                  else do
-                    let (uids1, uids2) = splitAt (lenUids `div` 2) uids
-                    roles1 <- getRoles tid uids1
-                    roles2 <- getRoles tid uids2
-                    pure $ Map.union roles1 roles2
-              Right tms -> pure . Map.fromList $ mapMaybe (fmap rightSecond . mkRoleWithWriteTime) tms
+            eithMembers <- try @SomeException $ interpreter $ (.members) <$> selectTeamMemberInfos tid uids
+            pure case eithMembers of
+              Left _ -> Map.empty
+              Right tms -> Map.fromList $ mapMaybe mkRoleWithWriteTime tms
 
-      roles :: Map UserId (Either SomeException (WithWritetime Role)) <-
+      roles :: Map UserId (WithWritetime Role) <-
         fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
           getRoles t (fmap (.userId) us)
 
@@ -132,21 +130,21 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
         try . fmap (Map.fromListWith (<>) . map (\tc -> (gUser tc, [gTeam tc]))) . interpreter $
           getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
 
-      let vis :: IndexUser -> Either SomeException SearchVisibilityInbound
+      let vis :: IndexUser -> SearchVisibilityInbound
           vis indexUser =
-            fromMaybe (Right defaultSearchVisibilityInbound) $ flip Map.lookup visMap =<< indexUser.teamId
+            fromMaybe SearchableByOwnTeam $ hush =<< flip Map.lookup visMap =<< indexUser.teamId
 
           mkUserDoc :: IndexUser -> Either SomeException UserDoc
           mkUserDoc indexUser = do
-            currentVis <- vis indexUser
-            currentRole <- sequence $ Map.lookup indexUser.userId roles
+            let currentVis = vis indexUser
+                currentRole = ((.value)) <$> Map.lookup indexUser.userId roles
             currentCollabTeams <- Map.findWithDefault [] indexUser.userId <$> eithCollabTeams
-            pure $ indexUserToDoc currentVis ((.value) <$> currentRole) currentCollabTeams indexUser
+            pure $ indexUserToDoc currentVis currentRole currentCollabTeams indexUser
 
           mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
-          mkDocVersion u = do
-            roleWithTime <- sequence (Map.lookup u.userId roles)
-            pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
+          mkDocVersion u =
+            let roleWithTime = Map.lookup u.userId roles
+             in pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
 
           docsWithErrors :: (e ~ Either SomeException) => [(ES.DocId, e UserDoc, e ES.VersionControl)]
           docsWithErrors = map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
@@ -156,9 +154,6 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           skipped = length errors
           cappedErrors = take 1000 errors
       pure (skipped, cappedErrors, docs)
-
-    rightSecond :: (a, b) -> (a, Either c b)
-    rightSecond (a, b) = (a, Right b)
 
     logFailures :: (Member TinyLog r) => (ES.DocId, Either SomeException UserDoc, Either SomeException ES.VersionControl) -> Sem r (Either String (ES.DocId, UserDoc, ES.VersionControl))
     logFailures (docId@(ES.DocId idText), eithUserDoc, eithVersion) =
