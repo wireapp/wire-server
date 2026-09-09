@@ -35,6 +35,7 @@ import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
+import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
@@ -549,10 +550,38 @@ data Settings = Settings
     ephemeralUserCreationEnabled :: !Bool,
     -- | Determines if this backend supports nomad profiles.
     nomadProfiles :: !(Maybe Bool),
+    -- | Raw spar multi-ingress inputs as rendered by the wire-server chart
+    -- (from @spar.config@; brig only needs their presence, not their contents).
+    -- 'deriveSsoIdpChangeDetectionEnabled' turns these into the value served
+    -- by @GET /system/settings@.
+    ssoIdpChangeDetectionInputs :: !(Maybe SsoIdpChangeDetectionInputs),
     -- | Determines if consumable notifications are enabled
     consumableNotifications :: !Bool
   }
   deriving (Show, Generic)
+
+-- | Mirror of the multi-ingress-relevant parts of @spar.config@. Keys match
+-- what @charts/wire-server/templates/brig/configmap.yaml@ renders from
+-- @$.Values.spar.config@; contents are opaque to brig.
+data SsoIdpChangeDetectionInputs = SsoIdpChangeDetectionInputs
+  { multiIngressDomainConfigs :: !(Map Text Value),
+    idpCertFingerprintAllowlist :: ![Text]
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON SsoIdpChangeDetectionInputs
+
+-- | @ssoIdpChangeDetectionEnabled@ mirrors spar's multi-ingress
+-- configuration: enabled iff inline multi-ingress domain configs AND a
+-- non-empty IdP cert fingerprint allowlist are configured (the criterion the
+-- wire-server chart previously computed in the template; cf.
+-- SAML.WebSSO.Config.isMultiIngressConfig).
+deriveSsoIdpChangeDetectionEnabled :: Maybe SsoIdpChangeDetectionInputs -> Bool
+deriveSsoIdpChangeDetectionEnabled = \case
+  Nothing -> False
+  Just inputs ->
+    not (Map.null inputs.multiIngressDomainConfigs)
+      && not (null inputs.idpCertFingerprintAllowlist)
 
 newtype ImplicitNoFederationRestriction = ImplicitNoFederationRestriction
   {federationDomainConfig :: FederationDomainConfig}

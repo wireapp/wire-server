@@ -490,6 +490,7 @@ test-suite brig-tests
     Test.Brig.Effects.Delay
     Test.Brig.InternalNotification
     Test.Brig.MLS
+    Test.Brig.Options
 
   hs-source-dirs: test/unit
   ghc-options:
