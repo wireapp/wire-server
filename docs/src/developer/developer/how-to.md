@@ -21,7 +21,7 @@ Terminal 2:
 * Build and start wire-server services: ` make c && ./dist/run-services`
 
 Open your browser at:
-[http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for a list of API verions.
+[http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for a list of API versions.
 
 Also check out the docs for swagger in our staging environment:
 [Swagger / OpenAPI documentation](../../understand/api-client-perspective/swagger.md#swagger-api-docs).  Replace the staging domain by
@@ -96,7 +96,7 @@ This will create two full installations of wire-server on the kubernetes cluster
 
 Check CI for the latest tag that has been created on your PR (expect this to take at least 30-60 minutes from the last time you pushed to your branch). Example:
 
-Look at a successful job in the `wire-server-pr` pipeline from a job bruild matching your desired PR and commit hash. Then, find the actual docker tag used.
+Look at a successful job in the `wire-server-pr` pipeline from a job build matching your desired PR and commit hash. Then, find the actual docker tag used.
 
 ![concourse-pr-version-circled](https://user-images.githubusercontent.com/2112744/114410146-69b34000-9bab-11eb-863c-106fb661ca82.png)
 

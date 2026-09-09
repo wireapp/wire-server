@@ -62,7 +62,7 @@ For customer support access to an internal endpoint, instead update code in [ste
 
 ### Demo nginz configuration
 
-New entris should include `common_response_no_zauth.conf;` for public endpoints without authentication and `common_response_with_zauth.conf;` for regular (authenticated) endpoints. Browse the file to see examples.
+New entries should include `common_response_no_zauth.conf;` for public endpoints without authentication and `common_response_with_zauth.conf;` for regular (authenticated) endpoints. Browse the file to see examples.
 
 ### Example
 
@@ -109,7 +109,7 @@ Remove them with the PR from wire-server `./charts` folder, as charts are linked
 
 ### Renaming configuration flags
 
-Avoid doing this, it’s usually viable to introduce an at-least-equally-good name and remove the old one, that admins can first add the new options, then uprade the software, then remove the old ones.
+Avoid doing this, it’s usually viable to introduce an at-least-equally-good name and remove the old one, that admins can first add the new options, then upgrade the software, then remove the old ones.
 
 If you must, see Removing/adding sections above. But please note that all people who have an installation of wire also may have overridden any of the configuration option you may wish to change the name of. As this is not type checked, it’s very error prone and people may find themselves with default configuration values being used instead of their intended configuration settings. Guideline: only rename for good reasons, not for aesthetics; or be prepared to spend a significant amount on documenting and communication about this change.
 

@@ -45,16 +45,6 @@ and go and grab a coffee. ☕
 Your system will likely not build much, but it will definitely
 spend some time fetching things from different caches.
 
-### initializing the cabal mirrors
-
-There are a few dependencies that are not provided by the nix env, for these, please run
-
-```bash
-cabal update
-```
-
-now that you’re in the devshell.
-
 ### building wire-server
 
 #### with cabal
@@ -154,7 +144,7 @@ make full-clean
 
 ### Cabal can’t read index (Did you call checkForUpdates?)
 
-Sometimes abording cabal mid-update can corrupt its index. Deleting `~/.cabal/packages/hackage.haskell.org` will usually do the trick.
+Sometimes aborting cabal mid-update can corrupt its index. Deleting `~/.cabal/packages/hackage.haskell.org` will usually do the trick.
 
 As a side-note: `make c` doesn’t run `cabal update`, but `make` does, so keep that in mind.
 
@@ -181,7 +171,7 @@ Setting up these real, but in-memory internal and “fake” external dependenci
 deploy/dockerephemeral/run.sh
 ```
 
-Also make sure your system is able to resolve the fully qualified domain `localhost.` (note the trailing dot). This is surprisingly not trivial, because of limitations in how libc parses `/etc/hosts`. You can check that with, for example, `ping localhost.`. If you get a name resolution error, you need to add `localhost.` explictly to your `/etc/hosts` file.
+Also make sure your system is able to resolve the fully qualified domain `localhost.` (note the trailing dot). This is surprisingly not trivial, because of limitations in how libc parses `/etc/hosts`. You can check that with, for example, `ping localhost.`. If you get a name resolution error, you need to add `localhost.` explicitly to your `/etc/hosts` file.
 
 After all containers are up you can use these Makefile targets to run the tests locally:
 
@@ -219,7 +209,7 @@ After all containers are up you can use these Makefile targets to run the tests 
 ## How to run the webapp locally against locally running backend
 
 1. Clone the webapp from: https://github.com/wireapp/wire-webapp
-2. Install these depedencies needed for the webapp:
+2. Install these dependencies needed for the webapp:
    1. nodejs
    2. yarn
    3. mkcert

@@ -282,7 +282,7 @@ When invoking an endpoint as a federation client, we need to make sure that all
 supported versions are covered. The `FederatorClient` monad has an
 `Alternative` instance which can be useful for this purpose: an action will fail
 (before even performing any request) if it refers to an endpoint whose version
-range does not contain the version that was negotiatted.
+range does not contain the version that was negotiated.
 
 For example, suppose that `get-user-clients` disappears in version 2, and
 clients are now supposed to use an endpoint called `get-clients-ng`, with
