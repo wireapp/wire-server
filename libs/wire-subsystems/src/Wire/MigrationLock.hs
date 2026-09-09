@@ -157,11 +157,11 @@ withMigrationLocks lockType maxWait lockables action = do
           LockExclusive ->
             [resultlessStatement|SELECT (1 :: int)
                                  FROM (SELECT pg_advisory_lock(lockId)
-                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
           LockShared ->
             [resultlessStatement|SELECT (1 :: int)
                                  FROM (SELECT pg_advisory_lock_shared(lockId)
-                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
 
     releaseLocks :: Hasql.Statement [Int64] ()
     releaseLocks =
@@ -170,15 +170,13 @@ withMigrationLocks lockType maxWait lockables action = do
           LockExclusive ->
             [resultlessStatement|SELECT (1 :: int)
                                  FROM (SELECT pg_advisory_unlock(lockId)
-                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
           LockShared ->
             [resultlessStatement|SELECT (1 :: int)
                                  FROM (SELECT pg_advisory_unlock_shared(lockId)
-                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+                                       FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
 
 --------------------------------------------------------------------------------
--- INSTANCES
-
 -- Combines team id and feature name into one lock key to keep per-feature locks distinct within a team
 -- without introducing a separate lock table; rotate+xor mixes the two hashes to reduce collisions.
 instance MigrationLockable (TeamId, Text) where

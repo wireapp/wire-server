@@ -174,4 +174,4 @@ withArbiterMigrationLock connStr schemaName action = do
 
     releaseArbiterMigrationLock :: HasqlStatement.Statement Int64 ()
     releaseArbiterMigrationLock =
-      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
+      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint)) AS t|]
