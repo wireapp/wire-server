@@ -131,15 +131,11 @@ sendSystemMemberUpdate ::
   Set (Remote UserId) ->
   SystemMemberUpdateNotification ->
   Sem r ()
-sendSystemMemberUpdate targets notification =
-  do
-    void $
-      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
-        case notification of
-          SystemMemberUpdateNotification time conversation update _ ->
-            makeSystemMemberUpdateBundle
-              (SystemMemberUpdateNotification time conversation update (tUnqualified ruids))
-              >>= sendBundle
+sendSystemMemberUpdate targets n = void $
+  enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+    makeSystemMemberUpdateBundle
+      (SystemMemberUpdateNotification n.time n.conversation n.update (tUnqualified ruids))
+      >>= sendBundle
 
 sendSystemDelete ::
   ( Member BackendNotificationQueueAccess r,
@@ -148,15 +144,11 @@ sendSystemDelete ::
   Set (Remote UserId) ->
   SystemDeleteNotification ->
   Sem r ()
-sendSystemDelete targets notification =
-  do
-    void $
-      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
-        case notification of
-          SystemDeleteNotification time conversation _ ->
-            makeSystemDeleteBundle
-              (SystemDeleteNotification time conversation (tUnqualified ruids))
-              >>= sendBundle
+sendSystemDelete targets n = void $
+  enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+    makeSystemDeleteBundle
+      (SystemDeleteNotification n.time n.conversation (tUnqualified ruids))
+      >>= sendBundle
 
 sendSystemAdminlessReminder ::
   ( Member BackendNotificationQueueAccess r,
@@ -165,12 +157,8 @@ sendSystemAdminlessReminder ::
   Set (Remote UserId) ->
   SystemAdminlessReminderNotification ->
   Sem r ()
-sendSystemAdminlessReminder targets notification =
-  do
-    void $
-      enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
-        case notification of
-          SystemAdminlessReminderNotification time conversation reminder _ ->
-            makeSystemAdminlessReminderBundle
-              (SystemAdminlessReminderNotification time conversation reminder (tUnqualified ruids))
-              >>= sendBundle
+sendSystemAdminlessReminder targets n = void $
+  enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+    makeSystemAdminlessReminderBundle
+      (SystemAdminlessReminderNotification n.time n.conversation n.reminder (tUnqualified ruids))
+      >>= sendBundle
