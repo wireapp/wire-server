@@ -250,10 +250,12 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     -- Note: safe to run concurrently because the children only perform store
     -- writes on disjoint rows. The store children fail via IO exceptions
     -- (addMLSClients runs through embedClient, a pure IO embed), which the
-    -- Async interpretation rethrows. An 'Error'-effect throw in a child
-    -- would collapse to 'Nothing' (the error interpreters sit outside
-    -- asyncToIOFinal in Galley.App); the 'Nothing' guard below turns that
-    -- into a hard commit failure instead of a silently dropped write.
+    -- Async interpretation rethrows. An 'Error'-effect throw in a child is
+    -- forwarded by the in-thread mapError interpreters (cf. Galley.App) to
+    -- the residual error, whose interpreter sits outside asyncToIOFinal;
+    -- Polysemy collapses the child result to 'Nothing'. The 'Nothing' guard
+    -- below turns that into a hard commit failure instead of a silently
+    -- dropped write.
     results <-
       P.sequenceConcurrently $
         flip fmap newUserClients $ \(qtarget, newClients) ->

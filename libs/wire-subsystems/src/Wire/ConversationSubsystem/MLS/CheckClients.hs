@@ -73,10 +73,12 @@ checkClients lConvOrSub ciphersuite newCM = do
   -- Under galley's production stack (asyncToIOFinal below pure
   -- runError/mapError interpreters, cf. Galley.App), an 'Error'-effect
   -- throw inside a spawned child (e.g. RpcException/ParseException from
-  -- interpretBrigAccess) has no interpreter inside the async boundary and
-  -- Polysemy collapses the child result to 'Nothing'. That is a crashed
-  -- child, not "no client data", and must abort the commit with an
-  -- internal error instead of being conflated with the unreachable case.
+  -- interpretBrigAccess) is forwarded by the in-thread mapError handlers
+  -- to the residual error, whose interpreter sits outside the async
+  -- boundary; Polysemy collapses the child result to 'Nothing'. That is a
+  -- crashed child, not "no client data", and must abort the commit with
+  -- an internal error instead of being conflated with the unreachable
+  -- case.
   --
   -- Validation below runs serially so that Error-effect throws abort the
   -- whole commit exactly as in the fully serial implementation.

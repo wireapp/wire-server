@@ -123,7 +123,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   -- Fetch all pending proposals once: used both for dereferencing commit
   -- proposal refs and by checkReferences downstream.
   storedProposals <- getAllPendingProposals groupId epoch
-  (creatorAction, action) <-
+  (newIndexMap, combinedAction) <-
     runState convOrSub.indexMap $ do
       creatorAction <-
         if epoch == Epoch 0
@@ -131,11 +131,11 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
           else mempty
       proposals <-
         traverse
-          (derefOrCheckProposalFrom storedProposals epoch ciphersuite groupId)
+          (derefOrCheckProposalFrom storedProposals ciphersuite)
           bundle.commit.value.proposals
       action <- applyProposals ciphersuite proposals
       pure (creatorAction <> action)
-  pure (creatorAction, action, storedProposals)
+  pure (newIndexMap, combinedAction, storedProposals)
 
 incrementEpoch ::
   ( Member ConversationStore r,

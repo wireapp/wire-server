@@ -156,15 +156,13 @@ derefOrCheckProposalFrom ::
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   [StoredProposal] ->
-  Epoch ->
   CipherSuiteTag ->
-  GroupId ->
   ProposalOrRef ->
   Sem r Proposal
-derefOrCheckProposalFrom stored _epoch _ciphersuite _groupId (Ref ref) =
+derefOrCheckProposalFrom stored _ciphersuite (Ref ref) =
   noteS @'MLSProposalNotFound $
     (.proposal.value) <$> find ((== ref) . (.ref)) stored
-derefOrCheckProposalFrom _stored _epoch ciphersuite _ (Inline p) = do
+derefOrCheckProposalFrom _stored ciphersuite (Inline p) = do
   im <- get
   checkProposal ciphersuite im p
   pure p
