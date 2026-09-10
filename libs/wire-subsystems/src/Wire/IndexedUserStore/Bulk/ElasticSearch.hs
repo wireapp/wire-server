@@ -103,28 +103,22 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
       let teams :: Map TeamId [IndexUser]
           teams = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
 
-      let -- Accounts that have no team, can have no role.  If a role
-          -- can't be found on brig for an account, that account does
-          -- not have role info in their index or document any more.
-          -- This is fine because it only affects accounts that are
-          -- already inconsistent accross cassandras (user entry with
-          -- team ref, but no team member entry).
-          getRoles :: TeamId -> [UserId] -> IO (Map UserId (WithWritetime Role))
-          getRoles tid uids = do
-            eithMembers <- try @SomeException $ interpreter $ (.members) <$> selectTeamMemberInfos tid uids
-            pure case eithMembers of
-              Left _ -> Map.empty
-              Right tms -> Map.fromList $ mapMaybe mkRoleWithWriteTime tms
+      roles :: Map UserId (WithWritetime Role) <- do
+        let -- Accounts that have no team, can have no role.  If a role
+            -- can't be found on brig for an account, that account does
+            -- not have role info in their index or document any more.
+            -- This is fine because it only affects accounts that are
+            -- already inconsistent accross cassandras (user entry with
+            -- team ref, but no team member entry).
+            getRoles :: TeamId -> [UserId] -> IO (Map UserId (WithWritetime Role))
+            getRoles tid uids = do
+              eithMembers <- try @SomeException $ interpreter $ (.members) <$> selectTeamMemberInfos tid uids
+              pure case eithMembers of
+                Left _ -> Map.empty
+                Right tms -> Map.fromList $ mapMaybe mkRoleWithWriteTime tms
 
-      roles :: Map UserId (WithWritetime Role) <-
         fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
           getRoles t (fmap (.userId) us)
-
-      -- One query for the whole page.  A failure here fails every document of the
-      -- page, which 'logFailures' then logs and skips.
-      eithCollabTeams :: Either SomeException (Map UserId [TeamId]) <-
-        try . fmap (Map.fromListWith (<>) . map (\tc -> (gUser tc, [gTeam tc]))) . interpreter $
-          getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
 
       vis :: IndexUser -> SearchVisibilityInbound <- do
         visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
@@ -133,14 +127,20 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
         pure $ \vis indexUser ->
           fromMaybe SearchableByOwnTeam $ hush =<< flip Map.lookup visMap =<< indexUser.teamId
 
-      let mkUserDoc :: IndexUser -> Either SomeException UserDoc
-          mkUserDoc indexUser = do
-            let currentVis = vis indexUser
-                currentRole = ((.value)) <$> Map.lookup indexUser.userId roles
-            currentCollabTeams <- Map.findWithDefault [] indexUser.userId <$> eithCollabTeams
-            pure $ indexUserToDoc currentVis currentRole currentCollabTeams indexUser
+      mkUserDoc :: IndexUser -> Either SomeException UserDoc <- do
+        -- One query for the whole page.  A failure here fails every document of the
+        -- page, which 'logFailures' then logs and skips.
+        eithCollabTeams :: Either SomeException (Map UserId [TeamId]) <-
+          try . fmap (Map.fromListWith (<>) . map (\tc -> (gUser tc, [gTeam tc]))) . interpreter $
+            getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
 
-          mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
+        pure \indexUser -> do
+          let currentVis = vis indexUser
+              currentRole = ((.value)) <$> Map.lookup indexUser.userId roles
+          currentCollabTeams <- Map.findWithDefault [] indexUser.userId <$> eithCollabTeams
+          pure $ indexUserToDoc currentVis currentRole currentCollabTeams indexUser
+
+      let mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
           mkDocVersion u =
             let roleWithTime = Map.lookup u.userId roles
              in pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
