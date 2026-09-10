@@ -30,14 +30,11 @@ spec:
         - path:
             type: PathPrefix
             value: /
-      {{- if $domain.csp }}
-      filters:
-        - type: ResponseHeaderModifier
-          responseHeaderModifier:
-            set:
-              - name: Content-Security-Policy
-                value: {{ include "wire-ingress.cspHeader" (dict "https" $domain.https "ssl" $domain.ssl "base" $domain.base "websockets" $root.Values.websockets.enabled) | quote }}
-      {{- end }}
+      {{/* No CSP header is injected here. Unlike team-settings, account-pages
+      sets multi-ingress aware CSP headers itself, and a ResponseHeaderModifier
+      "set" filter would replace them with the weaker approximation from
+      wire-ingress.cspHeader. This mirrors the legacy nginx-ingress-services
+      chart, which skips its CSP snippet for this host. */}}
       backendRefs:
         - name: account-pages-http
           port: {{ $root.Values.service.accountPages.externalPort }}
