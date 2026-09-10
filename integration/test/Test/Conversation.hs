@@ -603,8 +603,7 @@ testReconcileStaleLocalMembershipsForDeletedRemoteConversation = do
   -- proves that Alice's locally stored membership is stale.
   withWebSockets [alice, charlie] $ \[wsAlice, wsCharlie] -> do
     getConversation alice conv >>= assertLabel 404 "no-conversation"
-    e <- awaitMatch (isSystemDeleteFor conv) wsAlice
-    printJSON e
+    void $ awaitMatch (isSystemDeleteFor conv) wsAlice
     assertConversationMembership alice conv False
     assertConversationMembership charlie conv True
 
@@ -621,6 +620,66 @@ testReconcileStaleLocalMembershipsForDeletedRemoteConversation = do
 
   -- Reconciliation is idempotent once the local membership has been removed.
   getConversation alice conv >>= assertLabel 404 "no-conversation"
+
+-- | Fetching stale remote conversations from two different domains reconciles
+-- both independently. A response for one domain must not remove memberships
+-- belonging to another domain.
+testReconcileStaleMembershipsMultipleDomains :: (HasCallStack) => App ()
+testReconcileStaleMembershipsMultipleDomains = do
+  resourcePool <- asks resourcePool
+  runCodensity (acquireResources 1 resourcePool) $ \[remoteBackend] ->
+    runCodensity (startDynamicBackend remoteBackend mempty) $ \_ -> do
+      alice <- randomUser OwnDomain def
+      ownerStatic <- randomUser OtherDomain def
+      ownerDynamic <- randomUser remoteBackend.berDomain def
+      connectTwoUsers ownerStatic alice
+      connectTwoUsers ownerDynamic alice
+      convStatic <- registerMissingRemoteConversation ownerStatic [alice]
+      convDynamic <- registerMissingRemoteConversation ownerDynamic [alice]
+
+      eventually $ do
+        assertConversationMembership alice convStatic True
+        assertConversationMembership alice convDynamic True
+
+      bindResponse (listConversations alice [convStatic, convDynamic]) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "found" `shouldMatch` ([] :: [Value])
+        resp.json %. "failed" `shouldMatch` ([] :: [Value])
+        notFound <- resp.json %. "not_found" & asList
+        for_ [convStatic, convDynamic] $ \conv ->
+          (notFound :: [Value]) `shouldContain` [conv]
+
+      assertConversationMembership alice convStatic False
+      assertConversationMembership alice convDynamic False
+
+-- | Conversations the remote still returns are preserved; only omitted ones
+-- are reconciled within the same request.
+testReconcileOnlyMissingConversations :: (HasCallStack) => App ()
+testReconcileOnlyMissingConversations = do
+  alice <- randomUser OwnDomain def
+  owner <- randomUser OtherDomain def
+  connectTwoUsers owner alice
+
+  alive <-
+    postConversation owner (defProteus {qualifiedUsers = [alice]})
+      >>= getJSON 201
+  aliveQid <- objQidObject alive
+  stale <- registerMissingRemoteConversation owner [alice]
+
+  eventually $ do
+    assertConversationMembership alice aliveQid True
+    assertConversationMembership alice stale True
+
+  bindResponse (listConversations alice [aliveQid, stale]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "failed" `shouldMatch` ([] :: [Value])
+    found <- resp.json %. "found" & asList
+    length (found :: [Value]) `shouldMatchInt` 1
+    notFound <- resp.json %. "not_found" & asList
+    (notFound :: [Value]) `shouldContain` [stale]
+
+  assertConversationMembership alice aliveQid True
+  assertConversationMembership alice stale False
 
 testPreserveRemoteMembershipOnFederationFailure :: (HasCallStack) => App ()
 testPreserveRemoteMembershipOnFederationFailure = do
