@@ -1,0 +1,4 @@
+Gundeck's presence cleanup background thread no longer swallows asynchronous
+exceptions. On shutdown this removes the spurious "presence cleanup failed"
+(AsyncCancelled) error log line and lets the thread terminate promptly instead
+of lingering for up to an hour.
