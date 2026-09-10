@@ -12,6 +12,10 @@ metadata:
     chart: "{{ $root.Chart.Name }}-{{ $root.Chart.Version }}"
     release: "{{ $root.Release.Name }}"
     heritage: "{{ $root.Release.Service }}"
+  {{- if $root.Values.gateway.listeners.http.enabled }}
+  annotations:
+    acme.cert-manager.io/http01-parentreffallback: "true"
+  {{- end }}
 spec:
   issuerRef:
     name: {{ $domain.issuerName | quote }}
