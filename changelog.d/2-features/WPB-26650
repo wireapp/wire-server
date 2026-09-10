@@ -1,0 +1,1 @@
+Add federation support for `preventAdminlessGroups` system notifications, with capability-aware handling for older remote backends.

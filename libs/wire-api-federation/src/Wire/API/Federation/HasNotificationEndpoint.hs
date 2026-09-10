@@ -21,6 +21,7 @@ module Wire.API.Federation.HasNotificationEndpoint
     HasFedPath,
     HasVersionRange,
     fedPath,
+    supportsNotificationVersion,
     versionRange,
   )
 where
@@ -90,3 +91,6 @@ instance {-# OVERLAPPABLE #-} (MkVersionRange mods) => MkVersionRange (m ': mods
 -- | The federation API version range this endpoint is supported in.
 versionRange :: forall t. (HasVersionRange t) => VersionRange
 versionRange = mkVersionRange @(NotificationMods t)
+
+supportsNotificationVersion :: forall t. (HasVersionRange t) => VersionInfo -> Bool
+supportsNotificationVersion = supportsVersionRange (versionRange @t)

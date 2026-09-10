@@ -18,6 +18,9 @@
 module Wire.ConversationSubsystem.Notify
   ( notifyConversationActionImpl,
     pushSystemEvent,
+    sendSystemMemberUpdate,
+    sendSystemDelete,
+    sendSystemAdminlessReminder,
   )
 where
 
@@ -34,8 +37,8 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
-import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley.Notifications
 import Wire.API.Federation.Error
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently)
 import Wire.ConversationSubsystem.Util
@@ -120,3 +123,42 @@ pushSystemEvent con event targets = do
           isCellsEvent = True
         }
     ]
+
+sendSystemMemberUpdate ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Set (Remote UserId) ->
+  SystemMemberUpdateNotification ->
+  Sem r ()
+sendSystemMemberUpdate targets n = void $
+  enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+    makeSystemMemberUpdateBundle
+      (SystemMemberUpdateNotification n.time n.conversation n.update (tUnqualified ruids))
+      >>= sendBundle
+
+sendSystemDelete ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Set (Remote UserId) ->
+  SystemDeleteNotification ->
+  Sem r ()
+sendSystemDelete targets n = void $
+  enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+    makeSystemDeleteBundle
+      (SystemDeleteNotification n.time n.conversation (tUnqualified ruids))
+      >>= sendBundle
+
+sendSystemAdminlessReminder ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Set (Remote UserId) ->
+  SystemAdminlessReminderNotification ->
+  Sem r ()
+sendSystemAdminlessReminder targets n = void $
+  enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+    makeSystemAdminlessReminderBundle
+      (SystemAdminlessReminderNotification n.time n.conversation n.reminder (tUnqualified ruids))
+      >>= sendBundle
