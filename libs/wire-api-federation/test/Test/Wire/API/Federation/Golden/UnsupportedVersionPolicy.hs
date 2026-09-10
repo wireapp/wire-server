@@ -19,8 +19,8 @@ module Test.Wire.API.Federation.Golden.UnsupportedVersionPolicy where
 
 import Wire.API.Federation.BackendNotifications (UnsupportedVersionPolicy (..))
 
-testObject_UnsupportedVersionPolicy_KeepQueued :: UnsupportedVersionPolicy
-testObject_UnsupportedVersionPolicy_KeepQueued = KeepQueued
+testObjectUnsupportedVersionPolicyKeepQueued :: UnsupportedVersionPolicy
+testObjectUnsupportedVersionPolicyKeepQueued = KeepQueued
 
-testObject_UnsupportedVersionPolicy_DropIfUnsupported :: UnsupportedVersionPolicy
-testObject_UnsupportedVersionPolicy_DropIfUnsupported = DropIfUnsupported
+testObjectUnsupportedVersionPolicyDropIfUnsupported :: UnsupportedVersionPolicy
+testObjectUnsupportedVersionPolicyDropIfUnsupported = DropIfUnsupported

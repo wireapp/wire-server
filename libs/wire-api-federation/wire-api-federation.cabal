@@ -135,10 +135,10 @@ test-suite spec
   -- cabal-fmt: expand test
   other-modules:
     Main
+    Test.Wire.API.Federation.API.BackendNotificationsSpec
     Test.Wire.API.Federation.API.BrigSpec
     Test.Wire.API.Federation.API.GalleySpec
     Test.Wire.API.Federation.API.Util
-    Test.Wire.API.Federation.BackendNotificationsSpec
     Test.Wire.API.Federation.Golden.ConversationCreated
     Test.Wire.API.Federation.Golden.ConversationUpdate
     Test.Wire.API.Federation.Golden.GetOne2OneConversationResponse

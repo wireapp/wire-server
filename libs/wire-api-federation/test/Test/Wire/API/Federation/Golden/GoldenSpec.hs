@@ -87,6 +87,6 @@ spec =
         (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseNotConnected, "testObject_GetOne2OneConversationResponseNotConnected.json")
       ]
     testObjects
-      [ (UnsupportedVersionPolicy.testObject_UnsupportedVersionPolicy_KeepQueued, "testObject_UnsupportedVersionPolicy_KeepQueued.json"),
-        (UnsupportedVersionPolicy.testObject_UnsupportedVersionPolicy_DropIfUnsupported, "testObject_UnsupportedVersionPolicy_DropIfUnsupported.json")
+      [ (UnsupportedVersionPolicy.testObjectUnsupportedVersionPolicyKeepQueued, "testObject_UnsupportedVersionPolicy_KeepQueued.json"),
+        (UnsupportedVersionPolicy.testObjectUnsupportedVersionPolicyDropIfUnsupported, "testObject_UnsupportedVersionPolicy_DropIfUnsupported.json")
       ]
