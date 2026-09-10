@@ -20,7 +20,7 @@ spec:
     - name: https
       port: 443
       protocol: HTTPS
-      hostname: "tr.hops.wire.link"
+      hostname: "*.hops.wire.link"
       tls:
         mode: Terminate
         certificateRefs:
@@ -30,6 +30,15 @@ spec:
       port: 443
       protocol: HTTPS
       hostname: "tr-secondary.hops.wire.link"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: "tr-certificate"
+            kind: Secret
+    - name: "backoffice"
+      port: 443
+      protocol: HTTPS
+      hostname: "admin.hops.wire.link"
       tls:
         mode: Terminate
         certificateRefs:

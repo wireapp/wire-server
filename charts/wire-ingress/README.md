@@ -90,6 +90,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.tls.ecdhCurves` | `[X25519, P-256, P-384]` | Names accepted by the deployed Envoy crypto library. Hybrid PQ is opt-in. |
 | `gateway.tls.signatureAlgorithms` | `[]` | Optional signature preferences; also affects federation client authentication. |
 | `gateway.patchPolicies.xdsNameSchemeV2` | `false` | Match the controller runtime flag when targeting the BSI listener patch. |
+| `gateway.extraHttpsListeners` | `[]` | Extra named HTTPS listeners on the same port, with `hostname` and optional `certificateSecretName`; useful for admin hostnames outside the API wildcard. Attach routes explicitly and issue a matching certificate. The BSI patch covers these listeners too. |
 | `tls.extraDnsNames` | `[]` | Additional certificate SANs for companion routes on this Gateway. |
 | `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |

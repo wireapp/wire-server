@@ -2,19 +2,24 @@
 
 The chart BSI flag is default-off. The local Terraform experiment lives in
 the sibling cailleach.tr-conformance checkout, with rollout instructions at
-targets/wire/galaxy/tls-profiles.md. Bella is not yet apply-ready: native
-TURN/DTLS, authenticated admin exposure and certificate-chain configuration
-remain unresolved. No Galaxy access/apply was performed.
+targets/wire/galaxy/tls-profiles.md. Bella/Chala are prepared for operator
+planning and staged application. Native TURN/DTLS is explicitly deferred;
+see cailleach.tr-conformance/coturn-todos.txt. Public admin auth is preserved,
+and Bella selects the new preferred-ECDSA-chain issuer. Real certificate and
+OAuth acceptance remains an operator post-apply check. No Galaxy access/apply
+was performed.
 
 ## Checks completed
 
-- Nine offline Helm regression tests in test_chart.py.
+- Ten offline Helm regression tests in test_chart.py.
+- Six companion-chart regression tests in test_companion_charts.py, including
+  admin auth, SFT profiles, and legacy/Envoy inbucket rendering.
 - Seven existing testssl parser regression tests.
-- Helm lint: wire-ingress and both Cailleach companion charts.
-- Both changed Terraform modules validate with the repository's Nix providers;
+- Helm lint: wire-ingress, SFT/auxiliary/admin companion charts, and inbucket.
+- Three changed Terraform modules validate with the repository's Nix providers;
   wire-server-with-bells retains two existing redundant ignore_changes warnings.
-- Hops server-side schema validation and an isolated two-listener Gateway.
-- Both actual Envoy filter chains contained FIPS_202205 (JSONPath wildcard).
+- Hops server-side schema validation and an isolated three-listener Gateway.
+- All three actual Envoy filter chains contained FIPS_202205 (JSONPath wildcard).
 - Chart BSI endpoint: 110/110 probes, results/chart-openssl.json.
 - The secondary SNI listener accepted TLS 1.3 AES-256-GCM/P-256 and rejected
   TLS 1.3 ChaCha20. This synthetic SNI reuses the primary certificate: the
@@ -23,11 +28,28 @@ remain unresolved. No Galaxy access/apply was performed.
   policy. See results/chart-patch-removal.txt for the initial tunnel failure.
 - Separate non-BSI chart profile negotiated both X25519MLKEM768 and X25519
   using verified TLS 1.3 connections: results/chart-pq.json.
+- Eleven live synthetic admin checks: OAuth allow/deny/outage, redirect
+  encoding, spoofed-header rejection, internal-path isolation, APR1 basic auth
+  and unknown hosts; results/admin-auth.txt. Also verified the admin route
+  through Envoy using TLS 1.3 AES-GCM/P-256. This does not test real Galaxy OAuth.
+- Rendered the targets' pinned published SFT chart 0.148.0: its route references
+  the dedicated Gateway, its certificate Secret is `sftd-<namespace>`, and its
+  issued leaf is ECDSA P-384. No SFT chart modification is needed.
+- After removing the temporary fixtures, the original public
+  `tr.hops.wire.link` endpoint passed another 110/110 probes against its sole
+  DNS address 46.225.37.184: results/public-handoff.json.
 
 These tests reuse the existing PoC certificate and hello Service, not a Wire
 installation. The two test Gateways use ClusterIP Services, so no additional
 public DNS entries or load balancers are needed. Evidence uses localhost
 addresses because tests ran through kubectl port-forward.
+Synthetic Gateways/routes must carry
+`external-dns.alpha.kubernetes.io/controller: ignored`; otherwise external-dns
+can advertise the test ClusterIP alongside the real public hostname. An initial
+fixture run exposed this; advertisements were removed and public DNS restored
+before saving the successful results.
+Temporary chart/PQ/admin/OAuth fixtures were removed after testing; they can be
+recreated from the saved manifests. The original public hello PoC remains live.
 
 ## Reproduce
 

@@ -102,6 +102,19 @@ class ChartProfiles(unittest.TestCase):
                                      "tls.privateKey.algorithm=RSA",
                                      "tls.privateKey.size=3072", success=False))
 
+    def test_admin_listener_keeps_shared_bsi_policy(self):
+        docs = render("BSI_TR_02102_2_conformance=true", "federator.enabled=true",
+                      "config.dns.federator=federator.example.com",
+                      "gateway.extraHttpsListeners[0].name=backoffice",
+                      "gateway.extraHttpsListeners[0].hostname=backoffice.ops.example.com")
+        listeners = resources(docs, "Gateway")[0]["spec"]["listeners"]
+        self.assertEqual([listener["name"] for listener in listeners],
+                         ["https", "federator", "backoffice"])
+        self.assertEqual(listeners[0]["tls"], listeners[2]["tls"])
+        patch = [p for p in resources(docs, "EnvoyPatchPolicy")
+                 if p["metadata"]["name"].endswith("-bsi")][0]
+        self.assertIn("filter_chains[*]", patch["spec"]["jsonPatches"][0]["operation"]["jsonPath"])
+
 
 if __name__ == "__main__":
     unittest.main()

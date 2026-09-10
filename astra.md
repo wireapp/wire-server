@@ -217,3 +217,59 @@ Three Helm charts lint successfully; seven testssl parser tests pass.
 Bella remains deliberately blocked for native TURN/DTLS and public admin
 authentication, with certificate-chain work also pending. No claim of
 all-public BSI conformance or successful Galaxy deployment is made.
+
+## Public admin migration and coturn source audit
+
+User chose to keep admin endpoints public and preserve authentication.
+Added an internal-only, pinned maintained nginx auth adapter behind Envoy:
+nginx auth_request preserves OAuth group checks/sign-in behavior, APR1 basic
+auth is retained, and no additional TLS terminator is introduced. Only admin
+routes incur the extra hop. Added a chart extra-HTTPS-listener facility for the
+backoffice hostname outside the ordinary wildcard, plus certificate SANs.
+
+The initial mixed auth results exposed external-dns publishing the synthetic
+chart Gateway's ClusterIP alongside tr.hops.wire.link. Removed the temporary
+route advertisements, annotated test Gateways/fixture routes to be ignored by
+external-dns, and confirmed the authoritative DNS record is restored to only
+46.225.37.184. Recursive caches still held the old address while tests ran;
+no claims of passing auth acceptance were made for those runs.
+
+Exact coturn 4.12.0-federation-wireapp.5 source commit
+8cab12e7f4b5be9fc5a85d0986fa1a019a7b52bc changes the earlier finding:
+ordinary cipher-list IS applied through SSL_CTX_set_ciphersuites as well as
+SSL_CTX_set_cipher_list. But federation.c replaces it with a hard-coded
+list containing non-allowlisted suites. Asked user whether to extend the
+source patch to coturn or explicitly exclude DTLS; the safeguard remains.
+
+Added an opt-in service-operator ACME ClusterIssuer variant using the existing
+DNS01 permissions and preferredChain ISRG Root X2, selected by Bella's public
+certificates. This does not change Chala or other existing issuers.
+
+## Coturn deferred; operator rollout handoff
+
+User explicitly deferred coturn instead of implementing the source patch.
+The fresh coturn branch remains clean. Wrote cailleach.tr-conformance/
+coturn-todos.txt with exact pinned-source findings and follow-up tests. Removed
+the coturn deployment blocker and restored its original certificate issuer;
+TURN stays enabled and unchanged. The calling flag now explicitly covers SFT
+HTTPS only, not native TURN/federation/media DTLS. No all-public conformance
+claim is made with this exception outstanding.
+
+Admin runtime tests now pass 11/11 on the final adapter deployment; its listener
+is the third TLS filter chain and receives the same BSI patch. The final chart
+endpoint passed 110/110 TLS probes. Ten Wire chart, six companion chart and
+seven scanner-parser tests pass. Updated the runbook with issuer prerequisites,
+staged Helm ownership migration, authentication acceptance, and correct Bella/
+Chala scan hostnames. Anta remains unchanged on nginx API ingress.
+
+Final checks: all three Terraform modules validate (only the two pre-existing
+ignore_changes warnings), five charts lint, and git diff --check is clean.
+Rendered the exact pinned published SFT 0.148.0 chart: ECDSA P-384 certificate,
+expected Secret name and correct dedicated-Gateway route reference. No SFT or
+wire-server chart source override is needed beyond local wire-ingress.
+Removed the temporary chart/PQ/admin/OAuth Hops fixtures; manifests and evidence
+remain on disk for recreation. Kept the public tr hello PoC and re-ran the
+external strict scan: 110/110 passed, sole DNS address 46.225.37.184, evidence
+results/public-handoff.json. No Galaxy plan/apply or Haskell/integration tests
+were run; no Haskell code changed. Removing only agent-generated temporary
+module provider lockfiles after validation; coturn worktree remains clean.

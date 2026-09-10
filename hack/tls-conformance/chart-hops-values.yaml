@@ -6,9 +6,12 @@ gateway:
   name: tr-chart
   className: envoy
   serviceType: ClusterIP
+  extraHttpsListeners:
+    - name: backoffice
+      hostname: admin.hops.wire.link
   listeners:
     https:
-      hostname: tr.hops.wire.link
+      hostname: "*.hops.wire.link"
 tls:
   useCertManager: true
   createIssuer: false
@@ -22,7 +25,7 @@ config:
   domains:
     - name: primary
       base: hops.wire.link
-      hostname: tr.hops.wire.link
+      hostname: "*.hops.wire.link"
       dns:
         https: tr.hops.wire.link
       tls:

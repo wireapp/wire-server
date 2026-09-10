@@ -1,7 +1,11 @@
 # Synthetic credentials ONLY; never use for a real installation.
 gatewayName: tr-chart
 replicas: 1
-routesEnabled: false
+certificate:
+  enabled: false
+routesEnabled: true
+httpRouteAnnotations:
+  external-dns.alpha.kubernetes.io/controller: ignored
 backoffice:
   enabled: true
   hostname: admin.hops.wire.link

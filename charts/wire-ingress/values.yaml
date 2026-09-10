@@ -89,7 +89,6 @@ gateway:
       # Optional hostname restriction for the HTTP listener. Set alongside
       # listeners.https.hostname when using mergeGateways.
       hostname: ""
-  # General-purpose TLS defaults, shared with the federation listener.
   # Extra HTTPS hosts (e.g. a differently named admin domain). An empty
   # certificateSecretName reuses the main certificate; add the SAN explicitly.
   extraHttpsListeners: []
