@@ -27,6 +27,7 @@ mkDerivation {
     aeson-pretty
     bytestring
     containers
+    filepath
     imports
     text
     vector
@@ -34,7 +35,6 @@ mkDerivation {
   executableHaskellDepends = [
     base
     containers
-    filepath
     imports
     optparse-applicative
     text

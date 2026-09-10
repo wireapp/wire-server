@@ -19,6 +19,7 @@ flag static
 
 library
   exposed-modules:
+    LintOpenAPI.Baseline
     LintOpenAPI.Compare
     LintOpenAPI.Ignore
     LintOpenAPI.Normalize
@@ -79,6 +80,7 @@ library
     , aeson-pretty
     , bytestring
     , containers
+    , filepath
     , imports
     , text
     , vector
@@ -139,7 +141,6 @@ executable lint-openapi-regression
   build-depends:
       base
     , containers
-    , filepath
     , imports
     , lint-openapi-regression
     , optparse-applicative
@@ -154,6 +155,7 @@ test-suite lint-openapi-regression-tests
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs
   other-modules:
+    LintOpenAPI.BaselineSpec
     LintOpenAPI.CompareSpec
     LintOpenAPI.IgnoreSpec
     LintOpenAPI.NormalizeSpec

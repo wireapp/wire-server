@@ -47,8 +47,8 @@ lint-openapi-regression [OPTIONS] INPUT_FILE
 | Flag               | Default                | Description                                          |
 |--------------------|------------------------|------------------------------------------------------|
 | `--baseline-dir`   | `services/brig/docs`   | Directory containing baseline `swagger-v*.json` files |
-| `--ignore FILE`    | (none)                 | Path to a JSON ignore file                           |
 | `--update`         | off                    | Update the ignore file with new breaking changes     |
+| `--api-version N`  | (none)                 | Compare only against the saved baseline of this version instead of all baselines |
 
 ### Examples
 
@@ -76,13 +76,26 @@ Auto-update the ignore file with any new violations found:
 lint-openapi-regression --ignore .lint-ignore.json --update services/brig/docs/swagger.json
 ```
 
+Fetch the OpenAPI served for a specific version from a running brig and compare
+it against the saved baseline of that same version (frozen-version drift check;
+via `make openapi-lint-regression`):
+
+```bash
+make openapi-lint-regression VERSION=16
+```
+
+Note: `.lint-ignore.json`-style ignore files are keyed by baseline version and
+record intentional changes *since* each version, so combining `--api-version`
+with such a file masks frozen-version drift. Use a separate ignore file if you
+need to suppress known drift.
+
 ## Exit codes
 
 | Code | Meaning                                    |
 |------|--------------------------------------------|
 | 0    | No breaking changes (or all are ignored)   |
 | 1    | Breaking changes detected                  |
-| 2    | Input error (file not found, parse failure)|
+| 2    | Input error (file not found, parse failure, version mismatch, missing baseline) |
 
 ## Ignore file format
 
