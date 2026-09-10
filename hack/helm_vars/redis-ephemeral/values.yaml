@@ -1,0 +1,44 @@
+redis-ephemeral:
+  redisConfig: |
+    requirepass very-secure-redis-master-password
+
+    # ephemeral
+    save ""
+
+    port 0
+    tls-port 6379
+    tls-cert-file /data/ssl/tls.crt
+    tls-key-file /data/ssl/tls.key
+    tls-ca-cert-file /data/ssl/ca.crt
+    tls-auth-clients no
+
+  extraRedisSecrets:
+    - name: redis-certificate
+      mountPath: /data/ssl
+
+  # The chart's built-in probes speak plaintext redis, which the TLS-only
+  # config above rejects. Replace them with redis-cli over TLS.
+  livenessProbe:
+    enabled: false
+  customLivenessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+  readinessProbe:
+    enabled: false
+  customReadinessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+  startupProbe:
+    enabled: false
+  customStartupProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping

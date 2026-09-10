@@ -41,7 +41,7 @@ data:
 
     # a "redis migration" test in gundeck makes use of a second (distinct) redis
     redis2:
-      host: redis-ephemeral-2-master
+      host: redis-ephemeral-2
       port: 6379
       connectionMode: master
       enableTls: false
