@@ -36,6 +36,7 @@ import Network.AMQP qualified as Q
 import Network.AMQP.Types qualified as Q
 import Servant
 import Servant.Client.Core
+import Test.QuickCheck (Arbitrary (arbitrary), elements)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
@@ -80,6 +81,9 @@ data UnsupportedVersionPolicy
   | DropIfUnsupported
   deriving stock (Eq, Show)
   deriving (A.ToJSON, A.FromJSON) via (Schema UnsupportedVersionPolicy)
+
+instance Arbitrary UnsupportedVersionPolicy where
+  arbitrary = elements [KeepQueued, DropIfUnsupported]
 
 instance ToSchema UnsupportedVersionPolicy where
   schema =

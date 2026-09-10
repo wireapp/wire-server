@@ -138,6 +138,7 @@ test-suite spec
     Test.Wire.API.Federation.API.BrigSpec
     Test.Wire.API.Federation.API.GalleySpec
     Test.Wire.API.Federation.API.Util
+    Test.Wire.API.Federation.BackendNotificationsSpec
     Test.Wire.API.Federation.Golden.ConversationCreated
     Test.Wire.API.Federation.Golden.ConversationUpdate
     Test.Wire.API.Federation.Golden.GetOne2OneConversationResponse
@@ -149,6 +150,7 @@ test-suite spec
     Test.Wire.API.Federation.Golden.NewConnectionRequest
     Test.Wire.API.Federation.Golden.NewConnectionResponse
     Test.Wire.API.Federation.Golden.Runner
+    Test.Wire.API.Federation.Golden.UnsupportedVersionPolicy
 
   hs-source-dirs:     test
   default-extensions:
