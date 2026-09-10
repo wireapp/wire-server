@@ -30,13 +30,10 @@ spec:
         fluentbit.io/parser: json
     spec:
       serviceAccountName: {{ .Values.brig.serviceAccount.name }}
+      {{- with .Values.brig.topologySpreadConstraints }}
       topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: "kubernetes.io/hostname"
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: brig
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: "brig-config"
           configMap:

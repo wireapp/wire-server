@@ -28,13 +28,10 @@ spec:
         checksum/secret: {{ include (print .Template.BasePath "/cargohold/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ .Values.cargohold.serviceAccount.name }}
+      {{- with .Values.cargohold.topologySpreadConstraints }}
       topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: "kubernetes.io/hostname"
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: cargohold
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: "cargohold-config"
           configMap:

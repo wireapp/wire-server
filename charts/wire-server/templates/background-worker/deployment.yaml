@@ -33,6 +33,10 @@ spec:
         fluentbit.io/parser: json
     spec:
       terminationGracePeriodSeconds: {{ $backgroundWorker.terminationGracePeriodSeconds }}
+      {{- with $backgroundWorker.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccount: null
       serviceAccountName: null
       automountServiceAccountToken: false

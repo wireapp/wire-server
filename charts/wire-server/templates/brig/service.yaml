@@ -14,6 +14,12 @@ metadata:
     service.kubernetes.io/topology-aware-hints: auto
     {{- end }}
 spec:
+  {{- with (default dict .Values.global).trafficDistribution }}
+  {{- if not (semverCompare ">= 1.31-0" (include "kubeVersion" $)) }}
+  {{- fail "global.trafficDistribution requires Kubernetes >= 1.31 (beta) or >= 1.33 (GA); unset it or upgrade the cluster" }}
+  {{- end }}
+  trafficDistribution: {{ . }}
+  {{- end }}
   type: ClusterIP
   ports:
     - name: http

@@ -1,0 +1,26 @@
+All stateless components (brig, galley, gundeck, cargohold, spar, cannon,
+background-worker, proxy, federator) now spread their pods across availability
+zones as well as nodes, matching what nginz already did. The constraints are
+soft (`ScheduleAnyway`), so single-zone clusters and clusters whose nodes carry
+no `topology.kubernetes.io/zone` label are unaffected. Each component's
+`topologySpreadConstraints` value can be overridden, or set to `[]` to opt out.
+
+Even zone spread is a prerequisite for zone-aware routing: with the
+`service.kubernetes.io/topology-mode: Auto` annotation these charts already set,
+Kubernetes publishes no topology hints at all -- silently routing across every
+zone -- unless endpoints are distributed in proportion to each zone's
+allocatable CPU. Relying on the scheduler to land on that distribution by
+itself meant one unlucky rollout or drained node could take hints away from a
+whole Service, with nothing to alert on it; on cloud providers that bill
+cross-AZ traffic in both directions, that shows up on the bill.
+
+Additionally, a new opt-in `global.trafficDistribution` value (empty by
+default) sets `spec.trafficDistribution` on the Services of the `wire-server`
+chart and its `nginz`, `proxy` and `federator` subcharts -- one switch for the
+whole release. Set it to `PreferClose` to have kube-proxy prefer same-zone
+endpoints; it supersedes the `topology-mode: Auto` annotation and is more
+predictable, because it decides per endpoint instead of refusing to emit hints
+at all. Requires Kubernetes >= 1.31 (beta) or >= 1.33 (GA); enabling it on an
+older cluster fails at template time rather than silently doing nothing. Only
+enable it once every component is spread across zones, since it has no
+per-zone capacity heuristic.

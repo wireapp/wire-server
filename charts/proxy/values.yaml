@@ -1,4 +1,33 @@
+# NOTE: zone-aware Service routing is configured once for the whole release via
+# `global.trafficDistribution` in the wire-server chart's values.yaml.
 replicaCount: 3
+# Spread pods over availability zones as well as nodes.
+#
+# The zone constraint keeps an endpoint of this component in every zone, which
+# both survives the loss of a zone and lets Kubernetes' zone-aware routing
+# (`service.kubernetes.io/topology-mode: Auto` on the Service, or
+# `global.trafficDistribution`) actually keep traffic in-zone. With
+# `topology-mode: Auto` the EndpointSlice controller publishes no hints at all
+# -- silently routing across every zone -- unless endpoints are distributed in
+# proportion to each zone's allocatable CPU, so a lopsided rollout quietly
+# turns into cross-AZ traffic, which cloud providers bill in both directions.
+#
+# Both constraints are soft (ScheduleAnyway) so that single-zone clusters, and
+# clusters whose nodes carry no `topology.kubernetes.io/zone` label at all,
+# keep scheduling normally. Set to [] to opt out entirely.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: "topology.kubernetes.io/zone"
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: proxy
+  - maxSkew: 1
+    topologyKey: "kubernetes.io/hostname"
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: proxy
 image:
   repository: quay.io/wire/proxy
   tag: do-not-use

@@ -35,13 +35,10 @@ spec:
         checksum/cassandra-secret: {{ include (print .Template.BasePath "/cannon/cassandra-secret.yaml") . | sha256sum }}
     spec:
       terminationGracePeriodSeconds: {{ add .Values.cannon.config.drainOpts.gracePeriodSeconds 5 }}
+      {{- with .Values.cannon.topologySpreadConstraints }}
       topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: "kubernetes.io/hostname"
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: cannon
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       {{- if .Values.cannon.service.nginz.enabled }}
       - name: nginz

@@ -1,3 +1,5 @@
+# NOTE: zone-aware Service routing is configured once for the whole release via
+# `global.trafficDistribution` in the wire-server chart's values.yaml.
 replicaCount: 3
 resources:
   requests:
@@ -20,6 +22,11 @@ config:
     wsPort: 8081
     useProxyProtocol: true
 terminationGracePeriodSeconds: 90
+# Spread pods over availability zones as well as nodes; keeping an endpoint in
+# every zone is what lets Kubernetes' zone-aware routing keep traffic (and the
+# cross-AZ bill that goes with it) inside a zone. Soft (ScheduleAnyway) so
+# single-zone and bare-metal clusters keep scheduling normally.
+# Set to [] to opt out entirely.
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: "topology.kubernetes.io/zone"

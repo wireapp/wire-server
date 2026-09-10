@@ -29,13 +29,10 @@ spec:
     spec:
       terminationGracePeriodSeconds: {{ .Values.gundeck.terminationGracePeriodSeconds }}
       serviceAccountName: {{ .Values.gundeck.serviceAccount.name }}
+      {{- with .Values.gundeck.topologySpreadConstraints }}
       topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: "kubernetes.io/hostname"
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: gundeck
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: "gundeck-config"
           configMap:

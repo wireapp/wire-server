@@ -26,13 +26,10 @@ spec:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
         checksum/configmap: {{ include (print .Template.BasePath "/spar/configmap.yaml") . | sha256sum }}
     spec:
+      {{- with .Values.spar.topologySpreadConstraints }}
       topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: "kubernetes.io/hostname"
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: spar
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: "spar-config"
           configMap:

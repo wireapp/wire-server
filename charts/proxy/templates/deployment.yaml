@@ -27,13 +27,10 @@ spec:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: "kubernetes.io/hostname"
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: proxy
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: "proxy-config"
           configMap:

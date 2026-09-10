@@ -5,6 +5,31 @@
 # tags:
 #   services: true
 
+# Values shared with every subchart (nginz, proxy, federator, ...).
+global:
+  # Zone-aware routing for all wire-server Services (opt-in, empty = off).
+  #
+  # Set to "PreferClose" to have kube-proxy prefer endpoints in the client's own
+  # availability zone. One switch here covers the whole release, including the
+  # nginz, proxy and federator subcharts.
+  #
+  # This supersedes the `service.kubernetes.io/topology-mode: Auto` annotation
+  # the Service templates already carry, and is more predictable: `Auto` refuses
+  # to publish any topology hints -- silently routing across every zone --
+  # unless endpoints happen to be spread in proportion to each zone's
+  # allocatable CPU, whereas `trafficDistribution` decides per endpoint and
+  # falls back to other zones only when the local one has none.
+  #
+  # Requires Kubernetes >= 1.31 (beta, on by default) or >= 1.33 (GA); setting
+  # it on anything older fails at template time rather than silently doing
+  # nothing. "PreferSameZone" is an alias for "PreferClose" from 1.33 onwards.
+  #
+  # Before enabling, make sure every component is actually spread across zones
+  # (see topologySpreadConstraints): trafficDistribution has no per-zone
+  # capacity heuristic, so a zone holding a single endpoint will receive that
+  # zone's entire share of traffic.
+  trafficDistribution: ""
+
 tags:
   legalhold: false
   federation: false
@@ -15,6 +40,33 @@ tags:
 
 galley:
   replicaCount: 3
+  # Spread pods over availability zones as well as nodes.
+  #
+  # The zone constraint keeps an endpoint of this component in every zone, which
+  # both survives the loss of a zone and lets Kubernetes' zone-aware routing
+  # (`service.kubernetes.io/topology-mode: Auto` on the Service, or
+  # `global.trafficDistribution`) actually keep traffic in-zone. With
+  # `topology-mode: Auto` the EndpointSlice controller publishes no hints at all
+  # -- silently routing across every zone -- unless endpoints are distributed in
+  # proportion to each zone's allocatable CPU, so a lopsided rollout quietly
+  # turns into cross-AZ traffic, which cloud providers bill in both directions.
+  #
+  # Both constraints are soft (ScheduleAnyway) so that single-zone clusters, and
+  # clusters whose nodes carry no `topology.kubernetes.io/zone` label at all,
+  # keep scheduling normally. Set to [] to opt out entirely.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: galley
+    - maxSkew: 1
+      topologyKey: "kubernetes.io/hostname"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: galley
   image:
     repository: quay.io/wire/galley
     tag: do-not-use
@@ -444,6 +496,20 @@ galley:
 
 cargohold:
   replicaCount: 3
+  # See the comment on galley.topologySpreadConstraints.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: cargohold
+    - maxSkew: 1
+      topologyKey: "kubernetes.io/hostname"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: cargohold
   image:
     repository: quay.io/wire/cargohold
     tag: do-not-use
@@ -508,6 +574,20 @@ cargohold:
 
 cannon:
   replicaCount: 3
+  # See the comment on galley.topologySpreadConstraints.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: cannon
+    - maxSkew: 1
+      topologyKey: "kubernetes.io/hostname"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: cannon
   image:
     repository: quay.io/wire/cannon
     tag: do-not-use
@@ -706,6 +786,20 @@ cannon:
 
 gundeck:
   replicaCount: 3
+  # See the comment on galley.topologySpreadConstraints.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: gundeck
+    - maxSkew: 1
+      topologyKey: "kubernetes.io/hostname"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: gundeck
   image:
     repository: quay.io/wire/gundeck
     tag: do-not-use
@@ -815,6 +909,20 @@ gundeck:
 
 spar:
   replicaCount: 3
+  # See the comment on galley.topologySpreadConstraints.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: spar
+    - maxSkew: 1
+      topologyKey: "kubernetes.io/hostname"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: spar
   image:
     repository: quay.io/wire/spar
     tag: do-not-use
@@ -930,6 +1038,20 @@ spar:
 
 background-worker:
   replicaCount: 1
+  # See the comment on galley.topologySpreadConstraints.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: background-worker
+    - maxSkew: 1
+      topologyKey: "kubernetes.io/hostname"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: background-worker
   # Must exceed jobs.gracefulShutdownTimeout so Kubernetes does not
   # force-kill the worker before it can finish shutting down.
   terminationGracePeriodSeconds: 40
@@ -1075,6 +1197,20 @@ background-worker:
 
 brig:
   replicaCount: 3
+  # See the comment on galley.topologySpreadConstraints.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: brig
+    - maxSkew: 1
+      topologyKey: "kubernetes.io/hostname"
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: brig
   image:
     repository: quay.io/wire/brig
     tag: do-not-use
