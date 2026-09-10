@@ -355,7 +355,7 @@ Gateway the equivalent knobs live in `gateway.tls` and are rendered into
 |---|---|
 | `ssl-protocols: "TLSv1.2 TLSv1.3"` | `gateway.tls.minVersion` / `gateway.tls.maxVersion` |
 | `ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"` | `gateway.tls.ciphers` (same two suites) |
-| `server-snippet: ssl_conf_command Ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384` | **no equivalent** — see the caveat below |
+| `server-snippet: ssl_conf_command Ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384` | Stock Envoy's `FIPS_202205` compliance policy via an `EnvoyPatchPolicy` — see below |
 | _(not restricted in nginx)_ | `gateway.tls.ecdhCurves`, `gateway.tls.signatureAlgorithms` |
 
 The defaults come from these tables of TR-02102-2 (2026 edition):
@@ -369,43 +369,33 @@ The defaults come from these tables of TR-02102-2 (2026 edition):
   until the end of 2025. `values.yaml` contains the conformant list to opt into;
   make sure it covers your certificate's key type before enabling it.
 
-#### Caveat: TLS 1.3 cipher suites cannot be restricted
+#### Restricting TLS 1.3 to the BSI AES-GCM subset
 
 `gateway.tls.ciphers` maps onto Envoy's
 [`TlsParameters.cipher_suites`](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#extensions-transport-sockets-tls-v3-tlsparameters),
-which — like OpenSSL's `ssl_ciphers` — "has no effect when negotiating TLS 1.3".
-Unlike nginx, Envoy exposes no counterpart to `ssl_conf_command Ciphersuites`:
-it only ever calls `SSL_CTX_set_strict_cipher_list`, never BoringSSL's
-`SSL_CTX_set_ciphersuites`, so the TLS 1.3 suite list is whatever the linked
-BoringSSL offers. Envoy therefore also offers `TLS_CHACHA20_POLY1305_SHA256`
-alongside `TLS_AES_128_GCM_SHA256` and `TLS_AES_256_GCM_SHA384` (the two on
-TR-02102-2 Table 13). Upstream issue
-[envoyproxy/envoy#19548](https://github.com/envoyproxy/envoy/issues/19548) asks
-for exactly this and went stale without a resolution.
+which has no effect on TLS 1.3. The chart defaults therefore still allow
+`TLS_CHACHA20_POLY1305_SHA256` and are not a strict BSI cipher profile.
 
-A BoringSSL **FIPS** build does *not* help here, despite what the FIPS-specific
-defaults suggest: `DEFAULT_CIPHER_SUITES_FIPS` and `DEFAULT_CURVES_FIPS` in
-Envoy only change the TLS 1.2 cipher list and the curve list, and BoringSSL's
-SSL layer has no FIPS conditional around the TLS 1.3 suite table. ChaCha20
-remains on offer.
+However, stock Envoy 1.38.3 exposes
+`TlsParameters.compliance_policies: [FIPS_202205]`. Applied through an
+`EnvoyPatchPolicy`, this restricts TLS 1.3 to the two AES-GCM suites, TLS 1.2
+to four ECDHE AES-GCM suites, and key exchange to P-256/P-384. This has been
+tested on the ordinary BoringSSL image; a custom or FIPS build is unnecessary
+for this cipher restriction. The policy name does not establish certification.
 
-That leaves two real options:
+The policy overrides ordinary TLS settings, including the protocol range:
+it enables TLS 1.2–1.3, even if minVersion/maxVersion say otherwise. Use an
+explicit AES-GCM-only TLS 1.2 baseline with `maxVersion: "1.2"`, so a missing
+patch cannot expose unrestricted TLS 1.3. Apply the patch to every TLS filter
+chain, including federation and additional domains, and check its Programmed
+status and actual wire behavior after upgrades. The policy also overrides
+signature preferences and prevents enabling PQ through `ecdhCurves` alone.
 
-1. **Accept it and document the deviation.** ChaCha20-Poly1305 is not broken or
-   deprecated; it is simply absent from the BSI recommendation. This is the
-   default, and the recommended choice.
-2. **Disable TLS 1.3** with `gateway.tls.maxVersion: "1.2"`. Fully conformant on
-   the cipher list, but gives up TLS 1.3 — which TR-02102-2 itself says "should
-   be used in preference" — and forecloses post-quantum key agreement, which
-   exists only in TLS 1.3. Not recommended.
-
-Closing the gap properly would mean patching BoringSSL's cipher table or
-teaching Envoy to call `SSL_CTX_set_ciphersuites`, and running a self-built
-proxy image via
-`gateway.envoyProxy.spec.provider.kubernetes.envoyDeployment.container.image`
-(set `gateway.manageServiceType: false` when doing so — it overwrites the whole
-`provider` block). That means owning a fork of Envoy's TLS stack and a Bazel
-build across every Envoy Gateway bump; it is not worth it for this one suite.
+See the [deployed proof of concept and repeatable tests](../../hack/tls-conformance/README.md)
+for manifests, the verified patch-removal behavior, alternative implementations
+and the PQ migration tradeoffs. This chart does not install that patch by
+default. Full BSI assessment extends beyond the cipher list to certificates,
+client authentication and other cryptographic/deployment requirements.
 
 ### Post-quantum key agreement
 

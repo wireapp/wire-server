@@ -1,0 +1,256 @@
+# Uses the cluster's existing Envoy Gateway, cert-manager and external-dns.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: joe-test
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: tr-letsencrypt
+  namespace: joe-test
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Avoid the RSA PKCS#1 v1.5 cross-signature in the default X1 chain.
+    preferredChain: ISRG Root X2
+    privateKeySecretRef:
+      name: tr-letsencrypt-account
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: tr
+                namespace: joe-test
+                kind: Gateway
+                sectionName: http
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tr-certificate
+  namespace: joe-test
+spec:
+  secretName: tr-certificate
+  dnsNames:
+    - tr.hops.wire.link
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always
+  issuerRef:
+    name: tr-letsencrypt
+    kind: Issuer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tr-hello
+  namespace: joe-test
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en"><meta charset="utf-8"><title>Wire TLS proof of concept</title>
+    <h1>Wire TLS proof of concept</h1>
+    <p>This static page is served through Envoy Gateway.</p>
+    <p>Deployment: joe-test / tr. BSI TR-02102-2 (2026) cipher allowlist experiment.</p>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tr-hello
+  namespace: joe-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tr-hello
+  template:
+    metadata:
+      labels:
+        app: tr-hello
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: http
+          image: busybox:1.37.0
+          command: [httpd, -f, -p, "8080", -h, /www]
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          volumeMounts:
+            - name: page
+              mountPath: /www
+              readOnly: true
+      volumes:
+        - name: page
+          configMap:
+            name: tr-hello
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tr-hello
+  namespace: joe-test
+spec:
+  selector:
+    app: tr-hello
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: tr
+  namespace: joe-test
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: LoadBalancer
+        annotations:
+          load-balancer.hetzner.cloud/name: joe-test-tr
+          load-balancer.hetzner.cloud/location: nbg1
+          load-balancer.hetzner.cloud/ipv6-disabled: "true"
+          load-balancer.hetzner.cloud/disable-private-ingress: "true"
+          load-balancer.hetzner.cloud/use-private-ip: "true"
+          load-balancer.hetzner.cloud/uses-proxyprotocol: "false"
+  telemetry:
+    accessLog:
+      disable: true
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: tr
+  namespace: joe-test
+spec:
+  gatewayClassName: envoy
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: tr
+  listeners:
+    - name: https
+      hostname: tr.hops.wire.link
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: tr-certificate
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: http
+      hostname: tr.hops.wire.link
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: tr
+  namespace: joe-test
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: tr
+      sectionName: https
+  tls:
+    # Safe baseline if the patch is absent/broken: only allowlisted TLS 1.2.
+    # FIPS_202205 is applied last and enables TLS 1.3 with AES-GCM only.
+    minVersion: "1.2"
+    maxVersion: "1.2"
+    ciphers:
+      - ECDHE-ECDSA-AES128-GCM-SHA256
+      - ECDHE-ECDSA-AES256-GCM-SHA384
+      - ECDHE-RSA-AES128-GCM-SHA256
+      - ECDHE-RSA-AES256-GCM-SHA384
+    ecdhCurves: [P-256, P-384]
+    alpnProtocols: [h2, http/1.1]
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: tr-bsi-ciphers
+  namespace: joe-test
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: tr
+  type: JSONPatch
+  jsonPatches:
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: joe-test/tr/https
+      operation:
+        op: add
+        path: /filter_chains/0/transport_socket/typed_config/common_tls_context/tls_params/compliance_policies
+        value: [FIPS_202205]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tr-hello
+  namespace: joe-test
+spec:
+  parentRefs:
+    - name: tr
+      sectionName: https
+  hostnames: [tr.hops.wire.link]
+  rules:
+    - backendRefs:
+        - name: tr-hello
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tr-redirect
+  namespace: joe-test
+spec:
+  parentRefs:
+    - name: tr
+      sectionName: http
+  hostnames: [tr.hops.wire.link]
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

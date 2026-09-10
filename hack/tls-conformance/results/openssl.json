@@ -1,0 +1,893 @@
+{
+  "timestamp": "2026-09-10T10:43:56.617439+00:00",
+  "host": "tr.hops.wire.link",
+  "addresses": [
+    "46.225.37.184"
+  ],
+  "openssl": "OpenSSL 3.6.2 7 Apr 2026 (Library: OpenSSL 3.6.2 7 Apr 2026)",
+  "tls12_client_cipher_count": 89,
+  "passed": true,
+  "scope": "Exact AES-GCM profile, OpenSSL-supported ciphers and served ECDSA certificate chain; complement with testssl.sh. Not a full BSI certification.",
+  "results": [
+    {
+      "address": "46.225.37.184",
+      "test": "served certificate chain uses BSI-listed ECDSA signatures and curves",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "certificate 0: signatures=['ecdsa-with-SHA384'], curve=secp384r1\ncertificate 1: signatures=['ecdsa-with-SHA384'], curve=secp384r1\ncertificate 2: signatures=['ecdsa-with-SHA384'], curve=secp384r1"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 TLS_AES_128_GCM_SHA256",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "Connecting to 46.225.37.184\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_128_GCM_SHA256\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA384\nSignature type: ecdsa_secp384r1_sha384\nVerification: OK\nVerified peername: tr.hops.wire.link\nPeer Temp Key: ECDH, prime256v1, 256 bits\nDONE"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 TLS_AES_256_GCM_SHA384",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "Connecting to 46.225.37.184\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_256_GCM_SHA384\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA384\nSignature type: ecdsa_secp384r1_sha384\nVerification: OK\nVerified peername: tr.hops.wire.link\nPeer Temp Key: ECDH, prime256v1, 256 bits\nDONE"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 rejects TLS_AES_128_CCM_8_SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8007E37EC67F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8007E37EC67F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 rejects TLS_AES_128_CCM_SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7E8FD487F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7E8FD487F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 rejects TLS_CHACHA20_POLY1305_SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B791A4A97F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B791A4A97F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES256-GCM-SHA384",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "Connecting to 46.225.37.184\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.2\nCiphersuite: ECDHE-ECDSA-AES256-GCM-SHA384\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA256\nSignature type: ecdsa_secp256r1_sha256\nVerification: OK\nVerified peername: tr.hops.wire.link\nSupported Elliptic Curve Point Formats: uncompressed\nPeer Temp Key: ECDH, prime256v1, 256 bits\nDONE"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-AES256-GCM-SHA384",
+      "expected": "optional",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8047AC72337F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8047AC72337F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-AES256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8017E3BC8B7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8017E3BC8B7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80177E2C5E7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80177E2C5E7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-CHACHA20-POLY1305",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A733CB317F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A733CB317F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-CHACHA20-POLY1305",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80377BCC7A7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80377BCC7A7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-CHACHA20-POLY1305",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80674A15407F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80674A15407F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES256-CCM",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n809797B2587F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n809797B2587F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES256-CCM",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8017AF827F7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8017AF827F7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-ARIA256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80274D49DF7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80274D49DF7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ARIA256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8097ABEDA27F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8097ABEDA27F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-ARIA256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80E72C96AC7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80E72C96AC7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-ARIA256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80C79A7EAF7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80C79A7EAF7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-AES256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8087AE09257F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8087AE09257F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES128-GCM-SHA256",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "Connecting to 46.225.37.184\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.2\nCiphersuite: ECDHE-ECDSA-AES128-GCM-SHA256\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA256\nSignature type: ecdsa_secp256r1_sha256\nVerification: OK\nVerified peername: tr.hops.wire.link\nSupported Elliptic Curve Point Formats: uncompressed\nPeer Temp Key: ECDH, prime256v1, 256 bits\nDONE"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-AES128-GCM-SHA256",
+      "expected": "optional",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80470CC4207F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80470CC4207F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-AES128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n803726C35E7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n803726C35E7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80377F2A5A7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80377F2A5A7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES128-CCM",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80979C7AED7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80979C7AED7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES128-CCM",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8017E7DC1C7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8017E7DC1C7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-ARIA128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n802768B0F07F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n802768B0F07F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ARIA128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80173B13197F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80173B13197F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-ARIA128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80279E98887F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80279E98887F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-ARIA128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80D73F98EE7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80D73F98EE7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-AES128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n809720F5D07F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n809720F5D07F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES256-CCM8",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8057E5CB1B7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8057E5CB1B7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES128-CCM8",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80974AE3257F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80974AE3257F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES256-CCM8",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80173211977F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80173211977F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES128-CCM8",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7F3E23C7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7F3E23C7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES256-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80271598867F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80271598867F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-AES256-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80F78417487F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80F78417487F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7A93FE47F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7A93FE47F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-AES256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80078A8F0F7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80078A8F0F7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-CAMELLIA256-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80971524877F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80971524877F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-CAMELLIA256-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80570FDDEA7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80570FDDEA7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-CAMELLIA256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80E7CDF8B57F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80E7CDF8B57F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-CAMELLIA256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8017CE97947F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8017CE97947F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-AES256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7E5C3CD7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7E5C3CD7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-CAMELLIA256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n809799CE607F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n809799CE607F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8047AC4DC37F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8047AC4DC37F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-AES128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80273E2B207F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80273E2B207F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8037AAEA6E7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8037AAEA6E7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-AES128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n800747321A7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n800747321A7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-CAMELLIA128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80F7F34E247F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80F7F34E247F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-CAMELLIA128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80E751D6E87F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80E751D6E87F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-CAMELLIA128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7C6A49A7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7C6A49A7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-CAMELLIA128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80379FE0487F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80379FE0487F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-AES128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n804710D0237F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n804710D0237F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-CAMELLIA128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n801772E5A07F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n801772E5A07F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8057DB4A7D7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8057DB4A7D7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-AES256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B74D41827F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B74D41827F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80978FECD07F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80978FECD07F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-AES256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80478C124B7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80478C124B7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-CAMELLIA256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B772409E7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B772409E7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-CAMELLIA256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80F7F65BA87F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80F7F65BA87F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AECDH-AES256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80774E77797F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80774E77797F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-AES256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8027816BE47F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8027816BE47F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-CAMELLIA256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8067B5118D7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8067B5118D7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-AES128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B7F958C17F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B7F958C17F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-AES128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80272DD1A77F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80272DD1A77F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-AES128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B7FE0A327F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B7FE0A327F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-AES128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B7DF05537F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B7DF05537F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-RSA-CAMELLIA128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n805716C99F7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n805716C99F7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 DHE-DSS-CAMELLIA128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8077869D177F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8077869D177F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AECDH-AES128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8007CAC9457F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8007CAC9457F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-AES128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8067BF58C27F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8067BF58C27F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ADH-CAMELLIA128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80979900BA7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80979900BA7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8067A3A75C7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8067A3A75C7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES256-CCM",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7D293F77F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7D293F77F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ARIA256-GCM-SHA384",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n805704F7C27F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n805704F7C27F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8007D90E3A7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8007D90E3A7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES128-CCM",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80377FDF557F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80377FDF557F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ARIA128-GCM-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8097E58E5D7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8097E58E5D7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES256-CCM8",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80D743FBD77F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80D743FBD77F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES128-CCM8",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80F71924BC7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80F71924BC7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80C76169A47F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80C76169A47F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 CAMELLIA256-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7BFB0297F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7BFB0297F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A7AF093F7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80A7AF093F7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 CAMELLIA128-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80673F09E07F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80673F09E07F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80D791F9717F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80D791F9717F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 CAMELLIA256-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80C7E424517F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80C7E424517F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AES128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80D7AD42627F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80D7AD42627F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 CAMELLIA128-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B72F8C877F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B72F8C877F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-ECDSA-NULL-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8077AD5FCD7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8077AD5FCD7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 ECDHE-RSA-NULL-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80D703684B7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80D703684B7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 AECDH-NULL-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8017CEEA887F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8017CEEA887F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 NULL-SHA256",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8057C487EB7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8057C487EB7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 NULL-SHA",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80274434597F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80274434597F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.2 NULL-MD5",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8087BF10147F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8087BF10147F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 group P-256",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "Connecting to 46.225.37.184\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_256_GCM_SHA384\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA384\nSignature type: ecdsa_secp384r1_sha384\nVerification: OK\nVerified peername: tr.hops.wire.link\nPeer Temp Key: ECDH, prime256v1, 256 bits\nDONE"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 group P-384",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "Connecting to 46.225.37.184\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_256_GCM_SHA384\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA384\nSignature type: ecdsa_secp384r1_sha384\nVerification: OK\nVerified peername: tr.hops.wire.link\nPeer Temp Key: ECDH, secp384r1, 384 bits\nDONE"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 group X25519",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8017C760107F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n8017C760107F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 group P-521",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80277D3D187F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80277D3D187F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 group X25519MLKEM768",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B7EB7ACA7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B7EB7ACA7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 group SecP256r1MLKEM768",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80B7D507087F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80B7D507087F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "TLS1.3 group SecP384r1MLKEM1024",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80278CF1837F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80278CF1837F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "rejects -tls1",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80A76BE9227F0000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:ssl/record/rec_layer_s3.c:918:SSL alert number 70\n80A76BE9227F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "rejects -tls1_1",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8037F9890E7F0000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:ssl/record/rec_layer_s3.c:918:SSL alert number 70\n8037F9890E7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "mixed offer prefers forbidden ChaCha but negotiates AES",
+      "expected": "accept",
+      "passed": true,
+      "exit_code": 0,
+      "output": "Connecting to 46.225.37.184\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_128_GCM_SHA256\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA384\nSignature type: ecdsa_secp384r1_sha384\nVerification: OK\nVerified peername: tr.hops.wire.link\nPeer Temp Key: ECDH, prime256v1, 256 bits\nDONE"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "no fallback from forbidden-only TLS1.3/TLS1.2 offer",
+      "expected": "reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80F7D3C6EE7F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:918:SSL alert number 40\n80F7D3C6EE7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "-tls1_2 no SNI has no default TLS backend",
+      "expected": "sni-reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n808702CA587F0000:error:0A000126:SSL routines::unexpected eof while reading:ssl/record/rec_layer_s3.c:698:\n808702CA587F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "-tls1_2 unknown SNI has no default TLS backend",
+      "expected": "sni-reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n804701DB8C7F0000:error:0A000126:SSL routines::unexpected eof while reading:ssl/record/rec_layer_s3.c:698:\n804701DB8C7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "-tls1_3 no SNI has no default TLS backend",
+      "expected": "sni-reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n80F71B919A7F0000:error:0A000126:SSL routines::unexpected eof while reading:ssl/record/rec_layer_s3.c:698:\n80F71B919A7F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    },
+    {
+      "address": "46.225.37.184",
+      "test": "-tls1_3 unknown SNI has no default TLS backend",
+      "expected": "sni-reject",
+      "passed": true,
+      "exit_code": 1,
+      "output": "Connecting to 46.225.37.184\n8097CA5FA77F0000:error:0A000126:SSL routines::unexpected eof while reading:ssl/record/rec_layer_s3.c:698:\n8097CA5FA77F0000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:"
+    }
+  ]
+}
