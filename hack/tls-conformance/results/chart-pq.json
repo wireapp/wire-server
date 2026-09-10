@@ -1,0 +1,18 @@
+{
+  "host": "tr.hops.wire.link",
+  "port": 19443,
+  "results": [
+    {
+      "address": "127.0.0.1",
+      "group": "X25519MLKEM768",
+      "passed": true,
+      "output": "Connecting to 127.0.0.1\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_256_GCM_SHA384\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA384\nSignature type: ecdsa_secp384r1_sha384\nVerification: OK\nVerified peername: tr.hops.wire.link\nNegotiated TLS1.3 group: X25519MLKEM768\nDONE\n"
+    },
+    {
+      "address": "127.0.0.1",
+      "group": "X25519",
+      "passed": true,
+      "output": "Connecting to 127.0.0.1\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_256_GCM_SHA384\nPeer certificate: CN=tr.hops.wire.link\nHash used: SHA384\nSignature type: ecdsa_secp384r1_sha384\nVerification: OK\nVerified peername: tr.hops.wire.link\nPeer Temp Key: X25519, 253 bits\nDONE\n"
+    }
+  ]
+}

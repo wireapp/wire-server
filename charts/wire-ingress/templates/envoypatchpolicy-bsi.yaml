@@ -1,0 +1,39 @@
+{{- if not (kindIs "bool" .Values.BSI_TR_02102_2_conformance) }}
+{{- fail "BSI_TR_02102_2_conformance must be a boolean" }}
+{{- end }}
+{{- if .Values.BSI_TR_02102_2_conformance }}
+{{- if or (not .Values.gateway.create) (not .Values.gateway.envoyProxy.create) .Values.gateway.patchPolicies.targetGatewayClass .Values.gateway.envoyProxy.spec.mergeGateways }}
+{{- fail "BSI_TR_02102_2_conformance requires an owned Gateway and EnvoyProxy without mergeGateways or GatewayClass-wide patching" }}
+{{- end }}
+{{- if or (not .Values.gateway.tls.enabled) (not .Values.gateway.patchPolicies.enabled) }}
+{{- fail "BSI_TR_02102_2_conformance requires gateway.tls.enabled and gateway.patchPolicies.enabled" }}
+{{- end }}
+{{- if and .Values.tls.useCertManager (or (ne .Values.tls.privateKey.algorithm "ECDSA") (not (has (.Values.tls.privateKey.size | int) (list 256 384)))) }}
+{{- fail "BSI_TR_02102_2_conformance requires an ECDSA P-256/P-384 server certificate; FIPS_202205 also permits PKCS#1 signatures with RSA certificates" }}
+{{- end }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: {{ include "wire-ingress.gatewayName" . }}-bsi
+  namespace: {{ .Release.Namespace }}
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ include "wire-ingress.gatewayName" . | quote }}
+  type: JSONPatch
+  jsonPatches:
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      {{- if .Values.gateway.patchPolicies.xdsNameSchemeV2 }}
+      name: {{ printf "tcp-%v" .Values.gateway.listeners.https.port | quote }}
+      {{- else }}
+      name: {{ printf "%s/%s/https" .Release.Namespace (include "wire-ingress.gatewayName" .) | quote }}
+      {{- end }}
+      operation:
+        op: add
+        # All TLS filter chains on this socket, including federation and
+        # additional domains. Never assume filter_chains[0] is the only one.
+        jsonPath: "$.filter_chains[*].transport_socket.typed_config.common_tls_context.tls_params"
+        path: compliance_policies
+        value: [FIPS_202205]
+{{- end }}

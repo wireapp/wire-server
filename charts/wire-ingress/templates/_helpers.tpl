@@ -206,3 +206,44 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp = printf "%s upgrade-insecure-requests" $csp -}}
 {{- $csp -}}
 {{- end -}}
+
+{{/* Shared by Gateway-wide and federation policies: section policies replace,
+rather than merge with, Gateway policy TLS settings. */}}
+{{- define "wire-ingress.tlsParameters" -}}
+{{- $tls := .Values.gateway.tls -}}
+{{- if .Values.BSI_TR_02102_2_conformance }}
+# Safe baseline: only the compliance patch may enable TLS 1.3.
+minVersion: "1.2"
+maxVersion: "1.2"
+ciphers:
+  - ECDHE-ECDSA-AES128-GCM-SHA256
+  - ECDHE-ECDSA-AES256-GCM-SHA384
+  - ECDHE-RSA-AES128-GCM-SHA256
+  - ECDHE-RSA-AES256-GCM-SHA384
+ecdhCurves: [P-256, P-384]
+signatureAlgorithms:
+  - ecdsa_secp256r1_sha256
+  - ecdsa_secp384r1_sha384
+  - rsa_pss_rsae_sha256
+  - rsa_pss_rsae_sha384
+  - rsa_pss_rsae_sha512
+{{- else if $tls.enabled }}
+{{- $minVersion := $tls.minVersion | default "" | toString }}
+{{- if $minVersion }}
+minVersion: {{ $minVersion | quote }}
+{{- end }}
+{{- if $tls.maxVersion }}
+maxVersion: {{ $tls.maxVersion | toString | quote }}
+{{- end }}
+{{- /* EG rejects ciphers alongside minVersion 1.3; suites only affect TLS <=1.2. */}}
+{{- if and $tls.ciphers (ne $minVersion "1.3") }}
+ciphers: {{ toJson $tls.ciphers }}
+{{- end }}
+{{- if $tls.ecdhCurves }}
+ecdhCurves: {{ toJson $tls.ecdhCurves }}
+{{- end }}
+{{- if $tls.signatureAlgorithms }}
+signatureAlgorithms: {{ toJson $tls.signatureAlgorithms }}
+{{- end }}
+{{- end }}
+{{- end }}

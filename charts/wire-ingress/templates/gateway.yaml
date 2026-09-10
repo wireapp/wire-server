@@ -56,6 +56,17 @@ spec:
           - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
             kind: Secret
     {{- end }}
+    {{- range .Values.gateway.extraHttpsListeners }}
+    - name: {{ required "extraHttpsListeners[].name is required" .name | quote }}
+      port: {{ $.Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      hostname: {{ required "extraHttpsListeners[].hostname is required" .hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .certificateSecretName | default (include "wire-ingress.certificateSecretName" $) | quote }}
+            kind: Secret
+    {{- end }}
     {{- if .Values.gateway.listeners.http.enabled }}
     - name: http
       port: {{ .Values.gateway.listeners.http.port }}

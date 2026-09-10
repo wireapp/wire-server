@@ -1,0 +1,19 @@
+# Synthetic credentials ONLY; never use for a real installation.
+gatewayName: tr-chart
+replicas: 1
+routesEnabled: false
+backoffice:
+  enabled: true
+  hostname: admin.hops.wire.link
+  serviceName: tr-hello
+  servicePort: 8080
+  oauthHost: tr.hops.wire.link
+  allowedGroupsEncoded: Platform%20team
+basicAuth:
+  enabled: true
+  htpasswd: 'test-user:$apr1$fixture$swefXIHJJXp6IdnsEVBiz/'
+  routes:
+    - name: brig
+      hostname: brig-test.hops.wire.link
+      serviceName: tr-hello
+      servicePort: 8080
