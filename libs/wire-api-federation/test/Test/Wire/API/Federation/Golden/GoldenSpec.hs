@@ -29,6 +29,7 @@ import Test.Wire.API.Federation.Golden.MessageSendResponse qualified as MessageS
 import Test.Wire.API.Federation.Golden.NewConnectionRequest qualified as NewConnectionRequest
 import Test.Wire.API.Federation.Golden.NewConnectionResponse qualified as NewConnectionResponse
 import Test.Wire.API.Federation.Golden.Runner (testObjects)
+import Test.Wire.API.Federation.Golden.UnsupportedVersionPolicy qualified as UnsupportedVersionPolicy
 
 spec :: Spec
 spec =
@@ -84,4 +85,8 @@ spec =
       [ (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseOk, "testObject_GetOne2OneConversationResponseOk.json"),
         (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseBackendMismatch, "testObject_GetOne2OneConversationResponseBackendMismatch.json"),
         (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseNotConnected, "testObject_GetOne2OneConversationResponseNotConnected.json")
+      ]
+    testObjects
+      [ (UnsupportedVersionPolicy.testObjectUnsupportedVersionPolicyKeepQueued, "testObject_UnsupportedVersionPolicy_KeepQueued.json"),
+        (UnsupportedVersionPolicy.testObjectUnsupportedVersionPolicyDropIfUnsupported, "testObject_UnsupportedVersionPolicy_DropIfUnsupported.json")
       ]

@@ -66,6 +66,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
+import Wire.API.Federation.Version
 import Wire.API.RawJson
 import Wire.API.Team.FeatureFlags
 import Wire.BackendNotificationPusher
@@ -77,6 +78,17 @@ import Wire.RateLimit.Interpreter (newRateLimitEnv)
 
 spec :: Spec
 spec = do
+  describe "PayloadBundle" $ do
+    it "should default to keeping a notification queued when decoding a bundle without a policy" $ do
+      let bundle = testBundle KeepQueued (rangeFromVersion V1)
+          oldBundle = Aeson.object ["notifications" .= bundle.notifications]
+      Aeson.fromJSON @(PayloadBundle 'Brig) oldBundle `shouldBe` Aeson.Success bundle
+
+    it "should use the safe keep-queued policy when combining bundles with different policies" $ do
+      let keepQueuedBundle = testBundle KeepQueued (rangeFromVersion V1)
+          dropBundle = testBundle DropIfUnsupported (rangeFromVersion V1)
+      (keepQueuedBundle <> dropBundle).unsupportedVersionPolicy `shouldBe` KeepQueued
+
   describe "pushNotification" $ do
     it "should push notifications" $ do
       let origDomain = Domain "origin.example.com"
@@ -252,6 +264,119 @@ spec = do
                    ]
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
         `shouldReturn` [(domainText targetDomain, 1)]
+
+    it "should leave an unsupported notification queued by default" $ do
+      let targetDomain = Domain "target.example.com"
+          bundle = testBundle KeepQueued (rangeFromVersion V1)
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator def {versions = [0]} . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 0
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs `shouldBe` []
+      getVectorWith env.backendNotificationMetrics.droppedUnsupportedVersionCounter getCounter
+        `shouldReturn` []
+      getVectorWith env.backendNotificationMetrics.stuckQueuesGauge getGauge
+        `shouldReturn` [(domainText targetDomain, 1)]
+
+    it "should drop an unsupported notification when configured" $ do
+      let targetDomain = Domain "target.example.com"
+          bundle = testBundle DropIfUnsupported (rangeFromVersion V1)
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator def {versions = [0]} . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs `shouldBe` []
+      getVectorWith env.backendNotificationMetrics.droppedUnsupportedVersionCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+      getVectorWith env.backendNotificationMetrics.stuckQueuesGauge getGauge
+        `shouldReturn` [(domainText targetDomain, 0)]
+
+    it "should deliver a compatible notification with the drop policy" $ do
+      let targetDomain = Domain "target.example.com"
+          bundle = testBundle DropIfUnsupported (rangeFromVersion V1)
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator def {versions = [1]} . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs
+        `shouldBe` [ FederatedRequest
+                       { frTargetDomain = targetDomain,
+                         frOriginDomain = testOriginDomain,
+                         frComponent = Brig,
+                         frRPC = "unsupported-version-test",
+                         frBody = Aeson.encode testNotificationBody
+                       }
+                   ]
+      getVectorWith env.backendNotificationMetrics.droppedUnsupportedVersionCounter getCounter
+        `shouldReturn` []
+
+    it "should retry delivery failures instead of applying the drop policy" $ do
+      isRemoteBrokenRef <- newIORef True
+      fedCalls <- newIORef (0 :: Int)
+      let mockRemote :: req -> IO MockResponse
+          mockRemote _ = do
+            isRemoteBroken <- readIORef isRemoteBrokenRef
+            atomicModifyIORef fedCalls $ \c -> (c + 1, ())
+            pure $
+              if isRemoteBroken
+                then MockResponse status200 "text/html" "<marquee>down for maintenance</marquee>"
+                else MockResponse status200 "application/json" (Aeson.encode EmptyResponse)
+          targetDomain = Domain "target.example.com"
+          bundle = testBundle DropIfUnsupported (rangeFromVersion V1)
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      env <- testEnv
+      pushThread <-
+        async $ withTempMockFederator def {handler = mockRemote, versions = [1]} . runTestAppTWithEnv env $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+
+      untilM $ (>= 2) <$> readIORef fedCalls
+      readIORef envelope.acks `shouldReturn` 0
+      getVectorWith env.backendNotificationMetrics.droppedUnsupportedVersionCounter getCounter
+        `shouldReturn` []
+
+      writeIORef isRemoteBrokenRef False
+      void $ wait pushThread
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      getVectorWith env.backendNotificationMetrics.droppedUnsupportedVersionCounter getCounter
+        `shouldReturn` []
 
     it "should reject invalid notifications" $ do
       envelope <- newMockEnvelope
@@ -486,6 +611,28 @@ spec = do
       -- concurrency, so just assert that there were at least 2 calls.
       calls `shouldSatisfy` (\c -> length c >= 2)
       mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
+
+testOriginDomain :: Domain
+testOriginDomain = Domain "origin.example.com"
+
+testNotificationBody :: Aeson.Value
+testNotificationBody = Aeson.object ["foo" .= ("bar" :: Text)]
+
+testBundle :: UnsupportedVersionPolicy -> VersionRange -> PayloadBundle 'Brig
+testBundle policy versions =
+  PayloadBundle
+    { notifications =
+        pure
+          BackendNotification
+            { targetComponent = Brig,
+              ownDomain = testOriginDomain,
+              path = "/unsupported-version-test",
+              body = RawJson $ Aeson.encode testNotificationBody,
+              bodyVersions = Just versions,
+              requestId = Just $ RequestId defRequestId
+            },
+      unsupportedVersionPolicy = policy
+    }
 
 untilM :: (Monad m) => m Bool -> m ()
 untilM action = do
