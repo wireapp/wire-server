@@ -27,7 +27,6 @@ spec:
     {{- else }}
     kind: Gateway
     name: {{ include "wire-ingress.gatewayName" . | quote }}
-    namespace: {{ .Release.Namespace | quote }}
     {{- end }}
   type: JSONPatch
   jsonPatches:

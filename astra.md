@@ -176,3 +176,44 @@ AWS-LC build work were preserved. No custom image build or additional TLS
 proxy was needed. The documented limits are TLS 1.2 remaining enabled,
 FIPS_202205 preventing PQ groups, and the need to apply the policy to every
 TLS filter chain when adapting the single-host manifest to a Wire deployment.
+
+## Galaxy profile integration — September 10
+
+User clarified scope: all PUBLIC Wire endpoints, excluding internal/outbound
+TLS. Galaxy access is explicitly not authorized; no further authentication or
+cluster inspection attempts will be made. User owns all Galaxy applies.
+Hops remains available for isolated proof-of-concept tests.
+
+Anta/Bella/Chala API ingress is still nginx in Terraform; SFT independently
+uses Envoy. The two TLS1.3 AES suites in anta_output reflect nginx's explicit
+Ciphersuites setting, not an Envoy policy. Its X25519 group is outside the
+intended BSI profile.
+
+Removed obsolete custom AWS-LC build files/Make target. Integrating a default-off
+BSI chart flag with fixed AES-GCM TLS1.2 fallback plus FIPS_202205 patch, and
+ordinary configurable curves for Chala PQ. All TLS filter chains must be patched.
+Auxiliary public endpoints surfaced blockers: nginx external-auth backoffice,
+APR1 basic-auth internal-service exposure, and native coturn TLS/DTLS. These
+must fail validation rather than silently bypass an all-public BSI guarantee.
+
+## Chart validation and live Hops results
+
+Integrated chart BSI flag: eight offline render regressions pass. Reduced
+the original custom-library/default-PQ additions to general TLS defaults and
+an opt-in profile. All TLS filter chains on a shared HTTPS socket now receive
+the JSONPath compliance patch; inspected both actual chains in Hops.
+The chart endpoint passed 110/110 wire probes. A separate stock Envoy chart
+profile negotiated TLS1.3 X25519MLKEM768 and classical X25519, verifying the
+certificate in both cases.
+
+Patch-removal regression initially failed honestly on a dead port-forward,
+and its finally block restored the patch. Restarting the tunnel and repeating
+the complete test passed: TLS1.3 blocked without patch, allowed TLS1.2 AES-GCM
+still works, ChaCha rejected, TLS1.3 restored after reapplying.
+
+Both Terraform modules validate with Nix's locally supplied providers (only
+existing redundant ignore_changes warnings in wire-server-with-bells).
+Three Helm charts lint successfully; seven testssl parser tests pass.
+Bella remains deliberately blocked for native TURN/DTLS and public admin
+authentication, with certificate-chain work also pending. No claim of
+all-public BSI conformance or successful Galaxy deployment is made.

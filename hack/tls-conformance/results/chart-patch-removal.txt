@@ -1,0 +1,9 @@
+Chart-backed tr-chart Gateway, Hops joe-test, September 10, 2026.
+PASS patch absent: TLS 1.3 rejected with protocol_version alert
+PASS patch absent: TLS 1.2 AES-GCM works; ChaCha20 rejected
+PASS patch restored: verified TLS 1.3 AES-GCM handshake
+
+An initial attempt was inconclusive because kubectl port-forward had exited
+after a peer connection reset during negative probes. The script restored
+the patch in its finally block and reported failure, not a false pass.
+Restarted the tunnel and reran the complete test successfully.

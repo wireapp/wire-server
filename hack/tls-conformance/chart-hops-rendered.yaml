@@ -1,0 +1,146 @@
+---
+# Source: wire-ingress/templates/gateway.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: "tr-chart"
+  namespace: joe-test
+  labels:
+    chart: "wire-ingress-0.1.0"
+    release: "tr-chart"
+    heritage: "Helm"
+spec:
+  gatewayClassName: "envoy"
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: "tr-chart"
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "tr.hops.wire.link"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: "tr-certificate"
+            kind: Secret
+    - name: https-secondary
+      port: 443
+      protocol: HTTPS
+      hostname: "tr-secondary.hops.wire.link"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: "tr-certificate"
+            kind: Secret
+---
+# Source: wire-ingress/templates/envoyproxy.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: "tr-chart"
+  namespace: joe-test
+  labels:
+    chart: "wire-ingress-0.1.0"
+    release: "tr-chart"
+    heritage: "Helm"
+spec:
+  provider:
+    kubernetes:
+      envoyService:
+        type: ClusterIP
+    type: Kubernetes
+  telemetry:
+    accessLog:
+      settings:
+      - format:
+          json:
+            :authority: '%REQ(:AUTHORITY)%'
+            bytes_received: '%BYTES_RECEIVED%'
+            bytes_sent: '%BYTES_SENT%'
+            connection_termination_details: '%CONNECTION_TERMINATION_DETAILS%'
+            downstream_local_address: '%DOWNSTREAM_LOCAL_ADDRESS%'
+            downstream_remote_address: '%DOWNSTREAM_REMOTE_ADDRESS%'
+            duration: '%DURATION%'
+            method: '%REQ(:METHOD)%'
+            protocol: '%PROTOCOL%'
+            requested_server_name: '%REQUESTED_SERVER_NAME%'
+            response_code: '%RESPONSE_CODE%'
+            response_code_details: '%RESPONSE_CODE_DETAILS%'
+            response_flags: '%RESPONSE_FLAGS%'
+            route_name: '%ROUTE_NAME%'
+            start_time: '%START_TIME%'
+            upstream_cluster: '%UPSTREAM_CLUSTER%'
+            upstream_host: '%UPSTREAM_HOST%'
+            upstream_local_address: '%UPSTREAM_LOCAL_ADDRESS%'
+            upstream_transport_failure_reason: '%UPSTREAM_TRANSPORT_FAILURE_REASON%'
+            user-agent: '%REQ(USER-AGENT)%'
+            x-envoy-origin-path: '%PATH(NQ:ORIG_OR_PATH)%'
+            x-envoy-upstream-service-time: '%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%'
+            x-forwarded-for: '%REQ(X-FORWARDED-FOR)%'
+            x-request-id: '%REQ(X-REQUEST-ID)%'
+          type: JSON
+        sinks:
+        - file:
+            path: /dev/stdout
+          type: File
+---
+# Source: wire-ingress/templates/clienttrafficpolicy-gateway.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: tr-chart-client-traffic
+  namespace: joe-test
+  labels:
+    chart: "wire-ingress-0.1.0"
+    release: "tr-chart"
+    heritage: "Helm"
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: "tr-chart"
+  tls:
+    alpnProtocols:
+      - h2
+      - http/1.1
+    # Safe baseline: only the compliance patch may enable TLS 1.3.
+    minVersion: "1.2"
+    maxVersion: "1.2"
+    ciphers:
+      - ECDHE-ECDSA-AES128-GCM-SHA256
+      - ECDHE-ECDSA-AES256-GCM-SHA384
+      - ECDHE-RSA-AES128-GCM-SHA256
+      - ECDHE-RSA-AES256-GCM-SHA384
+    ecdhCurves: [P-256, P-384]
+    signatureAlgorithms:
+      - ecdsa_secp256r1_sha256
+      - ecdsa_secp384r1_sha384
+      - rsa_pss_rsae_sha256
+      - rsa_pss_rsae_sha384
+      - rsa_pss_rsae_sha512
+---
+# Source: wire-ingress/templates/envoypatchpolicy-bsi.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: tr-chart-bsi
+  namespace: joe-test
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: "tr-chart"
+  type: JSONPatch
+  jsonPatches:
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: "joe-test/tr-chart/https"
+      operation:
+        op: add
+        # All TLS filter chains on this socket, including federation and
+        # additional domains. Never assume filter_chains[0] is the only one.
+        jsonPath: "$.filter_chains[*].transport_socket.typed_config.common_tls_context.tls_params"
+        path: compliance_policies
+        value: [FIPS_202205]

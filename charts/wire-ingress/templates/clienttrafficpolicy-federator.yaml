@@ -23,6 +23,10 @@ spec:
       kind: Gateway
       name: {{ include "wire-ingress.gatewayName" . | quote }}
       sectionName: federator
+  {{- if .Values.gateway.proxyProtocol.enabled }}
+  proxyProtocol:
+    optional: {{ .Values.gateway.proxyProtocol.optional }}
+  {{- end }}
   tls:
     {{/* Optional at the ingress level so the federator service can throw the
          appropriate error when a cert is missing. Lua filter strips spoofed

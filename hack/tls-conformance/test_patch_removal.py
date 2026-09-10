@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Disruptive PoC-only test: remove our patch, verify safe baseline, restore it.
 
-Only touches joe-test/tr-bsi-ciphers. TLS 1.3 briefly becomes unavailable.
+Only touches the explicitly selected joe-test PoC patch. TLS 1.3 briefly
+becomes unavailable. Never use this against a production Gateway.
 """
 
 import argparse
@@ -15,13 +16,15 @@ def main():
     parser.add_argument("--kubeconfig", default="./kubeconfig")
     parser.add_argument("--address", default="46.225.37.184")
     parser.add_argument("--host", default="tr.hops.wire.link")
+    parser.add_argument("--port", type=int, default=443)
+    parser.add_argument("--patch-name", choices=["tr-bsi-ciphers", "tr-chart-bsi"], default="tr-bsi-ciphers")
     parser.add_argument("--cafile")
     args = parser.parse_args()
     kubectl = ["kubectl", "--kubeconfig", args.kubeconfig, "-n", "joe-test"]
-    original = json.loads(subprocess.check_output(kubectl + ["get", "envoypatchpolicy", "tr-bsi-ciphers", "-o", "json"]))
-    original["metadata"] = {"name": "tr-bsi-ciphers", "namespace": "joe-test"}
+    original = json.loads(subprocess.check_output(kubectl + ["get", "envoypatchpolicy", args.patch_name, "-o", "json"]))
+    original["metadata"] = {"name": args.patch_name, "namespace": "joe-test"}
     original.pop("status", None)
-    command = ["openssl", "s_client", "-connect", f"{args.address}:443",
+    command = ["openssl", "s_client", "-connect", f"{args.address}:{args.port}",
                "-servername", args.host, "-verify_hostname", args.host,
                "-verify_return_error", "-brief"]
     if args.cafile:
@@ -42,7 +45,7 @@ def main():
 
     tls13 = ["-tls1_3", "-ciphersuites", "TLS_AES_256_GCM_SHA384"]
     try:
-        subprocess.run(kubectl + ["delete", "envoypatchpolicy", "tr-bsi-ciphers"], check=True)
+        subprocess.run(kubectl + ["delete", "envoypatchpolicy", args.patch_name], check=True)
         rejected = await_state(tls13, lambda r: "alert protocol version" in r.stdout and "CONNECTION ESTABLISHED" not in r.stdout)
         print("PASS patch absent: TLS 1.3 rejected with protocol_version alert", flush=True)
         for cipher in ["ECDHE-ECDSA-AES128-GCM-SHA256", "ECDHE-ECDSA-AES256-GCM-SHA384"]:

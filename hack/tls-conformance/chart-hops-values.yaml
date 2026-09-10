@@ -1,0 +1,37 @@
+# Isolated chart test: reuses only the public PoC certificate and hello Service.
+# Render only Gateway/EnvoyProxy/ClientTrafficPolicy/EnvoyPatchPolicy templates;
+# do not install the whole wire-ingress chart with these synthetic app names.
+BSI_TR_02102_2_conformance: true
+gateway:
+  name: tr-chart
+  className: envoy
+  serviceType: ClusterIP
+  listeners:
+    https:
+      hostname: tr.hops.wire.link
+tls:
+  useCertManager: true
+  createIssuer: false
+  issuer:
+    name: tr-letsencrypt
+  secret:
+    nameOverride: tr-certificate
+config:
+  dns:
+    https: tr.hops.wire.link
+  domains:
+    - name: primary
+      base: hops.wire.link
+      hostname: tr.hops.wire.link
+      dns:
+        https: tr.hops.wire.link
+      tls:
+        secretName: tr-certificate
+    - name: secondary
+      base: hops.wire.link
+      hostname: tr-secondary.hops.wire.link
+      dns:
+        https: tr-secondary.hops.wire.link
+      tls:
+        secretName: tr-certificate
+---
