@@ -1,0 +1,1 @@
+Account pages now use the correct backend URL and CSP header on each multi-ingress domain.
