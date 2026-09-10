@@ -15,6 +15,9 @@ tls:
 
 config:
   ingressClass: "nginx-{{ .Release.Namespace }}"
+  # Exercise the in-ingress CSP header path (off by default in the chart), so
+  # that changes to the 'configuration-snippet' annotation get test coverage.
+  renderCSPInIngress: true
   dns:
     https: "nginz-https.{{ .Release.Namespace }}-integration.example.com"
     ssl: "nginz-ssl.{{ .Release.Namespace }}-integration.example.com"

@@ -1,3 +1,7 @@
+{{- $accountPagesDns := "" -}}
+{{- if .Values.accountPages.enabled -}}
+{{- $accountPagesDns = required "Need a 'config.dns.accountPages' name when accountPages.enabled is true." .Values.config.dns.accountPages -}}
+{{- end -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -47,8 +51,9 @@ metadata:
         set $skip_csp 1;
       }
       {{ if .Values.accountPages.enabled }}
-      # Account-pages provides its own CSP header.
-      if ($http_host = "{{ required "Need an accountPages DNS name when accountPages.enabled is true." .Values.config.dns.accountPages }}") {
+      # Like the webapp, account-pages provides multi-ingress aware CSP headers
+      # itself, so the approximation below must not overwrite them.
+      if ($http_host = "{{ $accountPagesDns }}") {
         set $skip_csp 1;
       }
       {{ end }}
@@ -97,7 +102,7 @@ spec:
       - {{ .Values.config.dns.teamSettings }}
 {{- end }}
 {{- if .Values.accountPages.enabled }}
-      - {{ .Values.config.dns.accountPages }}
+      - {{ $accountPagesDns }}
 {{- end }}
     secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
   rules:
@@ -148,7 +153,7 @@ spec:
                   number: {{ .Values.service.teamSettings.externalPort }}
 {{- end }}
 {{- if .Values.accountPages.enabled }}
-    - host: {{ .Values.config.dns.accountPages }}
+    - host: {{ $accountPagesDns }}
       http:
         paths:
           - path: /
