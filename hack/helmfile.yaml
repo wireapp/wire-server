@@ -77,6 +77,9 @@ repositories:
   - name: opensearch
     url: 'https://opensearch-project.github.io/helm-charts/'
 
+  - name: groundhog2k
+    url: 'https://groundhog2k.github.io/helm-charts'
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
@@ -100,18 +103,7 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
-      - redis-ephemeral:
-          fullnameOverride: databases-ephemeral-redis-ephemeral
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password
-          tls:
-            enabled: true
-            certificatesSecret: redis-certificate
-            certFilename: "tls.crt"
-            certKeyFilename: "tls.key"
-            certCAFilename: "ca.crt"
-            authClients: false
+      - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
 
@@ -143,18 +135,7 @@ releases:
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
-      - redis-ephemeral:
-          fullnameOverride: databases-ephemeral-redis-ephemeral
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password
-          tls:
-            enabled: true
-            certificatesSecret: redis-certificate
-            certFilename: "tls.crt"
-            certKeyFilename: "tls.key"
-            certCAFilename: "ca.crt"
-            authClients: false
+      - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
 
@@ -186,10 +167,11 @@ releases:
     chart: '../.local/charts/redis-ephemeral'
     values:
       - redis-ephemeral:
-          fullnameOverride: redis-ephemeral-2
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password-2
+          redisConfig: |
+            requirepass very-secure-redis-master-password-2
+
+            # ephemeral
+            save ""
 
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
