@@ -46,10 +46,12 @@ metadata:
       if ($http_host = "{{ .Values.config.dns.webapp }}") {
         set $skip_csp 1;
       }
+      {{ if .Values.accountPages.enabled }}
       # Account-pages provides its own CSP header.
-      if ($http_host = "{{ .Values.config.dns.accountPages }}") {
+      if ($http_host = "{{ required "Need an accountPages DNS name when accountPages.enabled is true." .Values.config.dns.accountPages }}") {
         set $skip_csp 1;
       }
+      {{ end }}
       if ($uri ~ "^(/v[0-9]+)?/sso/(finalize-login|initiate-login)(/[a-zA-Z0-9-]*)?$|^/favicon\.ico$") {
         set $skip_csp 1;
       }
