@@ -72,7 +72,7 @@ checkClients lConvOrSub ciphersuite newCM = do
   -- sequenceConcurrently attaches an outer 'Maybe' to every child result.
   -- Under galley's production stack (asyncToIOFinal below pure
   -- runError/mapError interpreters, cf. Galley.App), an 'Error'-effect
-  -- throw inside a spawned child (e.g. RpcException/ParseException from
+  -- thrown inside a spawned child (e.g. RpcException/ParseException from
   -- interpretBrigAccess) is forwarded by the in-thread mapError handlers
   -- to the residual error, whose interpreter sits outside the async
   -- boundary; Polysemy collapses the child result to 'Nothing'. That is a
