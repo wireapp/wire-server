@@ -273,3 +273,22 @@ external strict scan: 110/110 passed, sole DNS address 46.225.37.184, evidence
 results/public-handoff.json. No Galaxy plan/apply or Haskell/integration tests
 were run; no Haskell code changed. Removing only agent-generated temporary
 module provider lockfiles after validation; coturn worktree remains clean.
+
+## Public Galaxy verification after the operator applied (2026-09-10)
+
+Tested public DNS endpoints only; no Galaxy cluster access. Bella's 12 public-
+trust HTTPS hosts each passed 110 strict probes (1,320 total), including webapp,
+API, SFT, auxiliary and admin hosts. Independent testssl.sh inventories passed
+for Bella API and SFT, accepting only the two ECDHE-ECDSA AES-GCM TLS1.2 suites
+and the two AES-GCM TLS1.3 suites. Chala's corresponding 12 hosts negotiated
+both X25519MLKEM768 and classical X25519 with verified TLS1.3; all 24 obsolete-
+protocol probes rejected TLS1.0/1.1.
+
+HTTP smoke checks passed for webapp/API/SFT/account/teams and the three actual
+disallowed-client paths. Missing/invalid admin basic credentials returned 401;
+backoffice redirected to OAuth, including with spoofed authentication headers.
+Real authenticated sessions/calls were not tested. Both federator scans stopped
+on their private CA's missing trust anchor; asked for public CA PEMs, without
+disabling verification. Native TURN/DTLS remains deferred. Saved per-host logs,
+JSON inventories, independent scans and a full report under
+hack/tls-conformance/results/galaxy-public-20260910.ZvKWSq/.
