@@ -82,8 +82,8 @@ extractPathMethods schemas path = \case
     [ (rk, ri)
     | (methodKey, methodVal) <- KM.toList methodsObj,
       let methodText = Key.toText methodKey,
-      Just rk <- [routeKeyFromPath path methodText],
-      let ri = extractRouteInfo schemas methodVal
+      let ri = extractRouteInfo schemas methodVal,
+      Just rk <- [routeKeyFromPath path methodText]
     ]
   _ -> []
 
@@ -122,10 +122,10 @@ extractParams op = case KM.lookup "parameters" op of
           | Object p <- Vector.toList arr,
             String loc <- [fromMaybe Null (KM.lookup "in" p)],
             loc == "query",
-            String name <- [fromMaybe Null (KM.lookup "name" p)],
             let isReq = case KM.lookup "required" p of
                   Just (Bool True) -> True
-                  _ -> False
+                  _ -> False,
+            String name <- [fromMaybe Null (KM.lookup "name" p)]
           ]
      in ( Set.fromList (map fst queryPs),
           Set.fromList [n | (n, True) <- queryPs]
