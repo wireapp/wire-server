@@ -111,6 +111,33 @@ testOnLastAdminLeaveReturnEligibleMembers = do
       req <- baseRequest remover Galley (ExplicitVersion 15) (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
       submit "DELETE" req
 
+testPersonalUserLastAdminLeaveReturnsAdminlessConversation :: (HasCallStack) => App ()
+testPersonalUserLastAdminLeaveReturnsAdminlessConversation = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
+
+  personalUser <- randomUser OwnDomain def
+  connectTwoUsers alice personalUser
+
+  [alice1, bob1, personalUser1] <- traverse (createMLSClient def) [alice, bob, personalUser]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, personalUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [bob, personalUser]
+  bobId <- bob %. "qualified_id"
+
+  -- admin promotes the no-team user to conversation admin.
+  void $ updateRole alice personalUser "wire_admin" (conv %. "qualified_id") >>= assertSuccess
+
+  -- the admin leaves; the personal user is now the only admin, while
+  -- Bob remains as an eligible non-admin fallback member.
+  removeMember alice conv alice >>= assertSuccess
+
+  bindResponse (removeMember personalUser conv personalUser) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "adminless-conversation"
+    eligibleMembers <- resp.json %. "eligible_members" & asList
+    eligibleMembers `shouldMatchSet` [bobId]
+
 testOnLastAdminLeaveNoEligibleMembersExist :: (HasCallStack) => App ()
 testOnLastAdminLeaveNoEligibleMembersExist = do
   (alice, tid, _) <- createTeam OwnDomain 1
