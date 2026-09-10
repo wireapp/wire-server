@@ -103,10 +103,6 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
       let teams :: Map TeamId [IndexUser]
           teams = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
 
-      visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
-        x <- try @SomeException $ interpreter $ teamSearchVisibilityInbound t
-        pure (t, x)
-
       let -- Accounts that have no team, can have no role.  If a role
           -- can't be found on brig for an account, that account does
           -- not have role info in their index or document any more.
@@ -130,11 +126,14 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
         try . fmap (Map.fromListWith (<>) . map (\tc -> (gUser tc, [gTeam tc]))) . interpreter $
           getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
 
-      let vis :: IndexUser -> SearchVisibilityInbound
-          vis indexUser =
-            fromMaybe SearchableByOwnTeam $ hush =<< flip Map.lookup visMap =<< indexUser.teamId
+      vis :: IndexUser -> SearchVisibilityInbound <- do
+        visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
+          x <- try @SomeException $ interpreter $ teamSearchVisibilityInbound t
+          pure (t, x)
+        pure $ \vis indexUser ->
+          fromMaybe SearchableByOwnTeam $ hush =<< flip Map.lookup visMap =<< indexUser.teamId
 
-          mkUserDoc :: IndexUser -> Either SomeException UserDoc
+      let mkUserDoc :: IndexUser -> Either SomeException UserDoc
           mkUserDoc indexUser = do
             let currentVis = vis indexUser
                 currentRole = ((.value)) <$> Map.lookup indexUser.userId roles
