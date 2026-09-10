@@ -361,9 +361,9 @@ getRemoteConversationsWithFailures lusr convs = do
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
   bimap (localFailures <>) (map remoteView . concat)
     . partitionEithers
-    <$> traverse (handleFailure locallyFound) resp
+    <$> traverse (handleRequest locallyFound) resp
   where
-    handleFailure ::
+    handleRequest ::
       ( Member ConversationStore.ConversationStore r,
         Member P.TinyLog r,
         Member Now r,
@@ -372,15 +372,15 @@ getRemoteConversationsWithFailures lusr convs = do
       [Remote ConvId] ->
       Either (Remote [ConvId], FederationError) (Remote GetRemoteConversationViewsResponse) ->
       Sem r (Either FailedGetConversation [Remote RemoteConversationView])
-    handleFailure _ (Left (rcids, e)) = do
+    handleRequest _ (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
           . Logger.field "error" (displayException e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
-    handleFailure locallyFound (Right response) = do
-      let locallyFoundForDomain = filter ((== tDomain response) . tDomain) locallyFound
+    handleRequest locallyFound (Right response) = do
+      let locallyFoundForDomain = Set.fromList $ filter ((== tDomain response) . tDomain) locallyFound
           returnedIds = Set.fromList $ map (qualifyAs response . (.id)) (tUnqualified response).convs
-          missingConversations = filter (`Set.notMember` returnedIds) locallyFoundForDomain
+          missingConversations = Set.toList $ locallyFoundForDomain `Set.difference` returnedIds
       unless (null missingConversations) $ do
         now <- Now.get
         for_ missingConversations $ \conv -> do
