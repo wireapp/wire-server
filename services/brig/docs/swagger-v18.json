@@ -7549,11 +7549,16 @@
           "setRestrictUserCreation": {
             "description": "Do not allow certain user creation flows",
             "type": "boolean"
+          },
+          "ssoIdpChangeDetectionEnabled": {
+            "description": "Whether clients should compare the stored SSO IdP ID with the IdP ID of the current login and keep existing locally decrypted messages when they match.",
+            "type": "boolean"
           }
         },
         "required": [
           "setRestrictUserCreation",
-          "setEnableMls"
+          "setEnableMls",
+          "ssoIdpChangeDetectionEnabled"
         ],
         "type": "object"
       },
