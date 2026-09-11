@@ -1,0 +1,9 @@
+Move the sync-user-group family of background jobs from the RabbitMQ `background-jobs` queue to the Arbiter PostgreSQL job queue (new `user-groups` queue/table). brig now enqueues sync jobs via the shared Postgres pool with per-user-group serialization and 3 attempts; background-worker consumes them in a third Arbiter worker pool. The RabbitMQ jobs publisher is removed from brig; the RabbitMQ jobs consumer is KEPT in this release so that jobs still sitting in the `background-jobs` queue when you upgrade are drained instead of dropped. backend-notification push and dead-user-notification watching remain on RabbitMQ.
+
+Rollout: THIS RELEASE MUST NOT BE SKIPPED.
+
+1. `helm upgrade` to this release as usual. From the moment brig starts, new user-group sync jobs go to Arbiter; background-worker also keeps consuming leftover jobs from the RabbitMQ `background-jobs` queue.
+2. Wait until the `background-jobs` queue is empty before upgrading further. brig no longer publishes to it, and the consumer only re-publishes child jobs of leftover parents to the same queue, so the count never grows and trends to zero. Check with either:
+   - `kubectl exec <rabbitmq-pod> -- rabbitmqctl list_queues name messages | grep background-jobs`, or
+   - the RabbitMQ management HTTP API: `GET /api/queues/<vhost>/background-jobs` and read the `messages` field.
+3. Upgrade to the next release, which removes the RabbitMQ consumer. Skipping this release (jumping from the previous one to the next) would drop any jobs still in the queue; those sync jobs are idempotent reconciliations re-triggered by the next SCIM write, but the drain window avoids relying on that.

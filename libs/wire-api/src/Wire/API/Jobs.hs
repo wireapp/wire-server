@@ -36,6 +36,7 @@ import Data.Text as Text
 import GHC.TypeLits
 import Imports
 import Test.QuickCheck (oneof)
+import Wire.API.BackgroundJobs (SyncUserGroup, SyncUserGroupAndChannel)
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 -- | The queue/table for jobs that operate on meetings.
@@ -49,6 +50,12 @@ type ConversationsQueueName = "conversations"
 
 conversationsQueueName :: Text
 conversationsQueueName = Text.pack $ symbolVal (Proxy @ConversationsQueueName)
+
+-- | The queue/table for jobs that operate on user groups.
+type UserGroupsQueueName = "user-groups"
+
+userGroupsQueueName :: Text
+userGroupsQueueName = Text.pack $ symbolVal (Proxy @UserGroupsQueueName)
 
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
@@ -247,8 +254,97 @@ deriving via (Schema ConversationsJobPayload) instance S.ToSchema ConversationsJ
 instance Arbitrary ConversationsJobPayload where
   arbitrary = oneof [AdminlessDeletion <$> arbitrary, AdminlessReminder <$> arbitrary]
 
+-- | Payload for synchronising a user group (without its channel contents).
+data UserGroupsSyncUserGroupJob = UserGroupsSyncUserGroupJob
+  { userGroupsSyncUserGroupJobRequestId :: RequestId,
+    userGroupsSyncUserGroupJobData :: SyncUserGroup
+  }
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserGroupsSyncUserGroupJob)
+
+instance Arbitrary UserGroupsSyncUserGroupJob where
+  arbitrary = UserGroupsSyncUserGroupJob <$> arbitrary <*> arbitrary
+
+instance ToSchema UserGroupsSyncUserGroupJob where
+  schema =
+    object $
+      UserGroupsSyncUserGroupJob
+        <$> (.userGroupsSyncUserGroupJobRequestId) .= field "request_id" schema
+        <*> (.userGroupsSyncUserGroupJobData) .= field "data" schema
+
+-- | Payload for synchronising a user group together with one of its channels.
+data UserGroupsSyncUserGroupAndChannelJob = UserGroupsSyncUserGroupAndChannelJob
+  { userGroupsSyncUserGroupAndChannelJobRequestId :: RequestId,
+    userGroupsSyncUserGroupAndChannelJobData :: SyncUserGroupAndChannel
+  }
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserGroupsSyncUserGroupAndChannelJob)
+
+instance Arbitrary UserGroupsSyncUserGroupAndChannelJob where
+  arbitrary = UserGroupsSyncUserGroupAndChannelJob <$> arbitrary <*> arbitrary
+
+instance ToSchema UserGroupsSyncUserGroupAndChannelJob where
+  schema =
+    object $
+      UserGroupsSyncUserGroupAndChannelJob
+        <$> (.userGroupsSyncUserGroupAndChannelJobRequestId) .= field "request_id" schema
+        <*> (.userGroupsSyncUserGroupAndChannelJobData) .= field "data" schema
+
+-- | Payload persisted in the user-groups queue. Keep the type tags and nested
+-- data shapes stable when changing job payloads.
+data UserGroupsJobPayload
+  = UserGroupsSyncUserGroup UserGroupsSyncUserGroupJob
+  | UserGroupsSyncUserGroupAndChannel UserGroupsSyncUserGroupAndChannelJob
+  deriving stock (Eq, Generic, Show)
+
+data UserGroupsJobPayloadTag
+  = UserGroupsSyncUserGroupTag
+  | UserGroupsSyncUserGroupAndChannelTag
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupsJobPayloadTag
+
+instance ToSchema UserGroupsJobPayloadTag where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "sync_user_group" UserGroupsSyncUserGroupTag,
+          element "sync_user_group_and_channel" UserGroupsSyncUserGroupAndChannelTag
+        ]
+
+makePrisms ''UserGroupsJobPayload
+
+userGroupsJobPayloadObjectSchema :: ObjectSchema SwaggerDoc UserGroupsJobPayload
+userGroupsJobPayloadObjectSchema = taggedJobPayloadObjectSchema toTag toSchema
+  where
+    toTag :: UserGroupsJobPayload -> UserGroupsJobPayloadTag
+    toTag = \case
+      UserGroupsSyncUserGroup {} -> UserGroupsSyncUserGroupTag
+      UserGroupsSyncUserGroupAndChannel {} -> UserGroupsSyncUserGroupAndChannelTag
+
+    toSchema :: UserGroupsJobPayloadTag -> ObjectSchema SwaggerDoc UserGroupsJobPayload
+    toSchema = \case
+      UserGroupsSyncUserGroupTag -> tag _UserGroupsSyncUserGroup (field "data" schema)
+      UserGroupsSyncUserGroupAndChannelTag -> tag _UserGroupsSyncUserGroupAndChannel (field "data" schema)
+
+instance ToSchema UserGroupsJobPayload where
+  schema = object userGroupsJobPayloadObjectSchema
+
+deriving via (Schema UserGroupsJobPayload) instance FromJSON UserGroupsJobPayload
+
+deriving via (Schema UserGroupsJobPayload) instance ToJSON UserGroupsJobPayload
+
+deriving via (Schema UserGroupsJobPayload) instance S.ToSchema UserGroupsJobPayload
+
+instance Arbitrary UserGroupsJobPayload where
+  arbitrary =
+    oneof
+      [ UserGroupsSyncUserGroup <$> arbitrary,
+        UserGroupsSyncUserGroupAndChannel <$> arbitrary
+      ]
+
 -- | Registry for the jobs we expose via Arbiter.
 type JobRegistry =
   '[ Queue MeetingsQueueName MeetingsJobPayload,
-     Queue ConversationsQueueName ConversationsJobPayload
+     Queue ConversationsQueueName ConversationsJobPayload,
+     Queue UserGroupsQueueName UserGroupsJobPayload
    ]

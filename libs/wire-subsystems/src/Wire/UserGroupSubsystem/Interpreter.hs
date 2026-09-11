@@ -49,7 +49,6 @@ import Wire.BackgroundJobsPublisher
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.NotificationSubsystem
-import Wire.Sem.Random qualified as Random
 import Wire.TeamSubsystem
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem (UserGroupSubsystem (..))
@@ -57,8 +56,7 @@ import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 import Wire.Util
 
 interpretUserGroupSubsystem ::
-  ( Member Random.Random r,
-    Member UserSubsystem r,
+  ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
@@ -106,8 +104,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupManagedByMismatch -> errorToWai @E.UserGroupManagedByMismatch
 
 createUserGroup ::
-  ( Member Random.Random r,
-    Member UserSubsystem r,
+  ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
@@ -130,7 +127,6 @@ createUserGroupFullImpl ::
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member Random.Random r,
     Member BackgroundJobPublisher r
   ) =>
   ManagedBy ->
@@ -362,8 +358,7 @@ deleteGroupManagedImpl managedBy team groupId = do
           throw UserGroupManagedByMismatch
 
 addUser ::
-  ( Member Random.Random r,
-    Member UserSubsystem r,
+  ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
@@ -387,8 +382,7 @@ addUser adder groupId addeeId = do
     triggerSyncUserGroup team (Just adder) groupId
 
 addUsers ::
-  ( Member Random.Random r,
-    Member UserSubsystem r,
+  ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
@@ -416,8 +410,7 @@ addUsers adder groupId addeeIds = do
   triggerSyncUserGroup team (Just adder) groupId
 
 updateUsers ::
-  ( Member Random.Random r,
-    Member UserSubsystem r,
+  ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
@@ -437,7 +430,6 @@ updateUsersNoAccessControl ::
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member Random.Random r,
     Member BackgroundJobPublisher r
   ) =>
   TeamId ->
@@ -457,8 +449,7 @@ updateUsersNoAccessControl teamId mbUpdater groupId uids = do
   triggerSyncUserGroup teamId mbUpdater groupId
 
 removeUser ::
-  ( Member Random.Random r,
-    Member UserSubsystem r,
+  ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
@@ -518,8 +509,7 @@ removeUserFromAllGroups uid tid = do
           }
 
 updateChannels ::
-  ( Member Random.Random r,
-    Member UserSubsystem r,
+  ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member TeamSubsystem r,
@@ -553,23 +543,19 @@ updateChannels appendOnly performer groupId channelIds = do
     ]
 
 triggerSyncUserGroup ::
-  ( Member Random.Random r,
-    Member BackgroundJobPublisher r
-  ) =>
+  (Member BackgroundJobPublisher r) =>
   TeamId ->
   Maybe UserId ->
   UserGroupId ->
   Sem r ()
-triggerSyncUserGroup teamId actor userGroupId = do
-  jobId <- Random.newId
-  publishJob jobId $ BackgroundJobSyncUserGroup SyncUserGroup {..}
+triggerSyncUserGroup teamId actor userGroupId =
+  publishJob $ BackgroundJobSyncUserGroup SyncUserGroup {..}
 
 resetUserGroupInternal ::
   ( Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member Random.Random r,
     Member BackgroundJobPublisher r
   ) =>
   UpdateGroupInternalRequest ->

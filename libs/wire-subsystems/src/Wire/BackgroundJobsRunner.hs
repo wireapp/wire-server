@@ -20,9 +20,9 @@
 module Wire.BackgroundJobsRunner where
 
 import Polysemy
-import Wire.API.BackgroundJobs (BackgroundJob)
+import Wire.API.BackgroundJobs (BackgroundJobPayload)
 
 data BackgroundJobRunner m a where
-  RunJob :: BackgroundJob -> BackgroundJobRunner m ()
+  RunJob :: BackgroundJobPayload -> BackgroundJobRunner m ()
 
 makeSem ''BackgroundJobRunner

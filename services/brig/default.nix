@@ -9,6 +9,7 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, arbiter-core
 , async
 , attoparsec
 , auto-update
@@ -161,6 +162,7 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
     async
     auto-update
     base

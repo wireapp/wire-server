@@ -45,7 +45,6 @@ import Wire.BackgroundJobsPublisher
 import Wire.BackgroundJobsRunner (BackgroundJobRunner (..))
 import Wire.ConversationStore (ConversationStore, upsertMembers)
 import Wire.ConversationSubsystem
-import Wire.Sem.Random
 import Wire.StoredConversation
 import Wire.UserGroupStore (UserGroupStore, getUserGroup, getUserGroupChannels)
 import Wire.UserList (toUserList)
@@ -56,7 +55,6 @@ interpretBackgroundJobRunner ::
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
-    Member Random r,
     Member TinyLog r
   ) =>
   InterpreterFor BackgroundJobRunner r
@@ -69,12 +67,11 @@ runBackgroundJob ::
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
-    Member Random r,
     Member TinyLog r
   ) =>
-  BackgroundJob ->
+  BackgroundJobPayload ->
   Sem r ()
-runBackgroundJob job = case job.payload of
+runBackgroundJob = \case
   BackgroundJobSyncUserGroupAndChannel payload -> runSyncUserGroupAndChannel payload
   BackgroundJobSyncUserGroup payload -> runSyncUserGroup payload
 
@@ -146,7 +143,6 @@ runSyncUserGroupAndChannel (SyncUserGroupAndChannel {..}) = do
 runSyncUserGroup ::
   ( Member UserGroupStore r,
     Member BackgroundJobPublisher r,
-    Member Random r,
     Member TinyLog r
   ) =>
   SyncUserGroup ->
@@ -161,5 +157,4 @@ runSyncUserGroup SyncUserGroup {..} = do
   let channels = fromMaybe mempty mChannels
   for_ channels $ \convId -> do
     let syncUserGroupAndChannel = SyncUserGroupAndChannel {..}
-    jobId <- newId
-    publishJob jobId (BackgroundJobSyncUserGroupAndChannel syncUserGroupAndChannel)
+    publishJob (BackgroundJobSyncUserGroupAndChannel syncUserGroupAndChannel)

@@ -38,4 +38,4 @@ dispatchJob job = do
     $ runBackgroundWorkerEffects env extEnv job.requestId (Just job.jobId)
       . interpretBackgroundJobPublisherRabbitMQ job.requestId env.amqpJobsPublisherChannel
       . interpretBackgroundJobRunner
-    $ runJob job
+    $ runJob job.payload
