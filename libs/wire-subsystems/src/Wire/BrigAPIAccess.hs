@@ -111,7 +111,6 @@ data BrigAPIAccess m a where
     BrigAPIAccess m ()
   GetUserExportData :: UserId -> BrigAPIAccess m (Maybe TeamExportUser)
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
-  UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   GetUsersByVariousKeys :: [UserId] -> [Handle] -> [EmailAddress] -> HavePendingInvitations -> BrigAPIAccess m [User]
   CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)

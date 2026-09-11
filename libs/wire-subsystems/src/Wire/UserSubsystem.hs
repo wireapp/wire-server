@@ -66,7 +66,6 @@ import Wire.SparAPIAccess (SparAPIAccess, getIdentityProviders)
 import Wire.StoredUser qualified as SU
 import Wire.TeamSubsystem
 import Wire.UserKeyStore
-import Wire.UserSearch.Types
 import Wire.UserStore
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem.Error
@@ -178,9 +177,6 @@ data UserSubsystem m a where
     UserSubsystem m (SearchResult TeamContact)
   -- | (...  or does `AcceptTeamInvitation` belong into `TeamInvitationSubsystems`?)
   AcceptTeamInvitation :: Local UserId -> PlainTextPassword6 -> InvitationCode -> UserSubsystem m ()
-  -- | The following "internal" functions exists to support migration in this susbystem, after the
-  -- migration this would just be an internal detail of the subsystem
-  InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
   RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())
@@ -272,7 +268,6 @@ requestEmailChange lusr email allowScim = do
     ChangeEmailNeedsActivation (usr, adata, en) -> do
       sendOutEmail usr adata en
       updateEmailUnvalidated u email
-      internalUpdateSearchIndex u
       pure ChangeEmailResponseNeedsActivation
   where
     throwGuardFailed ::

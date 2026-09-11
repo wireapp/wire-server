@@ -16,11 +16,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    bloodhound = {
-      url = "github:wireapp/bloodhound?ref=wire-fork";
-      flake = false;
-    };
-
     http-client = {
       url = "github:wireapp/http-client?ref=master";
       flake = false;

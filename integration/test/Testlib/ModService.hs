@@ -179,7 +179,6 @@ defaultOverrides :: BackendResource -> ServiceOverrides
 defaultOverrides resource =
   mconcat
     [ setKeyspace,
-      setEsIndex,
       setPgDb,
       setFederationSettings,
       setAwsConfigs,
@@ -258,11 +257,6 @@ defaultOverrides resource =
           backgroundWorkerCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
         }
 
-    setEsIndex :: ServiceOverrides
-    setEsIndex =
-      def
-        { brigCfg = setField "elasticsearch.index" resource.berElasticsearchIndex
-        }
 
     setMlsPrivateKeyPaths :: ServiceOverrides
     setMlsPrivateKeyPaths =

@@ -43,7 +43,6 @@ import Data.Map.Strict qualified as Map
 import Data.Qualified (Qualified (..))
 import Data.Text qualified as T
 import Data.Text qualified as Text
-import Database.Bloodhound qualified as ES
 import Federator.MockServer qualified as Mock
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (IOException (ioe_errno))

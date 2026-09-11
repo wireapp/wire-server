@@ -26,15 +26,11 @@ import qualified API.Common as API
 import API.Galley
 import qualified API.Galley as Galley
 import qualified API.GalleyInternal as GalleyI
-import Control.Monad.Codensity (Codensity (runCodensity))
-import Control.Monad.Reader
 import qualified Data.Set as Set
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
-import Testlib.ResourcePool (acquireResources)
-import UnliftIO (pooledForConcurrentlyN, pooledForConcurrentlyN_)
 
 -- * Local Search
 
@@ -84,7 +80,6 @@ testEphemeralUsersSearch :: (HasCallStack) => App ()
 testEphemeralUsersSearch = do
   userEphemeral <- ephemeralUser OwnDomain
   [user1, user2] <- replicateM 2 $ randomUser OwnDomain def
-  BrigI.refreshIndex OwnDomain
 
   -- user1 can find user2
   BrigP.searchContacts user1 (user2 %. "name") OwnDomain >>= \resp -> do
@@ -182,7 +177,6 @@ checkUserSearch d1 d2 = do
             foundNames :: [String] <- ((%. "name") >=> asString) `mapM` foundDocs
             foundNames `shouldMatchSet` names
 
-  BrigI.refreshIndex d2
   forM_ [owner, remoteSearcher] $ \searcher -> do
     filterByType searcher "chappie" Nothing ["chappie"]
 
@@ -203,7 +197,6 @@ federatedUserSearch d1 d2 test = do
 
   u2Handle <- API.randomHandle
   bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-  BrigI.refreshIndex d2
 
   bindResponse (BrigP.searchContacts u1 u2Handle d2) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -255,7 +248,6 @@ testFederatedUserSearchNonTeamSearcher = do
 
     u2Handle <- API.randomHandle
     bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-    BrigI.refreshIndex d2
 
     bindResponse (BrigP.searchContacts u1 u2Handle d2) $ \resp -> do
       resp.status `shouldMatchInt` 200
@@ -284,7 +276,6 @@ testFederatedUserSearchForNonTeamUser = do
 
     u2Handle <- API.randomHandle
     bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-    BrigI.refreshIndex d2
 
     bindResponse (BrigP.searchContacts u1 u2Handle d2) $ \resp -> do
       resp.status `shouldMatchInt` 200
@@ -309,7 +300,6 @@ testSearchForTeamMembersWithRoles = do
   (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain 5
   [ownerId, m1Id, m2Id, m3Id, m4Id] <- for [owner, m1, m2, m3, m4] objId
 
-  BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
@@ -334,7 +324,6 @@ testSearchForTeamMembersWithRoles = do
       expectedUserToRoleMapping = expectedRoles >>= \(role, uids) -> [(uid, role) | uid <- uids]
       toUidRoleTuple doc = (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
 
-  BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
@@ -367,8 +356,6 @@ testSearchWithDifferentEndpoints = do
   updateTeamMember tid owner m2 Member >>= assertSuccess
   updateTeamMember tid owner m3 Partner >>= assertSuccess
   updateTeamMember tid owner m4 Admin >>= assertSuccess
-
-  BrigI.refreshIndex dom
 
   (allOfThemUnqualified, allOfThemQualified) <- bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -407,8 +394,6 @@ testTeamSearchEmailFilter = do
   newUnverified <- API.randomEmail
   BrigP.updateEmail mem newUnverified cookie token >>= assertSuccess
 
-  BrigI.refreshIndex OwnDomain
-
   -- email=verified returns users with verified email and no unverified (owner only)
   BrigP.searchTeam owner [("email", "verified"), ("size", "100"), ("q", "")] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
@@ -442,8 +427,6 @@ testTeamSearchUserIncludesUserGroups = do
   ug1 <- BrigP.createUserGroup owner (object ["name" .= "group 1", "members" .= [mem1id, mem2id]]) >>= getJSON 200 >>= objId
   ug2 <- BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id, mem4id]]) >>= getJSON 200 >>= objId
   ug3 <- BrigP.createUserGroup owner (object ["name" .= "group 3", "members" .= [mem2id, mem3id]]) >>= getJSON 200 >>= objId
-
-  BrigI.refreshIndex OwnDomain
 
   bindResponse (BrigP.searchTeamAll owner) \resp -> do
     resp.status `shouldMatchInt` 200
@@ -492,7 +475,6 @@ testUserSearchable = do
 
   -- By default created team members are found.
   u2id <- u2 %. "id" & asString
-  BrigI.refreshIndex OwnDomain
   withFoundDocs u1 (u2 %. "name") $ \docs -> do
     foundUids <- for docs objId
     assertBool "u1 must find u2 as they are searchable by default" $ u2id `elem` foundUids
@@ -500,7 +482,6 @@ testUserSearchable = do
   -- User set to non-searchable is not found by other team members.
   u3id <- u3 %. "id" & asString
   BrigP.setUserSearchable owner u3id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
-  BrigI.refreshIndex OwnDomain
   withFoundDocs u1 (u3 %. "name") $ \docs -> do
     foundUids <- for docs objId
     assertBool "u1 must not find u3 as they are set non-searchable" $ notElem u3id foundUids
@@ -592,19 +573,16 @@ testStealthUsersWithFederation = do
 
   assertSuccess =<< GalleyI.setTeamFeatureStatus OtherDomain tid "searchVisibilityInbound" "enabled"
   BrigP.putSelf searchee (def {BrigP.name = Just searchTerm}) >>= assertSuccess
-  BrigI.refreshIndex OtherDomain
 
   assertCanFind searcher searchee searchTerm OtherDomain
 
   BrigP.setUserSearchable owner searcheeId False >>= assertSuccess
-  BrigI.refreshIndex OtherDomain
 
   assertCannotFind searcher searchee searchTerm OtherDomain
 
 testSuspendedUserSearch :: (HasCallStack) => App ()
 testSuspendedUserSearch = do
   [searcher, searchee] <- replicateM 2 $ randomUser OwnDomain def
-  BrigI.refreshIndex OwnDomain
   searcheeQid <- objQidObject searchee
 
   -- The searcher can find the searchee by default
@@ -615,7 +593,6 @@ testSuspendedUserSearch = do
   BrigI.getAccountStatus searchee `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "suspended"
-  BrigI.refreshIndex OwnDomain
   assertCannotFind searcher searcheeQid (searchee %. "name") OwnDomain
 
   -- The searcher can find the searchee once the searchee is unsuspended
@@ -623,86 +600,7 @@ testSuspendedUserSearch = do
   BrigI.getAccountStatus searchee `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "active"
-  BrigI.refreshIndex OwnDomain
   assertCanFind searcher searcheeQid (searchee %. "name") OwnDomain
-
-testReindexAllUsers :: (HasCallStack) => App ()
-testReindexAllUsers = do
-  resourcePool <- asks (.resourcePool)
-  runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
-    let domain = testBackend.berDomain
-        usersOfEachType = 5
-        parallelism = 8
-
-    -- The name changers change their name when the backend is writing to a new
-    -- ES index. The deleters delete their own account during the same time.
-    (alice, nameChangers, deleters) <- runCodensity (startDynamicBackend testBackend def) $ \_ -> do
-      alice <- randomUser domain def
-      nameChangers <- replicateM usersOfEachType $ randomUser domain def
-      deleters <- replicateM usersOfEachType $ randomUser domain def
-
-      BrigI.refreshIndex domain
-      pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
-        assertCanFind alice user (user %. "name") domain
-      pure (alice, nameChangers, deleters)
-
-    -- Temporarily use a new index, so new users, updates and deletes get
-    -- written there.
-    tempIndex <- createNewIndex
-    (newUsers, changedNames) <- runCodensity (startDynamicBackend (testBackend {berElasticsearchIndex = tempIndex}) def) $ \_ -> do
-      newUsers <- replicateM usersOfEachType $ randomUser domain def
-
-      BrigI.refreshIndex domain
-      pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user ->
-        assertCannotFind alice user (user %. "name") domain
-
-      pooledForConcurrentlyN_ parallelism (newUsers) $ \user ->
-        assertCanFind alice user (user %. "name") domain
-
-      changedNames <- pooledForConcurrentlyN parallelism nameChangers $ \user -> do
-        newName <- API.randomName
-        BrigP.putSelf user (def {BrigP.name = Just newName}) >>= assertSuccess
-        BrigI.refreshIndex domain
-        assertCanFind alice user newName domain
-        pure newName
-
-      pooledForConcurrentlyN_ parallelism deleters $ \user -> do
-        deleteUser user
-        BrigI.refreshIndex domain
-        assertCannotFind alice user (user %. "name") domain
-
-      pure (newUsers, changedNames)
-
-    let context =
-          ("alice", alice)
-            : zipWith (\n user -> ("nameChanger" <> show n, user)) [1 :: Int ..] nameChangers
-              <> zipWith (\n user -> ("deleter" <> show n, user)) [1 :: Int ..] deleters
-              <> zipWith (\n user -> ("newUser" <> show n, user)) [1 :: Int ..] newUsers
-    addUsersToFailureContext context $ do
-      -- Now if we use the old index, things shouldn't work as expected until a
-      -- re-index is done.
-      runCodensity (startDynamicBackend testBackend def) $ \_ -> do
-        -- Can find people with stale info
-        pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
-          assertCanFind alice user (user %. "name") domain
-
-        -- New things don't work
-        pooledForConcurrentlyN_ parallelism (zip changedNames nameChangers) $ \(newName, user) ->
-          assertCannotFind alice user newName domain
-        pooledForConcurrentlyN_ parallelism newUsers $ \user ->
-          assertCannotFind alice user (user %. "name") domain
-
-        -- Reindex users using a small page size so pagination gets excersiced
-        reindexUsers testBackend def 5
-        BrigI.refreshIndex domain
-
-        -- Now things should work as expected
-        pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
-          assertCannotFind alice user (user %. "name") domain
-        pooledForConcurrentlyN_ parallelism (zip changedNames nameChangers) $ \(newName, user) ->
-          assertCanFind alice user newName domain
-        pooledForConcurrentlyN_ parallelism newUsers $ \user ->
-          assertCanFind alice user (user %. "name") domain
 
 -- * Assertion Helpers
 

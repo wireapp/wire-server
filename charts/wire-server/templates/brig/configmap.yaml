@@ -39,30 +39,6 @@ data:
     {{- end }}
     postgresMigration: {{- toYaml $.Values.galley.config.postgresMigration | nindent 6 }}
 
-    elasticsearch:
-      url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
-      index: {{ .elasticsearch.index }}
-      {{- if .elasticsearch.additionalWriteHost }}
-      additionalWriteIndexUrl: {{ .elasticsearch.additionalWriteScheme }}://{{ .elasticsearch.additionalWriteHost }}:{{ .elasticsearch.additionalWritePort }}
-      {{- end }}
-      {{- if .elasticsearch.additionalWriteIndex }}
-      additionalWriteIndex: {{ .elasticsearch.additionalWriteIndex }}
-      {{- end }}
-      {{- if $.Values.brig.secrets.elasticsearch }}
-      credentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
-      {{- end }}
-      {{- if eq (include "brig.configureElasticSearchCa" .) "true" }}
-      caCert: /etc/wire/brig/elasticsearch-ca/{{ include "brig.elasticsearchTlsSecretKey" .}}
-      {{- end }}
-      {{- if eq (include "brig.configureAdditionalElasticSearchCa" .) "true" }}
-      additionalCaCert: /etc/wire/brig/additional-elasticsearch-ca/{{ include "brig.additionalElasticsearchTlsSecretKey" .}}
-      {{- end }}
-      {{- if $.Values.brig.secrets.elasticsearchAdditional }}
-      additionalCredentials: /etc/wire/brig/secrets/elasticsearch-additional-credentials.yaml
-      {{- end }}
-      insecureSkipVerifyTls: {{ .elasticsearch.insecureSkipVerifyTls }}
-      additionalInsecureSkipVerifyTls: {{ .elasticsearch.additionalInsecureSkipVerifyTls }}
-
     cargohold:
       host: cargohold
       port: 8080

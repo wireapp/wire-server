@@ -9,14 +9,6 @@ cassandra:
   keyspace: brig_test_federation_v2
   # filterNodesByDatacentre: datacenter1
 
-elasticsearch:
-  url: https://demo_wire_elasticsearch:9200
-  index: directory_test_federation_v2
-  credentials: /etc/wire/brig/conf/elasticsearch-credentials.yaml
-  insecureSkipVerifyTls: true
-  additionalCredentials: /etc/wire/brig/conf/elasticsearch-credentials.yaml
-  additionalInsecureSkipVerifyTls: true
-
 rabbitmq:
   host: rabbitmq
   port: 5672

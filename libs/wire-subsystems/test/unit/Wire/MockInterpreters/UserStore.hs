@@ -23,8 +23,6 @@ import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Handle
 import Data.Id
 import Data.Map qualified as Map
-import Data.Time
-import Data.Time.Calendar.OrdinalDate
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -35,7 +33,6 @@ import Wire.API.User qualified as User
 import Wire.API.User.Search (SetSearchable (SetSearchable))
 import Wire.StoredUser
 import Wire.UserStore
-import Wire.UserStore.IndexUser
 
 runInMemoryUserStoreInterpreter :: [StoredUser] -> Map UserId Password -> InterpreterFor UserStore r
 runInMemoryUserStoreInterpreter users passwords =
@@ -111,11 +108,6 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
   DeactivateUser uid -> updateUserInStore uid (\u -> u {activated = False})
   UpdateFeatureConferenceCalling {} -> error "UpdateFeatureConferenceCalling: Not implemented"
   LookupFeatureConferenceCalling {} -> error "FeatureConferenceCalling: Not implemented"
-  GetIndexUser uid -> do
-    mUser <- gets @[StoredUser] $ find (\user -> user.id == uid)
-    pure $ storedUserToIndexUser <$> mUser
-  GetIndexUsersPaginated _pageSize _pagingState ->
-    error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
@@ -177,31 +169,7 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
   LookupServiceUsers {} -> error "lookupServiceUsers: Not implemented"
   LookupServiceUsersForTeam {} -> error "lookupServiceUsersForteam: Not implemented"
 
-storedUserToIndexUser :: StoredUser -> IndexUser
-storedUserToIndexUser storedUser =
-  -- If we really care about this, we could start storing the writetimes, but we
-  -- don't need it right now
-  let defaultTime = UTCTime (YearDay 0 1) 0
-   in IndexUser
-        { userId = storedUser.id,
-          userType = inferUserType storedUser.serviceId storedUser.userType,
-          teamId = storedUser.teamId,
-          name = storedUser.name,
-          accountStatus = storedUser.status,
-          handle = storedUser.handle,
-          email = storedUser.email,
-          colourId = storedUser.accentId,
-          activated = storedUser.activated,
-          serviceId = storedUser.serviceId,
-          managedBy = storedUser.managedBy,
-          ssoId = storedUser.ssoId,
-          unverifiedEmail = Nothing,
-          searchable = storedUser.searchable,
-          createdAt = defaultTime,
-          updatedAt = defaultTime
-        }
-
-lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
+lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe (Maybe Language, Maybe Country))
 lookupLocaleImpl uid = do
   users <- get
   let mUser = find ((== uid) . (.id)) users

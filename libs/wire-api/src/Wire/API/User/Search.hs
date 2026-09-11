@@ -35,6 +35,11 @@ module Wire.API.User.Search
     UserTypeFilter (..),
     userTypeFilterToText,
     userTypeFilterToUserType,
+    TeamSearchInfo (..),
+    SearchVisibilityInbound (..),
+    defaultSearchVisibilityInbound,
+    searchVisibilityInboundFromFeatureStatus,
+    BrowseTeamFilters (..),
   )
 where
 
@@ -60,7 +65,9 @@ import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Data.Text.Encoding qualified as TE
 import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
+import Test.QuickCheck (arbitrary, elements)
 import Web.Internal.HttpApiData (parseQueryParam)
+import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy, UserType (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -429,3 +436,86 @@ instance ToSchema SetSearchable where
     object $
       SetSearchable
         <$> setSearchable .= field "set_searchable" schema
+
+--------------------------------------------------------------------------------
+-- TeamSearchInfo / SearchVisibilityInbound
+
+-- | Outbound search restrictions configured by team admin of the searcher. This
+-- value restricts the set of user that are searched.
+--
+-- See 'optionallySearchWithinTeam' for the effect on full-text search.
+--
+-- See 'mkTeamSearchInfo' for the business logic that defines the TeamSearchInfo
+-- value.
+--
+-- Search results might be affected by the inbound search restriction settings of
+-- the searched user. ('SearchVisibilityInbound')
+data TeamSearchInfo
+  = -- | Only users that are not part of any team are searched
+    NoTeam
+  | -- | Only users from the same team as the searcher are searched
+    TeamOnly TeamId
+  | -- | No search restrictions, all users are searched
+    AllUsers
+
+-- | Inbound search restrictions configured by team to-be-searched. Affects only
+-- full-text search (i.e. search on the display name and the handle), not exact
+-- handle search.
+data SearchVisibilityInbound
+  = -- | The user can only be found by users from the same team
+    SearchableByOwnTeam
+  | -- | The user can by found by any user of any team
+    SearchableByAllTeams
+  deriving (Eq, Show)
+
+instance Arbitrary SearchVisibilityInbound where
+  arbitrary = elements [SearchableByOwnTeam, SearchableByAllTeams]
+
+instance ToByteString SearchVisibilityInbound where
+  builder SearchableByOwnTeam = "searchable-by-own-team"
+  builder SearchableByAllTeams = "searchable-by-all-teams"
+
+instance FromByteString SearchVisibilityInbound where
+  parser =
+    SearchableByOwnTeam
+      <$ string "searchable-by-own-team"
+        <|> SearchableByAllTeams
+      <$ string "searchable-by-all-teams"
+
+-- | Integral representation used for persistence (Cassandra and Postgres).
+instance C.Cql SearchVisibilityInbound where
+  ctype = C.Tagged C.IntColumn
+
+  toCql SearchableByOwnTeam = C.CqlInt 0
+  toCql SearchableByAllTeams = C.CqlInt 1
+
+  fromCql (C.CqlInt 0) = pure SearchableByOwnTeam
+  fromCql (C.CqlInt 1) = pure SearchableByAllTeams
+  fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+defaultSearchVisibilityInbound :: SearchVisibilityInbound
+defaultSearchVisibilityInbound = SearchableByOwnTeam
+
+searchVisibilityInboundFromFeatureStatus :: FeatureStatus -> SearchVisibilityInbound
+searchVisibilityInboundFromFeatureStatus FeatureStatusDisabled = SearchableByOwnTeam
+searchVisibilityInboundFromFeatureStatus FeatureStatusEnabled = SearchableByAllTeams
+
+instance ToJSON SearchVisibilityInbound where
+  toJSON = String . TE.decodeUtf8 . BS.toByteString' . builder
+
+instance FromJSON SearchVisibilityInbound where
+  parseJSON = withText "SearchVisibilityInbound" $ \str ->
+    case AP.parseOnly (parser @SearchVisibilityInbound) (TE.encodeUtf8 str) of
+      Left _ -> fail "Invalid SearchVisibilityInbound"
+      Right result -> pure result
+
+data BrowseTeamFilters = BrowseTeamFilters
+  { teamId :: TeamId,
+    mQuery :: Maybe Text,
+    mRoleFilter :: Maybe RoleFilter,
+    mSortBy :: Maybe TeamUserSearchSortBy,
+    mSortOrder :: Maybe TeamUserSearchSortOrder,
+    mEmailVerificationFilter :: Maybe EmailVerificationFilter,
+    mSearchable :: Maybe Bool
+  }
+  deriving (Eq, Show)

@@ -20,10 +20,6 @@ environments:
       - cassandraHost: cassandra-ephemeral
       - useK8ssandraSSL:
           enabled: false
-      - elasticsearch:
-          host: opensearch-cluster-master
-          additionalHost: elasticsearch-ephemeral
-          caSecretName: opensearch-ephemeral-certificate
   default-ssl:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -32,10 +28,6 @@ environments:
       - cassandraHost: k8ssandra-cluster-datacenter-1-service
       - useK8ssandraSSL:
           enabled: true
-      - elasticsearch:
-          host: elasticsearch-ephemeral
-          additionalHost: opensearch-cluster-master
-          caSecretName: elasticsearch-ephemeral-certificate
   kind:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -44,10 +36,6 @@ environments:
       - cassandraHost: cassandra-ephemeral
       - useK8ssandraSSL:
           enabled: false
-      - elasticsearch:
-          host: elasticsearch-ephemeral
-          additionalHost: opensearch-cluster-master
-          caSecretName: elasticsearch-ephemeral-certificate
   kind-ssl:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -56,10 +44,6 @@ environments:
       - cassandraHost: k8ssandra-cluster-datacenter-1-service
       - useK8ssandraSSL:
           enabled: true
-      - elasticsearch:
-          host: elasticsearch-ephemeral
-          additionalHost: opensearch-cluster-master
-          caSecretName: elasticsearch-ephemeral-certificate
 ---
 repositories:
   - name: incubator
@@ -76,9 +60,6 @@ repositories:
 
   - name: obeone
     url: 'https://charts.obeone.cloud'
-
-  - name: opensearch
-    url: 'https://opensearch-project.github.io/helm-charts/'
 
   - name: bitnami
     url: registry-1.docker.io/bitnamicharts
@@ -117,26 +98,6 @@ releases:
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/cassandra-ephemeral'
-
-  - name: 'elasticsearch-ephemeral'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
-    values:
-      - tls:
-          enabled: true
-          issuerRef:
-            name: elasticsearch
-            kind: Issuer
-
-  - name: 'elasticsearch-ephemeral'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
-    values:
-      - tls:
-          enabled: true
-          issuerRef:
-            name: elasticsearch
-            kind: Issuer
 
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
@@ -179,24 +140,6 @@ releases:
                 CREATE DATABASE "wire-server";
 
                 GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
-
-  - name: 'opensearch-ephemeral'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: 'opensearch/opensearch'
-    # The 1.x.x and 2.x.x chart versions belong to the OpenSearch versions 1.x.x
-    # and 2.x.x respectively. I.e. both strains are actively maintained.
-    version: "1.31.0"
-    values:
-      - './helm_vars/opensearch/values.yaml.gotmpl'
-
-  - name: 'opensearch-ephemeral-2'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: 'opensearch/opensearch'
-    # The 1.x.x and 2.x.x chart versions belong to the OpenSearch versions 1.x.x
-    # and 2.x.x respectively. I.e. both strains are actively maintained.
-    version: "1.31.0"
-    values:
-      - './helm_vars/opensearch/values.yaml.gotmpl'
 
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'

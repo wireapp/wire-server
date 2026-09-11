@@ -35,7 +35,6 @@
 
 module API.Federation where
 
-import API.Search.Util (refreshIndex)
 import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Options qualified as Opt
@@ -100,7 +99,6 @@ allowFullSearch domain opts =
 testSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testSearchSuccess opts brig = do
   (handle, user) <- createUserWithHandle brig
-  refreshIndex brig
 
   let quid = userQualifiedId user
   let domain = Domain "example.com"
@@ -117,7 +115,6 @@ testSearchSuccess opts brig = do
 testFulltextSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testFulltextSearchSuccess opts brig = do
   (_, user) <- createUserWithHandle brig
-  refreshIndex brig
 
   let quid = userQualifiedId user
   let domain = Domain "example.com"
@@ -145,7 +142,6 @@ testFulltextSearchMultipleUsers opts brig = do
       update = RequestBodyLBS . encode $ update'
   put (brig . path "/self" . contentJson . zUser (User.userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
 
-  refreshIndex brig
 
   let domain = Domain "example.com"
 
@@ -189,7 +185,6 @@ testSearchRestrictions opts brig = do
 
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
-  refreshIndex brig
 
   let opts' =
         opts
@@ -233,7 +228,6 @@ testGetUserByHandleRestrictions opts brig = do
 
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
-  refreshIndex brig
 
   let opts' =
         opts

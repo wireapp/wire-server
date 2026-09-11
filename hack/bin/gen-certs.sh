@@ -72,15 +72,6 @@ install_certs "$TEMP/federation" "$ROOT_DIR/deploy/dockerephemeral/federation-v0
 install_certs "$TEMP/federation" "$ROOT_DIR/deploy/dockerephemeral/federation-v1" \
     integration-ca "" integration-leaf integration-leaf-key
 
-# elasticsearch
-mkdir -p "$TEMP/es"
-gen_ca "$TEMP/es" elasticsearch.ca.example.com
-gen_cert "$TEMP/es" "DNS:localhost" localhost
-install_certs "$TEMP/es" "$ROOT_DIR/deploy/dockerephemeral/docker" \
-    elasticsearch-ca "" elasticsearch-cert elasticsearch-key
-install_certs "$TEMP/es" "$ROOT_DIR/hack/helm_vars/certs" \
-    elasticsearch-ca elasticsearch-ca-key
-
 # rabbitmq
 RABBITMQ="$ROOT_DIR/deploy/dockerephemeral/rabbitmq-config/certificates"
 gen_ca "$RABBITMQ" rabbitmq.ca.example.com

@@ -38,7 +38,6 @@ import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
-import Database.Bloodhound.Internal.Client qualified as ES
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -64,7 +63,6 @@ import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem.Error
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.DomainRegistrationStore qualified as DRS
-import Wire.IndexedUserStore qualified as IU
 import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
@@ -72,8 +70,7 @@ import Wire.MockInterpreters
 import Wire.RateLimit
 import Wire.StoredUser
 import Wire.UserKeyStore
-import Wire.UserSearch.Types
-import Wire.UserStore.IndexUser
+import Wire.UserSearch.Normalize (normalized)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
@@ -1109,14 +1106,36 @@ spec = describe "UserSubsystem.Interpreter" do
         let teamMember = mkTeamMember searcher.id fullPermissions Nothing defUserLegalHoldStatus
             searchee = searcheeNoHandle {handle = Just searcheeHandle} :: StoredUser
 
-            storedUserToDoc :: StoredUser -> UserDoc
-            storedUserToDoc user = indexUserToDoc defaultSearchVisibilityInbound Nothing (storedUserToIndexUser user)
+            storedUserToDoc :: StoredUser -> SearchUserDoc
+            storedUserToDoc user =
+              let msso = user.identity >>= ssoIdentity
+               in SearchUserDoc
+                    { sdId = user.id,
+                      sdType = inferUserType user.serviceId user.userType,
+                      sdTeam = user.teamId,
+                      sdName = fromName user.name,
+                      sdAccentId = Just (fromIntegral (fromColourId user.accentId)),
+                      sdHandle = fromHandle <$> user.handle,
+                      sdEmailUnvalidated = user.emailUnvalidated,
+                      sdEmail = user.email,
+                      sdNormalized = Just (normalized (fromName user.name)),
+                      sdSearchable = user.searchable,
+                      sdRole = Nothing,
+                      sdCreatedAt = Nothing,
+                      sdManagedBy = user.managedBy,
+                      sdSAMLIdp = fst <$> (msso >>= ssoIssuerAndNameId),
+                      sdScimExternalId = join (scimExternalId <$> user.managedBy <*> msso),
+                      sdSso = fmap (uncurry Sso) (msso >>= ssoIssuerAndNameId),
+                      sdAccountStatus = user.status,
+                      sdActivated = True,
+                      sdService = user.serviceId
+                    }
 
-            indexFromStoredUsers :: [StoredUser] -> UserIndex
-            indexFromStoredUsers storedUsers = do
-              run . execState emptyIndex . inMemoryIndexedUserStoreInterpreter $ do
-                for_ storedUsers $ \storedUser ->
-                  IU.upsert (userIdToDocId storedUser.id) (storedUserToDoc storedUser) ES.NoVersionControl
+            indexFromStoredUsers :: [StoredUser] -> UserSearchIndex
+            indexFromStoredUsers storedUsers =
+              emptyUserSearchIndex
+                { docs = Map.fromList [(storedUser.id, storedUserToDoc storedUser) | storedUser <- storedUsers]
+                }
 
             localBackend =
               def

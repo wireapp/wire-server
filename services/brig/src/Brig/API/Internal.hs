@@ -38,7 +38,6 @@ import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.User.EJPD qualified
-import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
 import Control.Lens.Extras (is)
@@ -115,7 +114,6 @@ import Wire.FederationConfigStore
 import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.HashPassword (HashPassword)
-import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem qualified as Mls
@@ -135,6 +133,7 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
+import Wire.UserSearchStore qualified as UserSearchStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User
@@ -157,6 +156,7 @@ servantSitemap ::
     Member UserSubsystem r,
     Member UserGroupSubsystem r,
     Member TeamSubsystem r,
+    Member UserSearchStore.UserSearchStore r,
     Member TeamInvitationSubsystem r,
     Member UserStore r,
     Member InvitationStore r,
@@ -170,7 +170,6 @@ servantSitemap ::
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r,
     Member (Polysemy.Error UserSubsystemError) r,
     Member HashPassword r,
     Member (Embed IO) r,
@@ -204,7 +203,6 @@ servantSitemap =
     :<|> clientAPI
     :<|> authAPI
     :<|> internalOauthAPI
-    :<|> internalSearchIndexAPI
     :<|> federationRemotesAPI
     :<|> Provider.internalProviderAPI
     :<|> enterpriseLoginApi
@@ -320,7 +318,7 @@ teamsAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore.UserSearchStore r,
     Member AuthenticationSubsystem r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
@@ -330,7 +328,7 @@ teamsAPI =
     :<|> Named @"get-invitation-code" (\tid iid -> lift . liftSem $ Team.getInvitationCode tid iid)
     :<|> Named @"suspend-team" Team.suspendTeam
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
-    :<|> Named @"team-size" (lift . liftSem . getTeamSize)
+    :<|> Named @"team-size" (lift . liftSem . UserSearchStore.getTeamSize)
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)
@@ -348,7 +346,6 @@ authAPI ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member Events r,
-    Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
@@ -502,11 +499,6 @@ getVerificationCode uid action = runMaybeT do
   let key = mkKey email
   code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
   pure code.codeValue
-
-internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
-internalSearchIndexAPI =
-  Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
-    :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalUpdateSearchIndex uid $> NoContent)
 
 enterpriseLoginApi ::
   ( Member EnterpriseLoginSubsystem r,
@@ -788,8 +780,7 @@ getPasswordResetCode email =
     >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
 
 changeAccountStatusH ::
-  ( Member UserSubsystem r,
-    Member Events r,
+  ( Member Events r,
     Member (Concurrency Unsafe) r,
     Member AuthenticationSubsystem r,
     Member UserStore r
@@ -866,8 +857,7 @@ addBlacklist :: (Member BlockListStore r) => EmailAddress -> Handler r NoContent
 addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
 
 updateSSOIdH ::
-  ( Member UserSubsystem r,
-    Member Events r,
+  ( Member Events r,
     Member UserStore r
   ) =>
   UserId ->
@@ -878,14 +868,12 @@ updateSSOIdH uid ssoid = lift $ do
   liftSem $
     if success
       then do
-        UserSubsystem.internalUpdateSearchIndex uid
         Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
         pure UpdateSSOIdSuccess
       else pure UpdateSSOIdNotFound
 
 deleteSSOIdH ::
-  ( Member UserSubsystem r,
-    Member Events r,
+  ( Member Events r,
     Member UserStore r
   ) =>
   UserId ->
@@ -894,7 +882,6 @@ deleteSSOIdH uid = lift $ do
   success <- liftSem $ UserStore.updateSSOId uid Nothing
   if success
     then liftSem $ do
-      UserSubsystem.internalUpdateSearchIndex uid
       Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound

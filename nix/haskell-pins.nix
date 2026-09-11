@@ -71,10 +71,6 @@ let
       };
     };
 
-    bloodhound = {
-      src = inputs.bloodhound;
-    };
-
 
     # Our fork because we need to a few special things
     http-client = {

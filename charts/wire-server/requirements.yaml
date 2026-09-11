@@ -7,11 +7,6 @@ dependencies:
   repository: "file://../cassandra-migrations"
   tags:
     - cassandra-migrations
-- name: elasticsearch-index
-  version: "0.0.42"
-  repository: "file://../elasticsearch-index"
-  tags:
-    - elasticsearch-index
 ########################
 ## wire-servers/services
 ########################
