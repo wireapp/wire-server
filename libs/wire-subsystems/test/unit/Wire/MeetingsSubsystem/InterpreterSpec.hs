@@ -49,6 +49,7 @@ import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), In
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.PostgresMarshall (PostgresUnmarshall (postgresUnmarshall))
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
 import Wire.API.Team.Permission (fullPermissions)
@@ -1629,11 +1630,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Left err -> fail $ "Error: " <> show err
         Right pushes -> do
           let push = head pushes
-          -- Order is deterministic: 'members' is a literal list, 'map
-          -- localMemberToRecipient' preserves order, and mkMeetingEventPush
-          -- no longer filters or reorders recipients.
+          -- Recipient order is preserved: 'members' is a literal list and
+          -- mkMeetingEventPush maps 'localMemberToRecipient' over it.
           map (.recipientUserId) push.recipients `shouldBe` [uid1, uid2]
           push.conn `shouldBe` Just originConn
+          push.route `shouldBe` PushV2.RouteAny
 
   describe "V16 operations" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
