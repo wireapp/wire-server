@@ -221,6 +221,8 @@ import Wire.API.Password
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
@@ -531,8 +533,6 @@ data UserProfile = UserProfile
   { profileQualifiedId :: Qualified UserId,
     profileName :: Name,
     profileTextStatus :: Maybe TextStatus,
-    -- | DEPRECATED
-    profilePict :: Pict,
     profileAssets :: [Asset],
     profileAccentId :: ColourId,
     profileDeleted :: Bool,
@@ -555,10 +555,17 @@ data UserProfile = UserProfile
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserProfile)
 
 instance ToSchema UserProfile where
-  schema = object userProfileObjectSchema
+  schema = object $ userProfileObjectSchema Nothing
 
-userProfileObjectSchema :: ObjectSchema SwaggerDoc UserProfile
-userProfileObjectSchema =
+instance ToSchema (Versioned 'V17 UserProfile) where
+  schema = Versioned <$> unVersioned .= (object $ userProfileObjectSchema (Just V17))
+
+instance ToSchema (Versioned 'V18 UserProfile) where
+  schema :: ValueSchema NamedSwaggerDoc (Versioned V18 UserProfile)
+  schema = Versioned <$> unVersioned .= (object $ userProfileObjectSchema (Just V18))
+
+userProfileObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc UserProfile
+userProfileObjectSchema mVersion =
   UserProfile
     <$> profileQualifiedId
       .= field "qualified_id" schema
@@ -568,8 +575,7 @@ userProfileObjectSchema =
       .= field "name" schema
     <*> profileTextStatus
       .= maybe_ (optField "text_status" schema)
-    <*> profilePict
-      .= (field "picture" schema <|> pure noPict)
+    <* profilePict
     <*> profileAssets
       .= (field "assets" (array schema) <|> pure [])
     <*> profileAccentId
@@ -593,6 +599,13 @@ userProfileObjectSchema =
     <*> profileApp .= maybe_ (optField "app" schema)
     <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
     <*> profileContactStatus .= maybe_ (optField "contact_status" schema)
+  where
+    profilePict :: SchemaP SwaggerDoc A.Object [A.Pair] UserProfile Pict
+    profilePict =
+      case mVersion of
+        Just v
+          | v > V17 -> mempty
+        _ -> const noPict .= (field "picture" schema <|> pure noPict)
 
 data ContactStatusState
   = Contactable
@@ -792,7 +805,6 @@ mkUserProfileWithEmail memail u mba legalHoldStatus =
       profileHandle = userHandle u,
       profileName = userDisplayName u,
       profileTextStatus = userTextStatus u,
-      profilePict = userPict u,
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,
       profileService = userService u,
