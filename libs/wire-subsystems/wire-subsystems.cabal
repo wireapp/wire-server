@@ -645,6 +645,7 @@ test-suite wire-subsystems-tests
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec
+    Wire.IndexedUserStore.BulkSpec
     Wire.MeetingNotifierSpec
     Wire.MeetingsSubsystem.InterpreterSpec
     Wire.MiniBackend
