@@ -59,7 +59,7 @@ appSubsystemErrorToHttpError =
     AppSubsystemErrorNoApp -> Wai.mkError status404 "app-not-found" "App not found"
 
 data AppSubsystem m a where
-  CreateApp :: Local UserId -> TeamId -> NewApp -> AppSubsystem m CreatedApp
+  CreateApp :: Local UserId -> TeamId -> NewApp -> AppSubsystem m (CreatedApp v)
   GetApp :: Local UserId -> TeamId -> UserId -> AppSubsystem m AppInfo
   GetApps :: Local UserId -> TeamId -> AppSubsystem m [(UserId, AppInfo)]
   UpdateApp :: Local UserId -> TeamId -> UserId -> PutApp -> AppSubsystem m ()

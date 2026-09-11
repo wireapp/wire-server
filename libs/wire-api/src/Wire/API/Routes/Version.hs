@@ -61,6 +61,8 @@ module Wire.API.Routes.Version
     -- * Servant combinators
     Until,
     From,
+    Prev,
+    ToVersion,
 
     -- * Versioned schema-profunctor things.
     versionedObject,
@@ -88,6 +90,7 @@ import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
+import GHC.TypeError
 import Imports hiding ((\\))
 import Servant
 import Wire.API.Routes.Named hiding (unnamed)
@@ -107,6 +110,34 @@ data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
+
+-- Type family to be used in endpoints to reflect usage of Until and From
+-- and is used to give information to `toSchema` instances
+type family ToVersion r where
+  ToVersion (Until (v :: Version)) = Prev v
+  ToVersion (From (v :: Version)) = v
+
+type family Prev (v :: Version) where
+  Prev V0 = TypeError (GHC.TypeError.Text "There is no version before V0.")
+  Prev V1 = V0
+  Prev V2 = V1
+  Prev V3 = V2
+  Prev V4 = V3
+  Prev V5 = V4
+  Prev V6 = V5
+  Prev V7 = V6
+  Prev V8 = V7
+  Prev V9 = V8
+  Prev V10 = V9
+  Prev V11 = V10
+  Prev V12 = V11
+  Prev V13 = V12
+  Prev V14 = V13
+  Prev V15 = V14
+  Prev V16 = V15
+  Prev V17 = V16
+  Prev V18 = V17
+  Prev V19 = V18
 
 instance RenderableSymbol V1 where renderSymbol = "V1"
 

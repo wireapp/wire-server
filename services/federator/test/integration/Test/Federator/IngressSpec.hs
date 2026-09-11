@@ -46,6 +46,8 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User
 import Wire.Network.DNS.SRV
 
@@ -59,7 +61,7 @@ spec env = do
         brig <- view teBrig <$> ask
         user <- randomUser brig
 
-        let expectedProfile = mkUserProfile EmailVisibleToSelf user Nothing UserLegalHoldNoConsent
+        let expectedProfile = V.Versioned @V.V18 $ mkUserProfile EmailVisibleToSelf user Nothing UserLegalHoldNoConsent
         runTestSem $ do
           resp <-
             liftToCodensity

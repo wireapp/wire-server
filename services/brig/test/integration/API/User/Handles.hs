@@ -48,6 +48,8 @@ import UnliftIO (mapConcurrently)
 import Util
 import Util.Timeout
 import Wire.API.Internal.Notification hiding (target)
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
@@ -182,7 +184,7 @@ testHandleQuery opts brig = do
   -- Query user profiles by handles
   get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (fromJust $ parseHandle hdl)) === (profileHandle <=< listToMaybe <=< responseJsonMaybe)
+    const (Just (fromJust $ parseHandle hdl)) === ((profileHandle . V.unVersioned @V.V18) <=< listToMaybe <=< responseJsonMaybe)
   -- Bulk availability check
   hdl2 <- randomHandle
   hdl3 <- randomHandle
@@ -275,7 +277,7 @@ testGetUserByQualifiedHandle brig = do
   let domain = qDomain (userQualifiedId user)
   _ <- putHandle brig (userId user) handle
   unconnectedUser <- randomUser brig
-  profileForUnconnectedUser <-
+  V.Versioned @V.V18 profileForUnconnectedUser <-
     responseJsonError
       =<< get
         ( apiVersion "v1"
@@ -339,7 +341,7 @@ assertCanFind brig from target = do
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)
   get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
     const 200 === statusCode
-    const (userHandle target) === (responseJsonMaybe >=> listToMaybe >=> profileHandle)
+    const (userHandle target) === (responseJsonMaybe >=> listToMaybe >=> (profileHandle . V.unVersioned @V.V18))
 
   get (apiVersion "v1" . brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 200 === statusCode

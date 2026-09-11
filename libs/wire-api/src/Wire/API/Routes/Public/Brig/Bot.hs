@@ -110,7 +110,7 @@ type BotAPI =
                :> ZBot
                :> "bot"
                :> "self"
-               :> Get '[JSON] UserProfile
+               :> Get '[JSON] (Versioned V18 UserProfile)
            )
     :<|> Named
            "bot-delete-self"
