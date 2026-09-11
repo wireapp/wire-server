@@ -103,7 +103,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `config.ingressClass` | |
 | `ingressName` | Replaced by `config.domains[].name` — see [Multi-ingress (multiple backend domains)](#multi-ingress-multiple-backend-domains) |
 | `config.isAdditionalIngress` | Implicit — every `config.domains` entry after the first is an additional ingress |
-| `config.renderCSPInIngress` | CSP is injected automatically on additional domains; opt out per-domain with `config.domains[].renderCSP: false` |
+| `config.renderCSPInIngress` | CSP is injected automatically on additional domains (team-settings route only); opt out per-domain with `config.domains[].renderCSP: false` |
 | `config.dns.base` | Replaced by `config.domains[].base` (used for the per-domain CSP wildcard) |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
 | `tls.enabled` | Removed — had no effect; all routes are always TLS-terminated |
@@ -250,8 +250,12 @@ config:
 
 First entry = primary (listener `https`, un-suffixed names, no injected CSP — apps set their own).
 Each additional entry gets its own listener `https-<name>`, cert/secret, suffixed routes, and an
-injected per-domain CSP header on the webapp/team-settings/account-pages routes (opt out with
-`renderCSP: false`).
+injected per-domain CSP header on the team-settings route (opt out with `renderCSP: false`).
+
+The webapp and account-pages routes never get an injected CSP, on any domain: both apps emit
+correct per-domain headers themselves, and the injected header would replace them with a weaker
+approximation. This matches the hosts the legacy `nginx-ingress-services` chart skips in its CSP
+snippet. Team-settings does not yet support this, hence the approximation there.
 
 Multi-ingress is mutually exclusive with federation: `config.domains` cannot be
 combined with `federator.enabled: true`. Use federation with a single backend
