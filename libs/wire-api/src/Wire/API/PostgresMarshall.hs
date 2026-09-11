@@ -572,6 +572,9 @@ instance PostgresMarshall ByteString HttpsUrl where
 instance PostgresMarshall ByteString Token where
   postgresMarshall = (.unToken)
 
+instance PostgresMarshall ByteString (Fingerprint a) where
+  postgresMarshall = fingerprintBytes
+
 instance PostgresMarshall Text DnsVerificationToken where
   postgresMarshall = Ascii.toText . (.unDnsVerificationToken)
 
@@ -1064,6 +1067,9 @@ instance PostgresUnmarshall ByteString HttpsUrl where
 
 instance PostgresUnmarshall ByteString Token where
   postgresUnmarshall = Right . Token
+
+instance PostgresUnmarshall ByteString (Fingerprint a) where
+  postgresUnmarshall = Right . Fingerprint
 
 instance PostgresUnmarshall Text DnsVerificationToken where
   postgresUnmarshall = first Text.pack . fmap DnsVerificationToken . Ascii.validate

@@ -90,6 +90,7 @@ galley:
       teamFeatures: cassandra
       domainRegistration: cassandra
       user: cassandra
+      service: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1013,6 +1014,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.users` to `migration-to-postgresql`
     # before starting the migration.
     migrateUsers: false
+    # This will start the migration of services (old bots).
+    # It's important to set `settings.postgresMigration.service` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateService: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms
