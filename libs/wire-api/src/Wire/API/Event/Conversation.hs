@@ -118,6 +118,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Event.LeaveReason
 import Wire.API.History
 import Wire.API.MLS.SubConversation
+import Wire.API.Notification (Transmit (..))
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.User (QualifiedUserIdList (..), qualifiedUserIdListObjectSchema)
@@ -169,6 +170,11 @@ data Event = Event
 
 evtType :: Event -> EventType
 evtType = eventDataType . evtData
+
+instance Transmit Event where
+  transmit e v
+    | v < V15, evtType e `elem` [ConvCreateMeeting, ConvDeleteMeeting] = Nothing
+    | otherwise = Just e
 
 instance Arbitrary Event where
   arbitrary = do

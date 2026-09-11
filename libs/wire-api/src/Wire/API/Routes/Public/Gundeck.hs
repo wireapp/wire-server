@@ -30,6 +30,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.API.VersionInfo (APIVersion)
 
 type GundeckAPI = PushAPI :<|> NotificationAPI :<|> TimeAPI
 
@@ -68,6 +69,7 @@ type NotificationAPI =
   Named
     "get-notification-by-id"
     ( Summary "Fetch a notification by ID"
+        :> APIVersion Version
         :> ZUser
         :> "notifications"
         :> Capture' '[Description "Notification ID"] "id" NotificationId
@@ -83,6 +85,8 @@ type NotificationAPI =
     :<|> Named
            "get-last-notification"
            ( Summary "Fetch the last notification"
+               :> Description "If the most recent notification contains only events not deliverable at the client's API version, 404 is returned."
+               :> APIVersion Version
                :> ZUser
                :> "notifications"
                :> "last"
@@ -99,6 +103,7 @@ type NotificationAPI =
            "get-notifications@v2"
            ( Summary "Fetch notifications"
                :> Until 'V3
+               :> APIVersion Version
                :> ZUser
                :> "notifications"
                :> QueryParam' [Optional, Strict, Description "Only return notifications more recent than this"] "since" RawNotificationId
@@ -117,6 +122,7 @@ type NotificationAPI =
            ( Summary "Fetch notifications"
                :> Description "See also: <code>GET /teams/notifications</code>"
                :> From 'V3
+               :> APIVersion Version
                :> ZUser
                :> "notifications"
                :> QueryParam' [Optional, Strict, Description "Only return notifications more recent than this"] "since" NotificationId

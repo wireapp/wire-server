@@ -42,16 +42,18 @@ import Network.WebSockets qualified as WS
 import Network.WebSockets.Connection
 import System.Logger qualified as Log
 import System.Timeout
+import Wire.API.Event.Transmit (transmitQueuedNotification)
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
+import Wire.API.Routes.Version qualified as V
 
 data InactivityTimeout = InactivityTimeout
   deriving (Show)
 
 instance Exception InactivityTimeout
 
-rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
-rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
+rabbitMQWebSocketApp :: V.Version -> UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
+rabbitMQWebSocketApp apiVersion uid mcid mSyncMarkerId e pendingConn =
   handle handleTooManyChannels . lowerCodensity $
     do
       (chan, queueInfo) <- createChannel uid mcid e.pool createQueue
@@ -132,14 +134,21 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               Q.rejectEnv envelope False
               -- try again
               getEventData chan
-            Right notif -> do
-              logEvent notif
-              pure $
-                Left $
-                  EventData
-                    { event = notif,
-                      deliveryTag = envelope.envDeliveryTag
-                    }
+            Right notif -> case transmitQueuedNotification apiVersion notif of
+              Nothing -> do
+                -- The event is gated for this client's API version: deliver
+                -- nothing and ack server-side so the message is not
+                -- redelivered.
+                ackMessage chan envelope.envDeliveryTag False
+                getEventData chan
+              Just notif' -> do
+                logEvent notif'
+                pure $
+                  Left $
+                    EventData
+                      { event = notif',
+                        deliveryTag = envelope.envDeliveryTag
+                      }
 
     handleWebSocketExceptions wsConn =
       Handler $
