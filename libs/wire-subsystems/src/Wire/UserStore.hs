@@ -80,6 +80,17 @@ data UserStore m a where
   DeleteEmail :: UserId -> UserStore m ()
   UpdateEmailUnvalidated :: UserId -> EmailAddress -> UserStore m ()
   DeleteEmailUnvalidated :: UserId -> UserStore m ()
+  -- | Advance the user's ES index version without otherwise changing the
+  -- user.  'indexUserToVersion' derives the version from the writetimes of the
+  -- user record, so two kinds of change need this: data that lives outside the
+  -- record altogether (team collaborations), and data *removed* from the
+  -- record, because a nulled cassandra column takes its writetime with it and
+  -- the version can then even go backwards.  Without the bump the updated
+  -- document is rejected as a version conflict.  Postgres-resident users are
+  -- not affected by the second case (one `updated_at` column, refreshed by
+  -- trigger), but the bump is harmless there.  See
+  -- 'Wire.UserSearch.Types.WriteTimeBumper'.
+  BumpWriteTime :: UserId -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   UpdateSSOId :: UserId -> Maybe UserSSOId -> UserStore m Bool
   UpdateManagedBy :: UserId -> ManagedBy -> UserStore m ()

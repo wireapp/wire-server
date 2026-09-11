@@ -60,6 +60,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
+import Wire.API.Team.Collaborator (gTeam)
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -102,6 +103,8 @@ import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
+import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
+import Wire.TeamCollaboratorsStore qualified as TeamCollaboratorsStore
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
@@ -141,6 +144,7 @@ runUserSubsystem ::
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
+    Member TeamCollaboratorsStore r,
     Member UserGroupStore r,
     Member (Input (Local any)) r
   ) =>
@@ -195,6 +199,9 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
       InternalUpdateSearchIndex uid ->
+        syncUserIndex uid
+      InternalBumpWriteTimeAndUpdateSearchIndex uid -> do
+        UserStore.bumpWriteTime uid
         syncUserIndex uid
       AcceptTeamInvitation luid pwd code ->
         acceptTeamInvitationImpl luid pwd code
@@ -711,6 +718,7 @@ updateUserProfileImpl ::
     Member Events r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -772,6 +780,7 @@ updateHandleImpl ::
     Member Events r,
     Member UserStore r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->
@@ -839,7 +848,8 @@ syncUserIndex ::
   ( Member UserStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member Metrics r
+    Member Metrics r,
+    Member TeamCollaboratorsStore r
   ) =>
   UserId ->
   Sem r ()
@@ -860,8 +870,15 @@ syncUserIndex uid =
           teamSearchVisibilityInbound
           indexUser.teamId
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
+      collabTeams <- map gTeam <$> TeamCollaboratorsStore.getTeamCollaborations uid
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          userDoc = indexUserToDoc vis (value <$> mRole) collabTeams indexUser
+          -- GT, not GTE: every change this document reflects also advances the
+          -- version, so a write that does not advance it has nothing new to say and
+          -- is correctly dropped as a version conflict.  Data that does not live in
+          -- the user record keeps that invariant by bumping the version explicitly
+          -- (see 'Wire.UserStore.BumpWriteTime'); the single deliberate exception is
+          -- 'udSearchVisibilityInbound', see 'updateTeamSearchVisibilityInboundImpl'.
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -880,6 +897,21 @@ syncUserIndex uid =
       )
         <$> permissionsToRole info.permissions
 
+-- | 'udSearchVisibilityInbound' is the one field of 'UserDoc' that the index
+-- version does not cover, and that is a deliberate design choice rather than the
+-- same gap that 'Wire.UserStore.BumpWriteTime' closes for collaborations:
+--
+-- * It is a team-wide setting.  Propagating it the way collaborations are
+--   propagated would mean bumping the write time of, and re-uploading a document
+--   for, every member of the team -- for a single flag.
+--
+-- * It therefore never travels through 'syncUserIndex' at all.  This is an
+--   in-place ES update-by-query that rewrites just that one field and leaves the
+--   document version untouched, so it cannot lose a race against a concurrent
+--   full document write of the same user.
+--
+-- * Nothing drifts as a result: the value is derived from galley, not from the
+--   user record, so any later resync recomputes it from the same source of truth.
 updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
 updateTeamSearchVisibilityInboundImpl teamStatus =
   IndexedUserStore.updateTeamSearchVisibilityInbound teamStatus.team $
@@ -1180,6 +1212,7 @@ acceptTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r,
     Member Events r,
     Member AuthenticationSubsystem r,
@@ -1244,6 +1277,7 @@ removeEmailEitherImpl ::
     Member UserStore r,
     Member Events r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r,
     Member Metrics r
@@ -1280,6 +1314,7 @@ setUserSearchableImpl ::
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
+    Member TeamCollaboratorsStore r,
     Member Metrics r
   ) =>
   Local UserId ->

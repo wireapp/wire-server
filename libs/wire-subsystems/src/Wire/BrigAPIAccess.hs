@@ -112,6 +112,8 @@ data BrigAPIAccess m a where
   GetUserExportData :: UserId -> BrigAPIAccess m (Maybe TeamExportUser)
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
+  -- | See 'Wire.UserSubsystem.InternalBumpWriteTimeAndUpdateSearchIndex'.
+  BumpWriteTimeAndUpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   GetUsersByVariousKeys :: [UserId] -> [Handle] -> [EmailAddress] -> HavePendingInvitations -> BrigAPIAccess m [User]
   CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)

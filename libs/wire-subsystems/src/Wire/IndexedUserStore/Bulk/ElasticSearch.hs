@@ -20,15 +20,15 @@ module Wire.IndexedUserStore.Bulk.ElasticSearch where
 import Cassandra.Exec (paginateWithStateC)
 import Cassandra.Util (Writetime (Writetime))
 import Conduit (ConduitT, runConduit, (.|))
-import Control.Error (headMay)
+import Control.Error (headMay, hush)
 import Control.Exception (try)
-import Control.Monad.Extra (mapMaybeM)
 import Data.Conduit.Combinators qualified as Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as CL
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis))
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Database.Bloodhound qualified as ES
 import Imports
 import Polysemy
@@ -37,6 +37,7 @@ import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import UnliftIO (pooledForConcurrentlyN)
+import Wire.API.Team.Collaborator (gTeam, gUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
@@ -45,6 +46,7 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.MigrationStore
 import Wire.IndexedUserStore.MigrationStore qualified as MigrationStore
+import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore, getTeamCollaborationsForUsers)
 import Wire.UserSearch.Migration
 import Wire.UserSearch.Types
 import Wire.UserStore
@@ -54,22 +56,56 @@ type IOInterpreter r = forall a. Sem r a -> IO a
 
 -- | Increase this number any time you want to force reindexing.
 expectedMigrationVersion :: MigrationVersion
-expectedMigrationVersion = MigrationVersion 6
+expectedMigrationVersion = MigrationVersion 7
 
-syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
+-- | @brig-index reindex@: no-op-if-same sync.  'ES.ExternalGT' makes ES reject
+-- any document whose version did not advance, so users that have not changed
+-- since the last run cost nothing beyond being read and offered.
+--
+-- This is only correct as long as the version really is a function of the
+-- document -- i.e. as long as everything 'indexUserToDoc' puts into the
+-- document is also reflected by 'indexUserToVersion'.  Data that does not live
+-- in the user record has to bump the version explicitly (see
+-- 'Wire.UserStore.BumpWriteTime'), and the one deliberate exception,
+-- 'udSearchVisibilityInbound', is maintained out of band (see
+-- 'Wire.UserSubsystem.Interpreter.updateTeamSearchVisibilityInboundImpl').
+--
+-- When a document does turn up stale, the tempting repair is to
+-- switch this call from 'ES.ExternalGT' to 'ES.ExternalGTE' so that
+-- the write is accepted regardless.  Please don't.  It hides the
+-- defect here without repairing it anywhere: the online, single-user
+-- path in 'Wire.UserSubsystem.Interpreter.syncUserIndex' compares
+-- versions the same way, so a version that fails to advance goes on
+-- dropping updates there.  And it costs the property this command
+-- exists for -- accepting equal versions means rewriting every
+-- document on every run, which makes this the same operation as
+-- 'forceSyncAllUsers'.  Fix stale documents by making the version
+-- advance instead.
+syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO (Int, [String])
 syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGT
 
-forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
+-- | @brig-index reindex-if-same-or-newer@ and @migrate-data@: always-resync.
+-- 'ES.ExternalGTE' rewrites documents even when the version is unchanged, which
+-- is what you want when the mapping or the document shape itself changed and
+-- the version therefore says nothing useful.  Strictly older writes still lose.
+forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO (Int, [String])
 forceSyncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE
 
-syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
+-- | Returns the number of users that could not be indexed because some of the
+-- data needed to build their document was unavailable, together with a list
+-- of error messages describing the failures (one per skipped user).  Those
+-- users have been logged individually by 'logFailures'.
+syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO (Int, [String])
 syncAllUsersWithVersion interpreter pageSize mkVersion =
-  runConduit $
+  fmap (\(Sum skipped, errors) -> (skipped, errors)) . runConduit $
     zipSources (CL.sourceList [1 ..]) (paginateWithStateC (interpreter . getIndexUsersPaginated pageSize))
       .| logPage
       .| mkUserDocs
-      .| Conduit.mapM_ (interpreter . IndexedUserStore.bulkUpsert)
+      .| Conduit.foldMapM upsertPage
   where
+    upsertPage :: (Int, [String], [(ES.DocId, UserDoc, ES.VersionControl)]) -> IO (Sum Int, [String])
+    upsertPage (skipped, errors, docs) = (Sum skipped, errors) <$ interpreter (IndexedUserStore.bulkUpsert docs)
+
     logPage :: ConduitT (Int32, [IndexUser]) [IndexUser] IO ()
     logPage = Conduit.mapM $ \(pageNumber, page) -> do
       interpreter $
@@ -79,87 +115,116 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
             . Log.field "firstUser" (maybe "N/A" (idToText . (.userId)) (headMay page))
       pure page
 
-    mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] IO ()
+    -- Emits the documents to be indexed together with the number of users of
+    -- this page that had to be skipped and the error messages for each of
+    -- those skipped users.
+    mkUserDocs :: ConduitT [IndexUser] (Int, [String], [(ES.DocId, UserDoc, ES.VersionControl)]) IO ()
     mkUserDocs = Conduit.mapM $ \page -> do
-      -- FUTUREWORK: extract team visibilities, roles and user type
-      -- more efficiently sending one query per page
+      let teams :: Map TeamId [IndexUser]
+          teams = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
 
-      -- FUTUREWORK: introduce type ExtendedUser (or something), which
-      -- contains User, Maybe Role, UserType, ..., and pass around
-      -- ExtendedUser.  this should make the code less convoluted.
+      lookupRole :: UserId -> Either SomeException (Maybe (WithWritetime Role)) <- do
+        let -- NB: `selectTeamMemberInfos` conveniently always returns a
+            -- member list, even if some or all users or the team don't
+            -- exist.  So a *missing* entry merely means "this account has no
+            -- role", which is fine: it only affects accounts that are
+            -- already inconsistent accross cassandras (user entry with team
+            -- ref, but no team member entry).  A non-2xx response, on the
+            -- other hand, means some real error occurred, and must fail the
+            -- whole page rather than silently drop the role.
+            getRoles :: TeamId -> [UserId] -> IO (Either SomeException (Map UserId (WithWritetime Role)))
+            getRoles tid uids =
+              try @SomeException . interpreter $
+                rolesFromMemberInfos . (.members) <$> selectTeamMemberInfos tid uids
 
-      let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
-          teamIds = Map.keys teams
-
-      visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 teamIds $ \t -> do
-        x <- try $ interpreter $ teamSearchVisibilityInbound t
-        pure (t, x)
-
-      let getRoles :: TeamId -> [UserId] -> IO (Map UserId (Either SomeException (WithWritetime Role)))
-          getRoles tid uids = do
-            eithMembers <- try $ interpreter $ (.members) <$> selectTeamMemberInfos tid uids
-            case eithMembers of
-              Left e -> do
-                let lenUids = length uids
-                if lenUids <= 1
-                  then pure . Map.fromList $ map (,Left e) uids
-                  else do
-                    let (uids1, uids2) = splitAt (lenUids `div` 2) uids
-                    roles1 <- getRoles tid uids1
-                    roles2 <- getRoles tid uids2
-                    pure $ Map.union roles1 roles2
-              Right tms -> pure . Map.fromList $ mapMaybe (fmap rightSecond . mkRoleWithWriteTime) tms
-
-      roles :: Map UserId (Either SomeException (WithWritetime Role)) <-
-        fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
+        results <- pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
           getRoles t (fmap (.userId) us)
 
-      let vis :: IndexUser -> Either SomeException SearchVisibilityInbound
-          vis indexUser =
-            fromMaybe (Right defaultSearchVisibilityInbound) $ flip Map.lookup visMap =<< indexUser.teamId
+        -- log the root cause once per page, rather than once per user
+        for_ (lefts results) $ \e ->
+          interpreter . Log.err $
+            Log.msg (Log.val "Failed to look up team member roles; skipping this page")
+              . Log.field "error" (show e)
 
-          mkUserDoc :: IndexUser -> Either SomeException UserDoc
-          mkUserDoc indexUser = do
-            currentVis <- vis indexUser
-            currentRole <- sequence $ Map.lookup indexUser.userId roles
-            pure $ indexUserToDoc currentVis ((.value) <$> currentRole) indexUser
+        pure $ mkRoleLookup results
 
-          mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
+      lookupVisibility :: IndexUser -> SearchVisibilityInbound <- do
+        visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
+          x <- try @SomeException $ interpreter $ teamSearchVisibilityInbound t
+          pure (t, x)
+        pure $ \indexUser ->
+          fromMaybe SearchableByOwnTeam $ hush =<< flip Map.lookup visMap =<< indexUser.teamId
+
+      mkUserDoc :: IndexUser -> Either SomeException UserDoc <- do
+        -- One query for the whole page.  A failure here fails every document of the
+        -- page, which 'logFailures' then logs and skips.
+        eithCollabTeams :: Either SomeException (Map UserId [TeamId]) <-
+          try . fmap (Map.fromListWith (<>) . map (\tc -> (gUser tc, [gTeam tc]))) . interpreter $
+            getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
+
+        pure \indexUser -> do
+          let currentVis = lookupVisibility indexUser
+          currentRole <- fmap (.value) <$> lookupRole indexUser.userId
+          currentCollabTeams <- Map.findWithDefault [] indexUser.userId <$> eithCollabTeams
+          pure $ indexUserToDoc currentVis currentRole currentCollabTeams indexUser
+
+      let mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
           mkDocVersion u = do
-            roleWithTime <- sequence (Map.lookup u.userId roles)
+            roleWithTime <- lookupRole u.userId
             pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
 
-      let docsWithErrors = map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
-      interpreter . flip mapMaybeM docsWithErrors $ logAndHush
+          docsWithErrors :: (e ~ Either SomeException) => [(ES.DocId, e UserDoc, e ES.VersionControl)]
+          docsWithErrors = map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
 
-    rightSecond :: (a, b) -> (a, Either c b)
-    rightSecond (a, b) = (a, Right b)
+      results <- interpreter $ traverse logFailures docsWithErrors
+      let (errors, docs) = partitionEithers results
+          skipped = length errors
+          cappedErrors = take 1000 errors
+      pure (skipped, cappedErrors, docs)
 
-    logAndHush :: (Member TinyLog r) => (ES.DocId, Either SomeException UserDoc, Either SomeException ES.VersionControl) -> Sem r (Maybe (ES.DocId, UserDoc, ES.VersionControl))
-    logAndHush (docId@(ES.DocId idText), eithUserDoc, eithVersion) =
+    logFailures ::
+      (Member TinyLog r) =>
+      (ES.DocId, Either SomeException UserDoc, Either SomeException ES.VersionControl) ->
+      Sem r (Either String (ES.DocId, UserDoc, ES.VersionControl))
+    logFailures (docId@(ES.DocId idText), eithUserDoc, eithVersion) =
       case (,) <$> eithUserDoc <*> eithVersion of
         Left e -> do
           Log.err $
             Log.msg (Log.val "Error ocurred while indexing user")
               . Log.field "userId" idText
               . Log.field "error" (show e)
-          pure Nothing
-        Right (userDoc, version) -> pure $ Just (docId, userDoc, version)
+          pure $ Left $ show idText <> ": " <> show e
+        Right (userDoc, version) -> pure $ Right (docId, userDoc, version)
 
-    mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (UserId, WithWritetime Role)
-    mkRoleWithWriteTime tmi =
-      ( \role ->
-          ( tmi.userId,
-            WithWriteTime
-              { value = role,
-                writetime = Writetime $ fromUTCTimeMillis tmi.permissionsWriteTime
-              }
-          )
+mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (UserId, WithWritetime Role)
+mkRoleWithWriteTime tmi =
+  ( \role ->
+      ( tmi.userId,
+        WithWriteTime
+          { value = role,
+            writetime = Writetime $ fromUTCTimeMillis tmi.permissionsWriteTime
+          }
       )
-        <$> permissionsToRole tmi.permissions
+  )
+    <$> permissionsToRole tmi.permissions
+
+-- | The roles of one team, extracted from a *successful* galley response.
+-- Users galley does not know about simply do not show up in the result; that
+-- is not an error.
+rolesFromMemberInfos :: [TeamMemberInfo] -> Map UserId (WithWritetime Role)
+rolesFromMemberInfos = Map.fromList . mapMaybe mkRoleWithWriteTime
+
+-- | Fold the per-team lookup results of one page into a single lookup
+-- function.  A galley error for any team fails the entire page: every
+-- document derived from this lookup will be logged and skipped by
+-- 'logFailures'.
+mkRoleLookup ::
+  [Either SomeException (Map UserId (WithWritetime Role))] ->
+  (UserId -> Either SomeException (Maybe (WithWritetime Role)))
+mkRoleLookup results uid = Map.lookup uid . Map.unions <$> sequence results
 
 migrateData ::
-  (Member (Embed IO) r, Member IndexedUserStore r, Member (Error MigrationException) r, Member IndexedUserMigrationStore r, Member TinyLog r, Member UserStore r, Member GalleyAPIAccess r) =>
+  (Member (Embed IO) r, Member IndexedUserStore r, Member (Error MigrationException) r, Member IndexedUserMigrationStore r, Member TinyLog r, Member UserStore r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) =>
   IOInterpreter r ->
   Int32 ->
   IO ()
@@ -174,8 +239,16 @@ migrateData interpreter pageSize = interpreter $ do
         Log.msg (Log.val "Migration necessary.")
           . Log.field "expectedVersion" expectedMigrationVersion
           . Log.field "foundVersion" foundVersion
-      embed $ forceSyncAllUsers interpreter pageSize
-      MigrationStore.persistMigrationVersion expectedMigrationVersion
+      (skipped, errors) <- embed $ forceSyncAllUsers interpreter pageSize
+      if skipped == 0
+        then MigrationStore.persistMigrationVersion expectedMigrationVersion
+        else do
+          Log.err $
+            Log.msg (Log.val "Migration incomplete, not persisting migration version.")
+              . Log.field "expectedVersion" expectedMigrationVersion
+              . Log.field "skippedUsers" skipped
+              . Log.field "errors" (show errors)
+          throw SyncIncomplete
     else do
       Log.info $
         Log.msg (Log.val "No migration necessary.")
