@@ -895,7 +895,10 @@ deleteSSOIdH uid = lift $ do
   success <- liftSem $ UserStore.updateSSOId uid Nothing
   if success
     then liftSem $ do
-      UserSubsystem.internalUpdateSearchIndex uid
+      -- nulling `sso_id` in cassandra takes its writetime with it, so the index
+      -- version would not advance here (it can even go backwards) and the SSO
+      -- identity would stay in the index
+      UserSubsystem.internalBumpWriteTimeAndUpdateSearchIndex uid
       Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
