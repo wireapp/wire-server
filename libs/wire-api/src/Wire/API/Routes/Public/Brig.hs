@@ -122,12 +122,12 @@ instance ServiceAPI BrigAPITag v where
 
 type MaxUsersForListClientsBulk = 500
 
-type GetUserVerb =
+type GetUserVerb v =
   MultiVerb
     'GET
     '[JSON]
     '[ ErrorResponse 'UserNotFound,
-       Respond 200 "User found" UserProfile
+       VersionedRespond v 200 "User found" UserProfile
      ]
     (Maybe UserProfile)
 
@@ -166,15 +166,25 @@ type UserAPI =
         :> ZLocalUser
         :> "users"
         :> CaptureUserId "uid"
-        :> GetUserVerb
+        :> GetUserVerb 'V17
     )
     :<|> Named
-           "get-user-qualified"
+           "get-user-qualified@V17"
            ( Summary "Get a user by Domain and UserId"
+               :> Until 'V17
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
-               :> GetUserVerb
+               :> GetUserVerb 'V17
+           )
+    :<|> Named
+           "get-user-qualified"
+           ( Summary "Get a user by Domain and UserId"
+               :> From 'V18
+               :> ZLocalUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> GetUserVerb 'V18
            )
     :<|> Named
            "update-user-email"

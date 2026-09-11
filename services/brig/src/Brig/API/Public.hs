@@ -442,6 +442,7 @@ servantSitemap =
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" getUserUnqualifiedH
+        :<|> Named @"get-user-qualified@V17" getUserProfileH
         :<|> Named @"get-user-qualified" getUserProfileH
         :<|> Named @"update-user-email" updateUserEmail
         :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
