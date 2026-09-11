@@ -122,7 +122,6 @@ testUserProfile = do
           { profileQualifiedId = Qualified uid domain,
             profileName = Name "name",
             profileTextStatus = Nothing,
-            profilePict = Pict [],
             profileAssets = [],
             profileAccentId = colour,
             profileDeleted = False,
