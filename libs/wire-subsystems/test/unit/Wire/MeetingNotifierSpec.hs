@@ -32,6 +32,7 @@ import Polysemy.TinyLog (TinyLog)
 import Test.Hspec
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.MeetingNotifier
 import Wire.MeetingNotifier.Interpreter
 import Wire.MeetingsStore qualified as Store
@@ -72,6 +73,7 @@ spec = do
       length pushes `shouldBe` 1
       let push = head pushes
       push.recipients `shouldBe` [userRecipient addedUser]
+      push.route `shouldBe` PushV2.RouteAny
       case fromJSON (Object push.json) :: Result MeetingEvent.Event of
         Error err -> expectationFailure err
         Success event -> event `shouldBe` expectedEvent
