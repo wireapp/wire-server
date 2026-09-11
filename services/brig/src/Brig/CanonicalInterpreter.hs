@@ -120,6 +120,8 @@ import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfi
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
+import Wire.PasswordResetCodeStore.DualWrite (interpretPasswordResetCodeStoreToCassandraAndPostgres)
+import Wire.PasswordResetCodeStore.Postgres (interpretPasswordResetCodeStoreToPostgres)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
 import Wire.PostgresMigrationOpts
@@ -421,6 +423,26 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
+      -- PasswordResetCodeStore must be peeled at this slot in the stack (between
+      -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global
+      -- runInputConst e.hasqlPool / mapError postgresUsageErrorToHttpError providers.
+      -- The Postgres-backed branches therefore supply Input Pool and Error UsageError
+      -- locally (raiseUnder2 + runInputConst + mapError) so they stay self-contained;
+      -- UsageError is mapped to HttpError (handled by rethrowHttpErrorIO further up).
+      passwordResetCodeStoreInterpreter =
+        case e.postgresMigration.passwordReset of
+          CassandraStorage -> passwordResetCodeStoreToCassandra @Cas.Client
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretPasswordResetCodeStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -441,7 +463,7 @@ runBrigToIO e (AppT ma) = do
               . emailSendingInterpreter e
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
-              . passwordResetCodeStoreToCassandra @Cas.Client
+              . passwordResetCodeStoreInterpreter
               . randomToIO
               . runDelay
               . nowToIOAction e.currentTime

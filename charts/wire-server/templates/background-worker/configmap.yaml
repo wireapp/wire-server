@@ -85,6 +85,7 @@ data:
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
     migrateUsers: {{ .migrateUsers }}
+    migratePasswordReset: {{ .migratePasswordReset }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
