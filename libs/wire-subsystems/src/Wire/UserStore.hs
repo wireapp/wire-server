@@ -80,6 +80,12 @@ data UserStore m a where
   DeleteEmail :: UserId -> UserStore m ()
   UpdateEmailUnvalidated :: UserId -> EmailAddress -> UserStore m ()
   DeleteEmailUnvalidated :: UserId -> UserStore m ()
+  -- | Advance the user's ES index version without otherwise changing the
+  -- user.  'indexUserToVersion' derives the version from the user row alone,
+  -- so a change to data that lives outside that row (team collaborations)
+  -- has to bump the row explicitly; otherwise the new document is rejected
+  -- as a version conflict.  See 'Wire.UserSearch.Types.WriteTimeBumper'.
+  BumpWriteTime :: UserId -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   UpdateSSOId :: UserId -> Maybe UserSSOId -> UserStore m Bool
   UpdateManagedBy :: UserId -> ManagedBy -> UserStore m ()

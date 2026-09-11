@@ -507,6 +507,7 @@ internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRou
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
     :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalUpdateSearchIndex uid $> NoContent)
+    :<|> Named @"bump-write-time-and-update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalBumpWriteTimeAndUpdateSearchIndex uid $> NoContent)
 
 enterpriseLoginApi ::
   ( Member EnterpriseLoginSubsystem r,

@@ -56,6 +56,7 @@ interpretBrigAPIAccessLocally ::
   InterpreterFor BrigAPIAccess r
 interpretBrigAPIAccessLocally selfEndpoint runUser = interpret $ \case
   UpdateSearchIndex uid -> runUser (UserSubsystem.internalUpdateSearchIndex uid)
+  BumpWriteTimeAndUpdateSearchIndex uid -> runUser (UserSubsystem.internalBumpWriteTimeAndUpdateSearchIndex uid)
   other -> selfRpc other
   where
     selfRpc :: forall m x. BrigAPIAccess m x -> Sem r x

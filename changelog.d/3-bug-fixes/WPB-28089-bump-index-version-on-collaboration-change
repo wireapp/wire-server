@@ -1,0 +1,4 @@
+Adding, changing or removing a team collaboration now bumps the affected user's
+search index version. Previously the updated document had the same version as
+the one already in Elasticsearch, so `brig-index reindex` dropped it as a
+version conflict and the collaborating teams in the index went stale.

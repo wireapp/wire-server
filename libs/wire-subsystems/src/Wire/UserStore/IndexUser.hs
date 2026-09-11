@@ -122,6 +122,17 @@ indexUserFromTuple
         }
 {- ORMOLU_ENABLE -}
 
+-- | Invariant: this has to advance whenever 'indexUserToDoc' would produce a
+-- different document, otherwise the new document is dropped as a version
+-- conflict by the no-op-if-same sync (see
+-- 'Wire.IndexedUserStore.Bulk.ElasticSearch.syncAllUsers').
+--
+-- The writetimes of the user record cover most of the document, and the role's
+-- writetime covers 'udRole'.  Document data that lives elsewhere has to keep the
+-- invariant by bumping the user record; see 'Wire.UserStore.BumpWriteTime',
+-- which is what team collaborations do.  'udSearchVisibilityInbound' is the one
+-- documented exception, see
+-- 'Wire.UserSubsystem.Interpreter.updateTeamSearchVisibilityInboundImpl'.
 indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
 indexUserToVersion role iu =
   mkIndexVersion [Just $ Writetime iu.updatedAt, const () <$$> fmap writetime role]

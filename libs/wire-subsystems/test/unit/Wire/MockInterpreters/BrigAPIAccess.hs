@@ -25,6 +25,7 @@ import Wire.BrigAPIAccess
 mockBrigAPIAccess :: InterpreterFor BrigAPIAccess r
 mockBrigAPIAccess = interpret $ \case
   UpdateSearchIndex _ -> pure ()
+  BumpWriteTimeAndUpdateSearchIndex _ -> pure ()
   -- everything else is not implemented
   GetConnectionsUnqualified {} -> error "GetConnectionsUnqualified: implement on demand (mockBrigAPIAccess)"
   GetConnections {} -> error "GetConnections: implement on demand (mockBrigAPIAccess)"

@@ -93,8 +93,10 @@ createTeamCollaboratorImpl zUser user team perms = do
 
   generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
-  -- Reindex the collaborator with their new collaboration team
-  BrigAPIAccess.updateSearchIndex user
+  -- Reindex the collaborator with their new collaboration team.  Collaborations
+  -- are not part of the user record, so the index version has to be bumped
+  -- explicitly; see 'Wire.UserStore.BumpWriteTime'.
+  BrigAPIAccess.bumpWriteTimeAndUpdateSearchIndex user
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -124,8 +126,9 @@ internalUpdateTeamCollaboratorImpl ::
   Sem r ()
 internalUpdateTeamCollaboratorImpl user team perms = do
   Store.updateTeamCollaborator user team perms
-  -- Reindex collaborator when permissions change
-  BrigAPIAccess.updateSearchIndex user
+  -- Reindex collaborator when permissions change (see 'createTeamCollaboratorImpl'
+  -- for why the write time has to be bumped)
+  BrigAPIAccess.bumpWriteTimeAndUpdateSearchIndex user
 
 internalRemoveTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r, Member BrigAPIAccess r) =>
@@ -134,8 +137,9 @@ internalRemoveTeamCollaboratorImpl ::
   Sem r ()
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
-  -- Reindex collaborator when removed
-  BrigAPIAccess.updateSearchIndex user
+  -- Reindex collaborator when removed (see 'createTeamCollaboratorImpl' for why
+  -- the write time has to be bumped)
+  BrigAPIAccess.bumpWriteTimeAndUpdateSearchIndex user
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

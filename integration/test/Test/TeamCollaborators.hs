@@ -419,7 +419,19 @@ testSearchFindsCollaborator = do
   multiCollabName <- multiCollab %. "name" & asString
 
   addTeamCollaborator owner team multiCollab ["implicit_connection"] >>= assertSuccess
+  -- NB: this second change to multiCollab's collaborations, like the removals
+  -- above, only reaches the index because repeating a write of the value that
+  -- is already stored still produces a fresh cassandra writetime -- that is what
+  -- advances the document version (see 'Wire.UserStore.BumpWriteTime').  Without
+  -- it the updated document would be dropped as a version conflict, so these
+  -- steps are the only coverage that mechanism has: please do not collapse them.
   addTeamCollaborator otherOwner otherTeam multiCollab ["implicit_connection"] >>= assertSuccess
 
   for_ [owner, alice] $ assertFinds multiCollabName [multiCollab]
+  for_ [otherOwner, bob] $ assertFinds multiCollabName [multiCollab]
+
+  -- Dropping one of the two collaborations leaves the other one in the index.
+  removeTeamCollaborator owner team multiCollab >>= assertSuccess
+
+  for_ [owner, alice] $ assertFinds multiCollabName ([] @Value)
   for_ [otherOwner, bob] $ assertFinds multiCollabName [multiCollab]

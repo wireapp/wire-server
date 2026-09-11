@@ -181,6 +181,11 @@ data UserSubsystem m a where
   -- | The following "internal" functions exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
+  -- | Like 'InternalUpdateSearchIndex', but additionally bumps the user's
+  -- index version (see 'Wire.UserStore.BumpWriteTime').  Use this, and only
+  -- this, when what changed does not live in the user row -- currently that
+  -- means team collaborations.
+  InternalBumpWriteTimeAndUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
   RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())
