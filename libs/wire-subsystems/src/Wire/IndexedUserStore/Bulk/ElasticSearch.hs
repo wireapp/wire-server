@@ -93,17 +93,10 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
     -- those skipped users.
     mkUserDocs :: ConduitT [IndexUser] (Int, [String], [(ES.DocId, UserDoc, ES.VersionControl)]) IO ()
     mkUserDocs = Conduit.mapM $ \page -> do
-      -- FUTUREWORK: extract team visibilities, roles and user type
-      -- more efficiently sending one query per page
-
-      -- FUTUREWORK: introduce type ExtendedUser (or something), which
-      -- contains User, Maybe Role, UserType, ..., and pass around
-      -- ExtendedUser.  this should make the code less convoluted.
-
       let teams :: Map TeamId [IndexUser]
           teams = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
 
-      roles :: Map UserId (WithWritetime Role) <- do
+      lookupRole :: UserId -> Maybe (WithWritetime Role) <- do
         let -- Accounts that have no team, can have no role.  If a role
             -- can't be found on brig for an account, that account does
             -- not have role info in their index or document any more.
@@ -117,14 +110,16 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
                 Left _ -> Map.empty
                 Right tms -> Map.fromList $ mapMaybe mkRoleWithWriteTime tms
 
-        fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
+        rolesMap <- fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
           getRoles t (fmap (.userId) us)
 
-      vis :: IndexUser -> SearchVisibilityInbound <- do
+        pure $ \uid -> Map.lookup uid rolesMap
+
+      lookupVisibility :: IndexUser -> SearchVisibilityInbound <- do
         visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
           x <- try @SomeException $ interpreter $ teamSearchVisibilityInbound t
           pure (t, x)
-        pure $ \vis indexUser ->
+        pure $ \indexUser ->
           fromMaybe SearchableByOwnTeam $ hush =<< flip Map.lookup visMap =<< indexUser.teamId
 
       mkUserDoc :: IndexUser -> Either SomeException UserDoc <- do
@@ -135,14 +130,14 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
             getTeamCollaborationsForUsers (Set.fromList (map (.userId) page))
 
         pure \indexUser -> do
-          let currentVis = vis indexUser
-              currentRole = ((.value)) <$> Map.lookup indexUser.userId roles
+          let currentVis = lookupVisibility indexUser
+              currentRole = ((.value)) <$> lookupRole indexUser.userId
           currentCollabTeams <- Map.findWithDefault [] indexUser.userId <$> eithCollabTeams
           pure $ indexUserToDoc currentVis currentRole currentCollabTeams indexUser
 
       let mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
           mkDocVersion u =
-            let roleWithTime = Map.lookup u.userId roles
+            let roleWithTime = lookupRole u.userId
              in pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
 
           docsWithErrors :: (e ~ Either SomeException) => [(ES.DocId, e UserDoc, e ES.VersionControl)]
