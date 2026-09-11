@@ -89,6 +89,7 @@ galley:
       conversationCodes: cassandra
       teamFeatures: cassandra
       domainRegistration: cassandra
+      activationKeys: cassandra
       user: cassandra
     settings:
       httpPoolSize: 128
@@ -1013,6 +1014,7 @@ background-worker:
     # It's important to set `settings.postgresMigration.users` to `migration-to-postgresql`
     # before starting the migration.
     migrateUsers: false
+    migrateActivationKeys: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms
@@ -1061,6 +1063,10 @@ background-worker:
       batchSize: 1000
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
+
+    # Cleanup of expired activation keys in Postgres (nightly)
+    activationKeysCleanup:
+      schedule: "0 3 * * *"
 
   secrets: {}
 
