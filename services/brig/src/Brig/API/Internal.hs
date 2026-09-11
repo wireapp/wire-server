@@ -909,7 +909,8 @@ updateManagedByH uid (ManagedByUpdate managedBy) = do
 
 deletePendingEmailUpdateH ::
   ( Member UserStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   (Handler r) NoContent
@@ -919,6 +920,10 @@ deletePendingEmailUpdateH uid = do
     lift . liftSem $ do
       ActivationCode.deleteActivationCode (mkEmailKey email)
       UserStore.deleteEmailUnvalidated uid
+      -- `udEmailUnvalidated` is part of the indexed document, and nulling the
+      -- column in cassandra takes its writetime with it, so the version has to
+      -- be bumped for the updated document to be accepted
+      UserSubsystem.internalBumpWriteTimeAndUpdateSearchIndex uid
   pure NoContent
 
 updateRichInfoH :: (Member UserStore r) => UserId -> RichInfoUpdate -> (Handler r) NoContent

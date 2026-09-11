@@ -865,6 +865,8 @@ onActivated (AccountActivated account) = liftSem $ do
 onActivated (EmailActivated uid email) = liftSem $ do
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing (emailUpdated uid email)
+  -- FUTUREWORK: deleteEmailUnvalidated may already have happened at
+  -- this point, maybe remove this call?
   UserStore.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
 
