@@ -58,9 +58,36 @@ type IOInterpreter r = forall a. Sem r a -> IO a
 expectedMigrationVersion :: MigrationVersion
 expectedMigrationVersion = MigrationVersion 7
 
+-- | @brig-index reindex@: no-op-if-same sync.  'ES.ExternalGT' makes ES reject
+-- any document whose version did not advance, so users that have not changed
+-- since the last run cost nothing beyond being read and offered.
+--
+-- This is only correct as long as the version really is a function of the
+-- document -- i.e. as long as everything 'indexUserToDoc' puts into the
+-- document is also reflected by 'indexUserToVersion'.  Data that does not live
+-- in the user record has to bump the version explicitly (see
+-- 'Wire.UserStore.BumpWriteTime'), and the one deliberate exception,
+-- 'udSearchVisibilityInbound', is maintained out of band (see
+-- 'Wire.UserSubsystem.Interpreter.updateTeamSearchVisibilityInboundImpl').
+--
+-- When a document does turn up stale, the tempting repair is to
+-- switch this call from 'ES.ExternalGT' to 'ES.ExternalGTE' so that
+-- the write is accepted regardless.  Please don't.  It hides the
+-- defect here without repairing it anywhere: the online, single-user
+-- path in 'Wire.UserSubsystem.Interpreter.syncUserIndex' compares
+-- versions the same way, so a version that fails to advance goes on
+-- dropping updates there.  And it costs the property this command
+-- exists for -- accepting equal versions means rewriting every
+-- document on every run, which makes this the same operation as
+-- 'forceSyncAllUsers'.  Fix stale documents by making the version
+-- advance instead.
 syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO (Int, [String])
 syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGT
 
+-- | @brig-index reindex-if-same-or-newer@ and @migrate-data@: always-resync.
+-- 'ES.ExternalGTE' rewrites documents even when the version is unchanged, which
+-- is what you want when the mapping or the document shape itself changed and
+-- the version therefore says nothing useful.  Strictly older writes still lose.
 forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) => IOInterpreter r -> Int32 -> IO (Int, [String])
 forceSyncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE
 

@@ -1,0 +1,3 @@
+brig-index: tolerate accounts whose team member entry is already gone
+(eg. during team deletion), but keep failing the affected page if
+galley itself errors out.

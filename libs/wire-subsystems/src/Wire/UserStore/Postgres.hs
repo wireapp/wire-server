@@ -74,6 +74,7 @@ interpretUserStorePostgres =
     DeleteEmail uid -> updateEmailImpl uid Nothing
     UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid (Just email)
     DeleteEmailUnvalidated uid -> updateEmailUnvalidatedImpl uid Nothing
+    BumpWriteTime uid -> bumpWriteTimeImpl uid
     LookupName uid -> lookupNameImpl uid
     LookupHandle hdl -> lookupHandleImpl hdl
     GlimpseHandle hdl -> lookupHandleImpl hdl
@@ -541,6 +542,18 @@ updateEmailUnvalidatedImpl uid email =
     update =
       lmapPG
         [resultlessStatement|UPDATE wire_user SET email_unvalidated = ($2 :: text?) WHERE id = ($1 :: uuid)|]
+
+-- | The `update_user_updated_at` trigger refreshes `updated_at` on any update
+-- of the row, but we set it explicitly so that this statement is not a no-op.
+-- 'indexUserToVersion' reads `updated_at`; see 'UserStore.BumpWriteTime'.
+bumpWriteTimeImpl :: (PGConstraints r) => UserId -> Sem r ()
+bumpWriteTimeImpl uid =
+  runStatement uid update
+  where
+    update :: Hasql.Statement UserId ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE wire_user SET updated_at = now() WHERE id = ($1 :: uuid)|]
 
 updateEmailImpl :: (PGConstraints r) => UserId -> Maybe EmailAddress -> Sem r ()
 updateEmailImpl uid email =
