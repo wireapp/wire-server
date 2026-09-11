@@ -464,7 +464,6 @@ testFindApp sameOrOtherDomain = do
   (appA1Id) <- bindResponse (createApp ownerA1 tidA1 newAppA1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user.id" & asString
-  BrigI.refreshIndex domainA
 
   (ownerA2, _, [regularMemberA2]) <- createTeam domainA 2
   (ownerB1, _, [regularMemberB1]) <- createTeam domainB 2
@@ -589,13 +588,11 @@ testTeamSizeWithApps (TaggedBool testInternalApi) = do
           resp.json %. "teamSizeRegulars" `shouldMatchInt` (1 + wantRegulars)
           resp.json %. "teamSizeApps" `shouldMatchInt` wantApps
 
-  BrigI.refreshIndex domain
   eventually $ do
     checkSize numRegulars numApps
 
   deleteTeamMember tid owner (head apps) >>= assertSuccess
   deleteTeamMember tid owner (head extraMembers) >>= assertSuccess
 
-  BrigI.refreshIndex domain
   eventually $ do
     checkSize (numRegulars - 1) (numApps - 1)

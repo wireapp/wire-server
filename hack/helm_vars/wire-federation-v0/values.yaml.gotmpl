@@ -19,13 +19,6 @@ cassandra-migrations:
   cassandra:
     host: cassandra-ephemeral
     replicationFactor: 1
-elasticsearch-index:
-  elasticsearch:
-    host: {{ .Values.elasticsearch.host }}
-    index: directory_test
-  cassandra:
-    host: cassandra-ephemeral
-
 brig:
   replicaCount: 1
   resources:
@@ -40,9 +33,6 @@ brig:
     cassandra:
       host: cassandra-ephemeral
       replicaCount: 1
-    elasticsearch:
-      host: {{ .Values.elasticsearch.host }}
-      index: directory_test
     authSettings:
       userTokenTimeout: 120
       sessionTokenTimeout: 20

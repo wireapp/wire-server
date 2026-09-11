@@ -52,7 +52,6 @@ proxy: {secrets: {proxy_config: placeholder}}
 cannon: {secrets: {rabbitmq: {username: placeholder, password: placeholder}}}
 gundeck: {secrets: {rabbitmq: {username: placeholder, password: placeholder}}}
 cassandra-migrations: {cassandra: {host: placeholder}}
-elasticsearch-index: {elasticsearch: {host: placeholder}, cassandra: {host: placeholder}}
 spar: {config: {appUri: 'https://placeholder', ssoUri: 'https://placeholder', contacts: [placeholder]}}
 galley: {config: {settings: {conversationCodeURI: 'https://placeholder'}}, secrets: {rabbitmq: {username: placeholder, password: placeholder}}}
 EOF

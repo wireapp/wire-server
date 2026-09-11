@@ -93,11 +93,6 @@ spec:
       secret:
         secretName: "nginz"
 
-    - name: elasticsearch-ca
-      secret:
-        secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef.name }}
-
-
     - name: rabbitmq-ca
       secret:
         secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
@@ -122,8 +117,6 @@ spec:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
     volumeMounts:
-      - name: elasticsearch-ca
-        mountPath: "/certs/elasticsearch"
       {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
       - name: "integration-cassandra"
         mountPath: "/certs/cassandra"
@@ -163,9 +156,6 @@ spec:
           --tls-ca-certificate-file /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values.config }}
           {{ end }}
 
-        integration-dynamic-backends-brig-index.sh \
-          --elasticsearch-server https://elastic:changeme@{{ .Values.config.elasticsearch.host }}:9200 \
-          --elasticsearch-ca-cert /certs/elasticsearch/{{ .Values.config.elasticsearch.tlsCaSecretRef.key }}
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
         integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
         {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
@@ -276,9 +266,6 @@ spec:
 
     - name: nginz-secrets
       mountPath: /etc/wire/nginz/secrets
-
-    - name: elasticsearch-ca
-      mountPath: /etc/wire/brig/elasticsearch-ca
 
     - name: rabbitmq-ca
       mountPath: /etc/wire/brig/rabbitmq-ca

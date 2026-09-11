@@ -26,7 +26,6 @@ import Brig.IO.Intra (runEvents)
 import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Brig.Template (InvitationUrlTemplates)
-import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.), _Just)
@@ -105,8 +104,6 @@ import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
-import Wire.IndexedUserStore
-import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
 import Wire.JwtTools
@@ -166,6 +163,8 @@ import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Wire.UserSearchStore (UserSearchStore)
+import Wire.UserSearchStore.Postgres (interpretUserSearchStorePostgres)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
@@ -217,6 +216,7 @@ type BrigLowerLevelEffects =
      MlsKeyPackageStore,
      UserStore,
      UserGroupStore,
+     UserSearchStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
      Error AppSubsystemError,
@@ -239,7 +239,6 @@ type BrigLowerLevelEffects =
      CryptoSign,
      HashPassword,
      ClientStore,
-     IndexedUserStore,
      SessionStore,
      PasswordStore,
      VerificationCodeStore,
@@ -364,21 +363,6 @@ runBrigToIO e (AppT ma) = do
             userCookieLimit = e.settings.userCookieLimit,
             userCookieThrottle = e.settings.userCookieThrottle
           }
-      mainESEnv = e.indexEnv ^. to idxElastic
-      indexedUserStoreConfig =
-        IndexedUserStoreConfig
-          { conn =
-              ESConn
-                { env = mainESEnv,
-                  indexName = e.indexEnv ^. to idxName
-                },
-            additionalConn =
-              (e.indexEnv ^. to idxAdditionalName) <&> \additionalIndexName ->
-                ESConn
-                  { env = e.indexEnv ^. to idxAdditionalElastic . to (fromMaybe mainESEnv),
-                    indexName = additionalIndexName
-                  }
-          }
       clientStoreCassandraEnv =
         ClientStoreCassandraEnv
           { prekeyLocking =
@@ -469,7 +453,6 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
-              . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
@@ -492,6 +475,18 @@ runBrigToIO e (AppT ma) = do
               . mapError appSubsystemErrorToHttpError
               . domainVerificationChallengeStore
               . domainRegistrationStore
+              -- User search reads brig's Postgres user store directly; a
+              -- Cassandra-only user store does not support user search.
+              . ( case e.postgresMigration.user of
+                    CassandraStorage ->
+                      error $
+                        "UserSearchStore requires the brig user store in"
+                          <> " Postgres: set postgresMigration.user to"
+                          <> " PostgresqlStorage or MigrationToPostgresql"
+                          <> " (user search is unsupported with a"
+                          <> " Cassandra-only user store)."
+                    _ -> interpretUserSearchStorePostgres
+                )
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
               . interpretMlsKeyPackageStoreToCassandra e.casClient

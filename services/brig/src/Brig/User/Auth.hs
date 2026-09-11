@@ -177,7 +177,6 @@ logout uts at = do
 renewAccess ::
   forall r u a.
   ( Member TinyLog r,
-    Member UserSubsystem r,
     Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
@@ -233,7 +232,6 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
 
 catchSuspendInactiveUser ::
   ( Member TinyLog r,
-    Member UserSubsystem r,
     Member Events r,
     Member (Concurrency 'Unsafe) r,
     Member AuthenticationSubsystem r,
@@ -261,7 +259,6 @@ catchSuspendInactiveUser uid errval = do
 newAccess ::
   forall u a r.
   ( Member TinyLog r,
-    Member UserSubsystem r,
     Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
@@ -392,7 +389,6 @@ validateToken ut at = do
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
   ( Member TinyLog r,
-    Member UserSubsystem r,
     Member Events r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
@@ -431,7 +427,6 @@ ssoLogin (SsoLogin uid label) typ = do
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,

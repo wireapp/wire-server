@@ -41,10 +41,8 @@ import Data.Aeson
 import Data.ByteString.Char8 qualified as B8
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import Database.Bloodhound.Types qualified as ES
 import Federation.End2end qualified
 import Imports hiding (local)
-import Index.Create qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.URI (pathSegments)
 import OpenSSL (withOpenSSL)
@@ -98,12 +96,7 @@ data Config = Config
     -- external provider
     provider :: Provider.Config,
     -- for federation
-    backendTwo :: BackendConf,
-    -- The additional ElasticSearch server is configured like the main one
-    -- (regarding passwords, certificated, etc.). Thus, we only need the
-    -- additional endpoint and can deduce the rest from the main instance's
-    -- configuration.
-    additionalElasticSearch :: ES.Server
+    backendTwo :: BackendConf
   }
   deriving (Show, Generic)
 
@@ -136,12 +129,11 @@ runTests iConf brigOpts otherArgs = do
   mUserJournalWatcher <- for (Opts.userJournalQueue awsOpts) $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
   userApi <- User.tests brigOpts fedBrigClient mg b c ch g n awsEnv db mUserJournalWatcher
   providerApi <- Provider.tests localDomain brigOpts (provider iConf) mg db b c g n
-  searchApis <- Search.tests brigOpts iConf.additionalElasticSearch mg g b
+  searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g mUserJournalWatcher
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
   metricsApi <- Metrics.tests mg brigOpts b
   settingsApi <- Settings.tests brigOpts mg b g
-  createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
   federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
@@ -159,7 +151,6 @@ runTests iConf brigOpts otherArgs = do
         turnApi,
         metricsApi,
         settingsApi,
-        createIndex,
         browseTeam,
         federationEndpoints,
         smtp,

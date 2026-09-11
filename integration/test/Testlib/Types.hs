@@ -79,7 +79,6 @@ data BackendResource = BackendResource
     berGalleyKeyspace :: String,
     berSparKeyspace :: String,
     berGundeckKeyspace :: String,
-    berElasticsearchIndex :: String,
     berPostgresqlDBName :: String,
     berFederatorInternal :: Word16,
     berFederatorExternal :: Word16,

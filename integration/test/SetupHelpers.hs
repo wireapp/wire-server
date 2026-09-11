@@ -53,9 +53,6 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import System.Exit
-import System.FilePath ((</>))
-import System.Process
 import System.Random
 import Test.DNSMock
 import Testlib.JSON
@@ -66,7 +63,6 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import UnliftIO (pooledForConcurrentlyN)
-import UnliftIO.Concurrent (forkIO)
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
 randomUser domain cu = createUser domain cu >>= getJSON 201
@@ -821,113 +817,3 @@ getMetrics domain service = do
   req <- rawBaseRequest domain service Unversioned "/i/metrics"
   submit "GET" req
 
-createNewIndex :: (HasCallStack) => App String
-createNewIndex = do
-  testName <- asks (fromMaybe "NoTest" . (.currentTestName))
-  indexName <- ("temp-" <>) . take 10 . randomRs ('a', 'z') <$> newStdGen
-  let prefix = "[create-new-index:" <> indexName <> ":" <> testName <> "] "
-  brigConfig <- readServiceConfig Brig
-  esServer <- brigConfig %. "elasticsearch.url" & asString
-  esCredentials <- brigConfig %. "elasticsearch.credentials" & asString
-  esCaCert <- brigConfig %. "elasticsearch.caCert" & asString
-  cwd <- (</> "brig") <$$> asks (.servicesCwdBase)
-
-  (_, Just stdoutHdl, Just stderrHdl, ph) <-
-    liftIO $
-      createProcess
-        ( proc
-            "brig-index"
-            [ "create",
-              "--elasticsearch-server",
-              esServer,
-              "--elasticsearch-index",
-              indexName,
-              "--elasticsearch-ca-cert",
-              esCaCert,
-              "--elasticsearch-credentials",
-              esCredentials
-            ]
-        )
-          { cwd = cwd,
-            std_out = CreatePipe,
-            std_err = CreatePipe
-          }
-
-  void $ forkIO $ liftIO $ logToConsole (colored green) prefix stdoutHdl
-  void $ forkIO $ liftIO $ logToConsole id prefix stderrHdl
-  exitCode <- liftIO $ waitForProcess ph
-  case exitCode of
-    ExitFailure _ -> assertFailure $ prefix <> "failed to create index"
-    ExitSuccess -> pure indexName
-
-reindexUsers :: (HasCallStack) => BackendResource -> ServiceOverrides -> Int -> App ()
-reindexUsers ber serviceOverrides pageSize = do
-  testName <- asks (fromMaybe "NoTest" . (.currentTestName))
-  let indexName = ber.berElasticsearchIndex
-  let prefix = "[reindex-users:" <> indexName <> ":" <> testName <> "] "
-  getBrigConfig <- readAndUpdateConfig (defaultOverrides ber <> serviceOverrides) ber Brig
-  brigConfig <- liftIO $ getBrigConfig
-  esServer <- brigConfig %. "elasticsearch.url" & asString
-  esCredentials <- brigConfig %. "elasticsearch.credentials" & asString
-  esCaCert <- brigConfig %. "elasticsearch.caCert" & asString
-  cwd <- (</> "brig") <$$> asks (.servicesCwdBase)
-  pgSettings <- cs . Aeson.encode <$> brigConfig %. "postgresql"
-  mPgPasswordFile <- brigConfig `lookupField` "postgresqlPassword" & asStringM
-  let pgPasswordOpts = case mPgPasswordFile of
-        Nothing -> []
-        Just pwFile -> ["--pg-password-file", pwFile]
-  userStorageLocation <- brigConfig %. "postgresMigration.user" & asString
-  galleyHost <- brigConfig %. "galley.host" & asString
-  galleyPort <- brigConfig %. "galley.port" & asInt <&> show
-  casHost <- brigConfig %. "cassandra.endpoint.host" & asString
-  casPort <- brigConfig %. "cassandra.endpoint.port" & asInt <&> show
-  casKeySpace <- brigConfig %. "cassandra.keyspace" & asString
-  let indexOpts =
-        [ "reindex",
-          "--elasticsearch-server",
-          esServer,
-          "--elasticsearch-index",
-          indexName,
-          "--elasticsearch-ca-cert",
-          esCaCert,
-          "--elasticsearch-credentials",
-          esCredentials,
-          "--pg-pool-size",
-          "10",
-          "--pg-pool-acquisition-timeout",
-          "10s",
-          "--pg-pool-idleness-timeout",
-          "1h",
-          "--pg-settings",
-          pgSettings,
-          "--user-storage-location",
-          userStorageLocation,
-          "--galley-host",
-          galleyHost,
-          "--galley-port",
-          galleyPort,
-          "--cassandra-host",
-          casHost,
-          "--cassandra-port",
-          casPort,
-          "--cassandra-keyspace",
-          casKeySpace,
-          "--page-size",
-          show pageSize
-        ]
-          <> pgPasswordOpts
-  (_, Just stdoutHdl, Just stderrHdl, ph) <-
-    liftIO $
-      createProcess
-        (proc "brig-index" indexOpts)
-          { cwd = cwd,
-            std_out = CreatePipe,
-            std_err = CreatePipe
-          }
-
-  void $ forkIO $ liftIO $ logToConsole (colored green) prefix stdoutHdl
-  void $ forkIO $ liftIO $ logToConsole (colored green) prefix stderrHdl
-  exitCode <- liftIO $ waitForProcess ph
-  case exitCode of
-    ExitFailure _ -> assertFailure $ prefix <> "failed to reindex users"
-    ExitSuccess -> pure ()

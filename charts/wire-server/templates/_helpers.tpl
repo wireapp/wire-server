@@ -48,46 +48,6 @@
 {{- end -}}
 {{- end -}}
 
-{{- define "brig.configureElasticSearchCa" -}}
-{{ or (hasKey .elasticsearch "tlsCa") (hasKey .elasticsearch "tlsCaSecretRef") }}
-{{- end -}}
-
-{{- define "brig.elasticsearchTlsSecretName" -}}
-{{- if .elasticsearch.tlsCaSecretRef -}}
-{{ .elasticsearch.tlsCaSecretRef.name }}
-{{- else }}
-{{- print "brig-elasticsearch-ca" -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "brig.elasticsearchTlsSecretKey" -}}
-{{- if .elasticsearch.tlsCaSecretRef -}}
-{{ .elasticsearch.tlsCaSecretRef.key }}
-{{- else }}
-{{- print "ca.pem" -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "brig.configureAdditionalElasticSearchCa" -}}
-{{ or (hasKey .elasticsearch "additionalTlsCa") (hasKey .elasticsearch "additionalTlsCaSecretRef") }}
-{{- end -}}
-
-{{- define "brig.additionalElasticsearchTlsSecretName" -}}
-{{- if .elasticsearch.additionalTlsCaSecretRef -}}
-{{ .elasticsearch.additionalTlsCaSecretRef.name }}
-{{- else }}
-{{- print "brig-additional-elasticsearch-ca" -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "brig.additionalElasticsearchTlsSecretKey" -}}
-{{- if .elasticsearch.additionalTlsCaSecretRef -}}
-{{ .elasticsearch.additionalTlsCaSecretRef.key }}
-{{- else }}
-{{- print "ca.pem" -}}
-{{- end -}}
-{{- end -}}
-
 {{/* CANNON */}}
 {{- define "cannon.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}

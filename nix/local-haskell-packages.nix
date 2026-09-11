@@ -45,7 +45,6 @@ hsuper: hself: {
   wire-server-enterprise = hself.callPackage ../services/wire-server-enterprise/default.nix { };
   assets = hself.callPackage ../tools/db/assets/default.nix { };
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { };
-  find-undead = hself.callPackage ../tools/db/find-undead/default.nix { };
   inconsistencies = hself.callPackage ../tools/db/inconsistencies/default.nix { };
   migrate-features = hself.callPackage ../tools/db/migrate-features/default.nix { };
   migrate-sso-feature-flag = hself.callPackage ../tools/db/migrate-sso-feature-flag/default.nix { };

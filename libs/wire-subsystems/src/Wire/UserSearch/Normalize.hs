@@ -1,8 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,14 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.IndexedUserStore.MigrationStore where
+module Wire.UserSearch.Normalize
+  ( normalized,
+  )
+where
 
-import Polysemy
-import Wire.UserSearch.Migration
+import Data.Text (Text)
+import Data.Text.ICU.Translit (trans, transliterate)
 
-data IndexedUserMigrationStore m a where
-  EnsureMigrationIndex :: IndexedUserMigrationStore m ()
-  GetLatestMigrationVersion :: IndexedUserMigrationStore m MigrationVersion
-  PersistMigrationVersion :: MigrationVersion -> IndexedUserMigrationStore m ()
-
-makeSem ''IndexedUserMigrationStore
+-- | Normalizes a name (or search term) for matching: transliterate to
+-- Latin, strip diacritics, lowercase.  ("Björn" -> "bjorn")
+--
+-- This is the same function that used to be applied when writing the
+-- ElasticSearch user documents (formerly 'Wire.UserStore.IndexUser.normalized');
+-- it is now applied when writing @wire_user.name_normalized@ and when
+-- building search queries.
+normalized :: Text -> Text
+normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
