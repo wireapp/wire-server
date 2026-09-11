@@ -59,6 +59,11 @@ spec:
           secret:
             secretName: {{ (include "brigTlsSecretRef" $backgroundWorker.config | fromYaml).name }}
         {{- end }}
+        {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraSpar) "true" }}
+        - name: "background-worker-cassandra-spar"
+          secret:
+            secretName: {{ (include "sparTlsSecretRef" $backgroundWorker.config | fromYaml).name }}
+        {{- end }}
         {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
         - name: "galley-cassandra"
           secret:
@@ -96,6 +101,10 @@ spec:
           {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraBrig) "true" }}
           - name: "background-worker-cassandra-brig"
             mountPath: "/etc/wire/background-worker/cassandra-brig"
+          {{- end }}
+          {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraSpar) "true" }}
+          - name: "background-worker-cassandra-spar"
+            mountPath: "/etc/wire/background-worker/cassandra-spar"
           {{- end }}
           {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
           - name: "galley-cassandra"

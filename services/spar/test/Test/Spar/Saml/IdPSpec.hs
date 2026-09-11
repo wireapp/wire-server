@@ -25,6 +25,7 @@ import Data.Domain
 import Data.Id (TeamId, idToText, parseIdFromText)
 import qualified Data.List.NonEmpty as NonEmptyL
 import qualified Data.Map as Map
+import Data.Misc (unsafeParseDuration)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as TL
@@ -34,6 +35,7 @@ import Data.Time (UTCTime (..), fromGregorian)
 import Data.X509 (SignedCertificate)
 import Data.X509.Extended (renderFingerprintHex)
 import qualified Data.X509.Extended as X509E
+import Hasql.Pool.Extended (PoolConfig (..))
 import Imports
 import Polysemy
 import qualified Polysemy.Error
@@ -82,6 +84,7 @@ import Wire.IdPConfigStore
 import Wire.IdPConfigStore.Mem
 import Wire.IdPRawMetadataStore
 import Wire.IdPRawMetadataStore.Mem
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 import Wire.Reporter (Reporter (..))
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
@@ -1033,7 +1036,19 @@ defaultTestOpts =
       disabledAPIVersions = mempty,
       scimBaseUri = [uri|http://localhost:8088/scim/v2|],
       enableIdPByEmailDiscovery = False,
-      idpCertFingerprintAllowlist = Nothing
+      idpCertFingerprintAllowlist = Nothing,
+      -- Postgres fields are placeholders; only the allowlist is read here.
+      postgresql = mempty,
+      postgresqlPool = PoolConfig 1 (unsafeParseDuration "10s") (unsafeParseDuration "10m"),
+      postgresMigration =
+        PostgresMigrationOpts
+          { conversation = CassandraStorage,
+            conversationCodes = CassandraStorage,
+            teamFeatures = CassandraStorage,
+            domainRegistration = CassandraStorage,
+            user = CassandraStorage
+          },
+      postgresqlPassword = Nothing
     }
 
 galleyAccessMock :: Sem (GalleyAPIAccess ': r) a -> Sem r a
