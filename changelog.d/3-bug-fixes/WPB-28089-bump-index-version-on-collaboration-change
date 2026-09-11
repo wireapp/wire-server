@@ -3,3 +3,5 @@ version, so the updated document is no longer dropped as a version conflict:
 adding, changing or removing a team collaboration, and removing a user's SSO
 identity. Previously the collaborating teams, resp. the SSO identity, could
 stay in the index indefinitely.
+Cancelling a pending email change did not trigger a re-index at all; it now
+does, so the unvalidated email address no longer stays in the index either.
