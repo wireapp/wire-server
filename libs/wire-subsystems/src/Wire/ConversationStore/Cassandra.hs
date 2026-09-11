@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ConversationStore.Cassandra
-  ( interpretMLSCommitLockStoreToCassandra,
-    interpretConversationStoreToCassandra,
+  ( interpretConversationStoreToCassandra,
     interpretConversationStoreToCassandraAndPostgres,
     interpretConversationStoreByMigration,
     MigrationError (..),
@@ -41,7 +40,6 @@ import Data.Monoid
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
-import Data.Time
 import Data.UUID.Util qualified as UUID
 import Imports
 import Network.HTTP.Types.Status (status500)
@@ -71,7 +69,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
-import Wire.ConversationStore (ConversationStore (..), LockAcquired (..), MLSCommitLockStore (..))
+import Wire.ConversationStore (ConversationStore (..))
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
@@ -350,37 +348,6 @@ updateToMLSProtocol client cnv =
 
 updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
 updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
-
-acquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> Client LockAcquired
-acquireCommitLock groupId epoch ttl = do
-  rows <-
-    retry x5 $
-      trans
-        Cql.acquireCommitLock
-        ( params
-            LocalQuorum
-            (groupId, epoch, round ttl)
-        )
-          { serialConsistency = Just LocalSerialConsistency
-          }
-  pure $
-    if checkTransSuccess rows
-      then Acquired
-      else NotAcquired
-
-releaseCommitLock :: GroupId -> Epoch -> Client ()
-releaseCommitLock groupId epoch =
-  retry x5 $
-    write
-      Cql.releaseCommitLock
-      ( params
-          LocalQuorum
-          (groupId, epoch)
-      )
-
-checkTransSuccess :: [Row] -> Bool
-checkTransSuccess [] = False
-checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
 
 removeTeamConv :: TeamId -> ConvId -> Client ()
 removeTeamConv tid cid = liftClient $ do
@@ -879,15 +846,6 @@ isConversationOutOfSync :: ConvId -> Client Bool
 isConversationOutOfSync cid =
   maybe False (fromMaybe False . runIdentity)
     <$> retry x1 (query1 Cql.lookupConvOutOfSync (params LocalQuorum (Identity cid)))
-
-interpretMLSCommitLockStoreToCassandra :: (Member (Embed IO) r, Member TinyLog r) => ClientState -> InterpreterFor MLSCommitLockStore r
-interpretMLSCommitLockStoreToCassandra client = interpret $ \case
-  AcquireCommitLock gId epoch ttl -> do
-    logEffect "MLSCommitLockStore.AcquireCommitLock"
-    embedClient client $ acquireCommitLock gId epoch ttl
-  ReleaseCommitLock gId epoch -> do
-    logEffect "MLSCommitLockStore.ReleaseCommitLock"
-    embedClient client $ releaseCommitLock gId epoch
 
 interpretConversationStoreToCassandra ::
   forall r a.
