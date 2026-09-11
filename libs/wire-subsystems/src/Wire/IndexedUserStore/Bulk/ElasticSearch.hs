@@ -96,24 +96,30 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
       let teams :: Map TeamId [IndexUser]
           teams = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
 
-      lookupRole :: UserId -> Maybe (WithWritetime Role) <- do
-        let -- Accounts that have no team, can have no role.  If a role
-            -- can't be found on brig for an account, that account does
-            -- not have role info in their index or document any more.
-            -- This is fine because it only affects accounts that are
-            -- already inconsistent accross cassandras (user entry with
-            -- team ref, but no team member entry).
-            getRoles :: TeamId -> [UserId] -> IO (Map UserId (WithWritetime Role))
-            getRoles tid uids = do
-              eithMembers <- try @SomeException $ interpreter $ (.members) <$> selectTeamMemberInfos tid uids
-              pure case eithMembers of
-                Left _ -> Map.empty
-                Right tms -> Map.fromList $ mapMaybe mkRoleWithWriteTime tms
+      lookupRole :: UserId -> Either SomeException (Maybe (WithWritetime Role)) <- do
+        let -- NB: `selectTeamMemberInfos` conveniently always returns a
+            -- member list, even if some or all users or the team don't
+            -- exist.  So a *missing* entry merely means "this account has no
+            -- role", which is fine: it only affects accounts that are
+            -- already inconsistent accross cassandras (user entry with team
+            -- ref, but no team member entry).  A non-2xx response, on the
+            -- other hand, means some real error occurred, and must fail the
+            -- whole page rather than silently drop the role.
+            getRoles :: TeamId -> [UserId] -> IO (Either SomeException (Map UserId (WithWritetime Role)))
+            getRoles tid uids =
+              try @SomeException . interpreter $
+                rolesFromMemberInfos . (.members) <$> selectTeamMemberInfos tid uids
 
-        rolesMap <- fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
+        results <- pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
           getRoles t (fmap (.userId) us)
 
-        pure $ \uid -> Map.lookup uid rolesMap
+        -- log the root cause once per page, rather than once per user
+        for_ (lefts results) $ \e ->
+          interpreter . Log.err $
+            Log.msg (Log.val "Failed to look up team member roles; skipping this page")
+              . Log.field "error" (show e)
+
+        pure $ mkRoleLookup results
 
       lookupVisibility :: IndexUser -> SearchVisibilityInbound <- do
         visMap <- fmap Map.fromList . pooledForConcurrentlyN 16 (Map.keys teams) $ \t -> do
@@ -131,14 +137,14 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
 
         pure \indexUser -> do
           let currentVis = lookupVisibility indexUser
-              currentRole = ((.value)) <$> lookupRole indexUser.userId
+          currentRole <- fmap (.value) <$> lookupRole indexUser.userId
           currentCollabTeams <- Map.findWithDefault [] indexUser.userId <$> eithCollabTeams
           pure $ indexUserToDoc currentVis currentRole currentCollabTeams indexUser
 
       let mkDocVersion :: IndexUser -> Either SomeException ES.VersionControl
-          mkDocVersion u =
-            let roleWithTime = lookupRole u.userId
-             in pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
+          mkDocVersion u = do
+            roleWithTime <- lookupRole u.userId
+            pure . mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion roleWithTime u
 
           docsWithErrors :: (e ~ Either SomeException) => [(ES.DocId, e UserDoc, e ES.VersionControl)]
           docsWithErrors = map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
@@ -163,17 +169,32 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           pure $ Left $ show idText <> ": " <> show e
         Right (userDoc, version) -> pure $ Right (docId, userDoc, version)
 
-    mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (UserId, WithWritetime Role)
-    mkRoleWithWriteTime tmi =
-      ( \role ->
-          ( tmi.userId,
-            WithWriteTime
-              { value = role,
-                writetime = Writetime $ fromUTCTimeMillis tmi.permissionsWriteTime
-              }
-          )
+mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (UserId, WithWritetime Role)
+mkRoleWithWriteTime tmi =
+  ( \role ->
+      ( tmi.userId,
+        WithWriteTime
+          { value = role,
+            writetime = Writetime $ fromUTCTimeMillis tmi.permissionsWriteTime
+          }
       )
-        <$> permissionsToRole tmi.permissions
+  )
+    <$> permissionsToRole tmi.permissions
+
+-- | The roles of one team, extracted from a *successful* galley response.
+-- Users galley does not know about simply do not show up in the result; that
+-- is not an error.
+rolesFromMemberInfos :: [TeamMemberInfo] -> Map UserId (WithWritetime Role)
+rolesFromMemberInfos = Map.fromList . mapMaybe mkRoleWithWriteTime
+
+-- | Fold the per-team lookup results of one page into a single lookup
+-- function.  A galley error for any team fails the entire page: every
+-- document derived from this lookup will be logged and skipped by
+-- 'logFailures'.
+mkRoleLookup ::
+  [Either SomeException (Map UserId (WithWritetime Role))] ->
+  (UserId -> Either SomeException (Maybe (WithWritetime Role)))
+mkRoleLookup results uid = Map.lookup uid . Map.unions <$> sequence results
 
 migrateData ::
   (Member (Embed IO) r, Member IndexedUserStore r, Member (Error MigrationException) r, Member IndexedUserMigrationStore r, Member TinyLog r, Member UserStore r, Member GalleyAPIAccess r, Member TeamCollaboratorsStore r) =>
