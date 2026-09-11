@@ -794,7 +794,6 @@ testMultipleUsers opts brig = do
           { profileQualifiedId = u5,
             profileName = Name "u5",
             profileTextStatus = Nothing,
-            profilePict = Pict [],
             profileAssets = [],
             profileAccentId = ColourId 0,
             profileDeleted = False,
@@ -1579,10 +1578,9 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
           . responseJsonMaybe
     assertDeletedProfilePublic = do
       const 200 === statusCode
-      const (Just noPict, Just True, Nothing)
+      const (Just True, Nothing)
         === ( \u' ->
-                ( fmap profilePict u',
-                  fmap profileDeleted u',
+                ( fmap profileDeleted u',
                   profileHandle =<< u'
                 )
             )
