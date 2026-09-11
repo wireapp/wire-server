@@ -149,7 +149,10 @@ syncAllUsersWithVersion interpreter pageSize mkVersion =
           cappedErrors = take 1000 errors
       pure (skipped, cappedErrors, docs)
 
-    logFailures :: (Member TinyLog r) => (ES.DocId, Either SomeException UserDoc, Either SomeException ES.VersionControl) -> Sem r (Either String (ES.DocId, UserDoc, ES.VersionControl))
+    logFailures ::
+      (Member TinyLog r) =>
+      (ES.DocId, Either SomeException UserDoc, Either SomeException ES.VersionControl) ->
+      Sem r (Either String (ES.DocId, UserDoc, ES.VersionControl))
     logFailures (docId@(ES.DocId idText), eithUserDoc, eithVersion) =
       case (,) <$> eithUserDoc <*> eithVersion of
         Left e -> do
@@ -197,7 +200,7 @@ migrateData interpreter pageSize = interpreter $ do
               . Log.field "expectedVersion" expectedMigrationVersion
               . Log.field "skippedUsers" skipped
               . Log.field "errors" (show errors)
-          throw $ SyncIncomplete
+          throw SyncIncomplete
     else do
       Log.info $
         Log.msg (Log.val "No migration necessary.")
