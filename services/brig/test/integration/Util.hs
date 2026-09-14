@@ -973,12 +973,12 @@ randomName = randomNameWithMaxLen 128
 -- | For testing purposes we restrict ourselves to code points in the
 -- Basic Multilingual Plane that are considered to be numbers, letters,
 -- punctuation or symbols and ensure the name starts with a "letter".
--- That is in order for the name to be searchable at all, since the standard
--- ElasticSearch tokenizer may otherwise produce an empty list of tokens,
--- e.g. if the name is entirely made of characters from categories that
--- the standard tokenizer considers as word boundaries (or which are
--- simply unassigned code points), yielding no tokens to match and thus
--- no results in search queries.
+-- That is in order for the name to be searchable at all, since the search
+-- tokenizer may otherwise produce an empty list of tokens, e.g. if the name
+-- is entirely made of characters from categories that the tokenizer
+-- considers as word boundaries (or which are simply unassigned code
+-- points), yielding no tokens to match and thus no results in search
+-- queries.
 randomNameWithMaxLen :: (MonadIO m) => Word -> m Name
 randomNameWithMaxLen maxLen = liftIO $ do
   len <- randomRIO (2, maxLen)

@@ -33,23 +33,6 @@
         "type": "github"
       }
     },
-    "bloodhound": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1739958389,
-        "narHash": "sha256-E3co9FGZP135T3RocX4vbUELbbgGbYddD8CcVNUzHu8=",
-        "owner": "wireapp",
-        "repo": "bloodhound",
-        "rev": "dac0f1384b335ce35dc026bf8154e574b1a15d62",
-        "type": "github"
-      },
-      "original": {
-        "owner": "wireapp",
-        "ref": "wire-fork",
-        "repo": "bloodhound",
-        "type": "github"
-      }
-    },
     "cql": {
       "flake": false,
       "locked": {
@@ -385,7 +368,6 @@
       "inputs": {
         "amazonka": "amazonka",
         "arbiter": "arbiter",
-        "bloodhound": "bloodhound",
         "cql": "cql",
         "cql-io": "cql-io",
         "cryptostore": "cryptostore",

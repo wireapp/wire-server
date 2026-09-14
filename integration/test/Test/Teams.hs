@@ -119,7 +119,6 @@ testInvitePersonalUserToTeam = do
           ids <- for documents ((%. "id") >=> asString)
           ids `shouldContain` [ownerId]
 
-        I.refreshIndex domain
         -- a team member can now search for the former personal user
         bindResponse (searchContacts tm (user %. "name") domain) $ \resp -> do
           resp.status `shouldMatchInt` 200
@@ -356,7 +355,6 @@ testUpgradePersonalToTeam = do
     shouldBeNull $ owner %. "created_by"
 
   mem <- createTeamMember alice' def
-  I.refreshIndex OwnDomain
 
   bindResponse (searchTeamAll alice') $ \resp -> do
     resp.status `shouldMatchInt` 200

@@ -56,7 +56,7 @@ import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as Store
-import Wire.UserSubsystem (UserSubsystem, internalUpdateSearchIndex)
+import Wire.UserSubsystem (UserSubsystem)
 
 runAppSubsystem ::
   ( Member UserStore r,
@@ -96,7 +96,6 @@ createAppImpl ::
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserSubsystem r,
     Member Random r
   ) =>
   Local UserId ->
@@ -129,7 +128,6 @@ createAppImpl lusr tid newApp = do
   Store.createUser u Nothing
   now <- toUTCTimeMillis <$> get
   void $ addTeamMember u.id tid (Just (tUnqualified lusr, now)) R.RoleMember
-  internalUpdateSearchIndex u.id
 
   -- generate a team event
   generateTeamEvents creator.id tid [EdMemberJoin u.id]
@@ -199,7 +197,6 @@ updateAppImpl ::
     Member (Error AppSubsystemError) r,
     Member Events r,
     Member GalleyAPIAccess r,
-    Member UserSubsystem r,
     Member UserStore r
   ) =>
   Local UserId ->
@@ -214,7 +211,6 @@ updateAppImpl lusr tid appid upd = do
     Right () -> pure ()
     Left Store.NotFound -> throw AppSubsystemErrorNoApp
   Store.updateUser appid (def {Store.name = upd.name, Store.assets = upd.assets, Store.accentId = upd.accentId})
-  internalUpdateSearchIndex appid
   generateUserEvent appid Nothing $
     UserUpdated $
       (emptyUserUpdatedData appid)

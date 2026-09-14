@@ -36,7 +36,6 @@ import Data.Time
 import Data.Tuple.Extra (fst3)
 import Data.Vector (Vector)
 import Data.Vector qualified as V
-import Data.Vector qualified as Vector
 import Hasql.Pipeline qualified as Pipeline
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -56,8 +55,8 @@ import Wire.API.User.Search
 import Wire.Postgres
 import Wire.Sem.Logger
 import Wire.StoredUser
+import Wire.UserSearch.Normalize (normalized)
 import Wire.UserStore
-import Wire.UserStore.IndexUser
 
 interpretUserStorePostgres :: (PGConstraints r, Member TinyLog r) => InterpreterFor UserStore r
 interpretUserStorePostgres =
@@ -67,8 +66,6 @@ interpretUserStorePostgres =
     DeactivateUser uid -> deactivateUserImpl uid
     GetUsers uids -> getUsersImpl uids
     DoesUserExist uid -> doesUserExistImpl uid
-    GetIndexUser uid -> getIndexUserImpl uid
-    GetIndexUsersPaginated pageSize mPagingState -> getIndexUsersPaginatedImpl pageSize (paginationStatePostgres =<< mPagingState)
     UpdateUser uid update -> updateUserImpl uid update
     UpdateEmail uid email -> updateEmailImpl uid (Just email)
     DeleteEmail uid -> updateEmailImpl uid Nothing
@@ -101,7 +98,7 @@ interpretUserStorePostgres =
 
 {- ORMOLU_DISABLE -}
 type InsertUserRow =
-  ( UserId, Name, Maybe TextStatus, Pict, Maybe EmailAddress,
+  ( UserId, Name, Text, Maybe TextStatus, Pict, Maybe EmailAddress,
     Maybe UserSSOId, ColourId, Maybe Password, Bool, AccountStatus,
     Maybe UTCTimeMillis, Language, Maybe Country, Maybe ProviderId, Maybe ServiceId,
     Maybe TeamId, ManagedBy, Set BaseProtocolTag, Bool, UserType
@@ -127,40 +124,7 @@ storedUserFromRow (id_, name, textStatus, pict, email, emailUnvalidated,
                                  ..
                                }
 
-type SelectIndexUserRow =
-  (UserId, Maybe TeamId, Name, Maybe AccountStatus, Maybe Handle,
-   Maybe EmailAddress, Maybe EmailAddress, ColourId, Bool, Maybe ServiceId,
-   Maybe ManagedBy, Maybe UserSSOId, Maybe Bool, UTCTime, UTCTime,
-   UserType)
 
-indexUserFromRow :: SelectIndexUserRow -> IndexUser
-indexUserFromRow ( uid, teamId, name, accountStatus, handle,
-                   email, unverifiedEmail, colourId, activated, serviceId,
-                   managedBy, ssoId, searchable, createdAt, updatedAt,
-                   userType
-                 ) = IndexUser{userId = uid, ..}
-{- ORMOLU_ENABLE -}
-
-indexUserFromDeletedRow :: (UserId, Maybe TeamId, UTCTime, UTCTime) -> IndexUser
-indexUserFromDeletedRow (uid, teamId, createdAt, deletedAt) =
-  IndexUser
-    { userId = uid,
-      teamId = teamId,
-      createdAt = createdAt,
-      updatedAt = deletedAt,
-      name = Name "default",
-      accountStatus = Just Deleted,
-      handle = Nothing,
-      email = Nothing,
-      colourId = defaultAccentId,
-      activated = False,
-      serviceId = Nothing,
-      managedBy = Nothing,
-      ssoId = Nothing,
-      unverifiedEmail = Nothing,
-      searchable = Nothing,
-      userType = UserTypeRegular
-    }
 
 createUserImpl :: (PGConstraints r) => NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Sem r ()
 createUserImpl new mbConv =
@@ -174,6 +138,7 @@ createUserImpl new mbConv =
     userRow =
       ( new.id,
         new.name,
+        normalized (fromName new.name),
         new.textStatus,
         new.pict,
         new.email,
@@ -199,17 +164,18 @@ createUserImpl new mbConv =
       lmapPG
         [resultlessStatement|
            INSERT INTO wire_user
-           (id, name, text_status, picture, email,
+           (id, name, name_normalized, text_status, picture, email,
            sso_id, accent_id, password, activated, account_status,
            expires, language, country, provider, service,
            team, managed_by, supported_protocols, searchable, user_type)
            VALUES
-           ($1 :: uuid, $2 :: text, $3 :: text?, $4 :: jsonb, $5 :: text?,
-            $6 :: jsonb?, $7 :: integer, $8 :: text?, $9 :: boolean, $10 :: integer,
-            $11 :: timestamptz?, $12 :: text, $13 :: text?, $14 :: uuid?, $15 :: uuid?,
-            $16 :: uuid?, $17 :: integer, $18 :: integer, $19 :: boolean, $20 :: integer)
+           ($1 :: uuid, $2 :: text, $3 :: text, $4 :: text?, $5 :: jsonb, $6 :: text?,
+            $7 :: jsonb?, $8 :: integer, $9 :: text?, $10 :: boolean, $11 :: integer,
+            $12 :: timestamptz?, $13 :: text, $14 :: text?, $15 :: uuid?, $16 :: uuid?,
+            $17 :: uuid?, $18 :: integer, $19 :: integer, $20 :: boolean, $21 :: integer)
            ON CONFLICT (id) DO UPDATE
            SET name = EXCLUDED.name,
+               name_normalized = EXCLUDED.name_normalized,
                text_status = EXCLUDED.text_status,
                picture = EXCLUDED.picture,
                email = EXCLUDED.email,
@@ -397,113 +363,12 @@ deactivateUserImpl uid =
           WHERE id = $1 :: uuid
         |]
 
-getIndexUserImpl :: (PGConstraints r) => UserId -> Sem r (Maybe IndexUser)
-getIndexUserImpl uid = do
-  indexUserFromRow <$$> runStatement uid selectUser
-  where
-    selectUser :: Hasql.Statement UserId (Maybe SelectIndexUserRow)
-    selectUser =
-      dimapPG
-        [maybeStatement|
-          SELECT
-          id :: uuid, team :: uuid?, name :: text, account_status :: integer?, handle :: text?,
-          email :: text?, email_unvalidated :: text?, accent_id :: integer, activated :: Bool, service :: uuid?,
-          managed_by :: integer?, sso_id :: jsonb?, searchable :: boolean?, created_at :: timestamptz, updated_at :: timestamptz,
-          user_type :: integer
-          FROM wire_user
-          WHERE id = $1 :: uuid
-        |]
-
-getIndexUsersPaginatedImpl :: forall r. (PGConstraints r) => Int32 -> Maybe UserPageMarker -> Sem r (PageWithState UserPageMarker IndexUser)
-getIndexUsersPaginatedImpl lim mState = do
-  case mState of
-    Nothing -> getExistingUserPage Nothing
-    Just (PagingExitingUsers startId) -> getExistingUserPage (Just startId)
-    Just (PagingDeletedUsers startId) -> getDeletedUserPage mempty lim (Just startId)
-  where
-    getExistingUserPage :: Maybe UserId -> Sem r (PageWithState UserPageMarker IndexUser)
-    getExistingUserPage mLastUserId = do
-      rows <- case mLastUserId of
-        Nothing -> runStatement lim selectStart
-        Just startId -> runStatement (startId, lim) selectFrom
-      let results = indexUserFromRow <$> rows
-      if fromIntegral (Vector.length results) >= lim
-        then do
-          pure
-            PageWithState
-              { pwsResults = Vector.toList results,
-                pwsState = PaginationStatePostgres . PagingExitingUsers . (.userId) <$> results Vector.!? (Vector.length results - 1)
-              }
-        else getDeletedUserPage results (lim - fromIntegral (Vector.length results)) Nothing
-
-    getDeletedUserPage :: Vector IndexUser -> Int32 -> Maybe UserId -> Sem r (PageWithState UserPageMarker IndexUser)
-    getDeletedUserPage prevResults remainingLim mLastStartId = do
-      rows <- case mLastStartId of
-        Nothing -> runStatement remainingLim selectDeletedStart
-        Just startId -> runStatement (startId, remainingLim) selectDeletedFrom
-      let results = indexUserFromDeletedRow <$> rows
-      pure
-        PageWithState
-          { pwsResults = Vector.toList $ prevResults <> results,
-            pwsState = PaginationStatePostgres . PagingDeletedUsers . (.userId) <$> results Vector.!? (Vector.length results - 1)
-          }
-
-    selectStart :: Hasql.Statement Int32 (Vector SelectIndexUserRow)
-    selectStart =
-      dimapPG
-        [vectorStatement|
-          SELECT
-          id :: uuid, team :: uuid?, name :: text, account_status :: integer?, handle :: text?,
-          email :: text?, email_unvalidated :: text?, accent_id :: integer, activated :: Bool, service :: uuid?,
-          managed_by :: integer?, sso_id :: jsonb?, searchable :: boolean?, created_at :: timestamptz, updated_at :: timestamptz,
-          user_type :: integer
-          FROM wire_user
-          ORDER BY id ASC
-          LIMIT ($1 :: integer)
-        |]
-
-    selectFrom :: Hasql.Statement (UserId, Int32) (Vector SelectIndexUserRow)
-    selectFrom =
-      dimapPG
-        [vectorStatement|
-          SELECT
-          id :: uuid, team :: uuid?, name :: text, account_status :: integer?, handle :: text?,
-          email :: text?, email_unvalidated :: text?, accent_id :: integer, activated :: Bool, service :: uuid?,
-          managed_by :: integer?, sso_id :: jsonb?, searchable :: boolean?, created_at :: timestamptz, updated_at :: timestamptz,
-          user_type :: integer
-          FROM wire_user
-          WHERE id > ($1 :: uuid)
-          ORDER BY id ASC
-          LIMIT ($2 :: integer)
-        |]
-
-    selectDeletedStart :: Hasql.Statement Int32 (Vector (UserId, Maybe TeamId, UTCTime, UTCTime))
-    selectDeletedStart =
-      dimapPG
-        [vectorStatement|
-          SELECT id :: uuid, team :: uuid?, created_at :: timestamptz, deleted_at :: timestamptz
-          FROM deleted_user
-          ORDER BY id ASC
-          LIMIT ($1 :: integer)
-        |]
-
-    selectDeletedFrom :: Hasql.Statement (UserId, Int32) (Vector (UserId, Maybe TeamId, UTCTime, UTCTime))
-    selectDeletedFrom =
-      dimapPG
-        [vectorStatement|
-          SELECT id :: uuid, team :: uuid?, created_at :: timestamptz, deleted_at :: timestamptz
-          FROM deleted_user
-          WHERE id > ($1 :: uuid)
-          ORDER BY id ASC
-          LIMIT ($2 :: integer)
-        |]
-
 updateUserImpl :: (PGConstraints r, Member TinyLog r) => UserId -> StoredUserUpdate -> Sem r ()
 updateUserImpl uid MkStoredUserUpdate {..} = do
   warn $ Log.msg (Log.val "Updating user") . Log.field "locale" (show locale)
   runTransaction Serializable Write $ do
     Transaction.statement
-      (uid, name, textStatus, pict, accentId, supportedProtocols)
+      (uid, name, normalized . fromName <$> name, textStatus, pict, accentId, supportedProtocols)
       updateUserFields
     for_ locale $ \newLocale ->
       Transaction.statement (uid, newLocale.lLanguage, newLocale.lCountry) updateLocale
@@ -511,16 +376,19 @@ updateUserImpl uid MkStoredUserUpdate {..} = do
       Transaction.statement uid deleteAssetsStatement
       Transaction.statement (mkAssetRows uid newAssets) insertAssetsStatement
   where
-    updateUserFields :: Hasql.Statement (UserId, Maybe Name, Maybe TextStatus, Maybe Pict, Maybe ColourId, Maybe (Set BaseProtocolTag)) ()
+    updateUserFields :: Hasql.Statement (UserId, Maybe Name, Maybe Text, Maybe TextStatus, Maybe Pict, Maybe ColourId, Maybe (Set BaseProtocolTag)) ()
     updateUserFields =
       lmapPG
         [resultlessStatement|
           UPDATE wire_user
           SET name =                COALESCE($2 :: text?,    name),
-              text_status =         COALESCE($3 :: text?,    text_status),
-              picture =             COALESCE($4 :: jsonb?,   picture),
-              accent_id =           COALESCE($5 :: integer?, accent_id),
-              supported_protocols = COALESCE($6 :: integer?, supported_protocols)
+              name_normalized =     CASE WHEN $2 :: text? IS NULL
+                                         THEN name_normalized
+                                         ELSE COALESCE($3 :: text?, name_normalized) END,
+              text_status =         COALESCE($4 :: text?,    text_status),
+              picture =             COALESCE($5 :: jsonb?,   picture),
+              accent_id =           COALESCE($6 :: integer?, accent_id),
+              supported_protocols = COALESCE($7 :: integer?, supported_protocols)
           WHERE id = ($1 :: uuid)
         |]
     updateLocale :: Hasql.Statement (UserId, Language, Maybe Country) ()

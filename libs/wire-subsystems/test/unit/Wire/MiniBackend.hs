@@ -117,7 +117,6 @@ import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
-import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationStore
 import Wire.MlsKeyPackageSubsystem
@@ -143,6 +142,7 @@ import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserKeyStore
+import Wire.UserSearchStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -285,7 +285,7 @@ type MiniBackendLowerEffects =
      AppStore,
      TeamCollaboratorsStore,
      UserKeyStore,
-     IndexedUserStore,
+     UserSearchStore,
      FederationConfigStore,
      DRS.DomainRegistrationStore,
      PasswordResetCodeStore,
@@ -341,7 +341,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . runInMemoryPasswordResetCodeStore
     . inMemoryDomainRegistrationStoreInterpreter
     . runFederationConfigStoreInMemory
-    . inMemoryIndexedUserStoreInterpreter
+    . inMemoryUserSearchStoreInterpreter
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
     . inMemoryAppStoreInterpreter
@@ -399,7 +399,7 @@ type StateEffects =
      State (Map UserId Password),
      State UserGroupInMemState,
      State [StoredApp],
-     State UserIndex,
+     State UserSearchIndex,
      State (Map EmailKey UserId),
      State [DRS.StoredDomainRegistration],
      State [InternalNotification],
@@ -416,7 +416,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . evalState []
     . evalState []
     . liftUserKeyStoreState
-    . liftIndexedUserStoreState
+    . liftUserSearchStoreState
     . liftAppStoreState
     . liftUserGroupStoreState
     . liftUserPasswordState
@@ -510,7 +510,7 @@ data MiniBackend = MkMiniBackend
     users :: [StoredUser],
     userPasswords :: Map UserId Password,
     apps :: [StoredApp],
-    userIndex :: UserIndex,
+    userIndex :: UserSearchIndex,
     userKeys :: Map EmailKey UserId,
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
     blockList :: [EmailKey],
@@ -531,7 +531,7 @@ instance Default MiniBackend where
       { users = mempty,
         userPasswords = mempty,
         apps = mempty,
-        userIndex = emptyIndex,
+        userIndex = emptyUserSearchIndex,
         userKeys = mempty,
         passwordResetCodes = mempty,
         blockList = mempty,
@@ -867,13 +867,13 @@ liftAppStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.apps)
   Put newApps -> modify $ \b -> (b :: MiniBackend) {apps = newApps}
 
-liftUserGroupStoreState :: Sem (State UserGroupInMemState : State [StoredApp] : State UserIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a -> Sem (State [StoredApp] : State UserIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a
+liftUserGroupStoreState :: Sem (State UserGroupInMemState : State [StoredApp] : State UserSearchIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a -> Sem (State [StoredApp] : State UserSearchIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a
 liftUserGroupStoreState = interpret $ \case
   Polysemy.State.Get -> Polysemy.State.gets @MiniBackend (.userGroups)
   Put newState -> modify $ \b -> (b :: MiniBackend) {userGroups = newState}
 
-liftIndexedUserStoreState :: (Member (State MiniBackend) r) => Sem (State UserIndex : r) a -> Sem r a
-liftIndexedUserStoreState = interpret $ \case
+liftUserSearchStoreState :: (Member (State MiniBackend) r) => Sem (State UserSearchIndex : r) a -> Sem r a
+liftUserSearchStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.userIndex)
   Put newUserIndex -> modify $ \b -> (b :: MiniBackend) {userIndex = newUserIndex}
 

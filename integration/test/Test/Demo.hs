@@ -4,7 +4,6 @@
 module Test.Demo where
 
 import qualified API.Brig as BrigP
-import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as GalleyI
 import qualified API.Nginz as Nginz
 import GHC.Stack
@@ -129,13 +128,12 @@ testStartMultipleDynamicBackends = do
             (resp.json %. "domain") `shouldMatch` domain
   startDynamicBackends [def, def, def] $ mapM_ assertCorrectDomain
 
-testIndependentESIndices :: (HasCallStack) => App ()
-testIndependentESIndices = do
+testIndependentBackends :: (HasCallStack) => App ()
+testIndependentBackends = do
   u1 <- randomUser OwnDomain def
   u2 <- randomUser OwnDomain def
   uid2 <- objId u2
   connectTwoUsers u1 u2
-  BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchContacts u1 (u2 %. "name") OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
@@ -153,7 +151,6 @@ testIndependentESIndices = do
     uD2 <- randomUser dynDomain def
     uidD2 <- objId uD2
     connectTwoUsers uD1 uD2
-    BrigI.refreshIndex dynDomain
     -- searching for uD2 on the dyn backend should yield a result
     bindResponse (BrigP.searchContacts uD1 (uD2 %. "name") dynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200

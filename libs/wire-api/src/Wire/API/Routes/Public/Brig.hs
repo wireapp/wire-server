@@ -1480,7 +1480,6 @@ type ConnectionAPI =
                          \ <li>prefix-match the normalized user display name.\
                          \ </ul>\
                          \ <p>NB: '@' Does NOT do anything special, ignoring user display names.</p>\
-                         \ <p>See also: [authoritative ElasticSearch query](https://github.com/wireapp/wire-server/blob/83c25cca6a5e9d2205c102410b452eb78fc50a00/libs/wire-subsystems/src/Wire/IndexedUserStore/ElasticSearch.hs#L251-L288)</p>\
                          \"
                      ]
                     "q"

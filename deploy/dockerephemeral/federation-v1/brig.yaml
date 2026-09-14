@@ -9,10 +9,6 @@ cassandra:
   keyspace: brig_test_federation_v1
   # filterNodesByDatacentre: datacenter1
 
-elasticsearch:
-  url: http://nginz-federation-v1:9201
-  index: directory_test
-
 rabbitmq:
   host: rabbitmq
   port: 5672

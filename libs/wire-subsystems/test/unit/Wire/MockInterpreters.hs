@@ -39,7 +39,6 @@ import Wire.MockInterpreters.Events as MockInterpreters
 import Wire.MockInterpreters.FederationConfigStore as MockInterpreters
 import Wire.MockInterpreters.GalleyAPIAccess as MockInterpreters
 import Wire.MockInterpreters.HashPassword as MockInterpreters
-import Wire.MockInterpreters.IndexedUserStore as MockInterpreters
 import Wire.MockInterpreters.InvitationStore as MockInterpreters
 import Wire.MockInterpreters.MeetingsStore as MockInterpreters
 import Wire.MockInterpreters.NotificationSubsystem as MockInterpreters
@@ -55,6 +54,7 @@ import Wire.MockInterpreters.TeamCollaboratorsStore as MockInterpreters
 import Wire.MockInterpreters.TinyLog as MockInterpreters
 import Wire.MockInterpreters.UserGroupStore as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters
+import Wire.MockInterpreters.UserSearchStore as MockInterpreters
 import Wire.MockInterpreters.UserStore as MockInterpreters
 import Wire.MockInterpreters.UserSubsystem as MockInterpreters
 import Wire.MockInterpreters.VerificationCodeStore as MockInterpreters

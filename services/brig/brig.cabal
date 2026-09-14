@@ -110,9 +110,6 @@ library
     Brig.DeleteQueue.Interpreter
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
-    Brig.Index.Eval
-    Brig.Index.Options
-    Brig.Index.Types
     Brig.InternalEvent.Process
     Brig.InternalEvent.Types
     Brig.IO.Intra
@@ -192,8 +189,6 @@ library
     Brig.User.Auth.Cookie
     Brig.User.Client
     Brig.User.EJPD
-    Brig.User.Search.Index
-    Brig.User.Search.SearchIndex
     Brig.User.Template
     Brig.Version
 
@@ -216,7 +211,7 @@ library
     , base16-bytestring                     >=0.1
     , base64-bytestring                     >=1.0
     , bilge                                 >=0.21.1
-    , bloodhound                            >=0.13
+
     , bytestring                            >=0.10
     , bytestring-conversion                 >=0.2
     , cassandra-util                        >=0.16.2
@@ -328,9 +323,13 @@ executable brig-index
     , base
     , brig
     , extended
+    , hasql
+    , uuid
     , imports
     , optparse-applicative
+    , text
     , tinylog
+    , wire-subsystems
 
 executable brig-integration
   import:         common-all
@@ -361,7 +360,6 @@ executable brig-integration
     API.User.Util
     Federation.End2end
     Federation.Util
-    Index.Create
     Run
     SMTP
     Util
@@ -378,7 +376,6 @@ executable brig-integration
     , base
     , base16-bytestring
     , bilge
-    , bloodhound
     , brig
     , bytestring             >=0.9
     , bytestring-conversion
@@ -402,7 +399,6 @@ executable brig-integration
     , http-client
     , http-client-tls        >=0.3
     , http-media
-    , http-reverse-proxy
     , http-types
     , imports
     , jose
@@ -427,7 +423,6 @@ executable brig-integration
     , random-shuffle
     , raw-strings-qq
     , retry                  >=0.6
-    , safe
     , saml2-web-sso
     , servant
     , servant-client

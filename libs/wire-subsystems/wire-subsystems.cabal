@@ -100,7 +100,6 @@ common common-all
     , base16-bytestring
     , base64-bytestring
     , bilge
-    , bloodhound
     , bytestring
     , bytestring-conversion
     , case-insensitive
@@ -374,11 +373,6 @@ library
     Wire.IdPRawMetadataStore.Mem
     Wire.IdPSubsystem
     Wire.IdPSubsystem.Interpreter
-    Wire.IndexedUserStore
-    Wire.IndexedUserStore.Bulk.ElasticSearch
-    Wire.IndexedUserStore.ElasticSearch
-    Wire.IndexedUserStore.MigrationStore
-    Wire.IndexedUserStore.MigrationStore.ElasticSearch
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
@@ -494,12 +488,11 @@ library
     Wire.UserList
     Wire.UserPendingActivationStore
     Wire.UserPendingActivationStore.Cassandra
-    Wire.UserSearch.Metrics
-    Wire.UserSearch.Migration
-    Wire.UserSearch.Types
+    Wire.UserSearch.Normalize
     Wire.UserStore
     Wire.UserStore.Cassandra
-    Wire.UserStore.IndexUser
+    Wire.UserSearchStore
+    Wire.UserSearchStore.Postgres
     Wire.UserStore.Migration
     Wire.UserStore.Migration.Types
     Wire.UserStore.Postgres
@@ -535,13 +528,11 @@ library
     , base64-bytestring
     , bilge
     , bimap
-    , bloodhound
     , bytestring
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
     , conduit
-    , containers
     , cql
     , crypton
     , crypton-x509
@@ -667,7 +658,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.FederationConfigStore
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
-    Wire.MockInterpreters.IndexedUserStore
+    Wire.MockInterpreters.UserSearchStore
     Wire.MockInterpreters.InvitationStore
     Wire.MockInterpreters.MeetingsStore
     Wire.MockInterpreters.NotificationSubsystem
@@ -696,7 +687,6 @@ test-suite wire-subsystems-tests
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec
-    Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
     Wire.Util

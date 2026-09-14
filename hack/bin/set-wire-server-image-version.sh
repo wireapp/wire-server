@@ -6,7 +6,7 @@ target_version=${1?$USAGE}
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 CHARTS_DIR="$TOP_LEVEL/.local/charts"
 
-charts=(proxy cassandra-migrations elasticsearch-index federator backoffice integration wire-server-enterprise)
+charts=(proxy cassandra-migrations federator backoffice integration wire-server-enterprise)
 
 for chart in "${charts[@]}"; do
     values_file="$CHARTS_DIR/$chart/values.yaml"

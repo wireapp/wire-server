@@ -118,7 +118,6 @@ backendResources dynConfs =
                     berGalleyKeyspace = "galley_test_dyn_" <> show i,
                     berSparKeyspace = "spar_test_dyn_" <> show i,
                     berGundeckKeyspace = "gundeck_test_dyn_" <> show i,
-                    berElasticsearchIndex = "directory_dyn_" <> show i <> "_test",
                     berPostgresqlDBName = "dyn-" <> show i,
                     berFederatorInternal = portForDyn (ServiceInternal FederatorInternal) i,
                     berFederatorExternal = dynConf.federatorExternalPort,

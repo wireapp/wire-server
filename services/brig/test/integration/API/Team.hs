@@ -22,7 +22,6 @@ module API.Team
   )
 where
 
-import API.Search.Util qualified as SearchUtil
 import API.Team.Util
 import API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
@@ -139,14 +138,12 @@ testTeamSizePublic brig = do
 testTeamSize :: Brig -> (TeamId -> UserId -> Request -> Request) -> Http ()
 testTeamSize brig req = do
   (tid, owner, _) <- createPopulatedBindingTeam brig 10
-  SearchUtil.refreshIndex brig
   -- 10 Team Members and an admin
   let expectedSize = 11
   assertSize tid owner expectedSize
 
   -- Even suspended teams should report correct size
   suspendTeam brig tid !!! const 200 === statusCode
-  SearchUtil.refreshIndex brig
   assertSize tid owner expectedSize
   where
     assertSize :: (HasCallStack) => TeamId -> UserId -> Natural -> Http ()
@@ -692,7 +689,6 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
   (creator, tid) <- createUserWithTeam brig
   pooledForConcurrentlyN_ 16 [1 .. limit - 1] $ \_ -> do
     void $ createTeamMember brig galley creator tid fullPermissions
-  SearchUtil.refreshIndex brig
   let invite email = stdInvitationRequest email
   email <- randomEmail
   inv :: Invitation <- responseJsonError =<< postInvitation brig tid creator (invite email)

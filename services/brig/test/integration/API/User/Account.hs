@@ -348,7 +348,6 @@ testCreateUserAnon brig galley = do
   assertOnlySelfConversations galley uid
   -- should not appear in search
   suid <- userId <$> randomUser brig
-  Search.refreshIndex brig
   Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 testCreateUserPending :: Opt.Opts -> Brig -> Http ()
@@ -389,7 +388,6 @@ testCreateUserPending _ brig = do
       pure $! isNothing (userIdentity (selfUser self))
   -- should not appear in search
   suid <- userId <$> randomUser brig
-  Search.refreshIndex brig
   Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 -- The testCreateUserConflict test conforms to the following testing standards:
@@ -946,7 +944,6 @@ testUserUpdate brig cannon userJournalWatcher = do
         . responseJsonMaybe
   -- should appear in search by 'newName'
   suid <- userId <$> randomUser brig
-  Search.refreshIndex brig
   Search.assertCanFind brig suid aliceQ (fromName aliceNewName)
 
 -- This tests the behavior of `/i/self/email` instead of `/self/email` or
@@ -1039,13 +1036,11 @@ testSuspendUser brig = do
   chkStatus brig uid Suspended
   -- should not appear in search
   suid <- userId <$> randomUser brig
-  Search.refreshIndex brig
   Search.assertCan'tFind brig suid quid (fromName (userDisplayName u))
   -- re-activate
   setStatus brig uid Active
   chkStatus brig uid Active
   -- should appear in search again
-  Search.refreshIndex brig
   Search.assertCanFind brig suid quid (fromName (userDisplayName u))
 
 testGetByIdentity :: Brig -> Http ()
@@ -1545,7 +1540,6 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
     const (Just "invalid-credentials") === fmap Error.label . responseJsonMaybe
   -- Deleted flag appears in self profile; email, handle and picture are gone
   get (brig . path "/self" . zUser uid) !!! assertDeletedProfileSelf
-  Search.refreshIndex brig
   -- Does not appear in search; public profile shows the user as deleted
   forM_ others $ \usr -> do
     get (apiVersion "v1" . brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic

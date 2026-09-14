@@ -31,7 +31,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.IO.Intra (notify)
 import Brig.Options
 import Brig.User.API.Handle
-import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
 import Control.Monad.Trans.Except
 import Data.Domain
@@ -75,6 +74,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.UserSearchStore qualified as UserSearchStore
 import Wire.UserStore
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem)
@@ -91,7 +91,8 @@ federationSitemap ::
     Member UserStore r,
     Member ClientStore r,
     Member MlsKeyPackageSubsystem r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member UserSearchStore.UserSearchStore r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -226,7 +227,8 @@ searchUsers ::
   forall r.
   ( Member FederationConfigStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserSearchStore.UserSearchStore r
   ) =>
   Domain ->
   SearchRequest ->
@@ -255,7 +257,7 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
 
     fullSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
     fullSearch n
-      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams mbUserTypeFilter) searchTerm n
+      | n > 0 = lift . liftSem $ searchResults <$> UserSearchStore.searchUsersFederated mOnlyInTeams searchTerm n mbUserTypeFilter
       | otherwise = pure []
 
     exactHandleSearch :: Int -> ExceptT HttpError (AppT r) [Contact]

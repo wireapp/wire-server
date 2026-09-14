@@ -24,7 +24,6 @@ module Wire.UserSubsystem.Interpreter
   )
 where
 
-import Cassandra.Util (Writetime (Writetime))
 import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
 import Control.Monad.Extra (partitionM)
@@ -43,7 +42,6 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time.Clock
-import Database.Bloodhound qualified as ES
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -63,9 +61,8 @@ import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..)
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
-import Wire.API.Team.Member.Info (TeamMemberInfo (..), TeamMemberInfoList (members))
 import Wire.API.Team.Permission qualified as Permission
-import Wire.API.Team.Role (Role, defaultRole, permissionsToRole)
+import Wire.API.Team.Role (defaultRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size
 import Wire.API.User as User
@@ -90,25 +87,19 @@ import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.IndexedUserStore (IndexedUserStore)
-import Wire.IndexedUserStore qualified as IndexedUserStore
-import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
 import Wire.InvitationStore
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.Sem.Concurrency
-import Wire.Sem.Metrics
-import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
-import Wire.UserSearch.Metrics
-import Wire.UserSearch.Types
+import Wire.UserSearchStore (UserSearchStore)
+import Wire.UserSearchStore qualified as UserSearchStore
 import Wire.UserStore as UserStore
-import Wire.UserStore.IndexUser
 import Wire.UserSubsystem as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
@@ -134,9 +125,8 @@ runUserSubsystem ::
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member FederationConfigStore r,
-    Member Metrics r,
     Member InvitationStore r,
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
@@ -194,8 +184,6 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         isUsersContactableImpl users mlsAvailable allowedCipherSuites
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-      InternalUpdateSearchIndex uid ->
-        syncUserIndex uid
       AcceptTeamInvitation luid pwd code ->
         acceptTeamInvitationImpl luid pwd code
       InternalFindTeamInvitation mEmailKey code ->
@@ -279,7 +267,7 @@ internalFindTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member (GalleyAPIAccess) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member TinyLog r,
     Member DRS.DomainRegistrationStore r
   ) =>
@@ -309,7 +297,7 @@ internalFindTeamInvitationImpl (Just e) c =
         NotAllowed -> throwGuardFailed TeamInviteSetToNotAllowed
 
       maxSize <- maxTeamSize <$> input
-      teamSize <- teamSizeTotal <$> IndexedUserStore.getTeamSize tid
+      teamSize <- teamSizeTotal <$> UserSearchStore.getTeamSize tid
       when (teamSize >= fromIntegral maxSize) $
         throw UserSubsystemTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
@@ -709,9 +697,7 @@ updateUserProfileImpl ::
   ( Member UserStore r,
     Member (Error UserSubsystemError) r,
     Member Events r,
-    Member GalleyAPIAccess r,
-    Member IndexedUserStore r,
-    Member Metrics r
+    Member GalleyAPIAccess r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -724,8 +710,6 @@ updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   guardLockedFields user updateOrigin update
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
-  let interestingToUpdateIndex = isJust update.name || isJust update.accentId
-  when interestingToUpdateIndex $ syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
   where
     guardMlsSupport user = for_ update.supportedProtocols $ \protocols -> do
@@ -770,9 +754,7 @@ updateHandleImpl ::
   ( Member (Error UserSubsystemError) r,
     Member GalleyAPIAccess r,
     Member Events r,
-    Member UserStore r,
-    Member IndexedUserStore r,
-    Member Metrics r
+    Member UserStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -789,7 +771,6 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     UserStore.updateUserHandle uid (MkStoredUserHandleUpdate user.handle newHandle)
-  syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
@@ -834,55 +815,9 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
 -------------------------------------------------------------------------------
 -- Search
 
-syncUserIndex ::
-  forall r.
-  ( Member UserStore r,
-    Member GalleyAPIAccess r,
-    Member IndexedUserStore r,
-    Member Metrics r
-  ) =>
-  UserId ->
-  Sem r ()
-syncUserIndex uid =
-  getIndexUser uid
-    >>= maybe deleteFromIndex upsert
-  where
-    deleteFromIndex :: Sem r ()
-    deleteFromIndex = do
-      Metrics.incCounter indexDeleteCounter
-      IndexedUserStore.upsert (userIdToDocId uid) (emptyUserDoc uid) ES.NoVersionControl
-
-    upsert :: IndexUser -> Sem r ()
-    upsert indexUser = do
-      vis <-
-        maybe
-          (pure defaultSearchVisibilityInbound)
-          teamSearchVisibilityInbound
-          indexUser.teamId
-      tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
-      let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
-          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
-      Metrics.incCounter indexUpdateCounter
-      IndexedUserStore.upsert (userIdToDocId uid) userDoc version
-
-    selectTeamMember :: TeamId -> Sem r (Maybe TeamMemberInfo)
-    selectTeamMember tid = do
-      listToMaybe . members <$> selectTeamMemberInfos tid [uid]
-
-    mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (WithWritetime Role)
-    mkRoleWithWriteTime info =
-      ( \role ->
-          WithWriteTime
-            { value = role,
-              writetime = Writetime $ fromUTCTimeMillis info.permissionsWriteTime
-            }
-      )
-        <$> permissionsToRole info.permissions
-
-updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
+updateTeamSearchVisibilityInboundImpl :: (Member UserSearchStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
 updateTeamSearchVisibilityInboundImpl teamStatus =
-  IndexedUserStore.updateTeamSearchVisibilityInbound teamStatus.team $
+  UserSearchStore.setTeamSearchVisibilityInbound teamStatus.team $
     searchVisibilityInboundFromFeatureStatus teamStatus.status
 
 searchUsersImpl ::
@@ -890,7 +825,7 @@ searchUsersImpl ::
   ( Member UserStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member FederationConfigStore r,
     RunClient (fedM 'Brig),
     Member (FederationAPIAccess fedM) r,
@@ -926,7 +861,7 @@ searchLocally ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member (Input UserSubsystemConfig) r
   ) =>
   Local (UserId, Maybe TeamId) ->
@@ -946,8 +881,8 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
   esResult <-
     if esMaxResults > 0
       then
-        IndexedUserStore.searchUsers
-          (tUnqualified searcherId)
+        UserSearchStore.searchUsers
+          searcherId
           (tUnqualified searcherTeamId)
           teamSearchInfo
           searchTerm
@@ -955,8 +890,8 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
           mTypes
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
-  let esContacts = map userDocToContact' (searchResults esResult)
-      -- Prepend results matching exact handle and results from ES.
+  let esContacts = searchResults esResult
+      -- Prepend results matching exact handle and results from the search store.
       allContacts = case maybeExactHandleMatch of
         Nothing -> esContacts
         Just exactHandleMatch -> exactHandleMatch : filter (\c -> c.contactQualifiedId /= exactHandleMatch.contactQualifiedId) esContacts
@@ -970,14 +905,6 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> TeamSearchInfo
     handleTeamVisibility _ SearchVisibilityStandard = AllUsers
     handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = TeamOnly t
-
-    userDocToContact' :: UserDoc -> Contact
-    userDocToContact' userDoc =
-      runIdentity $
-        userDocToContact
-          (tUntagged $ qualifyAs searcher userDoc.udId)
-          (Identity . maybe "" fromName)
-          userDoc
 
     mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = do
@@ -1059,7 +986,7 @@ searchRemotely rDom mTid searchTerm mTypes = do
 
 browseTeamImpl ::
   ( Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member TeamSubsystem r,
     Member UserGroupStore r
   ) =>
@@ -1075,13 +1002,13 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
   ensurePermissions uid filters.teamId [Permission.AddTeamMember]
 
   let maxResults = maybe 15 fromRange mMaxResults
-  result <- IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
-  let docs = result.searchResults
-      uids = fmap (.udId) docs
+  result <- UserSearchStore.paginateTeamMembers filters maxResults mPagingState
+  let uids = map (.teamContactUserId) result.searchResults
   ugMap <- getUserGroupIdsForUsers (toList uids)
-  for result $ \userDoc -> do
-    let ugids = fromMaybe [] (Map.lookup userDoc.udId ugMap)
-    pure $ userDocToTeamContact ugids userDoc
+  pure $
+    fmap
+      (\teamContact -> teamContact {teamContactUserGroups = fromMaybe [] (Map.lookup teamContact.teamContactUserId ugMap)})
+      result
 
 getAccountsByEmailNoFilterImpl ::
   forall r.
@@ -1179,8 +1106,7 @@ acceptTeamInvitationImpl ::
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
-    Member IndexedUserStore r,
-    Member Metrics r,
+    Member UserSearchStore r,
     Member Events r,
     Member AuthenticationSubsystem r,
     Member TinyLog r,
@@ -1208,7 +1134,6 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   for_ (userEmail . selfUser =<< mSelfProfile) $ \email ->
     deletePendingScimUser tid email uid
-  syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
 getUserExportDataImpl :: (Member UserStore r, Member ClientSubsystem r) => UserId -> Sem r (Maybe TeamExportUser)
@@ -1243,10 +1168,8 @@ removeEmailEitherImpl ::
   ( Member UserKeyStore r,
     Member UserStore r,
     Member Events r,
-    Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r,
-    Member GalleyAPIAccess r,
-    Member Metrics r
+    Member GalleyAPIAccess r
   ) =>
   Local UserId ->
   Sem r (Either UserSubsystemError ())
@@ -1258,7 +1181,6 @@ removeEmailEitherImpl lusr = runError $ do
       deleteKey $ mkEmailKey e
       deleteEmail uid
       generateUserEvent uid Nothing (emailRemoved uid e)
-      syncUserIndex uid
     Just _ -> throw UserSubsystemLastIdentity
     Nothing -> throw UserSubsystemNoIdentity
 
@@ -1277,10 +1199,7 @@ checkUserIsAdminImpl uid = do
 setUserSearchableImpl ::
   ( Member UserStore r,
     Member (Error UserSubsystemError) r,
-    Member TeamSubsystem r,
-    Member GalleyAPIAccess r,
-    Member IndexedUserStore r,
-    Member Metrics r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   UserId ->
@@ -1290,4 +1209,3 @@ setUserSearchableImpl luid uid searchable = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
-  syncUserIndex uid

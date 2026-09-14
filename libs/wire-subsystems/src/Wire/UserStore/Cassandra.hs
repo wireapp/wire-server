@@ -22,7 +22,6 @@ module Wire.UserStore.Cassandra
 where
 
 import Cassandra
-import Cassandra.Exec (prepared)
 import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
@@ -49,7 +48,6 @@ import Wire.Postgres (PGConstraints)
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore qualified as UserStore
-import Wire.UserStore.IndexUser hiding (userId)
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
 import Wire.UserStore.Unique
 
@@ -60,8 +58,6 @@ interpretUserStoreCassandra casClient =
       CreateUser new mbConv -> createUserImpl new mbConv
       GetUsers uids -> getUsersImpl uids
       DoesUserExist uid -> doesUserExistImpl uid
-      GetIndexUser uid -> getIndexUserImpl uid
-      GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize (paginationStateCassandra =<< mPagingState)
       UpdateUser uid update -> updateUserImpl uid update
       UpdateEmail uid email -> updateEmailImpl uid email
       UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
@@ -128,15 +124,6 @@ interpretUserStoreToCassandraAndPostgres casClient =
         if isUserInPg
           then pure True
           else interpretUserStoreCassandra casClient $ UserStore.doesUserExist uid
-    GetIndexUser uid ->
-      runAppropriateInterpreter casClient uid $ UserStore.getIndexUser uid
-    GetIndexUsersPaginated pageSize mPagingState -> do
-      paginateOverCassandraAndPostgres
-        (\size state -> interpretUserStoreCassandra casClient $ UserStore.getIndexUsersPaginated size state)
-        (\size state -> interpretUserStorePostgres $ UserStore.getIndexUsersPaginated size state)
-        (PagingExitingUsers $ Id UUID.nil)
-        pageSize
-        mPagingState
     UpdateUser uid update ->
       runAppropriateInterpreter casClient uid $ UserStore.updateUser uid update
     UpdateEmail uid email ->
@@ -333,43 +320,6 @@ doesUserExistImpl uid =
   where
     idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
     idSelect = "SELECT id FROM user WHERE id = ?"
-
-getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
-getIndexUserImpl u = do
-  mIndexUserTuple <- retry x1 $ query1 cql (params LocalQuorum (Identity u))
-  pure $ indexUserFromTuple <$> mIndexUserTuple
-  where
-    cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
-    cql = prepared . QueryString $ getIndexUserBaseQuery <> " WHERE id = ?"
-
-getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState x IndexUser)
-getIndexUserPaginatedImpl pageSize mPagingState =
-  indexUserFromTuple <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
-  where
-    cql :: PrepQuery R () (TupleType IndexUser)
-    cql = prepared $ QueryString getIndexUserBaseQuery
-
-getIndexUserBaseQuery :: LText
-getIndexUserBaseQuery =
-  [sql|
-    SELECT
-    id,
-    user_type,
-    team, writetime(team),
-    name, writetime(name),
-    status, writetime(status),
-    handle, writetime(handle),
-    email, writetime(email),
-    accent_id, writetime(accent_id),
-    activated, writetime(activated),
-    service, writetime(service),
-    managed_by, writetime(managed_by),
-    sso_id, writetime(sso_id),
-    email_unvalidated, writetime(email_unvalidated),
-    searchable, writetime(searchable),
-    writetime(write_time_bumper)
-    FROM user
-  |]
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
 updateUserImpl uid update =

@@ -113,7 +113,6 @@ testHandleUpdate brig cannon = do
     const 409 === statusCode
     const (Just "handle-exists") === fmap Error.label . responseJsonMaybe
   -- The owner appears by that handle in search
-  Search.refreshIndex brig
   Search.assertCanFind brig uid2 quid hdl
   -- Change the handle again, thus freeing the old handle
   hdl2 <- randomHandle
@@ -123,7 +122,6 @@ testHandleUpdate brig cannon = do
   Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   -- The owner appears by the new handle in search
-  Search.refreshIndex brig
   Search.assertCan'tFind brig uid2 quid hdl
   Search.assertCanFind brig uid2 quid hdl2
   -- Other users can immediately claim the old handle (the claim of the old handle is

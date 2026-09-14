@@ -77,7 +77,6 @@ import Wire.UserSubsystem.UserSubsystemConfig
 
 accessH ::
   ( Member TinyLog r,
-    Member UserSubsystem r,
     Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Embed IO) r,
@@ -103,7 +102,6 @@ accessH mcid ut' mat' = do
 
 access ::
   ( Member TinyLog r,
-    Member UserSubsystem r,
     Member Events r,
     UserTokenLike u,
     AccessTokenLike a,
@@ -244,7 +242,6 @@ removeCookies lusr (RemoveCookies pw lls ids) =
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member UserSubsystem r,
     Member Events r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
@@ -264,7 +261,6 @@ legalHoldLogin lhl = do
 ssoLogin ::
   ( Member TinyLog r,
     Member AuthenticationSubsystem r,
-    Member UserSubsystem r,
     Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,

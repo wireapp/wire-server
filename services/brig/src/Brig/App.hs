@@ -27,7 +27,6 @@ module Brig.App
 
     -- * App Environment
     Env (..),
-    mkIndexEnv,
     newEnv,
     closeEnv,
     providerTemplatesWithLocale,
@@ -66,7 +65,6 @@ module Brig.App
     zauthEnvLens,
     digestSHA256Lens,
     digestMD5Lens,
-    indexEnvLens,
     randomPrekeyLocalLockLens,
     keyPackageLocalLockLens,
     rabbitmqChannelLens,
@@ -108,7 +106,7 @@ import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
 import Brig.DeleteQueue.Interpreter
-import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
+import Brig.Options (Opts, Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
@@ -116,7 +114,6 @@ import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
 import Brig.Template (InvitationUrlTemplates (..), genTemplateBranding, genTemplateBrandingMap)
-import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Cassandra (runClient)
 import Cassandra qualified as Cas
@@ -129,7 +126,6 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (fromByteString)
-import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
 import Data.Misc
@@ -140,7 +136,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Time.Clock
-import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool.Extended (initPostgresPool)
 import Hasql.Pool.Extended qualified as HasqlPool
@@ -219,7 +214,6 @@ data Env = Env
     zauthEnv :: ZAuthEnv,
     digestSHA256 :: Digest,
     digestMD5 :: Digest,
-    indexEnv :: IndexEnv,
     randomPrekeyLocalLock :: Maybe (MVar ()),
     keyPackageLocalLock :: MVar (),
     rabbitmqChannel :: MVar Q.Channel,
@@ -297,7 +291,6 @@ newEnv opts = do
   kpLock <- newMVar ()
   rabbitChan <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
-  idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
@@ -337,7 +330,6 @@ newEnv opts = do
         zauthEnv = zau,
         digestMD5 = md5,
         digestSHA256 = sha256,
-        indexEnv = idxEnv,
         randomPrekeyLocalLock = prekeyLocalLock,
         keyPackageLocalLock = kpLock,
         rabbitmqChannel = rabbitChan,
@@ -359,33 +351,6 @@ newEnv opts = do
       smtp <- SMTP.initSMTP lgr h p smtpCredentials (EmailOpt.smtpConnType s)
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty
-
-mkIndexEnv :: ElasticSearchOpts -> Logger -> Endpoint -> Manager -> IO IndexEnv
-mkIndexEnv esOpts logger galleyEp rpcHttpManager = do
-  mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
-  mEsAddCreds :: Maybe Credentials <- for esOpts.additionalCredentials initCredentials
-
-  let mkBhEnv skipVerifyTls mCustomCa mCreds url = do
-        mgr <- initHttpManagerWithTLSConfig skipVerifyTls mCustomCa
-        let bhe = ES.mkBHEnv url mgr
-        pure $ maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
-      esLogger = Log.clone (Just "index.brig") logger
-  bhEnv <- mkBhEnv esOpts.insecureSkipVerifyTls esOpts.caCert mEsCreds esOpts.url
-  additionalBhEnv <-
-    for esOpts.additionalWriteIndexUrl $
-      mkBhEnv esOpts.additionalInsecureSkipVerifyTls esOpts.additionalCaCert mEsAddCreds
-  pure $
-    IndexEnv
-      { idxLogger = esLogger,
-        idxElastic = bhEnv,
-        idxRequest = Nothing,
-        idxName = esOpts.index,
-        idxAdditionalName = esOpts.additionalWriteIndex,
-        idxAdditionalElastic = additionalBhEnv,
-        idxGalley = galleyEp,
-        idxRpcHttpManager = rpcHttpManager,
-        idxCredentials = mEsCreds
-      }
 
 initZAuth :: Opts -> IO ZAuthEnv
 initZAuth o = do
@@ -611,8 +576,7 @@ newtype HttpClientIO a = HttpClientIO
       MonadThrow,
       MonadCatch,
       MonadMask,
-      MonadUnliftIO,
-      MonadIndexIO
+      MonadUnliftIO
     )
 
 runHttpClientIO :: (MonadIO m) => Env -> HttpClientIO a -> m a
@@ -641,16 +605,6 @@ wrapHttpClient = wrapHttp
 
 wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r) a
 wrapHttpClientE = mapExceptT wrapHttpClient
-
-instance (MonadIO m) => MonadIndexIO (ReaderT Env m) where
-  liftIndexIO m = asks (.indexEnv) >>= \e -> runIndexIO e m
-
-instance MonadIndexIO (AppT r) where
-  liftIndexIO m = do
-    AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
-
-instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
-  liftIndexIO m = asks (.indexEnv) >>= \e -> runIndexIO e m
 
 instance HasRequestId (AppT r) where
   getRequestId = asks (.requestId)

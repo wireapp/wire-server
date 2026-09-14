@@ -112,9 +112,6 @@ config:
     port: 9042
     replicationFactor: 1
 
-  elasticsearch:
-    host: elasticsearch-ephemeral
-
   sqsEndpointUrl: http://fake-aws-sqs:4568
   sesEndpointUrl: http://fake-aws-ses:4569
   s3EndpointUrl: http://fake-aws-s3:9000

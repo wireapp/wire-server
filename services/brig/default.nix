@@ -18,7 +18,6 @@
 , base64-bytestring
 , bilge
 , binary
-, bloodhound
 , bytestring
 , bytestring-conversion
 , case-insensitive
@@ -168,7 +167,6 @@ mkDerivation {
     base16-bytestring
     base64-bytestring
     bilge
-    bloodhound
     bytestring
     bytestring-conversion
     cassandra-util
@@ -270,7 +268,6 @@ mkDerivation {
     base
     base16-bytestring
     bilge
-    bloodhound
     bytestring
     bytestring-conversion
     case-insensitive

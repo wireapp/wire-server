@@ -473,7 +473,6 @@ Open a shell inside the SNS pod, and make sure you can resolve the following thr
 
 * `minio-external`
 * `cassandra-external`
-* `elasticsearch-external`
 
 First get a list of all pods:
 

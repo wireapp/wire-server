@@ -19,8 +19,7 @@ module API.Search.Util where
 
 import Bilge
 import Bilge.Assert
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Retry
+import Control.Monad.Catch (MonadCatch)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion.To (toByteString)
 import Data.Domain (Domain)
@@ -29,9 +28,7 @@ import Data.Qualified (Qualified (..))
 import Data.Range (Range)
 import Data.String.Conversions
 import Data.Text.Encoding (encodeUtf8)
-import Database.Bloodhound qualified as ES
 import Imports
-import Network.HTTP.Client qualified as HTTP
 import Test.Tasty.HUnit
 import Util
 import Wire.API.User
@@ -61,15 +58,6 @@ searchRequest brig self q maybeDomain maybeSize = do
         . maybe id (queryItem "size" . toByteString') maybeSize
     )
 
--- | ES is only refreshed occasionally; we don't want to wait for that in tests.
-refreshIndex :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
-refreshIndex brig =
-  post (brig . path "/i/index/refresh") !!! const 200 === statusCode
-
-reindex :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
-reindex brig =
-  post (brig . path "/i/index/reindex") !!! const 200 === statusCode
-
 assertCanFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFindByName brig self expected =
   assertCanFind brig (userId self) (userQualifiedId expected) (fromName $ userDisplayName expected)
@@ -77,15 +65,6 @@ assertCanFindByName brig self expected =
 assertCan'tFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCan'tFindByName brig self expected =
   assertCan'tFind brig (userId self) (userQualifiedId expected) (fromName $ userDisplayName expected)
-
-ourRetryPol :: Int -> RetryPolicy
-ourRetryPol to = limitRetriesByCumulativeDelay (to * 1_000_000) (exponentialBackoff 50000)
-
-assertEventuallyCanFindByName :: (MonadMask m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
-assertEventuallyCanFindByName brig self expected = recoverAll (ourRetryPol 5) (\_ -> assertCanFindByName brig self expected)
-
-assertEventuallyCan'tFindByName :: (MonadMask m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
-assertEventuallyCan'tFindByName brig self expected = recoverAll (ourRetryPol 5) (\_ -> assertCan'tFindByName brig self expected)
 
 assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
 assertCanFind brig self expected q = do
@@ -154,6 +133,3 @@ executeTeamUserSearchWithMaybeState brig teamid self mbSearchText mRoleFilter mS
         === statusCode
   responseJsonError r
 
-mkBHEnv :: Text -> HTTP.Manager -> ES.BHEnv
-mkBHEnv url mgr = do
-  (ES.mkBHEnv (ES.Server url) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}

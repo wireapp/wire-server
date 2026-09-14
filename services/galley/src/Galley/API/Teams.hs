@@ -113,7 +113,6 @@ import Wire.API.User qualified as U
 import Wire.API.User.Search
 import Wire.BoundedQueue qualified as E
 import Wire.BrigAPIAccess
-import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
@@ -633,7 +632,6 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
           transient = True
         }
     ]
-  Brig.updateSearchIndex targetId
 
 updateTeamMember ::
   forall r.

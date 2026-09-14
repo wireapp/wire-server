@@ -328,6 +328,5 @@ federation-v2:
 
 integrationTestHostName: "localhost"
 
-additionalElasticSearch: https://localhost:9201
 
 cellsEventQueue: cells_events

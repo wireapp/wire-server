@@ -2,26 +2,6 @@
 fluent-bit:
   config:
     outputs: |
-      [OUTPUT]
-          Name es
-          Match kube.*
-          Host elasticsearch-ephemeral
-          Generate_ID On
-          Logstash_Format On
-          Logstash_Prefix pod
-          Retry_Limit False
-          Trace_Error On
-          Replace_Dots On
-      [OUTPUT]
-          Name es
-          Match host.*
-          Host elasticsearch-ephemeral
-          Generate_ID On
-          Logstash_Format On
-          Logstash_Prefix node
-          Retry_Limit False
-          Trace_Error On
-          Replace_Dots On
       # syslog output reference - https://docs.fluentbit.io/manual/pipeline/outputs/syslog
       # Uncomment this section to enable syslog output
       # [OUTPUT]

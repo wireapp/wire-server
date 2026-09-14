@@ -17,14 +17,12 @@
 
 module API.TeamUserSearch (tests) where
 
-import API.Search (testWithBothIndices)
-import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeState, refreshIndex)
+import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeState)
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (initiateEmailUpdateAutoActivate)
 import Bilge (Manager, MonadHttp)
 import Brig.Options qualified as Opt
 import Control.Monad.Catch (MonadCatch)
-import Control.Retry ()
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
@@ -34,7 +32,7 @@ import Imports
 import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, (@?=))
-import Util (Brig, Galley, randomEmail)
+import Util (Brig, Galley, randomEmail, test)
 import Wire.API.User (User (..), userEmail, userId)
 import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Search
@@ -42,22 +40,21 @@ import Wire.API.User.Search
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
-tests opts mgr _galley brig = do
+tests _opts mgr _galley brig = do
   pure $
     testGroup "teams user search" $
-      [ testWithBothIndices opts mgr "can find user by email" (testSearchByEmailSameTeam brig),
-        testWithBothIndices opts mgr "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
-        testWithBothIndices opts mgr "sorting by some properties works" (testSort brig),
-        testWithBothIndices opts mgr "call to search with remaining properties succeeds" (testSortCallSucceeds brig),
-        testWithBothIndices opts mgr "query with paging state" (testEmptyQuerySortedWithPagination brig)
+      [ test mgr "can find user by email" (testSearchByEmailSameTeam brig),
+        test mgr "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
+        test mgr "sorting by some properties works" (testSort brig),
+        test mgr "call to search with remaining properties succeeds" (testSortCallSucceeds brig),
+        test mgr "query with paging state" (testEmptyQuerySortedWithPagination brig)
       ]
 
-testSearchByEmail :: (HasCallStack, TestConstraints m) => Brig -> m (TeamId, UserId, User) -> Bool -> m ()
+testSearchByEmail :: (TestConstraints m) => Brig -> m (TeamId, UserId, User) -> Bool -> m ()
 testSearchByEmail brig mkSearcherAndSearchee canFind = do
   (tid, searcher, searchee) <- mkSearcherAndSearchee
   eml <- randomEmail
   _ <- initiateEmailUpdateAutoActivate brig eml (userId searchee)
-  refreshIndex brig
   let check = if canFind then assertTeamUserSearchCanFind else assertTeamUserSearchCannotFind
   check brig tid searcher (userId searchee) (fromEmail eml)
 
@@ -87,7 +84,6 @@ assertTeamUserSearchCannotFind brig teamid self expected q = do
 testEmptyQuerySorted :: (TestConstraints m) => Brig -> m ()
 testEmptyQuerySorted brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
-  refreshIndex brig
   r <- searchResults <$> executeTeamUserSearch brig tid ownerId (Just "") Nothing Nothing Nothing
   let creationDates = fmap teamContactCreatedAt r
   liftIO $
@@ -102,14 +98,13 @@ testSort brig = do
   (tid, userId -> ownerId, usersImplicitOrder) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
   -- Shuffle here to guard against false positives in this test.
   -- This might happen due to buggy data generation, where all users share the same value in the sort property,
-  -- resulting in an implicit order, which might coincide in the DB and ES, resulting in false positive test
+  -- resulting in an implicit order, which might coincide in the store and
+  -- the search result, resulting in false positive test
   -- result.
   users <- liftIO $ shuffleM usersImplicitOrder
-  refreshIndex brig
   let sortByProperty' :: (TestConstraints m, Ord a) => TeamUserSearchSortBy -> (User -> a) -> TeamUserSearchSortOrder -> m ()
       sortByProperty' = sortByProperty tid users ownerId
   for_ [SortOrderAsc, SortOrderDesc] $ \sortOrder -> do
-    -- FUTUREWORK: Test SortByRole when role is available in index
     sortByProperty' SortByEmail userEmail sortOrder
     sortByProperty' SortByName userDisplayName sortOrder
     sortByProperty' SortByHandle (fmap fromHandle . userHandle) sortOrder
@@ -132,7 +127,6 @@ testSort brig = do
 testSortCallSucceeds :: (TestConstraints m) => Brig -> m ()
 testSortCallSucceeds brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
-  refreshIndex brig
   let n = length users + 1
   for_ [SortByManagedBy, SortBySAMLIdp] $ \tuSortBy -> do
     r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just SortOrderAsc)
@@ -141,7 +135,6 @@ testSortCallSucceeds brig = do
 testEmptyQuerySortedWithPagination :: (TestConstraints m) => Brig -> m ()
 testEmptyQuerySortedWithPagination brig = do
   (tid, userId -> ownerId, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 20
-  refreshIndex brig
   let teamUserSearch mPs = executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing (Just $ unsafeRange 10) mPs
   searchResultFirst10 <- teamUserSearch Nothing
   searchResultNext10 <- teamUserSearch (searchPagingState searchResultFirst10)

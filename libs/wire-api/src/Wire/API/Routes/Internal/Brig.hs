@@ -31,7 +31,6 @@ module Wire.API.Routes.Internal.Brig
     AuthAPI,
     FederationRemotesAPI,
     EJPDRequest,
-    ISearchIndexAPI,
     ProviderAPI,
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
@@ -86,7 +85,6 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.EnterpriseLogin (EnterpriseLoginApi)
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
-import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -724,7 +722,6 @@ type API =
            :<|> ClientAPI
            :<|> AuthAPI
            :<|> OAuthAPI
-           :<|> ISearchIndexAPI
            :<|> FederationRemotesAPI
            :<|> ProviderAPI
            :<|> EnterpriseLoginApi

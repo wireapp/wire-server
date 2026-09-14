@@ -7,16 +7,15 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services wire-ingress fluent-bit kibana k8ssandra-test-cluster wire-server-enterprise
+CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services wire-ingress fluent-bit k8ssandra-test-cluster wire-server-enterprise
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE := wire-server rabbitmq rabbitmq-external databases-ephemeral	\
-fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
-calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
-elasticsearch-ephemeral minio-external cassandra-external						\
+fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit backoffice				\
+calling-test demo-smtp minio-external cassandra-external						\
 ingress-nginx-controller nginx-ingress-services \
 k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise \
 wire-ingress
@@ -393,41 +392,10 @@ postgres-migrate: c
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --dbname dyn-2
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --dbname dyn-3
 
-.PHONY: es-reset
-es-reset: c
-	./dist/brig-index reset \
-		--elasticsearch-index-prefix directory \
-		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./dist/brig-index reset \
-		--elasticsearch-index-prefix directory2 \
-		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./integration/scripts/integration-dynamic-backends-brig-index.sh \
-		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
-	@echo -e "\n'brig-index reset' only deletes the index and regenerates the mapping, but doesn't generate or populate a new index, so you need to call 'make es-reindex explicitly now!\n"
-
-.PHONY: es-reindex
-es-reindex: c
-	./dist/brig-index reindex \
-		--pg-pool-size 10 \
-		--pg-pool-acquisition-timeout 10s \
-		--pg-pool-aging-timeout 1d \
-		--pg-pool-idleness-timeout 1h \
-		--pg-settings '{"host":"127.0.0.1","port":"5432","user":"wire-server","dbname":"backendA"}' \
-		--pg-password-file ./libs/wire-subsystems/test/resources/postgres-credentials.yaml \
-		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
-
 .PHONY: rabbitmq-reset
 rabbitmq-reset: rabbit-clean
 
-# Migrate all keyspaces and reset the ES index
+# Migrate all keyspaces
 # Does not migrate postgres as brig does that on startup.
 .PHONY: db-migrate
 db-migrate: c postgres-migrate
@@ -440,7 +408,6 @@ db-migrate: c postgres-migrate
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 > /dev/null
-	make es-reset
 
 #################################
 ## dependencies
