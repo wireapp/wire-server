@@ -1574,10 +1574,10 @@ adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTr
             (Set.fromList (map (.id_) conv.remoteMembers))
             SystemAdminlessReminderNotification
               { time = now,
-              conversation = tUnqualified lcnv,
-              reminder = AdminlessReminder deletionScheduledFor,
-              -- Filled per remote backend by Notify.sendSystemAdminlessReminder.
-              alreadyPresentUsers = []
+                conversation = tUnqualified lcnv,
+                reminder = AdminlessReminder deletionScheduledFor,
+                -- Filled per remote backend by Notify.sendSystemAdminlessReminder.
+                alreadyPresentUsers = []
               }
           Notify.pushSystemEvent
             Nothing
