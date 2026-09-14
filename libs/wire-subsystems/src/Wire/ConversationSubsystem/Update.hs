@@ -1558,7 +1558,6 @@ adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTr
                   now
                   (conv.metadata.cnvmTeam)
                   (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
-          pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
           Notify.sendAdminlessReminder
             (Set.fromList (map (.id_) conv.remoteMembers))
             AdminlessReminderNotification
@@ -1569,6 +1568,7 @@ adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTr
                 -- Filled per remote backend by Notify.sendAdminlessReminder.
                 alreadyPresentUsers = []
               }
+          pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
         Nothing -> do
           Notify.sendSystemAdminlessReminder
             (Set.fromList (map (.id_) conv.remoteMembers))
