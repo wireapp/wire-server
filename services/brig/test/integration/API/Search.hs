@@ -1026,7 +1026,7 @@ testNonCollaboratorNotFound brig _galley = do
   -- Do NOT add memberB as collaborator
   -- Search should not find memberB regardless of index version
   refreshIndex brig
-  res <- searchResults <$> executeSearch brig (userId ownerA) ""
+  res <- searchResults <$> executeSearch brig (userId ownerA) memberB.userDisplayName.fromName
   liftIO $
     assertBool "non-collaborator should not be found" $
       userQualifiedId memberB `notElem` map contactQualifiedId res
