@@ -2580,7 +2580,6 @@ mkProfile quid name =
   UserProfile
     { profileQualifiedId = quid,
       profileName = name,
-      profilePict = noPict,
       profileTextStatus = Nothing,
       profileAssets = mempty,
       profileAccentId = defaultAccentId,
