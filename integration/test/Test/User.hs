@@ -433,3 +433,19 @@ testSuspendNonExistingUser = do
   let quid = object ["domain" .= dom, "id" .= uid]
   I.setAccountStatus quid "suspended" >>= assertStatus 404
   getUser existingUser quid >>= assertStatus 404
+
+testUserProfileSchemaContainsPicture17 :: (HasCallStack) => App ()
+testUserProfileSchemaContainsPicture17 = do
+  qself <- randomUser OwnDomain def
+  quser <- randomUser OwnDomain def
+  withAPIVersion 17 $ getUser qself quser `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "picture" `shouldMatch` (Just ())
+
+testUserProfileSchemaContainsPicture :: (HasCallStack) => App ()
+testUserProfileSchemaContainsPicture = do
+  qself <- randomUser OwnDomain def
+  quser <- randomUser OwnDomain def
+  getUser qself quser `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `assertFieldMissing` "picture"
