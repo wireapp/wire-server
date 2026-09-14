@@ -52,6 +52,7 @@ data GalleyNotificationTag
   | OnUserDeletedConversationsTag
   | OnSystemMemberUpdateTag
   | OnSystemDeleteTag
+  | OnAdminlessReminderTag
   | OnSystemAdminlessReminderTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
@@ -104,6 +105,11 @@ instance HasNotificationEndpoint 'OnSystemAdminlessReminderTag where
   type NotificationPath 'OnSystemAdminlessReminderTag = "on-conversation-system-adminless-reminder"
   type NotificationMods 'OnSystemAdminlessReminderTag = '[From 'V4]
 
+instance HasNotificationEndpoint 'OnAdminlessReminderTag where
+  type Payload 'OnAdminlessReminderTag = AdminlessReminderNotification
+  type NotificationPath 'OnAdminlessReminderTag = "on-conversation-adminless-reminder"
+  type NotificationMods 'OnAdminlessReminderTag = '[From 'V4]
+
 -- | All the notification endpoints return an 'EmptyResponse'.
 type GalleyNotificationAPI =
   NotificationFedEndpoint 'OnClientRemovedTag
@@ -114,6 +120,7 @@ type GalleyNotificationAPI =
     :<|> NotificationFedEndpoint 'OnUserDeletedConversationsTag
     :<|> NotificationFedEndpoint 'OnSystemMemberUpdateTag
     :<|> NotificationFedEndpoint 'OnSystemDeleteTag
+    :<|> NotificationFedEndpoint 'OnAdminlessReminderTag
     :<|> NotificationFedEndpoint 'OnSystemAdminlessReminderTag
 
 data ClientRemovedRequest = ClientRemovedRequest
@@ -246,6 +253,19 @@ data SystemAdminlessReminderNotification = SystemAdminlessReminderNotification
   deriving (ToJSON, FromJSON) via (CustomEncoded SystemAdminlessReminderNotification)
 
 instance ToSchema SystemAdminlessReminderNotification
+
+data AdminlessReminderNotification = AdminlessReminderNotification
+  { time :: UTCTime,
+    conversation :: ConvId,
+    origUserId :: Qualified UserId,
+    reminder :: AdminlessReminder,
+    alreadyPresentUsers :: [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AdminlessReminderNotification)
+  deriving (ToJSON, FromJSON) via (CustomEncoded AdminlessReminderNotification)
+
+instance ToSchema AdminlessReminderNotification
 
 conversationUpdateToV0 :: ConversationUpdate -> ConversationUpdateV0
 conversationUpdateToV0 cu =

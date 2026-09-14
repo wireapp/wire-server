@@ -1444,6 +1444,7 @@ adminlessTryAutopromote mlusr lcnv altAction = do
                     { time = now,
                       conversation = tUnqualified lcnv,
                       update = memberUpdateData candidate update,
+                      -- Filled per remote backend by Notify.sendSystemMemberUpdate.
                       alreadyPresentUsers = []
                     }
                 Notify.pushSystemEvent
@@ -1518,6 +1519,7 @@ adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orA
                 SystemDeleteNotification
                   { time = now,
                     conversation = tUnqualified lcnv,
+                    -- Filled per remote backend by Notify.sendSystemDelete.
                     alreadyPresentUsers = []
                   }
               Notify.pushSystemEvent
@@ -1557,14 +1559,25 @@ adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTr
                   (conv.metadata.cnvmTeam)
                   (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
           pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
+          Notify.sendAdminlessReminder
+            (Set.fromList (map (.id_) conv.remoteMembers))
+            AdminlessReminderNotification
+              { time = now,
+                conversation = tUnqualified lcnv,
+                reminder = AdminlessReminder deletionScheduledFor,
+                origUserId = tUntagged lusr,
+                -- Filled per remote backend by Notify.sendAdminlessReminder.
+                alreadyPresentUsers = []
+              }
         Nothing -> do
           Notify.sendSystemAdminlessReminder
             (Set.fromList (map (.id_) conv.remoteMembers))
             SystemAdminlessReminderNotification
               { time = now,
-                conversation = tUnqualified lcnv,
-                reminder = AdminlessReminder deletionScheduledFor,
-                alreadyPresentUsers = []
+              conversation = tUnqualified lcnv,
+              reminder = AdminlessReminder deletionScheduledFor,
+              -- Filled per remote backend by Notify.sendSystemAdminlessReminder.
+              alreadyPresentUsers = []
               }
           Notify.pushSystemEvent
             Nothing

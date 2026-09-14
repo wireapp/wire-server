@@ -316,6 +316,10 @@ data ConversationSubsystem m a where
     Domain ->
     SystemAdminlessReminderNotification ->
     ConversationSubsystem m EmptyResponse
+  FederationOnAdminlessReminder ::
+    Domain ->
+    AdminlessReminderNotification ->
+    ConversationSubsystem m EmptyResponse
   FederationOnUserDeleted ::
     Domain ->
     UserDeletedConversationsNotification ->

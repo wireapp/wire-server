@@ -21,6 +21,7 @@ module Wire.ConversationSubsystem.Notify
     sendSystemMemberUpdate,
     sendSystemDelete,
     sendSystemAdminlessReminder,
+    sendAdminlessReminder,
   )
 where
 
@@ -161,4 +162,17 @@ sendSystemAdminlessReminder targets n = void $
   enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
     makeSystemAdminlessReminderBundle
       (SystemAdminlessReminderNotification n.time n.conversation n.reminder (tUnqualified ruids))
+      >>= sendBundle
+
+sendAdminlessReminder ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Set (Remote UserId) ->
+  AdminlessReminderNotification ->
+  Sem r ()
+sendAdminlessReminder targets n = void $
+  enqueueNotificationsConcurrently Q.Persistent (toList targets) $ \ruids ->
+    makeAdminlessReminderBundle
+      (AdminlessReminderNotification n.time n.conversation n.origUserId n.reminder (tUnqualified ruids))
       >>= sendBundle

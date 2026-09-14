@@ -289,6 +289,38 @@ onSystemAdminlessReminder requestingDomain notification = do
     (Set.fromList localMembers)
   pure EmptyResponse
 
+onAdminlessReminder ::
+  ( Member E.ConversationStore r,
+    Member NotificationSubsystem r,
+    Member ExternalAccess r,
+    Member (Input (Local ())) r,
+    Member P.TinyLog r
+  ) =>
+  Domain ->
+  AdminlessReminderNotification ->
+  Sem r EmptyResponse
+onAdminlessReminder requestingDomain notification = do
+  loc <- qualifyLocal ()
+  localMembers <-
+    filterSystemNotificationRecipients
+      requestingDomain
+      notification.conversation
+      notification.alreadyPresentUsers
+  pushConversationEvent
+    Nothing
+    ()
+    ( Event
+        (Qualified notification.conversation requestingDomain)
+        Nothing
+        (EventFromUser notification.origUserId)
+        notification.time
+        Nothing
+        (EdAdminlessReminder notification.reminder)
+    )
+    (qualifyAs loc localMembers)
+    []
+  pure EmptyResponse
+
 filterSystemNotificationRecipients ::
   ( Member E.ConversationStore r,
     Member P.TinyLog r

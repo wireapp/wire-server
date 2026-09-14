@@ -39,3 +39,7 @@ makeSystemDeleteBundle =
 makeSystemAdminlessReminderBundle :: SystemAdminlessReminderNotification -> FedQueueClient 'Galley (PayloadBundle 'Galley)
 makeSystemAdminlessReminderBundle =
   fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnSystemAdminlessReminderTag
+
+makeAdminlessReminderBundle :: AdminlessReminderNotification -> FedQueueClient 'Galley (PayloadBundle 'Galley)
+makeAdminlessReminderBundle =
+  fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnAdminlessReminderTag
