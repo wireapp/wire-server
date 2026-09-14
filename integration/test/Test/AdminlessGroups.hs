@@ -486,9 +486,11 @@ testAdminlessSetupSendsReminderWithOriginUserAndRemoteMembers = do
 
     reminder <- awaitMatchFor 20 isConvAdminlessReminderNotif wsApp
     reminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    reminder %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
 
     remoteReminder <- awaitMatchFor 20 isConvAdminlessReminderNotif wsRemoteUser
     remoteReminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    remoteReminder %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
 
     deleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsApp
     deleteNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
