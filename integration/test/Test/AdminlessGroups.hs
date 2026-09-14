@@ -19,6 +19,7 @@ module Test.AdminlessGroups where
 
 import API.Brig
 import API.Galley
+import qualified API.Galley as Public
 import API.GalleyInternal hiding (getConversation)
 import qualified API.GalleyInternal as GalleyI
 import Control.Concurrent (threadDelay)
@@ -459,6 +460,46 @@ testAdminlessSetupSendsReminderWithRemoteMembers = do
 
     bindResponse (GalleyI.getConversation conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
+
+testAdminlessSetupSendsReminderWithOriginUserAndRemoteMembers :: (HasCallStack) => App ()
+testAdminlessSetupSendsReminderWithOriginUserAndRemoteMembers = do
+  -- Enabling the feature through the public API preserves the origin user.
+  (alice, tid, _) <- createTeam OwnDomain 1
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "10s" ["1s"]
+
+  alice1 <- createMLSClient def alice
+  remoteUser1 <- createMLSClient def remoteUser
+  traverse_ (uploadNewKeyPackage def) [alice1, remoteUser1]
+
+  conv <- createTeamMLSConversation alice tid alice1 [remoteUser]
+  let newApp = def {name = "adminless-federated-origin-reminder-app", description = "not eligible for promotion"}
+  (app, _) <- createAndAddAppMember alice tid alice1 conv newApp
+
+  removeMember alice conv alice >>= assertSuccess
+
+  withWebSockets [app, remoteUser] $ \[wsApp, wsRemoteUser] -> do
+    Public.setTeamFeatureConfig alice tid "preventAdminlessGroups" (mkAdminlessFeature "enabled" "10s" ["1s"])
+      >>= assertSuccess
+
+    reminder <- awaitMatchFor 20 isConvAdminlessReminderNotif wsApp
+    reminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    reminder %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+    remoteReminder <- awaitMatchFor 20 isConvAdminlessReminderNotif wsRemoteUser
+    remoteReminder %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    remoteReminder %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+    deleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsApp
+    deleteNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+    remoteDeleteNotif <- awaitMatchFor 20 isConvDeleteNotif wsRemoteUser
+    remoteDeleteNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 404
 
 testAdminlessSetupAutopromotesWithRemoteMembers :: (HasCallStack) => App ()
 testAdminlessSetupAutopromotesWithRemoteMembers = do

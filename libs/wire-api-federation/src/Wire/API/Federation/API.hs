@@ -37,6 +37,7 @@ module Wire.API.Federation.API
     makeSystemMemberUpdateBundle,
     makeSystemDeleteBundle,
     makeSystemAdminlessReminderBundle,
+    makeAdminlessReminderBundle,
   )
 where
 

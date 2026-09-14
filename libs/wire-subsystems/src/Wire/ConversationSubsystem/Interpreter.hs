@@ -209,6 +209,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.onSystemDelete domain notification
   FederationOnSystemAdminlessReminder domain notification ->
     mapErrors $ Federation.onSystemAdminlessReminder domain notification
+  FederationOnAdminlessReminder domain notification ->
+    mapErrors $ Federation.onAdminlessReminder domain notification
   FederationOnUserDeleted domain udcn ->
     mapErrors $ Federation.onUserDeleted domain udcn
   PostOtrMessageUnqualified lusr con cnv ignore report msg ->
