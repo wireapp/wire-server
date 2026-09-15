@@ -326,6 +326,7 @@ test-suite federator-tests
     Test.Federator.Monitor
     Test.Federator.Options
     Test.Federator.Remote
+    Test.Federator.Response
     Test.Federator.Util
     Test.Federator.Validation
 
@@ -392,6 +393,7 @@ test-suite federator-tests
     , federator
     , filepath
     , HsOpenSSL
+    , http-client
     , http-types
     , http2
     , http2-manager
@@ -399,6 +401,7 @@ test-suite federator-tests
     , interpolate
     , kan-extensions
     , mtl
+    , network
     , polysemy
     , polysemy-wire-zoo
     , QuickCheck
