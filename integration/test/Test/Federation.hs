@@ -20,7 +20,9 @@
 module Test.Federation where
 
 import qualified API.Brig as BrigP
+import API.Common
 import API.Galley
+import API.Nginz (login)
 import Control.Lens
 import Control.Monad.Codensity
 import Control.Monad.Reader
@@ -33,6 +35,32 @@ import qualified Proto.Otr_Fields as Proto
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
+
+testClientLoginWhenRemoteBackendIsOffline :: (HasCallStack) => App ()
+testClientLoginWhenRemoteBackendIsOffline = do
+  resourcePool <- asks (.resourcePool)
+  (admin, _, _) <- createTeam OwnDomain 1
+  email <- admin %. "email"
+  runCodensity (acquireResources 1 resourcePool) $ \[remoteBackend] -> do
+    runCodensity (startDynamicBackend remoteBackend mempty) $ \_ -> do
+      (remoteAdmin, _, _) <- createTeam remoteBackend.berDomain 1
+      connectTwoUsers admin remoteAdmin
+
+      remoteConv <- postConversation remoteAdmin (defProteus {qualifiedUsers = [admin]}) >>= getJSON 201
+      remoteConvId <- objQidObject remoteConv
+
+      bindResponse (listConversations admin [remoteConvId]) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        foundIds <- resp.json %. "found" >>= asList >>= traverse (%. "qualified_id")
+        foundIds `shouldMatchSet` [remoteConvId]
+        resp.json %. "failed" `shouldMatch` ([] :: [Value])
+
+      bindResponse (login OwnDomain email defPassword) $ \resp ->
+        resp.status `shouldMatchInt` 200
+
+    -- Backend B is down here. admin from own domain should still be able to login
+    bindResponse (login OwnDomain email defPassword) $ \resp ->
+      resp.status `shouldMatchInt` 200
 
 testNotificationsForOfflineBackends :: (HasCallStack) => App ()
 testNotificationsForOfflineBackends = do
