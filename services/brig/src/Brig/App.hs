@@ -73,7 +73,6 @@ module Brig.App
     disabledVersionsLens,
     enableSFTFederationLens,
     rateLimitEnvLens,
-    amqpJobsPublisherChannelLens,
     postgresMigrationLens,
     initZAuth,
     initLogger,
@@ -226,7 +225,6 @@ data Env = Env
     disabledVersions :: Set Version,
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
-    amqpJobsPublisherChannel :: MVar Q.Channel,
     postgresMigration :: PostgresMigrationOpts
   }
 
@@ -300,7 +298,6 @@ newEnv opts = do
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
-  amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   pubKeyBundle <- loadPublicKeyBundle lgr opts.settings.publicKeyBundle
   pure $!
     Env
@@ -344,7 +341,6 @@ newEnv opts = do
         disabledVersions = allDisabledVersions,
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
-        amqpJobsPublisherChannel,
         postgresMigration = opts.postgresMigration
       }
   where
