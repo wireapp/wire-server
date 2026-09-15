@@ -1,16 +1,20 @@
 {{- if .Values.federator.enabled }}
 {{/* Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
-     Enforces mTLS client certificate validation on the federator listener only. */}}
+     Enforces mTLS client certificate validation on the federator ListenerSet listener only. */}}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: ClientTrafficPolicy
 metadata:
-  name: {{ include "wire-ingress.gatewayName" . }}-federator-mtls
+  name: {{ include "wire-ingress.listenerSetName" . }}-federator-mtls
   namespace: {{ .Release.Namespace }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
+  {{/* Envoy Gateway v1.8.x rejects ListenerSet as a ClientTrafficPolicy
+       targetRef (only Gateway is allowed). The federator listener lives on the
+       ListenerSet but is merged into the parent Gateway's listener set, so we
+       target the Gateway and scope to that listener via sectionName. */}}
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway

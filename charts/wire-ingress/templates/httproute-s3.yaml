@@ -19,9 +19,9 @@ metadata:
     heritage: "{{ $root.Release.Service }}"
 spec:
   parentRefs:
-    - name: {{ include "wire-ingress.gatewayName" $root | quote }}
+    - name: {{ include "wire-ingress.listenerSetName" $root | quote }}
       namespace: {{ $root.Release.Namespace | quote }}
-      kind: Gateway
+      kind: ListenerSet
       sectionName: {{ $domain.section }}
   hostnames:
     - {{ required "config.dns.fakeS3 is required when fakeS3.enabled is true" $domain.fakeS3 | quote }}

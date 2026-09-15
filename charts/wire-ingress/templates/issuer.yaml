@@ -32,7 +32,7 @@ spec:
           gatewayHTTPRoute:
             parentRefs:
               - name: {{ include "wire-ingress.gatewayName" . | quote }}
-                namespace: {{ .Release.Namespace | quote }}
+                namespace: {{ include "wire-ingress.parentGatewayNamespace" . | quote }}
                 kind: Gateway
 {{- end }}
 {{- end -}}
