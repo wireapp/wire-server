@@ -26,7 +26,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.Resource
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
@@ -67,7 +66,6 @@ resetLocalMLSMainConversation ::
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member Random r,
-    Member Resource r,
     Member ConversationStore r,
     Member P.TinyLog r,
     Member MLSCommitLockStore r,

@@ -73,7 +73,7 @@ import Wire.CodeStore.Cassandra (interpretCodeStoreToCassandra)
 import Wire.CodeStore.DualWrite (interpretCodeStoreToCassandraAndPostgres)
 import Wire.CodeStore.Postgres (interpretCodeStoreToPostgres)
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
-import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (..), interpretConversationSubsystem)
 import Wire.ExternalAccess (ExternalAccess)
@@ -96,6 +96,7 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MLSCommitLockStore.Postgres (interpretMLSCommitLockStoreToPostgres)
 import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.MeetingNotifier.NoOpInterpreter (discardMeetingNotifier)
 import Wire.MigrationLock (MigrationLockError)
@@ -326,7 +327,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.checkGroupInfo)
     . runInputConst @(Maybe GuestLinkTTLSeconds) env.guestLinkTTLSeconds
     . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
-    . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
+    . interpretMLSCommitLockStoreToPostgres
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
