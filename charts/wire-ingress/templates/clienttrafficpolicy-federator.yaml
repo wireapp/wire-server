@@ -1,6 +1,13 @@
 {{- if .Values.federator.enabled }}
 {{/* Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
-     Enforces mTLS client certificate validation on the federator listener only. */}}
+     Enforces mTLS client certificate validation on the federator listener only.
+
+     A section-scoped policy fully REPLACES the Gateway-wide one for its
+     listener (Envoy Gateway marks the Gateway-wide policy `Overridden` for this
+     section rather than merging field-by-field), so the ALPN and TLS parameters
+     from clienttrafficpolicy-gateway.yaml are repeated here. Without this the
+     federator listener would silently fall back to Envoy's defaults, which
+     include cipher suites that BSI TR-02102-2 does not recommend. */}}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: ClientTrafficPolicy
 metadata:
@@ -16,6 +23,10 @@ spec:
       kind: Gateway
       name: {{ include "wire-ingress.gatewayName" . | quote }}
       sectionName: federator
+  {{- if .Values.gateway.proxyProtocol.enabled }}
+  proxyProtocol:
+    optional: {{ .Values.gateway.proxyProtocol.optional }}
+  {{- end }}
   tls:
     {{/* Optional at the ingress level so the federator service can throw the
          appropriate error when a cert is missing. Lua filter strips spoofed
@@ -25,4 +36,13 @@ spec:
       caCertificateRefs:
         - name: federator-ca
           kind: ConfigMap
+    {{- if .Values.gateway.alpn.enabled }}
+    alpnProtocols:
+      {{- range .Values.gateway.alpn.protocols }}
+      - {{ . }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.gateway.tls.enabled }}
+    {{- include "wire-ingress.tlsParameters" . | trim | nindent 4 }}
+    {{- end }}
 {{- end }}

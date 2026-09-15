@@ -1,0 +1,82 @@
+# Synthetic OAuth authorization responses; no real identity provider or data.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tr-oauth-fixture
+  namespace: joe-test
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      access_log off;
+      location = /oauth2/auth {
+        if ($args != "allowed_groups=Platform%20team") { return 403; }
+        if ($http_cookie = "test=allow") { return 202; }
+        if ($http_cookie = "test=deny") { return 403; }
+        if ($http_cookie = "test=error") { return 500; }
+        return 401;
+      }
+      location / { return 404; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tr-oauth-fixture
+  namespace: joe-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: tr-oauth-fixture}
+  template:
+    metadata:
+      labels: {app: tr-oauth-fixture}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: oauth-fixture
+          image: nginxinc/nginx-unprivileged:1.30.4-alpine-perl@sha256:1a0e8451254090f4f8100519d25a065f2a6438f75ae631317d31f591f536973f
+          ports: [{name: http, containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+      volumes:
+        - name: config
+          configMap: {name: tr-oauth-fixture}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tr-oauth-fixture
+  namespace: joe-test
+spec:
+  selector: {app: tr-oauth-fixture}
+  ports: [{port: 8080, targetPort: http}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tr-oauth-fixture
+  namespace: joe-test
+spec:
+  parentRefs:
+    - name: tr
+      sectionName: https
+  hostnames: [tr.hops.wire.link]
+  rules:
+    - matches:
+        - path: {type: Exact, value: /oauth2/auth}
+      backendRefs:
+        - name: tr-oauth-fixture
+          port: 8080

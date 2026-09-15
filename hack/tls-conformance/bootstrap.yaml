@@ -1,0 +1,26 @@
+# Optional diagnostic certificate, used only while public issuance is blocked.
+# The final Gateway in manifests.yaml references tr-certificate, NOT this secret.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: tr-bootstrap
+  namespace: joe-test
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tr-bootstrap
+  namespace: joe-test
+spec:
+  secretName: tr-bootstrap
+  dnsNames: [tr.hops.wire.link]
+  duration: 24h
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always
+  issuerRef:
+    name: tr-bootstrap
+    kind: Issuer

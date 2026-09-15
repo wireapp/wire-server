@@ -1,0 +1,5 @@
+envoypatchpolicy.gateway.envoyproxy.io "tr-bsi-ciphers" deleted from joe-test namespace
+PASS patch absent: TLS 1.3 rejected with protocol_version alert
+PASS patch absent: TLS 1.2 AES-GCM works; ChaCha20 rejected
+envoypatchpolicy.gateway.envoyproxy.io/tr-bsi-ciphers created
+PASS patch restored: verified TLS 1.3 AES-GCM handshake

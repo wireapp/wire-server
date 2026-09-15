@@ -1,0 +1,12 @@
+Synthetic Hops fixture, September 10, 2026. No real users or tokens.
+PASS OAuth missing cookie: HTTP 302
+PASS OAuth allowed: HTTP 200
+PASS OAuth forbidden group: HTTP 403
+PASS OAuth outage fails closed: HTTP 500
+PASS Spoofed identity fails: HTTP 302
+PASS Internal auth path hidden: HTTP 404
+PASS Basic missing password: HTTP 401
+PASS Basic wrong password: HTTP 401
+PASS Basic existing APR1 hash: HTTP 200
+PASS Unknown host: HTTP 404
+PASS Redirect URI encoding: HTTP 302

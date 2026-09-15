@@ -1,0 +1,583 @@
+[
+         {
+              "id"           : "service",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "HTTP"
+          }
+,         {
+              "id"           : "pre_128cipher",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "No 128 cipher limit bug"
+          }
+,         {
+              "id"           : "SSLv2",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "not offered"
+          }
+,         {
+              "id"           : "SSLv3",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "not offered"
+          }
+,         {
+              "id"           : "TLS1",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "not offered"
+          }
+,         {
+              "id"           : "TLS1_1",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "not offered"
+          }
+,         {
+              "id"           : "TLS1_2",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "offered"
+          }
+,         {
+              "id"           : "TLS1_3",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "offered with final"
+          }
+,         {
+              "id"           : "NPN",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "not offered"
+          }
+,         {
+              "id"           : "ALPN_HTTP2",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "h2"
+          }
+,         {
+              "id"           : "ALPN",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "http/1.1"
+          }
+,         {
+              "id"           : "cipher_order-tls1_2",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "server"
+          }
+,         {
+              "id"           : "cipher-tls1_2_xc02b",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLSv1.2   xc02b   ECDHE-ECDSA-AES128-GCM-SHA256     ECDH 256   AESGCM      128      TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+          }
+,         {
+              "id"           : "cipher-tls1_2_xc02c",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLSv1.2   xc02c   ECDHE-ECDSA-AES256-GCM-SHA384     ECDH 256   AESGCM      256      TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+          }
+,         {
+              "id"           : "cipherorder_TLSv1_2",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "ECDHE-ECDSA-AES128-GCM-SHA256 ECDHE-ECDSA-AES256-GCM-SHA384"
+          }
+,         {
+              "id"           : "cipher_order-tls1_3",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "NOT a cipher order configured"
+          }
+,         {
+              "id"           : "cipher-tls1_3_x1302",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLSv1.3   x1302   TLS_AES_256_GCM_SHA384            ECDH 256   AESGCM      256      TLS_AES_256_GCM_SHA384"
+          }
+,         {
+              "id"           : "cipher-tls1_3_x1301",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLSv1.3   x1301   TLS_AES_128_GCM_SHA256            ECDH 256   AESGCM      128      TLS_AES_128_GCM_SHA256"
+          }
+,         {
+              "id"           : "supportedciphers_TLSv1_3",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "TLS_AES_256_GCM_SHA384 TLS_AES_128_GCM_SHA256"
+          }
+,         {
+              "id"           : "cipher_order",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "server -- TLS 1.3 client determined"
+          }
+,         {
+              "id"           : "FS",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "offered"
+          }
+,         {
+              "id"           : "FS_ciphers",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "TLS_AES_256_GCM_SHA384 ECDHE-ECDSA-AES256-GCM-SHA384 TLS_AES_128_GCM_SHA256 ECDHE-ECDSA-AES128-GCM-SHA256"
+          }
+,         {
+              "id"           : "FS_ECDHE_curves",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "prime256v1 secp384r1"
+          }
+,         {
+              "id"           : "FS_TLS12_sig_algs",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "ECDSA+SHA256 ECDSA+SHA384"
+          }
+,         {
+              "id"           : "FS_TLS13_sig_algs",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "ECDSA+SHA384"
+          }
+,         {
+              "id"           : "TLS_extensions",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "'EC point formats/#11' 'application layer protocol negotiation/#16' 'extended master secret/#23' 'supported versions/#43' 'key share/#51' 'renegotiation info/#65281'"
+          }
+,         {
+              "id"           : "TLS_session_ticket",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "no -- no lifetime advertised"
+          }
+,         {
+              "id"           : "SSL_sessionID_support",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "no"
+          }
+,         {
+              "id"           : "sessionresumption_ticket",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "not supported"
+          }
+,         {
+              "id"           : "sessionresumption_ID",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "No Session ID, no resumption"
+          }
+,         {
+              "id"           : "TLS_timestamp",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "random"
+          }
+,         {
+              "id"           : "certificate_compression",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "none"
+          }
+,         {
+              "id"           : "clientAuth",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "none"
+          }
+,         {
+              "id"           : "cert_numbers",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "1"
+          }
+,         {
+              "id"           : "cert_signatureAlgorithm",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "ECDSA with SHA384"
+          }
+,         {
+              "id"           : "cert_keySize",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "EC 384 bits (curve P-384)"
+          }
+,         {
+              "id"           : "cert_keyUsage",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "Digital Signature"
+          }
+,         {
+              "id"           : "cert_extKeyUsage",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "TLS Web Server Authentication"
+          }
+,         {
+              "id"           : "cert_serialNumber",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "0674E7A235B55B992486A2961F6CA315DA2B"
+          }
+,         {
+              "id"           : "cert_serialNumberLen",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "18"
+          }
+,         {
+              "id"           : "cert_fingerprintSHA1",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "E2D170C9DD46722BB7C7D3FD7AB948468CD7A043"
+          }
+,         {
+              "id"           : "cert_fingerprintSHA256",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "855AC501BC3B856712CF69456647CBDD307FFBF9E6042638520944F8E3E84D3F"
+          }
+,         {
+              "id"           : "cert",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "-----BEGIN CERTIFICATE-----\nMIIDrTCCAzOgAwIBAgISBnTnojW1W5kkhqKWH2yjFdorMAoGCCqGSM49BAMDMDMxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQwwCgYDVQQDEwNZRTIwHhcNMjYwOTEwMDk0NDEzWhcNMjYxMjA5MDk0NDEyWjAcMRowGAYDVQQDExF0ci5ob3BzLndpcmUubGluazB2MBAGByqGSM49AgEGBSuBBAAiA2IABK89vDLDDtSnsq1vKnazONT2bAIF8gdkVxLc2i2laPbqPW+mSb4SlAgGtQ7mn2KxOEeJGYL1HMyYjKEaMxSyejUZsVkrneZfW6PCBsSRLcUrEnHQQgbFV4hBego1AozeGaOCAh8wggIbMA4GA1UdDwEB/wQEAwIHgDATBgNVHSUEDDAKBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBSMShUri7xy+Av5q2fVWwWIH7rvijAfBgNVHSMEGDAWgBS5WfKOzyLwhtM3SP92FBi6gthVhzAzBggrBgEFBQcBAQQnMCUwIwYIKwYBBQUHMAKGF2h0dHA6Ly95ZTIuaS5sZW5jci5vcmcvMBwGA1UdEQQVMBOCEXRyLmhvcHMud2lyZS5saW5rMBMGA1UdIAQMMAowCAYGZ4EMAQIBMC4GA1UdHwQnMCUwI6AhoB+GHWh0dHA6Ly95ZTIuYy5sZW5jci5vcmcvNDQuY3JsMIIBDAYKKwYBBAHWeQIEAgSB/QSB+gD4AHYAyzj3FYl8hKFEX1vB3fvJbvKaWc1HCmkFhbDLFMMUWOcAAAGgiumnDQAABAMARzBFAiEA2pICH+CuL1yzZ/uVfS0TpNqecWk+ukBP8HmFjaswH1MCIGKF0i4K8v3k7yZu8BqN+O0fZ6DuaJmmMkLNU9d7VblNAH4AbP5QGUOoXqkWvFLRM+TcyR7xQRx9JYQg0XOAnhgY6zoAAAGgiumnTQAIAAAFADHqr/UEAwBHMEUCIGTIrYT0lcGp35Pv7fe40SBz9H3RVX8YwRDis4YvkVzQAiEAyXLzFPKY7/lsQfhxYHl7HnF+8YohkWd9mqOYLHAHg+EwCgYIKoZIzj0EAwMDaAAwZQIxAI7mtj+bBC67okh1WzEpMAbgaxaQCOxYPWrlAVcdHG49YwIwKnA+zHs/Hnqj68kW0AIwarFqq5UA3GK1BwEDDm842dwloqLr5rdhwzez0Ru80hSTBS+oyV0KEo++yaYyWhQX\n-----END CERTIFICATE-----"
+          }
+,         {
+              "id"           : "cert_commonName",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "tr.hops.wire.link"
+          }
+,         {
+              "id"           : "cert_commonName_wo_SNI",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "request w/o SNI didn't succeed, usual for EC certificates"
+          }
+,         {
+              "id"           : "cert_subjectAltName",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "tr.hops.wire.link"
+          }
+,         {
+              "id"           : "cert_trust",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "Ok via SAN and CN (SNI mandatory)"
+          }
+,         {
+              "id"           : "cert_chain_of_trust",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "passed."
+          }
+,         {
+              "id"           : "cert_certificatePolicies_EV",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "no"
+          }
+,         {
+              "id"           : "cert_expirationStatus",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "89 >= 30 days"
+          }
+,         {
+              "id"           : "cert_notBefore",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "2026-09-10 09:44"
+          }
+,         {
+              "id"           : "cert_notAfter",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "2026-12-09 09:44"
+          }
+,         {
+              "id"           : "cert_extlifeSpan",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "certificate has no extended life time according to browser forum"
+          }
+,         {
+              "id"           : "cert_eTLS",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "not present"
+          }
+,         {
+              "id"           : "cert_crlDistributionPoints",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "http://ye2.c.lencr.org/44.crl"
+          }
+,         {
+              "id"           : "cert_ocspURL",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "--"
+          }
+,         {
+              "id"           : "OCSP_stapling",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "not offered"
+          }
+,         {
+              "id"           : "cert_mustStapleExtension",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "--"
+          }
+,         {
+              "id"           : "DNS_CAArecord",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "LOW",
+              "finding"      : "--"
+          }
+,         {
+              "id"           : "certificate_transparency",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "yes (certificate extension)"
+          }
+,         {
+              "id"           : "certs_countServer",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "3"
+          }
+,         {
+              "id"           : "certs_list_ordering_problem",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "no"
+          }
+,         {
+              "id"           : "cert_caIssuers",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "YE2 (Let's Encrypt from US)"
+          }
+,         {
+              "id"           : "intermediate_cert <#1>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "-----BEGIN CERTIFICATE-----\nMIICjDCCAhGgAwIBAgIQTfOxXdbAeExQfNN7WObxFTAKBggqhkjOPQQDAzAuMQswCQYDVQQGEwJVUzENMAsGA1UEChMESVNSRzEQMA4GA1UEAxMHUm9vdCBZRTAeFw0yNTA5MDMwMDAwMDBaFw0yODA5MDIyMzU5NTlaMDMxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQwwCgYDVQQDEwNZRTIwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAARxmrQzkdbEEL3MqXt3dJQttYc47axkdDTHud5TPqM2z5uSD5cmk0WrHlWXvnlvqBLqiB34kluxIbmMyAiq3/YD6e80/vV259K8XQIdjFXloYOa0mIU71f7HQ09PvYDlw+jge4wgeswDgYDVR0PAQH/BAQDAgGGMBMGA1UdJQQMMAoGCCsGAQUFBwMBMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFLlZ8o7PIvCG0zdI/3YUGLqC2FWHMB8GA1UdIwQYMBaAFKPIJlqOoUzQNWP8myPIOq5W809WMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcwAoYWaHR0cDovL3llLmkubGVuY3Iub3JnLzATBgNVHSAEDDAKMAgGBmeBDAECATAnBgNVHR8EIDAeMBygGqAYhhZodHRwOi8veWUuYy5sZW5jci5vcmcvMAoGCCqGSM49BAMDA2kAMGYCMQDIcnw5dcZLN9ffynXnnkLD/itSJEycJPb3sRkzeqBowup7vOsAwaqoCnNn/jh9wycCMQCJM6CPlaOC4pQYYbJtVPYbDKrIb2EKk5NpOpE6/XttQYZV/3gilB9l+Cc/DOVwmyg=\n-----END CERTIFICATE-----"
+          }
+,         {
+              "id"           : "intermediate_cert_fingerprintSHA256 <#1>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "97658DE8C68DFA98ACE1E5028A63D54A1AAE911B3E21471076C6850CD08CBAB4"
+          }
+,         {
+              "id"           : "intermediate_cert_notBefore <#1>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "2025-09-03 00:00"
+          }
+,         {
+              "id"           : "intermediate_cert_notAfter <#1>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "2028-09-02 23:59"
+          }
+,         {
+              "id"           : "intermediate_cert_expiration <#1>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "ok > 40 days"
+          }
+,         {
+              "id"           : "intermediate_cert_chain <#1>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "YE2 <-- Root YE"
+          }
+,         {
+              "id"           : "intermediate_cert <#2>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "-----BEGIN CERTIFICATE-----\nMIICpjCCAiugAwIBAgIRAIchZfw0tuX7qK3Vs3BftTowCgYIKoZIzj0EAwMwTzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2VhcmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDIwHhcNMjYwNTEzMDAwMDAwWhcNMzIwOTAyMjM1OTU5WjAuMQswCQYDVQQGEwJVUzENMAsGA1UEChMESVNSRzEQMA4GA1UEAxMHUm9vdCBZRTB2MBAGByqGSM49AgEGBSuBBAAiA2IABDwS/6vhrcVqcbBo+wgdI3fwn9x7DNJJOY/lTOti0vkwuRN87RhEhTH17E7XyFjWsPYhIPt/wzOqxTd2b+4ZJNy9ID04YywF9U5zasDVyGSNErVNtz8uSGh5izW87j77GaOB6zCB6DAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUo8gmWo6hTNA1Y/ybI8g6rlbzT1YwHwYDVR0jBBgwFoAUfEKWrt5LSDv6kviejM9ti6lyN5UwMgYIKwYBBQUHAQEEJjAkMCIGCCsGAQUFBzAChhZodHRwOi8veDIuaS5sZW5jci5vcmcvMBMGA1UdIAQMMAowCAYGZ4EMAQIBMCcGA1UdHwQgMB4wHKAaoBiGFmh0dHA6Ly94Mi5jLmxlbmNyLm9yZy8wCgYIKoZIzj0EAwMDaQAwZgIxAMU19WCtmxVND8UHBZRoma49Z7jPs64Dma0eTu1OChVbB/2J7GV3nvYKAx54uk1G9QIxAO0miLVJu8PLNiXXXkiE/gsK3CTRTF/aeo4bMX42Zw40csRU6AC26hSW1/IWaas6dg==\n-----END CERTIFICATE-----"
+          }
+,         {
+              "id"           : "intermediate_cert_fingerprintSHA256 <#2>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "0FC0901CCA2BAE9E9FDBB02D50D02F1094F7B36672086991B9E897626DC485F0"
+          }
+,         {
+              "id"           : "intermediate_cert_notBefore <#2>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "2026-05-13 00:00"
+          }
+,         {
+              "id"           : "intermediate_cert_notAfter <#2>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "2032-09-02 23:59"
+          }
+,         {
+              "id"           : "intermediate_cert_expiration <#2>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "ok > 40 days"
+          }
+,         {
+              "id"           : "intermediate_cert_chain <#2>",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "Root YE <-- ISRG Root X2"
+          }
+,         {
+              "id"           : "intermediate_cert_badOCSP",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "intermediate certificate(s) is/are ok"
+          }
+,         {
+              "id"           : "cipher-tls1_2_xc02c",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLS 1.2   xc02c   ECDHE-ECDSA-AES256-GCM-SHA384     ECDH 256   AESGCM      256      TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+          }
+,         {
+              "id"           : "cipher-tls1_2_xc02b",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLS 1.2   xc02b   ECDHE-ECDSA-AES128-GCM-SHA256     ECDH 256   AESGCM      128      TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+          }
+,         {
+              "id"           : "supportedciphers_TLS 1_2",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "ECDHE-ECDSA-AES256-GCM-SHA384 ECDHE-ECDSA-AES128-GCM-SHA256"
+          }
+,         {
+              "id"           : "cipher-tls1_3_x1302",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLS 1.3   x1302   TLS_AES_256_GCM_SHA384            ECDH 256   AESGCM      256      TLS_AES_256_GCM_SHA384"
+          }
+,         {
+              "id"           : "cipher-tls1_3_x1301",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "OK",
+              "finding"      : "TLS 1.3   x1301   TLS_AES_128_GCM_SHA256            ECDH 256   AESGCM      128      TLS_AES_128_GCM_SHA256"
+          }
+,         {
+              "id"           : "supportedciphers_TLS 1_3",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "TLS_AES_256_GCM_SHA384 TLS_AES_128_GCM_SHA256"
+          }
+,         {
+              "id"           : "scanTime",
+              "ip"           : "tr.hops.wire.link/46.225.37.184",
+              "port"         : "443",
+              "severity"     : "INFO",
+              "finding"      : "33"
+          }
+]

@@ -1,0 +1,126 @@
+
+#####################################################################
+  testssl.sh version 3.2.2 from https://testssl.sh/
+  (2c6dac1e19 2026-09-10 12:06:37)
+
+  This program is free software. Distribution and modification under
+  GPLv2 permitted. USAGE w/o ANY WARRANTY. USE IT AT YOUR OWN RISK!
+
+  Please file bugs @ https://testssl.sh/bugs/
+#####################################################################
+
+  Using OpenSSL 1.0.2-bad (Mar 28 2025)  [~183 ciphers]
+  on fedora-2:/tmp/wire-testssl.E04lpN/testssl/bin/openssl.Linux.x86_64
+
+ Start 2026-09-10 10:43:05        -->> 46.225.37.184:443 (tr.hops.wire.link) <<--
+
+ A record via:           supplied IP "46.225.37.184"
+ rDNS (46.225.37.184):   static.184.37.225.46.clients.your-server.de.
+ Service detected:       HTTP
+
+ Testing protocols via sockets except NPN+ALPN 
+
+ SSLv2      not offered (OK)
+ SSLv3      not offered (OK)
+ TLS 1      not offered
+ TLS 1.1    not offered
+ TLS 1.2    offered (OK)
+ TLS 1.3    offered (OK): final
+ NPN/SPDY   not offered
+ ALPN/HTTP2 h2, http/1.1 (offered)
+
+ Testing server's cipher preferences 
+
+Hexcode  Cipher Suite Name (OpenSSL)       KeyExch.   Encryption  Bits     Cipher Suite Name (IANA/RFC)
+-----------------------------------------------------------------------------------------------------------------------------
+SSLv2
+ - 
+SSLv3
+ - 
+TLSv1
+ - 
+TLSv1.1
+ - 
+TLSv1.2 (server order)
+ xc02b   ECDHE-ECDSA-AES128-GCM-SHA256     ECDH 256   AESGCM      128      TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256            
+ xc02c   ECDHE-ECDSA-AES256-GCM-SHA384     ECDH 256   AESGCM      256      TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384            
+TLSv1.3 (no server order, thus listed by strength)
+ x1302   TLS_AES_256_GCM_SHA384            ECDH 256   AESGCM      256      TLS_AES_256_GCM_SHA384                             
+ x1301   TLS_AES_128_GCM_SHA256            ECDH 256   AESGCM      128      TLS_AES_128_GCM_SHA256                             
+
+ Has server cipher order?     yes (OK) -- only for < TLS 1.3
+
+
+ Testing robust forward secrecy (FS) -- omitting Null Authentication/Encryption, 3DES, RC4 
+
+ FS is offered (OK)           TLS_AES_256_GCM_SHA384
+                              ECDHE-ECDSA-AES256-GCM-SHA384
+                              TLS_AES_128_GCM_SHA256
+                              ECDHE-ECDSA-AES128-GCM-SHA256 
+ Elliptic curves offered:     prime256v1 secp384r1 
+ TLS 1.2 sig_algs offered:    ECDSA+SHA256 ECDSA+SHA384 
+ TLS 1.3 sig_algs offered:    ECDSA+SHA384 
+
+ Testing server defaults (Server Hello) 
+
+ TLS extensions (standard)    "EC point formats/#11"
+                              "application layer protocol negotiation/#16"
+                              "extended master secret/#23"
+                              "supported versions/#43" "key share/#51"
+                              "renegotiation info/#65281"
+ Session Ticket RFC 5077 hint no -- no lifetime advertised
+ SSL Session ID support       no
+ Session Resumption           Tickets no, ID: no
+ TLS clock skew               Random values, no fingerprinting possible 
+ Certificate Compression      none
+ Client Authentication        none
+ Signature Algorithm          ECDSA with SHA384
+ Server key size              EC 384 bits (curve P-384)
+ Server key usage             Digital Signature
+ Server extended key usage    TLS Web Server Authentication
+ Serial                       0674E7A235B55B992486A2961F6CA315DA2B (OK: length 18)
+ Fingerprints                 SHA1 E2D170C9DD46722BB7C7D3FD7AB948468CD7A043
+                              SHA256 855AC501BC3B856712CF69456647CBDD307FFBF9E6042638520944F8E3E84D3F
+ Common Name (CN)             tr.hops.wire.link  (request w/o SNI didn't succeed, usual for EC certificates)
+ subjectAltName (SAN)         tr.hops.wire.link 
+ Trust (hostname)             Ok via SAN and CN (SNI mandatory)
+ Chain of trust               Ok   
+ EV cert (experimental)       no 
+ Certificate Validity (UTC)   89 >= 30 days (2026-09-10 09:44 --> 2026-12-09 09:44)
+ ETS/"eTLS", visibility info  not present
+ Certificate Revocation List  http://ye2.c.lencr.org/44.crl
+ OCSP URI                     --
+ OCSP stapling                not offered
+ OCSP must staple extension   --
+ DNS CAA RR (experimental)    not offered
+ Certificate Transparency     yes (certificate extension)
+ Certificates provided        3
+ Issuer                       YE2 (Let's Encrypt from US)
+ Intermediate cert validity   #1: ok > 40 days (2028-09-02 23:59). YE2 <-- Root YE
+                              #2: ok > 40 days (2032-09-02 23:59). Root YE <-- ISRG Root X2
+ Intermediate Bad OCSP (exp.) Ok
+
+
+
+ Testing ciphers per protocol via OpenSSL plus sockets against the server, ordered by encryption strength 
+
+Hexcode  Cipher Suite Name (OpenSSL)       KeyExch.   Encryption  Bits     Cipher Suite Name (IANA/RFC)
+-----------------------------------------------------------------------------------------------------------------------------
+SSLv2
+ - 
+SSLv3
+ - 
+TLS 1
+ - 
+TLS 1.1
+ - 
+TLS 1.2
+ xc02c   ECDHE-ECDSA-AES256-GCM-SHA384     ECDH 256   AESGCM      256      TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384            
+ xc02b   ECDHE-ECDSA-AES128-GCM-SHA256     ECDH 256   AESGCM      128      TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256            
+TLS 1.3
+ x1302   TLS_AES_256_GCM_SHA384            ECDH 256   AESGCM      256      TLS_AES_256_GCM_SHA384                             
+ x1301   TLS_AES_128_GCM_SHA256            ECDH 256   AESGCM      128      TLS_AES_128_GCM_SHA256                             
+
+ Done 2026-09-10 10:43:36 [  33s] -->> 46.225.37.184:443 (tr.hops.wire.link) <<--
+
+
