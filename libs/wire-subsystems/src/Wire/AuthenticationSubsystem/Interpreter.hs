@@ -22,6 +22,7 @@ module Wire.AuthenticationSubsystem.Interpreter
   )
 where
 
+import Control.Lens
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Default
@@ -400,7 +401,10 @@ verifyUserPasswordImpl uid plaintext = do
   password <-
     UserStore.lookupHashedPassword uid
       >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
-  verifyPasswordWithStatus (RateLimitUser uid) plaintext password
+  verifiedPassword <- verifyPasswordWithStatus (RateLimitUser uid) plaintext password
+  case toPlainTextPassword8 plaintext of
+    Just {} -> pure $ verifiedPassword & _2 .~ PasswordStatusNeedsUpdate
+    Nothing -> pure verifiedPassword
 
 verifyUserPasswordErrorImpl ::
   ( Member (Error AuthenticationSubsystemError) r,
