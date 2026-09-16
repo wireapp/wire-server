@@ -25,6 +25,8 @@ import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team.Collaborator
 import Wire.TeamCollaboratorsSubsystem
 
+-- TODO: adjust "add-team-collaborator" signature in wire-subsystems so we don't need this lambda
+
 teamMemberAPI :: API TeamMemberAPI GalleyEffects
 teamMemberAPI =
   mkNamedAPI @"get-team-members" getTeamMembers
