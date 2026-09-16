@@ -1,4 +1,3 @@
-kubeconfig
 target
 ./libs/libzauth/libzauth/Cargo.lock
 *.aux*

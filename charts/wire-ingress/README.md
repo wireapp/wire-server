@@ -84,10 +84,10 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.alpn.protocols` | `[h2, http/1.1]` | List of ALPN protocols to advertise to clients. Defaults to HTTP/2 with HTTP/1.1 fallback. |
 | `BSI_TR_02102_2_conformance` | `false` | Opt into the fixed BSI listener profile and stock Envoy compliance patch; see [TLS profiles](#tls-profiles). |
 | `gateway.tls.enabled` | `true` | Configure TLS parameters on all HTTPS listeners. Must remain enabled in BSI mode. |
-| `gateway.tls.minVersion` | `"1.2"` | Minimum TLS version. One of `Auto`, `"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`. |
+| `gateway.tls.minVersion` | `"1.3"` | Minimum TLS version. Lowering to `"1.2"` also requires adding a classical key-agreement group. |
 | `gateway.tls.maxVersion` | `"1.3"` | Maximum TLS version. Same value set as `minVersion`. |
-| `gateway.tls.ciphers` | ECDHE AES-GCM/ChaCha20 (see values) | TLS <=1.2 only. Omitted when minVersion is 1.3. |
-| `gateway.tls.ecdhCurves` | `[X25519, P-256, P-384]` | Names accepted by the deployed Envoy crypto library. Hybrid PQ is opt-in. |
+| `gateway.tls.ciphers` | Four ECDHE ECDSA/RSA AES-GCM suites (see values) | TLS <=1.2 only. Omitted when minVersion is 1.3; does not constrain TLS 1.3 suites. |
+| `gateway.tls.ecdhCurves` | `[X25519MLKEM768]` | Hybrid PQ only; clients and the Envoy crypto library must support this group. No classical fallback. |
 | `gateway.tls.signatureAlgorithms` | `[]` | Optional signature preferences; also affects federation client authentication. |
 | `gateway.patchPolicies.xdsNameSchemeV2` | `false` | Match the controller runtime flag when targeting the BSI listener patch. |
 | `gateway.extraHttpsListeners` | `[]` | Extra named HTTPS listeners on the same port, with `hostname` and optional `certificateSecretName`; useful for admin hostnames outside the API wildcard. Attach routes explicitly and issue a matching certificate. The BSI patch covers these listeners too. |
@@ -348,10 +348,26 @@ older clients.
 
 ### TLS profiles
 
-The default is general-purpose TLS 1.2–1.3 with ECDHE AEAD suites and
-X25519/P-256/P-384 groups. TLS parameters and ALPN share one
+The default is TLS 1.3 only with `X25519MLKEM768` hybrid key agreement only.
+Clients without that group cannot connect, including federation clients.
+This selects key agreement, not TLS 1.3 cipher suites: outside BSI mode,
+Envoy's TLS 1.3 cipher defaults (including ChaCha20) remain in effect.
+TLS parameters and ALPN share one
 ClientTrafficPolicy; federation repeats them because a section-scoped policy
 replaces the Gateway-wide policy.
+
+For an explicit TLS 1.2 compatibility profile, set both protocol and groups:
+
+```yaml
+gateway:
+  tls:
+    minVersion: "1.2"
+    ecdhCurves: [X25519MLKEM768, P-256, P-384]
+```
+
+The stored TLS 1.2 cipher list contains only ECDHE-ECDSA/RSA with AES-128/256-GCM.
+It is rendered when the minimum is below TLS 1.3. Changing the minimum alone
+does not enable usable TLS 1.2: the default hybrid group is TLS 1.3-only.
 
 #### BSI TR-02102-2 (2026) listener profile
 
@@ -397,13 +413,12 @@ issuing the main certificate in BSI mode. Pre-existing server certificates and
 federation client certificates still require validation; an ECDSA-only server
 probe does not establish what an RSA client certificate could negotiate.
 
-See [the proof of concept and repeatable tests](../../hack/tls-conformance/README.md)
-and the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
+See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
 
-#### Optional post-quantum key agreement
+#### Post-quantum key agreement and optional classical fallback
 
-With the BSI flag **false**, a stock compatible Envoy can negotiate the hybrid
-`X25519MLKEM768` group:
+With the BSI flag **false**, the default requires `X25519MLKEM768`.
+To also support classical clients over TLS 1.3, explicitly add fallback groups:
 
 ```yaml
 gateway:
@@ -411,11 +426,10 @@ gateway:
     ecdhCurves: [X25519MLKEM768, X25519, P-256, P-384]
 ```
 
-This changes key agreement, not TLS cipher suites. Classical clients retain a
-fallback. The BSI profile intentionally excludes this group; combining profiles
-does not enable PQ. The previously attempted custom AWS-LC build is not needed
-for this experiment and has been removed. The desired future NIST-curve hybrid
-groups require a separately validated implementation.
+This changes key agreement, not TLS cipher suites. The BSI profile intentionally
+overrides these groups with P-256/P-384 and enables TLS 1.2–1.3; it does not
+enable PQ. No custom Envoy build is needed. Other hybrid groups require a
+separately validated implementation.
 
 Verify with a PQ-capable client (OpenSSL 3.5+), including certificate validation:
 
