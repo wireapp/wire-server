@@ -213,10 +213,16 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp -}}
 {{- end -}}
 
-{{/* Shared by Gateway-wide and federation policies: section policies replace,
-rather than merge with, Gateway policy TLS settings. */}}
-{{- define "wire-ingress.tlsParameters" -}}
+{{/* Section policies replace Gateway policies, so both use the same TLS/ALPN settings. */}}
+{{- define "wire-ingress.downstreamTls" -}}
 {{- $tls := .Values.gateway.tls -}}
+{{- if .Values.gateway.alpn.enabled }}
+alpnProtocols:
+  {{- range .Values.gateway.alpn.protocols }}
+  - {{ . }}
+  {{- end }}
+{{- end }}
+{{- if $tls.enabled }}
 {{- if .Values.BSI_TR_02102_2_conformance }}
 # Safe baseline: only the compliance patch may enable TLS 1.3.
 minVersion: "1.2"
@@ -233,7 +239,7 @@ signatureAlgorithms:
   - rsa_pss_rsae_sha256
   - rsa_pss_rsae_sha384
   - rsa_pss_rsae_sha512
-{{- else if $tls.enabled }}
+{{- else }}
 {{- $minVersion := $tls.minVersion | default "" | toString }}
 {{- if $minVersion }}
 minVersion: {{ $minVersion | quote }}
@@ -250,6 +256,7 @@ ecdhCurves: {{ toJson $tls.ecdhCurves }}
 {{- end }}
 {{- if $tls.signatureAlgorithms }}
 signatureAlgorithms: {{ toJson $tls.signatureAlgorithms }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

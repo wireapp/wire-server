@@ -325,40 +325,18 @@ federator:
 ### One Gateway-wide ClientTrafficPolicy
 
 ALPN, TLS parameters and PROXY protocol are all rendered into a *single*
-`ClientTrafficPolicy` (`<gateway>-client-traffic`), not one resource per concern.
+`ClientTrafficPolicy` (`<gateway>-client-traffic`): policies for the same target
+conflict rather than merge. Federation's section policy replaces the Gateway
+policy, so it repeats these settings alongside client-certificate validation.
 
-Envoy Gateway attaches at most one `ClientTrafficPolicy` per target. A second
-policy targeting the same `Gateway` is not merged — it is rejected with a
-`Conflicted` status condition, and whichever policy lost the race is silently
-dropped from the data plane. Section-scoped policies follow the same rule: the
-federator listener has its own policy, so for that listener the Gateway-wide one
-is marked `Overridden` and does **not** apply. That is why
-`clienttrafficpolicy-federator.yaml` repeats the ALPN and TLS settings.
-
-#### ALPN
-
-`gateway.alpn.enabled: true` sets `spec.tls.alpnProtocols` explicitly:
-
-```yaml
-- h2        # HTTP/2
-- http/1.1  # HTTP/1.1 fallback
-```
-
-This is necessary because when a single certificate with multiple SANs is used
-across multiple listeners on the same port, Envoy would otherwise disable HTTP/2
-as a safety measure to prevent connection coalescing attacks. Setting it
-explicitly allows HTTP/2 to be negotiated while keeping HTTP/1.1 fallback for
-older clients.
+By default, explicit ALPN `[h2, http/1.1]` allows HTTP/2 even with overlapping
+certificate SANs across listeners, while retaining HTTP/1.1 support.
 
 ### TLS profiles
 
-The default is TLS 1.3 only with `X25519MLKEM768` hybrid key agreement only.
-Clients without that group cannot connect, including federation clients.
-This selects key agreement, not TLS 1.3 cipher suites: outside BSI mode,
-Envoy's TLS 1.3 cipher defaults (including ChaCha20) remain in effect.
-TLS parameters and ALPN share one
-ClientTrafficPolicy; federation repeats them because a section-scoped policy
-replaces the Gateway-wide policy.
+The default requires TLS 1.3 and `X25519MLKEM768` hybrid key agreement, including
+for federation clients. Clients without this group cannot connect. Outside BSI
+mode, Envoy's TLS 1.3 cipher defaults (including ChaCha20) remain in effect.
 
 For an explicit TLS 1.2 compatibility profile, set both protocol and groups:
 
@@ -369,9 +347,8 @@ gateway:
     ecdhCurves: [X25519MLKEM768, P-256, P-384]
 ```
 
-The stored TLS 1.2 cipher list contains only ECDHE-ECDSA/RSA with AES-128/256-GCM.
-It is rendered when the minimum is below TLS 1.3. Changing the minimum alone
-does not enable usable TLS 1.2: the default hybrid group is TLS 1.3-only.
+This uses the four ECDHE-ECDSA/RSA AES-128/256-GCM suites in `gateway.tls.ciphers`.
+Lowering the minimum alone is insufficient: TLS 1.2 also needs a classical group.
 
 #### BSI TR-02102-2 (2026) listener profile
 
@@ -386,54 +363,41 @@ gateway:
     targetGatewayClass: false
 ```
 
-This installs the tested stock-Envoy `FIPS_202205` compliance patch and an
-AES-GCM-only TLS 1.2 baseline. The patch enables TLS 1.3 while restricting it
-to AES-128/256-GCM, with P-256/P-384 key exchange. If the patch disappears or
-does not match, the baseline does not expose unrestricted TLS 1.3. Both
-TLS 1.2 and 1.3 remain enabled: the compliance policy overrides protocol bounds.
-The policy name does not mean this ordinary Envoy image is FIPS-certified.
+The `FIPS_202205` patch overrides `gateway.tls` with AES-GCM, P-256/P-384 and
+TLS 1.2–1.3; it cannot be combined with TLS 1.3-only or PQ settings. Without a
+matching patch, the baseline permits only the fixed AES-GCM TLS 1.2 profile.
+This works with stock Envoy, but does not make the image FIPS-certified.
 
-Requires Envoy Gateway's `extensionApis.enableEnvoyPatchPolicy: true` and
-a dedicated, unmerged Gateway/EnvoyProxy. Tested versions: EG 1.8.3 and
-Envoy 1.38.3. Set `gateway.patchPolicies.xdsNameSchemeV2` to match the
-controller's runtime flag (false by default in EG 1.8). The patch selects all
-TLS filter chains on the HTTPS socket, including additional domains and
-federation. Check Accepted/Programmed status and run wire-level tests after
-every controller/proxy upgrade; EnvoyPatchPolicy is an unstable extension API.
-Restrict permission to create or change these policies to trusted operators.
+Requires `extensionApis.enableEnvoyPatchPolicy: true` and a dedicated, unmerged
+Gateway/EnvoyProxy. Tested with EG 1.8.3 / Envoy 1.38.3. Match
+`gateway.patchPolicies.xdsNameSchemeV2` to the controller runtime flag (false in
+EG 1.8). The patch covers all TLS filter chains on the HTTPS socket, including
+federation and extra listeners. EnvoyPatchPolicy is an unstable extension API:
+restrict write access, check Accepted/Programmed status and retest after upgrades.
 
-The flag overrides `gateway.tls` protocol, cipher, group and signature
-preferences. It cannot secure TLS terminated elsewhere, validate an issuer's
-certificate chain, or establish whole-system BSI conformance. Certificates,
-federation client authentication and all other public TLS endpoints require
-separate checks. In particular, the 2026 TR no longer recommends PKCS#1 v1.5
-certificate signatures. The PoC uses an ECDSA chain anchored at ISRG Root X2;
-the default Let's Encrypt chain must not be assumed equivalent.
+This is a negotiation profile, not whole-system BSI certification. Audit other
+TLS terminators, certificate chains and federation client authentication separately.
+The 2026 TR no longer recommends PKCS#1 v1.5 certificate signatures; do not
+assume the default Let's Encrypt chain is suitable. The tested chain was ECDSA,
+anchored at ISRG Root X2.
 
-The [BoringSSL FIPS policy](https://boringssl.googlesource.com/boringssl/+/HEAD/include/openssl/ssl.h)
-also permits PKCS#1 **handshake** signatures with RSA keys and overrides the
-ordinary signature preferences. This chart requires ECDSA P-256/P-384 when
-issuing the main certificate in BSI mode. Pre-existing server certificates and
-federation client certificates still require validation; an ECDSA-only server
-probe does not establish what an RSA client certificate could negotiate.
+The [BoringSSL policy](https://boringssl.googlesource.com/boringssl/+/HEAD/include/openssl/ssl.h)
+also allows PKCS#1 handshake signatures and overrides signature preferences.
+The chart requires ECDSA P-256/P-384 for main certificates it issues in BSI mode;
+pre-existing server certificates and federation client certificates still need
+validation. Testing an ECDSA server does not validate RSA client authentication.
 
 See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
 
-#### Post-quantum key agreement and optional classical fallback
+#### Classical fallback without BSI mode
 
-With the BSI flag **false**, the default requires `X25519MLKEM768`.
-To also support classical clients over TLS 1.3, explicitly add fallback groups:
+To allow classical TLS 1.3 clients without changing the cipher profile:
 
 ```yaml
 gateway:
   tls:
     ecdhCurves: [X25519MLKEM768, X25519, P-256, P-384]
 ```
-
-This changes key agreement, not TLS cipher suites. The BSI profile intentionally
-overrides these groups with P-256/P-384 and enables TLS 1.2–1.3; it does not
-enable PQ. No custom Envoy build is needed. Other hybrid groups require a
-separately validated implementation.
 
 Verify with a PQ-capable client (OpenSSL 3.5+), including certificate validation:
 
