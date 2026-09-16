@@ -18,6 +18,7 @@
 module Wire.ConversationSubsystem.MLS.Commit.Core
   ( getCommitData,
     incrementEpoch,
+    incrementEpochNoRead,
     getClientInfo,
     getSingleClientInfo,
     checkSignatureKey,
@@ -70,7 +71,7 @@ import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
-import Wire.ProposalStore (ProposalStore)
+import Wire.ProposalStore (ProposalStore, StoredProposal, getAllPendingProposals)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.TeamCollaboratorsSubsystem
@@ -114,22 +115,27 @@ getCommitData ::
   Epoch ->
   CipherSuiteTag ->
   IncomingBundle ->
-  Sem r (IndexMap, ProposalAction)
+  Sem r (IndexMap, ProposalAction, [StoredProposal])
 getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   let convOrSub = tUnqualified lConvOrSub
       groupId = cnvmlsGroupId convOrSub.mlsMeta
 
-  runState convOrSub.indexMap $ do
-    creatorAction <-
-      if epoch == Epoch 0
-        then addProposedClient (Left . RegularClient $ senderIdentity.client)
-        else mempty
-    proposals <-
-      traverse
-        (derefOrCheckProposal epoch ciphersuite groupId)
-        bundle.commit.value.proposals
-    action <- applyProposals ciphersuite proposals
-    pure (creatorAction <> action)
+  -- Fetch all pending proposals once: used both for dereferencing commit
+  -- proposal refs and by checkReferences downstream.
+  storedProposals <- getAllPendingProposals groupId epoch
+  (newIndexMap, combinedAction) <-
+    runState convOrSub.indexMap $ do
+      creatorAction <-
+        if epoch == Epoch 0
+          then addProposedClient (Left . RegularClient $ senderIdentity.client)
+          else mempty
+      proposals <-
+        traverse
+          (derefOrCheckProposalFrom storedProposals ciphersuite)
+          bundle.commit.value.proposals
+      action <- applyProposals ciphersuite proposals
+      pure (creatorAction <> action)
+  pure (newIndexMap, combinedAction, storedProposals)
 
 incrementEpoch ::
   ( Member ConversationStore r,
@@ -148,6 +154,19 @@ incrementEpoch (SubConv c s) = do
   subconv <-
     getSubConversation (mcId c) (scSubConvId s) >>= noteS @'ConvNotFound
   pure (SubConv c subconv)
+
+-- | Bump the MLS epoch without re-reading the conversation afterwards.
+-- Use when the caller discards the result; avoids 2-3 CQL round trips.
+incrementEpochNoRead ::
+  (Member ConversationStore r) =>
+  ConvOrSubConv ->
+  Sem r ()
+incrementEpochNoRead =
+  \case
+    Conv c ->
+      setConversationEpoch (mcId c) (succ (cnvmlsEpoch (mcMLSData c)))
+    SubConv _c s ->
+      setSubConversationEpoch (scParentConvId s) (scSubConvId s) (succ (cnvmlsEpoch (scMLSData s)))
 
 getClientInfo ::
   ( Member BrigAPIAccess r,

@@ -41,8 +41,8 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
+import Control.Exception.Safe (catchAny)
 import Control.Lens ((.~), (^.))
-import Control.Monad.Catch (catchAll)
 import Control.Monad.Extra
 import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
@@ -183,15 +183,18 @@ collectAuthMetrics env = do
 
 -- | Hourly janitor replacing the redis key TTL: deletes presence rows older
 -- than a week (leak guard for abnormally dead pods).  Never let a transient DB
--- error kill the thread — log and retry next hour.
+-- error kill the thread — log and retry next hour.  Async exceptions (e.g.
+-- 'AsyncCancelled' from 'Async.cancel' during shutdown) propagate because
+-- 'Control.Exception.Safe.catchAny' rethrows asynchronously-delivered
+-- exceptions and only handles synchronous ones.
 cleanupPresenceLoop :: Log.Logger -> Gundeck ()
 cleanupPresenceLoop logger =
   forever $
     (PresenceData.cleanup >> threadDelay cleanupInterval)
-      `catchAll` \e -> do
+      `catchAny` \e -> do
         liftIO . Log.err logger $
           Log.msg (Log.val "presence cleanup failed")
-            . Log.field "error" (displayException (e :: SomeException))
+            . Log.field "error" (displayException e)
         threadDelay cleanupInterval
 
 cleanupInterval :: Int

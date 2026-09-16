@@ -135,6 +135,7 @@ test-suite spec
   -- cabal-fmt: expand test
   other-modules:
     Main
+    Test.Wire.API.Federation.API.BackendNotificationsSpec
     Test.Wire.API.Federation.API.BrigSpec
     Test.Wire.API.Federation.API.GalleySpec
     Test.Wire.API.Federation.API.Util
@@ -149,6 +150,7 @@ test-suite spec
     Test.Wire.API.Federation.Golden.NewConnectionRequest
     Test.Wire.API.Federation.Golden.NewConnectionResponse
     Test.Wire.API.Federation.Golden.Runner
+    Test.Wire.API.Federation.Golden.UnsupportedVersionPolicy
 
   hs-source-dirs:     test
   default-extensions:

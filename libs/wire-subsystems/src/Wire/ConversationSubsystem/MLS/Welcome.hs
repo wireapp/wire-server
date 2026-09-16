@@ -48,7 +48,6 @@ import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
-import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -56,7 +55,6 @@ import Wire.Sem.Now qualified as Now
 
 sendWelcomes ::
   ( Member (FederationAPIAccess FederatorClient) r,
-    Member ExternalAccess r,
     Member P.TinyLog r,
     Member Now r,
     Member NotificationSubsystem r
@@ -79,10 +77,7 @@ sendWelcomes loc qusr con cids welcome = do
     convFrom (SubConv c _) = c
 
 sendLocalWelcomes ::
-  ( Member P.TinyLog r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Qualified ConvId ->
   Qualified UserId ->
   Maybe ConnId ->
@@ -100,8 +95,11 @@ sendLocalWelcomes qcnv qusr con now welcome lclients = do
             mempty
           $ tUnqualified lclients
   let e = Event qcnv Nothing (EventFromUser qusr) now Nothing $ EdMLSWelcome welcome.raw
-  runMessagePush lclients (Just qcnv) $
-    newMessagePush mempty con defMessageMetadata rcpts e
+  -- Fire-and-forget: delivery is asynchronous downstream of gundeck anyway;
+  -- blocking the commit-bundle response on the fan-out is wasted latency.
+  void $
+    pushNotificationAsync
+      (toPush (newMessagePush mempty con defMessageMetadata rcpts e))
 
 sendRemoteWelcomes ::
   ( Member (FederationAPIAccess FederatorClient) r,

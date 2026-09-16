@@ -1,0 +1,1 @@
+Meeting events (`meeting.create`, `meeting.update`, `meeting.delete`, `meeting.member-add`) are now delivered to all push channels, including native push (APNs/FCM), so offline or backgrounded clients learn about meeting changes via native push instead of waiting for the next foreground sync.

@@ -43,6 +43,7 @@ import Data.Tuple.Extra
 import Galley.Types.Error
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output
@@ -183,7 +184,8 @@ postMLSCommitBundle ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member Async r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -220,7 +222,8 @@ postMLSCommitBundleFromLocalUser ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member Async r
   ) =>
   Version ->
   Local UserId ->
@@ -257,7 +260,8 @@ postMLSCommitBundleToLocalConv ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member Async r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -325,7 +329,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     (events, newClients) <- case senderIdentity.index of
       Just _ -> do
         -- extract added/removed clients from bundle
-        (newIndexMap, action) <-
+        (newIndexMap, action, storedProposals) <-
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
@@ -358,6 +362,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             bundle.epoch
             action
             bundle.commit.value
+            storedProposals
         -- the sender client is included in the Add action on the first commit,
         -- but it doesn't need to get a welcome message, so we filter it out here
         let newClients = cmRemoveClient senderIdentity.client (paAdd action)

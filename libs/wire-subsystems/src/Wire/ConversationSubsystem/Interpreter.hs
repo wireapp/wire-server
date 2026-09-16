@@ -29,6 +29,7 @@ import Data.Qualified
 import Imports
 import Network.Wai.Utilities.JSONResponse (JSONResponse)
 import Polysemy
+import Polysemy.Async (Async)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource)
@@ -123,7 +124,8 @@ interpretConversationSubsystem ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member UserClientIndexStore r,
     Member (Input FanoutLimit) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member Async r
   ) =>
   InterpreterFor ConversationSubsystem r
 interpretConversationSubsystem = interpret $ \case
@@ -201,6 +203,14 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.onMLSMessageSent domain rmm
   FederationOnConversationUpdated domain cu ->
     mapErrors $ Federation.onConversationUpdated domain cu
+  FederationOnSystemMemberUpdate domain notification ->
+    mapErrors $ Federation.onSystemMemberUpdate domain notification
+  FederationOnSystemDelete domain notification ->
+    mapErrors $ Federation.onSystemDelete domain notification
+  FederationOnSystemAdminlessReminder domain notification ->
+    mapErrors $ Federation.onSystemAdminlessReminder domain notification
+  FederationOnAdminlessReminder domain notification ->
+    mapErrors $ Federation.onAdminlessReminder domain notification
   FederationOnUserDeleted domain udcn ->
     mapErrors $ Federation.onUserDeleted domain udcn
   PostOtrMessageUnqualified lusr con cnv ignore report msg ->
