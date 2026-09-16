@@ -76,6 +76,7 @@ module Data.Misc
     fromPlainTextPassword,
     plainTextPassword8Unsafe,
     plainTextPassword6Unsafe,
+    toPlainTextPassword8,
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
@@ -530,6 +531,9 @@ plainTextPassword8Unsafe = PlainTextPassword' . unsafeRange
 
 fromPlainTextPassword :: PlainTextPassword' t -> Text
 fromPlainTextPassword = fromRange . fromPlainTextPassword'
+
+toPlainTextPassword8 :: PlainTextPassword6 -> Maybe PlainTextPassword8
+toPlainTextPassword8 = fmap PlainTextPassword' . checked . fromPlainTextPassword
 
 newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
   {fromPlainTextPassword' :: Range minLen (1024 :: Nat) Text}
