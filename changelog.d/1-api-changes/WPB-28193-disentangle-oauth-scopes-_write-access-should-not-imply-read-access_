@@ -1,0 +1,1 @@
+Disentangle oauth scopes (write access should not imply read access).
