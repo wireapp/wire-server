@@ -82,6 +82,16 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.className` | `""` | **Required.** Name of the `GatewayClass` installed by the Envoy Gateway controller (e.g. `envoy`). Must match the `GatewayClass` object whose `spec.controllerName` is `gateway.envoyproxy.io/gatewayclass-controller`. |
 | `gateway.alpn.enabled` | `true` | Enables ALPN configuration via `ClientTrafficPolicy` to support HTTP/2 despite overlapping certificate SANs across multiple service listeners. When disabled, ALPN defaults to HTTP/1.1 only. |
 | `gateway.alpn.protocols` | `[h2, http/1.1]` | List of ALPN protocols to advertise to clients. Defaults to HTTP/2 with HTTP/1.1 fallback. |
+| `FIPS_202205_tls_profile` | `false` | Apply stock Envoy's FIPS_202205 negotiation policy, not a full BSI conformance guarantee; see [TLS profiles](#tls-profiles). |
+| `gateway.tls.enabled` | `true` | Configure TLS parameters on all HTTPS listeners. Must remain enabled with the FIPS profile. |
+| `gateway.tls.minVersion` | `"1.3"` | Minimum TLS version. Lowering to `"1.2"` also requires adding a classical key-agreement group. |
+| `gateway.tls.maxVersion` | `"1.3"` | Maximum TLS version. Same value set as `minVersion`. |
+| `gateway.tls.ciphers` | Four ECDHE ECDSA/RSA AES-GCM suites (see values) | TLS <=1.2 only. Omitted when minVersion is 1.3; does not constrain TLS 1.3 suites. |
+| `gateway.tls.ecdhCurves` | `[X25519MLKEM768]` | Hybrid PQ only; clients and the Envoy crypto library must support this group. No classical fallback. |
+| `gateway.tls.signatureAlgorithms` | `[]` | Optional signature preferences; also affects federation client authentication. |
+| `gateway.patchPolicies.xdsNameSchemeV2` | `false` | Match the controller runtime flag when targeting the FIPS listener patch. |
+| `gateway.extraHttpsListeners` | `[]` | Extra named HTTPS listeners on the same port, with `hostname` and optional `certificateSecretName`; useful for admin hostnames outside the API wildcard. Attach routes explicitly and issue a matching certificate. The FIPS patch covers these listeners too. |
+| `tls.extraDnsNames` | `[]` | Additional certificate SANs for companion routes on this Gateway. |
 | `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
@@ -89,7 +99,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.manageServiceType` | `true` | Shorthand that sets `envoyService.type` to `gateway.serviceType`. Disable when managing the service type via `gateway.envoyProxy.spec` directly. |
 | `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
 | `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
-| `gateway.proxyProtocol.enabled` | `false` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all listeners. Required when the upstream load balancer is configured to send PROXY protocol headers. |
+| `gateway.proxyProtocol.enabled` | `false` | Enables PROXY protocol on all listeners (via the Gateway-wide `ClientTrafficPolicy`). Required when the upstream load balancer is configured to send PROXY protocol headers. |
 | `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
 | `gateway.patchPolicies.targetGatewayClass` | `false` | When `true`, `EnvoyPatchPolicy` targets the `GatewayClass` instead of the `Gateway`. **Required when `gateway.envoyProxy.spec.mergeGateways: true`**: with merged Gateways, policies targeting a `Gateway` are not applied — they must target the `GatewayClass`. Leave `false` for single-Gateway deployments (e.g. integration tests). |
 | `gateway.controllerNamespace` | `envoy-gateway-system` | Can be ignored, relevant only for integration tests. Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
@@ -312,17 +322,135 @@ federator:
 
 ---
 
-### HTTP/2 support with ALPN ClientTrafficPolicy
+### One Gateway-wide ClientTrafficPolicy
 
-The chart creates a `ClientTrafficPolicy` resource that explicitly configures ALPN protocols when `gateway.alpn.enabled: true`. This is necessary because when a single certificate with multiple SANs is used across multiple listeners on the same port, Envoy would otherwise disable HTTP/2 as a safety measure to prevent connection coalescing attacks.
+ALPN, TLS parameters and PROXY protocol are all rendered into a *single*
+`ClientTrafficPolicy` (`<gateway>-client-traffic`): policies for the same target
+conflict rather than merge. Federation's section policy replaces the Gateway
+policy, so it repeats these settings alongside client-certificate validation.
 
-The policy sets `spec.tls.alpnProtocols` to:
+By default, explicit ALPN `[h2, http/1.1]` allows HTTP/2 even with overlapping
+certificate SANs across listeners, while retaining HTTP/1.1 support.
+
+### TLS profiles
+
+The default requires TLS 1.3 and `X25519MLKEM768` hybrid key agreement, including
+for federation clients. Clients without this group cannot connect. Without the
+FIPS profile, Envoy's TLS 1.3 cipher defaults (including ChaCha20) remain in effect.
+
+For an explicit TLS 1.2 compatibility profile, set both protocol and groups:
+
 ```yaml
-- h2        # HTTP/2
-- http/1.1  # HTTP/1.1 fallback
+gateway:
+  tls:
+    minVersion: "1.2"
+    ecdhCurves: [X25519MLKEM768, P-256, P-384]
 ```
 
-This allows HTTP/2 to be negotiated while maintaining support for older clients via HTTP/1.1 fallback.
+This uses the four ECDHE-ECDSA/RSA AES-128/256-GCM suites in `gateway.tls.ciphers`.
+Lowering the minimum alone is insufficient: TLS 1.2 also needs a classical group.
+
+#### FIPS_202205 profile and BSI TR-02102-2 limitations
+
+```yaml
+FIPS_202205_tls_profile: true
+gateway:
+  className: envoy
+  envoyProxy:
+    create: true
+  patchPolicies:
+    enabled: true
+    targetGatewayClass: false
+```
+
+The `FIPS_202205` patch overrides `gateway.tls` with AES-GCM, P-256/P-384 and
+TLS 1.2–1.3; it cannot be combined with TLS 1.3-only or PQ settings. Without a
+matching patch, the baseline permits only the fixed AES-GCM TLS 1.2 profile.
+This works with stock Envoy, but does not make the image FIPS-certified.
+
+The policy enables these six suites (OpenSSL names). An ECDSA-only server
+certificate leaves four: the two ECDSA TLS 1.2 suites and both TLS 1.3 suites.
+
+| TLS version | Cipher suite | Available with ECDSA-only server certificates |
+|---|---|---|
+| 1.2 | `ECDHE-ECDSA-AES128-GCM-SHA256` | Yes |
+| 1.2 | `ECDHE-ECDSA-AES256-GCM-SHA384` | Yes |
+| 1.2 | `ECDHE-RSA-AES128-GCM-SHA256` | No |
+| 1.2 | `ECDHE-RSA-AES256-GCM-SHA384` | No |
+| 1.3 | `TLS_AES_128_GCM_SHA256` | Yes |
+| 1.3 | `TLS_AES_256_GCM_SHA384` | Yes |
+
+All six are on the cipher allowlist in
+[BSI TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf?__blob=publicationFile),
+edition **2026-01**. In particular, Table 3 (page 7) recommends both TLS 1.2
+AES-128-GCM suites through 2031; they are **not** FIPS-only exceptions. Table 13
+recommends both TLS 1.3 suites. No client-side cipher exclusion is needed for
+this edition's cipher allowlist. More generally, restricting Wire clients
+cannot make a server reject a forbidden suite offered by another client.
+
+Requires `extensionApis.enableEnvoyPatchPolicy: true` and a dedicated, unmerged
+Gateway/EnvoyProxy. Tested with EG 1.8.3 / Envoy 1.38.3. Match
+`gateway.patchPolicies.xdsNameSchemeV2` to the controller runtime flag (false in
+EG 1.8). The patch covers all TLS filter chains on the HTTPS socket, including
+federation and extra listeners. EnvoyPatchPolicy is an unstable extension API:
+restrict write access, check Accepted/Programmed status and retest after upgrades.
+
+For **BSI TR-02102-2 conformance through the end of 2031** under edition 2026-01,
+enabling this profile is only the TLS-parameter step. Operators must also:
+
+- Use ECDSA P-256/P-384 server certificates on every listener, including externally
+  supplied certificates. The chart checks main certificates it issues, not external
+  secrets. The [BoringSSL policy](https://boringssl.googlesource.com/boringssl/+/HEAD/include/openssl/ssl.h)
+  still permits RSA PKCS#1 v1.5 handshake signatures and overrides signature
+  preferences; using an RSA server key would leave that unwanted option available.
+- Verify certificate chains use recommended signatures and key sizes (Sections
+  3.3.3, 3.4.3 and 3.6). **RSA PKCS#1 v1.5 ceased to be recommended after 2025**
+  for both TLS 1.2 handshake signatures and certificate signatures (Tables 7 and
+  12). This does not exclude RSA-PSS, which remains recommended. An ECDSA leaf
+  alone does not fix a PKCS#1-signed chain; do not assume the default Let's Encrypt
+  chain is suitable. The tested ECDSA chain was anchored at ISRG Root X2.
+- For federation/mTLS, also enforce approved client certificate chains and client
+  handshake signatures. An ECDSA server does not prevent RSA PKCS#1 client
+  authentication. Restrict client credentials to an approved ECDSA profile or
+  independently enforce the permitted signature schemes; the FIPS flag does not
+  enforce this restriction.
+- Audit every other public TLS terminator and the remaining TR requirements,
+  including authentication, key handling and random-number generation. This chart
+  does not establish whole-system conformance.
+
+The 2031 horizon applies to TLS 1.2 and classical-only P-256/P-384 key agreement
+(Tables 6 and 10), not just cipher suites. Plan migration before 2032 and review
+newer BSI editions; this profile is not a guarantee against future guideline changes.
+
+For operator acceptance, scan every public hostname for both allowed and
+forbidden suites, protocols, groups and signatures; verify the served certificate
+chain too. Repeat after proxy upgrades and certificate renewal. A rendered Helm
+policy or a Wire-client-only test is not evidence of server-side enforcement.
+
+The flag was renamed from `BSI_TR_02102_2_conformance` to describe the actual
+mechanism, not imply full conformance. Rename it in Helm values and Terraform
+inputs together. The chart rejects the old key, even if false; remove it from
+reused Helm values too. Existing `-bsi` resource names are retained to avoid churn.
+
+See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
+
+#### Classical fallback without the FIPS profile
+
+To allow classical TLS 1.3 clients without changing the cipher profile:
+
+```yaml
+gateway:
+  tls:
+    ecdhCurves: [X25519MLKEM768, X25519, P-256, P-384]
+```
+
+Verify with a PQ-capable client (OpenSSL 3.5+), including certificate validation:
+
+```sh
+openssl s_client -connect nginz-https.example.com:443 \
+  -servername nginz-https.example.com -verify_hostname nginz-https.example.com \
+  -verify_return_error -tls1_3 -groups X25519MLKEM768 -brief </dev/null
+```
 
 ### Federator mTLS uses Envoy Gateway policies
 
