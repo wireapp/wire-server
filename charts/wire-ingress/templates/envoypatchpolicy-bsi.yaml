@@ -1,6 +1,3 @@
-{{- if hasKey .Values "BSI_TR_02102_2_conformance" }}
-{{- fail "BSI_TR_02102_2_conformance was renamed to FIPS_202205_tls_profile; remove the old key (this profile does not guarantee full BSI conformance)" }}
-{{- end }}
 {{- if not (kindIs "bool" .Values.FIPS_202205_tls_profile) }}
 {{- fail "FIPS_202205_tls_profile must be a boolean" }}
 {{- end }}
