@@ -223,7 +223,7 @@ alpnProtocols:
   {{- end }}
 {{- end }}
 {{- if $tls.enabled }}
-{{- if .Values.BSI_TR_02102_2_conformance }}
+{{- if .Values.FIPS_202205_tls_profile }}
 # Safe baseline: only the compliance patch may enable TLS 1.3.
 minVersion: "1.2"
 maxVersion: "1.2"
