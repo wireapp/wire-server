@@ -127,9 +127,13 @@ type GetUserVerb v =
     'GET
     '[JSON]
     '[ ErrorResponse 'UserNotFound,
-       VersionedRespond v 200 "User found" UserProfile
+       VersionedRespond (ToVersion v) 200 "User found" UserProfile
      ]
     (Maybe UserProfile)
+
+type family ToVersion r where
+  ToVersion (Until (v :: Version)) = Prev v
+  ToVersion (From (v :: Version)) = v
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -166,25 +170,25 @@ type UserAPI =
         :> ZLocalUser
         :> "users"
         :> CaptureUserId "uid"
-        :> GetUserVerb 'V17
+        :> GetUserVerb (Until 'V19)
     )
     :<|> Named
-           "get-user-qualified@V17"
+           "get-user-qualified@V18"
            ( Summary "Get a user by Domain and UserId"
-               :> Until 'V18
+               :> Until 'V19
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
-               :> GetUserVerb 'V17
+               :> GetUserVerb (Until 'V19)
            )
     :<|> Named
            "get-user-qualified"
            ( Summary "Get a user by Domain and UserId"
-               :> From 'V18
+               :> From 'V19
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
-               :> GetUserVerb 'V18
+               :> GetUserVerb (From 'V19)
            )
     :<|> Named
            "update-user-email"

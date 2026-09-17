@@ -557,8 +557,9 @@ data UserProfile = UserProfile
 instance ToSchema UserProfile where
   schema = object $ userProfileObjectSchema Nothing
 
-instance ToSchema (Versioned 'V17 UserProfile) where
-  schema = Versioned <$> unVersioned .= object (userProfileObjectSchema (Just V17))
+instance ToSchema (Versioned 'V19 UserProfile) where
+  schema :: ValueSchema NamedSwaggerDoc (Versioned V19 UserProfile)
+  schema = Versioned <$> unVersioned .= object (userProfileObjectSchema (Just V19))
 
 instance ToSchema (Versioned 'V18 UserProfile) where
   schema :: ValueSchema NamedSwaggerDoc (Versioned V18 UserProfile)
@@ -604,7 +605,7 @@ userProfileObjectSchema mVersion =
     profilePict =
       case mVersion of
         Just v
-          | v > V17 -> pure noPict
+          | v > V18 -> pure noPict
         _ -> const noPict .= (field "picture" schema <|> pure noPict)
 
 data ContactStatusState
