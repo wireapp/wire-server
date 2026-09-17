@@ -26,6 +26,7 @@ import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
+import Data.GenericEnum
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
 import Data.Json.Util
@@ -196,49 +197,70 @@ instance ToSchema OAuthResponseType where
 -- However, having this typed makes it easier to handle scopes in the backend,
 -- and e.g. provide more meaningful error messages when the scope is invalid.
 data OAuthScope
-  = ReadFeatureConfigs
-  | ReadSelf
-  | WriteConversations
-  | WriteConversationsCode
-  | WriteConversationsName
-  | WriteMeetings
-  | AdminMeetings
-  deriving (Eq, Show, Generic, Ord, Bounded, Enum)
+  = FeatureConfigs OAuthTier
+  | Self OAuthTier
+  | Conversations OAuthTier
+  | ConversationsCode OAuthTier
+  | ConversationsName OAuthTier
+  | Meetings OAuthTier
+  deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
+  deriving (Bounded, Enum) via (GenericEnum OAuthScope)
+
+-- `Write` implies `Read`, `Admin` implies `Write`.
+data OAuthTier = Read | Write | Admin
+  deriving (Eq, Show, Generic, Ord, Bounded, Enum)
+  deriving (Arbitrary) via (GenericUniform OAuthTier)
+
+-- | Reflect a type-level 'OAuthTier' (as used in the routing tables via
+-- 'Wire.API.Routes.Public.DescriptionOAuthScope') down to the value level.
+class IsOAuthTier (t :: OAuthTier) where
+  toOAuthTier :: OAuthTier
+
+instance IsOAuthTier 'Read where
+  toOAuthTier = Read
+
+instance IsOAuthTier 'Write where
+  toOAuthTier = Write
+
+instance IsOAuthTier 'Admin where
+  toOAuthTier = Admin
 
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
 
-instance IsOAuthScope 'WriteConversations where
-  toOAuthScope = WriteConversations
+instance (IsOAuthTier t) => IsOAuthScope ('Conversations t) where
+  toOAuthScope = Conversations (toOAuthTier @t)
 
-instance IsOAuthScope 'WriteConversationsCode where
-  toOAuthScope = WriteConversationsCode
+instance (IsOAuthTier t) => IsOAuthScope ('ConversationsCode t) where
+  toOAuthScope = ConversationsCode (toOAuthTier @t)
 
-instance IsOAuthScope 'ReadSelf where
-  toOAuthScope = ReadSelf
+instance (IsOAuthTier t) => IsOAuthScope ('Self t) where
+  toOAuthScope = Self (toOAuthTier @t)
 
-instance IsOAuthScope 'ReadFeatureConfigs where
-  toOAuthScope = ReadFeatureConfigs
+instance (IsOAuthTier t) => IsOAuthScope ('FeatureConfigs t) where
+  toOAuthScope = FeatureConfigs (toOAuthTier @t)
 
-instance IsOAuthScope 'WriteConversationsName where
-  toOAuthScope = WriteConversationsName
+instance (IsOAuthTier t) => IsOAuthScope ('ConversationsName t) where
+  toOAuthScope = ConversationsName (toOAuthTier @t)
 
-instance IsOAuthScope 'WriteMeetings where
-  toOAuthScope = WriteMeetings
+instance (IsOAuthTier t) => IsOAuthScope ('Meetings t) where
+  toOAuthScope = Meetings (toOAuthTier @t)
 
-instance IsOAuthScope 'AdminMeetings where
-  toOAuthScope = AdminMeetings
+instance ToByteString OAuthTier where
+  builder = \case
+    Read -> "read"
+    Write -> "write"
+    Admin -> "admin"
 
 instance ToByteString OAuthScope where
   builder = \case
-    WriteConversations -> "write:conversations"
-    WriteConversationsCode -> "write:conversations_code"
-    WriteConversationsName -> "write:conversations_name"
-    WriteMeetings -> "write:meetings"
-    AdminMeetings -> "admin:meetings"
-    ReadSelf -> "read:self"
-    ReadFeatureConfigs -> "read:feature_configs"
+    FeatureConfigs t -> builder t <> ":feature_configs"
+    Self t -> builder t <> ":self"
+    Conversations t -> builder t <> ":conversations"
+    ConversationsCode t -> builder t <> ":conversations_code"
+    ConversationsName t -> builder t <> ":conversations_name"
+    Meetings t -> builder t <> ":meetings"
 
 instance FromByteString OAuthScope where
   parser = do
