@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -49,7 +50,6 @@ import Servant.API (toUrlPiece)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Text.Regex.TDFA ((=~))
-import Wire.API.OAuth (OAuthScope)
 import Wire.API.Routes.Public (renderOAuthScope)
 import Wire.API.Routes.Public.Swagger (devVersion, devVersionSwagger)
 import Wire.API.Routes.Version
@@ -59,7 +59,6 @@ tests =
   testGroup
     "OAuth scopes (charts/nginz/values.yaml vs. swagger docs)"
     [ testCase "nginz path patterns avoid PCRE-only constructs" testPatternVocabulary,
-      testCase "every nginz oauth_scope names a real scope" testScopeNamesAreReal,
       testCase "enforced scopes and documented scopes agree" testScopesAgree
     ]
 
@@ -78,29 +77,47 @@ newtype NginzLocations = NginzLocations [Location]
 
 data Location = Location
   { locPattern :: Text,
-    locScope :: Maybe Text
+    locOldScope :: Maybe Text,
+    locNewScopes :: [Text]
   }
 
--- | The scope an OAuth token needs to get past nginz to this endpoint.
+-- | The scopes that get an OAuth token past nginz to this endpoint.
 --
--- libzauth accepts a whole tier range per method, so a token holding
--- @admin:meetings@ may also @POST@.  Documenting every accepted scope would be
--- noise, and would force @POST@ to be annotated with both @write:@ and
--- @admin:@; what the docs should name is the /least/ privilege that suffices,
--- so we take the lowest tier that is actually grantable.
---
--- Empty when nginz requires no scope, and also when no tier it would accept is
--- in 'Wire.API.OAuth.OAuthScope' -- then the endpoint cannot be reached with an
--- OAuth token at all and there is nothing to document.  Mistyped scope names
--- are caught by 'testScopeNamesAreReal'.
---
--- FUTUREWORK(fisx): https://wearezeta.atlassian.net/browse/WPB-28193
-enforcedScopes :: Text -> Text -> Set Text
-enforcedScopes method path =
-  maybe Set.empty Set.singleton $ do
-    loc <- find (`locationMatches` path) nginzLocations
-    base <- locScope loc
-    find (`Set.member` grantableScopes) [tier <> ":" <> base | tier <- methodScopeTiers method]
+-- Empty when nginz requires no scope, and also when it requires one
+-- not in 'Wire.API.OAuth.OAuthScopes'.  Mistyped scope names are
+-- caught by 'testScopeNamesAreReal'.
+enforcedScope :: Text -> Text -> Maybe Text
+enforcedScope method path = do
+  loc <- find locationMatches nginzLocations
+  case loc.locOldScope of
+    Just s -> Just (methodScopeTier method <> ":" <> s)
+    Nothing -> find (methodScopeTier method `T.isPrefixOf`) loc.locNewScopes
+  where
+    -- Does this location capture that path?  nginx anchors regex locations at the
+    -- start of the URI but not at the end, so a pattern without a trailing @$@
+    -- matches every path with that prefix.
+    --
+    -- The patterns are PCRE (that is what nginx uses) and we match them with
+    -- regex-tdfa, which is POSIX ERE.  The two agree on the handful of constructs
+    -- values.yaml actually uses; 'testPatternVocabulary' keeps it that way.
+    locationMatches :: Location -> Bool
+    locationMatches loc =
+      T.unpack (probePath path) =~ T.unpack ("^" <> locPattern loc)
+
+    -- @/conversations/{cnv}/code@ becomes @/conversations/PARAM/code@: the literal
+    -- segments still have to match, the captures must not.
+    probePath :: Text -> Text
+    probePath t =
+      let (before, rest) = T.breakOn "{" t
+       in if T.null rest
+            then before
+            else before <> "PARAM" <> probePath (T.drop 1 (T.dropWhile (/= '}') rest))
+
+    methodScopeTier :: Text -> Text
+    methodScopeTier "GET" = "read"
+    methodScopeTier "POST" = "write"
+    methodScopeTier "PUT" = "write"
+    methodScopeTier "DELETE" = "admin"
 
 nginzLocations :: [Location]
 nginzLocations =
@@ -141,58 +158,60 @@ instance A.FromJSON NginzLocations where
         <> Map.restrictKeys extra (Set.fromList (enabled :: [Text]))
 
 instance A.FromJSON Location where
-  parseJSON = A.withObject "nginz upstream entry" $ \o ->
-    Location <$> o A..: "path" <*> o A..:? "oauth_scope"
+  parseJSON = A.withObject "nginz upstream entry" $ \o -> do
+    path <- o A..: "path"
+    oldScope :: Maybe Text <- do
+      s <- o A..:? "oauth_scope"
+      forM s validateOldScope
+    newScopes :: [Text] <- do
+      s <- o A..:? "oauth_scopes" A..!= []
+      forM s validateNewScope
+    pure (Location path oldScope newScopes)
 
--- | Does this location capture that path?  nginx anchors regex locations at the
--- start of the URI but not at the end, so a pattern without a trailing @$@
--- matches every path with that prefix.
---
--- The patterns are PCRE (that is what nginx uses) and we match them with
--- regex-tdfa, which is POSIX ERE.  The two agree on the handful of constructs
--- values.yaml actually uses; 'testPatternVocabulary' keeps it that way.
-locationMatches :: Location -> Text -> Bool
-locationMatches loc path =
-  T.unpack (probePath path) =~ T.unpack ("^" <> locPattern loc)
+validateOldScope :: (MonadFail m) => Text -> m Text
+validateOldScope s = if allowed then pure s else fail ("unknown scope: " <> show s)
+  where
+    allowed =
+      s
+        `elem` [ "feature_configs",
+                 "self",
+                 "conversations",
+                 "conversations_code",
+                 "conversations_name",
+                 "meetings"
+               ]
 
--- | @/conversations/{cnv}/code@ becomes @/conversations/PARAM/code@: the literal
--- segments still have to match, the captures must not.
-probePath :: Text -> Text
-probePath t =
-  let (before, rest) = T.breakOn "{" t
-   in if T.null rest
-        then before
-        else before <> "PARAM" <> probePath (T.drop 1 (T.dropWhile (/= '}') rest))
+-- | NB: this could be re-written in terms of `data OAuth{Scope,Tier}`
+-- to auto-re-align it with changes, but at the time of writing, the
+-- changes to the data type had not been implemented yet.
+validateNewScope :: (MonadFail m) => Text -> m Text
+validateNewScope s = if allowed then pure s else fail ("unknown scope: " <> show s)
+  where
+    allowed = t && n
+      where
+        t =
+          T.takeWhile (/= ':') s `elem` ["read", "write", "admin"]
+        n =
+          T.dropWhile (/= ':') s
+            `elem` [ ":feature_configs",
+                     ":self",
+                     ":conversations",
+                     ":conversations_code",
+                     ":conversations_name",
+                     ":meetings"
+                   ]
 
 pcreOnlyConstructs :: [Text]
 pcreOnlyConstructs = ["(?", "\\", "{", "*?", "+?"]
 
--- | @oauth_scope: foo@ in values.yaml names a scope without a tier; libzauth
--- decides which tiers satisfy it from the request method.  See @verify_scope@ in
--- @libs/libzauth/libzauth/src/oauth.rs@.  Listed in increasing order of
--- privilege: 'enforcedScopes' takes the first grantable one, so this order
--- decides which scope an endpoint gets documented with.
-methodScopeTiers :: Text -> [Text]
-methodScopeTiers = \case
-  "GET" -> ["read", "write", "admin"]
-  "POST" -> ["write", "admin"]
-  "PUT" -> ["write", "admin"]
-  "DELETE" -> ["admin"]
-  _ -> []
-
 --------------------------------------------------------------------------------
 -- what the swagger docs claim
 
-documentedScopes :: Text -> Set Text
-documentedScopes descr =
-  Set.fromList
-    [ T.decodeUtf8 (toByteString' scope)
-    | scope <- [minBound .. maxBound] :: [OAuthScope],
-      -- Recognise a documented scope by the very string
-      -- 'renderOAuthScope' produces, so that the two cannot drift
-      -- apart.
-      renderOAuthScope scope `T.isInfixOf` descr
-    ]
+documentedScope :: Text -> Maybe Text
+documentedScope descr = enc <$> find prop [minBound ..]
+  where
+    enc = T.decodeUtf8 . toByteString'
+    prop = (`T.isInfixOf` descr) . renderOAuthScope
 
 httpMethods :: [Text]
 httpMethods = ["GET", "PUT", "POST", "DELETE", "OPTIONS", "HEAD", "PATCH", "TRACE"]
@@ -219,21 +238,14 @@ data Finding = Finding
   { fVersion :: Version,
     fMethod :: Text,
     fPath :: Text,
-    fEnforced :: Set Text,
-    fDocumented :: Set Text
+    fEnforced :: Maybe Text,
+    fDocumented :: Maybe Text
   }
-
--- | The scopes brig can actually issue.  Anything else is not a scope at all:
--- 'Wire.API.OAuth.OAuthScopes' fails to parse it, and yields the empty scope set
--- for the whole request.
-grantableScopes :: Set Text
-grantableScopes =
-  Set.fromList [T.decodeUtf8 (toByteString' s) | s <- [minBound .. maxBound] :: [OAuthScope]]
 
 renderFinding :: Finding -> Text
 renderFinding f =
   T.intercalate
-    "\t"
+    "   "
     [ toUrlPiece (fVersion f),
       fMethod f,
       fPath f,
@@ -245,8 +257,8 @@ findings :: [Finding]
 findings =
   [ Finding devVersion method path enforced documented
   | (path, method, descr) <- operations (A.toJSON devVersionSwagger),
-    let enforced = enforcedScopes method path,
-    let documented = documentedScopes descr,
+    let enforced = enforcedScope method path,
+    let documented = documentedScope descr,
     enforced /= documented
   ]
 
@@ -265,20 +277,6 @@ testPatternVocabulary =
             <> bad
             <> "', which nginx reads as PCRE but this test matches with regex-tdfa, "
             <> "i.e. POSIX ERE.  The two may disagree, which would be bad."
-
--- | 'enforcedScopes' ignores scopes brig cannot issue, so a typo in an
--- @oauth_scope:@ would otherwise make every endpoint under it drop silently out
--- of the comparison.  Require that each name is usable at some tier.
-testScopeNamesAreReal :: Assertion
-testScopeNamesAreReal =
-  for_ (nub (mapMaybe locScope nginzLocations)) $ \base ->
-    unless (any (\tier -> (tier <> ":" <> base) `Set.member` grantableScopes) ["read", "write", "admin"]) $
-      assertFailure . T.unpack $
-        "charts/nginz/values.yaml: 'oauth_scope: "
-          <> base
-          <> "' matches no scope in Wire.API.OAuth.OAuthScope at any tier, so no "
-          <> "OAuth token can ever satisfy it and every endpoint under that "
-          <> "location is closed to OAuth.\nEither fix the name, or add the scope."
 
 testScopesAgree :: Assertion
 testScopesAgree = do
