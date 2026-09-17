@@ -1,6 +1,8 @@
 # Default values for wire-ingress
-# Opt into stock Envoy's FIPS_202205 TLS policy (EG 1.8.3 / Envoy 1.38.3 tested).
-# This is NOT FIPS certification or a guarantee of BSI TR-02102-2 conformance.
+# BSI TR-02102-2 (2026-01): TLS profile for the recommendation period through 2031.
+# https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf?__blob=publicationFile
+# Uses stock Envoy FIPS_202205 (EG 1.8.3 / Envoy 1.38.3 tested); the flag alone
+# does NOT establish BSI conformance or FIPS certification.
 # Overrides gateway.tls: TLS 1.2–1.3, P-256/P-384, and these cipher suites:
 # TLS 1.2:
 #   ECDHE-ECDSA-AES128-GCM-SHA256
@@ -11,12 +13,20 @@
 #   TLS_AES_128_GCM_SHA256
 #   TLS_AES_256_GCM_SHA384
 # ECDSA-only server certificates leave the two ECDSA TLS 1.2 + both TLS 1.3 suites.
-# ALL SIX are allowlisted in BSI TR-02102-2, edition 2026-01 (Tables 3 and 13),
-# including both TLS 1.2 AES-128-GCM suites: no client cipher exclusion is needed.
-# FIPS_202205 also permits RSA PKCS#1 handshake signatures. Issued main server
-# certificates must use ECDSA; audit external certificates, all certificate chains
-# and federation client authentication separately (see README, TLS profiles).
-# Client restrictions do not restrict what the server accepts from other clients.
+# All six suites are BSI-allowlisted (Tables 3 and 13), including AES-128-GCM.
+# For BSI TR-02102-2 conformance through the end of 2031, also:
+# - Use ECDSA P-256/P-384 server certificates on EVERY listener, including external
+#   secrets, and verify certificate chains use recommended signatures/key sizes.
+# - Exclude RSA PKCS#1 v1.5 handshake AND certificate signatures: their BSI
+#   recommendation expired at the end of 2025 (Tables 7 and 12). RSA-PSS is still
+#   recommended; RSA as a whole is not obsolete. FIPS_202205 still permits PKCS#1
+#   v1.5 and overrides signature preferences, hence ECDSA-only server certificates.
+# - For federation/mTLS, enforce approved client certificates/chains and handshake
+#   signatures too; an ECDSA server certificate does not constrain client auth.
+# - Verify all public TLS endpoints and the remaining TR requirements separately;
+#   see README, TLS profiles. Client restrictions are not server-side enforcement.
+# TLS 1.2 and classical-only P-256/P-384 key agreement are recommended only through
+# 2031 in this edition. Plan migration before 2032 and review newer BSI editions.
 # Requires an owned, unmerged Gateway/EnvoyProxy and enabled EnvoyPatchPolicy API.
 # Does not configure other TLS terminators or outbound connections.
 FIPS_202205_tls_profile: false
