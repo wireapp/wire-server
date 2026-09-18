@@ -225,7 +225,7 @@ type UserAPI =
                     'GET
                     '[JSON]
                     '[ ErrorResponse 'HandleNotFound,
-                       VersionedRespond (Until 'V19) 200 "User found" UserProfile
+                       VersionedRespond (ToVersion (Until 'V19)) 200 "User found" UserProfile
                      ]
                     (Maybe (Versioned (ToVersion (Until 'V19)) UserProfile))
            )
