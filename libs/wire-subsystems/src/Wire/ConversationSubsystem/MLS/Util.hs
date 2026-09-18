@@ -28,7 +28,7 @@ import Data.Text qualified as T
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Resource (Resource, bracket)
+import Polysemy.Resource (Resource, bracket, bracketOnError)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
@@ -123,24 +123,47 @@ withCommitLock lConvOrSubId gid epoch =
               Nothing
             throwS @'MLSStaleMessage
       )
-      (const $ releaseCommitLock gid epoch)
       ( const $ do
-          actualEpoch <-
-            fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
-              Conv cnv -> getConversationEpoch cnv
-              SubConv cnv sub -> getSubConversationEpoch cnv sub
-          unless (actualEpoch == epoch) $ do
-            logStaleCommitLock
-              "commit-lock-epoch-mismatch"
-              lConvOrSubId
-              gid
-              epoch
-              (Just actualEpoch)
-            throwS @'MLSStaleMessage
-          k ()
+          bracketOnError
+            (releaseCommitLock gid epoch)
+            (const $ logCommitLockFailure "release" lConvOrSubId gid epoch)
+      )
+      ( const $
+          bracketOnError
+            ( do
+                actualEpoch <-
+                  fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
+                    Conv cnv -> getConversationEpoch cnv
+                    SubConv cnv sub -> getSubConversationEpoch cnv sub
+                unless (actualEpoch == epoch) $ do
+                  logStaleCommitLock
+                    "commit-lock-epoch-mismatch"
+                    lConvOrSubId
+                    gid
+                    epoch
+                    (Just actualEpoch)
+                  throwS @'MLSStaleMessage
+                k ()
+            )
+            (const $ logCommitLockFailure "operation" lConvOrSubId gid epoch)
       )
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes
+
+logCommitLockFailure ::
+  (Member TinyLog r) =>
+  ByteString ->
+  Local ConvOrSubConvId ->
+  GroupId ->
+  Epoch ->
+  Sem r ()
+logCommitLockFailure phase lConvOrSubId gid epoch =
+  TinyLog.warn $
+    Log.msg ("MLS commit lock operation failed" :: ByteString)
+      . Log.field "phase" phase
+      . Log.field "groupId" ("0x" <> hex (unGroupId gid))
+      . Log.field "epoch" (epochNumber epoch)
+      . Log.field "convOrSubConvId" (toByteString' (show (tUnqualified lConvOrSubId)))
 
 logStaleCommitLock ::
   (Member TinyLog r) =>
