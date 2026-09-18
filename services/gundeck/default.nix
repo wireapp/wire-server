@@ -22,14 +22,14 @@
 , conduit
 , containers
 , criterion
+, crypton-x509-store
 , data-timeout
 , errors
 , exceptions
 , extended
 , extra
 , foldl
-, hasql
-, hasql-th
+, hedis
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , HsOpenSSL
@@ -37,6 +37,7 @@
 , http-client-tls
 , http-types
 , imports
+, kan-extensions
 , lens
 , lens-aeson
 , lib
@@ -45,6 +46,7 @@
 , MonadRandom
 , mtl
 , multiset
+, network
 , network-uri
 , optparse-applicative
 , prometheus-client
@@ -77,7 +79,6 @@
 , unliftio
 , unordered-containers
 , uuid
-, vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
@@ -85,7 +86,6 @@
 , websockets
 , wire-api
 , wire-otel
-, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -110,14 +110,14 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    crypton-x509-store
     data-timeout
     errors
     exceptions
     extended
     extra
     foldl
-    hasql
-    hasql-th
+    hedis
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     http-client
@@ -148,14 +148,12 @@ mkDerivation {
     unliftio
     unordered-containers
     uuid
-    vector
     wai
     wai-extra
     wai-middleware-gunzip
     wai-utilities
     wire-api
     wire-otel
-    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
@@ -175,8 +173,10 @@ mkDerivation {
     http-client
     http-client-tls
     imports
+    kan-extensions
     lens
     lens-aeson
+    network
     network-uri
     optparse-applicative
     random
@@ -191,6 +191,7 @@ mkDerivation {
     tinylog
     types-common
     uuid
+    wai-utilities
     websockets
     wire-api
     yaml

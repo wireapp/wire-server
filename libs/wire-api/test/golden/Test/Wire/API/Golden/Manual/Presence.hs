@@ -35,6 +35,7 @@ testObject_Presence_1 =
     (fromJust $ parse "http://example.com/")
     Nothing
     0
+    ""
 
 testObject_Presence_2 :: Presence
 testObject_Presence_2 =
@@ -44,6 +45,7 @@ testObject_Presence_2 =
     (fromJust $ parse "http://example.com/3")
     (Just (ClientId 1))
     12323
+    "" -- __field always has to be "", see ToSchema instance.
 
 testObject_Presence_3 :: Presence
 testObject_Presence_3 =
@@ -53,3 +55,4 @@ testObject_Presence_3 =
     (fromJust $ parse "http://example.com/3")
     (Just (ClientId 1))
     0
+    "" -- __field always has to be "", see ToSchema instance.

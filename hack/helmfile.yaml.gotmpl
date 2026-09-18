@@ -114,6 +114,15 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
+  - name: 'redis-ephemeral'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/redis-ephemeral'
+    values:
+      - './helm_vars/wire-image-mirror.yaml'
+      - './helm_vars/redis-ephemeral/values.yaml'
+    needs:
+      - certs
+
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/cassandra-ephemeral'
@@ -137,6 +146,15 @@ releases:
           issuerRef:
             name: elasticsearch
             kind: Issuer
+
+  - name: 'redis-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/redis-ephemeral'
+    values:
+      - './helm_vars/wire-image-mirror.yaml'
+      - './helm_vars/redis-ephemeral/values.yaml'
+    needs:
+      - certs
 
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
@@ -197,6 +215,22 @@ releases:
     version: "1.31.0"
     values:
       - './helm_vars/opensearch/values.yaml.gotmpl'
+
+  # Required for testing redis migration
+  - name: redis-ephemeral-2
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/redis-ephemeral'
+    values:
+      - redis-ephemeral:
+          image:
+            registry: public.ecr.aws
+            repository: docker/library/redis
+
+          redisConfig: |
+            requirepass very-secure-redis-master-password-2
+
+            # ephemeral
+            save ""
 
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
@@ -324,6 +358,7 @@ releases:
         value: true
     needs:
       - 'cassandra-ephemeral'
+      - 'redis-ephemeral'
       - 'postgresql'
 
   - name: 'wire-server'
@@ -341,6 +376,7 @@ releases:
         value: {{ .Values.federationDomain2 }}
     needs:
       - 'cassandra-ephemeral'
+      - 'redis-ephemeral'
       - 'postgresql'
 
   - name: wire-server-enterprise

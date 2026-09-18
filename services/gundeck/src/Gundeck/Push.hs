@@ -122,7 +122,7 @@ instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
   mpaCellsEventQueue = view (options . settings . cellsEventQueue)
   mpaMkNotificationId = mkNotificationId
-  mpaListAllPresences = Presence.listAll
+  mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
   mpaStreamAdd = Data.add
   mpaPushNative = pushNative

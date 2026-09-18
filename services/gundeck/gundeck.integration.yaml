@@ -13,17 +13,18 @@ cassandra:
   keyspace: gundeck_test
   # filterNodesByDatacentre: datacenter1
 
-postgresql:
-  host: 127.0.0.1
-  port: "5432"
-  user: wire-server
-  dbname: backendA
-  password: posty-the-gres
+redis:
+  host: 172.20.0.31
+  port: 6373
+  connectionMode: cluster # master | cluster
+  enableTls: true
+  tlsCa: ../../deploy/dockerephemeral/docker/redis-ca.pem
+  insecureSkipVerifyTls: false
 
-postgresqlPool:
-  size: 20
-  acquisitionTimeout: 10s
-  idlenessTimeout: 10m
+# redisAdditionalWrite:
+#   host: 127.0.0.1
+#   port: 6379
+#   connectionMode: master
 
 aws:
   queueName: integration-gundeck-events
