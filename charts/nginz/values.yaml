@@ -795,7 +795,7 @@ nginx_conf:
     - path: /meetings/([^/]*)/([^/]*)$
       envs:
       - all
-      oauth_scopes: ["write-only:meetings", "delete-only:meetings"]
+      oauth_scopes: []  # TODO: this will be `["write-only:meetings", "delete-only:meetings"]` soon, according to https://wearezeta.atlassian.net/browse/WPB-28194
     - path: /meetings/(.*)
       envs:
       - all
