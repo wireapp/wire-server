@@ -39,3 +39,18 @@ type ISearchIndexAPI =
                :> Capture "userId" UserId
                :> Post '[JSON] NoContent
            )
+    :<|> Named
+           "bump-write-time-and-update-search-index"
+           ( Summary "updates the search index for a single user, forcing the document version to advance"
+               :> Description
+                    "Use this instead of `update-search-index` when the change that needs to be \
+                    \indexed does not live in the user record itself (currently: team \
+                    \collaborations).  The index version is derived from the user record, so \
+                    \without bumping it the updated document would be rejected as a version \
+                    \conflict."
+               :> "index"
+               :> "update"
+               :> Capture "userId" UserId
+               :> "bump-write-time"
+               :> Post '[JSON] NoContent
+           )
