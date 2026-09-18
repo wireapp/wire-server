@@ -37,6 +37,8 @@ import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.API.Routes.Version (Version (V18))
+import Wire.API.Routes.Versioned (Versioned (..))
 
 tests :: TestTree
 tests =
@@ -137,7 +139,7 @@ testUserProfile = do
             profileSearchable = True,
             profileContactStatus = Nothing
           }
-  let profileJSONAsText = show $ Aeson.encode userProfile
+  let profileJSONAsText = show $ Aeson.encode (Versioned @V18 userProfile)
   let msg = "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
   assertBool msg (not $ "null" `isInfixOf` profileJSONAsText)
 
