@@ -90,8 +90,8 @@ enforcedScope :: Text -> Text -> Maybe Text
 enforcedScope method path = do
   loc <- find locationMatches nginzLocations
   case loc.locOldScope of
-    Just s -> Just (methodScopeTier method <> ":" <> s)
-    Nothing -> find (methodScopeTier method `T.isPrefixOf`) loc.locNewScopes
+    Just s -> Just (oldMethodScopeTier method <> ":" <> s)
+    Nothing -> find (newMethodScopeTier method `T.isPrefixOf`) loc.locNewScopes
   where
     -- Does this location capture that path?  nginx anchors regex locations at the
     -- start of the URI but not at the end, so a pattern without a trailing @$@
@@ -113,11 +113,17 @@ enforcedScope method path = do
             then before
             else before <> "PARAM" <> probePath (T.drop 1 (T.dropWhile (/= '}') rest))
 
-    methodScopeTier :: Text -> Text
-    methodScopeTier "GET" = "read"
-    methodScopeTier "POST" = "write"
-    methodScopeTier "PUT" = "write"
-    methodScopeTier "DELETE" = "admin"
+    oldMethodScopeTier :: Text -> Text
+    oldMethodScopeTier "GET" = "read"
+    oldMethodScopeTier "POST" = "write"
+    oldMethodScopeTier "PUT" = "write"
+    oldMethodScopeTier "DELETE" = "admin"
+
+    newMethodScopeTier :: Text -> Text
+    newMethodScopeTier "GET" = "read"
+    newMethodScopeTier "POST" = "write-only"
+    newMethodScopeTier "PUT" = "write-only"
+    newMethodScopeTier "DELETE" = "delete-only"
 
 nginzLocations :: [Location]
 nginzLocations =
@@ -169,7 +175,7 @@ instance A.FromJSON Location where
     pure (Location path oldScope newScopes)
 
 validateOldScope :: (MonadFail m) => Text -> m Text
-validateOldScope s = if allowed then pure s else fail ("unknown scope: " <> show s)
+validateOldScope s = if allowed then pure s else fail ("unknown old scope: " <> show s)
   where
     allowed =
       s
@@ -185,12 +191,12 @@ validateOldScope s = if allowed then pure s else fail ("unknown scope: " <> show
 -- to auto-re-align it with changes, but at the time of writing, the
 -- changes to the data type had not been implemented yet.
 validateNewScope :: (MonadFail m) => Text -> m Text
-validateNewScope s = if allowed then pure s else fail ("unknown scope: " <> show s)
+validateNewScope s = if allowed then pure s else fail ("unknown new scope: " <> show s)
   where
     allowed = t && n
       where
         t =
-          T.takeWhile (/= ':') s `elem` ["read", "write", "admin"]
+          T.takeWhile (/= ':') s `elem` ["read", "write-only", "delete-only"]
         n =
           T.dropWhile (/= ':') s
             `elem` [ ":feature_configs",
