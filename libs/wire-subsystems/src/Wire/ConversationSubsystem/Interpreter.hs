@@ -26,6 +26,7 @@ module Wire.ConversationSubsystem.Interpreter
 where
 
 import Data.Qualified
+import Data.Text qualified as Text
 import Imports
 import Network.Wai.Utilities.JSONResponse (JSONResponse)
 import Polysemy
@@ -33,7 +34,7 @@ import Polysemy.Async (Async)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource)
-import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog (TinyLog, logErrors)
 import Wire.API.Conversation.Config
 import Wire.API.Error
 import Wire.API.Federation.Client (FederatorClient)
@@ -86,6 +87,9 @@ import Wire.TeamStore (TeamStore)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
+
+renderConversationSubsystemError :: ConversationSubsystemError -> Text
+renderConversationSubsystemError = Text.pack . show . (toResponse :: ConversationSubsystemError -> JSONResponse)
 
 interpretConversationSubsystem ::
   ( Member MeetingNotifier r,
@@ -152,9 +156,15 @@ interpretConversationSubsystem = interpret $ \case
   InternalGetLocalMember cid uid ->
     mapErrors $ ConvStore.getLocalMember cid uid
   PostMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle ->
-    mapErrors $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle
+    logErrors @_ @ConversationSubsystemError
+      renderConversationSubsystemError
+      "MLS commit bundle failed"
+      (mapErrors $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle)
   PostMLSCommitBundleFromLocalUser v lusr c conn bundle ->
-    mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle
+    logErrors @_ @ConversationSubsystemError
+      renderConversationSubsystemError
+      "MLS commit bundle failed"
+      (mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle)
   PostMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg ->
     mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
   PostMLSMessageFromLocalUser v lusr c conn smsg ->
