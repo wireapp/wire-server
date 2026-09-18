@@ -552,16 +552,21 @@ data UserProfile = UserProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserProfile)
 
-instance ToSchema UserProfile where
-  schema = object $ userProfileObjectSchema Nothing
+-- deriving via Schema (Versioned V18 UserProfile) instance S.ToSchema UserProfile
 
-instance ToSchema (Versioned 'V19 UserProfile) where
+-- deriving via Schema (Versioned V18 UserProfile) instance A.ToJSON UserProfile
+-- deriving via Schema (Versioned V18 UserProfile) instance A.FromJSON UserProfile
+
+-- deriving via Schema (Versioned V18 UserProfile) instance S.ToSchema (Versioned V18 UserProfile)
+
+-- deriving via Schema (Versioned V18 UserProfile) instance S.ToSchema (Versioned V18 UserProfile)
+
+instance ToSchema (Versioned V19 UserProfile) where
   schema :: ValueSchema NamedSwaggerDoc (Versioned V19 UserProfile)
   schema = Versioned <$> unVersioned .= object (userProfileObjectSchema (Just V19))
 
-instance ToSchema (Versioned 'V18 UserProfile) where
+instance ToSchema (Versioned V18 UserProfile) where
   schema :: ValueSchema NamedSwaggerDoc (Versioned V18 UserProfile)
   schema = Versioned <$> unVersioned .= object (userProfileObjectSchema (Just V18))
 
@@ -2137,14 +2142,29 @@ instance ToSchema SupportedProtocolUpdate where
           .= field "supported_protocols" (set schema)
 
 ------- Partial Successes
-data ListUsersById = ListUsersById
-  { listUsersByIdFound :: [UserProfile],
+data ListUsersById v = ListUsersById
+  { listUsersByIdFound :: [Versioned v UserProfile],
     listUsersByIdFailed :: Maybe (NonEmpty (Qualified UserId))
   }
   deriving (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ListUsersById
 
-instance ToSchema ListUsersById where
+deriving via (Schema (ListUsersById 'V18)) instance S.ToSchema (ListUsersById 'V18)
+
+deriving via (Schema (ListUsersById 'V19)) instance S.ToSchema (ListUsersById 'V19)
+
+deriving via (Schema (ListUsersById 'V19)) instance A.ToJSON (ListUsersById 'V19)
+deriving via (Schema (ListUsersById 'V19)) instance A.FromJSON (ListUsersById 'V19)
+
+instance ToSchema (ListUsersById 'V18) where
+  schema :: ValueSchema NamedSwaggerDoc (ListUsersById 'V18)
+  schema =
+    object $
+      ListUsersById
+        <$> listUsersByIdFound .= field "found" (array schema)
+        <*> listUsersByIdFailed .= maybe_ (optField "failed" $ nonEmptyArray schema)
+
+instance ToSchema (ListUsersById 'V19) where
+  schema :: ValueSchema NamedSwaggerDoc (ListUsersById 'V19)
   schema =
     object $
       ListUsersById
@@ -2226,14 +2246,31 @@ instance ToSchema PutApp where
         <*> (.category) .= maybe_ (optField "category" schema)
         <*> (.description) .= maybe_ (optField "description" schema)
 
-data CreatedApp = CreatedApp
-  { user :: UserProfile,
+data CreatedApp v = CreatedApp
+  { user :: (Versioned v UserProfile),
     cookie :: SomeUserToken
   }
   deriving stock (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
 
-instance ToSchema CreatedApp where
+deriving via (Schema (CreatedApp 'V18)) instance S.ToSchema (CreatedApp 'V18)
+deriving via (Schema (CreatedApp 'V19)) instance S.ToSchema (CreatedApp 'V19)
+
+deriving via (Schema (CreatedApp 'V19)) instance A.ToJSON (CreatedApp 'V19)
+deriving via (Schema (CreatedApp 'V19)) instance A.FromJSON (CreatedApp 'V19)
+
+deriving via (Schema (CreatedApp 'V18)) instance A.ToJSON (CreatedApp 'V18)
+deriving via (Schema (CreatedApp 'V18)) instance A.FromJSON (CreatedApp 'V18)
+
+instance ToSchema (CreatedApp V18) where
+  schema :: ValueSchema NamedSwaggerDoc (CreatedApp V18)
+  schema =
+    object $
+      CreatedApp
+        <$> (.user) .= field "user" schema
+        <*> (.cookie) .= field "cookie" schema
+
+instance ToSchema (CreatedApp V19) where
+  schema :: ValueSchema NamedSwaggerDoc (CreatedApp V19)
   schema =
     object $
       CreatedApp

@@ -105,6 +105,7 @@ type BotAPI =
     :<|> Named
            "bot-get-self"
            ( Summary "Get self"
+               :> Until V19
                :> CanThrow 'UserNotFound
                :> CanThrow 'AccessDenied
                :> ZBot
