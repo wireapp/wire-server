@@ -811,7 +811,7 @@ config:
             collabora:
               edition: COOL
             storage:
-              totalLimitBytes: "1000000000000" # 1 TB
+              totalLimitBytes: "-1"
               perUserQuotaBytes: "-1"
 ```
 
@@ -1319,6 +1319,37 @@ brig:
 `setChallengeTTL` defines how long a domain verification challenge should be
 stored. The challenge (`StoredDomainVerificationChallenge`) will be deleted
 after this period.
+
+### SSO Settings
+
+#### `setSsoIdpChangeDetectionInputs`
+
+When the reported `ssoIdpChangeDetectionEnabled` is `true`, the authenticated
+`GET /system/settings` endpoint tells clients to compare the stored SSO IdP ID
+with the IdP ID used for the current login and to keep existing locally
+decrypted messages when they match. When false or absent, clients treat an IdP
+change as before. Only the authenticated endpoint reports this field; the
+public `/system/settings/unauthorized` endpoint does not.
+
+Brig derives `ssoIdpChangeDetectionEnabled` from these raw spar inputs: it
+reports `true` iff `multiIngressDomainConfigs` and
+`idpCertFingerprintAllowlist` are both non-empty. The wire-server Helm chart
+renders them from `spar.config`; deployments outside the chart should mirror
+their spar multi-ingress configuration, and the absence of this setting
+disables the feature.
+
+```default
+# [brig.yaml]
+optSettings:
+  setSsoIdpChangeDetectionInputs:
+    multiIngressDomainConfigs:
+      nginz-https.example.com:
+        appUri: https://webapp.example.com
+        ssoUri: https://nginz-https.example.com/sso
+    idpCertFingerprintAllowlist:
+      - "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD"
+```
+
 
 ## Settings in cargohold
 
@@ -2187,6 +2218,7 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
+- `user` -> `migrateUsers`
 
 **Migration pattern per migration setting**
 
@@ -2205,13 +2237,15 @@ The current settings and their background-worker flags are:
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
-         domainRegistration: cassandra
+         domainRegistration: migration-to-postgresql
+         user: migration-to-postgresql
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migrateUsers: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2226,6 +2260,7 @@ The current settings and their background-worker flags are:
        migrateConversationCodes: true
        migrateTeamFeatures: true
        migrateDomainRegistration: true
+       migrateUsers: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2241,6 +2276,16 @@ The current settings and their background-worker flags are:
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
+   - `user`: `wire_user_migration_finished`
+
+   > ⚠️ For user migrations please watch the logs for `Invalid user found,
+   > skipping`. This would be accompanied by an error which is either
+   > `UserHasNoName` or `UserHasNoActivated`. These users are invalid and all
+   > interactions with them were resulting in errors. If these warnings are
+   > ignored, these users will stop existing in the system. If these users are
+   > to be saved, the operator must insert some value as `name` and/or
+   > `activated` and then re-trigger the migration **after** the background
+   > worker finishes migrating the valid users.
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2253,13 +2298,15 @@ The current settings and their background-worker flags are:
          conversation: postgresql
          conversationCodes: postgresql
          teamFeatures: postgresql
-         domainRegistration: cassandra
+         domainRegistration: postgresql
+         user: postgresql
    background-worker:
      config:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
        migrateDomainRegistration: false
+       migrateUsers: false
    ```
 
 **How to run migrations independently or in batches**

@@ -90,7 +90,7 @@ runAllMigrations pool logger = do
 
     unlockNonTransactionMigration :: Hasql.Statement Int64 ()
     unlockNonTransactionMigration =
-      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
+      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint)) AS t|]
 
     -- We don't have to use 'bracket' here because failing in the session should
     -- cause the session to drop and any acquired locks get automatically

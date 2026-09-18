@@ -35,6 +35,7 @@ import Servant.Client.Core.RunClient (RunClient)
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Federation.HasNotificationEndpoint
 
 type HasBrigFederationAccess m r =
   ( Member (FederationAPIAccess m) r,
@@ -88,3 +89,24 @@ runFederatedConcurrently ::
 runFederatedConcurrently rx c = do
   results <- runFederatedConcurrentlyEither rx c
   fromEither $ mapLeft snd $ sequence results
+
+allRemoteBackendsSupportNotification ::
+  forall tag fedM f x r.
+  ( Member (FederationAPIAccess fedM) r,
+    HasVersionRange tag,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM,
+    Foldable f,
+    Functor f
+  ) =>
+  f (Remote x) ->
+  Sem r Bool
+allRemoteBackendsSupportNotification remoteBackends = do
+  results <-
+    runFederatedConcurrentlyEither remoteBackends $ \_ ->
+      fedClient @'Brig @"api-version" ()
+  pure $ all supports results
+  where
+    supports (Right versionInfo) = supportsNotificationVersion @tag (tUnqualified versionInfo)
+    supports (Left _) = False

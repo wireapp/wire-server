@@ -47,3 +47,41 @@ testGetSettingsInternal (MkTagged enableMls) = do
     getSystemSettingsInternal user `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "setEnableMls" `shouldMatch` fromMaybe False enableMls
+
+testGetSettingsInternalSsoIdpChangeDetection ::
+  (HasCallStack) =>
+  Tagged "sso-idp-change-detection" (Maybe Bool) ->
+  App ()
+testGetSettingsInternalSsoIdpChangeDetection (MkTagged multiIngress) = do
+  let conf =
+        def
+          { brigCfg =
+              maybe
+                (removeField "optSettings.setSsoIdpChangeDetectionInputs")
+                (setField "optSettings.setSsoIdpChangeDetectionInputs" . sparInputs)
+                multiIngress
+          }
+  withModifiedBackend conf \domain -> do
+    user <- randomUser domain def
+    getSystemSettingsInternal user `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      -- Brig derives the flag in Haskell from the raw inputs: true iff both the
+      -- multi-ingress domain configs and the IdP cert fingerprint allowlist are
+      -- non-empty (Brig.Options.deriveSsoIdpChangeDetectionEnabled); absent
+      -- inputs mean disabled. The tag enumerates Nothing/Just False/Just True
+      -- (GEnum), so `fromMaybe` — not `fromJust`.
+      resp.json %. "ssoIdpChangeDetectionEnabled" `shouldMatch` fromMaybe False multiIngress
+    getSystemSettingsPublic domain `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      lookupField resp.json "ssoIdpChangeDetectionEnabled" `shouldMatch` (Nothing :: Maybe Value)
+
+-- | Minimal mirror of @spar.config@: 'True' is a multi-ingress spar (non-empty
+-- @domainConfigs@ and allowlist); 'False' is single-ingress spar (both empty).
+sparInputs :: Bool -> Value
+sparInputs multiIngress =
+  object
+    [ "multiIngressDomainConfigs"
+        .= if multiIngress then object ["example.com" .= object []] else object [],
+      "idpCertFingerprintAllowlist"
+        .= if multiIngress then ["00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33" :: String] else ([] :: [String])
+    ]

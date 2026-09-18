@@ -34,6 +34,10 @@ module Wire.API.Federation.API
     -- * Re-exports
     Component (..),
     makeConversationUpdateBundle,
+    makeSystemMemberUpdateBundle,
+    makeSystemDeleteBundle,
+    makeSystemAdminlessReminderBundle,
+    makeAdminlessReminderBundle,
   )
 where
 

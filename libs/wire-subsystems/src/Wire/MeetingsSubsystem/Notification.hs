@@ -31,6 +31,8 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.NotificationSubsystem
 
 -- | Build the common push event structure used by all meeting lifecycle events.
+-- Delivered to all channels including native push (APNs/FCM), matching the
+-- regular-conversation event convention (RouteAny).
 mkMeetingEventPush ::
   UTCTime ->
   Qualified UserId ->
@@ -55,6 +57,6 @@ mkMeetingEventPush now qUser conn recipients qConvId mTeamId meetingType qMeetin
               evtTeam = mTeamId
             },
       recipients = recipients,
-      route = PushV2.RouteDirect,
+      route = PushV2.RouteAny,
       conn
     }

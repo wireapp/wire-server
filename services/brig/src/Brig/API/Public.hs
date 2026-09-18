@@ -236,10 +236,11 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V18)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V19)) =
   swaggerSchemaUIServer $
     devVersionSwagger
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
+versionedSwaggerDocsAPI (Just (VersionNumber V18)) = swaggerPregenUIServer $(pregenSwagger V18)
 versionedSwaggerDocsAPI (Just (VersionNumber V17)) = swaggerPregenUIServer $(pregenSwagger V17)
 versionedSwaggerDocsAPI (Just (VersionNumber V16)) = swaggerPregenUIServer $(pregenSwagger V16)
 versionedSwaggerDocsAPI (Just (VersionNumber V15)) = swaggerPregenUIServer $(pregenSwagger V15)
@@ -1673,7 +1674,12 @@ getSystemSettingsInternal = do
           { setRestrictUserCreation = fromMaybe False optSettings.restrictUserCreation,
             nomadProfiles = optSettings.nomadProfiles
           }
-      iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
+      iSettings =
+        SystemSettingsInternal
+          { ssiSetEnableMls = fromMaybe False optSettings.enableMLS,
+            ssiSetSsoIdpChangeDetectionEnabled =
+              deriveSsoIdpChangeDetectionEnabled optSettings.ssoIdpChangeDetectionInputs
+          }
   pure $ SystemSettings pSettings iSettings
 
 authorizeTeam ::

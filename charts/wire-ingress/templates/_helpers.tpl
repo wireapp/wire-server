@@ -86,7 +86,9 @@ Multi-domain: `config.domains` is a list; the FIRST entry is the primary
 (its resources keep the un-suffixed names, and its frontend apps set their own
 CSP so no CSP is injected). Every additional entry gets a `-<name>` suffix, its
 own Gateway listener (`https-<name>`), its own certificate/secret, and — being
-an "additional ingress" — a per-domain CSP header injected on the app routes.
+an "additional ingress" — a per-domain CSP header injected on the team-settings
+route. The webapp and account-pages routes never get an injected CSP: those
+apps set multi-ingress aware headers themselves (see the httproute templates).
 
 Each entry has: suffix, section, hostname, https, ssl, webapp, teamSettings,
 accountPages, fakeS3, base, secretName, certName, issuerName, issuerKind,
@@ -182,6 +184,10 @@ This mirrors the approximation the legacy nginx-ingress-services chart injected
 for multi-ingress domains (charts/nginx-ingress-services/templates/ingress.yaml),
 where the primary domain's frontend apps set CSP themselves but additional
 domains need the header set at the front door.
+
+Only the team-settings route uses this. The webapp and account-pages routes are
+excluded, matching the `$skip_csp` hosts in the nginx chart's snippet, because
+those apps emit correct per-domain headers on their own.
 
 Call with a dict: {https, ssl, base, websockets (bool)}.
 */}}

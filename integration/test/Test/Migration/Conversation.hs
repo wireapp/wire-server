@@ -99,6 +99,7 @@ testMigrationToPostgresMLS = do
         runPhase 5
   where
     n = 1
+
     createTestConvs :: (HasCallStack) => ClientIdentity -> String -> ClientIdentity -> ClientIdentity -> [ClientIdentity] -> App TestConvList
     createTestConvs creatorC tid melC markC othersC = do
       unmodifiedConvs <- replicateM n $ do

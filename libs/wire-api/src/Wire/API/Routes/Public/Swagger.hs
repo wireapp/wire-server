@@ -48,7 +48,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 -- 'S.OpenApi' has to be assembled at a statically known version.
 devVersion :: Version
 devVersion =
-  if maxBound == V18
+  if maxBound == V19
     then maxBound
     else
       -- if you get this error, you also need to update the version literals below.
@@ -60,15 +60,15 @@ devVersion =
 -- @info.description@, so setting it afterwards is equivalent.
 devVersionSwagger :: S.OpenApi
 devVersionSwagger =
-  ( serviceSwagger @VersionAPITag @'V18
-      <> serviceSwagger @BrigAPITag @'V18
-      <> serviceSwagger @GalleyAPITag @'V18
-      <> serviceSwagger @SparAPITag @'V18
-      <> serviceSwagger @CargoholdAPITag @'V18
-      <> serviceSwagger @CannonAPITag @'V18
-      <> serviceSwagger @GundeckAPITag @'V18
-      <> serviceSwagger @ProxyAPITag @'V18
-      <> serviceSwagger @OAuthAPITag @'V18
+  ( serviceSwagger @VersionAPITag @'V19
+      <> serviceSwagger @BrigAPITag @'V19
+      <> serviceSwagger @GalleyAPITag @'V19
+      <> serviceSwagger @SparAPITag @'V19
+      <> serviceSwagger @CargoholdAPITag @'V19
+      <> serviceSwagger @CannonAPITag @'V19
+      <> serviceSwagger @GundeckAPITag @'V19
+      <> serviceSwagger @ProxyAPITag @'V19
+      <> serviceSwagger @OAuthAPITag @'V19
   )
     & S.info . S.title .~ "Wire-Server API"
     & S.servers .~ [S.Server ("/" <> toUrlPiece devVersion) Nothing mempty]

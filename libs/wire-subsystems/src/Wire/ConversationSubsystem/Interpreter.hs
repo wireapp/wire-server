@@ -25,14 +25,18 @@ module Wire.ConversationSubsystem.Interpreter
   )
 where
 
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as AT
 import Data.Qualified
+import Data.Text qualified as Text
 import Imports
-import Network.Wai.Utilities.JSONResponse (JSONResponse)
+import Network.Wai.Utilities.JSONResponse (JSONResponse (..))
 import Polysemy
+import Polysemy.Async (Async)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource)
-import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog (TinyLog, logErrors)
 import Wire.API.Conversation.Config
 import Wire.API.Error
 import Wire.API.Federation.Client (FederatorClient)
@@ -86,6 +90,14 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 
+renderConversationSubsystemError :: ConversationSubsystemError -> Text
+renderConversationSubsystemError errorValue =
+  let response = toResponse errorValue
+      label = case response.value of
+        A.Object object -> fromMaybe "unknown" (AT.parseMaybe (A..: "label") object)
+        _ -> "unknown"
+   in "status=" <> Text.pack (show response.status) <> " label=" <> label
+
 interpretConversationSubsystem ::
   ( Member MeetingNotifier r,
     Member (Error ConversationSubsystemError) r,
@@ -123,7 +135,8 @@ interpretConversationSubsystem ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member UserClientIndexStore r,
     Member (Input FanoutLimit) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member Async r
   ) =>
   InterpreterFor ConversationSubsystem r
 interpretConversationSubsystem = interpret $ \case
@@ -150,9 +163,15 @@ interpretConversationSubsystem = interpret $ \case
   InternalGetLocalMember cid uid ->
     mapErrors $ ConvStore.getLocalMember cid uid
   PostMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle ->
-    mapErrors $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle
+    logErrors @_ @ConversationSubsystemError
+      renderConversationSubsystemError
+      "MLS commit bundle failed"
+      (mapErrors $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle)
   PostMLSCommitBundleFromLocalUser v lusr c conn bundle ->
-    mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle
+    logErrors @_ @ConversationSubsystemError
+      renderConversationSubsystemError
+      "MLS commit bundle failed"
+      (mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle)
   PostMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg ->
     mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
   PostMLSMessageFromLocalUser v lusr c conn smsg ->
@@ -201,6 +220,14 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.onMLSMessageSent domain rmm
   FederationOnConversationUpdated domain cu ->
     mapErrors $ Federation.onConversationUpdated domain cu
+  FederationOnSystemMemberUpdate domain notification ->
+    mapErrors $ Federation.onSystemMemberUpdate domain notification
+  FederationOnSystemDelete domain notification ->
+    mapErrors $ Federation.onSystemDelete domain notification
+  FederationOnSystemAdminlessReminder domain notification ->
+    mapErrors $ Federation.onSystemAdminlessReminder domain notification
+  FederationOnAdminlessReminder domain notification ->
+    mapErrors $ Federation.onAdminlessReminder domain notification
   FederationOnUserDeleted domain udcn ->
     mapErrors $ Federation.onUserDeleted domain udcn
   PostOtrMessageUnqualified lusr con cnv ignore report msg ->

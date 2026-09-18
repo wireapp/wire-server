@@ -32,6 +32,7 @@ type InternalAPI =
   "i"
     :> ( Named "i_status" ("status" :> Get '[JSON] NoContent)
            :<|> Named "i_delete_team" ("teams" :> Capture "team" TeamId :> DeleteNoContent)
+           :<|> Named "i_delete_scim_user" ("scim" :> "users" :> Capture "team" TeamId :> Capture "user" UserId :> DeleteNoContent)
            :<|> Named "i_put_sso_settings" ("sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent)
            :<|> Named "i_post_scim_user_info" ("scim" :> "userinfo" :> Capture "user" UserId :> Post '[JSON] ScimUserInfo)
            :<|> Named "i_get_identity_providers" ("identity-providers" :> Capture "team" TeamId :> Get '[JSON] IdPList)

@@ -29,8 +29,11 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
+import Galley.Types.Error (InternalError (..))
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Async qualified as P
 import Polysemy.Error
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -50,7 +53,9 @@ checkClients ::
     Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSClientMismatch) r,
     Member (ErrorS MLSIdentityMismatch) r,
-    Member (Error MLSProtocolError) r
+    Member (Error MLSProtocolError) r,
+    Member (Error InternalError) r,
+    Member Async r
   ) =>
   Local ConvOrSubConv ->
   CipherSuiteTag ->
@@ -59,9 +64,35 @@ checkClients ::
 checkClients lConvOrSub ciphersuite newCM = do
   let convOrSub = tUnqualified lConvOrSub
       cm = convOrSub.members
-  fmap catMaybes . forM (Map.assocs (unClientMap newCM)) $
-    \(qtarget, newclients) -> do
-      mClientData <- getClientData lConvOrSub ciphersuite qtarget
+      assocs = Map.assocs (unClientMap newCM)
+  -- Fetch client data from brig concurrently. getClientData is total with
+  -- respect to 'FederationError' (hushed inside getClientData): an inner
+  -- 'Nothing' is a legitimate "user unreachable" result.
+  --
+  -- sequenceConcurrently attaches an outer 'Maybe' to every child result.
+  -- Under galley's production stack (asyncToIOFinal below pure
+  -- runError/mapError interpreters, cf. Galley.App), an 'Error'-effect
+  -- thrown inside a spawned child (e.g. RpcException/ParseException from
+  -- interpretBrigAccess) is forwarded by the in-thread mapError handlers
+  -- to the residual error, whose interpreter sits outside the async
+  -- boundary; Polysemy collapses the child result to 'Nothing'. That is a
+  -- crashed child, not "no client data", and must abort the commit with
+  -- an internal error instead of being conflated with the unreachable
+  -- case.
+  --
+  -- Validation below runs serially so that Error-effect throws abort the
+  -- whole commit exactly as in the fully serial implementation.
+  mClientDatas <-
+    P.sequenceConcurrently $
+      flip fmap assocs $ \(qtarget, _) ->
+        getClientData lConvOrSub ciphersuite qtarget
+  clientDatas <-
+    forM mClientDatas $
+      maybe
+        (throw (InternalErrorWithDescription "Concurrent brig client-data fetch failed while processing commit"))
+        pure
+  fmap catMaybes . forM (zip assocs clientDatas) $
+    \((qtarget, newclients), mClientData) -> do
       unreachable <- case (mClientData, cmLookup qtarget cm) of
         -- user is already present, skip check in this case
         (_, Just existingClients) -> do
@@ -103,9 +134,9 @@ checkClients lConvOrSub ciphersuite newCM = do
           pure False
 
       -- Check that new leaf nodes are using the registered signature keys.
-      for_ mClientData $ \clientData ->
+      for_ mClientData $ \cd ->
         for_ (Map.assocs newclients) $ \(cid, (_, mKp)) ->
-          checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid clientData.infoMap)
+          checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid cd.infoMap)
 
       pure $ guard unreachable $> qtarget
 

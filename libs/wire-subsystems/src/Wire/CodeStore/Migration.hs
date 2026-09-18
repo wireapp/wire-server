@@ -32,12 +32,12 @@ import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async
+import Polysemy.AtomicState
 import Polysemy.Conc (interpretRace)
 import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
 import Polysemy.Input
 import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
-import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -53,7 +53,7 @@ import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 type EffectStack =
-  [ State Int,
+  [ AtomicState Int,
     Input ClientState,
     Input Hasql.Pool,
     Input (Either HttpsUrl (Map Domain HttpsUrl)),
@@ -97,7 +97,7 @@ interpreter cassClient pgPool logger name =
     . runInputConst (Right mempty)
     . runInputConst pgPool
     . runInputConst cassClient
-    . runState 0
+    . atomicStateToIO 0
 
 migrateAllCodes ::
   ( Member (Input Hasql.Pool) r,
@@ -105,7 +105,7 @@ migrateAllCodes ::
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member TinyLog r,
-    Member (State Int) r,
+    Member (AtomicState Int) r,
     Member Resource r,
     Member Race r
   ) =>

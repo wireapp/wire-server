@@ -63,6 +63,14 @@ data:
       {{- end }}
     {{- end }}
 
+    {{- if .postgresql }}
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+    {{- if hasKey $.Values.gundeck.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/gundeck/secrets/pgPassword
+    {{- end }}
+    {{- end }}
+
     # Gundeck uses discovery for AWS access key / secrets
     # For more details, check amazonka's documentation at:
     # https://hackage.haskell.org/package/amazonka-1.4.5/docs/Network-AWS.html#t:Credentials

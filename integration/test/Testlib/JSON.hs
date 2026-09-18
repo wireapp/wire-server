@@ -26,6 +26,7 @@ import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Key as KM
+import Data.Aeson.KeyMap (KeyMap)
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString (ByteString)
@@ -319,6 +320,11 @@ modifyField selector up x = do
       newValue <- go k2 ks val
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
+
+modifyObject :: (HasCallStack, MakesValue a) => (KeyMap Value -> KeyMap Value) -> a -> App Value
+modifyObject f x = do
+  ob <- asObject x
+  pure . Object $ f ob
 
 -- | `removeField "a.b" {"a": {"b": 3}, "c": true} == {"a": {}, "c": true}`
 removeField :: (HasCallStack, MakesValue a) => String -> a -> App Value
