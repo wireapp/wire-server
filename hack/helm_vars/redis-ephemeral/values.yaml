@@ -1,0 +1,47 @@
+redis-ephemeral:
+  image:
+    registry: public.ecr.aws
+    repository: docker/library/redis
+
+  redisConfig: |
+    requirepass very-secure-redis-master-password
+
+    # ephemeral
+    save ""
+
+    port 0
+    tls-port 6379
+    tls-cert-file /data/ssl/tls.crt
+    tls-key-file /data/ssl/tls.key
+    tls-ca-cert-file /data/ssl/ca.crt
+    tls-auth-clients no
+
+  extraRedisSecrets:
+    - name: redis-certificate
+      mountPath: /data/ssl
+
+  livenessProbe:
+    enabled: false
+  customLivenessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+  readinessProbe:
+    enabled: false
+  customReadinessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+  startupProbe:
+    enabled: false
+  customStartupProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+

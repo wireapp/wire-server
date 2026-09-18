@@ -30,7 +30,7 @@ import Data.Proxy
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import Gundeck.Options
+import Gundeck.Options hiding (host, port)
 import Imports hiding (local)
 import Metrics qualified
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -52,7 +52,8 @@ data IntegrationConfig = IntegrationConfig
   { gundeck :: Endpoint,
     cannon :: Endpoint,
     cannon2 :: Endpoint,
-    brig :: Endpoint
+    brig :: Endpoint,
+    redis2 :: RedisEndpoint
   }
   deriving (Show, Generic)
 
@@ -113,6 +114,6 @@ main = withOpenSSL $ runTests go
           b = BrigR $ mkRequest iConf.brig
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra (gConf ^. cassandra) lg
-      pure $ TestSetup m g c c2 b db lg
-    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
+      pure $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
     releaseOpts _ = pure ()
+    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
