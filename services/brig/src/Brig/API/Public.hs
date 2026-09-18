@@ -443,12 +443,13 @@ servantSitemap =
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" getUserUnqualifiedH
-        :<|> Named @"get-user-qualified@V18" getUserProfileH
+        :<|> Named @"get-user-qualified@v18" getUserProfileH
         :<|> Named @"get-user-qualified" getUserProfileH
         :<|> Named @"update-user-email" updateUserEmail
         :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
         :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
+        :<|> Named @"list-users-by-ids-or-handles@v18" listUsersByIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles@V3" listUsersByIdsOrHandlesV3
         :<|> Named @"send-verification-code" sendVerificationCode
@@ -629,8 +630,10 @@ servantSitemap =
 
     appsAPI :: ServerT AppsAPI (Handler r)
     appsAPI =
-      Named @"create-app" createApp
+      Named @"create-app@v18" createApp
+        :<|> Named @"create-app" createApp
         :<|> Named @"get-app" getApp
+        :<|> Named @"get-apps@v18" getApps
         :<|> Named @"get-apps" getApps
         :<|> Named @"put-app" putApp
         :<|> Named @"refresh-app-cookie" refreshAppCookie

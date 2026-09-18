@@ -30,6 +30,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.Routes.Version
 import Wire.Error
 
 data AppSubsystemConfig = AppSubsystemConfig
@@ -59,7 +60,7 @@ appSubsystemErrorToHttpError =
     AppSubsystemErrorNoApp -> Wai.mkError status404 "app-not-found" "App not found"
 
 data AppSubsystem m a where
-  CreateApp :: Local UserId -> TeamId -> NewApp -> AppSubsystem m CreatedApp
+  CreateApp :: Local UserId -> TeamId -> NewApp -> AppSubsystem m (CreatedApp V19)
   GetApp :: Local UserId -> TeamId -> UserId -> AppSubsystem m AppInfo
   GetApps :: Local UserId -> TeamId -> AppSubsystem m [(UserId, AppInfo)]
   UpdateApp :: Local UserId -> TeamId -> UserId -> PutApp -> AppSubsystem m ()

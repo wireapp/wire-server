@@ -62,6 +62,7 @@ module Wire.API.Routes.Version
     Until,
     From,
     Prev,
+    ToVersion,
 
     -- * Versioned schema-profunctor things.
     versionedObject,
@@ -110,8 +111,14 @@ data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
 
+-- Type family to be used in endpoints to reflect usage of Until and From
+-- and is used to give information to `toSchema` instances
+type family ToVersion r where
+  ToVersion (Until (v :: Version)) = Prev v
+  ToVersion (From (v :: Version)) = v
+
 type family Prev (v :: Version) where
-  Prev V0 = TypeError (GHC.TypeError.Text "Oh noes")
+  Prev V0 = TypeError (GHC.TypeError.Text "There is no version before V0.")
   Prev V1 = V0
   Prev V2 = V1
   Prev V3 = V2
