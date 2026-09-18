@@ -25,10 +25,12 @@ module Wire.ConversationSubsystem.Interpreter
   )
 where
 
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as AT
 import Data.Qualified
 import Data.Text qualified as Text
 import Imports
-import Network.Wai.Utilities.JSONResponse (JSONResponse)
+import Network.Wai.Utilities.JSONResponse (JSONResponse (..))
 import Polysemy
 import Polysemy.Async (Async)
 import Polysemy.Error
@@ -89,7 +91,12 @@ import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 
 renderConversationSubsystemError :: ConversationSubsystemError -> Text
-renderConversationSubsystemError = Text.pack . show . (toResponse :: ConversationSubsystemError -> JSONResponse)
+renderConversationSubsystemError errorValue =
+  let response = toResponse errorValue
+      label = case response.value of
+        A.Object object -> fromMaybe "unknown" (AT.parseMaybe (A..: "label") object)
+        _ -> "unknown"
+   in "status=" <> Text.pack (show response.status) <> " label=" <> label
 
 interpretConversationSubsystem ::
   ( Member MeetingNotifier r,
