@@ -93,7 +93,7 @@ instance
   responseUnrender c = fmap unVersioned . responseUnrender @cs @(Respond s desc (Versioned v a)) c
 
 instance
-  (KnownSymbol desc, S.ToSchema a, SingI v, ToSchema (Versioned v a), Typeable v) =>
+  (KnownSymbol desc, S.ToSchema (Versioned v a)) =>
   IsSwaggerResponse (VersionedRespond (v :: Version) s desc a)
   where
   responseSwagger = simpleResponseSwagger @(Versioned v a) @'[JSON] @desc

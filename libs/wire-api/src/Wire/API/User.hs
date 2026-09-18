@@ -221,6 +221,8 @@ import Wire.API.Password
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
@@ -531,8 +533,6 @@ data UserProfile = UserProfile
   { profileQualifiedId :: Qualified UserId,
     profileName :: Name,
     profileTextStatus :: Maybe TextStatus,
-    -- | DEPRECATED
-    profilePict :: Pict,
     profileAssets :: [Asset],
     profileAccentId :: ColourId,
     profileDeleted :: Bool,
@@ -552,13 +552,26 @@ data UserProfile = UserProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserProfile)
 
-instance ToSchema UserProfile where
-  schema = object userProfileObjectSchema
+-- deriving via Schema (Versioned V18 UserProfile) instance S.ToSchema UserProfile
 
-userProfileObjectSchema :: ObjectSchema SwaggerDoc UserProfile
-userProfileObjectSchema =
+-- deriving via Schema (Versioned V18 UserProfile) instance A.ToJSON UserProfile
+-- deriving via Schema (Versioned V18 UserProfile) instance A.FromJSON UserProfile
+
+-- deriving via Schema (Versioned V18 UserProfile) instance S.ToSchema (Versioned V18 UserProfile)
+
+-- deriving via Schema (Versioned V18 UserProfile) instance S.ToSchema (Versioned V18 UserProfile)
+
+instance ToSchema (Versioned V19 UserProfile) where
+  schema :: ValueSchema NamedSwaggerDoc (Versioned V19 UserProfile)
+  schema = Versioned <$> unVersioned .= object (userProfileObjectSchema (Just V19))
+
+instance ToSchema (Versioned V18 UserProfile) where
+  schema :: ValueSchema NamedSwaggerDoc (Versioned V18 UserProfile)
+  schema = Versioned <$> unVersioned .= object (userProfileObjectSchema (Just V18))
+
+userProfileObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc UserProfile
+userProfileObjectSchema mVersion =
   UserProfile
     <$> profileQualifiedId
       .= field "qualified_id" schema
@@ -568,8 +581,7 @@ userProfileObjectSchema =
       .= field "name" schema
     <*> profileTextStatus
       .= maybe_ (optField "text_status" schema)
-    <*> profilePict
-      .= (field "picture" schema <|> pure noPict)
+    <* profilePict
     <*> profileAssets
       .= (field "assets" (array schema) <|> pure [])
     <*> profileAccentId
@@ -593,6 +605,13 @@ userProfileObjectSchema =
     <*> profileApp .= maybe_ (optField "app" schema)
     <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
     <*> profileContactStatus .= maybe_ (optField "contact_status" schema)
+  where
+    profilePict :: SchemaP SwaggerDoc A.Object [A.Pair] UserProfile Pict
+    profilePict =
+      case mVersion of
+        Just v
+          | v > V18 -> pure noPict
+        _ -> const noPict .= (field "picture" schema <|> pure noPict)
 
 data ContactStatusState
   = Contactable
@@ -792,7 +811,6 @@ mkUserProfileWithEmail memail u mba legalHoldStatus =
       profileHandle = userHandle u,
       profileName = userDisplayName u,
       profileTextStatus = userTextStatus u,
-      profilePict = userPict u,
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,
       profileService = userService u,
@@ -2124,14 +2142,29 @@ instance ToSchema SupportedProtocolUpdate where
           .= field "supported_protocols" (set schema)
 
 ------- Partial Successes
-data ListUsersById = ListUsersById
-  { listUsersByIdFound :: [UserProfile],
+data ListUsersById v = ListUsersById
+  { listUsersByIdFound :: [Versioned v UserProfile],
     listUsersByIdFailed :: Maybe (NonEmpty (Qualified UserId))
   }
   deriving (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ListUsersById
 
-instance ToSchema ListUsersById where
+deriving via (Schema (ListUsersById 'V18)) instance S.ToSchema (ListUsersById 'V18)
+
+deriving via (Schema (ListUsersById 'V19)) instance S.ToSchema (ListUsersById 'V19)
+
+deriving via (Schema (ListUsersById 'V19)) instance A.ToJSON (ListUsersById 'V19)
+deriving via (Schema (ListUsersById 'V19)) instance A.FromJSON (ListUsersById 'V19)
+
+instance ToSchema (ListUsersById 'V18) where
+  schema :: ValueSchema NamedSwaggerDoc (ListUsersById 'V18)
+  schema =
+    object $
+      ListUsersById
+        <$> listUsersByIdFound .= field "found" (array schema)
+        <*> listUsersByIdFailed .= maybe_ (optField "failed" $ nonEmptyArray schema)
+
+instance ToSchema (ListUsersById 'V19) where
+  schema :: ValueSchema NamedSwaggerDoc (ListUsersById 'V19)
   schema =
     object $
       ListUsersById
@@ -2213,14 +2246,31 @@ instance ToSchema PutApp where
         <*> (.category) .= maybe_ (optField "category" schema)
         <*> (.description) .= maybe_ (optField "description" schema)
 
-data CreatedApp = CreatedApp
-  { user :: UserProfile,
+data CreatedApp v = CreatedApp
+  { user :: (Versioned v UserProfile),
     cookie :: SomeUserToken
   }
   deriving stock (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
 
-instance ToSchema CreatedApp where
+deriving via (Schema (CreatedApp 'V18)) instance S.ToSchema (CreatedApp 'V18)
+deriving via (Schema (CreatedApp 'V19)) instance S.ToSchema (CreatedApp 'V19)
+
+deriving via (Schema (CreatedApp 'V19)) instance A.ToJSON (CreatedApp 'V19)
+deriving via (Schema (CreatedApp 'V19)) instance A.FromJSON (CreatedApp 'V19)
+
+deriving via (Schema (CreatedApp 'V18)) instance A.ToJSON (CreatedApp 'V18)
+deriving via (Schema (CreatedApp 'V18)) instance A.FromJSON (CreatedApp 'V18)
+
+instance ToSchema (CreatedApp V18) where
+  schema :: ValueSchema NamedSwaggerDoc (CreatedApp V18)
+  schema =
+    object $
+      CreatedApp
+        <$> (.user) .= field "user" schema
+        <*> (.cookie) .= field "cookie" schema
+
+instance ToSchema (CreatedApp V19) where
+  schema :: ValueSchema NamedSwaggerDoc (CreatedApp V19)
   schema =
     object $
       CreatedApp

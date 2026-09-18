@@ -24,6 +24,8 @@ import Test.Wire.API.Golden.Generated.UserProfile_user
 import Web.HttpApiData
 import Wire.API.User
 import Wire.API.User.Auth (SomeUserToken)
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 
 someToken :: SomeUserToken
 someToken = either undefined id $ parseUrlPiece "DTHdPvHSFolvyGVvuaexZ9DKptwnxTSn8UhKc-6A9q34s4q0YY3_CgpYxDMr56crHrW79EPwKu2BLwQkFT7wBw==.v=1.k=1.d=1773661988.t=u.l=.u=ac638199-8816-439f-88dd-8e206c9b5baa.r=fa16d9df"
@@ -38,9 +40,9 @@ testObject_NewApp_1 =
     (unsafeRange "good description")
     (plainTextPassword6Unsafe "good password")
 
-testObject_CreatedApp_1 :: CreatedApp
+testObject_CreatedApp_1 :: CreatedApp V19
 testObject_CreatedApp_1 =
-  CreatedApp testObject_UserProfile_user_2 someToken
+  CreatedApp (Versioned testObject_UserProfile_user_2) someToken
 
 testObject_AppInfo_1 :: AppInfo
 testObject_AppInfo_1 =
