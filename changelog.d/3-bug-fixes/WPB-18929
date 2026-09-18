@@ -1,3 +1,0 @@
-Revoking a pending SCIM invitation now removes the associated Brig account and
-Spar SCIM metadata synchronously, allowing the same SCIM user to be invited
-again.
