@@ -229,7 +229,7 @@ nginx_conf:
       - staging
     - path: /self$ # Matches exactly /self
       oauth_scope: self  # deprecated, will be ignored if 'oauth_scopes' is present.
-      oauth_scopes: ["read:self", "write-only:self", "delete-only:self"]
+      oauth_scopes: ["read:self"]
       envs:
       - all
     - path: /self/name
@@ -668,7 +668,7 @@ nginx_conf:
       envs:
       - all
       oauth_scope: conversations_code  # deprecated, will be ignored if 'oauth_scopes' is present.
-      oauth_scopes: ["read:conversations_code", "write-only:conversations_code", "delete-only:conversations_code"]
+      # oauth_scopes: ["read:conversations_code", "write-only:conversations_code"]
     - path: /conversations/join
       envs:
       - all
