@@ -20,6 +20,7 @@
 module Test.Wire.API.OAuth where
 
 import Data.Aeson
+import Data.Set qualified as Set
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -30,8 +31,28 @@ tests =
   testGroup "Oauth" $
     [ testGroup "code challenge verification should succeed" $
         [ testCase "should" testCodeChallengeVerification
+        ],
+      testGroup "scopes" $
+        [ testCase "only known scopes parse" testScopesParseOnlyKnown
         ]
     ]
+
+-- | A scope nobody can be granted has to be an error.  If it were dropped, or
+-- turned the whole set into no scopes at all, the client would get a token that
+-- does not do what it asked for.
+testScopesParseOnlyKnown :: Assertion
+testScopesParseOnlyKnown = do
+  (eitherDecode "\"read:self write-only:conversations\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [Self Read, Conversations WriteOnly]))
+  for_
+    [ "\"read:pizza\"", -- no such scope
+      "\"write:conversations\"", -- deprecated tier
+      "\"read:self read:pizza\"" -- one bad scope spoils the request
+    ]
+    $ \bad -> case eitherDecode bad :: Either String OAuthScopes of
+      Left _ -> pure ()
+      Right scopes ->
+        assertFailure $ "expected a parse error for " <> show bad <> ", got " <> show scopes
 
 testCodeChallengeVerification :: Assertion
 testCodeChallengeVerification = do
