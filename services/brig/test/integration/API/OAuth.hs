@@ -122,9 +122,9 @@ tests m db b n o = do
         ],
       testGroup
         "accessing resources (only testing happy path to ensure scopes are valid)"
-        [ test m "write:conversations" $ testWriteConversationsSuccessNginz b n,
+        [ test m "write-only:conversations" $ testWriteConversationsSuccessNginz b n,
           test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n,
-          test m "write:conversations_code" $ testWriteConversationsCodeSuccessNginz b n
+          test m "write-only:conversations_code" $ testWriteConversationsCodeSuccessNginz b n
         ],
       testGroup
         "refresh tokens"
