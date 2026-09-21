@@ -33,9 +33,28 @@ tests =
         [ testCase "should" testCodeChallengeVerification
         ],
       testGroup "scopes" $
-        [ testCase "only known scopes parse" testScopesParseOnlyKnown
+        [ testCase "only known scopes parse" testScopesParseOnlyKnown,
+          testCase "stored scopes cover the deprecated ones" testStoredScopes
         ]
     ]
+
+-- | Rows outlive renamings, so what we read from the database is not what a
+-- client may ask for.  A deprecated scope was cumulative and can be worth more
+-- than one of ours.
+testStoredScopes :: Assertion
+testStoredScopes = do
+  -- what we write now
+  storedScope "read:self" @?= Set.singleton ReadSelf
+  storedScope "write-only:conversations" @?= Set.singleton WriteOnlyConversations
+  -- the deprecated write tier was a read tier as well
+  storedScope "write:conversations_code"
+    @?= Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]
+  -- the deprecated admin tier had a delete tier on top, but there is no
+  -- delete-only:meetings to grant
+  storedScope "admin:meetings" @?= Set.singleton WriteOnlyMeetings
+  -- nothing we could honour
+  storedScope "read:pizza" @?= Set.empty
+  storedScope "smell:meetings" @?= Set.empty
 
 -- | A scope nobody can be granted has to be an error.  If it were dropped, or
 -- turned the whole set into no scopes at all, the client would get a token that
