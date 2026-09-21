@@ -407,7 +407,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation@v2"
            ( Summary "Create a new conversation"
-               :> DescriptionOAuthScope ('Conversations 'Write)
+               :> DescriptionOAuthScope ('Conversations 'WriteOnly) -- TODO: use servant to run the policy check, not just for openapi!
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
@@ -430,7 +430,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation@v3"
            ( Summary "Create a new conversation"
-               :> DescriptionOAuthScope ('Conversations 'Write)
+               :> DescriptionOAuthScope ('Conversations 'WriteOnly)
                :> From 'V3
                :> Until 'V4
                :> CanThrow 'ConvAccessDenied
@@ -534,7 +534,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
-               :> DescriptionOAuthScope ('Conversations 'Write)
+               :> DescriptionOAuthScope ('Conversations 'WriteOnly)
                :> From 'V16
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
@@ -1085,7 +1085,7 @@ type ConversationAPI =
            "create-conversation-code-unqualified@v3"
            ( Summary "Create or recreate a conversation code"
                :> Until 'V4
-               :> DescriptionOAuthScope ('ConversationsCode 'Write)
+               :> DescriptionOAuthScope ('ConversationsCode 'WriteOnly)
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
@@ -1104,7 +1104,7 @@ type ConversationAPI =
            "create-conversation-code-unqualified"
            ( Summary "Create or recreate a conversation code"
                :> From 'V4
-               :> DescriptionOAuthScope ('ConversationsCode 'Write)
+               :> DescriptionOAuthScope ('ConversationsCode 'WriteOnly)
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
@@ -1340,7 +1340,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-name"
            ( Summary "Update conversation name"
-               :> DescriptionOAuthScope ('ConversationsName 'Write)
+               :> DescriptionOAuthScope ('ConversationsName 'WriteOnly)
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
