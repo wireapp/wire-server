@@ -20,7 +20,15 @@ module Test.OAuth where
 import API.Brig
 import API.BrigInternal
 import API.Common (defPassword)
+import API.Galley
+import qualified API.Nginz as Nginz
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Base64.URL as B64U
 import Data.String.Conversions
+import qualified Data.Text as T
+import Data.UUID (UUID)
+import qualified Data.UUID as UUID
+import Database.CQL.IO
 import Network.HTTP.Types
 import Network.URI
 import SetupHelpers
@@ -145,6 +153,130 @@ testRevokeApplicationAccountAccess = do
     resp.status `shouldMatchInt` 200
     apps <- resp.json & asList
     length apps `shouldMatchInt` 0
+
+-- | The tiers of a scope are separate: a token that may write may not read,
+-- and the other way round.  This is about @/conversations/:cnv/code@, the one
+-- location in the integration nginx.conf that uses 'oauth_scopes'.
+testOAuthScopeTiersAreSeparate :: (HasCallStack) => App ()
+testOAuthScopeTiersAreSeparate = do
+  (user, _, _) <- createTeam OwnDomain 1
+  conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+  -- with a zauth token, so that there is a code to read later on
+  postConversationCode user conv Nothing Nothing >>= assertSuccess
+
+  cid <- oauthClient user
+  readToken <- accessTokenFor user cid ["read:conversations_code"]
+  writeToken <- accessTokenFor user cid ["write-only:conversations_code"]
+
+  Nginz.getConversationCode user conv readToken >>= assertStatus 200
+  Nginz.postConversationCode user conv readToken >>= assertStatus 403
+
+  Nginz.postConversationCode user conv writeToken >>= assertSuccess
+  Nginz.getConversationCode user conv writeToken >>= assertStatus 403
+
+testOAuthRejectUnusefulTokenRequests :: (HasCallStack) => App ()
+testOAuthRejectUnusefulTokenRequests = do
+  (user, _, _) <- createTeam OwnDomain 1
+  cid <- oauthClient user
+
+  generateOAuthAuthorizationCode user cid [] redirectUri >>= assertStatus 400
+  generateOAuthAuthorizationCode user cid ["pizza"] redirectUri >>= assertStatus 400
+  generateOAuthAuthorizationCode user cid ["delete-only:conversations_code"] redirectUri >>= assertStatus 400
+
+testOAuthNewScopesOnDeprecatedAttribute :: (HasCallStack) => App ()
+testOAuthNewScopesOnDeprecatedAttribute = do
+  user <- randomUser OwnDomain def
+  cid <- oauthClient user
+
+  selfToken <- accessTokenFor user cid ["read:self"]
+  Nginz.getSelf user selfToken >>= assertStatus 200
+
+  convToken <- accessTokenFor user cid ["write-only:conversations"]
+  Nginz.postConversation user defProteus convToken >>= assertStatus 201
+
+  -- ... and the deprecated attribute still tells the scopes apart
+  Nginz.getSelf user convToken >>= assertStatus 403
+
+testOAuthDeprecatedScopesInCassandra :: (HasCallStack) => TaggedBool "old scope syntax" -> App ()
+testOAuthDeprecatedScopesInCassandra (TaggedBool oldScopeSyntax) = do
+  (user, _, _) <- createTeam OwnDomain 1
+  conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+  postConversationCode user conv Nothing Nothing >>= assertSuccess
+
+  cid <- oauthClient user
+  session <- generateAccessToken user cid ["write-only:conversations_code"] redirectUri
+
+  when oldScopeSyntax (hackCassandra user)
+
+  refreshToken <- session %. "refresh_token" & asString
+  refreshed <- createOAuthAccessTokenWithRefreshToken user cid refreshToken >>= getJSON 200
+
+  if oldScopeSyntax
+    then do
+      token <- refreshed %. "access_token" & asString
+      hasScopes token ["read:conversations_code", "write-only:conversations_code"]
+      Nginz.getConversationCode user conv token >>= assertSuccess
+      Nginz.postConversationCode user conv token >>= assertSuccess
+    else do
+      token <- refreshed %. "access_token" & asString
+      hasScopes token ["write-only:conversations_code"]
+      Nginz.getConversationCode user conv token >>= assertStatus 403
+      Nginz.postConversationCode user conv token >>= assertSuccess
+  where
+    -- pretend the session was created before the split
+    hackCassandra :: Value -> App ()
+    hackCassandra user = do
+      keyspace <- readServiceConfig Brig & (%. "cassandra.keyspace") & asString
+      let setScope :: PrepQuery W (Identity UUID) () =
+            fromString
+              $ "UPDATE "
+              <> keyspace
+              <> ".oauth_refresh_token SET scope = {'write:conversations_code', 'read:pizza'} WHERE id = ?"
+      rid <- refreshTokenId user
+      write setScope (defQueryParams LocalQuorum (Identity rid))
+
+    hasScopes :: String -> [String] -> App ()
+    hasScopes token expectedScopes = do
+      claims <- accessTokenClaims token
+      scopes <- claims %. "scope" & asString
+      words scopes `shouldMatchSet` expectedScopes
+
+--------------------------------------------------------------------------------
+-- helpers
+
+redirectUri :: String
+redirectUri = "https://example.com"
+
+oauthClient :: (HasCallStack, MakesValue user) => user -> App Value
+oauthClient user =
+  createOAuthClient user "foobar" redirectUri >>= getJSON 200 >>= (%. "client_id")
+
+-- | The access token, which is the part nginz gets to see.
+accessTokenFor :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> [String] -> App String
+accessTokenFor user cid scopes =
+  generateAccessToken user cid scopes redirectUri >>= (%. "access_token") >>= asString
+
+-- | The id of the one session the user has.
+refreshTokenId :: (HasCallStack, MakesValue user) => user -> App UUID
+refreshTokenId user = do
+  [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
+  [session] <- app %. "sessions" >>= asList
+  rid <- session %. "refresh_token_id" & asString
+  maybe (assertFailure ("not a uuid: " <> rid)) pure (UUID.fromString rid)
+
+-- | The claims of an access token, read without verifying anything: we only
+-- want to see what brig put in.
+accessTokenClaims :: (HasCallStack) => String -> App Value
+accessTokenClaims token = do
+  payload <- case T.splitOn (cs ".") (cs token) of
+    (_ : p : _) -> pure p
+    _ -> assertFailure ("not a JWT: " <> token)
+  claims <- case B64U.decodeUnpadded (cs payload) of
+    Left e -> assertFailure ("not base64url: " <> token <> ": " <> e)
+    Right bs -> pure bs
+  case Aeson.eitherDecode (cs claims) of
+    Left e -> assertFailure ("not json: " <> token <> ": " <> e)
+    Right v -> pure v
 
 generateAccessToken :: (MakesValue cid, MakesValue user) => user -> cid -> [String] -> String -> App Value
 generateAccessToken user cid scopes uri = do

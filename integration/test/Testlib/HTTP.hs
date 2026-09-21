@@ -189,6 +189,14 @@ rawBaseRequest domain service versioned path = do
     let HostPort h p = serviceHostPort serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
 
+-- | This is a thin wrapper around rawBaseRequest that adds a non-IP
+-- Z-Host header.  ('ZHostOpt' parses the HTTP header as a 'Domain',
+-- and that doesn't parse if nginz is contacted under its IP address.)
+rawBaseNginzRequest :: (HasCallStack, MakesValue domain) => domain -> Versioned -> String -> App HTTP.Request
+rawBaseNginzRequest user versioned path = do
+  domain <- objDomain user
+  addHeader "Host" domain <$> rawBaseRequest user Nginz versioned path
+
 -- | The bare minimum to ge a `HTTP.Request` given a URL
 externalRequest :: String -> App HTTP.Request
 externalRequest = liftIO . HTTP.parseRequest
