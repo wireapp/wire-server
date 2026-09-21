@@ -31,7 +31,7 @@ testOAuthRevokeSession = do
   user <- randomUser OwnDomain def
   let uri = "https://example.com"
   cid <- createOAuthClient user "foobar" uri >>= getJSON 200 >>= flip (%.) "client_id"
-  let scopes = ["write:conversations"]
+  let scopes = ["write-only:conversations"]
 
   -- create a session that will be revoked later
   (tokenToBeRevoked, sessionToBeRevoked) <- do
@@ -87,7 +87,7 @@ testRevokeApplicationAccountAccessV6 = do
     apps <- resp.json & asList
     length apps `shouldMatchInt` 0
   let uri = "https://example.com"
-  let scopes = ["write:conversations"]
+  let scopes = ["write-only:conversations"]
   replicateM_ 3 $ do
     cid <- createOAuthClient user "foobar" uri >>= getJSON 200 >>= flip (%.) "client_id"
     generateAccessToken user cid scopes uri
@@ -120,7 +120,7 @@ testRevokeApplicationAccountAccess = do
     apps <- resp.json & asList
     length apps `shouldMatchInt` 0
   let uri = "https://example.com"
-  let scopes = ["write:conversations"]
+  let scopes = ["write-only:conversations"]
   replicateM_ 3 $ do
     cid <- createOAuthClient user "foobar" uri >>= getJSON 200 >>= flip (%.) "client_id"
     generateAccessToken user cid scopes uri
