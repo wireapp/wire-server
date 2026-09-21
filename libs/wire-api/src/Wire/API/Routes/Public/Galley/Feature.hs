@@ -272,7 +272,7 @@ type AllTeamFeaturesUserGet =
         :> Description
              "Gets feature configs for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.\
              \If the user is not a member of a team, this will return the personal feature configs (the server defaults)."
-        :> DescriptionOAuthScope ('FeatureConfigs 'Read)
+        :> DescriptionOAuthScope 'ReadFeatureConfigs
         :> ZUser
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied

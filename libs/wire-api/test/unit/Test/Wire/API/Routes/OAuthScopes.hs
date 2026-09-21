@@ -123,7 +123,7 @@ newtype NginzLocations = NginzLocations [Location]
 
 data Location = Location
   { locPattern :: Text,
-    locOldScope :: Maybe Text, -- can't use OldOAuthScope because we don't know the HTTP verb yet.
+    locOldScope :: Maybe Text, -- only the base, e.g. "conversations_code": no tier without the verb.
     locNewScopes :: Maybe [OAuthScope]
   }
 

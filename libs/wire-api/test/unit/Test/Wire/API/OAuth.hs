@@ -43,7 +43,7 @@ tests =
 testScopesParseOnlyKnown :: Assertion
 testScopesParseOnlyKnown = do
   (eitherDecode "\"read:self write-only:conversations\"" :: Either String OAuthScopes)
-    @?= Right (OAuthScopes (Set.fromList [Self Read, Conversations WriteOnly]))
+    @?= Right (OAuthScopes (Set.fromList [ReadSelf, WriteOnlyConversations]))
   for_
     [ "\"read:pizza\"", -- no such scope
       "\"write:conversations\"", -- deprecated tier

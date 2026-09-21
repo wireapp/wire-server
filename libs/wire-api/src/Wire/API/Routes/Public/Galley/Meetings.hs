@@ -50,7 +50,7 @@ type MeetingsAPI =
     :<|> Named
            "create-meeting"
            ( Summary "Create a new meeting"
-               :> DescriptionOAuthScope ('Meetings 'WriteOnly)
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V17
                :> ZLocalUser
                :> ZConn
