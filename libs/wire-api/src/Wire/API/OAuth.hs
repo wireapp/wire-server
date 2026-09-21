@@ -264,7 +264,7 @@ instance IsOAuthScope 'WriteOnlyMeetings where
 instance ToByteString OAuthTier where
   builder = \case
     Read -> "read"
-    WriteOnly -> "write-only"
+    WriteOnly -> "write-only" -- TODO: make this "write_only" for consistency?  (also needs adjusting in OAuthScope instance.)
     DeleteOnly -> "delete-only"
 
 instance ToByteString OAuthScope where
@@ -308,6 +308,34 @@ instance ToSchema OAuthScopes where
       parseScope s =
         (fromByteString' . fromStrict . TE.encodeUtf8) s
           & maybe (fail ("invalid scope: " <> show s)) pure
+
+-- | A scope as it can appear in the database, in terms of the scopes we have
+-- now.
+--
+-- We write what 'ToByteString' gives us, but rows outlive renamings: a refresh
+-- token handed out before the tiers were split up carries a deprecated,
+-- cumulative scope.  Reading one is not one-to-one, because @write:x@ implies
+-- @read:x@, hence the 'Set'.  Scopes are stored in a set column
+-- anyway, so the extra elements simply join it.
+--
+-- Anything we cannot make sense of yields no scopes at all.  That can only
+-- shrink what a token may do, never grow it.
+storedScope :: Text -> Set OAuthScope
+storedScope t =
+  (fromByteString' . fromStrict . TE.encodeUtf8) t
+    & maybe (deprecatedScope t) Set.singleton
+
+-- | The cumulative scopes we used to hand out.  Only scopes that exist now can
+-- come out of this, so @admin:meetings@ shrinks to @write-only:meetings@: there
+-- is no @delete-only:meetings@ to grant, and no endpoint that would honour it.
+deprecatedScope :: Text -> Set OAuthScope
+deprecatedScope = \case
+  "write:conversations" -> Set.fromList [WriteOnlyConversations]
+  "write:conversations_code" -> Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]
+  "write:conversations_name" -> Set.fromList [WriteOnlyConversationsName]
+  "write:meetings" -> Set.fromList [WriteOnlyMeetings]
+  "admin:meetings" -> Set.fromList [WriteOnlyMeetings]
+  _ -> Set.empty
 
 data CodeChallengeMethod = S256
   deriving (Eq, Show, Generic)
@@ -802,16 +830,22 @@ instance Cql OAuthAuthorizationCode where
   fromCql (CqlAscii t) = OAuthAuthorizationCode <$> validateBase16 t
   fromCql _ = Left "OAuthAuthorizationCode: Ascii expected"
 
-instance Cql OAuthScope where
-  ctype = Tagged TextColumn
-  toCql = CqlText . TE.decodeUtf8With lenientDecode . toByteString'
-  fromCql (CqlText t) =
-    maybe (Left "invalid oauth scope") Right
-      $ fromByteString'
-        . fromStrict
-        . TE.encodeUtf8
-      $ t
-  fromCql _ = Left "OAuthScope: Text expected"
+-- | Scopes are read and written as a whole set, not one at a time: a single
+-- stored scope can stand for several of ours, see 'storedScope'.
+instance Cql OAuthScopes where
+  ctype = Tagged (SetColumn TextColumn)
+
+  toCql =
+    CqlSet
+      . fmap (CqlText . TE.decodeUtf8With lenientDecode . toByteString')
+      . Set.toList
+      . unOAuthScopes
+
+  fromCql (CqlSet scopes) = OAuthScopes . Set.unions <$> mapM element scopes
+    where
+      element (CqlText t) = Right (storedScope t)
+      element _ = Left "OAuthScopes: Text expected"
+  fromCql _ = Left "OAuthScopes: Set expected"
 
 instance Cql OAuthCodeChallenge where
   ctype = Tagged BlobColumn

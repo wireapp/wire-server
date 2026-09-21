@@ -26,7 +26,7 @@ import Cassandra.CQL as C
   ( Ascii (Ascii),
     BatchType (BatchLogged, BatchUnLogged),
     Blob (Blob),
-    ColumnType (AsciiColumn, BigIntColumn, BlobColumn, BooleanColumn, DoubleColumn, IntColumn, ListColumn, MaybeColumn, TextColumn, TimestampColumn, UdtColumn, UuidColumn, VarCharColumn),
+    ColumnType (AsciiColumn, BigIntColumn, BlobColumn, BooleanColumn, DoubleColumn, IntColumn, ListColumn, MaybeColumn, SetColumn, TextColumn, TimestampColumn, UdtColumn, UuidColumn, VarCharColumn),
     Consistency (All, LocalQuorum, One), -- DO NOT EXPORT 'Quorum' here (until a DC migration is complete)
     Cql,
     Keyspace (Keyspace),
@@ -39,7 +39,7 @@ import Cassandra.CQL as C
     Tagged (Tagged),
     TimeUuid (TimeUuid),
     Tuple (),
-    Value (CqlAscii, CqlBigInt, CqlBlob, CqlBoolean, CqlDouble, CqlInt, CqlList, CqlText, CqlUdt),
+    Value (CqlAscii, CqlBigInt, CqlBlob, CqlBoolean, CqlDouble, CqlInt, CqlList, CqlSet, CqlText, CqlUdt),
     Version (V4),
     W,
     ctype,
