@@ -13,8 +13,9 @@ typedef struct {
 } ZauthServerConf;
 
 typedef struct {
-        ngx_flag_t zauth; // 1=on, 0=off
-        ngx_str_t  oauth_scope;
+        ngx_flag_t zauth;        // 1=on, 0=off
+        ngx_str_t  oauth_scope;  // scope base, tier implied by the method (deprecated)
+        ngx_str_t  oauth_scopes; // whole scopes, separated by spaces; supersedes oauth_scope
 } ZauthLocationConf;
 
 enum {
@@ -40,6 +41,7 @@ static char * merge_srv_conf  (ngx_conf_t *, void *, void *);
 static char * load_keystore   (ngx_conf_t *, ngx_command_t *, void *);
 static char * load_acl        (ngx_conf_t *, ngx_command_t *, void *);
 static char * load_oauth_key  (ngx_conf_t *, ngx_command_t *, void *);
+static char * set_oauth_scopes(ngx_conf_t *, ngx_command_t *, void *);
 static void   delete_srv_conf (void *);
 
 // Module setup
@@ -69,7 +71,7 @@ static void      zauth_empty_val      (ngx_http_variable_value_t *);
 
 // Utility functions
 static ngx_int_t zauth_handle_request (ngx_http_request_t *, const ZauthServerConf *, ZauthToken const *);
-static ngx_int_t oauth_handle_request(ngx_http_request_t *, OAuthPubJwk const *, ngx_str_t const);
+static ngx_int_t oauth_handle_request(ngx_http_request_t *, OAuthPubJwk const *, ZauthLocationConf const *);
 
 static ngx_http_module_t zauth_module_ctx = {
         zauth_variables // pre-configuration
@@ -96,6 +98,14 @@ static ngx_command_t zauth_commands [] = {
         , ngx_conf_set_str_slot
         , NGX_HTTP_LOC_CONF_OFFSET
         , offsetof (ZauthLocationConf, oauth_scope)
+        , NULL
+        }
+
+      , { ngx_string ("oauth_scopes")
+        , NGX_HTTP_LOC_CONF | NGX_CONF_1MORE
+        , set_oauth_scopes
+        , NGX_HTTP_LOC_CONF_OFFSET
+        , offsetof (ZauthLocationConf, oauth_scopes)
         , NULL
         }
 
@@ -231,6 +241,46 @@ static char * merge_loc_conf (ngx_conf_t * _, void * pc, void * cc) {
         ZauthLocationConf * child  = cc;
         ngx_conf_merge_off_value(child->zauth, parent->zauth, 1);
         ngx_conf_merge_str_value(child->oauth_scope, parent->oauth_scope, NULL);
+        if (child->oauth_scopes.data == NULL) {
+                child->oauth_scopes = parent->oauth_scopes;
+        }
+        return NGX_CONF_OK;
+}
+
+// Join the arguments into one space separated string, which is how the scope
+// claim of an OAuth token spells a list as well.
+static char * set_oauth_scopes (ngx_conf_t * conf, ngx_command_t * cmd, void * data) {
+        ZauthLocationConf * lc = data;
+
+        if (lc->oauth_scopes.data != NULL) {
+                return "is duplicate";
+        }
+
+        ngx_str_t * const args = conf->args->elts;
+        size_t len = conf->args->nelts - 2; // separators
+
+        for (ngx_uint_t i = 1; i < conf->args->nelts; ++i) {
+                len += args[i].len;
+        }
+
+        u_char * const buf = ngx_pnalloc(conf->pool, len);
+
+        if (buf == NULL) {
+                return NGX_CONF_ERROR;
+        }
+
+        u_char * p = buf;
+
+        for (ngx_uint_t i = 1; i < conf->args->nelts; ++i) {
+                if (i > 1) {
+                        *p++ = ' ';
+                }
+                p = ngx_cpymem(p, args[i].data, args[i].len);
+        }
+
+        lc->oauth_scopes.data = buf;
+        lc->oauth_scopes.len  = len;
+
         return NGX_CONF_OK;
 }
 
@@ -346,7 +396,7 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
         if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH) {
                 return zauth_handle_request(r, sc, ctx->token);
         } else if (ctx == NULL) {
-                return oauth_handle_request(r, sc->oauth_pub_key, lc->oauth_scope);
+                return oauth_handle_request(r, sc->oauth_pub_key, lc);
         } else {
                 return NGX_HTTP_UNAUTHORIZED;
         }
@@ -375,7 +425,7 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r, const ZauthServer
         return NGX_OK;
 }
 
-ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthPubJwk const * key, ngx_str_t const scope) {
+ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthPubJwk const * key, ZauthLocationConf const * lc) {
         if (r->headers_in.authorization == NULL) {
                 return NGX_HTTP_UNAUTHORIZED;
         }
@@ -383,7 +433,14 @@ ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthPubJwk const * key, n
         ngx_str_t hdr = r->headers_in.authorization->value;
 
         if (strncmp((char const *) hdr.data, "Bearer ", 7) == 0) {
-                OAuthResult res = oauth_verify_token(key, &hdr.data[7], hdr.len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
+                // 'oauth_scopes' supersedes 'oauth_scope' where both are given.
+                // Where neither is, libzauth is handed a NULL scope and lets
+                // nobody in: no scope configured, no access through OAuth.
+                ngx_str_t const scopes = lc->oauth_scopes;
+                ngx_str_t const scope  = lc->oauth_scope;
+                OAuthResult res = scopes.data != NULL
+                        ? oauth_verify_token_scopes(key, &hdr.data[7], hdr.len - 7, scopes.data, scopes.len, r->method_name.data, r->method_name.len)
+                        : oauth_verify_token(key, &hdr.data[7], hdr.len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
                 if (res.status == OAUTH_OK) {
                         ZauthContext * ctx = alloc_oauth_context(r, res.uid);
                         if (ctx == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR; // for OOM-safety

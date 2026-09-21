@@ -30,7 +30,8 @@ use std::slice;
 use std::str;
 use zauth::acl;
 use zauth::{
-    verify_oauth_token, Acl, Error, Keystore, OauthError, Token, TokenType, TokenVerification,
+    verify_oauth_token, verify_oauth_token_scopes, Acl, Error, Keystore, OauthError, Token,
+    TokenType, TokenVerification,
 };
 
 /// Variant of std::try! that returns the unwrapped error.
@@ -440,6 +441,8 @@ pub extern "C" fn oauth_key_delete(a: *mut OAuthPubJwk) {
     );
 }
 
+/// Verify against the deprecated `oauth_scope` directive, which holds the base
+/// of a scope and leaves the tier to the request method.
 #[no_mangle]
 pub extern "C" fn oauth_verify_token(
     jwk: &OAuthPubJwk,
@@ -449,6 +452,55 @@ pub extern "C" fn oauth_verify_token(
     scope_len: size_t,
     method: *const u8,
     method_len: size_t,
+) -> OAuthResult {
+    oauth_verify(
+        jwk,
+        token,
+        token_len,
+        scope,
+        scope_len,
+        method,
+        method_len,
+        verify_oauth_token,
+    )
+}
+
+/// Verify against the `oauth_scopes` directive, which holds whole scopes,
+/// separated by spaces.
+#[no_mangle]
+pub extern "C" fn oauth_verify_token_scopes(
+    jwk: &OAuthPubJwk,
+    token: *const u8,
+    token_len: size_t,
+    scopes: *const u8,
+    scopes_len: size_t,
+    method: *const u8,
+    method_len: size_t,
+) -> OAuthResult {
+    oauth_verify(
+        jwk,
+        token,
+        token_len,
+        scopes,
+        scopes_len,
+        method,
+        method_len,
+        verify_oauth_token_scopes,
+    )
+}
+
+/// A NULL `scope` is how a location with nothing configured arrives here, and
+/// there is nothing we could let the token do: no scope, no access.
+#[allow(clippy::too_many_arguments)]
+fn oauth_verify(
+    jwk: &OAuthPubJwk,
+    token: *const u8,
+    token_len: size_t,
+    scope: *const u8,
+    scope_len: size_t,
+    method: *const u8,
+    method_len: size_t,
+    verify: fn(&str, &str, &str, &str) -> Result<String, OauthError>,
 ) -> OAuthResult {
     match panic::catch_unwind(|| {
         if token.is_null() {
@@ -475,7 +527,7 @@ pub extern "C" fn oauth_verify_token(
         let scope = try_unwrap!(str::from_utf8(bytes));
         let bytes = unsafe { slice::from_raw_parts(method, method_len) };
         let method = str::from_utf8(bytes).unwrap();
-        let subject = try_unwrap!(verify_oauth_token(&jwk.0, token, scope, method));
+        let subject = try_unwrap!(verify(&jwk.0, token, scope, method));
         let c_str = try_unwrap!(CString::new(subject));
         OAuthResult {
             uid: c_str.into_raw(),
