@@ -296,13 +296,16 @@ instance ToSchema OAuthScopes where
           . fmap (TE.decodeUtf8With lenientDecode . toByteString')
           . Set.toList
 
+      -- A scope we do not know is an error.  Silently dropping it, or silently
+      -- returning no scopes at all, would hand out a token that does not do
+      -- what the client asked for.
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
-      oauthScopeParser scope =
-        pure $
-          (not . T.null)
-            `filter` T.splitOn " " scope
-            & maybe Set.empty Set.fromList
-              . mapM (fromByteString' . fromStrict . TE.encodeUtf8)
+      oauthScopeParser scope = Set.fromList <$> mapM parseScope (T.splitOn " " scope)
+
+      parseScope :: Text -> A.Parser OAuthScope
+      parseScope =
+        maybe (fail ("invalid scope: " <> show s)) pure
+          . (fromByteString' . fromStrict . TE.encodeUtf8)
 
 -- | The deprecated, cumulative scopes: @write:*@ implies @read:*@,
 -- @admin:*@ implies @write:*@ (see @verify_scope@ in
