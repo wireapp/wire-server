@@ -26,7 +26,6 @@ import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
-import Data.GenericEnum
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
 import Data.Json.Util
@@ -197,68 +196,70 @@ instance ToSchema OAuthResponseType where
 -- However, having this typed makes it easier to handle scopes in the backend,
 -- and e.g. provide more meaningful error messages when the scope is invalid.
 --
--- TODO: refactor this again: newtype `OAuthScopeReally = OAuthScopeReally { fromOAuthScopeReally :: (OAuthTier, OAuthScope) }`
+-- Furthermore, since tokens are only issued if the scopes listed in
+-- the request can be parsed, so this type also guarantees that no
+-- unusable tokens can be issued.
+--
+-- A scope is a tier and a base, but not every combination of the two is a
+-- scope: only the ones listed here exist, and they are the ones the routing
+-- tables document and @charts/nginz/values.yaml@ enforces.  Anything else is
+-- rejected by 'FromByteString', so nobody can be granted e.g. a
+-- @delete-only:conversations_code@ that no endpoint honours.
 data OAuthScope
-  = FeatureConfigs OAuthTier
-  | Self OAuthTier
-  | Conversations OAuthTier
-  | ConversationsCode OAuthTier
-  | ConversationsName OAuthTier
-  | Meetings OAuthTier
-  deriving (Eq, Show, Generic, Ord)
+  = ReadFeatureConfigs
+  | ReadSelf
+  | ReadConversationsCode
+  | WriteOnlyConversations
+  | WriteOnlyConversationsCode
+  | WriteOnlyConversationsName
+  | WriteOnlyMeetings
+  deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
-  deriving (Bounded, Enum) via (GenericEnum OAuthScope)
 
--- | Unlike 'OldOAuthScope', these tiers are disjoint.
+-- | The tiers are disjoint: 'WriteOnly' does not include 'Read'.  (The
+-- deprecated scopes were cumulative; see @granted_scopes@ in
+-- @libs/libzauth/libzauth/src/oauth.rs@, which still honours tokens carrying
+-- them.)
 -- TODO: s/Read/ReadOnly/g
 data OAuthTier = Read | WriteOnly | DeleteOnly
   deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthTier)
 
--- | (Once the TODO on 'OAuthScope' is done this is just @fst@.)
+-- | Which tier a scope grants.  The HTTP method of a request decides which
+-- tier it needs, see @required_tier@ in @libs/libzauth/libzauth/src/oauth.rs@.
 oAuthScopeTier :: OAuthScope -> OAuthTier
 oAuthScopeTier = \case
-  FeatureConfigs t -> t
-  Self t -> t
-  Conversations t -> t
-  ConversationsCode t -> t
-  ConversationsName t -> t
-  Meetings t -> t
-
--- | Reflect a type-level 'OAuthTier' (as used in the routing tables via
--- 'Wire.API.Routes.Public.DescriptionOAuthScope') down to the value level.
-class IsOAuthTier (t :: OAuthTier) where
-  toOAuthTier :: OAuthTier
-
-instance IsOAuthTier 'Read where
-  toOAuthTier = Read
-
-instance IsOAuthTier 'WriteOnly where
-  toOAuthTier = WriteOnly
-
-instance IsOAuthTier 'DeleteOnly where
-  toOAuthTier = DeleteOnly
+  ReadFeatureConfigs -> Read
+  ReadSelf -> Read
+  ReadConversationsCode -> Read
+  WriteOnlyConversations -> WriteOnly
+  WriteOnlyConversationsCode -> WriteOnly
+  WriteOnlyConversationsName -> WriteOnly
+  WriteOnlyMeetings -> WriteOnly
 
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
 
-instance (IsOAuthTier t) => IsOAuthScope ('Conversations t) where
-  toOAuthScope = Conversations (toOAuthTier @t)
+instance IsOAuthScope 'ReadFeatureConfigs where
+  toOAuthScope = ReadFeatureConfigs
 
-instance (IsOAuthTier t) => IsOAuthScope ('ConversationsCode t) where
-  toOAuthScope = ConversationsCode (toOAuthTier @t)
+instance IsOAuthScope 'ReadSelf where
+  toOAuthScope = ReadSelf
 
-instance (IsOAuthTier t) => IsOAuthScope ('Self t) where
-  toOAuthScope = Self (toOAuthTier @t)
+instance IsOAuthScope 'ReadConversationsCode where
+  toOAuthScope = ReadConversationsCode
 
-instance (IsOAuthTier t) => IsOAuthScope ('FeatureConfigs t) where
-  toOAuthScope = FeatureConfigs (toOAuthTier @t)
+instance IsOAuthScope 'WriteOnlyConversations where
+  toOAuthScope = WriteOnlyConversations
 
-instance (IsOAuthTier t) => IsOAuthScope ('ConversationsName t) where
-  toOAuthScope = ConversationsName (toOAuthTier @t)
+instance IsOAuthScope 'WriteOnlyConversationsCode where
+  toOAuthScope = WriteOnlyConversationsCode
 
-instance (IsOAuthTier t) => IsOAuthScope ('Meetings t) where
-  toOAuthScope = Meetings (toOAuthTier @t)
+instance IsOAuthScope 'WriteOnlyConversationsName where
+  toOAuthScope = WriteOnlyConversationsName
+
+instance IsOAuthScope 'WriteOnlyMeetings where
+  toOAuthScope = WriteOnlyMeetings
 
 instance ToByteString OAuthTier where
   builder = \case
@@ -268,12 +269,13 @@ instance ToByteString OAuthTier where
 
 instance ToByteString OAuthScope where
   builder = \case
-    FeatureConfigs t -> builder t <> ":feature_configs"
-    Self t -> builder t <> ":self"
-    Conversations t -> builder t <> ":conversations"
-    ConversationsCode t -> builder t <> ":conversations_code"
-    ConversationsName t -> builder t <> ":conversations_name"
-    Meetings t -> builder t <> ":meetings"
+    ReadFeatureConfigs -> "read:feature_configs"
+    ReadSelf -> "read:self"
+    ReadConversationsCode -> "read:conversations_code"
+    WriteOnlyConversations -> "write-only:conversations"
+    WriteOnlyConversationsCode -> "write-only:conversations_code"
+    WriteOnlyConversationsName -> "write-only:conversations_name"
+    WriteOnlyMeetings -> "write-only:meetings"
 
 instance FromByteString OAuthScope where
   parser = do
@@ -300,49 +302,12 @@ instance ToSchema OAuthScopes where
       -- returning no scopes at all, would hand out a token that does not do
       -- what the client asked for.
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
-      oauthScopeParser scope = Set.fromList <$> mapM parseScope (T.splitOn " " scope)
+      oauthScopeParser scope = Set.fromList <$> mapM parseScope (T.words scope)
 
       parseScope :: Text -> A.Parser OAuthScope
-      parseScope =
-        maybe (fail ("invalid scope: " <> show s)) pure
-          . (fromByteString' . fromStrict . TE.encodeUtf8)
-
--- | The deprecated, cumulative scopes: @write:*@ implies @read:*@,
--- @admin:*@ implies @write:*@ (see @verify_scope@ in
--- @libs/libzauth/libzauth/src/oauth.rs@).
---
--- NB: not every @<tier>:<base>@ combination is a scope accepted by
--- the servant handler: if not listed here, the parser in the route
--- will reject it.
-data OldOAuthScope
-  = ReadFeatureConfigs
-  | ReadSelf
-  | WriteConversations
-  | WriteConversationsCode
-  | WriteConversationsName
-  | WriteMeetings
-  | AdminMeetings
-  deriving (Eq, Show, Generic, Ord)
-  deriving (Arbitrary) via (GenericUniform OldOAuthScope)
-  deriving (Bounded, Enum) via (GenericEnum OldOAuthScope)
-
-instance ToByteString OldOAuthScope where
-  builder = \case
-    WriteConversations -> "write:conversations"
-    WriteConversationsCode -> "write:conversations_code"
-    WriteConversationsName -> "write:conversations_name"
-    WriteMeetings -> "write:meetings"
-    AdminMeetings -> "admin:meetings"
-    ReadSelf -> "read:self"
-    ReadFeatureConfigs -> "read:feature_configs"
-
-instance FromByteString OldOAuthScope where
-  parser = do
-    s <- (toByteString' . T.toLower) <$> parser
-    let table = Map.fromList [(toByteString' c, c) | c <- [(minBound :: OldOAuthScope) ..]]
-    case Map.lookup s table of
-      Just c -> pure c
-      Nothing -> fail $ "invalid legacy scope: " <> show s
+      parseScope s =
+        (fromByteString' . fromStrict . TE.encodeUtf8) s
+          & maybe (fail ("invalid scope: " <> show s)) pure
 
 data CodeChallengeMethod = S256
   deriving (Eq, Show, Generic)
