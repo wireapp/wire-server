@@ -216,6 +216,14 @@ data OAuthScope
   deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
+-- TODO: copy old values.yaml and new values.yaml to tests, and run test 3 times.  it's fast.
+
+-- TODO: if OAuthTier is only needed in tests, move it there!
+
+-- TODO: bump wire-docs
+
+-- TODO: error when requesting non-existent scopes should show list of legit scopes in message field.
+
 -- | The tiers are disjoint: 'WriteOnly' does not include 'Read'.  (The
 -- deprecated scopes were cumulative; see @granted_scopes@ in
 -- @libs/libzauth/libzauth/src/oauth.rs@, which still honours tokens carrying
