@@ -63,7 +63,10 @@ tests =
 --
 -- This test matches the openapi docs generated from servant routes
 -- against what nginz enforces.  The behavior of nginz is emulated by
--- this test.  This is not testing any properties of libzauth.
+-- this test.  Actual behavior of libzauth is tested in the rust code;
+-- those tests and these here need to be kept in sync manually
+-- (compare `enforcedScopes` below with
+-- `/libs/libzauth/libzauth/src/oauth.rs` (search for `mod tests`)).
 testScopesAgree :: Assertion
 testScopesAgree = do
   unless (Set.null actual) . assertFailure . T.unpack . T.unlines $
@@ -131,20 +134,20 @@ data Location = Location
 -- If the matching location has @oauth_scopes@, the answer is those of the
 -- listed scopes that have the tier this verb needs.
 --
--- If it only has the deprecated @oauth_scope@, we first ask which old scopes
--- nginz lets through for this verb.  Old scopes are cumulative, so a @GET@ gets
--- through with @read:@, @write:@, or @admin:@, but only some of those exist as
--- scopes a client can be granted.  Then we translate the ones that do into new
--- scopes.  Example: for a @GET@ under @oauth_scope: conversations_code@, the
--- only old scope that exists and passes is @write:conversations_code@, and that
--- one is @read:conversations_code@ plus @write-only:conversations_code@ in new
--- scopes: if wire-api requires new read *or* new write, old write is acceptable.
+-- TODO: the following paragraph is less than clear, rephrase!
 --
--- NB: We do not need to distinguish between "nginz asks for no scope
--- at all" and "asks for one that nobody can have": a @DELETE@ under a
--- deprecated @oauth_scope@ needs @admin:\<base\>@, and for most bases
--- that scope does not exist, in which case no OAuth token can be
--- accepted.
+-- If it only has the deprecated @oauth_scope@, the answer is the one scope made
+-- of that base and the tier this verb needs: under @oauth_scope:
+-- conversations_code@, a @GET@ wants @read:conversations_code@ and nothing
+-- else.  Old scopes are cumulative, so a token carrying
+-- @write:conversations_code@ passes that @GET@ as well, but nginz reads that off
+-- the token rather than off the configuration (@granted_scopes@ in
+-- @libs/libzauth/libzauth/src/oauth.rs@), and it does not change which scope the
+-- docs should name.
+--
+-- NB: an empty answer means no OAuth token gets in at all.  That happens if
+-- the location has no @oauth_scope[s]@, if its @oauth_scopes@ list has nothing
+-- of the tier the verb needs, or if the verb is one nginz has no rule for.
 enforcedScopes :: Text -> Text -> Set OAuthScope
 enforcedScopes method path = case find locationMatches nginzLocations of
   Nothing -> Set.empty
@@ -153,7 +156,8 @@ enforcedScopes method path = case find locationMatches nginzLocations of
       -- Filter scopes listed in values.yaml by matching method/tier.
       Set.fromList (filter ((newTier method ==) . Just . oAuthScopeTier) newScopes)
     (Just base, Nothing) ->
-      Set.fromList (oldOAuthScopeToNewScopes =<< oldScopeBaseAccepted base)
+      -- The deprecated attribute gives the base; the tier comes from the method.
+      maybe Set.empty Set.singleton (oldScopeBase base)
     (Nothing, Nothing) -> Set.empty
   where
     -- Does this location capture that path?  nginx anchors regex locations at the
@@ -186,33 +190,13 @@ enforcedScopes method path = case find locationMatches nginzLocations of
       "DELETE" -> Just DeleteOnly
       _ -> Nothing
 
-    -- The deprecated @oauth_scope@ names only the base; which tiers
-    -- of it are accepted follows from the verb in the request,
-    -- cumulatively.  Of those @<tier>:<base>@ combinations only the
-    -- ones that parse exist as grantable scopes.
-    oldScopeBaseAccepted :: Text -> [OldOAuthScope]
-    oldScopeBaseAccepted base =
-      mapMaybe (\tier -> fromByteString (T.encodeUtf8 (tier <> ":" <> base))) (oldTiers method)
-
     -- Mirrors @verify_scope@ in @libs/libzauth/libzauth/src/oauth.rs@, which is
-    -- what nginz calls: `write:*` implies `read:*`, `admin:*` implies `write:*`.
-    oldTiers :: Text -> [Text]
-    oldTiers = \case
-      "GET" -> ["read", "write", "admin"]
-      "POST" -> ["write", "admin"]
-      "PUT" -> ["write", "admin"]
-      "DELETE" -> ["admin"]
-      _ -> []
-
-oldOAuthScopeToNewScopes :: OldOAuthScope -> [OAuthScope]
-oldOAuthScopeToNewScopes = \case
-  ReadFeatureConfigs -> [FeatureConfigs Read]
-  ReadSelf -> [Self Read]
-  WriteConversations -> [Conversations Read, Conversations WriteOnly]
-  WriteConversationsCode -> [ConversationsCode Read, ConversationsCode WriteOnly]
-  WriteConversationsName -> [ConversationsName Read, ConversationsName WriteOnly]
-  WriteMeetings -> [Meetings Read, Meetings WriteOnly]
-  AdminMeetings -> [Meetings Read, Meetings WriteOnly, Meetings DeleteOnly]
+    -- what nginz calls for a location with the deprecated attribute.  'Nothing'
+    -- for a base that is no scope of ours, e.g. a typo in values.yaml.
+    oldScopeBase :: Text -> Maybe OAuthScope
+    oldScopeBase base = do
+      tier <- newTier method
+      fromByteString (toByteString' tier <> ":" <> T.encodeUtf8 base)
 
 nginzLocations :: [Location]
 nginzLocations =
