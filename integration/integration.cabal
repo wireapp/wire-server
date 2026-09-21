@@ -303,7 +303,7 @@ library
     , optparse-applicative
     , process
     , proto-lens
-    , QuickCheck               ^>=2.15.0.1
+    , QuickCheck
     , ram
     , random
     , raw-strings-qq

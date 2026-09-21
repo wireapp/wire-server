@@ -218,6 +218,117 @@ let
       sha256 = "sha256-m8Q1jwCyDrlEPbv2cZ/FIv/ey3dPjDVkmppzvi3Zjw4=";
     };
 
+    # Hasql 2
+    hasql = {
+      version = "2.0.1.0";
+      sha256 = "sha256-iA9yNnh+lfRjs4oWrnf1YN7oOrMwj+iANHALxBMq55U=";
+    };
+    hasql-th = {
+      version = "0.5.1.1";
+      sha256 = "sha256-OxBj85xsRnJr9jPfWuI2twKXblgIzN6sQtuihxqfDLc=";
+    };
+    hasql-transaction = {
+      version = "1.2.3.1";
+      sha256 = "sha256-EteEnSgJB4MXixv/58D2Qo70L/AfZxNGin/pYiIjVhY=";
+    };
+    pqi = {
+      version = "1.1.0.1";
+      sha256 = "sha256-y92T7Cry8sGOt/iCHwC4mC2DGCHVQDf+PuHEu4LxA+g=";
+    };
+    pqi-ffi = {
+      version = "1.0.1.0";
+      sha256 = "";
+    };
+    pqi-native = {
+      version = "1.0.1.12";
+      sha256 = "";
+    };
+    postgresql-syntax = {
+      version = "0.5.0.3";
+      sha256 = "sha256-KE/s2Nd35Bw8nX2holmWu9qOfPKWPNEhjP4JlsOLdsc=";
+    };
+
+    # hs-opentelemetry-* 1.0 (for arbiter, which is upgraded for hasql2)
+    hs-opentelemetry-api = {
+      version = "1.0.0.0";
+      sha256 = "sha256-COhj9Ms1eu1Gt9wTC21oQ37k6vJ9mxlJvYpHtvXff6A=";
+    };
+    hs-opentelemetry-api-types = {
+      version = "1.0.0.0";
+      sha256 = "sha256-9ByP41wlV45TMCqbyyVpwejQDi5fsG0+j8bMk8ORLw8=";
+    };
+    hs-opentelemetry-semantic-conventions = {
+      version = "1.40.0.0";
+      sha256 = "sha256-7cIC9dTrd5bJjAsiEyyupi1xSZyc17FpjbACnm0p5ik=";
+    };
+    hs-opentelemetry-propagator-w3c = {
+      version = "1.0.0.0";
+      sha256 = "sha256-p8d2Tx8bCVRk6hps8k0qAg/L2gdBVoYuLYJbTzTbI3s=";
+    };
+    hs-opentelemetry-propagator-b3 = {
+      version = "1.0.0.0";
+      sha256 = "sha256-gsNe818CprXM9l61mLUsdnePxIQChfml9kegmCDoAmw=";
+    };
+    hs-opentelemetry-propagator-datadog = {
+      version = "1.0.0.0";
+      sha256 = "sha256-nTXEtira3bktvycZkjDmPZewyMJ1IEEDygLT9OiIFYo=";
+    };
+    hs-opentelemetry-instrumentation-wai = {
+      version = "1.0.0.0";
+      sha256 = "sha256-gPU9k2H1MpMEGh0F1Oi5ri8gdsZMCvQBRTnXgDhVAa0=";
+    };
+    hs-opentelemetry-instrumentation-conduit = {
+      version = "1.0.0.0";
+      sha256 = "sha256-J4iv0uTsnmntoXOb6tf8CBnKa0KsspomwLN/mJ2ypTA=";
+    };
+    hs-opentelemetry-exporter-in-memory = {
+      version = "1.0.0.0";
+      sha256 = "sha256-bJjUHBNMRKhmkqRRnUrAQIDLWpUrox7F418r2QbVQ6o=";
+    };
+    hs-opentelemetry-exporter-otlp = {
+      version = "1.0.0.0";
+      sha256 = "sha256-rHgsisH2d45CI9woEDb/j0WnTzllxaE2Mkx5/OmWn0c=";
+    };
+    hs-opentelemetry-otlp = {
+      version = "1.0.0.0";
+      sha256 = "sha256-kVuKKi6qRx+oBQclTpUnx20Eqw+CRQk8pT4tkcxt1xo=";
+    };
+    hs-opentelemetry-utils-exceptions = {
+      version = "1.0.0.0";
+      sha256 = "sha256-MIvZklqdcfnrbsvoKQAOo2JrL2KSh4Q/Sij7Vx1MHMU=";
+    };
+    hs-opentelemetry-instrumentation-http-client = {
+      version = "1.0.0.0";
+      sha256 = "sha256-/+XwCJzMYtmBoHBuDGkmHR8ETKkxpMMtWNNWpbAGPYQ=";
+    };
+    hs-opentelemetry-sdk = {
+      version = "1.0.0.0";
+      sha256 = "sha256-kG8gmP8Lr9mPCnJjukCduFI/tADgKCfuelxcQZcXyA8=";
+    };
+    hs-opentelemetry-propagator-jaeger = {
+      version = "1.0.0.0";
+      sha256 = "sha256-VL+3YwKbqe0elfZQ0EN7icNS0+pxmtlxlKauPHRqhb8=";
+    };
+    hs-opentelemetry-propagator-xray = {
+      version = "1.0.0.0";
+      sha256 = "sha256-Tg7TrCMb8GA+jm+ohMAqMW7othRm/HLEyr9SifGa6qI=";
+    };
+    hs-opentelemetry-exporter-handle = {
+      version = "1.0.0.0";
+      sha256 = "sha256-DCoVG0Y2aaMjinOP2GWmew0WmjN96j3/UUzEWxN7Ajs=";
+    };
+
+    # io-classes (for hasql2)
+    io-classes = {
+      version = "1.11.0.0";
+      sha256 = "sha256-xHoFSoTLuaQ4nQQDAaWrfma3457AdSfTb3upDU8Nb3I=";
+    };
+
+    # resource-pool (for hasql-resource-pool, which was patched for hasql2)
+    resource-pool = {
+      version = "0.5.1.0";
+      sha256 = "sha256-JWewFLz73E9YqMDbuxhi/YqeK7C9oYFD9tGzU1hWgs8=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:

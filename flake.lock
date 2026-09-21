@@ -19,17 +19,17 @@
     "arbiter": {
       "flake": false,
       "locked": {
-        "lastModified": 1785161366,
-        "narHash": "sha256-qNZX0LWa+78C3j37fPYaJ0VZOGnkmAEo1Qpa0J6O6gY=",
+        "lastModified": 1789945352,
+        "narHash": "sha256-Oh5paG8crvValja+E8BpyKAjQRROYxqAadfuyiw2aKs=",
         "owner": "velveteer",
         "repo": "arbiter",
-        "rev": "b9c57eb1f8277d97616aa449bea471fe9ce14eda",
+        "rev": "70350ec8631a34b9bd0ae1a7d51e92c831184619",
         "type": "github"
       },
       "original": {
         "owner": "velveteer",
         "repo": "arbiter",
-        "rev": "b9c57eb1f8277d97616aa449bea471fe9ce14eda",
+        "rev": "70350ec8631a34b9bd0ae1a7d51e92c831184619",
         "type": "github"
       }
     },
@@ -235,17 +235,17 @@
     "hasql-resource-pool": {
       "flake": false,
       "locked": {
-        "lastModified": 1783610992,
-        "narHash": "sha256-xpnT7V2EddKVzK5cvaPeRYpCyRbWyqkQJrsBMpSbWXg=",
+        "lastModified": 1789998493,
+        "narHash": "sha256-VA5mGimNwS7qFaI/4MgnAhgeFC30jlSChOKR89RcOsM=",
         "owner": "wireapp",
         "repo": "hasql-resource-pool",
-        "rev": "5b5d3df0fff81801986a0110acae5420215f01c5",
+        "rev": "500a40e51b288c778c803c6a10741d4d05a5e0c6",
         "type": "github"
       },
       "original": {
         "owner": "wireapp",
         "repo": "hasql-resource-pool",
-        "rev": "5b5d3df0fff81801986a0110acae5420215f01c5",
+        "rev": "500a40e51b288c778c803c6a10741d4d05a5e0c6",
         "type": "github"
       }
     },
