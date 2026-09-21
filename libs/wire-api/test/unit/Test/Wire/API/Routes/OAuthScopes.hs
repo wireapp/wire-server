@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,26 +17,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Two independent places declare which OAuth scope an endpoint needs, and
--- nothing keeps them in sync:
---
--- 1. @charts/nginz/values.yaml@ -- @oauth_scope:@ on an upstream entry.  This is
---    what is actually /enforced/: nginz rejects OAuth tokens without the scope.
--- 2. The servant routing tables -- 'Wire.API.Routes.Public.DescriptionOAuthScope'.
---    This is only /documentation/: it appends a line to the endpoint description
---    in the swagger docs and has no effect on request handling.
---
--- Forgetting (2) while doing (1) -- or, more commonly, adding a new version of an
--- endpoint that is already covered by (1) and not carrying the annotation over --
--- silently produces endpoints that reject OAuth tokens for a scope documented
--- nowhere.  This module compares the two for the development version, which is
--- the only one still assembled from the routing tables.
 module Test.Wire.API.Routes.OAuthScopes (tests) where
+
+-- TODO: test backwards compatibility (copy old values.yaml to wire-api tests and run them against the same swagger.
 
 import Data.Aeson qualified as A
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion
 import Data.FileEmbed (embedFile, makeRelativeToProject)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -50,6 +37,7 @@ import Servant.API (toUrlPiece)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Text.Regex.TDFA ((=~))
+import Wire.API.OAuth
 import Wire.API.Routes.Public (renderOAuthScope)
 import Wire.API.Routes.Public.Swagger (devVersion, devVersionSwagger)
 import Wire.API.Routes.Version
@@ -58,9 +46,64 @@ tests :: TestTree
 tests =
   testGroup
     "OAuth scopes (charts/nginz/values.yaml vs. swagger docs)"
-    [ testCase "nginz path patterns avoid PCRE-only constructs" testPatternVocabulary,
-      testCase "enforced scopes and documented scopes agree" testScopesAgree
+    [ testCase "enforced scopes and documented scopes agree" testScopesAgree,
+      testCase "nginz path patterns avoid PCRE-only constructs" testPatternVocabulary
     ]
+
+-- | Two independent places declare which OAuth scope an endpoint needs, and
+-- nothing keeps them in sync:
+--
+-- 1. @charts/nginz/values.yaml@: @oauth_scope:@ (deprecated) or @oauth_scopes:@
+--    on an upstream entry.  This is what is actually /enforced/: nginz rejects
+--    OAuth tokens without a matching scope, and rejects all of them
+--    where no scope is configured at all.
+-- 2. The servant routing tables: 'Wire.API.Routes.Public.DescriptionOAuthScope'.
+--    This is only documentation: it appends a line to the endpoint description
+--    in the swagger docs and has no effect on request handling.
+--
+-- This test matches the openapi docs generated from servant routes
+-- against what nginz enforces.  The behavior of nginz is emulated by
+-- this test.  This is not testing any properties of libzauth.
+testScopesAgree :: Assertion
+testScopesAgree = do
+  unless (Set.null actual) . assertFailure . T.unpack . T.unlines $
+    [ "OAuth scope declarations are out of sync.",
+      "",
+      "Columns: version, method, path, accepted by nginz, documented in swagger.",
+      "The nginz column lists every scope that gets an OAuth token through to that",
+      "verb; '[]' means none does, i.e. OAuth is not usable there at all (the route",
+      "may still be reachable with a zauth cookie or token).  A finding means",
+      "swagger.json does not match values.yaml:",
+      "",
+      "  accepted but not documented  charts/nginz/values.yaml lets a scope through",
+      "                               that the swagger docs do not mention -- most",
+      "                               likely a missing DescriptionOAuthScope in the",
+      "                               routing table, e.g. on a newly added version of",
+      "                               an endpoint that already had one.",
+      "  documented but not accepted  the swagger docs promise a scope that does not",
+      "                               get anybody in -- a stale annotation, or a scope",
+      "                               missing from charts/nginz/values.yaml.",
+      ""
+    ]
+      <> section "deviations:" actual
+  where
+    actual = Set.fromList (renderFinding <$> findings)
+    section title xs
+      | Set.null xs = []
+      | otherwise = ["  " <> title] <> (("    " <>) <$> Set.toAscList xs) <> [""]
+
+testPatternVocabulary :: Assertion
+testPatternVocabulary =
+  for_ nginzLocations $ \loc ->
+    for_ pcreOnlyConstructs $ \bad ->
+      when (bad `T.isInfixOf` locPattern loc) $
+        assertFailure . T.unpack $
+          "charts/nginz/values.yaml: the path pattern "
+            <> locPattern loc
+            <> " uses '"
+            <> bad
+            <> "', which nginx reads as PCRE but this test matches with regex-tdfa, "
+            <> "i.e. POSIX ERE.  The two may disagree, which would be bad."
 
 --------------------------------------------------------------------------------
 -- what nginz enforces
@@ -77,21 +120,41 @@ newtype NginzLocations = NginzLocations [Location]
 
 data Location = Location
   { locPattern :: Text,
-    locOldScope :: Maybe Text,
-    locNewScopes :: [Text]
+    locOldScope :: Maybe Text, -- can't use OldOAuthScope because we don't know the HTTP verb yet.
+    locNewScopes :: Maybe [OAuthScope]
   }
 
--- | The scopes that get an OAuth token past nginz to this endpoint.
+-- | Which scopes let an OAuth token through to this method and path?  The
+-- answer is always given in new scopes, also where values.yaml still uses old
+-- ones.
 --
--- Empty when nginz requires no scope, and also when it requires one
--- not in 'Wire.API.OAuth.OAuthScopes'.  Mistyped scope names are
--- caught by 'testScopeNamesAreReal'.
-enforcedScope :: Text -> Text -> Maybe Text
-enforcedScope method path = do
-  loc <- find locationMatches nginzLocations
-  case loc.locOldScope of
-    Just s -> Just (oldMethodScopeTier method <> ":" <> s)
-    Nothing -> find (newMethodScopeTier method `T.isPrefixOf`) loc.locNewScopes
+-- If the matching location has @oauth_scopes@, the answer is those of the
+-- listed scopes that have the tier this verb needs.
+--
+-- If it only has the deprecated @oauth_scope@, we first ask which old scopes
+-- nginz lets through for this verb.  Old scopes are cumulative, so a @GET@ gets
+-- through with @read:@, @write:@, or @admin:@, but only some of those exist as
+-- scopes a client can be granted.  Then we translate the ones that do into new
+-- scopes.  Example: for a @GET@ under @oauth_scope: conversations_code@, the
+-- only old scope that exists and passes is @write:conversations_code@, and that
+-- one is @read:conversations_code@ plus @write-only:conversations_code@ in new
+-- scopes: if wire-api requires new read *or* new write, old write is acceptable.
+--
+-- NB: We do not need to distinguish between "nginz asks for no scope
+-- at all" and "asks for one that nobody can have": a @DELETE@ under a
+-- deprecated @oauth_scope@ needs @admin:\<base\>@, and for most bases
+-- that scope does not exist, in which case no OAuth token can be
+-- accepted.
+enforcedScopes :: Text -> Text -> Set OAuthScope
+enforcedScopes method path = case find locationMatches nginzLocations of
+  Nothing -> Set.empty
+  Just loc -> case (loc.locOldScope, loc.locNewScopes) of
+    (_, Just newScopes) ->
+      -- Filter scopes listed in values.yaml by matching method/tier.
+      Set.fromList (filter ((newTier method ==) . Just . oAuthScopeTier) newScopes)
+    (Just base, Nothing) ->
+      Set.fromList (oldOAuthScopeToNewScopes =<< oldScopeBaseAccepted base)
+    (Nothing, Nothing) -> Set.empty
   where
     -- Does this location capture that path?  nginx anchors regex locations at the
     -- start of the URI but not at the end, so a pattern without a trailing @$@
@@ -113,17 +176,43 @@ enforcedScope method path = do
             then before
             else before <> "PARAM" <> probePath (T.drop 1 (T.dropWhile (/= '}') rest))
 
-    oldMethodScopeTier :: Text -> Text
-    oldMethodScopeTier "GET" = "read"
-    oldMethodScopeTier "POST" = "write"
-    oldMethodScopeTier "PUT" = "write"
-    oldMethodScopeTier "DELETE" = "admin"
+    -- Which tier is strictly required for which verb?  'Nothing' for the verbs
+    -- nginz has no rule for; nothing gets those past an oauth_scope directive.
+    newTier :: Text -> Maybe OAuthTier
+    newTier = \case
+      "GET" -> Just Read
+      "POST" -> Just WriteOnly
+      "PUT" -> Just WriteOnly
+      "DELETE" -> Just DeleteOnly
+      _ -> Nothing
 
-    newMethodScopeTier :: Text -> Text
-    newMethodScopeTier "GET" = "read"
-    newMethodScopeTier "POST" = "write-only"
-    newMethodScopeTier "PUT" = "write-only"
-    newMethodScopeTier "DELETE" = "delete-only"
+    -- The deprecated @oauth_scope@ names only the base; which tiers
+    -- of it are accepted follows from the verb in the request,
+    -- cumulatively.  Of those @<tier>:<base>@ combinations only the
+    -- ones that parse exist as grantable scopes.
+    oldScopeBaseAccepted :: Text -> [OldOAuthScope]
+    oldScopeBaseAccepted base =
+      mapMaybe (\tier -> fromByteString (T.encodeUtf8 (tier <> ":" <> base))) (oldTiers method)
+
+    -- Mirrors @verify_scope@ in @libs/libzauth/libzauth/src/oauth.rs@, which is
+    -- what nginz calls: `write:*` implies `read:*`, `admin:*` implies `write:*`.
+    oldTiers :: Text -> [Text]
+    oldTiers = \case
+      "GET" -> ["read", "write", "admin"]
+      "POST" -> ["write", "admin"]
+      "PUT" -> ["write", "admin"]
+      "DELETE" -> ["admin"]
+      _ -> []
+
+oldOAuthScopeToNewScopes :: OldOAuthScope -> [OAuthScope]
+oldOAuthScopeToNewScopes = \case
+  ReadFeatureConfigs -> [FeatureConfigs Read]
+  ReadSelf -> [Self Read]
+  WriteConversations -> [Conversations Read, Conversations WriteOnly]
+  WriteConversationsCode -> [ConversationsCode Read, ConversationsCode WriteOnly]
+  WriteConversationsName -> [ConversationsName Read, ConversationsName WriteOnly]
+  WriteMeetings -> [Meetings Read, Meetings WriteOnly]
+  AdminMeetings -> [Meetings Read, Meetings WriteOnly, Meetings DeleteOnly]
 
 nginzLocations :: [Location]
 nginzLocations =
@@ -167,45 +256,18 @@ instance A.FromJSON Location where
   parseJSON = A.withObject "nginz upstream entry" $ \o -> do
     path <- o A..: "path"
     oldScope :: Maybe Text <- do
-      s <- o A..:? "oauth_scope"
-      forM s validateOldScope
-    newScopes :: [Text] <- do
-      s <- o A..:? "oauth_scopes" A..!= []
-      forM s validateNewScope
+      o A..:? "oauth_scope"
+    newScopes :: Maybe [OAuthScope] <- do
+      mbs :: Maybe [Text] <- o A..:? "oauth_scopes"
+      mapM (mapM validateNewScope) mbs
     pure (Location path oldScope newScopes)
 
-validateOldScope :: (MonadFail m) => Text -> m Text
-validateOldScope s = if allowed then pure s else fail ("unknown old scope: " <> show s)
-  where
-    allowed =
-      s
-        `elem` [ "feature_configs",
-                 "self",
-                 "conversations",
-                 "conversations_code",
-                 "conversations_name",
-                 "meetings"
-               ]
-
--- | NB: this could be re-written in terms of `data OAuth{Scope,Tier}`
--- to auto-re-align it with changes, but at the time of writing, the
--- changes to the data type had not been implemented yet.
-validateNewScope :: (MonadFail m) => Text -> m Text
-validateNewScope s = if allowed then pure s else fail ("unknown new scope: " <> show s)
-  where
-    allowed = t && n
-      where
-        t =
-          T.takeWhile (/= ':') s `elem` ["read", "write-only", "delete-only"]
-        n =
-          T.dropWhile (/= ':') s
-            `elem` [ ":feature_configs",
-                     ":self",
-                     ":conversations",
-                     ":conversations_code",
-                     ":conversations_name",
-                     ":meetings"
-                   ]
+validateNewScope :: (MonadFail m) => Text -> m OAuthScope
+validateNewScope s =
+  fromByteString @OAuthScope (T.encodeUtf8 s)
+    & maybe
+      (fail ("unknown new scope: " <> show s))
+      pure
 
 pcreOnlyConstructs :: [Text]
 pcreOnlyConstructs = ["(?", "\\", "{", "*?", "+?"]
@@ -213,11 +275,8 @@ pcreOnlyConstructs = ["(?", "\\", "{", "*?", "+?"]
 --------------------------------------------------------------------------------
 -- what the swagger docs claim
 
-documentedScope :: Text -> Maybe Text
-documentedScope descr = enc <$> find prop [minBound ..]
-  where
-    enc = T.decodeUtf8 . toByteString'
-    prop = (`T.isInfixOf` descr) . renderOAuthScope
+documentedScope :: Text -> Maybe OAuthScope
+documentedScope descr = find ((`T.isInfixOf` descr) . renderOAuthScope) [minBound ..]
 
 httpMethods :: [Text]
 httpMethods = ["GET", "PUT", "POST", "DELETE", "OPTIONS", "HEAD", "PATCH", "TRACE"]
@@ -239,13 +298,13 @@ operations doc = do
 --------------------------------------------------------------------------------
 -- the comparison
 
--- | 'Finding's are interesting iff @fEnforced /= fDocumented@.
+-- | 'Finding's are interesting iff 'fDocumented' is not one of 'fEnforced'.
 data Finding = Finding
   { fVersion :: Version,
     fMethod :: Text,
     fPath :: Text,
-    fEnforced :: Maybe Text,
-    fDocumented :: Maybe Text
+    fEnforced :: Set OAuthScope,
+    fDocumented :: Maybe OAuthScope
   }
 
 renderFinding :: Finding -> Text
@@ -255,7 +314,7 @@ renderFinding f =
     [ toUrlPiece (fVersion f),
       fMethod f,
       fPath f,
-      T.pack . show . toList $ fEnforced f,
+      T.pack . show . Set.toList $ fEnforced f,
       T.pack . show . toList $ fDocumented f
     ]
 
@@ -263,48 +322,17 @@ findings :: [Finding]
 findings =
   [ Finding devVersion method path enforced documented
   | (path, method, descr) <- operations (A.toJSON devVersionSwagger),
-    let enforced = enforcedScope method path,
+    let enforced = enforcedScopes method path,
     let documented = documentedScope descr,
-    enforced /= documented
+    not (scopesMatch enforced documented)
   ]
 
---------------------------------------------------------------------------------
--- the actual tests
-
-testPatternVocabulary :: Assertion
-testPatternVocabulary =
-  for_ nginzLocations $ \loc ->
-    for_ pcreOnlyConstructs $ \bad ->
-      when (bad `T.isInfixOf` locPattern loc) $
-        assertFailure . T.unpack $
-          "charts/nginz/values.yaml: the path pattern "
-            <> locPattern loc
-            <> " uses '"
-            <> bad
-            <> "', which nginx reads as PCRE but this test matches with regex-tdfa, "
-            <> "i.e. POSIX ERE.  The two may disagree, which would be bad."
-
-testScopesAgree :: Assertion
-testScopesAgree = do
-  unless (Set.null actual) . assertFailure . T.unpack . T.unlines $
-    [ "OAuth scope declarations are out of sync.",
-      "",
-      "Columns: version, method, path, accepted by nginz, documented in swagger.",
-      "'-' means no scope. A finding means those last two disagree:",
-      "",
-      "  enforced but not documented  charts/nginz/values.yaml requires a scope the",
-      "                               swagger docs do not mention -- most likely a",
-      "                               missing DescriptionOAuthScope in the routing",
-      "                               table, e.g. on a newly added version of an",
-      "                               endpoint that already had one.",
-      "  documented but not enforced  the swagger docs promise a scope nginz does not",
-      "                               require -- a stale annotation, or a missing",
-      "                               oauth_scope: in charts/nginz/values.yaml.",
-      ""
-    ]
-      <> section "deviations:" actual
-  where
-    actual = Set.fromList (renderFinding <$> findings)
-    section title xs
-      | Set.null xs = []
-      | otherwise = ["  " <> title] <> (("    " <>) <$> Set.toAscList xs) <> [""]
+-- | The documented scope has to be one of the scopes that actually get a token
+-- through.  If no token gets through at all, there is nothing to document.
+scopesMatch ::
+  -- | required
+  Set OAuthScope ->
+  -- | documented
+  Maybe OAuthScope ->
+  Bool
+scopesMatch enforced = maybe (Set.null enforced) (`Set.member` enforced)
