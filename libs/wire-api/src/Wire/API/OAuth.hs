@@ -849,10 +849,10 @@ instance Cql OAuthScopes where
       . Set.toList
       . unOAuthScopes
 
-  fromCql (CqlSet scopes) = OAuthScopes . Set.unions <$> mapM element scopes
+  fromCql (CqlSet scopes) = OAuthScopes . Set.unions <$> mapM el scopes
     where
-      element (CqlText t) = Right (storedScope t)
-      element _ = Left "OAuthScopes: Text expected"
+      el (CqlText t) = Right (storedScope t)
+      el _ = Left "OAuthScopes: Text expected"
   fromCql _ = Left "OAuthScopes: Set expected"
 
 instance Cql OAuthCodeChallenge where
