@@ -19,7 +19,6 @@ library
     Data.Credentials
     Data.Domain
     Data.ETag
-    Data.GenericEnum
     Data.Handle
     Data.HavePendingInvitations
     Data.Id
