@@ -83,7 +83,10 @@ uint8_t                zauth_token_version(ZauthToken const *);
 Range                  zauth_token_lookup(ZauthToken const *, uint8_t);
 ZauthResult            zauth_token_allowed(ZauthToken const *, ZauthAcl const *, uint8_t const * path, size_t len, uint8_t * result);
 void                   zauth_token_delete(ZauthToken *);
+// 's' is the base of a scope, e.g. "conversations_code" (deprecated).
 OAuthResult            oauth_verify_token(OAuthPubJwk const *, uint8_t const * t, size_t t_len, uint8_t const * s, size_t s_len, uint8_t const * m, size_t m_len);
+// 's' is a space separated list of whole scopes, e.g. "read:conversations_code write-only:conversations_code".
+OAuthResult            oauth_verify_token_scopes(OAuthPubJwk const *, uint8_t const * t, size_t t_len, uint8_t const * s, size_t s_len, uint8_t const * m, size_t m_len);
 OAuthResultStatus      oauth_result_uid_delete(char *);
 
 #ifdef __cplusplus
