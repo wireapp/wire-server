@@ -56,7 +56,8 @@ settingsPublicObjectSchema =
         )
 
 data SystemSettingsInternal = SystemSettingsInternal
-  { ssiSetEnableMls :: !Bool
+  { ssiSetEnableMls :: !Bool,
+    ssiSetSsoIdpChangeDetectionEnabled :: !Bool
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema SystemSettingsInternal
@@ -70,6 +71,14 @@ settingsInternalObjectSchema :: ObjectSchema SwaggerDoc SystemSettingsInternal
 settingsInternalObjectSchema =
   SystemSettingsInternal
     <$> ssiSetEnableMls .= fieldWithDocModifier "setEnableMls" (description ?~ "Whether MLS is enabled or not") schema
+    <*> ssiSetSsoIdpChangeDetectionEnabled
+      .= fieldWithDocModifier
+        "ssoIdpChangeDetectionEnabled"
+        ( description
+            ?~ "Whether clients should compare the stored SSO IdP ID with the IdP ID of the current \
+               \login and keep existing locally decrypted messages when they match."
+        )
+        schema
 
 data SystemSettings = SystemSettings
   { ssPublic :: !SystemSettingsPublic,

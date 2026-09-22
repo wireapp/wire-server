@@ -156,10 +156,13 @@ getSelfClients u =
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
-deleteUser user = do
+deleteUser user = deleteUserWithPassword user (Just defPassword)
+
+deleteUserWithPassword :: (HasCallStack, MakesValue user) => user -> Maybe String -> App Response
+deleteUserWithPassword user mPassword = do
   req <- baseRequest user Brig Versioned "/self"
   submit "DELETE" $
-    req & addJSONObject ["password" .= defPassword]
+    req & addJSONObject ["password" .= mPassword]
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_clients
 addClient ::
@@ -824,6 +827,15 @@ addBot user providerId serviceId convId = do
       & zType "access"
       & addJSONObject ["provider" .= providerId, "service" .= serviceId]
 
+rmBotSelf :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+rmBotSelf domain bid cid = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["bot", "self"]
+  submit "DELETE" $
+    req
+      & zType "bot"
+      & addHeader "Z-Bot" bid
+      & addHeader "Z-Conversation" cid
+
 setProperty :: (MakesValue user, ToJSON val) => user -> String -> val -> App Response
 setProperty user propName val = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]
@@ -977,6 +989,11 @@ getInvitationByCode :: (HasCallStack, MakesValue user) => user -> String -> App 
 getInvitationByCode user code = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "info"]
   submit "GET" (req & addQueryParams [("code", code)])
+
+deleteTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteTeamInvitation user tid iid = do
+  req <- baseRequest user Brig Versioned (joinHttpPath ["teams", tid, "invitations", iid])
+  submit "DELETE" req
 
 passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 passwordReset domain email = do

@@ -500,6 +500,8 @@ library
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.IndexUser
+    Wire.UserStore.Migration
+    Wire.UserStore.Migration.Types
     Wire.UserStore.Postgres
     Wire.UserStore.Unique
     Wire.UserSubsystem
@@ -634,6 +636,7 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.AdminlessGroupsSpec
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
+    Wire.ConversationSubsystem.MLS.CheckClientsSpec
     Wire.ConversationSubsystem.One2OneSpec
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec

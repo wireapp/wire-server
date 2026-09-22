@@ -57,6 +57,7 @@
 , optparse-applicative
 , process
 , proto-lens
+, QuickCheck
 , ram
 , random
 , raw-strings-qq
@@ -162,6 +163,7 @@ mkDerivation {
     optparse-applicative
     process
     proto-lens
+    QuickCheck
     ram
     random
     raw-strings-qq

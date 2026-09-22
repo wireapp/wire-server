@@ -27,11 +27,11 @@ import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async
+import Polysemy.AtomicState
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIOFinal)
-import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -49,7 +49,7 @@ migrateAllTeamFeatures ::
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member TinyLog r,
-    Member (State Int) r,
+    Member (AtomicState Int) r,
     Member Async r,
     Member Race r,
     Member Resource r
@@ -65,7 +65,7 @@ migrateAllTeamFeatures migOpts migCounter migDuration = do
     .| C.mapM_ (traverse_ (\row@(tid, feat, _, _, _) -> handleErrors (toByteString' (idToText tid <> " - " <> feat)) (migrateTeamFeature migOpts migCounter migDuration row)))
 
 type EffectStack =
-  [ State Int,
+  [ AtomicState Int,
     Input ClientState,
     Input Hasql.Pool,
     Resource,
@@ -107,7 +107,7 @@ interpreter cassClient pgPool logger name =
     . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
-    . runState 0
+    . atomicStateToIO 0
 
 migrateTeamFeature ::
   ( PGConstraints r,
@@ -134,7 +134,7 @@ migrateTeamFeature migOpts migCounter migDuration (tid, name, status, lockStatus
       liftIO $ Prometheus.incCounter migCounter
 
 handleErrors ::
-  ( Member (State Int) r,
+  ( Member (AtomicState Int) r,
     Member TinyLog r
   ) =>
   ByteString ->
@@ -149,10 +149,10 @@ handleErrors key action = do
         Log.msg (Log.val "error occurred during migration")
           . Log.field "key" (show key)
           . Log.field "error" (show e)
-      modify (+ 1)
+      atomicModify (+ 1)
     Left e -> do
       warn $
         Log.msg (Log.val "error occurred during migration")
           . Log.field "key" (show key)
           . Log.field "error" (show e)
-      modify (+ 1)
+      atomicModify (+ 1)

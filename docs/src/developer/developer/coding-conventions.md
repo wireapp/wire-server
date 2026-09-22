@@ -17,7 +17,7 @@ convert from and to `String` and `Text` which are nowadays typically `utf8` enco
 and a `String` or `Text` can be different; e.g. we could decode a `ByteString` as ASCII-Chars or as utf8, just
 to name a few.
 
-There’s another inherent problem to `cs` in that context, namely **readability**; a `TL.fromStict` immediately tells
+There’s another inherent problem to `cs` in that context, namely **readability**; a `TL.fromStrict` immediately tells
 you what the code does; `cs`, however, says nothing; you know there’s *some* conversion going on but not which.
 
 We have hence decided to not use the error-prone and hard-to-read `cs` in production code, i.e., in all libraries

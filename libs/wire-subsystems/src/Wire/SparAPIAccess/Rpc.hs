@@ -49,6 +49,7 @@ interpretSparAPIAccessToRpc sparEndpoint =
     runInputConst sparEndpoint . \case
       GetIdentityProviders tid -> getIdentityProvidersImpl tid
       DeleteTeam tid -> deleteTeamImpl tid
+      DeleteScimUser tid uid -> deleteScimUserImpl tid uid
       LookupScimUserInfo uid -> lookupScimUserInfoImpl uid
 
 sparRequest ::
@@ -91,6 +92,15 @@ deleteTeamImpl tid = do
     delReq =
       method DELETE
         . paths ["i", "teams", toByteString' tid]
+        . expect2xx
+
+deleteScimUserImpl :: (Member (Input Endpoint) r, Member Rpc r) => TeamId -> UserId -> Sem r ()
+deleteScimUserImpl tid uid = do
+  void $ sparRequest delReq
+  where
+    delReq =
+      method DELETE
+        . paths ["i", "scim", "users", toByteString' tid, toByteString' uid]
         . expect2xx
 
 -- | Get the SCIM user info for a user.

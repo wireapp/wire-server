@@ -25,6 +25,7 @@ import qualified Data.ByteString as BS
 import Data.Scientific (scientific)
 import qualified Data.Vector as Vector
 import System.Random (randomIO, randomRIO)
+import Test.QuickCheck
 import Testlib.Prelude
 
 -- | please don't use special shell characters like '!' here.  it makes writing shell lines
@@ -33,8 +34,11 @@ defPassword :: String
 defPassword = "hunter2."
 
 randomEmail :: App String
-randomEmail = do
-  u <- randomName
+randomEmail = liftIO $ generate arbitraryEmail
+
+arbitraryEmail :: Gen String
+arbitraryEmail = do
+  u <- arbitraryName
   pure $ u <> "@example.com"
 
 randomDomain :: App String
@@ -52,23 +56,32 @@ randomExternalId = liftIO $ do
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
 randomName :: App String
-randomName = liftIO $ do
-  n <- randomRIO (8, 15)
+randomName = liftIO $ generate arbitraryName
+
+arbitraryName :: Gen String
+arbitraryName = do
+  n <- chooseInt (8, 15)
   replicateM n pick
   where
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
-    pick = (chars !) <$> randomRIO (Array.bounds chars)
+    pick = (chars !) <$> chooseInt (Array.bounds chars)
 
 randomHandle :: App String
-randomHandle = randomHandleWithRange 50 256
+randomHandle = liftIO $ generate arbitraryHandle
 
 randomHandleWithRange :: Int -> Int -> App String
-randomHandleWithRange min' max' = liftIO $ do
-  n <- randomRIO (min', max')
+randomHandleWithRange min' max' = liftIO $ generate (arbitraryHandleWithRange min' max')
+
+arbitraryHandle :: Gen String
+arbitraryHandle = arbitraryHandleWithRange 50 60
+
+arbitraryHandleWithRange :: Int -> Int -> Gen String
+arbitraryHandleWithRange min' max' = do
+  n <- chooseInt (min', max')
   replicateM n pick
   where
     chars = mkArray $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
-    pick = (chars !) <$> randomRIO (Array.bounds chars)
+    pick = (chars !) <$> chooseInt (Array.bounds chars)
 
 randomBytes :: Int -> App ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n randomIO
@@ -84,6 +97,14 @@ randomAlphaString n = liftIO $ replicateM n pick
   where
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
     pick = (chars !) <$> randomRIO (Array.bounds chars)
+
+randomPassword :: App String
+randomPassword = liftIO $ generate arbitraryPassword
+
+arbitraryPassword :: Gen String
+arbitraryPassword = do
+  n <- chooseInt (8, 1024)
+  replicateM n arbitraryPrintableChar
 
 randomJSON :: App Value
 randomJSON = do

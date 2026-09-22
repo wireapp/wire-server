@@ -1,3 +1,74 @@
+# [2026-09-18] (Chart Release 5.36.0)
+
+## Release notes
+
+
+* `preventAdminlessGroups` is unlocked by default (#5496)
+
+
+## API changes
+
+
+* Finalize API version v18 and create development version v19. (#5531, #5536)
+
+
+## Features
+
+
+* Add federation support for `preventAdminlessGroups` system notifications, with capability-aware handling for older remote backends. (#5525, #5540)
+
+* Add `ssoIdpChangeDetectionEnabled` to `GET /system/settings`. (#5527)
+
+* Change the default value of totalLimitBytes from one terrabyte to unlimited (#5519)
+
+* Meeting events (`meeting.create`, `meeting.update`, `meeting.delete`, `meeting.member-add`) are now delivered to all push channels, including native push (APNs/FCM), so offline or backgrounded clients learn about meeting changes via native push instead of waiting for the next foreground sync. (#5537)
+
+* Support migrating user data to postgresql from cassandra (#5324)
+
+
+## Bug fixes and other updates
+
+
+* Revoking a pending SCIM invitation now removes the associated Brig account and
+  Spar SCIM metadata synchronously, allowing the same SCIM user to be invited
+  again. (#5510)
+
+* MLS message validation has been hardened. (#5517)
+
+* Account pages now use the correct backend URL and CSP header on each multi-ingress domain. This applies to both ingress charts: `nginx-ingress-services` no longer includes the account-pages host in its generic CSP snippet, and `wire-ingress` (envoy-gateway) no longer injects a Content-Security-Policy response header on the account-pages route. The same fix is applied to the webapp route in `wire-ingress`, which had the same problem (`nginx-ingress-services` already skipped it). (#5534)
+
+* Deleted SCIM users could still have pending team invitations. These are now
+  deleted (invalidated) with the SCIM user. (#5492)
+
+* Postgresql connection strings with mismatched host/port counts in service
+  configurations now lead to immediate failure with a clear error message instead
+  of silently producing an erroneous connection. (#5494)
+
+
+## Documentation
+
+
+* Remove cabal update from build steps and fix some typos in developer docs (#5523)
+
+
+## Internal changes
+
+
+* Script listing all commits and releases in which given files have been touched. (#5509)
+
+* MLS commit-bundles are processed with less sequential I/O: proposal references are resolved from a single store read, client and client-store updates fan out concurrently, and welcome pushes no longer block the response. (#5528)
+
+* Add diagnostic logging for failed MLS commit-bundle operations, including typed failures and exceptions during commit-lock handling. (#5544)
+
+
+## Federation changes
+
+
+* Add an opt-in policy for dropping queued federation notifications when the target backend supports no compatible API version. (#5501)
+
+* Remove stale local memberships when a remote conversation is definitively reported as not found. (#5504)
+
+
 # [2026-08-27] (Chart Release 5.35.0)
 
 ## Release notes

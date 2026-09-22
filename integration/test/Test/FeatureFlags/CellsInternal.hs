@@ -96,7 +96,7 @@ defConf =
   CellsInternalConfig
     { url = "https://cells-beta.wire.com",
       collabora = "COOL",
-      totalLimit = "1000000000000",
+      totalLimit = "-1",
       quota = "-1"
     }
 

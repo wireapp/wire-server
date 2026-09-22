@@ -60,6 +60,10 @@ federationSitemap =
     :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0
     :<|> Named @"on-conversation-updated" federationOnConversationUpdated
     :<|> Named @"on-user-deleted-conversations" federationOnUserDeleted
+    :<|> Named @"on-conversation-system-member-update" federationOnSystemMemberUpdate
+    :<|> Named @"on-conversation-system-delete" federationOnSystemDelete
+    :<|> Named @"on-conversation-adminless-reminder" federationOnAdminlessReminder
+    :<|> Named @"on-conversation-system-adminless-reminder" federationOnSystemAdminlessReminder
 
 onConversationUpdatedV0 ::
   (Member ConversationSubsystem r) =>

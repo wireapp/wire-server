@@ -11,7 +11,7 @@ The following components have been instrumented:
 
 ## Known Issues and future work
 
-- Proper HTTP/2 instrumentation is missing for federator & co - this is related to http/2 outobj in the http2 libraray throwing away all structured information
+- Proper HTTP/2 instrumentation is missing for federator & co - this is related to http/2 outobj in the http2 library throwing away all structured information
 - Some parts of the service, such as background jobs, may need additional instrumentation. It’s currently unclear if these are appearing in the tracing data.
 - we need to ingest the data into grafana tempo
 

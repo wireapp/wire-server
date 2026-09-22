@@ -43,11 +43,11 @@ import Hasql.Transaction.Sessions
 import Imports
 import Polysemy
 import Polysemy.Async
+import Polysemy.AtomicState
 import Polysemy.Conc hiding (timeout_)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIOFinal)
-import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -81,7 +81,7 @@ import Wire.StoredConversation
 -- * Top level logic
 
 type EffectStack =
-  [ State Int,
+  [ AtomicState Int,
     Input ClientState,
     Input Hasql.Pool,
     Resource,
@@ -144,7 +144,7 @@ interpreter cassClient pgPool logger name =
     . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
-    . runState 0
+    . atomicStateToIO 0
 
 migrateAllConversations ::
   ( Member (Input Hasql.Pool) r,
@@ -154,7 +154,7 @@ migrateAllConversations ::
     Member Async r,
     Member Race r,
     Member Resource r,
-    Member (State Int) r,
+    Member (AtomicState Int) r,
     Member (Concurrency Unsafe) r
   ) =>
   MigrationOptions ->
@@ -181,7 +181,7 @@ migrateAllUsers ::
     Member Async r,
     Member Race r,
     Member Resource r,
-    Member (State Int) r,
+    Member (AtomicState Int) r,
     Member (Concurrency 'Unsafe) r
   ) =>
   MigrationOptions ->
@@ -197,11 +197,11 @@ migrateAllUsers migOpts migCounter migDuration = do
     select :: PrepQuery R () (Identity UserId)
     select = "select distinct user from user_remote_conv"
 
-handleErrors :: (Member (State Int) r, Member TinyLog r) => (Id a -> Sem (Error MigrationLockError : Error UsageError : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
+handleErrors :: (Member (AtomicState Int) r, Member TinyLog r) => (Id a -> Sem (Error MigrationLockError : Error UsageError : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
 handleErrors action lockType id_ =
   join <$> handleError (handleError action lockType) lockType id_
 
-handleError :: (Member (State Int) r, Member TinyLog r, Show e) => (Id a -> Sem (Error e : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
+handleError :: (Member (AtomicState Int) r, Member TinyLog r, Show e) => (Id a -> Sem (Error e : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
 handleError action lockType id_ = do
   eithErr <- runError (action id_)
   case eithErr of
@@ -211,7 +211,7 @@ handleError action lockType id_ = do
         Log.msg (Log.val "error occurred during migration")
           . Log.field lockType (idToText id_)
           . Log.field "error" (show e)
-      modify (+ 1)
+      atomicModify (+ 1)
       pure Nothing
 
 -- * Conversations

@@ -87,7 +87,8 @@
     };
 
     postgresql-connection-string = {
-      url = "github:wireapp/postgresql-connection-string?ref=expose-from-key-value-params";
+      url =
+        "github:wireapp/postgresql-connection-string?ref=wire-patches";
       flake = false;
     };
 

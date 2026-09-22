@@ -17,7 +17,7 @@
 
 module Wire.ConversationSubsystem.MLS.Proposal
   ( -- * Proposal processing
-    derefOrCheckProposal,
+    derefOrCheckProposalFrom,
     checkProposal,
     processProposal,
     proposalProcessingStage,
@@ -145,24 +145,24 @@ type HasProposalEffects r =
     Member TeamCollaboratorsSubsystem r
   )
 
-derefOrCheckProposal ::
+-- | Dereference a commit proposal, looking up refs in a prefetched list of
+-- pending proposals instead of issuing one point-read per ref.
+derefOrCheckProposalFrom ::
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member ProposalStore r,
     Member (State IndexMap) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
-  Epoch ->
+  [StoredProposal] ->
   CipherSuiteTag ->
-  GroupId ->
   ProposalOrRef ->
   Sem r Proposal
-derefOrCheckProposal epoch _ciphersuite groupId (Ref ref) = do
-  p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
-  pure p.value
-derefOrCheckProposal _epoch ciphersuite _ (Inline p) = do
+derefOrCheckProposalFrom stored _ciphersuite (Ref ref) =
+  noteS @'MLSProposalNotFound $
+    (.proposal.value) <$> find ((== ref) . (.ref)) stored
+derefOrCheckProposalFrom _stored ciphersuite (Inline p) = do
   im <- get
   checkProposal ciphersuite im p
   pure p
@@ -242,8 +242,9 @@ applyProposal _ciphersuite (RemoveProposal idx) = do
 applyProposal _activeData _ = pure mempty
 
 processProposal ::
-  (HasProposalEffects r) =>
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( HasProposalEffects r,
+    Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
@@ -258,6 +259,13 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
   let mlsMeta = (tUnqualified lConvOrSub).mlsMeta
   -- Check if the group ID matches that of a conversation
   unless (groupId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
+
+  -- Proposals from existing members are not authorized independently of the
+  -- commit that applies them. They must therefore only be submitted as part
+  -- of a commit bundle, where the committer's conversation role can be
+  -- checked. External proposals are retained for the join flow and are
+  -- restricted by 'checkExternalProposalUser' below.
+  unless (isExternal pub.sender) $ throwS @'MLSUnsupportedMessage
 
   case cnvmlsActiveData mlsMeta of
     Nothing -> throw $ mlsProtocolError "Bare proposals at epoch 0 are not supported"

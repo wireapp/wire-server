@@ -404,7 +404,7 @@ testCellsInternalConfig = do
   (_, tid, _) <- createTeamWithNMembers 1
   cfg <- getFeatureConfig @CellsInternalConfig tid
   liftIO $ do
-    cfg.config.storage.totalLimitBytes @?= Just (QuotaBytesFinite (NumBytes (BigIntString 1000000000000)))
+    cfg.config.storage.totalLimitBytes @?= Just QuotaBytesUnlimited
     cfg.config.storage.perUserQuotaBytes @?= QuotaBytesUnlimited
   let newBackend :: HttpsUrl
       newBackend = fromMaybe (error "invalid url") . fromByteString $ "https://cells-internal.example.com"

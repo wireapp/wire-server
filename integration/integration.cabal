@@ -181,6 +181,7 @@ library
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
     Test.Migration.TeamFeatures
+    Test.Migration.User
     Test.Migration.Util
     Test.MLS
     Test.MLS.Clients
@@ -301,6 +302,7 @@ library
     , optparse-applicative
     , process
     , proto-lens
+    , QuickCheck               ^>=2.15.0.1
     , ram
     , random
     , raw-strings-qq
