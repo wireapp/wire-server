@@ -1200,7 +1200,7 @@ spec = describe "UserSubsystem.Interpreter" do
                           <*> getAppId teamBId teamBOwnerId
              in result === ([], [appUser.id])
 
-    prop "denies access when the caller's own team is not the requested team" . withMaxSuccess 1 $
+    prop "denies access when the caller's own team is not the requested team" . withNumTests 1 $
       \(NotPendingStoredUser caller_)
        (NotPendingStoredUser appUser_)
        (callerTeamId :: TeamId)
