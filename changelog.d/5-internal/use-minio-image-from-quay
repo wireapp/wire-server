@@ -1,0 +1,4 @@
+Our local development setups (docker-compose environments) rely on
+`minio/minio` images. These were removed from Docker Hub. As they are still
+available from the official quay.io account, we're now sourcing them from
+there.
