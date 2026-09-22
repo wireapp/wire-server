@@ -28,6 +28,7 @@ where
 import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Core.Codec (Col (CInt8, CText), col, pval)
 import Arbiter.Core.Operations qualified as ArbiterOperations
+import Arbiter.Core.Sql.Query qualified as ArbiterQuery
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
@@ -71,9 +72,9 @@ scheduleAdminlessSetupJob JobSubsystemConfig {..} lusr teamId = do
             groupKey
             (AdminlessSetup (AdminlessSetupJob teamId (tUnqualified <$> lusr) requestId))
         )
-          { ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessSetupJobDedupKey teamId,
-            ArbiterCore.maxAttempts = Just 3
-          }
+          & ArbiterCore.setDedupKey (Just . ArbiterCore.IgnoreDuplicate $ adminlessSetupJobDedupKey teamId)
+          & ArbiterCore.setMaxAttempts (Just 3)
+
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @ConversationsJobPayload @(WireArbiter JobRegistry) arbiterJob
 
 scheduleAdminlessDeletionJob ::
@@ -95,10 +96,10 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
             groupKey
             (AdminlessDeletion (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr) requestId))
         )
-          { ArbiterCore.notVisibleUntil = Just scheduledFor,
-            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" convId,
-            ArbiterCore.maxAttempts = Just 3
-          }
+          & ArbiterCore.setNotVisibleUntil (Just scheduledFor)
+          & ArbiterCore.setDedupKey (Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" convId)
+          & ArbiterCore.setMaxAttempts (Just 3)
+
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @ConversationsJobPayload @(WireArbiter JobRegistry) arbiterJob
 
 scheduleAdminlessReminderJob ::
@@ -122,10 +123,10 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
             groupKey
             (AdminlessReminder (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor requestId))
         )
-          { ArbiterCore.notVisibleUntil = Just scheduledFor,
-            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey convId reminderTimeout,
-            ArbiterCore.maxAttempts = Just 3
-          }
+          & ArbiterCore.setNotVisibleUntil (Just scheduledFor)
+          & ArbiterCore.setDedupKey (Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey convId reminderTimeout)
+          & ArbiterCore.setMaxAttempts (Just 3)
+
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @ConversationsJobPayload @(WireArbiter JobRegistry) arbiterJob
 
 cancelAdminlessJobsForTeam ::
@@ -144,7 +145,7 @@ cancelAdminlessJobsForTeam JobSubsystemConfig {..} teamId = do
       ArbiterCore.withDbTransaction $ do
         jobIds <-
           ArbiterCore.executeQuery
-            ( ArbiterCore.Query
+            ( ArbiterQuery.mkQuery
                 (adminlessJobsForTeamQuery schemaName conversationsQueueName)
                 [pval CText (idToText teamId)]
                 (col "id" CInt8)
@@ -153,16 +154,20 @@ cancelAdminlessJobsForTeam JobSubsystemConfig {..} teamId = do
           void $
             ArbiterOperations.cancelJobsBatch schemaName conversationsQueueName jobIds
 
-    adminlessJobsForTeamQuery :: Text -> Text -> Text
+    adminlessJobsForTeamQuery :: Text -> Text -> [ArbiterQuery.Piece]
     adminlessJobsForTeamQuery schemaName tableName =
-      "SELECT id FROM "
-        <> quoteIdentifier schemaName
-        <> "."
-        <> quoteIdentifier tableName
-        <> " WHERE claimed_by IS NULL"
-        <> " AND payload #>> '{data,team_id}' = ?"
-        <> " AND payload->>'type' IN ('adminless_setup', 'adminless_deletion', 'adminless_reminder')"
-        <> " FOR UPDATE"
+      [ ArbiterQuery.Lit $
+          "SELECT id FROM "
+            <> quoteIdentifier schemaName
+            <> "."
+            <> quoteIdentifier tableName
+            <> " WHERE claimed_by IS NULL"
+            <> " AND payload #>> '{data,team_id}' = ",
+        ArbiterQuery.Hole,
+        ArbiterQuery.Lit $
+          " AND payload->>'type' IN ('adminless_setup', 'adminless_deletion', 'adminless_reminder')"
+            <> " FOR UPDATE"
+      ]
 
     quoteIdentifier :: Text -> Text
     quoteIdentifier identifier = "\"" <> Text.replace "\"" "\"\"" identifier <> "\""

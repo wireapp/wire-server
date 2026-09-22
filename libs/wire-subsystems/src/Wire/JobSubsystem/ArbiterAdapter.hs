@@ -15,7 +15,6 @@ import Arbiter.Core.Codec (Params, RowCodec)
 import Arbiter.Core.Exceptions (throwInternal)
 import Arbiter.Core.MonadArbiter (MonadArbiter (..), Query (..))
 import Arbiter.Core.QueueRegistry (JobPayloadRegistry)
-import Arbiter.Core.Sql.Query (numberPlaceholders)
 import Arbiter.Hasql.Decode qualified as Decode
 import Arbiter.Hasql.Encode qualified as Encode
 import Control.Exception (mask, onException, try)
@@ -71,20 +70,20 @@ instance MonadArbiter (WireArbiter registry) where
   type Handler (WireArbiter registry) jobs result = HasqlConn.Connection -> jobs -> WireArbiter registry result
   getSchema = asks schemaName
 
-  executeQuery (Query sql params codec) = do
+  executeQuery query = do
     env <- ask
     withConn env $ \conn ->
-      runQueryStatement False conn sql params codec
+      runQueryStatement False conn query.qPositional query.qParams query.qDecode
 
-  executeQueryPrepared (Query sql params codec) = do
+  executeQueryPrepared query = do
     env <- ask
     withConn env $ \conn ->
-      runQueryStatement True conn sql params codec
+      runQueryStatement True conn query.qPositional query.qParams query.qDecode
 
-  executeStatement (Query sql params _) = do
+  executeStatement query = do
     env <- ask
     withConn env $ \conn ->
-      runExecStatement conn sql params
+      runExecStatement conn query.qPositional query.qParams
 
   withDbTransaction action = do
     env <- ask
@@ -134,11 +133,11 @@ withPoolConnection pool f = do
       throwInternal $ "hasql session error: " <> T.pack (show err)
 
 runQueryStatement :: Bool -> HasqlConn.Connection -> Text -> Params -> RowCodec a -> IO [a]
-runQueryStatement prepare conn sql params codec = do
+runQueryStatement prepare conn positionalQuery params codec = do
   let mk = if prepare then Statement.preparable else Statement.unpreparable
       stmt =
         mk
-          (numberPlaceholders sql)
+          positionalQuery
           (Encode.buildEncoder params)
           (Decode.hasqlRowDecoder codec)
   result <- HasqlConn.use conn (Session.statement () stmt)
