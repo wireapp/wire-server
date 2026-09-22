@@ -1,0 +1,2 @@
+An IdP could no longer be deleted once its issuer had been updated via the
+IdP management API (deletion failed with 404).
