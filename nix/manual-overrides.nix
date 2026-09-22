@@ -48,6 +48,11 @@ hself: hsuper: {
   uuid = hlib.doJailbreak hsuper.uuid;
   vector = hlib.doJailbreak hsuper.vector;
 
+  # Also quickcheck, but these are deps of pqi-native, which might not get used.
+  ptr = hlib.doJailbreak hsuper.ptr;
+  ptr-peeker = hlib.doJailbreak hsuper.ptr-peeker;
+  testcontainers = hlib.doJailbreak hsuper.testcontainers;
+
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 
@@ -64,6 +69,7 @@ hself: hsuper: {
 
   # Tests require a running postgresql
   hasql = hlib.dontCheck hsuper.hasql;
+  pqi-native = hlib.dontCheck hsuper.pqi-native;
 
   # The library builds with hasql-1.10.x, but its packaged test suite still
   # uses older hasql APIs.

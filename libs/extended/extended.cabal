@@ -112,6 +112,7 @@ library
     , metrics-wai
     , monad-control
     , postgresql-connection-string
+    , pqi-native
     , prometheus-client
     , ram
     , retry
@@ -130,6 +131,7 @@ library
     , unliftio
     , wai
 
+  -- TODO: This is temporary, use pqi-ffi
   default-language:   GHC2021
 
 test-suite extended-tests

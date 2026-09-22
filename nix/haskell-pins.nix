@@ -241,7 +241,11 @@ let
     };
     pqi-native = {
       version = "1.0.1.12";
-      sha256 = "";
+      sha256 = "sha256-XAyKKBFJYRj0yXgBEaE3/n4U9OFrkv0TaEwS0nR83vg=";
+    };
+    pqi-conformance = {
+      version = "1.0.12.0";
+      sha256 = "sha256-OIkv5xfkg8uzIyWZJhr3T//SyYylP23whOUMksWHBlw=";
     };
     postgresql-syntax = {
       version = "0.5.0.3";
