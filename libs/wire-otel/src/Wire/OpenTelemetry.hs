@@ -27,7 +27,7 @@ withTracer :: (MonadUnliftIO m) => (Tracer -> m r) -> m r
 withTracer k =
   bracket
     (liftIO initializeGlobalTracerProvider)
-    shutdownTracerProvider
+    (\tp -> shutdownTracerProvider tp Nothing)
     \tp -> k $ makeTracer tp "wire-otel" tracerOptions
 
 -- | like 'withTracer' but in 'Codensity'
