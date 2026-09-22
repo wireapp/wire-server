@@ -271,6 +271,7 @@ type BrigLowerLevelEffects =
      GalleyAPIAccess,
      SparAPIAccess,
      EmailSending,
+     Error EmailSendingAWSError,
      Rpc,
      Metrics,
      Embed Cas.Client,
@@ -438,6 +439,7 @@ runBrigToIO e (AppT ma) = do
               . interpretClientToIO e.casClient
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
+              . mapError emailSendingErrorToHttpError
               . emailSendingInterpreter e
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
@@ -548,7 +550,12 @@ rethrowHttpErrorIO act = do
     Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
 
-emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
+emailSendingInterpreter ::
+  ( Member (Embed IO) r,
+    Member (Error EmailSendingAWSError) r,
+    Member TinyLog r
+  ) =>
+  Env -> InterpreterFor EmailSending r
 emailSendingInterpreter e = do
   case e.smtpEnv of
     Just smtp -> emailViaSMTPInterpreter e.appLogger smtp
