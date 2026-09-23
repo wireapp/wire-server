@@ -22,7 +22,6 @@ module SAML2.WebSSO.Test.Util.Misc where
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.ByteString.Base64.Lazy qualified as EL (encode)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Char (isSpace)
 import Data.EitherR
@@ -36,7 +35,6 @@ import Data.Typeable
 import Data.UUID as UUID
 import GHC.Stack
 import SAML2.WebSSO
-import Shelly (run, setStdin, shelly, silently)
 import System.Directory (doesFileExist)
 import System.FilePath
 import System.FilePath.TH
