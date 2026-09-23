@@ -9,6 +9,12 @@ data:
     logLevel: {{ .logLevel }}
     logNetStrings: {{ .logNetStrings }}
 
+    presenceStore: {{ include "gundeck.presenceStore" $ }}
+
+    {{- $store := include "gundeck.presenceStore" $ }}
+    {{- if not (or (eq $store "redis") (eq $store "postgresql")) }}{{ fail (printf "gundeck.presenceStore must be redis or postgresql, got %s" $store) }}{{- end }}
+    {{- if and (eq $store "postgresql") (not .postgresql) }}{{ fail "gundeck.config.postgresql must be set when gundeck.presenceStore is postgresql" }}{{- end }}
+    {{- if and (eq $store "postgresql") (not .postgresqlPool) }}{{ fail "gundeck.config.postgresqlPool must be set when gundeck.presenceStore is postgresql" }}{{- end }}
     gundeck:
       host: 0.0.0.0
       port: {{ $.Values.gundeck.service.internalPort }}
@@ -41,6 +47,7 @@ data:
       {{- end }}
     {{- end }}
 
+    {{- if ne (include "gundeck.presenceStore" $) "postgresql" }}
     redis:
       host: {{ .redis.host }}
       port: {{ .redis.port }}
@@ -61,6 +68,7 @@ data:
       {{- if eq (include "gundeck.configureAdditionalRedisCa" .) "true" }}
       tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "gundeck.additionalRedisTlsSecretKey" . }}
       {{- end }}
+    {{- end }}
     {{- end }}
 
     {{- if .postgresql }}

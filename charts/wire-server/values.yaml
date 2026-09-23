@@ -705,6 +705,8 @@ cannon:
   tolerations: []
 
 gundeck:
+  # "redis" (default) or "postgresql"
+  presenceStore: redis
   replicaCount: 3
   image:
     repository: quay.io/wire/gundeck
@@ -757,6 +759,20 @@ gundeck:
       # tlsCaSecretRef:
       #   name: <secret-name>
       #   key: <ca-attribute>
+
+    # Used when presenceStore is "postgresql" (values are in libpq format,
+    # https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
+    # To set the password via a gundeck secret see `secrets.pgPassword`.
+    #
+    # postgresql:
+    #   host: postgresql # DNS name without protocol
+    #   port: "5432"
+    #   user: wire-server
+    #   dbname: wire-server
+    # postgresqlPool:
+    #   size: 100
+    #   acquisitionTimeout: 10s
+    #   idlenessTimeout: 10m
 
     # To enable additional writes during a migration:
     # redisAdditionalWrite:
@@ -811,6 +827,7 @@ gundeck:
     automountServiceAccountToken: true
 
   secrets: {}
+  # pgPassword: <postgres-password>
 
   podSecurityContext:
     allowPrivilegeEscalation: false
