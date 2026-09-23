@@ -23,6 +23,7 @@ import API.Brig as Brig
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
+import qualified API.GalleyInternal as GalleyI
 import Control.Lens hiding ((.=))
 import Data.Aeson.QQ.Simple
 import MLS.Util
@@ -599,3 +600,80 @@ testTeamSizeWithApps (TaggedBool testInternalApi) = do
   BrigI.refreshIndex domain
   eventually $ do
     checkSize (numRegulars - 1) (numApps - 1)
+
+testReadExternalAppToGroupConversation :: (HasCallStack) => App ()
+testReadExternalAppToGroupConversation = do
+  (owner1, tid1, []) <- createTeam OwnDomain 1
+  (owner2, tid2, [member2]) <- createTeam OwnDomain 2
+
+  let newApp = def {name = "external-app"} :: NewApp
+  app <- bindResponse (createApp owner1 tid1 newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+  appId <- app %. "id" & asString
+
+  let appPermissions = ["create_team_conversation", "implicit_connection"]
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  conv <- postConversation member2 defProteus {team = Just tid2} >>= getJSON 201
+  addMembers member2 conv def {users = [app]} >>= assertSuccess
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldContain` [appId]
+
+  removeTeamCollaborator owner2 tid2 app >>= assertSuccess
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldNotContain` [appId]
+
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldNotContain` [appId]
+
+  addMembers member2 conv def {users = [app]} >>= assertSuccess
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldContain` [appId]
+
+testRemoveReadExternalAppOne2OneConversation :: (HasCallStack) => App ()
+testRemoveReadExternalAppOne2OneConversation = do
+  (owner1, tid1, []) <- createTeam OwnDomain 1
+  (owner2, tid2, [member2]) <- createTeam OwnDomain 2
+
+  let newApp = def {name = "external-app-o2o"} :: NewApp
+  app <- bindResponse (createApp owner1 tid1 newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  let appPermissions = ["create_team_conversation", "implicit_connection"]
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  convId <-
+    postOne2OneConversation member2 app tid2 "chit-chat" `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "qualified_id"
+
+  GalleyI.getConversation convId >>= assertSuccess
+  getMLSOne2OneConversation member2 app >>= assertSuccess
+
+  removeTeamCollaborator owner2 tid2 app >>= assertSuccess
+
+  getConversation member2 convId >>= assertLabel 404 "no-conversation"
+  GalleyI.getConversation convId >>= assertLabel 404 "no-conversation"
+  getMLSOne2OneConversation member2 app >>= assertLabel 403 "not-connected"
+
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+  getMLSOne2OneConversation member2 app >>= assertSuccess
