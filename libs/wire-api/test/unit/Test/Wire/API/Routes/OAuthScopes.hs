@@ -163,7 +163,7 @@ enforcedScopes method path = case find locationMatches nginzLocations of
   Just loc -> case (loc.locOldScope, loc.locNewScopes) of
     (_, Just newScopes) ->
       -- Filter scopes listed in values.yaml by matching method/tier.
-      Set.fromList (filter (hasTierFor method newScopes)
+      Set.fromList (filter hasTierFor newScopes)
     (Just base, Nothing) ->
       -- The deprecated attribute gives the base; the tier comes from the method.
       maybe Set.empty Set.singleton (oldScopeBase base)
@@ -189,11 +189,12 @@ enforcedScopes method path = case find locationMatches nginzLocations of
             then before
             else before <> "PARAM" <> probePath (T.drop 1 (T.dropWhile (/= '}') rest))
 
-    hasTierFor :: Text -> OAuthScope -> Bool
-    hasTierFor method scope = case newTier method of
-      Nothing _ -> False
-      Just tier ->      T.decodeUtf8 (toByteString' tier <> ":")
-        `T.isPrefixOf` T.decodeUtf8 (toByteString' scope)
+    hasTierFor :: OAuthScope -> Bool
+    hasTierFor scope = case newTier method of
+      Nothing -> False
+      Just tier ->
+        T.decodeUtf8 (toByteString' tier <> ":")
+          `T.isPrefixOf` T.decodeUtf8 (toByteString' scope)
 
     newTier :: Text -> Maybe OAuthTier
     newTier = \case
