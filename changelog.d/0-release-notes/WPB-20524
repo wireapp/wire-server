@@ -1,0 +1,1 @@
+Brig's `emailSMS.general.emailSender` now rejects domains whose final label starts with a digit, aligning validation with AWS SES requirements.

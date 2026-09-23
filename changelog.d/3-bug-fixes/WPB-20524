@@ -1,0 +1,1 @@
+Return an invalid-email error instead of a 500 response when SES rejects an activation email because of an invalid domain.

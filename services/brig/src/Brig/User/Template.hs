@@ -29,7 +29,7 @@ loadUserTemplates o =
     userTemplateOpts
     o.emailSMS.general.templateDir
     (Opt.defaultTemplateLocale o.settings)
-    o.emailSMS.general.emailSender
+    (Opt.checkedEmailSender o.emailSMS.general)
   where
     userTemplateOpts =
       UserTemplateOpts
