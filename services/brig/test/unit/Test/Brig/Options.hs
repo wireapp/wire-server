@@ -44,5 +44,16 @@ tests =
             eitherDecode
               "{\"multiIngressDomainConfigs\":{\"example.com\":{}},\"idpCertFingerprintAllowlist\":[\"AA:BB\"]}"
               @?= Right (SsoIdpChangeDetectionInputs (Map.singleton "example.com" (object [])) ["AA:BB"])
+        ],
+      testGroup
+        "email sender domain validation"
+        [ testCase "accepts a sender with a valid domain" $
+            case eitherDecode "\"noreply@wire.com\"" :: Either String StricterDomain of
+              Left err -> assertFailure err
+              Right _ -> pure (),
+          testCase "rejects a sender whose final domain label starts with a digit" $
+            case eitherDecode "\"noreply@diana.123\"" :: Either String StricterDomain of
+              Left _ -> pure ()
+              Right _ -> assertFailure "expected invalid sender domain"
         ]
     ]
