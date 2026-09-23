@@ -904,6 +904,80 @@ testBackendRemoveProposal suite domain = do
   r <- createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
   shouldBeEmpty $ r %. "events"
 
+-- | Regression coverage for the conversation-enumeration order in
+-- 'Galley.API.Internal.rmUser'. On user deletion, @leaveTeams@ runs before
+-- @goConvPages@ and strips the deleted user from every team conversation via
+-- 'deleteUserFromTeamConversations', which has no MLS step. Both that removal
+-- and the subsequent conversation enumeration go through the
+-- @conversation_member@ table, so by the time @leaveLocalConversations@ would
+-- call @removeUser@, team conversations are no longer listed.
+--
+-- The non-team conversation is a control: it proves the deletion ran and that
+-- the backend signed a remove proposal in this run, which isolates the
+-- team-conversation path as the only difference between the two.
+testBackendRemoveProposalTeamConv :: (HasCallStack) => App ()
+testBackendRemoveProposalTeamConv = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  replicateM_ 2 $ uploadNewKeyPackage def bob1
+
+  -- Ror testing the "remove from conv because team member has been terminated" path.
+  teamConvId <- createNewGroupWith def alice1 defMLS {team = Just tid}
+  void $ createAddCommit alice1 teamConvId [bob] >>= sendAndConsumeCommitBundle
+
+  -- Ror testing the "remove from conv because personal user chose to leave it" path.
+  personalConvId <- createNewGroup def alice1
+  void $ createAddCommit alice1 personalConvId [bob] >>= sendAndConsumeCommitBundle
+
+  let leafIndexBob = 1 :: Int
+      isBackendRemoveProposalIn :: ConvId -> Value -> App Bool
+      isBackendRemoveProposalIn convId n =
+        isNewMLSMessageNotif n
+          &&~ isNotifConvId convId n
+          &&~ do
+            msg <- n %. "payload.0.data" & asByteString >>= showMessage def alice1
+            fieldEquals msg "message.content.body.Proposal.Remove.removed" leafIndexBob
+              &&~ fieldEquals msg "message.content.sender.External" (0 :: Int)
+
+  withWebSocket alice1 $ \ws -> do
+    deleteUser bob
+    -- team
+    void
+      $ consumeMessageWithPredicate
+        (isBackendRemoveProposalIn teamConvId)
+        teamConvId
+        def
+        alice1
+        Nothing
+        ws
+    -- personal user
+    void
+      $ consumeMessageWithPredicate
+        (isBackendRemoveProposalIn personalConvId)
+        personalConvId
+        def
+        alice1
+        Nothing
+        ws
+
+  bobUser <- asString $ bob %. "id"
+  for_ [personalConvId, teamConvId] $ \convId -> do
+    modifyMLSState $ \mls ->
+      mls
+        { convs =
+            Map.adjust
+              ( \conv ->
+                  conv
+                    { members = Set.filter (\m -> m.user /= bobUser) conv.members,
+                      memberUsers = Set.filter (/= bob1.qualifiedUserId) conv.memberUsers
+                    }
+              )
+              convId
+              mls.convs
+        }
+    r <- createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
+    shouldBeEmpty $ r %. "events"
+
 testExternalCommitDuplicateClient :: (HasCallStack) => App ()
 testExternalCommitDuplicateClient = do
   alice <- randomUser OwnDomain def
