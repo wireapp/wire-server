@@ -151,10 +151,6 @@ instance HasXML SomeSAMLRequest where
 instance HasXMLRoot SomeSAMLRequest where
   renderRoot (SomeSAMLRequest doc) = renderRoot doc
 
-base64ours, base64theirs :: (HasCallStack) => SBS -> IO SBS
-base64ours = pure . cs . EL.encode . cs
-base64theirs sbs = shelly . silently $ cs <$> (setStdin (cs sbs) >> run "/usr/bin/env" ["base64", "--wrap", "0"])
-
 ----------------------------------------------------------------------
 -- orphans
 
