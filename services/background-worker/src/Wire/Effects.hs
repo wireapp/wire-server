@@ -20,7 +20,6 @@ module Wire.Effects
   )
 where
 
-import Arbiter.Core qualified as ArbiterCore
 import Bilge qualified
 import Bilge.Retry
 import Cassandra (ClientState)
@@ -91,7 +90,7 @@ import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword.Interpreter (runHashPassword)
-import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem (JobSubsystem, defaultJobSubsystemConfig)
 import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
@@ -392,10 +391,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
           http2Manager = env.http2Manager,
           requestId = requestId
         }
-    jobSubsystemConfig =
-      JobSubsystemConfig
-        { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
-        }
+    jobSubsystemConfig = defaultJobSubsystemConfig
     backendQueueEnv =
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,
