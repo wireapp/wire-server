@@ -491,8 +491,10 @@ pub extern "C" fn oauth_verify_token_scopes(
 
 /// A NULL `scope` is how a location with nothing configured arrives here, and
 /// there is nothing we could let the token do: no scope, no access.
+// Monomorphize over `F` with `#[inline]` to avoid indirect call overhead through `fn` pointers.
 #[allow(clippy::too_many_arguments)]
-fn oauth_verify(
+#[inline]
+fn oauth_verify<F>(
     jwk: &OAuthPubJwk,
     token: *const u8,
     token_len: size_t,
@@ -500,8 +502,11 @@ fn oauth_verify(
     scope_len: size_t,
     method: *const u8,
     method_len: size_t,
-    verify: fn(&str, &str, &str, &str) -> Result<String, OauthError>,
-) -> OAuthResult {
+    verify: F,
+) -> OAuthResult
+where
+    F: Fn(&str, &str, &str, &str) -> Result<String, OauthError> + std::panic::RefUnwindSafe,
+{
     match panic::catch_unwind(|| {
         if token.is_null() {
             return OAuthResult {
