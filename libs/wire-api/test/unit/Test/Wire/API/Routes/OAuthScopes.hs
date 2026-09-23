@@ -111,6 +111,15 @@ testPatternVocabulary =
 --------------------------------------------------------------------------------
 -- what nginz enforces
 
+data OAuthTier = Read | WriteOnly | DeleteOnly
+  deriving (Eq, Show)
+
+instance ToByteString OAuthTier where
+  builder = \case
+    Read -> "read"
+    WriteOnly -> "write-only"
+    DeleteOnly -> "delete-only"
+
 -- | The locations nginz emits, in the order it emits them.
 --
 -- @charts/nginz/templates/_helpers.tpl@ merges @upstreams@ (minus
@@ -154,7 +163,7 @@ enforcedScopes method path = case find locationMatches nginzLocations of
   Just loc -> case (loc.locOldScope, loc.locNewScopes) of
     (_, Just newScopes) ->
       -- Filter scopes listed in values.yaml by matching method/tier.
-      Set.fromList (filter ((newTier method ==) . Just . oAuthScopeTier) newScopes)
+      Set.fromList (filter (hasTierFor method newScopes)
     (Just base, Nothing) ->
       -- The deprecated attribute gives the base; the tier comes from the method.
       maybe Set.empty Set.singleton (oldScopeBase base)
@@ -180,8 +189,12 @@ enforcedScopes method path = case find locationMatches nginzLocations of
             then before
             else before <> "PARAM" <> probePath (T.drop 1 (T.dropWhile (/= '}') rest))
 
-    -- Which tier is strictly required for which verb?  'Nothing' for the verbs
-    -- nginz has no rule for; nothing gets those past an oauth_scope directive.
+    hasTierFor :: Text -> OAuthScope -> Bool
+    hasTierFor method scope = case newTier method of
+      Nothing _ -> False
+      Just tier ->      T.decodeUtf8 (toByteString' tier <> ":")
+        `T.isPrefixOf` T.decodeUtf8 (toByteString' scope)
+
     newTier :: Text -> Maybe OAuthTier
     newTier = \case
       "GET" -> Just Read

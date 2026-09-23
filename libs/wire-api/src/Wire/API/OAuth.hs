@@ -218,32 +218,9 @@ data OAuthScope
 
 -- TODO: copy old values.yaml and new values.yaml to tests, and run test 3 times.  it's fast.
 
--- TODO: if OAuthTier is only needed in tests, move it there!
-
 -- TODO: bump wire-docs
 
 -- TODO: error when requesting non-existent scopes should show list of legit scopes in message field.
-
--- | The tiers are disjoint: 'WriteOnly' does not include 'Read'.  (The
--- deprecated scopes were cumulative; see @granted_scopes@ in
--- @libs/libzauth/libzauth/src/oauth.rs@, which still honours tokens carrying
--- them.)
--- TODO: s/Read/ReadOnly/g
-data OAuthTier = Read | WriteOnly | DeleteOnly
-  deriving (Eq, Show, Generic, Ord, Bounded, Enum)
-  deriving (Arbitrary) via (GenericUniform OAuthTier)
-
--- | Which tier a scope grants.  The HTTP method of a request decides which
--- tier it needs, see @required_tier@ in @libs/libzauth/libzauth/src/oauth.rs@.
-oAuthScopeTier :: OAuthScope -> OAuthTier
-oAuthScopeTier = \case
-  ReadFeatureConfigs -> Read
-  ReadSelf -> Read
-  ReadConversationsCode -> Read
-  WriteOnlyConversations -> WriteOnly
-  WriteOnlyConversationsCode -> WriteOnly
-  WriteOnlyConversationsName -> WriteOnly
-  WriteOnlyMeetings -> WriteOnly
 
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
@@ -268,12 +245,6 @@ instance IsOAuthScope 'WriteOnlyConversationsName where
 
 instance IsOAuthScope 'WriteOnlyMeetings where
   toOAuthScope = WriteOnlyMeetings
-
-instance ToByteString OAuthTier where
-  builder = \case
-    Read -> "read"
-    WriteOnly -> "write-only" -- TODO: make this "write_only" for consistency?  (also needs adjusting in OAuthScope instance.)
-    DeleteOnly -> "delete-only"
 
 instance ToByteString OAuthScope where
   builder = \case
