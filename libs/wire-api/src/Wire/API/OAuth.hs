@@ -216,8 +216,6 @@ data OAuthScope
   deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
--- TODO: error when requesting non-existent scopes should show list of legit scopes in message field.
-
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
 
@@ -287,13 +285,18 @@ instance ToSchema OAuthScopes where
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
       oauthScopeParser scope = do
         let ws = T.words scope
-        when (null ws) $ fail "empty scope"
+        when (null ws) $ fail ("empty scope; " <> validScopes)
         Set.fromList <$> mapM parseScope ws
 
       parseScope :: Text -> A.Parser OAuthScope
       parseScope s =
         (fromByteString' . fromStrict . TE.encodeUtf8) s
-          & maybe (fail ("invalid scope: " <> show s)) pure
+          & maybe (fail ("invalid scope: " <> show s <> "; " <> validScopes)) pure
+
+      validScopes :: String
+      validScopes =
+        "valid scopes are: "
+          <> T.unpack (oauthScopesToText (Set.fromList [minBound ..]))
 
 -- | A scope as it can appear in the database, in terms of the scopes we have
 -- now.
