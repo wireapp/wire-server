@@ -82,7 +82,12 @@ import Wire.API.User.Auth (CookieType (PersistentCookie))
 import Wire.Sem.Jwk (readJwk)
 
 tests :: Manager -> C.ClientState -> Brig -> Nginz -> Opts -> TestTree
-tests m db b n o = do
+tests m db b nginz o = do
+  -- nginz forwards the request's Host as Z-Host and the services parse that as
+  -- a Domain.  The test config contacts nginz by IP, which is not a Domain, so
+  -- send the local domain as Host.  (Cf. 'rawBaseNginzRequest' in the new
+  -- integration suite.)
+  let n = nginz . header "Host" (cs (domainText o.settings.federationDomain))
   testGroup
     "oauth"
     [ test m "register new oauth client" $ testRegisterNewOAuthClient b,
@@ -179,7 +184,7 @@ testCreateOAuthCodeRedirectUrlMismatch brig = do
   uid <- randomId
   state <- UUID.toText <$> liftIO nextRandom
   let differentUrl = mkUrl "https://wire.com"
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId mempty OAuthResponseTypeCode differentUrl state S256 challenge) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId (OAuthScopes $ Set.singleton ReadSelf) OAuthResponseTypeCode differentUrl state S256 challenge) !!! do
     const 400 === statusCode
     const Nothing === (fmap getPath . getLocation)
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
@@ -190,7 +195,7 @@ testCreateOAuthCodeClientNotFound brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid (OAuthScopes $ Set.singleton ReadSelf) OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
     const 404 === statusCode
     const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -327,7 +332,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
     uid <- randomId
     state <- UUID.toText <$> liftIO nextRandom
     let redirectUrl = mkUrl "https://example.com"
-    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid (OAuthScopes $ Set.singleton ReadSelf) OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
       const 403 === statusCode
       const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
       const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -732,7 +737,7 @@ getFeatureConfigs svc mkHeader token = do
 createOAuthApplicationWithAccountAccess :: Brig -> UserId -> Http OAuthAccessTokenResponse
 createOAuthApplicationWithAccountAccess brig uid = do
   let redirectUrl = mkUrl "https://example.com"
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ mempty) redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ Set.singleton ReadSelf) redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   createOAuthAccessToken brig accessTokenRequest
 
