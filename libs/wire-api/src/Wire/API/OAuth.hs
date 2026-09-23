@@ -45,7 +45,7 @@ import Imports hiding (exp, head)
 import Prelude.Singletons (Show_)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Test.QuickCheck (Arbitrary (..))
+import Test.QuickCheck (Arbitrary (..), listOf1)
 import URI.ByteString
 import URI.ByteString.QQ qualified as URI.QQ
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
@@ -294,8 +294,16 @@ instance FromByteString OAuthScope where
       Nothing -> fail $ "invalid scope: " <> show s
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
-  deriving (Eq, Show, Generic, Monoid, Semigroup, Arbitrary)
+  deriving (Eq, Show, Generic, Monoid, Semigroup)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthScopes)
+
+instance Arbitrary OAuthScopes where
+  arbitrary = OAuthScopes . Set.fromList <$> listOf1 arbitrary
+  shrink (OAuthScopes s) =
+    [ OAuthScopes (Set.fromList xs)
+    | xs <- shrink (Set.toList s),
+      not (null xs)
+    ]
 
 instance ToSchema OAuthScopes where
   schema = OAuthScopes <$> (oauthScopesToText . unOAuthScopes) .= withParser schema oauthScopeParser
@@ -310,7 +318,10 @@ instance ToSchema OAuthScopes where
       -- returning no scopes at all, would hand out a token that does not do
       -- what the client asked for.
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
-      oauthScopeParser scope = Set.fromList <$> mapM parseScope (T.words scope)
+      oauthScopeParser scope = do
+        let ws = T.words scope
+        when (null ws) $ fail "empty scope"
+        Set.fromList <$> mapM parseScope ws
 
       parseScope :: Text -> A.Parser OAuthScope
       parseScope s =

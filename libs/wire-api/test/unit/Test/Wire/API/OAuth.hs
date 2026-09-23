@@ -64,7 +64,8 @@ testScopesParseOnlyKnown = do
   (eitherDecode "\"read:self write-only:conversations\"" :: Either String OAuthScopes)
     @?= Right (OAuthScopes (Set.fromList [ReadSelf, WriteOnlyConversations]))
   for_
-    [ "\"read:pizza\"", -- no such scope
+    [ "\"\"", -- empty scope
+      "\"read:pizza\"", -- no such scope
       "\"write:conversations\"", -- deprecated tier
       "\"read:self read:pizza\"" -- one bad scope spoils the request
     ]
