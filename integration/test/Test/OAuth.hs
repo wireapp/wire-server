@@ -180,7 +180,12 @@ testOAuthRejectUnusefulTokenRequests = do
   cid <- oauthClient user
 
   generateOAuthAuthorizationCode user cid [] redirectUri >>= assertStatus 400
-  generateOAuthAuthorizationCode user cid ["pizza"] redirectUri >>= assertStatus 400
+  -- the 400 has to say which scopes would have worked
+  bindResponse (generateOAuthAuthorizationCode user cid ["pizza"] redirectUri) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    msg <- resp.json %. "message" & asString
+    msg `shouldContainString` "read:self"
+    msg `shouldContainString` "write-only:conversations"
   generateOAuthAuthorizationCode user cid ["delete-only:conversations_code"] redirectUri >>= assertStatus 400
 
 testOAuthNewScopesOnDeprecatedAttribute :: (HasCallStack) => App ()
