@@ -207,7 +207,7 @@ testCreateAccessTokenSuccess opts brig = do
   now <- liftIO getCurrentTime
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.singleton (ReadSelf)
+  let scopes = OAuthScopes $ Set.singleton ReadSelf
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
