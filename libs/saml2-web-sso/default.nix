@@ -57,7 +57,6 @@
 , servant-multipart
 , servant-server
 , shelly
-, silently
 , string-conversions
 , temporary
 , text
@@ -137,7 +136,6 @@ mkDerivation {
     servant-multipart
     servant-server
     shelly
-    silently
     string-conversions
     temporary
     text
@@ -211,7 +209,6 @@ mkDerivation {
     servant-multipart
     servant-server
     shelly
-    silently
     string-conversions
     temporary
     text
