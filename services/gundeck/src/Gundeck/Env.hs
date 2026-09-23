@@ -39,6 +39,7 @@ import Gundeck.Options as Opt hiding (host, port)
 import Gundeck.Options qualified as O
 import Gundeck.Redis qualified as Redis
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.AMQP (Channel)
 import Network.AMQP.Extended qualified as Q
@@ -49,14 +50,19 @@ import Network.TLS.Extra qualified as TLS
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
 
+-- | The presence storage backend, resolved once at startup.  Exactly one
+-- constructor is populated, as enforced by 'createEnv'.
+data PresenceBackend
+  = PresenceBackendRedis !Redis.RobustConnection !(Maybe Redis.RobustConnection)
+  | PresenceBackendPostgres !HasqlPoolExt.Pool
+
 data Env = Env
   { _reqId :: !RequestId,
     _options :: !Opts,
     _applog :: !Logger.Logger,
     _manager :: !Manager,
     _cstate :: !ClientState,
-    _rstate :: !Redis.RobustConnection,
-    _rstateAdditionalWrite :: !(Maybe Redis.RobustConnection),
+    _presenceBackend :: !PresenceBackend,
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
@@ -76,17 +82,32 @@ createEnv o = do
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
 
-  redisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_USERNAME"
-  redisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_PASSWORD"
-  (rThread, r) <- createRedisPool l (o ^. redis) redisUsername redisPassword "main-redis"
-
-  (rAdditionalThreads, rAdditional) <- case o ^. redisAdditionalWrite of
-    Nothing -> pure ([], Nothing)
-    Just additionalRedis -> do
-      additionalRedisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_USERNAME"
-      addtionalRedisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
-      (rAddThread, rAdd) <- createRedisPool l additionalRedis additionalRedisUsername addtionalRedisPassword "additional-write-redis"
-      pure ([rAddThread], Just rAdd)
+  store <- fromMaybe (effectivePresenceStore o) <$> presenceStoreFromEnv
+  (rThreads, backend) <- case store of
+    PresenceRedis -> do
+      redisEp <- case o ^. redis of
+        Just ep -> pure ep
+        Nothing -> error "gundeck: config key redis is required when presenceStore is redis"
+      redisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_USERNAME"
+      redisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_PASSWORD"
+      (rThread, r) <- createRedisPool l redisEp redisUsername redisPassword "main-redis"
+      (rAdditionalThreads, rAdditional) <- case o ^. redisAdditionalWrite of
+        Nothing -> pure ([], Nothing)
+        Just additionalRedis -> do
+          additionalRedisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_USERNAME"
+          addtionalRedisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
+          (rAddThread, rAdd) <- createRedisPool l additionalRedis additionalRedisUsername addtionalRedisPassword "additional-write-redis"
+          pure ([rAddThread], Just rAdd)
+      pure (rThread : rAdditionalThreads, PresenceBackendRedis r rAdditional)
+    PresencePostgresql -> do
+      pg <- case o ^. postgresql of
+        Just pg' -> pure pg'
+        Nothing -> error "gundeck: config key postgresql is required when presenceStore is postgresql"
+      poolCfg <- case o ^. postgresqlPool of
+        Just pc -> pure pc
+        Nothing -> error "gundeck: config key postgresqlPool is required when presenceStore is postgresql"
+      pool <- HasqlPoolExt.initPostgresPool poolCfg pg (o ^. postgresqlPassword)
+      pure ([], PresenceBackendPostgres pool)
 
   p <-
     initCassandraForService
@@ -104,7 +125,7 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar
+  pure $! (rThreads,) $! Env (RequestId defRequestId) o l n p backend a io mtbs rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

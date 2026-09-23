@@ -44,6 +44,7 @@ module Wire.Postgres
     runTransactionWithRetry,
     useWithResetAndRetry,
     runPipeline,
+    useWithResetAndRetry,
     parseCount,
     PGConstraints,
 

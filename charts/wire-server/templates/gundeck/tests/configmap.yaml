@@ -1,3 +1,4 @@
+{{- if ne (include "gundeck.presenceStore" .) "postgresql" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -46,3 +47,4 @@ data:
       connectionMode: master
       enableTls: false
       insecureSkipVerifyTls: false
+{{- end }}
