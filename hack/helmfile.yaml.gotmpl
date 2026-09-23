@@ -6,6 +6,7 @@
 # 'make kube-integration-setup', which set environment variables required here
 # and generate some keys.
 
+
 helmDefaults:
   wait: true
   timeout: 600
@@ -122,6 +123,7 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
+{{- if ne (env "GUNDECK_PRESENCE_STORE") "postgresql" }}
   - name: 'redis-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '{{ $chartsDir }}/redis-ephemeral'
@@ -130,6 +132,7 @@ releases:
       - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
+{{- end }}
 
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
@@ -155,6 +158,7 @@ releases:
             name: elasticsearch
             kind: Issuer
 
+{{- if ne (env "GUNDECK_PRESENCE_STORE") "postgresql" }}
   - name: 'redis-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '{{ $chartsDir }}/redis-ephemeral'
@@ -163,6 +167,7 @@ releases:
       - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
+{{- end }}
 
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
@@ -224,6 +229,7 @@ releases:
     values:
       - './helm_vars/opensearch/values.yaml.gotmpl'
 
+{{- if ne (env "GUNDECK_PRESENCE_STORE") "postgresql" }}
   # Required for testing redis migration
   - name: redis-ephemeral-2
     namespace: '{{ .Values.namespace1 }}'
@@ -240,6 +246,7 @@ releases:
             # ephemeral
             save ""
 
+{{- end }}
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
     chart: bedag/raw
@@ -368,7 +375,9 @@ releases:
         value: true
     needs:
       - 'cassandra-ephemeral'
+      {{- if ne (env "GUNDECK_PRESENCE_STORE") "postgresql" }}
       - 'redis-ephemeral'
+      {{- end }}
       - 'postgresql'
 
   - name: 'wire-server'
@@ -386,7 +395,9 @@ releases:
         value: {{ .Values.federationDomain2 }}
     needs:
       - 'cassandra-ephemeral'
+      {{- if ne (env "GUNDECK_PRESENCE_STORE") "postgresql" }}
       - 'redis-ephemeral'
+      {{- end }}
       - 'postgresql'
 
   - name: wire-server-enterprise
