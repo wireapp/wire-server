@@ -19,8 +19,6 @@
 
 module Test.Wire.API.Routes.OAuthScopes (tests) where
 
--- TODO: test backwards compatibility (copy old values.yaml to wire-api tests and run them against the same swagger.
-
 import Data.Aeson qualified as A
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -74,7 +72,7 @@ testScopesAgree = do
       "",
       "Columns: version, method, path, accepted by nginz, documented in swagger.",
       "The nginz column lists every scope that gets an OAuth token through to that",
-      "verb; '[]' means none does, i.e. OAuth is not usable there at all (the route",
+      "method; '[]' means none does, i.e. OAuth is not usable there at all (the route",
       "may still be reachable with a zauth cookie or token).  A finding means",
       "swagger.json does not match values.yaml:",
       "",
@@ -132,7 +130,7 @@ newtype NginzLocations = NginzLocations [Location]
 
 data Location = Location
   { locPattern :: Text,
-    locOldScope :: Maybe Text, -- only the base, e.g. "conversations_code": no tier without the verb.
+    locOldScope :: Maybe Text, -- only the base, e.g. "conversations_code": no tier without knowing the method.
     locNewScopes :: Maybe [OAuthScope]
   }
 
@@ -140,23 +138,18 @@ data Location = Location
 -- answer is always given in new scopes, also where values.yaml still uses old
 -- ones.
 --
--- If the matching location has @oauth_scopes@, the answer is those of the
--- listed scopes that have the tier this verb needs.
---
--- TODO: the following paragraph is less than clear, rephrase!
+-- If the matching location has @oauth_scopes@, the answer is the
+-- listed scopes filtered by the tier corresponding to the HTTP
+-- method.
 --
 -- If it only has the deprecated @oauth_scope@, the answer is the one scope made
--- of that base and the tier this verb needs: under @oauth_scope:
+-- of that base and the tier this method needs: under @oauth_scope:
 -- conversations_code@, a @GET@ wants @read:conversations_code@ and nothing
--- else.  Old scopes are cumulative, so a token carrying
--- @write:conversations_code@ passes that @GET@ as well, but nginz reads that off
--- the token rather than off the configuration (@granted_scopes@ in
--- @libs/libzauth/libzauth/src/oauth.rs@), and it does not change which scope the
--- docs should name.
+-- else.
 --
 -- NB: an empty answer means no OAuth token gets in at all.  That happens if
 -- the location has no @oauth_scope[s]@, if its @oauth_scopes@ list has nothing
--- of the tier the verb needs, or if the verb is one nginz has no rule for.
+-- of the tier the method needs, or if the method is one nginz has no rule for.
 enforcedScopes :: Text -> Text -> Set OAuthScope
 enforcedScopes method path = case find locationMatches nginzLocations of
   Nothing -> Set.empty
