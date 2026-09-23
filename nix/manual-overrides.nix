@@ -8,13 +8,56 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
+  # This bump is needed for using hasql2
+  QuickCheck = hsuper.QuickCheck_2_18_0_0;
+  quickcheck-instances = hsuper.quickcheck-instances_0_4;
+
+  # Tests not compatible with latest Quickcheck
+  dlist = hlib.dontCheck hsuper.dlist; # Has duplicate instances
+  primitive-unlifted = hlib.dontCheck hsuper.primitive-unlifted;
+  split = hlib.dontCheck hsuper.split;
+
+  # Jail breaks for QuickCheck
+  ChasingBottoms = hlib.doJailbreak hsuper.ChasingBottoms;
+  attoparsec = hlib.doJailbreak hsuper.attoparsec;
+  bytestring-strict-builder = hlib.doJailbreak hsuper.bytestring-strict-builder;
+  bytestring-tree-builder = hlib.doJailbreak hsuper.bytestring-tree-builder;
+  cassava = hlib.doJailbreak hsuper.cassava;
+  cborg = hlib.doJailbreak hsuper.cborg;
+  extra = hlib.doJailbreak hsuper.extra;
+  fgl = hlib.doJailbreak hsuper.fgl;
+  graphviz = hlib.doJailbreak hsuper.graphviz;
+  hedgehog-quickcheck = hlib.doJailbreak hsuper.hedgehog-quickcheck;
+  http-api-data = hlib.doJailbreak hsuper.http-api-data;
+  integer-conversion = hlib.doJailbreak hsuper.integer-conversion;
+  lrucaching = hlib.doJailbreak hsuper.lrucaching;
+  lzma = hlib.doJailbreak hsuper.lzma;
+  openapi3 = hlib.doJailbreak hsuper.openapi3;
+  optparse-applicative = hlib.doJailbreak hsuper.optparse-applicative;
+  psqueues = hlib.doJailbreak hsuper.psqueues;
+  quickcheck-state-machine = hlib.dontCheck (hlib.markUnbroken (hlib.doJailbreak hsuper.quickcheck-state-machine)); # Tests are broken for some other reason, not investigated
+  servant = hlib.doJailbreak hsuper.servant;
+  servant-client = hlib.doJailbreak hsuper.servant-client;
+  servant-client-core = hlib.doJailbreak hsuper.servant-client-core;
+  stm-containers = hlib.doJailbreak hsuper.stm-containers;
+  string-interpolate = hlib.doJailbreak hsuper.string-interpolate;
+  tasty-hspec = hlib.doJailbreak hsuper.tasty-hspec;
+  text-builder = hlib.doJailbreak hsuper.text-builder;
+  text-builder-core = hlib.doJailbreak hsuper.text-builder-core;
+  time-compat = hlib.doJailbreak hsuper.time-compat;
+  uuid = hlib.doJailbreak hsuper.uuid;
+  vector = hlib.doJailbreak hsuper.vector;
+
+  # Also quickcheck, but these are deps of pqi-native, which might not get used.
+  ptr = hlib.doJailbreak hsuper.ptr;
+  ptr-peeker = hlib.doJailbreak hsuper.ptr-peeker;
+  testcontainers = hlib.doJailbreak hsuper.testcontainers;
+
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 
   # tests need network access, cabal2nix disables haddocks
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
-
-  quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
 
   # Tests fail, don't know why
   sandwich = hlib.dontCheck hsuper.sandwich;
@@ -25,18 +68,21 @@ hself: hsuper: {
   HaskellNet = hlib.dontCheck hsuper.HaskellNet;
 
   # Tests require a running postgresql
-  hasql = hlib.dontCheck hsuper.hasql_1_10_3;
+  hasql = hlib.dontCheck hsuper.hasql;
+  pqi-native = hlib.dontCheck hsuper.pqi-native;
+
   # The library builds with hasql-1.10.x, but its packaged test suite still
   # uses older hasql APIs.
   hasql-resource-pool = hlib.dontCheck hsuper.hasql-resource-pool;
   hasql-migration = hlib.markUnbroken (hlib.doJailbreak (hlib.dontCheck hsuper.hasql-migration));
-  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_2;
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction;
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary_0_15_0_1);
   monad-logger-aeson = hlib.markUnbroken (hlib.dontCheck hsuper.monad-logger-aeson);
   # Integration tests require a PostgreSQL server on localhost:5432.
   arbiter-hasql = hlib.dontCheck hsuper.arbiter-hasql;
   arbiter-simple = hlib.dontCheck hsuper.arbiter-simple;
   arbiter-worker = hlib.dontCheck hsuper.arbiter-worker;
+  arbiter-migrations = hlib.dontCheck hsuper.arbiter-migrations;
 
   # Test fixtures don't seem to be bundled for Hackage
   hsaml2 = hlib.dontCheck (hsuper.hsaml2);
@@ -105,8 +151,6 @@ hself: hsuper: {
   crypton-connection = hsuper.crypton-connection_0_4_6;
   tls-session-manager = hsuper.tls-session-manager_0_1_0;
   wreq = hlib.dontCheck hsuper.wreq_0_5_4_5;
-  hasql-th = hsuper.hasql-th_0_5;
-  resource-pool = hsuper.resource-pool_0_5_0_0;
 
   # -----------------
   # flags and patches

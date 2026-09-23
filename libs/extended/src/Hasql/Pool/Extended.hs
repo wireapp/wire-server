@@ -25,6 +25,7 @@ import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Pool qualified as HasqlPool
 import Imports
 import PostgresqlConnectionString qualified
+import Pqi.Native
 import Prometheus
 import Text.Megaparsec qualified as Megaparsec
 import UnliftIO.IO (getMonotonicTime)
@@ -145,7 +146,7 @@ initPostgresPool config pgConfig mFpSecrets = do
   metrics <- mkHasqlPoolMetrics
   rawPool <-
     HasqlPool.acquireWith
-      (instrumentedConnectionGetter metrics (Hasql.Connection.acquire pgSettings))
+      (instrumentedConnectionGetter metrics (Hasql.Connection.acquire adapter pgSettings))
       ( config.size,
         realToFrac config.idlenessTimeout.duration,
         unusedSettings

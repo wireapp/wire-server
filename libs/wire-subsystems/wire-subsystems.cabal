@@ -580,6 +580,7 @@ library
     , polysemy-time
     , polysemy-wire-zoo
     , postgresql-error-codes
+    , pqi-native              ^>=1.0.1.12
     , prometheus-client
     , QuickCheck
     , ram

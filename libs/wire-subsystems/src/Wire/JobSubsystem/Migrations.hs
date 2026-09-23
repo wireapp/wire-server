@@ -42,6 +42,7 @@ import Hasql.Statement qualified as HasqlStatement
 import Hasql.TH
 import Imports
 import PostgresqlConnectionString qualified
+import Pqi.Native
 import System.IO.Error (userError)
 import System.Timeout (timeout)
 import Util.Options (FilePathSecrets, initCredentials)
@@ -146,7 +147,7 @@ withArbiterMigrationLock connStr schemaName action = do
 
     acquireConnection :: IO HasqlConnection.Connection
     acquireConnection = do
-      connectionResult <- HasqlConnection.acquire . HasqlConnectionSettings.connectionString $ revealSecretText connStr
+      connectionResult <- HasqlConnection.acquire adapter . HasqlConnectionSettings.connectionString $ revealSecretText connStr
       either
         ( \err ->
             throwIO . userError $

@@ -31,6 +31,7 @@
 , metrics-wai
 , monad-control
 , postgresql-connection-string
+, pqi-native
 , prometheus-client
 , QuickCheck
 , ram
@@ -81,6 +82,7 @@ mkDerivation {
     metrics-wai
     monad-control
     postgresql-connection-string
+    pqi-native
     prometheus-client
     ram
     retry

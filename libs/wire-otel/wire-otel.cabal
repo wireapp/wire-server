@@ -28,6 +28,7 @@ library
   build-depends:
     , base
     , bytestring
+    , case-insensitive                              ^>=1.2.1.0
     , containers
     , hs-opentelemetry-api
     , hs-opentelemetry-instrumentation-http-client
