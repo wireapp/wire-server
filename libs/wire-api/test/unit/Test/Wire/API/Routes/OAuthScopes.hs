@@ -44,7 +44,8 @@ tests :: TestTree
 tests =
   testGroup
     "OAuth scopes (charts/nginz/values.yaml vs. swagger docs)"
-    [ testCase "enforced scopes and documented scopes agree" testScopesAgree,
+    [ testCase "legacy scope names are valid" testLegacyScopeNamesAreReal,
+      testCase "enforced scopes and documented scopes agree" testScopesAgree,
       testCase "nginz path patterns avoid PCRE-only constructs" testPatternVocabulary
     ]
 
@@ -105,6 +106,26 @@ testPatternVocabulary =
             <> bad
             <> "', which nginx reads as PCRE but this test matches with regex-tdfa, "
             <> "i.e. POSIX ERE.  The two may disagree, which would be bad."
+
+-- | A misspelled legacy base would make 'oldScopeBase' return 'Nothing'.
+-- That would silently close the route to OAuth, and would not necessarily be
+-- caught by the Swagger comparison if the route has no matching annotation.
+testLegacyScopeNamesAreReal :: Assertion
+testLegacyScopeNamesAreReal =
+  for_ nginzLocations $ \loc ->
+    for_ loc.locOldScope $ \base ->
+      unless (base `Set.member` supportedScopeBases) $
+        assertFailure . T.unpack $
+          "charts/nginz/values.yaml: unknown legacy oauth_scope base: " <> base
+  where
+    supportedScopeBases :: Set Text
+    supportedScopeBases =
+      Set.fromList
+        [ base
+        | scope <- [(minBound :: OAuthScope) ..],
+          let (_, baseWithSeparator) = T.breakOn ":" (T.decodeUtf8 (toByteString' scope)),
+          let base = T.drop 1 baseWithSeparator
+        ]
 
 --------------------------------------------------------------------------------
 -- what nginz enforces
