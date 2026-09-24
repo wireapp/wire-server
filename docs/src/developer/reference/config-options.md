@@ -1984,7 +1984,7 @@ When the Wire backend is configured to work against a custom Elasticsearch
 instance, it may be desired to enable basic authentication for the internal
 communication between the Wire backend and the ES instance. To do so the
 Elasticsearch credentials can be set in wire-server’s secrets for `brig` and
-`elasticsearch-index` as follows:
+`opensearch-index` as follows:
 
 ```yaml
 brig:
@@ -1993,7 +1993,7 @@ brig:
       username: elastic
       password: changeme
 
-elasticsearch-index:
+opensearch-index:
   secrets:
     elasticsearch:
       username: elastic
@@ -2022,7 +2022,7 @@ brig:
     elasticsearch:
       scheme: https
 
-elasticsearch-index:
+opensearch-index:
   elasticsearch:
     scheme: https
 ```
@@ -2034,7 +2034,7 @@ brig:
   config:
     elasticsearch:
       tlsCa: <PEM encoded CA certificates>
-elasticsearch-index:
+opensearch-index:
   elasticsearch:
     tlsCa: <PEM encoded CA certificates>
 ```
@@ -2049,7 +2049,7 @@ brig:
       tlsCaSecretRef:
         name: <Name of the secret>
         key: <Key in the secret containing pem encoded CA Cert>
-elasticsearch-index:
+opensearch-index:
   elasticsearch:
     tlsCaSecretRef:
       name: <Name of the secret>
@@ -2081,7 +2081,7 @@ brig:
     elasticsearch:
       insecureSkipVerifyTls: true
       addtionalInsecureSkipVerifyTls: true # only required when addtional index is being used.
-elasticsearch-index:
+opensearch-index:
   elasticsearch:
     insecureSkipVerifyTls: true
 ```

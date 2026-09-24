@@ -20,11 +20,11 @@ dependencies:
     - redis-ephemeral
     - databases-ephemeral
     - demo
-- name: elasticsearch-ephemeral
-  version: "0.0.42"
-  repository: "file://../elasticsearch-ephemeral"
+- name: opensearch-ephemeral
+  version: "0.1.0"
+  repository: "file://../opensearch-ephemeral"
   tags:
-    - elasticsearch-ephemeral
+    - opensearch-ephemeral
     - databases-ephemeral
     - demo
 - name: cassandra-ephemeral
