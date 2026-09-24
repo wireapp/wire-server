@@ -47,6 +47,7 @@ nonTransactionMigrations =
     [ "20260428072649-create-conv-parent-index.sql",
       "20260708090000-meetings-recurrence-eff-end-index.sql",
       "20260708100000-meetings-end-time-nonrecurring-index.sql",
+      "20260911000001-user-search-postgres-indexes.sql",
       "20261020124413-create-scim-user-index.sql",
       "20261022130000-create-pending-scim-user-index.sql"
     ]
