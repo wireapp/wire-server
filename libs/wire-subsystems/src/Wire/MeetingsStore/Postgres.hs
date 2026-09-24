@@ -53,6 +53,8 @@ interpretMeetingsStoreToPostgres =
       updateMeetingImpl meetingId title startDate endTime tzid mMType schedule
     DeleteMeeting meetingId ->
       deleteMeetingImpl meetingId
+    SetMeetingHasCode meetingId hasCode ->
+      setMeetingHasCodeImpl meetingId hasCode
     GetMeeting meetingId ->
       getMeetingImpl meetingId
     ListMeetingsByUser userId cutoffTime ->
@@ -278,6 +280,23 @@ deleteMeetingImpl meetingId = do
     deleteStatement =
       [resultlessStatement|
         DELETE FROM meetings
+        WHERE id = ($1 :: uuid)
+      |]
+
+setMeetingHasCodeImpl ::
+  (PGConstraints r) =>
+  MeetingId ->
+  Bool ->
+  Sem r ()
+setMeetingHasCodeImpl meetingId hasCode =
+  runStatement (toUUID meetingId, hasCode) setHasCodeStatement
+  where
+    setHasCodeStatement :: Statement (UUID, Bool) ()
+    setHasCodeStatement =
+      [resultlessStatement|
+        UPDATE meetings
+        SET has_code = ($2 :: boolean),
+            updated_at = NOW()
         WHERE id = ($1 :: uuid)
       |]
 
