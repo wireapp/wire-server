@@ -33,13 +33,16 @@ spec:
           value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
         {{- if not .Values.tls.enabled }}
         # The security plugin is not needed for the plaintext, ephemeral dev
-        # setup. NOTE: with TLS enabled the plugin runs with OpenSearch's demo
-        # securityconfig (well-known admin/admin credentials); mount a custom
-        # securityconfig for anything beyond a throwaway cluster.
+        # setup.
         - name: DISABLE_SECURITY_PLUGIN
           value: "true"
         {{- end }}
         {{- if .Values.tls.enabled }}
+        # The demo securityconfig (admin/admin) is replaced by the mounted
+        # {{ template "fullname" . }}-securityconfig secret (user
+        # elastic/changeme, same credentials the rest of the repo uses).
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: "true"
         - name: "plugins.security.ssl.http.enabled"
           value: "true"
         - name: "plugins.security.ssl.http.pemcert_filepath"
@@ -60,6 +63,8 @@ spec:
         {{- if .Values.tls.enabled }}
         - name: certificate
           mountPath: /usr/share/opensearch/config/certs
+        - name: securityconfig
+          mountPath: /usr/share/opensearch/plugins/opensearch-security/securityconfig
         {{- end }}
         resources:
 {{ toYaml .Values.resources | indent 12 }}
@@ -71,4 +76,7 @@ spec:
         - name: certificate
           secret:
             secretName: {{ template "fullname" . }}-certificate
+        - name: securityconfig
+          secret:
+            secretName: {{ template "fullname" . }}-securityconfig
         {{- end }}
