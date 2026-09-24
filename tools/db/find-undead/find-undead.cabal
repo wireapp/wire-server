@@ -68,7 +68,7 @@ executable find-undead
   build-depends:
       aeson
     , base
-    , bloodhound
+    , bloodhound            >=1.0 && <1.1
     , cassandra-util
     , conduit
     , containers

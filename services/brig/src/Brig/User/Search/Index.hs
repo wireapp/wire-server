@@ -38,15 +38,14 @@ module Brig.User.Search.Index
 
     -- * Re-exports
     ES.IndexSettings (..),
-    ES.IndexName (..),
+    ES.IndexName,
   )
 where
 
 import Bilge.IO (MonadHttp)
 import Bilge.IO qualified as RPC
 import Brig.Index.Types (CreateIndexSettings (..))
-import Control.Lens hiding ((#), (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM, try)
 import Control.Monad.Except
 import Data.Aeson as Aeson
 import Data.Credentials
@@ -57,13 +56,11 @@ import Data.Text.Encoding
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (host, path, port)
-import Network.HTTP.Types (statusCode)
 import Prometheus (MonadMonitor)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
 import Util.Options (Endpoint)
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
-import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.UserSearch.Types (searchVisibilityInboundFieldName)
 
 --------------------------------------------------------------------------------
@@ -115,7 +112,12 @@ instance MonadLogger (ExceptT e IndexIO) where
   log l m = lift (log l m)
 
 instance ES.MonadBH IndexIO where
-  getBHEnv = asks idxElastic
+  type Backend IndexIO = 'ES.Dynamic
+  dispatch req = do
+    env <- asks idxElastic
+    either throwM pure =<< liftIO (ES.runBH env (ES.dispatch req))
+  tryEsError = try
+  throwEsError = throwM
 
 instance MonadHttp IndexIO where
   handleRequestWithCont req handler = do
@@ -136,7 +138,8 @@ refreshIndexes = liftIndexIO $ do
   case (mbAddIdx, mbAddElasticEnv) of
     (Just addIdx, Just addElasticEnv) ->
       -- Refresh additional index on a separate ElasticSearch instance.
-      ES.runBH addElasticEnv ((void . ES.refreshIndex) addIdx)
+      ES.runBH addElasticEnv (void (ES.refreshIndex addIdx))
+        >>= either (throwM . IndexError . Text.pack . show) pure
     (Just addIdx, Nothing) ->
       -- Refresh additional index on the same ElasticSearch instance.
       void $ ES.refreshIndex addIdx
@@ -178,19 +181,15 @@ createIndexWithoutMapping failIfExists (CreateIndexSettings settings shardCount 
     -- after this has been released.
     for_ mbDeleteTemplate $ \templateName@(ES.TemplateName tname) -> do
       tExists <- ES.templateExists templateName
-      when tExists $ do
-        dr <-
-          traceES
-            ( encodeUtf8
-                ("Delete index template " <> "\"" <> tname <> "\"")
-            )
-            $ ES.deleteTemplate templateName
-        unless (ES.isSuccess dr) $
-          throwM (IndexError "Deleting index template failed.")
+      when tExists
+        $ void
+        $ traceES
+          ( encodeUtf8
+              ("Delete index template " <> "\"" <> tname <> "\"")
+          )
+        $ ES.deleteTemplate templateName
 
-    cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
-    unless (ES.isSuccess cr) $
-      throwM (IndexError $ "Index creation failed: " <> Text.pack (show cr))
+    void $ traceES "Create index" (ES.createIndexWith fullSettings shardCount idx)
 
 createIndex' ::
   (MonadIndexIO m) =>
@@ -206,12 +205,9 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
   createIndexWithoutMapping failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate)
   -- Only put the mapping when we actually created the index above.
   unless existedBefore $ do
-    liftIndexIO $ do
-      mr <-
-        traceES "Put mapping" $
-          ES.putNamedMapping idx mappingName indexMapping
-      unless (ES.isSuccess mr) $
-        throwM (IndexError $ "Put Mapping failed: " <> Text.pack (show mr))
+    liftIndexIO $
+      void $
+        traceES "Put mapping" (ES.putMapping @ES.Acknowledged idx indexMapping)
 
 analysisSettings :: ES.Analysis
 analysisSettings =
@@ -233,12 +229,9 @@ updateMapping = liftIndexIO $ do
   ex <- ES.indexExists idx
   unless ex $
     throwM (IndexError "Index does not exist.")
-  -- FUTUREWORK: check return code (ES.isSuccess) and fail if appropriate.
-  -- But to do that we have to consider the consequences of this failing in our helm chart:
-  -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
   void $
     traceES "Put mapping" $
-      ES.putNamedMapping idx mappingName indexMapping
+      ES.putMapping @ES.Acknowledged idx indexMapping
 
 resetIndex ::
   (MonadIndexIO m) =>
@@ -248,7 +241,7 @@ resetIndex ciSettings = liftIndexIO $ do
   idx <- asks idxName
   gone <-
     ES.indexExists idx >>= \case
-      True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
+      True -> True <$ void (traceES "Delete Index" (ES.deleteIndex idx))
       False -> pure True
   if gone
     then createIndex ciSettings
@@ -257,12 +250,16 @@ resetIndex ciSettings = liftIndexIO $ do
 --------------------------------------------------------------------------------
 -- Internal
 
-traceES :: (MonadIndexIO m) => ByteString -> IndexIO ES.Reply -> m ES.Reply
+traceES :: (MonadIndexIO m) => ByteString -> IndexIO a -> m a
 traceES descr act = liftIndexIO $ do
   info (msg descr)
-  r <- act
-  info . msg $ (r & statusCode . responseStatus) +++ val " - " +++ responseBody r
-  pure r
+  try act >>= \case
+    Right v -> do
+      info (msg (descr +++ val " - success"))
+      pure v
+    Left (e :: ES.EsError) -> do
+      info . msg $ descr +++ val " - error: " +++ Text.pack (show e)
+      throwM (IndexError (Text.pack (show e)))
 
 -- | This mapping defines how elasticsearch will treat each field in a document. Here
 -- is how it treats each field:
