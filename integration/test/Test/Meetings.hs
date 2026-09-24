@@ -955,3 +955,54 @@ testMeetingInteropV18ToV19 = do
   modern <- getMeeting owner domain meetingId >>= getJSON 200
   mtype <- modern %. "type" >>= asString
   mtype `shouldMatch` ("scheduled" :: String)
+
+-- | WPB-28989: @GET|POST /meetings/{domain}/{id}/link/join@ resolves a
+-- meeting join link and joins the meeting conversation. Unlike the regular
+-- meeting endpoints, no creator or conversation membership is required.
+testMeetingLinkJoin :: (HasCallStack) => App ()
+testMeetingLinkJoin = do
+  (alice, _tid, [bob]) <- createTeam OwnDomain 2
+  now <- liftIO getCurrentTime
+  let newMeeting = defaultMeetingJson "Link Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+
+  meeting <- postMeetings alice newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- GET resolves the link for a user who is neither creator nor member
+  fetched <- getMeetingLinkJoin bob domain meetingId >>= getJSON 200
+  fetched %. "qualified_id" %. "id" `shouldMatch` meetingId
+  fetched %. "title" `shouldMatch` ("Link Meeting" :: String)
+
+  -- POST joins the meeting conversation and returns meeting + conversation
+  joined <- postMeetingLinkJoin bob domain meetingId >>= getJSON 200
+  joined %. "qualified_id" %. "id" `shouldMatch` meetingId
+  assertConversationMatchesLegacy joined
+
+  -- Bob is now a member of the meeting conversation: his own view shows
+  -- himself as member (members.self), and alice's view shows him in others.
+  convQid <- joined %. "conversation" %. "qualified_id"
+  convAsBob <- getConversation bob convQid >>= getJSON 200
+  convAsBob %. "members" %. "self" %. "qualified_id" `shouldMatch` objQidObject bob
+  convAsAlice <- getConversation alice convQid >>= getJSON 200
+  others <- convAsAlice %. "members" %. "others" & asList
+  bobQid <- objQidObject bob
+  otherIds <- for others (\m -> m %. "qualified_id" >>= asString)
+  otherIds `shouldMatchSet` [bobQid]
+
+testMeetingLinkJoinNotFound :: (HasCallStack) => App ()
+testMeetingLinkJoinNotFound = do
+  (alice, _tid, _members) <- createTeam OwnDomain 1
+  fakeMeetingId <- randomId
+  domain <- alice %. "qualified_id" %. "domain" >>= asString
+  getMeetingLinkJoin alice domain fakeMeetingId >>= assertLabel 404 "meeting-not-found"
+  postMeetingLinkJoin alice domain fakeMeetingId >>= assertLabel 404 "meeting-not-found"
+
+testMeetingLinkJoinRemoteDomain :: (HasCallStack) => App ()
+testMeetingLinkJoinRemoteDomain = do
+  (alice, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let newMeeting = defaultMeetingJson "Local Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+
+  meeting <- postMeetings alice newMeeting >>= getJSON 201
+  (meetingId, _domain) <- getMeetingIdAndDomain meeting
+  getMeetingLinkJoin alice "far-away.example.com" meetingId >>= assertLabel 404 "meeting-not-found"

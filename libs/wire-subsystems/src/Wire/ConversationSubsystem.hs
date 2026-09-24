@@ -509,6 +509,14 @@ data ConversationSubsystem m a where
     ConnId ->
     ConvId ->
     ConversationSubsystem m (UpdateResult Event)
+  -- | Join a meeting conversation via its meeting join link (WPB-28989):
+  -- like 'JoinConversationById', but requires 'CodeAccess' (meeting
+  -- conversations carry @InviteAccess@ and @CodeAccess@, not @LinkAccess@).
+  JoinMeetingConversation ::
+    Local UserId ->
+    ConnId ->
+    ConvId ->
+    ConversationSubsystem m (UpdateResult Event)
   JoinConversationByReusableCode ::
     Local UserId ->
     ConnId ->

@@ -292,6 +292,155 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       Right fetched ->
         fmap (.link) fetched `shouldBe` Just (API.mkMeetingLink testCodeURIBase (Id nil))
 
+  it "get-meeting-by-link resolves a live local meeting for a non-member" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        bob = Id $ read "00000000-0000-0000-0000-000000000002"
+        creator = toLocalUnsafe (Domain "wire.com") uid
+        bobLocal = toLocalUnsafe (Domain "wire.com") bob
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Link Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      meeting <- createMeeting creator (ConnId "test-conn") newMeeting
+      fetched <- getMeetingByLink bobLocal meeting.meeting.id
+      pure (meeting.meeting, fetched)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, fetched) -> fetched `shouldBe` Just meeting
+
+  it "get-meeting-by-link fails for meetings without a join code" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        mid = Id $ read "00000000-0000-0000-0000-00000000000e"
+        sm =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Placeholder Meeting",
+              creator = uid,
+              startTime = now,
+              endTime = addUTCTime 3600 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000f",
+              invitedEmails = [],
+              trial = False,
+              hasCode = False,
+              createdAt = now,
+              updatedAt = now
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
+      getMeetingByLink zUser (Qualified mid (Domain "wire.com"))
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right fetched -> fetched `shouldBe` Nothing
+
+  it "get-meeting-by-link fails for remote meetings" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        mid = Id $ read "00000000-0000-0000-0000-000000000010"
+        sm =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Remote Meeting",
+              creator = uid,
+              startTime = now,
+              endTime = addUTCTime 3600 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-000000000011",
+              invitedEmails = [],
+              trial = False,
+              hasCode = True,
+              createdAt = now,
+              updatedAt = now
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
+      getMeetingByLink zUser (Qualified mid (Domain "far-away.example.com"))
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right fetched -> fetched `shouldBe` Nothing
+
+  it "join-meeting adds the caller to the meeting conversation" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        bob = Id $ read "00000000-0000-0000-0000-000000000002"
+        creator = toLocalUnsafe (Domain "wire.com") uid
+        bobLocal = toLocalUnsafe (Domain "wire.com") bob
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Joinable Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      meeting <- createMeeting creator (ConnId "test-conn") newMeeting
+      let lconv = qUnqualified meeting.meeting.conversationId
+      joined <- joinMeeting bobLocal (ConnId "bob-conn") meeting.meeting.id
+      members <- gets @(Map ConvId (Set UserId)) (Map.lookup lconv)
+      pure (meeting.meeting, joined, members)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, joined, members) -> do
+        fmap (.meeting) joined `shouldBe` Just meeting
+        members `shouldSatisfy` maybe False (Set.member bob)
+
+  it "join-meeting fails for expired meetings" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        bob = Id $ read "00000000-0000-0000-0000-000000000002"
+        creator = toLocalUnsafe (Domain "wire.com") uid
+        bobLocal = toLocalUnsafe (Domain "wire.com") bob
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Dying Meeting",
+              startTime = addUTCTime 60 now,
+              endTime = addUTCTime 120 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      meeting <- createMeeting creator (ConnId "test-conn") newMeeting
+      -- Fast-forward beyond the validity window (11000s).
+      modify @UTCTime (addUTCTime 20000)
+      joinMeeting bobLocal (ConnId "bob-conn") meeting.meeting.id
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right joined -> joined `shouldBe` Nothing
   it "cleanup removes expired meetings together with their join codes" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42

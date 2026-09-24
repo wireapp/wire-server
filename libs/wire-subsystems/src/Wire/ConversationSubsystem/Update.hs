@@ -28,6 +28,7 @@ module Wire.ConversationSubsystem.Update
     checkReusableCode,
     joinConversationByReusableCode,
     joinConversationById,
+    joinMeetingConversation,
     addCodeUnqualified,
     rmCodeUnqualified,
     getCode,
@@ -801,6 +802,37 @@ joinConversationById ::
 joinConversationById lusr zcon cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
   joinConversation lusr zcon conv LinkAccess
+
+-- | Join a meeting conversation via its meeting join link (WPB-28989).
+-- Meeting conversations carry 'CodeAccess' (not 'LinkAccess'), so this is
+-- 'joinConversationById' with 'CodeAccess' instead. Deliberately exempt from
+-- 'Query.ensureGuestLinksEnabled' (which @POST /conversations/join@ enforces
+-- for CodeAccess joins): the meeting join link is its own capability, gated
+-- by the meetings feature, and is unaffected by the conversation
+-- guest-links policy (WPB-28989 security review).
+joinMeetingConversation ::
+  ( Member BrigAPIAccess r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (Error FederationError) r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member BackendNotificationQueueAccess r,
+    Member NotificationSubsystem r,
+    Member E.ExternalAccess r,
+    Member Now r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  ConvId ->
+  Sem r (UpdateResult Event)
+joinMeetingConversation lusr zcon cnv = do
+  conv <- E.getConversation cnv >>= noteS @'ConvNotFound
+  joinConversation lusr zcon conv CodeAccess
 
 joinConversation ::
   forall r.

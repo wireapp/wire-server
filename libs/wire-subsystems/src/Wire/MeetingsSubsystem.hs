@@ -49,6 +49,23 @@ data MeetingsSubsystem m a where
     ConnId ->
     Qualified MeetingId ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
+  -- | Fetch a meeting through its join link (WPB-28989). Unlike 'GetMeeting'
+  -- this does not require the caller to be the creator or a conversation
+  -- member: anyone may resolve a live local meeting link that carries a real
+  -- join code. 'Nothing' (surfaced as 404) when the meeting does not exist,
+  -- is expired, is remote, or was created without a join code.
+  GetMeetingByLink ::
+    Local UserId ->
+    Qualified MeetingId ->
+    MeetingsSubsystem m (Maybe Meeting)
+  -- | Join a meeting conversation through its join link (WPB-28989), like
+  -- @POST /conversations/join@. Guards mirror 'GetMeetingByLink'; returns
+  -- 'Nothing' (surfaced as 404) when the link does not resolve.
+  JoinMeeting ::
+    Local UserId ->
+    ConnId ->
+    Qualified MeetingId ->
+    MeetingsSubsystem m (Maybe MeetingWithConversation)
   GetMeeting ::
     Local UserId ->
     Qualified MeetingId ->

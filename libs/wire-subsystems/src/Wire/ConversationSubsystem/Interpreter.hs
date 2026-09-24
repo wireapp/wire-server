@@ -302,6 +302,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.replaceMembers responseMode lusr zcon qcnv invite
   JoinConversationById lusr con cnv ->
     mapErrors $ Update.joinConversationById lusr con cnv
+  JoinMeetingConversation lusr con cnv ->
+    mapErrors $ Update.joinMeetingConversation lusr con cnv
   JoinConversationByReusableCode lusr con req ->
     mapErrors $ Update.joinConversationByReusableCode lusr con req
   CheckReusableCode addr code ->
