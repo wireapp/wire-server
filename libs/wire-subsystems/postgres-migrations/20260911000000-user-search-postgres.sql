@@ -4,9 +4,11 @@
 -- lower() cannot provide ("Björn" -> "bjorn").
 ALTER TABLE wire_user ADD COLUMN name_normalized text;
 
--- The three CREATE INDEX CONCURRENTLY statements for this migration live in
--- 20260911000001-user-search-postgres-indexes.sql: they cannot run inside a
--- transaction and are registered in 'Wire.PostgresMigrations.nonTransactionMigrations'.
+-- The CREATE INDEX CONCURRENTLY statements for this migration live in
+-- 2026091100000{1,2,3}-user-search-*.sql: they cannot run inside a
+-- transaction and are registered in 'Wire.PostgresMigrations.nonTransactionMigrations'
+-- (one statement per file: statements within a single script run in one
+-- implicit transaction, which CREATE INDEX CONCURRENTLY forbids).
 
 -- Replaces the per-user search_visibility_inbound field formerly
 -- denormalized into the ElasticSearch user documents.  One row per team;
