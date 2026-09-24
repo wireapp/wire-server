@@ -120,6 +120,8 @@ import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 import Wire.ServiceStore (ServiceStore)
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
+import Wire.ServiceStore.DualWrite (interpretServiceStoreToCassandraAndPostgres)
+import Wire.ServiceStore.Postgres (interpretServiceStoreToPostgres)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc (interpretSparAPIAccessToRpc)
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
@@ -327,7 +329,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
     . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
     . interpretProposalStoreToCassandra
-    . interpretServiceStoreToCassandra env.cassandraBrig
+    . serviceStoreInterpreter
     . interpretUserGroupStoreToPostgres
     . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
@@ -379,6 +381,10 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       CassandraStorage -> interpretCodeStoreToCassandra
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
+    serviceStoreInterpreter = case env.postgresMigration.service of
+      CassandraStorage -> interpretServiceStoreToCassandra env.cassandraBrig
+      MigrationToPostgresql -> interpretServiceStoreToCassandraAndPostgres env.cassandraBrig
+      PostgresqlStorage -> interpretServiceStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
