@@ -447,7 +447,7 @@ evalGalley e =
         case (e ^. options . postgresMigration).customBackend of
           CassandraStorage -> interpretCustomBackendStoreToCassandra
           MigrationToPostgresql -> interpretCustomBackendStoreToCassandraAndPostgres
-          PostgresqlStorage -> interpretCustomBackendStoreToPostgres,
+          PostgresqlStorage -> interpretCustomBackendStoreToPostgres
       serviceStoreInterpreter =
         case (e ^. options . postgresMigration).service of
           CassandraStorage -> interpretServiceStoreToCassandra (e ^. cstate)
