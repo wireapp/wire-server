@@ -87,7 +87,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.tls.minVersion` | `"1.3"` | Minimum TLS version. Lowering to `"1.2"` also requires adding a classical key-agreement group. |
 | `gateway.tls.maxVersion` | `"1.3"` | Maximum TLS version. Same value set as `minVersion`. |
 | `gateway.tls.ciphers` | Four ECDHE ECDSA/RSA AES-GCM suites (see values) | TLS <=1.2 only. Omitted when minVersion is 1.3; does not constrain TLS 1.3 suites. |
-| `gateway.tls.ecdhCurves` | `[X25519MLKEM768]` | Hybrid PQ only; clients and the Envoy crypto library must support this group. No classical fallback. |
+| `gateway.tls.ecdhCurves` | `["X25519MLKEM768", "X25519", "P-256", "P-384", "P-521"]` | Hybrid PQ only; clients and the Envoy crypto library must support this group. No classical fallback. |
 | `gateway.tls.signatureAlgorithms` | `[]` | Optional signature preferences; also affects federation client authentication. |
 | `gateway.patchPolicies.xdsNameSchemeV2` | `false` | Match the controller runtime flag when targeting the FIPS listener patch. |
 | `gateway.extraHttpsListeners` | `[]` | Extra named HTTPS listeners on the same port, with `hostname` and optional `certificateSecretName`; useful for admin hostnames outside the API wildcard. Attach routes explicitly and issue a matching certificate. The FIPS patch covers these listeners too. |
@@ -426,11 +426,6 @@ For operator acceptance, scan every public hostname for both allowed and
 forbidden suites, protocols, groups and signatures; verify the served certificate
 chain too. Repeat after proxy upgrades and certificate renewal. A rendered Helm
 policy or a Wire-client-only test is not evidence of server-side enforcement.
-
-The flag was renamed from `BSI_TR_02102_2_conformance` to describe the actual
-mechanism, not imply full conformance. Rename it in Helm values and Terraform
-inputs together. The chart rejects the old key, even if false; remove it from
-reused Helm values too. Existing `-bsi` resource names are retained to avoid churn.
 
 See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
 
