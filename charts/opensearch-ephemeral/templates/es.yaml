@@ -20,29 +20,31 @@ spec:
     spec:
       automountServiceAccountToken: false
       containers:
-      - name: es
+      - name: opensearch
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         env:
-        - name: MAX_HEAP_SIZE
-          value: "2048"
-        - name: HEAP_NEWSIZE
-          value: "800M"
+        - name: OPENSEARCH_JAVA_OPTS
+          value: "-Xms2048m -Xmx2048m"
         - name: "bootstrap.system_call_filter"
           value: "false"
         - name: "discovery.type"
           value: "single-node"
         - name: "action.auto_create_index"
           value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
-        - name: "xpack.security.enabled"
+        {{- if not .Values.tls.enabled }}
+        # The security plugin is not needed for the plaintext, ephemeral dev
+        # setup. NOTE: with TLS enabled the plugin runs with OpenSearch's demo
+        # securityconfig (well-known admin/admin credentials); mount a custom
+        # securityconfig for anything beyond a throwaway cluster.
+        - name: DISABLE_SECURITY_PLUGIN
           value: "true"
-        - name: "ELASTIC_PASSWORD"
-          value: {{ .Values.secrets.password }}
+        {{- end }}
         {{- if .Values.tls.enabled }}
-        - name: "xpack.security.http.ssl.enabled"
+        - name: "plugins.security.ssl.http.enabled"
           value: "true"
-        - name: "xpack.security.http.ssl.certificate"
+        - name: "plugins.security.ssl.http.pemcert_filepath"
           value: "certs/tls.crt"
-        - name: "xpack.security.http.ssl.key"
+        - name: "plugins.security.ssl.http.pemkey_filepath"
           value: "certs/tls.key"
         {{- end }}
         ports:
@@ -54,10 +56,10 @@ spec:
           protocol: TCP
         volumeMounts:
         - name: storage
-          mountPath: /data
+          mountPath: /usr/share/opensearch/data
         {{- if .Values.tls.enabled }}
         - name: certificate
-          mountPath: /usr/share/elasticsearch/config/certs
+          mountPath: /usr/share/opensearch/config/certs
         {{- end }}
         resources:
 {{ toYaml .Values.resources | indent 12 }}

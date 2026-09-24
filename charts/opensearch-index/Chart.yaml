@@ -1,0 +1,4 @@
+apiVersion: v1
+description: OpenSearch index for brig
+name: opensearch-index
+version: 0.1.0

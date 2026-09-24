@@ -1,7 +1,7 @@
-# Default values for elasticsearch-index
+# Default values for opensearch-index
 elasticsearch:
   scheme: http
-  #host:  # elasticsearch-client|elasticsearch-ephemeral
+  #host:  # opensearch-ephemeral
   port: 9200
   index: directory
   delete_template: directory

@@ -1,7 +1,7 @@
 image:
-  repository: elasticsearch
-  # Keep this aligned with the Elastic Search version in wire-server-deploy!
-  tag: 7.17.26
+  repository: opensearchproject/opensearch
+  # Keep this aligned with the OpenSearch version in wire-server-deploy!
+  tag: 1.3.20
 
 service:
   httpPort: 9200
@@ -18,6 +18,3 @@ resources:
 tls:
   enabled: false
   # issuerRef: ..
-
-secrets:
-  password: "changeme"

@@ -27,5 +27,5 @@ elasticsearch-curator:
       ---
       client:
         hosts:
-          - elasticsearch-ephemeral
+          - opensearch-ephemeral
         port: 9200

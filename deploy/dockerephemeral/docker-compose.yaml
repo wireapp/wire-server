@@ -206,9 +206,9 @@ services:
       redis:
         ipv4_address: 172.20.0.36
 
-  elasticsearch:
-    container_name: demo_wire_elasticsearch
-    image: elasticsearch:6.8.23
+  opensearch:
+    container_name: demo_wire_opensearch
+    image: opensearchproject/opensearch:1.3.20
     ulimits:
       nofile:
         soft: 65536
@@ -217,38 +217,11 @@ services:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
     environment:
-      - "xpack.ml.enabled=false"
-      - "xpack.security.enabled=true"
-      - "xpack.security.http.ssl.enabled=true"
-      - "xpack.ssl.certificate=certs/elasticsearch-cert.pem"
-      - "xpack.ssl.key=certs/elasticsearch-key.pem"
       - "bootstrap.system_call_filter=false"
-      - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
-      - "discovery.type=single-node"
-      - "ELASTIC_PASSWORD=changeme"
-    volumes:
-      - ./docker/elasticsearch-cert.pem:/usr/share/elasticsearch/config/certs/elasticsearch-cert.pem
-      - ./docker/elasticsearch-key.pem:/usr/share/elasticsearch/config/certs/elasticsearch-key.pem
-    networks:
-      - demo_wire
-
-  opensearch:
-    container_name: opensearch
-    image: opensearchproject/opensearch:1.3.20
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
-    ports:
-      - "127.0.0.1:9201:9200"
-      - "127.0.0.1:9301:9300"
-    environment:
-      - "bootstrap.system_call_filter=false"
-      - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
       - "discovery.type=single-node"
 
       - "DISABLE_INSTALL_DEMO_CONFIG=true"
-      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=Ch4ng3m3Secr3t!"
     volumes:
       - ./docker/elasticsearch-cert.pem:/usr/share/opensearch/config/certs/tls.crt
       - ./docker/elasticsearch-key.pem:/usr/share/opensearch/config/certs/tls.key

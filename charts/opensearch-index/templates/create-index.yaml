@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: elasticsearch-index-create
+  name: opensearch-index-create
   labels:
-    app: elasticsearch-index-create
+    app: opensearch-index-create
     heritage: {{.Release.Service | quote }}
     release: {{.Release.Name | quote }}
     chart: "{{.Chart.Name}}-{{.Chart.Version}}"
@@ -15,7 +15,7 @@ spec:
     metadata:
       name: "{{.Release.Name}}"
       labels:
-        app: elasticsearch-index-create
+        app: opensearch-index-create
         heritage: {{.Release.Service | quote }}
         release: {{.Release.Name | quote }}
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
@@ -24,9 +24,9 @@ spec:
       {{- if or (eq (include "configureElasticsearchCa" .Values) "true") (hasKey .Values.secrets "elasticsearch") }}
       volumes:
         {{- if hasKey .Values.secrets "elasticsearch" }}
-        - name: elasticsearch-index-secrets
+        - name: opensearch-index-secrets
           secret:
-            secretName: elasticsearch-index
+            secretName: opensearch-index
         {{- end }}
         {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
         - name: elasticsearch-ca
@@ -42,8 +42,8 @@ spec:
           {{- if or (eq (include "configureElasticsearchCa" .Values) "true") (hasKey .Values.secrets "elasticsearch") }}
           volumeMounts:
             {{- if hasKey .Values.secrets "elasticsearch" }}
-            - name: "elasticsearch-index-secrets"
-              mountPath: "/etc/wire/elasticsearch-index/secrets"
+            - name: "opensearch-index-secrets"
+              mountPath: "/etc/wire/opensearch-index/secrets"
             {{- end }}
 
             {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
@@ -58,10 +58,10 @@ spec:
           args:
             - create
             - --elasticsearch-server
-            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing opensearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             {{- if hasKey .Values.secrets "elasticsearch" }}
             - --elasticsearch-credentials
-            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            - "/etc/wire/opensearch-index/secrets/elasticsearch-credentials.yaml"
             {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
@@ -86,8 +86,8 @@ spec:
           {{- if or (eq (include "configureElasticsearchCa" .Values) "true") (hasKey .Values.secrets "elasticsearch") }}
           volumeMounts:
             {{- if hasKey .Values.secrets "elasticsearch" }}
-            - name: "elasticsearch-index-secrets"
-              mountPath: "/etc/wire/elasticsearch-index/secrets"
+            - name: "opensearch-index-secrets"
+              mountPath: "/etc/wire/opensearch-index/secrets"
             {{- end }}
 
             {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
@@ -102,10 +102,10 @@ spec:
           args:
             - update-mapping
             - --elasticsearch-server
-            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing opensearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             {{- if hasKey .Values.secrets "elasticsearch" }}
             - --elasticsearch-credentials
-            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            - "/etc/wire/opensearch-index/secrets/elasticsearch-credentials.yaml"
             {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
