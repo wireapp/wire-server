@@ -173,7 +173,6 @@ import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
-import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
@@ -198,6 +197,7 @@ import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserSearch.Types
+import Wire.UserSearchStore (UserSearchStore)
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
@@ -389,7 +389,7 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
     Member (Input UserSubsystemConfig) r,

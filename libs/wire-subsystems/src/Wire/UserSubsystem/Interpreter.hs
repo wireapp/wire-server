@@ -107,6 +107,8 @@ import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
 import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
+import Wire.UserSearchStore (UserSearchStore)
+import Wire.UserSearchStore qualified as UserSearchStore
 import Wire.UserStore as UserStore
 import Wire.UserStore.IndexUser
 import Wire.UserSubsystem as UserSubsystem
@@ -135,6 +137,7 @@ runUserSubsystem ::
     FederationMonad fedM,
     Typeable fedM,
     Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member FederationConfigStore r,
     Member Metrics r,
     Member InvitationStore r,
@@ -279,7 +282,7 @@ internalFindTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member (GalleyAPIAccess) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member TinyLog r,
     Member DRS.DomainRegistrationStore r
   ) =>
@@ -309,7 +312,7 @@ internalFindTeamInvitationImpl (Just e) c =
         NotAllowed -> throwGuardFailed TeamInviteSetToNotAllowed
 
       maxSize <- maxTeamSize <$> input
-      teamSize <- teamSizeTotal <$> IndexedUserStore.getTeamSize tid
+      teamSize <- teamSizeTotal <$> UserSearchStore.getTeamSize tid
       when (teamSize >= fromIntegral maxSize) $
         throw UserSubsystemTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
@@ -880,9 +883,9 @@ syncUserIndex uid =
       )
         <$> permissionsToRole info.permissions
 
-updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
+updateTeamSearchVisibilityInboundImpl :: (Member UserSearchStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
 updateTeamSearchVisibilityInboundImpl teamStatus =
-  IndexedUserStore.updateTeamSearchVisibilityInbound teamStatus.team $
+  UserSearchStore.setTeamSearchVisibilityInbound teamStatus.team $
     searchVisibilityInboundFromFeatureStatus teamStatus.status
 
 searchUsersImpl ::
@@ -890,7 +893,7 @@ searchUsersImpl ::
   ( Member UserStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member FederationConfigStore r,
     RunClient (fedM 'Brig),
     Member (FederationAPIAccess fedM) r,
@@ -926,7 +929,7 @@ searchLocally ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member (Input UserSubsystemConfig) r
   ) =>
   Local (UserId, Maybe TeamId) ->
@@ -946,8 +949,8 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
   esResult <-
     if esMaxResults > 0
       then
-        IndexedUserStore.searchUsers
-          (tUnqualified searcherId)
+        UserSearchStore.searchUsers
+          searcherId
           (tUnqualified searcherTeamId)
           teamSearchInfo
           searchTerm
@@ -955,7 +958,7 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
           mTypes
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
-  let esContacts = map userDocToContact' (searchResults esResult)
+  let esContacts = searchResults esResult
       -- Prepend results matching exact handle and results from ES.
       allContacts = case maybeExactHandleMatch of
         Nothing -> esContacts
@@ -970,14 +973,6 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> TeamSearchInfo
     handleTeamVisibility _ SearchVisibilityStandard = AllUsers
     handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = TeamOnly t
-
-    userDocToContact' :: UserDoc -> Contact
-    userDocToContact' userDoc =
-      runIdentity $
-        userDocToContact
-          (tUntagged $ qualifyAs searcher userDoc.udId)
-          (Identity . maybe "" fromName)
-          userDoc
 
     mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = do
@@ -1059,7 +1054,7 @@ searchRemotely rDom mTid searchTerm mTypes = do
 
 browseTeamImpl ::
   ( Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member TeamSubsystem r,
     Member UserGroupStore r
   ) =>
@@ -1075,13 +1070,10 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
   ensurePermissions uid filters.teamId [Permission.AddTeamMember]
 
   let maxResults = maybe 15 fromRange mMaxResults
-  result <- IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
-  let docs = result.searchResults
-      uids = fmap (.udId) docs
+  result <- UserSearchStore.paginateTeamMembers filters maxResults mPagingState
+  let uids = fmap (.teamContactUserId) result.searchResults
   ugMap <- getUserGroupIdsForUsers (toList uids)
-  for result $ \userDoc -> do
-    let ugids = fromMaybe [] (Map.lookup userDoc.udId ugMap)
-    pure $ userDocToTeamContact ugids userDoc
+  pure $ fmap (\tc -> tc {teamContactUserGroups = fromMaybe [] (Map.lookup tc.teamContactUserId ugMap)}) result
 
 getAccountsByEmailNoFilterImpl ::
   forall r.
@@ -1180,6 +1172,7 @@ acceptTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
     Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member Metrics r,
     Member Events r,
     Member AuthenticationSubsystem r,

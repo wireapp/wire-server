@@ -496,7 +496,11 @@ library
     Wire.UserPendingActivationStore.Cassandra
     Wire.UserSearch.Metrics
     Wire.UserSearch.Migration
+    Wire.UserSearch.Normalize
     Wire.UserSearch.Types
+    Wire.UserSearchStore
+    Wire.UserSearchStore.ElasticSearch
+    Wire.UserSearchStore.Postgres
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.IndexUser
