@@ -21,7 +21,8 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 384
-    encoding: PKCS1
+    # OpenSearch 1.x (Java 11 security plugin) cannot parse SEC1/PKCS1 EC keys.
+    encoding: PKCS8
     rotationPolicy: Always
 
   dnsNames:
