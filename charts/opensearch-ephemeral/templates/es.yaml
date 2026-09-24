@@ -43,12 +43,43 @@ spec:
         # elastic/changeme, same credentials the rest of the repo uses).
         - name: DISABLE_INSTALL_DEMO_CONFIG
           value: "true"
+        # The security plugin requires transport SSL to be configured as well
+        # (see the securityconfig's transport_enabled), and the security index
+        # must be auto-initialized from the mounted securityconfig.
         - name: "plugins.security.ssl.http.enabled"
           value: "true"
         - name: "plugins.security.ssl.http.pemcert_filepath"
           value: "certs/tls.crt"
         - name: "plugins.security.ssl.http.pemkey_filepath"
           value: "certs/tls.key"
+        - name: "plugins.security.ssl.http.pemtrustedcas_filepath"
+          value: "certs/ca.crt"
+        - name: "plugins.security.ssl.transport.enabled"
+          value: "true"
+        - name: "plugins.security.ssl.transport.pemcert_filepath"
+          value: "certs/tls.crt"
+        - name: "plugins.security.ssl.transport.pemkey_filepath"
+          value: "certs/tls.key"
+        - name: "plugins.security.ssl.transport.pemtrustedcas_filepath"
+          value: "certs/ca.crt"
+        - name: "plugins.security.ssl.transport.enforce_hostname_verification"
+          value: "false"
+        - name: "plugins.security.allow_default_init_securityindex"
+          value: "true"
+        - name: "plugins.security.audit.type"
+          value: "internal_opensearch"
+        readinessProbe:
+          tcpSocket:
+            port: 9200
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12
+        livenessProbe:
+          tcpSocket:
+            port: 9200
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          failureThreshold: 6
         {{- end }}
         ports:
         - containerPort: 9200
