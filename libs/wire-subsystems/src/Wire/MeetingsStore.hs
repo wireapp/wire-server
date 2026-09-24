@@ -29,7 +29,15 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Imports
 import Polysemy
-import Wire.API.Meeting (Recurrence (..), TimeZone, parseTimeZone, renderTimeZone)
+import Wire.API.Meeting
+  ( MeetingType,
+    Recurrence (..),
+    TimeZone,
+    parseMeetingType,
+    parseTimeZone,
+    renderMeetingType,
+    renderTimeZone,
+  )
 import Wire.API.PostgresMarshall
 import Wire.API.User.EmailAddress (emailAddressText, fromEmail)
 import Wire.API.User.Identity (EmailAddress)
@@ -48,6 +56,8 @@ data StoredMeeting = StoredMeeting
     -- | IANA time zone identifier of the meeting (NOT NULL; backfilled to
     -- 'defaultLegacyTimeZone' and always supplied on create)
     tzid :: TimeZone,
+    -- | immediate or scheduled; pre-V19 rows are 'scheduled'
+    meetingType :: MeetingType,
     -- | optional recurrence pattern
     recurrence :: Maybe Recurrence,
     -- | conversation where the meeting belongs
@@ -84,6 +94,7 @@ type StoredMeetingTuple =
     UTCTime, -- start_time
     UTCTime, -- end_time
     Text, -- tzid
+    Text, -- mtype
     Maybe Text, -- recurrence_frequency
     Maybe Int32, -- recurrence_interval
     Maybe UTCTime, -- recurrence_until
@@ -103,6 +114,7 @@ instance PostgresMarshall StoredMeetingTuple StoredMeeting where
           storedMeeting.startTime,
           storedMeeting.endTime,
           renderTimeZone storedMeeting.tzid,
+          renderMeetingType storedMeeting.meetingType,
           rFreq,
           rInterval,
           rUntil,
@@ -121,6 +133,7 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       startTime',
       endTime',
       tzid',
+      mt',
       rFreq,
       rInterval,
       rUntil,
@@ -133,6 +146,7 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       rTitle <- first T.pack $ checkedEither title'
       recurrence' <- postgresUnmarshall (rFreq, rInterval, rUntil)
       tzid'' <- maybe (Left "invalid tzid") Right (parseTimeZone tzid')
+      meetingType' <- maybe (Left "invalid mtype") Right (parseMeetingType mt')
       pure
         StoredMeeting
           { id = Id id',
@@ -141,6 +155,7 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
             startTime = startTime',
             endTime = endTime',
             tzid = tzid'',
+            meetingType = meetingType',
             recurrence = recurrence',
             conversationId = Id conversationId',
             invitedEmails = mapMaybe emailAddressText (V.toList invitedEmails'),
@@ -156,6 +171,7 @@ data MeetingsStore m a where
     UTCTime ->
     UTCTime ->
     TimeZone ->
+    MeetingType ->
     Maybe Recurrence ->
     ConvId ->
     [EmailAddress] ->
@@ -167,6 +183,7 @@ data MeetingsStore m a where
     Maybe UTCTime ->
     Maybe UTCTime ->
     Maybe TimeZone ->
+    Maybe MeetingType ->
     Maybe (Maybe Recurrence) ->
     MeetingsStore m (Maybe StoredMeeting)
   DeleteMeeting ::

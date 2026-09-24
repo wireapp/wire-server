@@ -142,6 +142,14 @@ interpretMeetingsSubsystem cfg = interpret $ \case
     fmap API.toLegacy <$> getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetingsV16 zUser ->
     map API.toLegacy <$> listMeetingsImpl zUser cfg.validityPeriod
+  CreateMeetingV18 zUser connId nm ->
+    API.toLegacyWithConvV18 <$> createMeetingImpl zUser connId (API.fromLegacyNewMeetingV18 nm)
+  UpdateMeetingV18 zUser connId meetingId update ->
+    updateMeetingV18Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
+  GetMeetingV18 zUser meetingId ->
+    fmap API.toLegacyV18 <$> getMeetingImpl zUser meetingId cfg.validityPeriod
+  ListMeetingsV18 zUser ->
+    map API.toLegacyV18 <$> listMeetingsImpl zUser cfg.validityPeriod
   AddInvitedEmails zUser meetingId emails ->
     addInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
   RemoveInvitedEmails zUser meetingId emails ->
@@ -217,6 +225,7 @@ createMeetingImpl zUser connId newMeeting = do
       newMeeting.startTime
       newMeeting.endTime
       newMeeting.tzid
+      newMeeting.mtype
       newMeeting.recurrence
       storedConv.id_
       newMeeting.invitedEmails
@@ -247,7 +256,7 @@ updateMeetingImpl ::
 updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
-  when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence && isNothing update.tzid) $
+  when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence && isNothing update.tzid && isNothing update.mtype) $
     throw EmptyUpdate
 
   runMaybeT $ do
@@ -279,6 +288,7 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
           update.startTime
           update.endTime
           update.tzid
+          update.mtype
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
@@ -308,6 +318,30 @@ updateMeetingV16Impl ::
   Sem r (Maybe API.MeetingWithConversationV16)
 updateMeetingV16Impl zUser connId meetingId updateL validityPeriod pastEditPeriod =
   fmap API.toLegacyWithConv <$> updateMeetingImpl zUser connId meetingId updateL validityPeriod pastEditPeriod
+
+-- | V18 update path: 'API.UpdateMeetingV18' is 'API.UpdateMeeting' (both
+-- carry an optional @end_time@, @tzid@ and @type@), so this delegates
+-- straight through to the shared update implementation and re-shapes the
+-- result. An omitted @type@ leaves the stored meeting type unchanged.
+updateMeetingV18Impl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member MeetingNotifier r,
+    Member TinyLog r,
+    Member (Error MeetingError) r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified MeetingId ->
+  API.UpdateMeetingV18 ->
+  NominalDiffTime ->
+  NominalDiffTime ->
+  Sem r (Maybe API.MeetingWithConversationV18)
+updateMeetingV18Impl zUser connId meetingId updateL validityPeriod pastEditPeriod =
+  fmap API.toLegacyWithConvV18 <$> updateMeetingImpl zUser connId meetingId updateL validityPeriod pastEditPeriod
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -410,6 +444,7 @@ storedMeetingToMeeting domain sm =
       API.startTime = sm.startTime,
       API.endTime = sm.endTime,
       API.tzid = sm.tzid,
+      API.mtype = sm.meetingType,
       API.recurrence = sm.recurrence,
       API.conversationId = Qualified sm.conversationId domain,
       API.invitedEmails = sm.invitedEmails,

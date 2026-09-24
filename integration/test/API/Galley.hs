@@ -1112,3 +1112,18 @@ getMeetingV16 :: (HasCallStack, MakesValue user) => user -> String -> String -> 
 getMeetingV16 user domain meetingId = do
   req <- baseRequest user Galley (ExplicitVersion 16) (joinHttpPath ["meetings", domain, meetingId])
   submit "GET" req
+
+postMeetingsV18 :: (HasCallStack, MakesValue user) => user -> Value -> App Response
+postMeetingsV18 user newMeeting = do
+  req <- baseRequest user Galley (ExplicitVersion 18) "/meetings"
+  submit "POST" $ req & addJSON newMeeting
+
+putMeetingV18 :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+putMeetingV18 user domain meetingId updatedMeeting = do
+  req <- baseRequest user Galley (ExplicitVersion 18) (joinHttpPath ["meetings", domain, meetingId])
+  submit "PUT" $ req & addJSON updatedMeeting
+
+getMeetingV18 :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getMeetingV18 user domain meetingId = do
+  req <- baseRequest user Galley (ExplicitVersion 18) (joinHttpPath ["meetings", domain, meetingId])
+  submit "GET" req
