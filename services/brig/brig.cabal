@@ -270,6 +270,7 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , pqi-ffi
     , prometheus-client
     , proto-lens                            >=0.1
     , QuickCheck
