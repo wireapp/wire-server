@@ -1839,6 +1839,39 @@ CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
 CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
 ```
 
+### Account-pages (wire-account)
+
+The account-pages app is similar to the webapp in terms of technologies and
+multi-ingress setup. So, make sure to read the section about the [webapp's
+configuration](#webapp) first. The corresponding configuration options are:
+
+```
+ENABLE_DYNAMIC_HOSTNAME: true
+#   You are likely to need at least following CSP headers
+#   due to the fact that you are likely to do cross sub-domain requests
+#   i.e., from account.wire.example to nginz-https.wire.example
+CSP_EXTRA_CONNECT_SRC: "https://*.[[hostname]], wss://*.[[hostname]]"
+CSP_EXTRA_IMG_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_SCRIPT_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_DEFAULT_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_FONT_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_FRAME_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_MANIFEST_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_OBJECT_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_MEDIA_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_PREFETCH_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_STYLE_SRC: "https://*.[[hostname]]"
+CSP_EXTRA_WORKER_SRC: "https://*.[[hostname]]"
+```
+
+Neither the webapp nor the account-pages are maintained by the backend team
+(which maintains this page), so look at the `values.yaml` files of the Helm
+charts for authoritative answers:
+
+- https://github.com/wireapp/wire-account/blob/staging/charts/account-pages/values.yaml
+- https://github.com/wireapp/wire-webapp/blob/main/charts/webapp/values.yaml
+
+
 ## TLS-encrypted Cassandra connections
 
 By default, all connections to Cassandra by the Wire backend are unencrypted. To
