@@ -29,6 +29,9 @@ import Wire.IndexedUserStore.MigrationStore
 import Wire.Sem.Logger qualified as Log
 import Wire.UserSearch.Migration
 
+runES :: (Member (Embed IO) r) => ES.BHEnv -> ES.BH IO a -> Sem r (Either ES.EsError a)
+runES env act = join <$> embed (ES.runBH env (ES.tryEsError act))
+
 interpretIndexedUserMigrationStoreES :: (Member (Embed IO) r, Member (Error MigrationException) r, Member TinyLog r) => ES.BHEnv -> ES.IndexName -> InterpreterFor IndexedUserMigrationStore r
 interpretIndexedUserMigrationStoreES env migrationIndexName = interpret $ \case
   EnsureMigrationIndex -> ensureMigrationIndexImpl env migrationIndexName
@@ -37,24 +40,27 @@ interpretIndexedUserMigrationStoreES env migrationIndexName = interpret $ \case
 
 ensureMigrationIndexImpl :: (Member TinyLog r, Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> ES.IndexName -> Sem r ()
 ensureMigrationIndexImpl env migrationIndexName = do
-  unlessM (ES.runBH env $ ES.indexExists migrationIndexName) $ do
-    Log.info $
-      Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
-    ES.runBH env (ES.createIndexWith [] 1 migrationIndexName)
-      >>= throwIfNotCreated CreateMigrationIndexFailed
-  ES.runBH env (ES.putNamedMapping migrationIndexName migrationMappingName migrationIndexMapping)
-    >>= throwIfNotCreated PutMappingFailed
-  where
-    throwIfNotCreated mkErr response =
-      unless (ES.isSuccess response) $
-        throw $
-          mkErr (show response)
+  exists <- runES env (ES.indexExists migrationIndexName)
+  case exists of
+    Left e -> throw (CreateMigrationIndexFailed (show e))
+    Right False -> do
+      Log.info $
+        Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
+      created <- runES env (ES.createIndexWith [] 1 migrationIndexName)
+      case created of
+        Left e -> throw (CreateMigrationIndexFailed (show e))
+        Right _ -> pure ()
+    Right True -> pure ()
+  mapped <- runES env (ES.putMapping @ES.Acknowledged migrationIndexName migrationIndexMapping)
+  case mapped of
+    Left e -> throw (PutMappingFailed (show e))
+    Right _ -> pure ()
 
 getLatestMigrationVersionImpl :: (Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> ES.IndexName -> Sem r MigrationVersion
 getLatestMigrationVersionImpl env migrationIndexName = do
-  reply <- ES.runBH env $ ES.searchByIndex migrationIndexName (ES.mkSearch Nothing Nothing)
-  resp <- liftIO $ ES.parseEsResponse reply
-  result <- either (throw . FetchMigrationVersionsFailed . show) pure resp
+  result <-
+    runES env (ES.searchByIndex migrationIndexName (ES.mkSearch Nothing Nothing))
+      >>= either (throw . FetchMigrationVersionsFailed . show) pure
   let versions = map ES.hitSource $ ES.hits . ES.searchHits $ result
   case versions of
     [] ->
@@ -67,19 +73,16 @@ getLatestMigrationVersionImpl env migrationIndexName = do
 persistMigrationVersionImpl :: (Member (Embed IO) r, Member TinyLog r, Member (Error MigrationException) r) => ES.BHEnv -> MigrationVersion -> ES.IndexName -> Sem r ()
 persistMigrationVersionImpl env v migrationIndexName = do
   let docId = ES.DocId . Text.pack . show $ migrationVersion v
-  persistResponse <- ES.runBH env $ ES.indexDocument migrationIndexName migrationMappingName ES.defaultIndexDocumentSettings v docId
-  if ES.isCreated persistResponse
-    then do
+  persisted <- runES env (ES.indexDocument migrationIndexName ES.defaultIndexDocumentSettings v docId)
+  case persisted of
+    Right _ ->
       Log.info $
         Log.msg (Log.val "Migration success recorded")
           . Log.field "migrationVersion" v
-    else throw $ PersistVersionFailed v $ show persistResponse
+    Left e -> throw (PersistVersionFailed v (show e))
 
 defaultMigrationIndexName :: ES.IndexName
-defaultMigrationIndexName = ES.IndexName "wire_brig_migrations"
-
-migrationMappingName :: ES.MappingName
-migrationMappingName = ES.MappingName "wire_brig_migrations"
+defaultMigrationIndexName = either (error . Text.unpack) id (ES.mkIndexName "wire_brig_migrations")
 
 migrationIndexMapping :: Value
 migrationIndexMapping =

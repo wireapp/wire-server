@@ -24,6 +24,7 @@ module Work where
 import Cassandra
 import Cassandra.Util (Writetime, writetimeToUTC)
 import Conduit
+import Control.Exception (throwIO)
 import Control.Lens (view, _1, _2)
 import Data.Aeson (FromJSON, (.:))
 import Data.Aeson qualified as Aeson
@@ -38,12 +39,11 @@ import System.Logger qualified as Log
 import Wire.API.User (AccountStatus (..))
 
 runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> String -> IO ()
-runCommand l cas es indexStr mappingStr = do
-  let index = ES.IndexName $ Text.pack indexStr
-      mapping = ES.MappingName $ Text.pack mappingStr
+runCommand l cas es indexStr _mappingStr = do
+  index <- either (fail . Text.unpack) pure (ES.mkIndexName $ Text.pack indexStr)
   runConduit $
-    transPipe (ES.runBH es) $
-      getScrolled index mapping
+    transPipe (either throwIO pure <=< ES.runBH es) $
+      getScrolled index
         .| C.iterM (logProgress l)
         .| C.mapM
           ( \uuids -> do
@@ -74,10 +74,10 @@ logUUID l f (uuid, _, time) =
       . Log.field "uuid" (show uuid)
       . Log.field "write time" (show $ writetimeToUTC <$> time)
 
-getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
-getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)
+getScrolled :: (ES.MonadBH m) => ES.IndexName -> ConduitM () [UUID] m ()
+getScrolled index = processRes =<< lift (ES.getInitialScroll index esSearch)
   where
-    processRes :: (ES.MonadBH m, MonadThrow m) => Either ES.EsError (ES.SearchResult User) -> ConduitM () [UUID] m ()
+    processRes :: (ES.MonadBH m) => Either ES.EsError (ES.SearchResult User) -> ConduitM () [UUID] m ()
     processRes = \case
       Left e -> throwM $ EsError e
       Right res ->
@@ -85,9 +85,9 @@ getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mappi
           [] -> pure ()
           ids -> do
             yield ids
-            processRes
-              =<< (\scrollId -> lift (ES.advanceScroll scrollId 120))
-              =<< extractScrollId res
+            next <- extractScrollId res
+            advanced <- lift (ES.advanceScroll next 120)
+            processRes (Right advanced)
 
 esFilter :: ES.Filter
 esFilter = ES.Filter $ ES.QueryExistsQuery (ES.FieldName "normalized")
