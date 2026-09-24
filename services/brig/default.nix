@@ -47,6 +47,7 @@
 , fsnotify
 , galley-types
 , hashable
+, hasql
 , hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -191,6 +192,7 @@ mkDerivation {
     fsnotify
     galley-types
     hashable
+    hasql
     hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -286,6 +288,7 @@ mkDerivation {
     federator
     filepath
     galley-types
+    hasql
     hscim
     HsOpenSSL
     http-api-data
