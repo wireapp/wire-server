@@ -4,11 +4,9 @@
 -- lower() cannot provide ("Björn" -> "bjorn").
 ALTER TABLE wire_user ADD COLUMN name_normalized text;
 
--- Prefix search indexes (LIKE 'abc%', no pg_trgm needed).
-CREATE INDEX CONCURRENTLY IF NOT EXISTS wire_user_name_normalized_pattern_idx ON wire_user (name_normalized text_pattern_ops);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS wire_user_lower_handle_pattern_idx ON wire_user (lower(handle) text_pattern_ops);
-
-CREATE INDEX CONCURRENTLY IF NOT EXISTS wire_user_team_idx ON wire_user (team);
+-- The three CREATE INDEX CONCURRENTLY statements for this migration live in
+-- 20260911000001-user-search-postgres-indexes.sql: they cannot run inside a
+-- transaction and are registered in 'Wire.PostgresMigrations.nonTransactionMigrations'.
 
 -- Replaces the per-user search_visibility_inbound field formerly
 -- denormalized into the ElasticSearch user documents.  One row per team;
