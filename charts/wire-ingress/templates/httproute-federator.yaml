@@ -14,9 +14,9 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   parentRefs:
-    - name: {{ include "wire-ingress.gatewayName" . | quote }}
+    - name: {{ include "wire-ingress.listenerSetName" . | quote }}
       namespace: {{ .Release.Namespace | quote }}
-      kind: Gateway
+      kind: ListenerSet
       sectionName: federator
   hostnames:
     - {{ .Values.config.dns.federator | quote }}
