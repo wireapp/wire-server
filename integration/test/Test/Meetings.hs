@@ -961,6 +961,13 @@ testMeetingInteropV18ToV19 = do
 -- meeting endpoints, no creator or conversation membership is required.
 testMeetingLinkJoin :: (HasCallStack) => App ()
 testMeetingLinkJoin = do
+  -- Meeting join codes live in the Postgres code store only. In
+  -- cassandra-only mode a fresh meeting has no code (@hasCode == False@), so
+  -- its join link deliberately fails closed: assert that instead of the
+  -- positive path below.
+  codeStorage <- readServiceConfig Galley %. "postgresMigration.conversationCodes" >>= asString
+  let isCassandraCodeStore = codeStorage == "cassandra"
+
   (alice, _tid, [bob]) <- createTeam OwnDomain 2
   now <- liftIO getCurrentTime
   let newMeeting = defaultMeetingJson "Link Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
@@ -968,26 +975,31 @@ testMeetingLinkJoin = do
   meeting <- postMeetings alice newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  -- GET resolves the link for a user who is neither creator nor member
-  fetched <- getMeetingLinkJoin bob domain meetingId >>= getJSON 200
-  fetched %. "qualified_id" %. "id" `shouldMatch` meetingId
-  fetched %. "title" `shouldMatch` ("Link Meeting" :: String)
+  when isCassandraCodeStore $ do
+    getMeetingLinkJoin bob domain meetingId >>= assertLabel 404 "meeting-not-found"
+    postMeetingLinkJoin bob domain meetingId >>= assertLabel 404 "meeting-not-found"
 
-  -- POST joins the meeting conversation and returns meeting + conversation
-  joined <- postMeetingLinkJoin bob domain meetingId >>= getJSON 200
-  joined %. "qualified_id" %. "id" `shouldMatch` meetingId
-  assertConversationMatchesLegacy joined
+  unless isCassandraCodeStore $ do
+    -- GET resolves the link for a user who is neither creator nor member
+    fetched <- getMeetingLinkJoin bob domain meetingId >>= getJSON 200
+    fetched %. "qualified_id" %. "id" `shouldMatch` meetingId
+    fetched %. "title" `shouldMatch` ("Link Meeting" :: String)
 
-  -- Bob is now a member of the meeting conversation: his own view shows
-  -- himself as member (members.self), and alice's view shows him in others.
-  convQid <- joined %. "conversation" %. "qualified_id"
-  convAsBob <- getConversation bob convQid >>= getJSON 200
-  convAsBob %. "members" %. "self" %. "qualified_id" `shouldMatch` objQidObject bob
-  convAsAlice <- getConversation alice convQid >>= getJSON 200
-  others <- convAsAlice %. "members" %. "others" & asList
-  bobQid <- objQidObject bob
-  otherIds <- for others (\m -> m %. "qualified_id" >>= asString)
-  otherIds `shouldMatchSet` [bobQid]
+    -- POST joins the meeting conversation and returns meeting + conversation
+    joined <- postMeetingLinkJoin bob domain meetingId >>= getJSON 200
+    joined %. "qualified_id" %. "id" `shouldMatch` meetingId
+    assertConversationMatchesLegacy joined
+
+    -- Bob is now a member of the meeting conversation: his own view shows
+    -- himself as member (members.self), and alice's view shows him in others.
+    convQid <- joined %. "conversation" %. "qualified_id"
+    convAsBob <- getConversation bob convQid >>= getJSON 200
+    convAsBob %. "members" %. "self" %. "qualified_id" `shouldMatch` objQidObject bob
+    convAsAlice <- getConversation alice convQid >>= getJSON 200
+    others <- convAsAlice %. "members.others" & asList
+    bobQid <- objQidObject bob
+    otherIds <- for others (%. "qualified_id")
+    otherIds `shouldMatchSet` [bobQid]
 
 testMeetingLinkJoinNotFound :: (HasCallStack) => App ()
 testMeetingLinkJoinNotFound = do
