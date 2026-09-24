@@ -795,6 +795,21 @@ nginx_conf:
       envs:
       - all
       oauth_scope: meetings
+    # Join-link endpoints: code-check is public (no zauth, mirrors
+    # /conversations/code-check); join is authenticated like conversation
+    # join-by-code, no oauth scope, rate-limited per address (mirrors
+    # /conversations/join).
+    - path: /meeting/([^/]*)/([^/]*)/([^/]*)/code-check$
+      envs:
+      - all
+      disable_zauth: true
+      specific_user_rate_limit: reqs_per_addr
+      specific_user_rate_limit_burst: "10"
+    - path: /meeting/([^/]*)/([^/]*)/([^/]*)/join$
+      envs:
+      - all
+      specific_user_rate_limit: reqs_per_addr
+      specific_user_rate_limit_burst: "10"
     - path: /meetings/(.*)
       envs:
       - all

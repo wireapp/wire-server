@@ -63,6 +63,7 @@ module Wire.API.Meeting
     Frequency (..),
     MeetingEmailsInvitation (..),
     RefreshMeetingLinkRequest (..),
+    MeetingCodeCheck (..),
   )
 where
 
@@ -680,6 +681,33 @@ instance ToSchema RefreshMeetingLinkRequest where
         <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
     where
       desc = description ?~ "Optional password for the join link. Replaces any previously set password; omit or null for a passwordless link."
+
+-- | Unauthenticated preview of a meeting behind a join link
+-- (@GET /meeting/{domain}/{key}/{code}/code-check@): only the metadata a
+-- client needs to decide whether to join. Deliberately omits identifying
+-- fields (id, creator, conversation) that the authenticated meeting
+-- endpoints expose.
+data MeetingCodeCheck = MeetingCodeCheck
+  { title :: Range 1 256 Text,
+    startTime :: UTCTime,
+    endTime :: UTCTime,
+    tzid :: TimeZone,
+    recurrence :: Maybe Recurrence
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MeetingCodeCheck)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MeetingCodeCheck
+
+instance ToSchema MeetingCodeCheck where
+  schema =
+    objectWithDocModifier
+      (description ?~ "Metadata of the meeting behind a join link")
+      $ MeetingCodeCheck
+        <$> (.title) .= field "title" schema
+        <*> (.startTime) .= field "start_time" utcTimeSchema
+        <*> (.endTime) .= field "end_time" utcTimeSchema
+        <*> (.tzid) .= field "tzid" schema
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
 
 instance PostgresMarshall (Maybe Text, Maybe DI.Int32, Maybe UTCTime) (Maybe Recurrence) where
   postgresMarshall Nothing = (Nothing, Nothing, Nothing)

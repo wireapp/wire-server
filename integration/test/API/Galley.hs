@@ -1117,3 +1117,31 @@ getMeetingV :: (HasCallStack, MakesValue user) => Int -> user -> String -> Strin
 getMeetingV v user domain meetingId = do
   req <- baseRequest user Galley (ExplicitVersion v) (joinHttpPath ["meetings", domain, meetingId])
   submit "GET" req
+
+-- | Unauthenticated: @GET /meeting/{domain}/{key}/{code}/code-check@.
+-- Built without any auth headers: the endpoint works without a cookie.
+getMeetingCodeCheck ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  String ->
+  Maybe String ->
+  App Response
+getMeetingCodeCheck user domain key code mPw = do
+  req <- rawBaseRequest user Galley Versioned (joinHttpPath ["meeting", domain, key, code, "code-check"])
+  submit "GET" $ req & addClientIP & addQueryParams (maybe [] (\pw -> [("password", pw)]) mPw)
+
+-- | Authenticated: @POST /meeting/{domain}/{key}/{code}/join@. The optional
+-- password is a query param.
+postMeetingJoin ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  String ->
+  Maybe String ->
+  App Response
+postMeetingJoin user domain key code mPw = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meeting", domain, key, code, "join"])
+  submit "POST" $ req & addClientIP & addQueryParams (maybe [] (\pw -> [("password", pw)]) mPw)

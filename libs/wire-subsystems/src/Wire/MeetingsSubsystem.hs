@@ -19,7 +19,10 @@
 
 module Wire.MeetingsSubsystem where
 
+import Data.Code (Key, Value)
+import Data.Domain (Domain)
 import Data.Id
+import Data.Misc (IpAddr, PlainTextPassword8)
 import Data.Qualified
 import Data.Time.Clock (UTCTime)
 import Imports
@@ -50,6 +53,45 @@ data MeetingsSubsystem m a where
     Qualified MeetingId ->
     RefreshMeetingLinkRequest ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
+  -- | Unauthenticated check of a meeting join link
+  -- (@GET /meeting/{domain}/{key}/{code}/code-check@). The link's code key
+  -- addresses the code row (stable across refreshes); its code value is the
+  -- rotating capability embedded in the link URL and must match the live
+  -- row, so a refreshed link invalidates stale URLs.
+  -- 'CodeCheckNotFound' (surfaced as 404) when the key has no live local
+  -- meeting behind it: unknown keys, stale code values, expired meetings,
+  -- keys addressing a conversation code, or code-store modes without
+  -- meeting-code support. No creator/membership requirement and no
+  -- meetings-feature gate. A password-protected code requires the matching
+  -- 'password' query param ('CodeCheckInvalidPassword', surfaced as 403);
+  -- a passwordless code checks with or without a password.
+  CodeCheckMeetingLink ::
+    -- | Client address (X-Forwarded-For); rate-limit key for the unauthenticated check.
+    IpAddr ->
+    -- | The domain from the link path; must be the local domain.
+    Domain ->
+    Key ->
+    Value ->
+    Maybe PlainTextPassword8 ->
+    MeetingsSubsystem m CodeCheckMeetingLinkResult
+  -- | Join a meeting through its join link (WPB-28989), like
+  -- @POST /conversations/join@: resolve the link's code and join the
+  -- meeting's conversation via 'CodeAccess'. Re-joining by an existing
+  -- member is an idempotent no-op ('NoChanges' -> 'Unchanged'). Returns
+  -- 'JoinMeetingNotFound' when the link does not resolve,
+  -- 'JoinMeetingInvalidPassword' when the code carries a password the
+  -- request does not match. Errors are returned, not thrown, so
+  -- interpreters stay observable in tests (handler-space throws are not);
+  -- the route handler maps them to 404/403.
+  JoinMeeting ::
+    Local UserId ->
+    ConnId ->
+    -- | The domain from the link path; must be the local domain.
+    Domain ->
+    Key ->
+    Value ->
+    Maybe PlainTextPassword8 ->
+    MeetingsSubsystem m JoinMeetingResult
   GetMeeting ::
     Local UserId ->
     Qualified MeetingId ->
@@ -112,5 +154,27 @@ data MeetingsSubsystem m a where
     UTCTime ->
     Int ->
     MeetingsSubsystem m Int64
+
+-- | Outcome of checking a meeting join link ('CodeCheckMeetingLink').
+data CodeCheckMeetingLinkResult
+  = -- | No live local meeting behind the key+code.
+    CodeCheckNotFound
+  | -- | The code is password-protected and the query param does not match.
+    CodeCheckInvalidPassword
+  | -- | The link resolved; carries the meeting metadata.
+    CodeCheckOk MeetingCodeCheck
+  deriving stock (Eq, Show)
+
+-- | Outcome of joining a meeting through its join link ('JoinMeeting').
+data JoinMeetingResult
+  = -- | No live local meeting, or no live join code row for it.
+    JoinMeetingNotFound
+  | -- | The join code is password-protected and the supplied password does
+    -- not match (or is missing).
+    JoinMeetingInvalidPassword
+  | -- | The link resolved and the caller was joined (or re-joined
+    -- idempotently); carries the meeting with its conversation view.
+    JoinMeetingOk MeetingWithConversation
+  deriving stock (Eq, Show)
 
 makeSem ''MeetingsSubsystem

@@ -65,6 +65,8 @@ interpretCodeStoreToCassandra = interpret $ \case
   -- Meeting codes never live in Cassandra; short-circuit without a network
   -- round trip so callers omit the link instead of failing the request.
   GetMeetingCode _ -> pure Nothing
+  -- Meeting codes never live in Cassandra; a key-based lookup finds nothing.
+  GetMeetingCodeByKey _ -> pure Nothing
   -- Meeting codes never live in Cassandra; return no codes so callers omit
   -- the join links instead of failing the request.
   GetMeetingCodes _ -> pure Map.empty
