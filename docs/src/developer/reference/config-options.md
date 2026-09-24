@@ -1798,7 +1798,17 @@ administrators. Otherwise, users may be logged into other users' accounts!
 
   **If in doubt, please contact customer support!**
 
-### Webapp
+### Web apps
+
+These are *not* maintained by the backend team (which maintains this page), so
+look at the `values.yaml` files of the Helm charts for authoritative answers:
+
+- account-pages: https://github.com/wireapp/wire-account/blob/main/charts/account-pages/values.yaml
+- wire-webapp: https://github.com/wireapp/wire-webapp/blob/main/charts/webapp/values.yaml
+- wire-team-settings: https://github.com/wireapp/wire-team-settings/blob/main/charts/team-settings/values.yaml
+
+
+#### Webapp (wire-webapp)
 
 The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables).
 In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`).
@@ -1810,7 +1820,7 @@ In order to completely hide this root domain to the webapp, an environment varia
 The “hostname” is the result of the domain name minus the `webapp.` part of it.
 So querying the webapp on `webapp.red.example.com` will resolve to `red.example.com`.
 
-To enable dynamic hostname replacement, first set this variable:
+Dynamic hostname replacement is enabled by this variable:
 
 ```default
 ENABLE_DYNAMIC_HOSTNAME="true"
@@ -1820,24 +1830,81 @@ Then, any other variable that will contain the string `[[hostname]]` will be rep
 
 You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
 
-For example:
+For example, as Helm chart values :
 
-```default
-APP_BASE:                                         https://[[hostname]]
-BACKEND_REST:                                     https://nginz-https.[[hostname]]
-BACKEND_WS:                                       wss://nginz-ssl.[[hostname]]
-CSP_EXTRA_CONNECT_SRC:                            https://*.[[hostname]], wss://*.[[hostname]]
-CSP_EXTRA_DEFAULT_SRC:                            https://*.[[hostname]]
-CSP_EXTRA_FONT_SRC:                               https://*.[[hostname]]
-CSP_EXTRA_FRAME_SRC:                              https://*.[[hostname]]
-CSP_EXTRA_IMG_SRC:                                https://*.[[hostname]]
-CSP_EXTRA_MANIFEST_SRC:                           https://*.[[hostname]]
-CSP_EXTRA_MEDIA_SRC:                              https://*.[[hostname]]
-CSP_EXTRA_PREFETCH_SRC:                           https://*.[[hostname]]
-CSP_EXTRA_SCRIPT_SRC:                             https://*.[[hostname]]
-CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
-CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
+```yaml
+config:
+  externalUrls:
+    backendRest: "nginz-https.[[hostname]]"
+    backendWebsocket: "nginz-ssl.[[hostname]]"
+    appHost: "webapp.[[hostname]]"
+envVars:
+  ENABLE_DYNAMIC_HOSTNAME: "true"
+  URL_ACCOUNT_BASE: "https://account.[[hostname]]"
+  URL_TEAMS_BASE: "https://teams.[[hostname]]"
+  CSP_EXTRA_CONNECT_SRC: "https://*.[[hostname]], wss://*.[[hostname]]"
+  CSP_EXTRA_DEFAULT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FONT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FRAME_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_IMG_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MANIFEST_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MEDIA_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_OBJECT_SRC: ""
+  CSP_EXTRA_SCRIPT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_STYLE_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_WORKER_SRC: "https://*.[[hostname]]"
+  FEATURE_ENABLE_FEDERATION: "false"
 ```
+
+`FEATURE_ENABLE_FEDERATION` must be `false` under multi-ingress.
+`config.externalUrls` values are bare hosts — the chart prepends the
+`https://`/`wss://` scheme itself.
+
+`CSP_EXTRA_OBJECT_SRC` could be defined with a dynamic host as well, but app
+was tested with the `""` (empty string) value which will render to `object-src
+'none';`.
+
+Please note that this example is not a complete configuration and shows only
+multi-ingress related entries.
+
+#### Account-pages (wire-account)
+
+The account-pages app is similar to the webapp in terms of technologies and
+multi-ingress setup. So, make sure to read the section about the [webapp's
+configuration](#webapp-wire-webapp) first. The hostname is the domain minus the
+`account.` part of it (analogous to webapp's `webapp.` stripping). The
+corresponding configuration options are:
+
+```yaml
+config:
+  externalUrls:
+    backendRest: "nginz-https.[[hostname]]"
+    appHost: "account.[[hostname]]"
+envVars:
+  ENABLE_DYNAMIC_HOSTNAME: "true"
+  URL_TEAMS_BASE: "https://teams.[[hostname]]"
+  URL_WEBAPP_BASE: "https://webapp.[[hostname]]"
+  CSP_EXTRA_CONNECT_SRC: "https://*.[[hostname]], wss://*.[[hostname]]"
+  CSP_EXTRA_IMG_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_SCRIPT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_DEFAULT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FONT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FRAME_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MANIFEST_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_OBJECT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MEDIA_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_STYLE_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_WORKER_SRC: "https://*.[[hostname]]"
+```
+
+Please note that this example is not a complete configuration and shows only
+multi-ingress related entries.
+
+#### Team-settings (wire-team-settings)
+
+There are no multi-ingress specific configuration options for team-settings. As
+`ENABLE_DYNAMIC_HOSTNAME` hasn't been implemented for the team-settings app,
+yet, it works only on the main domain.
 
 ## TLS-encrypted Cassandra connections
 
