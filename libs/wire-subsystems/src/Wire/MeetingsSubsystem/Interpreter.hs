@@ -24,14 +24,17 @@ where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.ByteString.Conversion (toByteString')
+import Data.Code (Timeout (..))
 import Data.Default (def)
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Map qualified as Map
+import Data.Misc (HttpsUrl, httpsUrlFromText)
 import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
+import Data.UUID (nil)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -47,6 +50,8 @@ import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
+import Wire.CodeStore (CodeStore)
+import Wire.CodeStore qualified as CodeStore
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
@@ -55,6 +60,7 @@ import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -80,6 +86,30 @@ checkMeetingsEnabled ::
   ) =>
   Maybe TeamId ->
   Sem r ()
+
+-- | Meeting join codes never expire while the meeting lives, and
+-- open-ended recurrences never expire at all, so use the largest TTL
+-- expressible in the code store's int32-seconds schema (~68 years)
+-- instead of a renewal mechanism. Known trade-off: if the meeting-row
+-- insert fails after the code was created, the orphaned code row is
+-- unreachable forever (its key derives from the unpersisted id) and
+-- will live out this TTL.
+meetingCodeTimeout :: Timeout
+meetingCodeTimeout = Timeout (fromIntegral (maxBound @Int32))
+
+-- | Resolve the join-link base for a domain. 'Nothing' from the code store
+-- only happens in multi-domain mode when the user's domain has no configured
+-- URI (a misconfiguration); degrade to an https URL derived from the user's
+-- own domain so the nil-uuid placeholder stays recognizable.
+codeURIBase :: (Member CodeStore r) => Domain -> Sem r HttpsUrl
+codeURIBase dom =
+  fromMaybe (domainFallback dom) <$> CodeStore.getConversationCodeURI (Just dom)
+
+domainFallback :: Domain -> HttpsUrl
+domainFallback dom =
+  -- A 'Domain' is a validated host name, so this URI always parses.
+  fromRight' (httpsUrlFromText ("https://" <> domainText dom <> "/"))
+
 checkMeetingsEnabled maybeTeamId =
   unlessM (meetingsFeatureEnabled maybeTeamId) $
     throw MeetingsFeatureDisabled
@@ -118,7 +148,9 @@ interpretMeetingsSubsystem ::
     Member Now r,
     Member TinyLog r,
     Member (Error MeetingError) r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member CodeStore r,
+    Member Random.Random r
   ) =>
   -- | System-wide meeting configuration.
   MeetingSystemConfig ->
@@ -166,7 +198,10 @@ createMeetingImpl ::
     Member FeaturesConfigSubsystem r,
     Member MeetingNotifier r,
     Member Now r,
-    Member (Error MeetingError) r
+    Member TinyLog r,
+    Member (Error MeetingError) r,
+    Member CodeStore r,
+    Member Random.Random r
   ) =>
   Local UserId ->
   ConnId ->
@@ -184,6 +219,7 @@ createMeetingImpl zUser connId newMeeting = do
   now <- Now.get
   when (newMeeting.startTime < addUTCTime (negate startTimeTolerance) now) $
     throw (InvalidTimes StartTimeTooFarInPast)
+  mid <- Random.newId
 
   -- Determine trial status: personal users (no team) create trial meetings.
   -- The deprecated meetingsPremium feature flag no longer affects this; team
@@ -217,9 +253,19 @@ createMeetingImpl zUser connId newMeeting = do
   -- Create and store the conversation via ConversationSubsystem
   storedConv <- ConversationSubsystem.internalCreateGroupConversation zUser Nothing newConv
 
-  -- Store meeting (trial status is provided by caller)
+  -- Create the join code BEFORE the meeting row: a row without a code would
+  -- serve a dead link, while an unreferenced code is harmless. Code-store
+  -- modes that cannot hold meeting codes (Cassandra-only) return False;
+  -- degrade to the placeholder link instead of failing the request.
+  hasJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout
+  unless hasJoinCode $
+    TinyLog.warn $
+      Log.msg ("meeting created without join link" :: ByteString)
+        . Log.field "meetingId" (toByteString' mid)
+  -- Store meeting (trial status and join-code presence provided by caller)
   storedMeeting <-
     Store.createMeeting
+      mid
       newMeeting.title
       (tUnqualified zUser)
       newMeeting.startTime
@@ -230,11 +276,13 @@ createMeetingImpl zUser connId newMeeting = do
       storedConv.id_
       newMeeting.invitedEmails
       trial
+      hasJoinCode
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
   notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
-  pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
+  base <- codeURIBase (tDomain zUser)
+  pure $ storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -244,7 +292,8 @@ updateMeetingImpl ::
     Member MeetingNotifier r,
     Member TinyLog r,
     Member (Error MeetingError) r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -258,6 +307,7 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
   checkMeetingsEnabled maybeTeamId
   when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence && isNothing update.tzid && isNothing update.mtype) $
     throw EmptyUpdate
+  base <- codeURIBase (tDomain zUser)
 
   runMaybeT $ do
     meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
@@ -292,7 +342,7 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
-    pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
+    pure $ storedMeetingToMeetingWithConversation base zUser conv updatedMeeting
 
 -- | V16 update path: 'API.UpdateMeetingV16' carries no @type@ field, so
 -- legacy clients cannot change the stored meeting type. The request is mapped
@@ -306,7 +356,8 @@ updateMeetingV16Impl ::
     Member MeetingNotifier r,
     Member TinyLog r,
     Member (Error MeetingError) r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -331,7 +382,8 @@ updateMeetingV18Impl ::
     Member MeetingNotifier r,
     Member TinyLog r,
     Member (Error MeetingError) r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -352,7 +404,8 @@ deleteMeetingImpl ::
     Member MeetingNotifier r,
     Member TinyLog r,
     Member (Error MeetingError) r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -377,6 +430,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
         lift $
           void $
             ConversationSubsystem.deleteLocalConversation zUser connId lConvId
+      lift $ CodeStore.deleteMeetingCode (qUnqualified meetingId)
       lift $ Store.deleteMeeting (qUnqualified meetingId)
       lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
   pure $ isJust result
@@ -386,7 +440,8 @@ getMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
@@ -395,6 +450,7 @@ getMeetingImpl ::
 getMeetingImpl zUser meetingId validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   enabled <- meetingsFeatureEnabled maybeTeamId
+  base <- codeURIBase (tDomain zUser)
   if enabled
     then runMaybeT $ do
       storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
@@ -405,12 +461,12 @@ getMeetingImpl zUser meetingId validityPeriod = do
       -- Check authorization: user must be creator OR member of the associated conversation
       let isCreator = storedMeeting.creator == tUnqualified zUser
       if isCreator
-        then pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting
+        then pure $ storedMeetingToMeeting base (tDomain zUser) storedMeeting
         else do
           -- Check if user is a member of the conversation
           let convId = storedMeeting.conversationId
           void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
-          pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
+          pure $ storedMeetingToMeeting base (tDomain zUser) storedMeeting -- User is a member, authorized
     else pure Nothing
 
 -- | Look up the 'StoredConversation' associated with a meeting. When the
@@ -435,9 +491,11 @@ getMeetingConversationOrFail meetingId convId = do
           . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
       pure Nothing
 
--- Helper function to convert StoredMeeting to API.Meeting
-storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting
-storedMeetingToMeeting domain sm =
+-- Helper function to convert StoredMeeting to API.Meeting. Meetings without
+-- a stored join code ('Store.hasCode' == False) serve the nil-uuid
+-- placeholder link.
+storedMeetingToMeeting :: HttpsUrl -> Domain -> Store.StoredMeeting -> API.Meeting
+storedMeetingToMeeting base domain sm =
   API.Meeting
     { API.id = Qualified sm.id domain,
       API.title = sm.title,
@@ -450,7 +508,8 @@ storedMeetingToMeeting domain sm =
       API.conversationId = Qualified sm.conversationId domain,
       API.invitedEmails = sm.invitedEmails,
       API.createdAt = sm.createdAt,
-      API.updatedAt = sm.updatedAt
+      API.updatedAt = sm.updatedAt,
+      API.link = API.mkMeetingLink base (if sm.hasCode then sm.id else Id nil)
     }
 
 -- | Like 'storedMeetingToMeeting', but additionally carries the full
@@ -461,13 +520,14 @@ storedMeetingToMeeting domain sm =
 -- meeting operation guards @qDomain meetingId == tDomain zUser@. The
 -- conversation itself is always created locally.
 storedMeetingToMeetingWithConversation ::
+  HttpsUrl ->
   Local UserId ->
   StoredConversation ->
   Store.StoredMeeting ->
   API.MeetingWithConversation
-storedMeetingToMeetingWithConversation lUser conv sm =
+storedMeetingToMeetingWithConversation base lUser conv sm =
   API.MeetingWithConversation
-    { API.meeting = storedMeetingToMeeting (tDomain lUser) sm,
+    { API.meeting = storedMeetingToMeeting base (tDomain lUser) sm,
       API.conversation = conversationView lUser (Just lUser) conv
     }
 
@@ -476,7 +536,8 @@ listMeetingsImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r
   ) =>
   Local UserId ->
   NominalDiffTime ->
@@ -484,6 +545,7 @@ listMeetingsImpl ::
 listMeetingsImpl zUser validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   enabled <- meetingsFeatureEnabled maybeTeamId
+  base <- codeURIBase (tDomain zUser)
   if enabled
     then do
       now <- Now.get
@@ -491,9 +553,9 @@ listMeetingsImpl zUser validityPeriod = do
       -- List all meetings created by the user
       createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
       -- Loop over local conversations accessible by the user, then filter to only keep meetings.
-      memberMeetings <- getAllMemberMeetings zUser cutoff
+      memberMeetings <- getAllMemberMeetings zUser base cutoff
       -- Combine and deduplicate
-      let allMeetings = map (storedMeetingToMeeting (tDomain zUser)) createdMeetings <> memberMeetings
+      let allMeetings = map (storedMeetingToMeeting base (tDomain zUser)) createdMeetings <> memberMeetings
           uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
       pure uniqueMeetings
     else pure []
@@ -503,9 +565,10 @@ getAllMemberMeetings ::
     Member ConversationSubsystem r
   ) =>
   Local UserId ->
+  HttpsUrl ->
   UTCTime ->
   Sem r [API.Meeting]
-getAllMemberMeetings zUser cutoff = do
+getAllMemberMeetings zUser base cutoff = do
   -- We process conversations in pages
   processPage Nothing
   where
@@ -531,7 +594,7 @@ getAllMemberMeetings zUser cutoff = do
               -- Fetch meetings for these conversations
               pageMeetings <- forM targetQConvIds $ \qConvId -> do
                 Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
-              let currentMeetings = storedMeetingToMeeting (tDomain zUser) <$> concat pageMeetings
+              let currentMeetings = storedMeetingToMeeting base (tDomain zUser) <$> concat pageMeetings
               -- Check if there are more pages
               if hasMore
                 then do
@@ -627,7 +690,8 @@ replaceInvitedEmailsImpl zUser meetingId emails validityPeriod = do
 cleanupOldMeetingsImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member CodeStore r
   ) =>
   UTCTime ->
   Int ->
@@ -643,7 +707,8 @@ cleanupOldMeetingsImpl cutoffTime batchSize = do
 forceDeleteMeeting ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member CodeStore r
   ) =>
   Store.StoredMeeting ->
   Sem r ()
@@ -655,4 +720,5 @@ forceDeleteMeeting meeting = do
         conv.id_ == meeting.conversationId ->
           ConversationSubsystem.internalDeleteLocalConversation =<< inputQualifyLocal meeting.conversationId
     _ -> pure ()
+  CodeStore.deleteMeetingCode meeting.id
   Store.deleteMeeting meeting.id

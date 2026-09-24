@@ -655,6 +655,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore
+    Wire.MockInterpreters.CodeStore
     Wire.MockInterpreters.ConversationStore
     Wire.MockInterpreters.ConversationSubsystem
     Wire.MockInterpreters.CryptoSign

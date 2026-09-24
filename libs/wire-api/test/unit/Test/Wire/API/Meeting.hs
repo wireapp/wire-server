@@ -40,6 +40,7 @@ import Control.Lens.At (ix)
 import Data.OpenApi qualified as S
 import Data.Proxy (Proxy (..))
 import Imports
+import Data.Misc (HttpsUrl)
 import Test.Tasty
 import Test.Tasty.HUnit (assertBool, testCase)
 import Test.Tasty.QuickCheck (Property, conjoin, testProperty, (===))
@@ -117,6 +118,11 @@ fromLegacyNewMeetingV18Scheduled nm =
         ]
 
 -- | V16->V19->V16 round-trips: @end_time@ (the source of truth) is preserved
--- verbatim, so the legacy shape is recovered exactly.
-toLegacyFromLegacy :: TimeZone -> MeetingV16 -> Property
-toLegacyFromLegacy tz lm = toLegacy (fromLegacy tz lm) === lm
+-- verbatim, so the legacy shape is recovered exactly; the supplied join link
+-- is carried through unchanged.
+toLegacyFromLegacy :: TimeZone -> HttpsUrl -> MeetingV16 -> Property
+toLegacyFromLegacy tz link lm =
+  conjoin
+    [ toLegacy (fromLegacy tz link lm) === lm,
+      (fromLegacy tz link lm).link === link
+    ]
