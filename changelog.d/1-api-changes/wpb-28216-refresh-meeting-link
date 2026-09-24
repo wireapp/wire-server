@@ -1,0 +1,1 @@
+Add `POST /meetings/{domain}/{id}/link/refresh`, which drops and recreates a meeting's join link. Permissions and emitted event are the same as updating a meeting.

@@ -32,6 +32,7 @@ module Galley.API.Meetings
     addMeetingInvitation,
     removeMeetingInvitation,
     replaceMeetingInvitation,
+    refreshMeetingLink,
   )
 where
 
@@ -220,3 +221,16 @@ replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails)
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.replaceInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
+
+refreshMeetingLink ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  MeetingId ->
+  Sem r MeetingWithConversation
+refreshMeetingLink zUser connId domain meetingId =
+  noteS @'MeetingNotFound
+    =<< Meetings.refreshMeetingLink zUser connId (Qualified meetingId domain)

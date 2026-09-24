@@ -120,6 +120,12 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                 }
         modify (Map.insert mid updatedMeeting)
   DeleteMeeting mid -> modify (Map.delete mid)
+  SetMeetingHasCode mid hasCode -> do
+    now <- Now.get
+    modify $
+      Map.adjust
+        (\sm -> sm {hasCode = hasCode, updatedAt = now})
+        mid
   GetOldMeetings cutoffTime batchSize ->
     gets $
       take batchSize
