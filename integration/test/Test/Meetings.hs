@@ -889,6 +889,51 @@ testMeetingType = do
           ]
   postMeetings owner badMeeting >>= assertStatus 400
 
+-- | WPB-28987: the V19 meeting object exposes a @link@ join link whose final
+-- path segment is the meeting's UUID. Legacy endpoint shapes are unchanged.
+testMeetingLink :: (HasCallStack) => App ()
+testMeetingLink = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Linked Meeting" startTime endTime []
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  -- Both the link base and the final segment are deployment-dependent: the
+  -- base is @conversationCodeURI@, and Cassandra-backed code stores hold no
+  -- meeting codes, so the server serves the nil-uuid placeholder segment.
+  cfg <- readServiceConfig Galley
+  baseURI <- cfg %. "settings.conversationCodeURI" >>= asString
+  codeStorage <- cfg %. "postgresMigration.conversationCodes" >>= asString
+  -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash.
+  let base = if "/" `isSuffixOf` baseURI then init baseURI else baseURI
+      segment
+        | codeStorage == "cassandra" = "00000000-0000-0000-0000-000000000000"
+        | otherwise = meetingId
+      expectedLink = base <> "/" <> segment
+  link <- meeting %. "link" >>= asString
+  link `shouldMatch` expectedLink
+
+  fetched <- getMeeting owner domain meetingId >>= getJSON 200
+  fetchedLink <- fetched %. "link" >>= asString
+  fetchedLink `shouldMatch` expectedLink
+
+  listResp <- getMeetingsList owner
+  assertSuccess listResp
+  meetingsList <- listResp.json & asList
+  listedLink <- head meetingsList %. "link" >>= asString
+  listedLink `shouldMatch` expectedLink
+
+  -- V17/V18-pinned reads carry no @link@ field.
+  legacy <- getMeetingV18 owner domain meetingId >>= getJSON 200
+  assertFieldMissing legacy "link"
+  legacyV16 <- getMeetingV16 owner domain meetingId >>= getJSON 200
+  assertFieldMissing legacyV16 "link"
+
+  deleteMeeting owner domain meetingId >>= assertStatus 200
+  getMeeting owner domain meetingId >>= assertStatus 404
+
 -- | A meeting created via the V18 shape (no @type@) is readable via V19 and
 -- carries the stored default type @scheduled@.
 testMeetingInteropV18ToV19 :: (HasCallStack) => App ()

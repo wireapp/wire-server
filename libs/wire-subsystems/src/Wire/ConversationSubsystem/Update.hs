@@ -605,8 +605,7 @@ rmCode lusr zcon lcnv = do
   Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ conv.localMembers
-  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
-  E.deleteCode key
+  E.deleteConversationCode (tUnqualified lcnv)
   now <- Now.get
   let event = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing EdConvCodeDelete
   pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map (.id_) users)) bots

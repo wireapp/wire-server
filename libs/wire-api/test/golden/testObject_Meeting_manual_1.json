@@ -4,6 +4,7 @@
     "invited_emails": [
         "someone@example.com"
     ],
+    "link": "https://account.wire.com/conversation-join/",
     "qualified_conversation": {
         "domain": "example.com",
         "id": "00000003-0000-0000-0000-000000000003"

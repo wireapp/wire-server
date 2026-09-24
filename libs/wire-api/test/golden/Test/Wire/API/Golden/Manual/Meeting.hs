@@ -19,11 +19,13 @@ module Test.Wire.API.Golden.Manual.Meeting where
 
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Misc (HttpsUrl (HttpsUrl))
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import Data.Time
 import Data.UUID qualified as UUID
 import Imports
+import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Meeting
 import Wire.API.User (unsafeEmailAddress)
 
@@ -41,7 +43,8 @@ testObject_Meeting_manual_1 =
       conversationId = Qualified {qUnqualified = Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000000000003")), qDomain = Domain {_domainText = "example.com"}},
       invitedEmails = [unsafeEmailAddress "someone" "example.com"],
       createdAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
-      updatedAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0}
+      updatedAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
+      link = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://account.wire.com/conversation-join/"))
     }
 
 testObject_Meeting_manual_2 :: Meeting
@@ -58,7 +61,8 @@ testObject_Meeting_manual_2 =
       conversationId = Qualified {qUnqualified = Id (fromJust (UUID.fromString "00000006-0000-0000-0000-000000000006")), qDomain = Domain {_domainText = "example.com"}},
       invitedEmails = [],
       createdAt = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      updatedAt = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0}
+      updatedAt = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
+      link = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://account.wire.com/conversation-join/"))
     }
 
 testObject_MeetingV18_manual_1 :: MeetingV18

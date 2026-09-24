@@ -51,8 +51,15 @@ interpretCodeStoreToCassandra = interpret $ \case
   CreateCode code mPw -> case codeReferent code of
     CodeReferentConv cid -> embedClientInput $ insertCode cid code mPw
     CodeReferentMeeting _ -> throwS @'CodeStoreNotFound
-  DeleteCode k -> do
-    embedClientInput $ deleteCode k
+  -- Meeting codes never live in Cassandra; report unsupported so callers
+  -- degrade to the placeholder join link instead of failing the request.
+  CreateMeetingCode _ _ -> pure False
+  DeleteConversationCode cid ->
+    Code.mkKey (CodeReferentConv cid) >>= embedClientInput . deleteCode
+  -- Meeting codes never live in Cassandra; deletion is a no-op so that
+  -- meeting deletion never fails.
+  DeleteMeetingCode _ ->
+    pure ()
   MakeKey ref -> Code.mkKey ref
   GenerateCode ref t -> Code.generate ref t
   GetConversationCodeURI mbHost -> do
