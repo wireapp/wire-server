@@ -19,7 +19,7 @@ extraObjects:
       duration: 2160h     # 90d
       renewBefore: 360h   # 15d
       isCA: false
-      secretName: opensearch-ephemeral-certificate
+      secretName: opensearch-cluster-certificate
 
       privateKey:
         algorithm: ECDSA
@@ -177,16 +177,16 @@ persistence:
 
 secretMounts:
   - name: node-pem
-    secretName: opensearch-ephemeral-certificate
+    secretName: opensearch-cluster-certificate
     path: /usr/share/opensearch/config/esnode.pem
     subPath: tls.crt
 
   - name: node-key
-    secretName: opensearch-ephemeral-certificate
+    secretName: opensearch-cluster-certificate
     path: /usr/share/opensearch/config/esnode-key.pem
     subPath: tls.key
 
   - name: root-cacert
-    secretName: opensearch-ephemeral-certificate
+    secretName: opensearch-cluster-certificate
     path: /usr/share/opensearch/config/root-ca.pem
     subPath: ca.crt
