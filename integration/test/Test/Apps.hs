@@ -601,8 +601,8 @@ testTeamSizeWithApps (TaggedBool testInternalApi) = do
   eventually $ do
     checkSize (numRegulars - 1) (numApps - 1)
 
-testReadExternalAppToGroupConversation :: (HasCallStack) => App ()
-testReadExternalAppToGroupConversation = do
+testReAddExternalAppToGroupConversation :: (HasCallStack) => App ()
+testReAddExternalAppToGroupConversation = do
   (owner1, tid1, []) <- createTeam OwnDomain 1
   (owner2, tid2, [member2]) <- createTeam OwnDomain 2
 
@@ -615,8 +615,15 @@ testReadExternalAppToGroupConversation = do
   let appPermissions = ["create_team_conversation", "implicit_connection"]
   addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
 
-  conv <- postConversation member2 defProteus {team = Just tid2} >>= getJSON 201
-  addMembers member2 conv def {users = [app]} >>= assertSuccess
+  -- Create MLS clients
+  [member2Client, appClient] <- traverse (createMLSClient def) [member2, app]
+  traverse_ (uploadNewKeyPackage def) [member2Client, appClient]
+
+  -- Create an MLS team conversation and add app
+  conv <- postConversation member2 defMLS {team = Just tid2, protocol = "mls"} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def member2Client convId
+  void $ createAddCommit member2Client convId [app] >>= sendAndConsumeCommitBundle
 
   bindResponse (getConversation member2 conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -626,11 +633,12 @@ testReadExternalAppToGroupConversation = do
 
   removeTeamCollaborator owner2 tid2 app >>= assertSuccess
 
-  bindResponse (getConversation member2 conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    mems <- resp.json %. "members.others" >>= asList
-    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
-    mIds `shouldNotContain` [appId]
+  eventually $ do
+    bindResponse (getConversation member2 conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      mems <- resp.json %. "members.others" >>= asList
+      mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+      mIds `shouldNotContain` [appId]
 
   addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
 
@@ -640,7 +648,8 @@ testReadExternalAppToGroupConversation = do
     mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
     mIds `shouldNotContain` [appId]
 
-  addMembers member2 conv def {users = [app]} >>= assertSuccess
+  void $ uploadNewKeyPackage def appClient
+  void $ createAddCommit member2Client convId [app] >>= sendAndConsumeCommitBundle
 
   bindResponse (getConversation member2 conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -648,8 +657,8 @@ testReadExternalAppToGroupConversation = do
     mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
     mIds `shouldContain` [appId]
 
-testRemoveReadExternalAppOne2OneConversation :: (HasCallStack) => App ()
-testRemoveReadExternalAppOne2OneConversation = do
+testRemoveReAddExternalAppOne2OneConversation :: (HasCallStack) => App ()
+testRemoveReAddExternalAppOne2OneConversation = do
   (owner1, tid1, []) <- createTeam OwnDomain 1
   (owner2, tid2, [member2]) <- createTeam OwnDomain 2
 
