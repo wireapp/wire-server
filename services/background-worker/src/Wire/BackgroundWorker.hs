@@ -86,6 +86,13 @@ run opts galleyOpts = do
             Migrations.users opts.migrationOptions
       else pure $ pure ()
 
+  cleanupActivationKeysMigration <-
+    if opts.migrateActivationKeys
+      then
+        runAppT env $
+          withNamedLogger "migrate-activation-keys" $
+            Migrations.activationKeys opts.migrationOptions
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -93,11 +100,11 @@ run opts galleyOpts = do
   cleanupJobRunner <-
     runAppT env $
       withNamedLogger "job-runner" $
-        Workers.startWorker opts.jobs opts.meetingsCleanup
+        Workers.startWorker opts.jobs opts.meetingsCleanup opts.activationKeysCleanup
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,)
+            (,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -105,6 +112,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupTeamFeaturesMigration
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupUsersMigration
+              <*> Concurrently cleanupActivationKeysMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
