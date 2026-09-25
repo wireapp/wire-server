@@ -48,10 +48,28 @@ type MeetingsAPI =
              MeetingWithConversationV16
     )
     :<|> Named
-           "create-meeting"
+           "create-meeting@v17"
            ( Summary "Create a new meeting"
                :> DescriptionOAuthScope 'WriteMeetings
                :> From 'V17
+               :> Until 'V19
+               :> ZLocalUser
+               :> ZConn
+               :> "meetings"
+               :> ReqBody '[JSON] NewMeetingV18
+               :> CanThrow MeetingError
+               :> CanThrow UnreachableBackends
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 201 "Meeting created" MeetingWithConversationV18]
+                    MeetingWithConversationV18
+           )
+    :<|> Named
+           "create-meeting"
+           ( Summary "Create a new meeting"
+               :> DescriptionOAuthScope 'WriteMeetings
+               :> From 'V19
                :> ZLocalUser
                :> ZConn
                :> "meetings"
@@ -85,9 +103,29 @@ type MeetingsAPI =
                     MeetingWithConversationV16
            )
     :<|> Named
-           "update-meeting"
+           "update-meeting@v17"
            ( Summary "Update an existing meeting"
                :> From 'V17
+               :> Until 'V19
+               :> ZLocalUser
+               :> ZConn
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
+               :> ReqBody '[JSON] UpdateMeetingV18
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[Respond 200 "Meeting updated" MeetingWithConversationV18]
+                    MeetingWithConversationV18
+           )
+    :<|> Named
+           "update-meeting"
+           ( Summary "Update an existing meeting"
+               :> From 'V19
                :> ZLocalUser
                :> ZConn
                :> "meetings"
@@ -137,9 +175,21 @@ type MeetingsAPI =
                     (Respond 200 "A single meeting by ID" MeetingV16)
            )
     :<|> Named
-           "get-meeting"
+           "get-meeting@v17"
            ( Summary "Get a single meeting by ID"
                :> From 'V17
+               :> Until 'V19
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> Get '[JSON] MeetingV18
+           )
+    :<|> Named
+           "get-meeting"
+           ( Summary "Get a single meeting by ID"
+               :> From 'V19
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
@@ -161,9 +211,19 @@ type MeetingsAPI =
                     (Respond 200 "List of meetings for the authenticated user" [MeetingV16])
            )
     :<|> Named
-           "list-meetings"
+           "list-meetings@v17"
            ( Summary "List all meetings for the authenticated user"
                :> From 'V17
+               :> Until 'V19
+               :> ZLocalUser
+               :> "meetings"
+               :> "list"
+               :> Get '[JSON] [MeetingV18]
+           )
+    :<|> Named
+           "list-meetings"
+           ( Summary "List all meetings for the authenticated user"
+               :> From 'V19
                :> ZLocalUser
                :> "meetings"
                :> "list"

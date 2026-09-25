@@ -156,6 +156,7 @@ defaultMeetingJson title startTime endTime invitedEmails =
       "start_time" .= startTime,
       "end_time" .= endTime,
       "tzid" .= ("Europe/Berlin" :: String),
+      "type" .= ("scheduled" :: String),
       "invited_emails" .= invitedEmails
     ]
 
@@ -269,6 +270,7 @@ testMeetingRecurrence = do
             "start_time" .= startTime,
             "end_time" .= endTime,
             "tzid" .= ("Europe/Berlin" :: String),
+            "type" .= ("scheduled" :: String),
             "recurrence" .= recurrence,
             "invited_emails" .= ["charlie@example.com"]
           ]
@@ -555,6 +557,7 @@ testMeetingDelete = do
           [ "title" .= "Team Standup",
             "start_time" .= startTime,
             "end_time" .= endTime,
+            "type" .= ("scheduled" :: String),
             "tzid" .= ("Europe/Berlin" :: String),
             "invited_emails" .= ([] :: [String]),
             "recurrence" .= recurrence
@@ -765,6 +768,7 @@ testMeetingListRecurringNotExpired = do
         object
           [ "title" .= "Recurring Past Meeting",
             "start_time" .= startTime,
+            "type" .= ("scheduled" :: String),
             "end_time" .= endTime,
             "tzid" .= ("Europe/Berlin" :: String),
             "recurrence" .= recurrence,
@@ -786,8 +790,8 @@ testMeetingListRecurringNotExpired = do
   meetings <- resp.json & asList
   length meetings `shouldMatchInt` 1
 
--- | A meeting created via the V17 shape (@end_time + tzid@) is visible to legacy
--- clients (< V17) with an @end_time@; V17 reads carry @end_time@ too.
+-- | A meeting created via the V19 shape (@end_time + tzid + type@) is visible
+-- to legacy clients (< V17) with an @end_time@; V19 reads carry @end_time@ too.
 testMeetingInteropNewToLegacy :: (HasCallStack) => App ()
 testMeetingInteropNewToLegacy = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -796,7 +800,7 @@ testMeetingInteropNewToLegacy = do
       endTime = addUTCTime 3600 startTime
       newMeeting = defaultMeetingJson "Interop New" startTime endTime []
   meeting <- postMeetings owner newMeeting >>= getJSON 201
-  -- V17 read shape: carries end_time + tzid.
+  -- V19 read shape: carries end_time + tzid.
   startV17 <- meeting %. "start_time" >>= asString
   endV17 <- meeting %. "end_time" >>= asString
   startT <- assertJust ("could not parse start_time: " <> startV17) $ iso8601ParseM @Maybe @UTCTime startV17
@@ -813,15 +817,15 @@ testMeetingInteropNewToLegacy = do
       newMeeting2 = defaultMeetingJson "Interop New (1h)" startTime2 endTime2 []
   meeting2 <- postMeetings owner newMeeting2 >>= getJSON 201
   (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
-  legacy2 <- getMeetingV16 owner domain2 meetingId2 >>= getJSON 200
+  legacy2 <- getMeetingV 16 owner domain2 meetingId2 >>= getJSON 200
   start2Str <- legacy2 %. "start_time" >>= asString
   end2Str <- legacy2 %. "end_time" >>= asString
   start2T <- assertJust ("could not parse start_time: " <> start2Str) $ iso8601ParseM @Maybe @UTCTime start2Str
   end2T <- assertJust ("could not parse end_time: " <> end2Str) $ iso8601ParseM @Maybe @UTCTime end2Str
   end2T `shouldMatch` addUTCTime 3600 start2T
 
--- | A meeting created via the legacy shape (@end_time@) is visible to V17 clients
--- with @end_time@ and the injected default @tzid@ (Europe/Berlin).
+-- | A meeting created via the legacy shape (@end_time@) is visible to V19
+-- clients with @end_time@ and the injected default @tzid@ (Europe/Berlin).
 testMeetingInteropLegacyToNew :: (HasCallStack) => App ()
 testMeetingInteropLegacyToNew = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -829,9 +833,9 @@ testMeetingInteropLegacyToNew = do
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJsonLegacy "Interop Legacy" startTime endTime []
-  meeting <- postMeetingsV16 owner newMeeting >>= getJSON 201
+  meeting <- postMeetingsV 16 owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
-  -- V17 read shape: end_time is present, tzid is the injected default.
+  -- V19 read shape: end_time is present, tzid is the injected default.
   modern <- getMeeting owner domain meetingId >>= getJSON 200
   startStr <- modern %. "start_time" >>= asString
   endStr <- modern %. "end_time" >>= asString
@@ -840,3 +844,69 @@ testMeetingInteropLegacyToNew = do
   endT `shouldMatch` addUTCTime 3600 startT
   tzid <- modern %. "tzid" >>= asString
   tzid `shouldMatch` ("Europe/Berlin" :: String)
+
+-- | WPB-28985: the V19 meeting object exposes a @type@ field
+-- (@immediate@ or @scheduled@); required on create, optional on update.
+testMeetingType :: (HasCallStack) => App ()
+testMeetingType = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting =
+        object
+          [ "title" .= ("Typed Meeting" :: String),
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "tzid" .= ("Europe/Berlin" :: String),
+            "type" .= ("immediate" :: String),
+            "invited_emails" .= ([] :: [String])
+          ]
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  fetched <- getMeeting owner domain meetingId >>= getJSON 200
+  mtype <- fetched %. "type" >>= asString
+  mtype `shouldMatch` ("immediate" :: String)
+
+  -- Update the type and read it back.
+  updated <- putMeeting owner domain meetingId (object ["type" .= ("scheduled" :: String)]) >>= getJSON 200
+  updatedType <- updated %. "type" >>= asString
+  updatedType `shouldMatch` ("scheduled" :: String)
+
+  -- V18-pinned reads carry no @type@ field.
+  legacy <- getMeetingV 18 owner domain meetingId >>= getJSON 200
+  assertFieldMissing legacy "type"
+
+  -- An unknown type is rejected at decode time.
+  let badMeeting =
+        object
+          [ "title" .= ("Typed Meeting" :: String),
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "tzid" .= ("Europe/Berlin" :: String),
+            "type" .= ("urgent" :: String),
+            "invited_emails" .= ([] :: [String])
+          ]
+  postMeetings owner badMeeting >>= assertStatus 400
+
+-- | A meeting created via the V18 shape (no @type@) is readable via V19 and
+-- carries the stored default type @scheduled@.
+testMeetingInteropV18ToV19 :: (HasCallStack) => App ()
+testMeetingInteropV18ToV19 = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting =
+        object
+          [ "title" .= ("Interop V18" :: String),
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "tzid" .= ("Europe/Berlin" :: String),
+            "invited_emails" .= ([] :: [String])
+          ]
+  meeting <- postMeetingsV 18 owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  modern <- getMeeting owner domain meetingId >>= getJSON 200
+  mtype <- modern %. "type" >>= asString
+  mtype `shouldMatch` ("scheduled" :: String)

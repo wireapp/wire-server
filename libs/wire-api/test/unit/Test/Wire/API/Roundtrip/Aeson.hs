@@ -397,8 +397,11 @@ tests =
       testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest,
       meetingTrialVersioningTests,
       testRoundTripWithSwagger @Meeting.Meeting,
+      testRoundTripWithSwagger @Meeting.MeetingV18,
       testRoundTripWithSwagger @Meeting.MeetingV16,
       testRoundTripWithSwagger @[Meeting.MeetingV16],
+      testRoundTripWithSwagger @[Meeting.MeetingV18],
+      meetingTypeVersioningTests,
       testFeatureFlagsCanonicalJsonRoundtrip
     ]
 
@@ -450,7 +453,7 @@ testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
 
 -- | Defends the API versioning contract introduced when dropping the deprecated
 -- @trial@ field: legacy versions (< V17) still render @trial@ as @false@, while
--- the current version (V17) omits it entirely.
+-- the current version (V19) omits it entirely.
 meetingTrialVersioningTests :: T.TestTree
 meetingTrialVersioningTests =
   T.testGroup
@@ -458,10 +461,34 @@ meetingTrialVersioningTests =
     [ testProperty "legacy (V15) response renders trial=false" $
         \(m :: Meeting.MeetingV16) ->
           trialField (toJSON m) === Just False,
-      testProperty "current (V17) response omits trial" $
+      testProperty "current (V19) response omits trial" $
         \(m :: Meeting.Meeting) ->
           trialField (toJSON m) === Nothing
     ]
+
+-- | Defends the API versioning contract for the meeting @type@ field: the
+-- V17/V18 shape has no @type@ key, while the V19 shape always carries one of
+-- the two allowed literals.
+meetingTypeVersioningTests :: T.TestTree
+meetingTypeVersioningTests =
+  T.testGroup
+    "Meeting type field versioning"
+    [ testProperty "V18 response omits type" $
+        \(m :: Meeting.MeetingV18) ->
+          typeField (toJSON m) === Nothing,
+      testProperty "V19 response renders type as immediate or scheduled" $
+        \(m :: Meeting.Meeting) ->
+          typeField (toJSON m)
+            `elem` [Just "immediate", Just "scheduled"]
+    ]
+
+-- | Extract the @type@ string from a 'Meeting' JSON object, if present.
+typeField :: Value -> Maybe Text
+typeField = \case
+  Object o -> case KeyMap.lookup (Key.fromString "type") o of
+    Just (String t) -> Just t
+    _ -> Nothing
+  _ -> Nothing
 
 -- | Extract the @trial@ boolean from a 'Meeting' JSON object, if present.
 trialField :: Value -> Maybe Bool

@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.10
--- Dumped by pg_dump version 17.10
+-- Dumped from database version 17.11
+-- Dumped by pg_dump version 17.11
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -48,6 +48,18 @@ ALTER SCHEMA public OWNER TO "wire-server";
 
 COMMENT ON SCHEMA public IS '';
 
+
+--
+-- Name: meeting_type; Type: TYPE; Schema: public; Owner: wire-server
+--
+
+CREATE TYPE public.meeting_type AS ENUM (
+    'immediate',
+    'scheduled'
+);
+
+
+ALTER TYPE public.meeting_type OWNER TO "wire-server";
 
 --
 -- Name: recurrence_frequency; Type: TYPE; Schema: public; Owner: wire-server
@@ -1472,6 +1484,7 @@ CREATE TABLE public.meetings (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     tzid text NOT NULL,
+    mtype public.meeting_type DEFAULT 'scheduled'::public.meeting_type NOT NULL,
     CONSTRAINT meetings_recurrence_consistency CHECK ((((recurrence_frequency IS NULL) AND (recurrence_interval IS NULL) AND (recurrence_until IS NULL)) OR ((recurrence_frequency IS NOT NULL) AND (recurrence_interval IS NOT NULL)))),
     CONSTRAINT meetings_title_length CHECK ((length(title) <= 256)),
     CONSTRAINT meetings_title_not_empty CHECK ((length(TRIM(BOTH FROM title)) > 0)),

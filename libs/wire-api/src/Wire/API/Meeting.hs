@@ -23,11 +23,23 @@ module Wire.API.Meeting
     renderTimeZone,
     defaultLegacyTimeZone,
 
-    -- * Meetings (V17 and later)
+    -- * Meeting type
+    MeetingType (..),
+    renderMeetingType,
+    parseMeetingType,
+
+    -- * Meetings (V19)
     Meeting (..),
     MeetingWithConversation (..),
     NewMeeting (..),
     UpdateMeeting (..),
+
+    -- * Legacy meetings (V17/V18)
+    MeetingV18 (..),
+    MeetingWithConversationV18 (..),
+    NewMeetingV18 (..),
+    UpdateMeetingV18,
+    UpdateMeetingLegacy (..),
 
     -- * Legacy meetings (V15/V16)
     MeetingV16 (..),
@@ -40,6 +52,10 @@ module Wire.API.Meeting
     fromLegacy,
     toLegacyWithConv,
     fromLegacyNewMeeting,
+    toLegacyV18,
+    toLegacyWithConvV18,
+    fromLegacyNewMeetingV18,
+    legacyUpdateToMeeting,
 
     -- * Misc
     Recurrence (..),
@@ -98,8 +114,29 @@ instance ToSchema TimeZone where
 instance Arbitrary TimeZone where
   arbitrary = TimeZone <$> elements [minBound .. maxBound]
 
--- | A scheduled meeting (V17 and later). @end_time@ is the source of truth
--- (there is no @duration@ field); the @tzid@ field carries the IANA time zone.
+-- | A V17/V18 meeting (no @type@ field; treated as @scheduled@).
+-- @end_time@ is the source of truth (there is no @duration@ field); the
+-- @tzid@ field carries the IANA time zone.
+data MeetingV18 = MeetingV18
+  { id :: Qualified MeetingId,
+    title :: Range 1 256 Text,
+    creator :: Qualified UserId,
+    startTime :: UTCTime,
+    endTime :: UTCTime,
+    tzid :: TimeZone,
+    recurrence :: Maybe Recurrence,
+    conversationId :: Qualified ConvId,
+    invitedEmails :: [EmailAddress],
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingV18)
+  deriving (Arbitrary) via (GenericUniform MeetingV18)
+
+-- | A meeting (V19 and later; @immediate@ or @scheduled@). @end_time@ is the
+-- source of truth (there is no @duration@ field); the @tzid@ field carries
+-- the IANA time zone.
 data Meeting = Meeting
   { id :: Qualified MeetingId,
     title :: Range 1 256 Text,
@@ -107,6 +144,7 @@ data Meeting = Meeting
     startTime :: UTCTime,
     endTime :: UTCTime,
     tzid :: TimeZone,
+    mtype :: MeetingType,
     recurrence :: Maybe Recurrence,
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
@@ -136,11 +174,11 @@ data MeetingV16 = MeetingV16
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingV16)
   deriving (Arbitrary) via (GenericUniform MeetingV16)
 
--- | V17+ object schema. Carries @end_time@ directly (the source of truth) and
--- the @tzid@ field.
-meetingObject :: ObjectSchema SwaggerDoc Meeting
-meetingObject =
-  Meeting
+-- | V17/V18 object schema. Carries @end_time@ directly (the source of truth)
+-- and the @tzid@ field.
+meetingV18Object :: ObjectSchema SwaggerDoc MeetingV18
+meetingV18Object =
+  MeetingV18
     <$> (.id) .= field "qualified_id" schema
     <*> (.title) .= field "title" schema
     <*> (.creator) .= field "qualified_creator" schema
@@ -153,8 +191,28 @@ meetingObject =
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
 
+instance ToSchema MeetingV18 where
+  schema = objectWithDocModifier (description ?~ "A scheduled meeting") meetingV18Object
+
+-- | V19 object schema. Like the V17/V18 schema plus the required @type@ field.
+meetingObject :: ObjectSchema SwaggerDoc Meeting
+meetingObject =
+  Meeting
+    <$> (.id) .= field "qualified_id" schema
+    <*> (.title) .= field "title" schema
+    <*> (.creator) .= field "qualified_creator" schema
+    <*> (.startTime) .= field "start_time" utcTimeSchema
+    <*> (.endTime) .= field "end_time" utcTimeSchema
+    <*> (.tzid) .= field "tzid" schema
+    <*> (.mtype) .= field "type" schema
+    <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+    <*> (.conversationId) .= field "qualified_conversation" schema
+    <*> (.invitedEmails) .= field "invited_emails" (array schema)
+    <*> (.createdAt) .= field "created_at" utcTimeSchema
+    <*> (.updatedAt) .= field "updated_at" utcTimeSchema
+
 instance ToSchema Meeting where
-  schema = objectWithDocModifier (description ?~ "A scheduled meeting") meetingObject
+  schema = objectWithDocModifier (description ?~ "A meeting (immediate or scheduled)") meetingObject
 
 -- | V16 (V15/V16) object schema. Keeps @end_time@ and appends the always-false
 -- @trial@ field (never stored).
@@ -186,6 +244,16 @@ meetingV16Object =
 instance ToSchema MeetingV16 where
   schema = objectWithDocModifier (description ?~ "A scheduled meeting") meetingV16Object
 
+-- | A 'MeetingV18' extended with the full 'Conversation' associated with it,
+-- as returned by the V17/V18 endpoints.
+data MeetingWithConversationV18 = MeetingWithConversationV18
+  { meeting :: MeetingV18,
+    conversation :: Conversation GroupConvType
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversationV18)
+  deriving (Arbitrary) via (GenericUniform MeetingWithConversationV18)
+
 -- | A 'Meeting' extended with the full 'Conversation' associated with it, as
 -- returned when creating or updating a meeting. The underlying meeting fields
 -- are flattened into the JSON object (emitted alongside @conversation@).
@@ -197,15 +265,21 @@ data MeetingWithConversation = MeetingWithConversation
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversation)
   deriving (Arbitrary) via (GenericUniform MeetingWithConversation)
 
-data MeetingWithConversationV16 = MeetingWithConversationV16
-  { meeting :: MeetingV16,
-    conversation :: Conversation GroupConvType
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversationV16)
-  deriving (Arbitrary) via (GenericUniform MeetingWithConversationV16)
+-- | The V17/V18 meeting object is flattened into the parent object (its
+-- fields are emitted alongside @conversation@ rather than nested).
+meetingWithConversationV18Object :: ObjectSchema SwaggerDoc MeetingWithConversationV18
+meetingWithConversationV18Object =
+  MeetingWithConversationV18
+    <$> (.meeting) .= meetingV18Object
+    <*> (.conversation) .= field "conversation" schema
 
--- | The V17+ meeting object is flattened into the parent object (its fields
+instance ToSchema MeetingWithConversationV18 where
+  schema =
+    objectWithDocModifier
+      (description ?~ "A scheduled meeting with its associated conversation")
+      meetingWithConversationV18Object
+
+-- | The V19 meeting object is flattened into the parent object (its fields
 -- are emitted alongside @conversation@ rather than nested).
 meetingWithConversationObject :: ObjectSchema SwaggerDoc MeetingWithConversation
 meetingWithConversationObject =
@@ -216,8 +290,16 @@ meetingWithConversationObject =
 instance ToSchema MeetingWithConversation where
   schema =
     objectWithDocModifier
-      (description ?~ "A scheduled meeting with its associated conversation")
+      (description ?~ "A meeting (immediate or scheduled) with its associated conversation")
       meetingWithConversationObject
+
+data MeetingWithConversationV16 = MeetingWithConversationV16
+  { meeting :: MeetingV16,
+    conversation :: Conversation GroupConvType
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversationV16)
+  deriving (Arbitrary) via (GenericUniform MeetingWithConversationV16)
 
 meetingWithConversationV16Object :: ObjectSchema SwaggerDoc MeetingWithConversationV16
 meetingWithConversationV16Object =
@@ -231,9 +313,9 @@ instance ToSchema MeetingWithConversationV16 where
       (description ?~ "A scheduled meeting with its associated conversation")
       meetingWithConversationV16Object
 
--- | Request to create a new meeting (V17 and later). Carries @end_time@ (the
+-- | Request to create a new meeting (V17/V18). Carries @end_time@ (the
 -- source of truth) and the @tzid@ field.
-data NewMeeting = NewMeeting
+data NewMeetingV18 = NewMeetingV18
   { startTime :: UTCTime,
     endTime :: UTCTime,
     tzid :: TimeZone,
@@ -242,8 +324,46 @@ data NewMeeting = NewMeeting
     invitedEmails :: [EmailAddress]
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeetingV18)
+  deriving (Arbitrary) via (GenericUniform NewMeetingV18)
+
+-- | Request to create a new meeting (V19 and later). Like the V17/V18 shape
+-- plus the required @type@ field.
+data NewMeeting = NewMeeting
+  { startTime :: UTCTime,
+    endTime :: UTCTime,
+    tzid :: TimeZone,
+    mtype :: MeetingType,
+    recurrence :: Maybe Recurrence,
+    title :: Range 1 256 Text,
+    invitedEmails :: [EmailAddress]
+  }
+  deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeeting)
   deriving (Arbitrary) via (GenericUniform NewMeeting)
+
+instance ToSchema NewMeetingV18 where
+  schema =
+    objectWithDocModifier (description ?~ "Request to create a new meeting") $
+      NewMeetingV18
+        <$> (.startTime) .= field "start_time" utcTimeSchema
+        <*> (.endTime) .= field "end_time" utcTimeSchema
+        <*> (.tzid) .= field "tzid" schema
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+        <*> (.title) .= field "title" schema
+        <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
+
+instance ToSchema NewMeeting where
+  schema =
+    objectWithDocModifier (description ?~ "Request to create a new meeting") $
+      NewMeeting
+        <$> (.startTime) .= field "start_time" utcTimeSchema
+        <*> (.endTime) .= field "end_time" utcTimeSchema
+        <*> (.tzid) .= field "tzid" schema
+        <*> (.mtype) .= field "type" schema
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+        <*> (.title) .= field "title" schema
+        <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
 
 -- | Request to create a new meeting (V15/V16). Carries @end_time@ but no @tzid@.
 data NewMeetingV16 = NewMeetingV16
@@ -256,17 +376,6 @@ data NewMeetingV16 = NewMeetingV16
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeetingV16)
   deriving (Arbitrary) via (GenericUniform NewMeetingV16)
-
-instance ToSchema NewMeeting where
-  schema =
-    objectWithDocModifier (description ?~ "Request to create a new meeting") $
-      NewMeeting
-        <$> (.startTime) .= field "start_time" utcTimeSchema
-        <*> (.endTime) .= field "end_time" utcTimeSchema
-        <*> (.tzid) .= field "tzid" schema
-        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
-        <*> (.title) .= field "title" schema
-        <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
 
 instance ToSchema NewMeetingV16 where
   schema =
@@ -303,24 +412,48 @@ instance ToSchema Frequency where
           element "yearly" Yearly
         ]
 
--- | Request to update an existing meeting. @tzid@ is optional: 'Just' sets
--- the meeting's IANA time zone, while omitting it (as legacy V15\/V16
--- clients, whose request shape carries no @tzid@, always do) leaves the
--- stored time zone unchanged; @end_time@ is optional on both eras, so a
--- single type serves V17 ('UpdateMeeting') and V16 ('UpdateMeetingV16').
+-- | Whether a meeting is @immediate@ or @scheduled@. Exposed at API version
+-- V19 and later; pre-V19 meetings are always @scheduled@.
+data MeetingType = Immediate | Scheduled
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema MeetingType)
+  deriving (Arbitrary) via (GenericUniform MeetingType)
+
+instance ToSchema MeetingType where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "immediate" Immediate,
+          element "scheduled" Scheduled
+        ]
+
+renderMeetingType :: MeetingType -> Text
+renderMeetingType = \case
+  Immediate -> "immediate"
+  Scheduled -> "scheduled"
+
+parseMeetingType :: Text -> Maybe MeetingType
+parseMeetingType = \case
+  "immediate" -> Just Immediate
+  "scheduled" -> Just Scheduled
+  _ -> Nothing
+
+-- | Request to update an existing meeting (V19). @tzid@ is optional: 'Just'
+-- sets the meeting's IANA time zone, while omitting it leaves the stored time
+-- zone unchanged; @end_time@ is optional. @type@ is optional: omitting it
+-- leaves the stored meeting type unchanged.
 data UpdateMeeting = UpdateMeeting
   { startTime :: Maybe UTCTime,
     endTime :: Maybe UTCTime,
     title :: Maybe (Range 1 256 Text),
     -- | 'Just x' means "set 'recurrence' to 'x', meaning set to a value or unset it"
     recurrence :: Maybe (Maybe Recurrence),
-    tzid :: Maybe TimeZone
+    tzid :: Maybe TimeZone,
+    mtype :: Maybe MeetingType
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeeting)
   deriving (Arbitrary) via (GenericUniform UpdateMeeting)
-
-type UpdateMeetingV16 = UpdateMeeting
 
 instance ToSchema UpdateMeeting where
   schema =
@@ -331,6 +464,48 @@ instance ToSchema UpdateMeeting where
         <*> (.title) .= maybe_ (optField "title" schema)
         <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
         <*> (.tzid) .= maybe_ (optField "tzid" schema)
+        <*> (.mtype) .= maybe_ (optField "type" schema)
+
+-- | Request to update an existing meeting on the frozen V15-V18 endpoints.
+-- Identical to 'UpdateMeeting' except it carries no @type@ field, so legacy
+-- clients cannot change the stored meeting type.
+data UpdateMeetingLegacy = UpdateMeetingLegacy
+  { startTime :: Maybe UTCTime,
+    endTime :: Maybe UTCTime,
+    title :: Maybe (Range 1 256 Text),
+    recurrence :: Maybe (Maybe Recurrence),
+    tzid :: Maybe TimeZone
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeetingLegacy)
+  deriving (Arbitrary) via (GenericUniform UpdateMeetingLegacy)
+
+type UpdateMeetingV16 = UpdateMeetingLegacy
+
+type UpdateMeetingV18 = UpdateMeetingLegacy
+
+instance ToSchema UpdateMeetingLegacy where
+  schema =
+    objectWithDocModifier (description ?~ "Request to update a meeting") $
+      UpdateMeetingLegacy
+        <$> (.startTime) .= maybe_ (optField "start_time" utcTimeSchema)
+        <*> (.endTime) .= maybe_ (optField "end_time" utcTimeSchema)
+        <*> (.title) .= maybe_ (optField "title" schema)
+        <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
+        <*> (.tzid) .= maybe_ (optField "tzid" schema)
+
+-- | Map a legacy update request onto the V19 shape. @mtype@ is always
+-- 'Nothing', i.e. the stored meeting type is left unchanged.
+legacyUpdateToMeeting :: UpdateMeetingLegacy -> UpdateMeeting
+legacyUpdateToMeeting u =
+  UpdateMeeting
+    { startTime = u.startTime,
+      endTime = u.endTime,
+      title = u.title,
+      recurrence = u.recurrence,
+      tzid = u.tzid,
+      mtype = Nothing
+    }
 
 instance ToSchema Recurrence where
   schema =
@@ -340,9 +515,9 @@ instance ToSchema Recurrence where
         <*> (.interval) .= (fromMaybe 1 <$> optField "interval" schema)
         <*> (.until) .= maybe_ (optField "until" utcTimeSchema)
 
--- | Convert a V17 'Meeting' to the legacy 'MeetingV16' shape. Fields are
--- copied verbatim; @tzid@ is dropped (@end_time@ is preserved, so no duration
--- needs to be recomputed).
+-- | Convert a V19 'Meeting' to the legacy 'MeetingV16' shape. Fields are
+-- copied verbatim; @tzid@ and @mtype@ are dropped (@end_time@ is preserved,
+-- so no duration needs to be recomputed).
 toLegacy :: Meeting -> MeetingV16
 toLegacy m =
   MeetingV16
@@ -358,9 +533,9 @@ toLegacy m =
       updatedAt = m.updatedAt
     }
 
--- | Convert a legacy 'MeetingV16' to the V17 'Meeting' shape, injecting the
--- given 'TimeZone' as @tzid@. All other fields (including @end_time@) are
--- preserved.
+-- | Convert a legacy 'MeetingV16' to the V19 'Meeting' shape, injecting the
+-- given 'TimeZone' as @tzid@ and defaulting @mtype@ to 'Scheduled'. All other
+-- fields (including @end_time@) are preserved.
 fromLegacy :: TimeZone -> MeetingV16 -> Meeting
 fromLegacy tz m =
   Meeting
@@ -370,6 +545,7 @@ fromLegacy tz m =
       startTime = m.startTime,
       endTime = m.endTime,
       tzid = tz,
+      mtype = Scheduled,
       recurrence = m.recurrence,
       conversationId = m.conversationId,
       invitedEmails = m.invitedEmails,
@@ -382,14 +558,53 @@ toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
 toLegacyWithConv mwc =
   MeetingWithConversationV16 {meeting = toLegacy mwc.meeting, conversation = mwc.conversation}
 
--- | Convert a V16 'NewMeetingV16' to the V17 'NewMeeting', injecting the given
--- 'TimeZone' as @tzid@. @end_time@ is preserved (it is the source of truth).
+-- | Convert a V19 'Meeting' to the legacy V18 'MeetingV18' shape (drops @mtype@).
+toLegacyV18 :: Meeting -> MeetingV18
+toLegacyV18 m =
+  MeetingV18
+    { id = m.id,
+      title = m.title,
+      creator = m.creator,
+      startTime = m.startTime,
+      endTime = m.endTime,
+      tzid = m.tzid,
+      recurrence = m.recurrence,
+      conversationId = m.conversationId,
+      invitedEmails = m.invitedEmails,
+      createdAt = m.createdAt,
+      updatedAt = m.updatedAt
+    }
+
+-- | 'toLegacyV18' lifted over 'MeetingWithConversation'.
+toLegacyWithConvV18 :: MeetingWithConversation -> MeetingWithConversationV18
+toLegacyWithConvV18 mwc =
+  MeetingWithConversationV18 {meeting = toLegacyV18 mwc.meeting, conversation = mwc.conversation}
+
+-- | Convert a V16 'NewMeetingV16' to the V19 'NewMeeting', injecting the
+-- given 'TimeZone' as @tzid@ and defaulting @mtype@ to 'Scheduled'.
+-- @end_time@ is preserved (it is the source of truth).
 fromLegacyNewMeeting :: TimeZone -> NewMeetingV16 -> NewMeeting
 fromLegacyNewMeeting tz nm =
   NewMeeting
     { startTime = nm.startTime,
       endTime = nm.endTime,
       tzid = tz,
+      mtype = Scheduled,
+      recurrence = nm.recurrence,
+      title = nm.title,
+      invitedEmails = nm.invitedEmails
+    }
+
+-- | Convert a V17/V18 'NewMeetingV18' to the V19 'NewMeeting', defaulting
+-- @mtype@ to 'Scheduled' (no time zone injection; V17/V18 requests carry
+-- @tzid@).
+fromLegacyNewMeetingV18 :: NewMeetingV18 -> NewMeeting
+fromLegacyNewMeetingV18 nm =
+  NewMeeting
+    { startTime = nm.startTime,
+      endTime = nm.endTime,
+      tzid = nm.tzid,
+      mtype = Scheduled,
       recurrence = nm.recurrence,
       title = nm.title,
       invitedEmails = nm.invitedEmails
