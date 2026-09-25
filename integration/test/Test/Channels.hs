@@ -24,6 +24,7 @@ import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import qualified API.GalleyInternal as I
+import Control.Monad.Reader (local)
 import GHC.Stack
 import MLS.Util
 import Notifications (isChannelAddPermissionUpdate, isMemberJoinNotif, isWelcomeNotif)
@@ -526,8 +527,11 @@ testTeamAdminCanAddMembersWithoutJoining = do
       selfQid <- self %. "qualified_id"
       filterM (\m -> (/= selfQid) <$> (m %. "qualified_id")) allUsers
 
+setTimeoutTo :: Int -> Env -> Env
+setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
+
 testTeamAdminCanReplaceMembers :: (HasCallStack) => App ()
-testTeamAdminCanReplaceMembers = do
+testTeamAdminCanReplaceMembers = local (setTimeoutTo 30) do
   (alice, tid, bob : charlie : dylan : emil : fred : guenter : horst : ilona : _) <- createTeam OwnDomain 9
   [bobId, charlieId, dylanId, emilId, fredId, guenterId, horstId, ilonaId] <-
     for [bob, charlie, dylan, emil, fred, guenter, horst, ilona] (%. "id")
