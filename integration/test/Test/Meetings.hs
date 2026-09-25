@@ -817,7 +817,7 @@ testMeetingInteropNewToLegacy = do
       newMeeting2 = defaultMeetingJson "Interop New (1h)" startTime2 endTime2 []
   meeting2 <- postMeetings owner newMeeting2 >>= getJSON 201
   (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
-  legacy2 <- getMeetingV16 owner domain2 meetingId2 >>= getJSON 200
+  legacy2 <- getMeetingV 16 owner domain2 meetingId2 >>= getJSON 200
   start2Str <- legacy2 %. "start_time" >>= asString
   end2Str <- legacy2 %. "end_time" >>= asString
   start2T <- assertJust ("could not parse start_time: " <> start2Str) $ iso8601ParseM @Maybe @UTCTime start2Str
@@ -833,7 +833,7 @@ testMeetingInteropLegacyToNew = do
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJsonLegacy "Interop Legacy" startTime endTime []
-  meeting <- postMeetingsV16 owner newMeeting >>= getJSON 201
+  meeting <- postMeetingsV 16 owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   -- V19 read shape: end_time is present, tzid is the injected default.
   modern <- getMeeting owner domain meetingId >>= getJSON 200
@@ -874,7 +874,7 @@ testMeetingType = do
   updatedType `shouldMatch` ("scheduled" :: String)
 
   -- V18-pinned reads carry no @type@ field.
-  legacy <- getMeetingV18 owner domain meetingId >>= getJSON 200
+  legacy <- getMeetingV 18 owner domain meetingId >>= getJSON 200
   assertFieldMissing legacy "type"
 
   -- An unknown type is rejected at decode time.
@@ -905,7 +905,7 @@ testMeetingInteropV18ToV19 = do
             "tzid" .= ("Europe/Berlin" :: String),
             "invited_emails" .= ([] :: [String])
           ]
-  meeting <- postMeetingsV18 owner newMeeting >>= getJSON 201
+  meeting <- postMeetingsV 18 owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   modern <- getMeeting owner domain meetingId >>= getJSON 200
   mtype <- modern %. "type" >>= asString
