@@ -77,6 +77,8 @@ import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
 import Wire.API.Message
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
+import Wire.API.Routes.Version as V
+import Wire.API.Routes.Versioned as V
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
@@ -876,11 +878,11 @@ sendMessage = do
   bobId <- randomId
   bobClient <- liftIO $ generate arbitrary
   let bob = Qualified bobId remoteDomain
-      bobProfile = mkProfile bob (Name "Bob")
+      bobProfile = V.Versioned @V.V19 $ mkProfile bob (Name "Bob")
   chadId <- randomId
   chadClient <- liftIO $ generate arbitrary
   let chad = Qualified chadId remoteDomain
-      chadProfile = mkProfile chad (Name "Chad")
+      chadProfile = V.Versioned @V.V19 $ mkProfile chad (Name "Chad")
 
   connectWithRemoteUser aliceId bob
   connectWithRemoteUser aliceId chad

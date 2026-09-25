@@ -122,12 +122,12 @@ instance ServiceAPI BrigAPITag v where
 
 type MaxUsersForListClientsBulk = 500
 
-type GetUserVerb =
+type GetUserVerb v =
   MultiVerb
     'GET
     '[JSON]
     '[ ErrorResponse 'UserNotFound,
-       Respond 200 "User found" UserProfile
+       VersionedRespond (ToVersion v) 200 "User found" UserProfile
      ]
     (Maybe UserProfile)
 
@@ -166,15 +166,25 @@ type UserAPI =
         :> ZLocalUser
         :> "users"
         :> CaptureUserId "uid"
-        :> GetUserVerb
+        :> GetUserVerb (Until 'V19)
     )
     :<|> Named
-           "get-user-qualified"
+           "get-user-qualified@v18"
            ( Summary "Get a user by Domain and UserId"
+               :> Until 'V19
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
-               :> GetUserVerb
+               :> GetUserVerb (Until 'V19)
+           )
+    :<|> Named
+           "get-user-qualified"
+           ( Summary "Get a user by Domain and UserId"
+               :> From 'V19
+               :> ZLocalUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> GetUserVerb (From 'V19)
            )
     :<|> Named
            "update-user-email"
@@ -215,7 +225,7 @@ type UserAPI =
                     'GET
                     '[JSON]
                     '[ ErrorResponse 'HandleNotFound,
-                       Respond 200 "User found" UserProfile
+                       VersionedRespond (ToVersion (Until 'V19)) 200 "User found" UserProfile
                      ]
                     (Maybe UserProfile)
            )
@@ -228,7 +238,18 @@ type UserAPI =
                :> "users"
                :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
                :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
-               :> Get '[JSON] [UserProfile]
+               :> Get '[JSON] [Versioned (ToVersion (Until 'V19)) UserProfile]
+           )
+    :<|> Named
+           "list-users-by-ids-or-handles@v18"
+           ( Summary "List users"
+               :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+               :> ZUser
+               :> From 'V4
+               :> "list-users"
+               :> QueryParam' [Optional, Strict, Description "Include whether each local user can currently be contacted"] "include-contact-status" Bool
+               :> ReqBody '[JSON] ListUsersQuery
+               :> Post '[JSON] (ListUsersById (ToVersion (Until 'V19)))
            )
     :<|> Named
            "list-users-by-ids-or-handles"
@@ -239,7 +260,7 @@ type UserAPI =
                :> "list-users"
                :> QueryParam' [Optional, Strict, Description "Include whether each local user can currently be contacted"] "include-contact-status" Bool
                :> ReqBody '[JSON] ListUsersQuery
-               :> Post '[JSON] ListUsersById
+               :> Post '[JSON] (ListUsersById (ToVersion (From 'V19)))
            )
     :<|> Named
            "list-users-by-ids-or-handles@V3"
@@ -249,7 +270,7 @@ type UserAPI =
                :> Until 'V4
                :> "list-users"
                :> ReqBody '[JSON] ListUsersQuery
-               :> Post '[JSON] [UserProfile]
+               :> Post '[JSON] [Versioned (ToVersion (Until 'V19)) UserProfile]
            )
     :<|> Named
            "send-verification-code"
@@ -2120,7 +2141,7 @@ type SystemSettingsAPI =
 
 type AppsAPI =
   Named
-    "create-app"
+    "create-app@v18"
     ( Summary "Create a new app"
         :> From 'V12
         :> ZLocalUser
@@ -2128,8 +2149,19 @@ type AppsAPI =
         :> Capture "tid" TeamId
         :> "apps"
         :> ReqBody '[JSON] NewApp
-        :> Post '[JSON] CreatedApp
+        :> Post '[JSON] (CreatedApp (ToVersion (Until 'V19)))
     )
+    :<|> Named
+           "create-app"
+           ( Summary "Create a new app"
+               :> From 'V12
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> ReqBody '[JSON] NewApp
+               :> Post '[JSON] (CreatedApp (ToVersion (From 'V19)))
+           )
     :<|> Named
            "get-app"
            ( Summary "Get app"
@@ -2140,7 +2172,17 @@ type AppsAPI =
                :> Capture "tid" TeamId
                :> "apps"
                :> Capture "uid" UserId
-               :> Get '[JSON] UserProfile
+               :> Get '[JSON] (Versioned (ToVersion (Until 'V19)) UserProfile)
+           )
+    :<|> Named
+           "get-apps@v18"
+           ( Summary "Get all apps owned by the given team (not including collaborators)"
+               :> From 'V15
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Get '[JSON] [Versioned (ToVersion (Until 'V19)) UserProfile]
            )
     :<|> Named
            "get-apps"
@@ -2150,7 +2192,7 @@ type AppsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "apps"
-               :> Get '[JSON] [UserProfile]
+               :> Get '[JSON] [Versioned (ToVersion (From 'V19)) UserProfile]
            )
     :<|> Named
            "put-app"

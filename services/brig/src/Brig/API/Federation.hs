@@ -57,6 +57,8 @@ import Wire.API.Push.V2 qualified as Push
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client
@@ -154,7 +156,7 @@ getUserByHandle ::
   ) =>
   Domain ->
   Handle ->
-  ExceptT HttpError (AppT r) (Maybe UserProfile)
+  ExceptT HttpError (AppT r) (Maybe (V.Versioned V.V18 UserProfile))
 getUserByHandle domain handle = do
   searchPolicy <- lookupSearchPolicy domain
 
@@ -172,16 +174,16 @@ getUserByHandle domain handle = do
           pure Nothing
         Just ownerId -> do
           localOwnerId <- qualifyLocal ownerId
-          liftSem $ UserSubsystem.getLocalUserProfile localOwnerId
+          liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfile localOwnerId
 
 getUsersByIds ::
   (Member UserSubsystem r) =>
   Domain ->
   [UserId] ->
-  ExceptT HttpError (AppT r) [UserProfile]
+  ExceptT HttpError (AppT r) [V.Versioned V.V18 UserProfile]
 getUsersByIds _ uids = do
   luids <- qualifyLocal uids
-  lift $ liftSem $ UserSubsystem.getLocalUserProfiles luids
+  lift $ liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfiles luids
 
 claimPrekey ::
   (Member ClientSubsystem r) =>

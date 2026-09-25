@@ -98,6 +98,8 @@ import Wire.API.Provider.Bot qualified as Ext
 import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service.Tag
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.Feature (featureNameBS)
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Permission
@@ -2119,7 +2121,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
   getBotConv galley bid cid !!! const 200 === statusCode
   -- Check that the bot user exists and can be identified as a bot
   _rs <- getUser brig uid1 buid <!! const 200 === statusCode
-  let Just bp = responseJsonMaybe _rs
+  let Just (V.Versioned @V.V18 bp) = responseJsonMaybe _rs
   liftIO $ do
     assertEqual "service" (Just sref) (profileService bp)
     assertEqual "name" defServiceName (profileName bp)

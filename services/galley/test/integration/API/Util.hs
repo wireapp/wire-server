@@ -133,6 +133,7 @@ import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (userId)
@@ -2199,7 +2200,7 @@ ensureDeletedState check from u = do
 getDeletedState :: (HasCallStack) => UserId -> UserId -> TestM (Maybe Bool)
 getDeletedState from u = do
   b <- view tsUnversionedBrig
-  fmap profileDeleted . responseJsonMaybe
+  fmap (profileDeleted . unVersioned @V18) . responseJsonMaybe
     <$> get
       ( b
           . paths ["v1", "users", toByteString' u]
@@ -2580,7 +2581,6 @@ mkProfile quid name =
   UserProfile
     { profileQualifiedId = quid,
       profileName = name,
-      profilePict = noPict,
       profileTextStatus = Nothing,
       profileAssets = mempty,
       profileAccentId = defaultAccentId,
@@ -2750,7 +2750,7 @@ checkTimeout = 60 # Second
 mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> Mock LByteString
 mockedFederatedBrigResponse users = do
   guardComponent Brig
-  mockReply [mkProfile mem (Name name) | (mem, name) <- users]
+  mockReply [Versioned @V19 $ mkProfile mem (Name name) | (mem, name) <- users]
 
 parseFedRequest :: (FromJSON a) => FederatedRequest -> Either String a
 parseFedRequest fr = eitherDecode (frBody fr)
