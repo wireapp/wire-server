@@ -55,6 +55,9 @@ interpretCodeStorePure = interpret $ \case
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
     modify (Map.insert k (code, Nothing))
     pure True
+  GetMeetingCode mid -> do
+    k <- embed (Code.mkKey (CodeReferentMeeting mid))
+    gets (fmap fst . Map.lookup k)
   MakeKey ref -> embed (Code.mkKey ref)
   GenerateCode ref t -> embed (Code.generate ref t)
   GetConversationCodeURI mbHost -> do

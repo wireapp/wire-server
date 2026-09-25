@@ -262,7 +262,7 @@ createMeetingImpl zUser connId newMeeting = do
     TinyLog.warn $
       Log.msg ("meeting created without join link" :: ByteString)
         . Log.field "meetingId" (toByteString' mid)
-  -- Store meeting (trial status and join-code presence provided by caller)
+  -- Store meeting (trial status provided by caller)
   storedMeeting <-
     Store.createMeeting
       mid
@@ -276,13 +276,12 @@ createMeetingImpl zUser connId newMeeting = do
       storedConv.id_
       newMeeting.invitedEmails
       trial
-      hasJoinCode
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
   notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
   base <- codeURIBase (tDomain zUser)
-  pure $ storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting
+  storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -342,7 +341,7 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
-    pure $ storedMeetingToMeetingWithConversation base zUser conv updatedMeeting
+    lift $ storedMeetingToMeetingWithConversation base zUser conv updatedMeeting
 
 -- | V16 update path: 'API.UpdateMeetingV16' carries no @type@ field, so
 -- legacy clients cannot change the stored meeting type. The request is mapped
@@ -461,12 +460,12 @@ getMeetingImpl zUser meetingId validityPeriod = do
       -- Check authorization: user must be creator OR member of the associated conversation
       let isCreator = storedMeeting.creator == tUnqualified zUser
       if isCreator
-        then pure $ storedMeetingToMeeting base (tDomain zUser) storedMeeting
+        then lift $ storedMeetingToMeeting base (tDomain zUser) storedMeeting
         else do
           -- Check if user is a member of the conversation
           let convId = storedMeeting.conversationId
           void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
-          pure $ storedMeetingToMeeting base (tDomain zUser) storedMeeting -- User is a member, authorized
+          lift $ storedMeetingToMeeting base (tDomain zUser) storedMeeting -- User is a member, authorized
     else pure Nothing
 
 -- | Look up the 'StoredConversation' associated with a meeting. When the
@@ -491,26 +490,33 @@ getMeetingConversationOrFail meetingId convId = do
           . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
       pure Nothing
 
--- Helper function to convert StoredMeeting to API.Meeting. Meetings without
--- a stored join code ('Store.hasCode' == False) serve the nil-uuid
--- placeholder link.
-storedMeetingToMeeting :: HttpsUrl -> Domain -> Store.StoredMeeting -> API.Meeting
-storedMeetingToMeeting base domain sm =
-  API.Meeting
-    { API.id = Qualified sm.id domain,
-      API.title = sm.title,
-      API.creator = Qualified sm.creator domain,
-      API.startTime = sm.startTime,
-      API.endTime = sm.endTime,
-      API.tzid = sm.tzid,
-      API.mtype = sm.meetingType,
-      API.recurrence = sm.recurrence,
-      API.conversationId = Qualified sm.conversationId domain,
-      API.invitedEmails = sm.invitedEmails,
-      API.createdAt = sm.createdAt,
-      API.updatedAt = sm.updatedAt,
-      API.link = API.mkMeetingLink base (if sm.hasCode then sm.id else Id nil)
-    }
+-- | Convert a 'Store.StoredMeeting' to an 'API.Meeting'. Meetings without a
+-- join-code row in the code store serve the nil-uuid placeholder link;
+-- code presence is derived at read time.
+storedMeetingToMeeting ::
+  (Member CodeStore r) =>
+  HttpsUrl ->
+  Domain ->
+  Store.StoredMeeting ->
+  Sem r API.Meeting
+storedMeetingToMeeting base domain sm = do
+  hasCode <- isJust <$> CodeStore.getMeetingCode sm.id
+  pure $
+    API.Meeting
+      { API.id = Qualified sm.id domain,
+        API.title = sm.title,
+        API.creator = Qualified sm.creator domain,
+        API.startTime = sm.startTime,
+        API.endTime = sm.endTime,
+        API.tzid = sm.tzid,
+        API.mtype = sm.meetingType,
+        API.recurrence = sm.recurrence,
+        API.conversationId = Qualified sm.conversationId domain,
+        API.invitedEmails = sm.invitedEmails,
+        API.createdAt = sm.createdAt,
+        API.updatedAt = sm.updatedAt,
+        API.link = API.mkMeetingLink base (if hasCode then sm.id else Id nil)
+      }
 
 -- | Like 'storedMeetingToMeeting', but additionally carries the full
 -- 'API.Conversation' associated with the meeting.
@@ -520,16 +526,19 @@ storedMeetingToMeeting base domain sm =
 -- meeting operation guards @qDomain meetingId == tDomain zUser@. The
 -- conversation itself is always created locally.
 storedMeetingToMeetingWithConversation ::
+  (Member CodeStore r) =>
   HttpsUrl ->
   Local UserId ->
   StoredConversation ->
   Store.StoredMeeting ->
-  API.MeetingWithConversation
-storedMeetingToMeetingWithConversation base lUser conv sm =
-  API.MeetingWithConversation
-    { API.meeting = storedMeetingToMeeting base (tDomain lUser) sm,
-      API.conversation = conversationView lUser (Just lUser) conv
-    }
+  Sem r API.MeetingWithConversation
+storedMeetingToMeetingWithConversation base lUser conv sm = do
+  meeting <- storedMeetingToMeeting base (tDomain lUser) sm
+  pure $
+    API.MeetingWithConversation
+      { API.meeting = meeting,
+        API.conversation = conversationView lUser (Just lUser) conv
+      }
 
 listMeetingsImpl ::
   ( Member Store.MeetingsStore r,
@@ -555,14 +564,17 @@ listMeetingsImpl zUser validityPeriod = do
       -- Loop over local conversations accessible by the user, then filter to only keep meetings.
       memberMeetings <- getAllMemberMeetings zUser base cutoff
       -- Combine and deduplicate
-      let allMeetings = map (storedMeetingToMeeting base (tDomain zUser)) createdMeetings <> memberMeetings
-          uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
+      allMeetings <-
+        (<> memberMeetings)
+          <$> traverse (storedMeetingToMeeting base (tDomain zUser)) createdMeetings
+      let uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
       pure uniqueMeetings
     else pure []
 
 getAllMemberMeetings ::
   ( Member Store.MeetingsStore r,
-    Member ConversationSubsystem r
+    Member ConversationSubsystem r,
+    Member CodeStore r
   ) =>
   Local UserId ->
   HttpsUrl ->
@@ -574,7 +586,8 @@ getAllMemberMeetings zUser base cutoff = do
   where
     processPage ::
       ( Member Store.MeetingsStore r,
-        Member ConversationSubsystem r
+        Member ConversationSubsystem r,
+        Member CodeStore r
       ) =>
       Maybe ConversationPagingState -> Sem r [API.Meeting]
     processPage pagingState = do
@@ -594,7 +607,7 @@ getAllMemberMeetings zUser base cutoff = do
               -- Fetch meetings for these conversations
               pageMeetings <- forM targetQConvIds $ \qConvId -> do
                 Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
-              let currentMeetings = storedMeetingToMeeting base (tDomain zUser) <$> concat pageMeetings
+              currentMeetings <- traverse (storedMeetingToMeeting base (tDomain zUser)) (concat pageMeetings)
               -- Check if there are more pages
               if hasMore
                 then do
