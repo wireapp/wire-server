@@ -1,0 +1,8 @@
+{
+    "client": "2",
+    "endpoint": "https://example.com/webpush/sub/2",
+    "keys": {
+        "auth": "BwcHBwcHBwcHBwcHBwcHBw",
+        "p256dh": "BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+}

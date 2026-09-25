@@ -1,0 +1,9 @@
+{
+    "client": "17",
+    "endpoint": "https://fcm.googleapis.com/fcm/send/cid",
+    "expiration_time": 1750291200000,
+    "keys": {
+        "auth": "oKCgoKCgoKCgoKCgoKCgoA",
+        "p256dh": "BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+}
