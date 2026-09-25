@@ -9,7 +9,8 @@
    machine, `wire-server` is not yet compatible with arm64.
 2. Install the [nix package manager](https://nixos.org/download.html).
    Please follow the install instruction provided on their website.
-3. Add the `wire-server` `cachix` cache to your system.
+3. Add `https://nix-build.zinfra.io` as substituer with trusted public key `nix-build.zinfra.io-1:N4+kZzixOCzHn68l72wRqYOBfFiSinze6wUgreZPdcI=` to your nix config. See https://nix.dev/guides/recipes/add-binary-cache.html.
+4. For legacy builds: Add the `wire-server` `cachix` cache to your system.
    This is best done by using the `cachix` executable, which, as soon as you have
    `nix` itself installed can be run with this (a bit unwieldy) command:
    ```bash
