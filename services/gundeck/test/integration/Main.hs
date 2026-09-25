@@ -37,6 +37,7 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import OpenSSL (withOpenSSL)
 import Options.Applicative
+import System.IO.Unsafe (unsafePerformIO)
 import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.Ingredients
@@ -93,12 +94,14 @@ runTests run = defaultMainWithIngredients ings $
 main :: IO ()
 main = withOpenSSL $ runTests go
   where
-    go g i = withResource (getOpts g i) releaseOpts $ \opts ->
-      testGroup
-        "Gundeck"
-        [ API.tests opts,
-          Metrics.tests opts
-        ]
+    go g i =
+      let store = unsafePerformIO (fromMaybe PresenceRedis <$> presenceStoreFromEnv)
+       in withResource (getOpts g i) releaseOpts $ \opts ->
+            testGroup
+              "Gundeck"
+              [ API.tests store opts,
+                Metrics.tests opts
+              ]
     getOpts :: FilePath -> FilePath -> IO TestSetup
     getOpts gFile iFile = do
       m <-

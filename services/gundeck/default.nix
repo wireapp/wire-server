@@ -29,6 +29,8 @@
 , extended
 , extra
 , foldl
+, hasql
+, hasql-th
 , hedis
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -79,6 +81,7 @@
 , unliftio
 , unordered-containers
 , uuid
+, vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
@@ -86,6 +89,7 @@
 , websockets
 , wire-api
 , wire-otel
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -117,6 +121,8 @@ mkDerivation {
     extended
     extra
     foldl
+    hasql
+    hasql-th
     hedis
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -148,12 +154,14 @@ mkDerivation {
     unliftio
     unordered-containers
     uuid
+    vector
     wai
     wai-extra
     wai-middleware-gunzip
     wai-utilities
     wire-api
     wire-otel
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [

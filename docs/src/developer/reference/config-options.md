@@ -2073,6 +2073,39 @@ gundeck:
       insecureSkipVerifyTls: true
 ```
 
+
+## Configure the gundeck presence store
+
+Gundeck stores user presences either in Redis (default) or in PostgreSQL.  The
+backend is selected with the chart value `gundeck.presenceStore`
+(`"redis"` or `"postgresql"`); alternatively the environment variable
+`GUNDECK_PRESENCE_STORE` (same values) overrides the config file, which is how
+integration tests switch backends without touching YAML.
+
+When `postgresql` is selected, configure the database connection like this:
+
+```yaml
+gundeck:
+  config:
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
+  secrets:
+    pgPassword: <postgres-password> # mounted at /etc/wire/gundeck/secrets/pgPassword
+```
+
+Besides the password file (`postgresqlPassword`), the fields correspond to
+[libpq-connect parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
+Gundeck runs its PostgreSQL migrations at startup, so the `presence` table is
+created automatically.  When presences are stored in PostgreSQL, the
+`redis-ephemeral` chart (and its TLS certificates/reaper) are unnecessary.
+
 ## Configure RabbitMQ
 
 RabbitMQ authentication must be configured on brig, galley and background-worker. For example:

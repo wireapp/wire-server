@@ -41,6 +41,7 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
+import Control.Exception.Safe (catchAny)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
 import Data.Map qualified as Map
@@ -56,9 +57,11 @@ import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
 import Gundeck.Options hiding (host, port)
+import Gundeck.Presence.Data qualified as PresenceData
 import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended (Pool (rawPool))
 import Imports
 import Network.AMQP
 import Network.AMQP.Types
@@ -81,11 +84,16 @@ import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry
+import Wire.PostgresMigrations qualified as PostgresMigrations
 
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (rThreads, env) <- createEnv opts
   let logger = env ^. applog
+
+  case env ^. presenceBackend of
+    PresenceBackendPostgres p -> PostgresMigrations.runAllMigrations (rawPool p) logger
+    PresenceBackendRedis _ _ -> pure ()
 
   runDirect env setUpRabbitMqExchangesAndQueues
 
@@ -97,17 +105,23 @@ run opts = withTracer \tracer -> do
   lst <- Async.async $ Aws.execute (env ^. awsEnv) (Aws.listen throttleMillis (runDirect env . onEvent))
   wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
-
+  mpcleanup <- case env ^. presenceBackend of
+    PresenceBackendPostgres _ -> Just <$> Async.async (runDirect env $ cleanupPresenceLoop logger)
+    PresenceBackendRedis _ _ -> pure Nothing
   app <- middleware env <*> pure (mkApp env)
   inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
     Log.info logger $ Log.msg (Log.val "Shutting down ...")
     shutdown (env ^. cstate)
     Async.cancel lst
     Async.cancel wCollectAuth
+    whenJust mpcleanup Async.cancel
     forM_ wtbs Async.cancel
     forM_ rThreads Async.cancel
-    Redis.disconnect =<< takeMVar (env ^. rstate)
-    whenJust (env ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
+    case env ^. presenceBackend of
+      PresenceBackendRedis r mAdd -> do
+        Redis.disconnect =<< takeMVar r
+        whenJust mAdd $ (=<<) Redis.disconnect . takeMVar
+      PresenceBackendPostgres _ -> pure ()
     Log.close (env ^. applog)
   where
     setUpRabbitMqExchangesAndQueues :: Gundeck ()
@@ -178,3 +192,22 @@ collectAuthMetrics env = do
       mbRemaining <- readAuthExpiration env
       gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000
+
+-- | Hourly janitor replacing the redis key TTL: deletes presence rows older
+-- than a week (leak guard for abnormally dead pods).  Never let a transient DB
+-- error kill the thread — log and retry next hour.  Async exceptions (e.g.
+-- 'AsyncCancelled' from 'Async.cancel' during shutdown) propagate because
+-- 'Control.Exception.Safe.catchAny' rethrows asynchronously-delivered
+-- exceptions and only handles synchronous ones.
+cleanupPresenceLoop :: Log.Logger -> Gundeck ()
+cleanupPresenceLoop logger =
+  forever $
+    (PresenceData.cleanup >> threadDelay cleanupInterval)
+      `catchAny` \e -> do
+        liftIO . Log.err logger $
+          Log.msg (Log.val "presence cleanup failed")
+            . Log.field "error" (displayException e)
+        threadDelay cleanupInterval
+
+cleanupInterval :: Int
+cleanupInterval = 3_600_000_000 -- one hour, in microseconds

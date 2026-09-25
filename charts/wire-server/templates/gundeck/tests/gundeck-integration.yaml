@@ -1,3 +1,4 @@
+{{- if ne (include "gundeck.presenceStore" .) "postgresql" }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -141,3 +142,4 @@ spec:
     {{- end }}
     {{- end }}
   restartPolicy: Never
+{{- end }}

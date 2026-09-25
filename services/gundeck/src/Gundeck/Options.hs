@@ -21,9 +21,12 @@
 module Gundeck.Options where
 
 import Control.Lens hiding (Level)
+import Data.Aeson qualified as Aeson
 import Data.Aeson.TH
+import Data.Text qualified as Text
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
@@ -126,6 +129,27 @@ deriveFromJSON toOptionFieldName ''RedisEndpoint
 
 makeLenses ''RedisEndpoint
 
+data PresenceStore = PresenceRedis | PresencePostgresql
+  deriving (Eq, Show, Generic)
+
+-- | Hand-written (not derived): the JSON encoding must be "redis" /
+-- "postgresql" -- what the chart emits and 'presenceStoreFromEnv' accepts.
+instance FromJSON PresenceStore where
+  parseJSON = Aeson.withText "PresenceStore" $ \case
+    "redis" -> pure PresenceRedis
+    "postgresql" -> pure PresencePostgresql
+    other -> fail ("unknown presenceStore, expected \"redis\" or \"postgresql\": " <> Text.unpack other)
+
+-- | Resolve the presence store from the @GUNDECK_PRESENCE_STORE@ environment
+-- variable ("redis" or "postgresql").  Absent variable means "use the config".
+presenceStoreFromEnv :: IO (Maybe PresenceStore)
+presenceStoreFromEnv =
+  lookupEnv "GUNDECK_PRESENCE_STORE" >>= \case
+    Nothing -> pure Nothing
+    Just "redis" -> pure (Just PresenceRedis)
+    Just "postgresql" -> pure (Just PresencePostgresql)
+    Just other -> error $ "GUNDECK_PRESENCE_STORE must be \"redis\" or \"postgresql\", got: " <> filter isPrint (take 64 other)
+
 makeLenses ''Settings
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -135,8 +159,15 @@ data Opts = Opts
     _gundeck :: !Endpoint,
     _brig :: !Endpoint,
     _cassandra :: !CassandraOpts,
-    _redis :: !RedisEndpoint,
+    _redis :: !(Maybe RedisEndpoint),
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
+    -- | Presence store backend; absent key means Redis (the default).
+    _presenceStore :: !(Maybe PresenceStore),
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    _postgresql :: !(Maybe (Map Text Text)),
+    _postgresqlPassword :: !(Maybe FilePathSecrets),
+    _postgresqlPool :: !(Maybe PoolConfig),
     _aws :: !AWSOpts,
     _rabbitmq :: !AmqpEndpoint,
     _discoUrl :: !(Maybe Text),
@@ -155,6 +186,9 @@ data Opts = Opts
 deriveFromJSON toOptionFieldName ''Opts
 
 makeLenses ''Opts
+
+effectivePresenceStore :: Opts -> PresenceStore
+effectivePresenceStore = fromMaybe PresenceRedis . view presenceStore
 
 defSqsThrottleMillis :: Int
 defSqsThrottleMillis = 500

@@ -33,10 +33,10 @@ import Wire.API.CannonId
 import Wire.API.Presence
 
 listH :: UserId -> Gundeck [Presence]
-listH = runWithDefaultRedis . Data.list
+listH = Data.list
 
 listAllH :: CommaSeparatedList UserId -> Gundeck [Presence]
-listAllH uids = concat <$> runWithDefaultRedis (Data.listAll (fromCommaSeparatedList uids))
+listAllH uids = concat <$> Data.listAll (fromCommaSeparatedList uids)
 
 addH :: Presence -> Gundeck (Headers '[Header "Location" URI] NoContent)
 addH p = do

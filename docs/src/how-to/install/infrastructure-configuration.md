@@ -424,6 +424,17 @@ For further higher-availability:
   (3 nodes each)
 - use 3 instead of 1 replica of each wire-server chart
 
+## Gundeck presence store
+
+Gundeck can keep its presence data in Redis (the default) or in PostgreSQL.
+Set the helm value `gundeck.presenceStore: postgresql` (or export
+`GUNDECK_PRESENCE_STORE=postgresql`, e.g. for integration tests) and provide
+the `gundeck.config.postgresql` and `postgresqlPool` settings as for brig.
+
+With the PostgreSQL store, gundeck runs its postgres migrations at startup and
+creates the `presence` table automatically; the `redis-ephemeral` release, its
+certificates and the reaper are no longer needed.
+
 ## Security
 
 For a production deployment, you should, as a minimum:
