@@ -166,6 +166,10 @@ interpretMeetingsSubsystem cfg = interpret $ \case
     refreshMeetingLinkImpl zUser connId meetingId cfg.validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId cfg.validityPeriod
+  GetMeetingByLink zUser meetingId ->
+    getMeetingByLinkImpl zUser meetingId cfg.validityPeriod
+  JoinMeeting zUser connId meetingId ->
+    joinMeetingImpl zUser connId meetingId cfg.validityPeriod
   ListMeetings zUser ->
     listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV16 zUser connId newMeeting ->
@@ -515,6 +519,79 @@ getMeetingImpl zUser meetingId validityPeriod = do
           let convId = storedMeeting.conversationId
           void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
           lift $ storedMeetingToMeeting base (tDomain zUser) storedMeeting -- User is a member, authorized
+    else pure Nothing
+
+-- | Resolve a meeting join link (WPB-28989). Unlike 'getMeetingImpl' no
+-- creator/membership check is made: anyone holding the link may look the
+-- meeting up, exactly like resolving a conversation code. The meeting must
+-- be live, local, and have a real join code (meetings in code-store modes
+-- without meeting-code support serve the placeholder link, which never
+-- resolves here).
+getMeetingByLinkImpl ::
+  ( Member Store.MeetingsStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member Now r,
+    Member CodeStore r
+  ) =>
+  Local UserId ->
+  Qualified MeetingId ->
+  NominalDiffTime ->
+  Sem r (Maybe API.Meeting)
+getMeetingByLinkImpl zUser meetingId validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  enabled <- meetingsFeatureEnabled maybeTeamId
+  base <- codeURIBase (tDomain zUser)
+  if enabled
+    then runMaybeT $ do
+      storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ isAlive cutoff storedMeeting
+      guard $ qDomain meetingId == tDomain zUser
+      guard storedMeeting.hasCode
+      pure $ storedMeetingToMeeting base (tDomain zUser) storedMeeting
+    else pure Nothing
+
+-- | Join a meeting conversation through its join link (WPB-28989). Guards
+-- mirror 'getMeetingByLinkImpl'; on success the caller becomes a member of
+-- the meeting's conversation (joined via 'CodeAccess', like
+-- @POST /conversations/join@) and the meeting plus its conversation view are
+-- returned.
+joinMeetingImpl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member Now r,
+    Member CodeStore r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified MeetingId ->
+  NominalDiffTime ->
+  Sem r (Maybe API.MeetingWithConversation)
+joinMeetingImpl zUser connId meetingId validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  enabled <- meetingsFeatureEnabled maybeTeamId
+  base <- codeURIBase (tDomain zUser)
+  if enabled
+    then runMaybeT $ do
+      storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ isAlive cutoff storedMeeting
+      guard $ qDomain meetingId == tDomain zUser
+      guard storedMeeting.hasCode
+      lift $
+        void $
+          ConversationSubsystem.joinMeetingConversation
+            zUser
+            connId
+            storedMeeting.conversationId
+      -- Re-fetch so the returned view includes the joiner as a member.
+      convAfterJoin <- MaybeT $ ConversationSubsystem.internalGetConversation storedMeeting.conversationId
+      pure $ storedMeetingToMeetingWithConversation base zUser convAfterJoin storedMeeting
     else pure Nothing
 
 -- | Look up the 'StoredConversation' associated with a meeting. When the

@@ -308,3 +308,46 @@ type MeetingsAPI =
                     '[Respond 200 "Meeting link refreshed" MeetingWithConversation]
                     MeetingWithConversation
            )
+    :<|> Named
+           "get-meeting-by-link"
+           ( Summary "Get a meeting through its join link"
+               :> Description
+                    "Resolves a meeting join link. Unlike `GET /meetings/{domain}/{id}` no creator or conversation membership is required. Returns 404 meeting-not-found for expired or remote meetings, or meetings without a real join code."
+               :> From 'V19
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "link"
+               :> "join"
+               :> CanThrow 'MeetingNotFound
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "The meeting behind the join link" Meeting)
+           )
+    :<|> Named
+           "join-meeting"
+           ( Summary "Join a meeting conversation through its join link"
+               :> Description
+                    "Like `GET /meetings/{domain}/{id}/link/join`, but also joins the meeting's conversation (as with `POST /conversations/join`) and returns the meeting with its conversation view."
+               :> From 'V19
+               :> ZLocalUser
+               :> ZConn
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "link"
+               :> "join"
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TooManyMembers
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 200 "Meeting joined" MeetingWithConversation]
+                    MeetingWithConversation
+           )

@@ -1,0 +1,1 @@
+Add `GET|POST /meetings/{domain}/{id}/link/join`, which resolves a meeting join link (`GET`) and joins the meeting's conversation like `POST /conversations/join` (`POST`). Unlike the regular meeting endpoints, no creator or conversation membership is required; expired, remote, or code-less links return `404 meeting-not-found`.
