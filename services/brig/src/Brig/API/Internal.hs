@@ -115,7 +115,6 @@ import Wire.FederationConfigStore
 import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.HashPassword (HashPassword)
-import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem qualified as Mls
@@ -135,6 +134,8 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
+import Wire.UserSearchStore (UserSearchStore)
+import Wire.UserSearchStore qualified as UserSearchStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User
@@ -170,7 +171,7 @@ servantSitemap ::
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member (Polysemy.Error UserSubsystemError) r,
     Member HashPassword r,
     Member (Embed IO) r,
@@ -320,7 +321,7 @@ teamsAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member AuthenticationSubsystem r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
@@ -330,7 +331,7 @@ teamsAPI =
     :<|> Named @"get-invitation-code" (\tid iid -> lift . liftSem $ Team.getInvitationCode tid iid)
     :<|> Named @"suspend-team" Team.suspendTeam
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
-    :<|> Named @"team-size" (lift . liftSem . getTeamSize)
+    :<|> Named @"team-size" (lift . liftSem . UserSearchStore.getTeamSize)
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)

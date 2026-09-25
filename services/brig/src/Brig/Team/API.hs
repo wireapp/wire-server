@@ -75,7 +75,6 @@ import Wire.Error
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
 import Wire.NotificationSubsystem (NotificationSubsystem)
@@ -91,6 +90,8 @@ import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserKeyStore
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
+import Wire.UserSearchStore (UserSearchStore)
+import Wire.UserSearchStore qualified as UserSearchStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -105,7 +106,7 @@ servantAPI ::
     Member (Input InvitationUrlTemplates) r,
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member TeamSubsystem r,
     Member SparAPIAccess r,
     Member (Embed App.HttpClientIO) r,
@@ -133,7 +134,7 @@ servantAPI =
 
 teamSizePublic ::
   ( Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r,
+    Member UserSearchStore r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -142,7 +143,7 @@ teamSizePublic ::
 teamSizePublic uid tid = do
   -- limit this to team admins to reduce risk of involuntary DOS attacks
   ensurePermissions uid tid [AddTeamMember]
-  getTeamSize tid
+  UserSearchStore.getTeamSize tid
 
 getInvitationCode ::
   ( Member Store.InvitationStore r,

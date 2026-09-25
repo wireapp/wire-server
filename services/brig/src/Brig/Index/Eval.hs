@@ -36,12 +36,24 @@ import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
+import Data.Functor.Contravariant ((>$<))
 import Data.Id
+import Data.Text qualified as Text
+import Data.Text.IO qualified as TextIO
+import Data.UUID (UUID)
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
+import Hasql.Connection qualified as HasqlConn
+import Hasql.Connection.Settings qualified as HasqlConnSettings
+import Hasql.Decoders qualified as Decoders
+import Hasql.Encoders qualified as Encoders
+import Hasql.Errors (IsError (..), toDetailedText)
 import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
+import Hasql.Session qualified as Session
+import Hasql.Statement
+import Hasql.Statement qualified as Statement
 import Imports
 import Network.HTTP.Client (Manager)
 import Polysemy
@@ -51,6 +63,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource, runResource)
 import Polysemy.TinyLog (TinyLog)
+import System.Exit (exitFailure)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options
@@ -72,6 +85,7 @@ import Wire.Sem.Metrics.IO
 import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
+import Wire.UserSearch.Normalize (normalized)
 import Wire.UserStore (UserStore)
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
@@ -191,6 +205,8 @@ runCommand l = \case
   Migrate es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
     IndexedUserStoreBulk.migrateData (runSem semDeps userStorageLocation galley l) pageSize
+  BackfillNormalizedNames backfillOpts ->
+    runBackfillNormalizedNames backfillOpts.backfillPgSettings backfillOpts.backfillBatchSize
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig
@@ -269,3 +285,51 @@ newtype ReindexFromAnotherIndexError = ReindexFromAnotherIndexError String
   deriving (Show)
 
 instance Exception ReindexFromAnotherIndexError
+
+-- | One-off backfill of @wire_user.name_normalized@ (required by
+-- 'Wire.UserSearchStore' when brig serves user search from Postgres).
+runBackfillNormalizedNames :: Text -> Int32 -> IO ()
+runBackfillNormalizedNames pgSettings batchSize = do
+  conn <- do
+    r <- HasqlConn.acquire (HasqlConnSettings.connectionString pgSettings)
+    either failWith' pure r
+  let loop total = do
+        rows <- runSession conn (Session.statement batchSize selectBatch)
+        case rows of
+          [] ->
+            TextIO.putStrLn
+              ("backfill-normalized-names: done, updated " <> Text.pack (show (total :: Int)) <> " users")
+          batch -> do
+            forM_ batch $ \(uid, name) ->
+              runSession conn (Session.statement (uid, normalized name) updateOne)
+            loop (total + length batch)
+  loop 0
+  where
+    failWith' = failWith "connecting to postgres"
+
+-- | Fetches up to N users with a missing @name_normalized@.
+selectBatch :: Statement Int32 [(UUID, Text)]
+selectBatch =
+  Statement.preparable
+    "SELECT id :: uuid, name :: text FROM wire_user WHERE name_normalized IS NULL AND name IS NOT NULL ORDER BY id LIMIT ($1 :: int4)"
+    (const (0 :: Int32) >$< Encoders.param (Encoders.nonNullable Encoders.int4))
+    (Decoders.rowList ((,) <$> Decoders.column (Decoders.nonNullable Decoders.uuid) <*> Decoders.column (Decoders.nonNullable Decoders.text)))
+
+updateOne :: Statement (UUID, Text) ()
+updateOne =
+  Statement.preparable
+    "UPDATE wire_user SET name_normalized = ($2 :: text) WHERE id = ($1 :: uuid)"
+    ( (fst >$< Encoders.param (Encoders.nonNullable Encoders.uuid))
+        <> (snd >$< Encoders.param (Encoders.nonNullable Encoders.text))
+    )
+    Decoders.noResult
+
+failWith :: (IsError e) => Text -> e -> IO a
+failWith context err = do
+  TextIO.putStrLn ("backfill-normalized-names: " <> context <> ": " <> toDetailedText err)
+  exitFailure
+
+runSession :: HasqlConn.Connection -> Session.Session a -> IO a
+runSession conn sess = do
+  r <- HasqlConn.use conn sess
+  either (failWith "postgres query") pure r

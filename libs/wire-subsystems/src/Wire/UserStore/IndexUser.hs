@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.UserStore.IndexUser where
+module Wire.UserStore.IndexUser (module Wire.UserStore.IndexUser, normalized) where
 
 import Cassandra.Util
 import Data.ByteString.Builder
@@ -28,7 +28,6 @@ import Data.Id
 import Data.Json.Util
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
-import Data.Text.ICU.Translit
 import Data.Time
 import Database.CQL.Protocol
 import Imports
@@ -37,6 +36,7 @@ import URI.ByteString
 import Wire.API.Team.Role (Role)
 import Wire.API.User hiding (userId)
 import Wire.API.User.Search
+import Wire.UserSearch.Normalize (normalized)
 import Wire.UserSearch.Types
 
 type Activated = Bool
@@ -183,11 +183,6 @@ indexUserToDoc searchVisInbound mRole IndexUser {..} =
     sso userSsoId = do
       (issuer, nameid) <- ssoIssuerAndNameId userSsoId
       pure $ Sso {ssoIssuer = issuer, ssoNameId = nameid}
-
--- Transliteration could also be done by ElasticSearch (ICU plugin), but this would
--- require a data migration.
-normalized :: Text -> Text
-normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 
 emptyUserDoc :: UserId -> UserDoc
 emptyUserDoc uid =

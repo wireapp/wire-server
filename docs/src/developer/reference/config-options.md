@@ -1875,6 +1875,28 @@ accessible to services (and not the private key.)
 The corresponding Cassandra options are described in Cassandra’s documentation:
 [client_encryption_options](https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options)
 
+## Configure brig's user search backend
+
+brig's user search can be served from two backends, selected with the
+`searchBackend` option in brig's config:
+
+- `elasticsearch` (the default): users are indexed into ElasticSearch and
+  search is served from there.  This backend is **deprecated** and will be
+  removed in a future release.
+- `postgres`: search is served directly from brig's PostgreSQL user store and
+  brig stops writing to the ElasticSearch index (so the index becomes stale).
+
+```yaml
+brig:
+  config:
+    searchBackend: postgres
+```
+
+The `elasticsearch` config block remains required, but it is ignored when
+`searchBackend: postgres`.  See
+[the migration notes](../../how-to/install/infrastructure-configuration.md)
+for how to migrate an existing installation.
+
 ## Configure Elasticsearch basic authentication
 
 When the Wire backend is configured to work against a custom Elasticsearch
