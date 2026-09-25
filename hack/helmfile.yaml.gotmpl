@@ -22,7 +22,7 @@ environments:
           enabled: false
       - elasticsearch:
           host: opensearch-cluster-master
-          additionalHost: elasticsearch-ephemeral
+          additionalHost: opensearch-ephemeral
           caSecretName: opensearch-ephemeral-certificate
   default-ssl:
     values:
@@ -33,9 +33,9 @@ environments:
       - useK8ssandraSSL:
           enabled: true
       - elasticsearch:
-          host: elasticsearch-ephemeral
+          host: opensearch-ephemeral
           additionalHost: opensearch-cluster-master
-          caSecretName: elasticsearch-ephemeral-certificate
+          caSecretName: opensearch-ephemeral-certificate
   kind:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -45,9 +45,9 @@ environments:
       - useK8ssandraSSL:
           enabled: false
       - elasticsearch:
-          host: elasticsearch-ephemeral
+          host: opensearch-ephemeral
           additionalHost: opensearch-cluster-master
-          caSecretName: elasticsearch-ephemeral-certificate
+          caSecretName: opensearch-ephemeral-certificate
   kind-ssl:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -57,9 +57,9 @@ environments:
       - useK8ssandraSSL:
           enabled: true
       - elasticsearch:
-          host: elasticsearch-ephemeral
+          host: opensearch-ephemeral
           additionalHost: opensearch-cluster-master
-          caSecretName: elasticsearch-ephemeral-certificate
+          caSecretName: opensearch-ephemeral-certificate
 ---
 repositories:
   - name: incubator
@@ -127,24 +127,24 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/cassandra-ephemeral'
 
-  - name: 'elasticsearch-ephemeral'
+  - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
+    chart: '../.local/charts/opensearch-ephemeral'
     values:
       - tls:
           enabled: true
           issuerRef:
-            name: elasticsearch
+            name: opensearch
             kind: Issuer
 
-  - name: 'elasticsearch-ephemeral'
+  - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
+    chart: '../.local/charts/opensearch-ephemeral'
     values:
       - tls:
           enabled: true
           issuerRef:
-            name: elasticsearch
+            name: opensearch
             kind: Issuer
 
   - name: 'redis-ephemeral'
@@ -198,7 +198,7 @@ releases:
 
                 GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
 
-  - name: 'opensearch-ephemeral'
+  - name: 'opensearch-cluster'
     namespace: '{{ .Values.namespace1 }}'
     chart: 'opensearch/opensearch'
     # The 1.x.x and 2.x.x chart versions belong to the OpenSearch versions 1.x.x

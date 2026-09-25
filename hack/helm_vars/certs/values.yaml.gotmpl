@@ -2,7 +2,7 @@ resources:
   - apiVersion: v1
     kind: Secret
     metadata:
-      name: elasticsearch-ca
+      name: opensearch-ca
       namespace: '{{ .Release.Namespace }}'
     data:
       tls.crt: {{ readFile "./elasticsearch-ca.pem" | b64enc | quote }}
@@ -10,11 +10,11 @@ resources:
   - apiVersion: cert-manager.io/v1
     kind: Issuer
     metadata:
-      name: elasticsearch
+      name: opensearch
       namespace: '{{ .Release.Namespace }}'
     spec:
       ca:
-        secretName: elasticsearch-ca
+        secretName: opensearch-ca
 
   # redis CA and certificate
   - apiVersion: cert-manager.io/v1

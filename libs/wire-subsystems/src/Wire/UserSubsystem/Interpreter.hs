@@ -862,7 +862,7 @@ syncUserIndex uid =
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
       let mRole = tm >>= mkRoleWithWriteTime
           userDoc = indexUserToDoc vis (value <$> mRole) indexUser
-          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
+          version = ES.ExternalGTE . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
 

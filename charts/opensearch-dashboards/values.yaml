@@ -1,0 +1,37 @@
+## When this is configured, a secret called kibana-basic-auth is created with key
+## `auth` and value of this key.
+# basicAuthSecret: <secret>
+
+replicaCount: 1
+
+image:
+  # Set `registry` to "" to use an unqualified repository (e.g. when mirroring
+  # into a registry configured as the daemon default).
+  registry: docker.io
+  repository: opensearchproject/opensearch-dashboards
+  tag: "1"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+## OpenSearch cluster the dashboards server proxies to.
+opensearchHosts: "http://opensearch-ephemeral:9200"
+
+## Extra environment variables for the dashboards container. The bundled
+## security-dashboards plugin is disabled by default because
+## opensearch-ephemeral runs OpenSearch without its security plugin; if you
+## point this chart at a secured cluster, remove this variable and configure
+## TLS/authentication instead (see the OpenSearch Dashboards documentation).
+envVars:
+  DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+
+service:
+  type: ClusterIP
+  port: 5601
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 2Gi

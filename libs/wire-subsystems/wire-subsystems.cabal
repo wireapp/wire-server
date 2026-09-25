@@ -100,7 +100,7 @@ common common-all
     , base16-bytestring
     , base64-bytestring
     , bilge
-    , bloodhound
+    , bloodhound                    >=1.0 && <1.1
     , bytestring
     , bytestring-conversion
     , case-insensitive
@@ -535,7 +535,7 @@ library
     , base64-bytestring
     , bilge
     , bimap
-    , bloodhound
+    , bloodhound              >=1.0 && <1.1
     , bytestring
     , bytestring-conversion
     , case-insensitive

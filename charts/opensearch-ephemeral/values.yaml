@@ -1,0 +1,20 @@
+image:
+  repository: opensearchproject/opensearch
+  # Keep this aligned with the OpenSearch version in wire-server-deploy!
+  tag: 1.3.20
+
+service:
+  httpPort: 9200
+  transportPort: 9300
+
+resources:
+  limits:
+    cpu: "2000m"
+    memory: "4Gi"
+  requests:
+    cpu: "250m"
+    memory: "500Mi"
+
+tls:
+  enabled: false
+  # issuerRef: ..
