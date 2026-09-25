@@ -33,12 +33,12 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.API.Routes.Version (Version (V18))
+import Wire.API.Routes.Versioned (Versioned (..))
 import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User
-import Wire.API.Routes.Version (Version (V18))
-import Wire.API.Routes.Versioned (Versioned (..))
 
 tests :: TestTree
 tests =

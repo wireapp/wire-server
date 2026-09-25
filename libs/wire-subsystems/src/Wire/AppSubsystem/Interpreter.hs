@@ -35,7 +35,6 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.Event.Team
-import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
@@ -104,7 +103,7 @@ createAppImpl ::
   Local UserId ->
   TeamId ->
   NewApp ->
-  Sem r (CreatedApp V19)
+  Sem r (CreatedApp v)
 createAppImpl lusr tid newApp = do
   verifyUserPasswordError lusr newApp.password
   (creator, mem) <- ensureTeamMember lusr tid

@@ -69,6 +69,8 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User (UserProfile)
 
 targetDomain :: Domain
@@ -124,7 +126,7 @@ withMockFederatorClient mock action = withTempMockFederator mock $ \port -> do
 testClientSuccess :: IO ()
 testClientSuccess = do
   handle <- generate arbitrary
-  expectedResponse :: UserProfile <- generate arbitrary
+  expectedResponse :: (V.Versioned V.V18 UserProfile) <- generate arbitrary
 
   (actualResponse, sentRequests) <-
     withMockFederatorClient

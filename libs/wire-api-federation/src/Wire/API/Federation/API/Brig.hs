@@ -37,6 +37,8 @@ import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.SpecialiseToVersion
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
@@ -78,8 +80,8 @@ instance ToSchema SearchResponse
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type BrigApi =
   FedEndpoint "api-version" () VersionInfo
-    :<|> FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
-    :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
+    :<|> FedEndpoint "get-user-by-handle" Handle (Maybe (V.Versioned V.V18 UserProfile))
+    :<|> FedEndpoint "get-users-by-ids" [UserId] [V.Versioned V.V18 UserProfile]
     :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
     :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle
     :<|> FedEndpoint "claim-multi-prekey-bundle" UserClients UserClientPrekeyMap

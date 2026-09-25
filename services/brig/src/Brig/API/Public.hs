@@ -125,6 +125,7 @@ import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Swagger
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
@@ -1046,7 +1047,7 @@ listUsersByUnqualifiedIdsOrHandles ::
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
   Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
-  (Handler r) [Public.UserProfile]
+  (Handler r) [V.Versioned v Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
@@ -1081,11 +1082,11 @@ listUsersByIdsOrHandlesGetUsers lself hs = do
   listUsersByIdsOrHandlesGetIds localHandles
 
 listUsersByIdsOrHandlesV3 ::
-  forall r.
+  forall r v.
   (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Public.ListUsersQuery ->
-  (Handler r) [Public.UserProfile]
+  (Handler r) [V.Versioned v Public.UserProfile]
 listUsersByIdsOrHandlesV3 self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
@@ -1096,7 +1097,7 @@ listUsersByIdsOrHandlesV3 self q = do
       Handle.filterHandleResults lself =<< byIds lself us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
-    _ -> pure foundUsers
+    _ -> pure $ fmap V.Versioned foundUsers
   where
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = (lift . liftSem $ getUserProfiles lself uids) !>> fedError
@@ -1104,12 +1105,12 @@ listUsersByIdsOrHandlesV3 self q = do
 -- Similar to listUsersByIdsOrHandlesV3, except that it allows partial successes
 -- using a new return type
 listUsersByIdsOrHandles ::
-  forall r.
+  forall r v.
   (Member UserSubsystem r, Member UserStore r, Member ClientStore r, Member GalleyAPIAccess r) =>
   UserId ->
   Maybe Bool ->
   Public.ListUsersQuery ->
-  Handler r ListUsersById
+  Handler r (ListUsersById v)
 listUsersByIdsOrHandles self includeContactStatus q = do
   lself <- qualifyLocal self
   (errors, foundUsers) <- case q of
@@ -1124,7 +1125,7 @@ listUsersByIdsOrHandles self includeContactStatus q = do
     if includeContactStatus == Just True
       then enrichContactStatus lself foundUsers
       else pure foundUsers
-  pure $ ListUsersById foundUsers' $ fst <$$> nonEmpty errors
+  pure $ ListUsersById (fmap V.Versioned foundUsers') $ fst <$$> nonEmpty errors
   where
     byIds ::
       Local UserId ->
@@ -1835,10 +1836,10 @@ updateUserGroupChannels lusr gid appendOnly upd =
 checkUserGroupNameAvailable :: Local UserId -> CheckUserGroupName -> Handler r UserGroupNameAvailability
 checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 
-createApp :: (_) => Local UserId -> TeamId -> Public.NewApp -> Handler r Public.CreatedApp
+createApp :: (_) => Local UserId -> TeamId -> Public.NewApp -> Handler r (Public.CreatedApp v)
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
-getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r UserProfile
+getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r (V.Versioned v UserProfile)
 getApp lusr tid uid = lift . liftSem $ do
   -- Check if requesting user is a member of the team
   requestingUserTeam <- getUserTeam (tUnqualified lusr)
@@ -1851,11 +1852,11 @@ getApp lusr tid uid = lift . liftSem $ do
       find (\p -> p.profileType == Public.UserTypeApp && p.profileTeam == Just tid) profs
   if prof.profileDeleted
     then throw UserSubsystemProfileNotFound
-    else pure prof
+    else pure $ V.Versioned prof
 
-getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
+getApps :: (_) => Local UserId -> TeamId -> Handler r [V.Versioned v UserProfile]
 getApps lusr tid = lift . liftSem $ do
-  getLocalAppProfiles lusr tid
+  fmap V.Versioned <$> getLocalAppProfiles lusr tid
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put

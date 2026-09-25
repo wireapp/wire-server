@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Brig.User.API.Handle
   ( getHandleInfo,
     getLocalHandleInfo,
@@ -39,6 +38,7 @@ import System.Logger.Class qualified as Log
 import Wire.API.Component
 import Wire.API.Federation.API (fedClient)
 import Wire.API.Federation.Error
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User
 import Wire.API.User qualified as Public
 import Wire.API.User.Search
@@ -57,7 +57,7 @@ getHandleInfo ::
   ) =>
   UserId ->
   Qualified Handle ->
-  Handler r (Maybe Public.UserProfile)
+  Handler r (Maybe UserProfile)
 getHandleInfo self handle = do
   lself <- qualifyLocal self
   foldQualified
@@ -79,7 +79,7 @@ getRemoteHandleInfo handle = do
       . Log.field "domain" (show (tDomain handle))
   lift . liftSem $
     runFederated handle $
-      fedClient @'Brig @"get-user-by-handle" (tUnqualified handle)
+      (fmap V.unVersioned <$> fedClient @'Brig @"get-user-by-handle" (tUnqualified handle))
 
 getLocalHandleInfo ::
   (Member UserSubsystem r, Member UserStore r) =>
