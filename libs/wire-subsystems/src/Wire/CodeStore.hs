@@ -21,6 +21,7 @@ module Wire.CodeStore where
 
 import Data.Code
 import Data.Domain (Domain)
+import Data.Id
 import Data.Misc
 import Imports
 import Polysemy
@@ -30,7 +31,16 @@ import Wire.CodeStore.Code
 data CodeStore m a where
   CreateCode :: Code -> Maybe Password -> CodeStore m ()
   GetCode :: Key -> CodeStore m (Maybe (Code, Maybe Password))
-  DeleteCode :: Key -> CodeStore m ()
+  DeleteConversationCode :: ConvId -> CodeStore m ()
+  DeleteMeetingCode :: MeetingId -> CodeStore m ()
+  -- | Generate and insert a join code for a meeting. Returns 'False' when the
+  -- backing store cannot hold meeting codes (Cassandra-only mode); callers
+  -- degrade to the placeholder join link instead of failing the request.
+  CreateMeetingCode :: MeetingId -> Timeout -> CodeStore m Bool
+  -- | Look up a meeting's join code by meeting id. 'Nothing' when no code row
+  -- exists (legacy meeting, or code creation failed) or the backing store
+  -- cannot hold meeting codes (Cassandra-only mode).
+  GetMeetingCode :: MeetingId -> CodeStore m (Maybe Code)
   MakeKey :: CodeReferent -> CodeStore m Key
   GenerateCode :: CodeReferent -> Timeout -> CodeStore m Code
   GetConversationCodeURI :: Maybe Domain -> CodeStore m (Maybe HttpsUrl)

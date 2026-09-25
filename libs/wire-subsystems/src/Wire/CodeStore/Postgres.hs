@@ -48,8 +48,16 @@ interpretCodeStoreToPostgres = interpret $ \case
     lookupCode k
   CreateCode code mPw -> do
     insertCode code mPw
-  DeleteCode k -> do
-    deleteCode k
+  DeleteConversationCode cid ->
+    Code.mkKey (CodeReferentConv cid) >>= deleteCode
+  DeleteMeetingCode mid ->
+    Code.mkKey (CodeReferentMeeting mid) >>= deleteCode
+  GetMeetingCode mid ->
+    Code.mkKey (CodeReferentMeeting mid) >>= lookupCode <&> fmap fst
+  CreateMeetingCode mid t -> do
+    code <- Code.generate (CodeReferentMeeting mid) t
+    insertCode code Nothing
+    pure True
   MakeKey ref -> do
     Code.mkKey ref
   GenerateCode ref t -> do

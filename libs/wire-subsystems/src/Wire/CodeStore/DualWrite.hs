@@ -52,9 +52,19 @@ interpretCodeStoreToCassandraAndPostgres = interpret $ \case
       CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.createCode code mPw
       CodeReferentMeeting _ -> pure ()
     Postgres.interpretCodeStoreToPostgres $ CodeStore.createCode code mPw
-  DeleteCode k -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.deleteCode k
-    Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteCode k
+  DeleteConversationCode cid -> do
+    Cassandra.interpretCodeStoreToCassandra $ CodeStore.deleteConversationCode cid
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteConversationCode cid
+  -- Meeting codes are Postgres-only (see CreateCode/MakeKey routing).
+  DeleteMeetingCode mid ->
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteMeetingCode mid
+  -- Meeting codes are Postgres-only (see CreateCode/MakeKey routing).
+  CreateMeetingCode mid t ->
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.createMeetingCode mid t
+  -- Meeting codes are Postgres-only: GetCode reads Cassandra, which cannot
+  -- hold meeting codes, so the lookup must go straight to Postgres.
+  GetMeetingCode mid ->
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.getMeetingCode mid
   MakeKey ref -> case ref of
     CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.makeKey ref
     CodeReferentMeeting _ -> Postgres.interpretCodeStoreToPostgres $ CodeStore.makeKey ref

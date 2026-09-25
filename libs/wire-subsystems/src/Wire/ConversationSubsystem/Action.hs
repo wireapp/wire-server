@@ -115,7 +115,6 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
-import Wire.CodeStore.Code (CodeReferent (..))
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action.Kick
@@ -414,8 +413,7 @@ removeConversation lconv = do
       deleteGroup gidSub
     deleteGroup gidMainConv
 
-  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
-  E.deleteCode key
+  E.deleteConversationCode (tUnqualified lcnv)
   case convTeam storedConv of
     Nothing -> E.deleteConversation (tUnqualified lcnv)
     Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
@@ -924,8 +922,7 @@ performConversationAccessData qusr lconv action = do
         && CodeAccess `notElem` cupAccess action
     )
     $ do
-      key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
-      E.deleteCode key
+      E.deleteConversationCode (tUnqualified lcnv)
 
   -- Determine bots and members to be removed
   let filterBotsAndMembers =
