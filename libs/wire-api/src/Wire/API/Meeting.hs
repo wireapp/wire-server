@@ -558,7 +558,7 @@ toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
 toLegacyWithConv mwc =
   MeetingWithConversationV16 {meeting = toLegacy mwc.meeting, conversation = mwc.conversation}
 
--- | Convert a V19 'NewMeeting' to the V18 'NewMeeting' shape (drops @mtype@).
+-- | Convert a V19 'Meeting' to the legacy V18 'MeetingV18' shape (drops @mtype@).
 toLegacyV18 :: Meeting -> MeetingV18
 toLegacyV18 m =
   MeetingV18
