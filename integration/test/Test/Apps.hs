@@ -24,8 +24,11 @@ import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
 import qualified API.GalleyInternal as GalleyI
+import API.Gundeck
 import Control.Lens hiding ((.=))
 import Data.Aeson.QQ.Simple
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -631,17 +634,43 @@ testReAddExternalAppToGroupConversation = do
     mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
     mIds `shouldContain` [appId]
 
-  -- Client is responsible for updating the MLS group state after the
-  -- server-side team removal.
-  void $ createRemoveCommit member2Client convId [appClient] >>= sendAndConsumeCommitBundle
+  -- removeTeamCollaborator triggers a backend-side removal: the backend
+  -- removes the app from the conversation and sends an external Remove
+  -- proposal. The remaining client must consume it and commit.
   removeTeamCollaborator owner2 tid2 app >>= assertSuccess
 
+  -- Fetch the external Remove proposal from the notification queue and
+  -- consume it on the client side.
   eventually $ do
-    bindResponse (getConversation member2 conv) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      mems <- resp.json %. "members.others" >>= asList
-      mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
-      mIds `shouldNotContain` [appId]
+    notifs <- getNotifications member2 def {client = Just member2Client.client} >>= getJSON 200
+    allNotifs <- notifs %. "notifications" & asList
+    mlsNotifs <- filterM (\n -> isNewMLSMessageNotif n) allNotifs
+    mlsNotif <- assertOne mlsNotifs
+    msgData <- mlsNotif %. "payload.0.data" & asByteString
+    void $ mlsCliConsume convId def member2Client msgData
+
+  -- Update test MLS state to reflect the removal
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            ( \c ->
+                c
+                  { members = Set.filter (\m -> m.user /= appId) c.members,
+                    memberUsers = Set.filter (/= appClient.qualifiedUserId) c.memberUsers
+                  }
+            )
+            convId
+            mls.convs
+      }
+
+  void $ createPendingProposalCommit convId member2Client >>= sendCommitBundle
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldNotContain` [appId]
 
   addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
 
