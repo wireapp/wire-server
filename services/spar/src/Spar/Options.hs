@@ -35,6 +35,7 @@ import qualified Data.Set as Set
 import Data.Time
 import Data.X509.Extended (Fingerprint, parseFingerprintHex)
 import qualified Data.Yaml as Yaml
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Options.Applicative
 import SAML2.WebSSO
@@ -45,6 +46,7 @@ import Util.Options
 import Wire.API.Routes.Version
 import Wire.API.User.Orphans ()
 import Wire.API.User.Saml
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts)
 
 data Opts = Opts
   { saml :: !SAML.Config,
@@ -70,7 +72,16 @@ data Opts = Opts
     -- disables the check.  When set, every cert in 'edCertAuthnResponse'
     -- (on create/update and on AuthnResponse) must be listed or the request
     -- is rejected with 'SparIdPCertNotAllowed' (HTTP 403).
-    idpCertFingerprintAllowlist :: !(Maybe CertFingerprintAllowlist)
+    idpCertFingerprintAllowlist :: !(Maybe CertFingerprintAllowlist),
+    -- | Postgres connection parameters (libpq key/value map).
+    postgresql :: !(Map Text Text),
+    -- | Postgres connection-pool sizing.
+    postgresqlPool :: !PoolConfig,
+    -- | Per-store Cassandra/Postgres storage-location flags (shared type;
+    --   Spar-relevant stores are added by their migration tasks).
+    postgresMigration :: !PostgresMigrationOpts,
+    -- | Optional path to a Postgres password secrets file (prod only).
+    postgresqlPassword :: !(Maybe FilePathSecrets)
   }
   deriving (Show, Generic)
 
