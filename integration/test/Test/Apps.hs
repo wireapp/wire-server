@@ -23,8 +23,12 @@ import API.Brig as Brig
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
+import qualified API.GalleyInternal as GalleyI
+import API.Gundeck
 import Control.Lens hiding ((.=))
 import Data.Aeson.QQ.Simple
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -599,3 +603,122 @@ testTeamSizeWithApps (TaggedBool testInternalApi) = do
   BrigI.refreshIndex domain
   eventually $ do
     checkSize (numRegulars - 1) (numApps - 1)
+
+testReAddExternalAppToGroupConversation :: (HasCallStack) => App ()
+testReAddExternalAppToGroupConversation = do
+  (owner1, tid1, []) <- createTeam OwnDomain 1
+  (owner2, tid2, [member2]) <- createTeam OwnDomain 2
+
+  let newApp = def {name = "external-app"} :: NewApp
+  app <- bindResponse (createApp owner1 tid1 newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+  appId <- app %. "id" & asString
+
+  let appPermissions = ["create_team_conversation", "implicit_connection"]
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  -- Create MLS clients
+  [member2Client, appClient] <- traverse (createMLSClient def) [member2, app]
+  traverse_ (uploadNewKeyPackage def) [member2Client, appClient]
+
+  -- Create an MLS team conversation and add app
+  conv <- postConversation member2 defMLS {team = Just tid2, protocol = "mls"} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def member2Client convId
+  void $ createAddCommit member2Client convId [app] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldContain` [appId]
+
+  -- removeTeamCollaborator triggers a backend-side removal: the backend
+  -- removes the app from the conversation and sends an external Remove
+  -- proposal. The remaining client must consume it and commit.
+  removeTeamCollaborator owner2 tid2 app >>= assertSuccess
+
+  -- Fetch the external Remove proposal from the notification queue and
+  -- consume it on the client side.
+  eventually $ do
+    notifs <- getNotifications member2 def {client = Just member2Client.client} >>= getJSON 200
+    allNotifs <- notifs %. "notifications" & asList
+    mlsNotifs <- filterM (\n -> isNewMLSMessageNotif n) allNotifs
+    mlsNotif <- assertOne mlsNotifs
+    msgData <- mlsNotif %. "payload.0.data" & asByteString
+    void $ mlsCliConsume convId def member2Client msgData
+
+  -- Update test MLS state to reflect the removal
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            ( \c ->
+                c
+                  { members = Set.filter (\m -> m.user /= appId) c.members,
+                    memberUsers = Set.filter (/= appClient.qualifiedUserId) c.memberUsers
+                  }
+            )
+            convId
+            mls.convs
+      }
+
+  void $ createPendingProposalCommit convId member2Client >>= sendCommitBundle
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldNotContain` [appId]
+
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldNotContain` [appId]
+
+  do
+    void $ uploadNewKeyPackage def appClient
+    mp <- createAddCommit member2Client convId [app]
+    void $ sendCommitBundle mp
+    mlsConv <- getMLSConv convId
+    traverse_ (fromWelcome convId mlsConv.ciphersuite appClient) mp.welcome
+
+  bindResponse (getConversation member2 conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" >>= asList
+    mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
+    mIds `shouldContain` [appId]
+
+testRemoveReAddExternalAppOne2OneConversation :: (HasCallStack) => App ()
+testRemoveReAddExternalAppOne2OneConversation = do
+  (owner1, tid1, []) <- createTeam OwnDomain 1
+  (owner2, tid2, [member2]) <- createTeam OwnDomain 2
+
+  let newApp = def {name = "external-app-o2o"} :: NewApp
+  app <- bindResponse (createApp owner1 tid1 newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  let appPermissions = ["create_team_conversation", "implicit_connection"]
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  convId <-
+    postOne2OneConversation member2 app tid2 "chit-chat" `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "qualified_id"
+
+  GalleyI.getConversation convId >>= assertSuccess
+  getMLSOne2OneConversation member2 app >>= assertSuccess
+
+  removeTeamCollaborator owner2 tid2 app >>= assertSuccess
+
+  getConversation member2 convId >>= assertLabel 404 "no-conversation"
+  GalleyI.getConversation convId >>= assertLabel 404 "no-conversation"
+  getMLSOne2OneConversation member2 app >>= assertLabel 403 "not-connected"
+
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+  getMLSOne2OneConversation member2 app >>= assertSuccess
