@@ -27,6 +27,7 @@ import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
+import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
@@ -125,4 +126,22 @@ users migOpts = do
   Log.info logger $ Log.msg (Log.val "started user migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling user migration")
+    cancel migrationLoop
+
+passwordReset :: MigrationOptions -> AppT IO CleanupAction
+passwordReset migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting password reset migration")
+  count <- register $ counter $ Prometheus.Info "wire_password_reset_migrated_to_pg" "Number of password reset keys migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_password_reset_migration_finished" "Whether the password reset migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_password_reset_migration_failed" "Whether the password reset migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_password_reset_migration_duration_seconds" "Duration of password reset migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migratePasswordResetLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started password reset migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling password reset migration")
     cancel migrationLoop
