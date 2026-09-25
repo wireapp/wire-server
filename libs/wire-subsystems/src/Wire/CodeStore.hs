@@ -37,6 +37,10 @@ data CodeStore m a where
   -- backing store cannot hold meeting codes (Cassandra-only mode); callers
   -- degrade to the placeholder join link instead of failing the request.
   CreateMeetingCode :: MeetingId -> Timeout -> CodeStore m Bool
+  -- | Look up a meeting's join code by meeting id. 'Nothing' when no code row
+  -- exists (legacy meeting, or code creation failed) or the backing store
+  -- cannot hold meeting codes (Cassandra-only mode).
+  GetMeetingCode :: MeetingId -> CodeStore m (Maybe Code)
   MakeKey :: CodeReferent -> CodeStore m Key
   GenerateCode :: CodeReferent -> Timeout -> CodeStore m Code
   GetConversationCodeURI :: Maybe Domain -> CodeStore m (Maybe HttpsUrl)

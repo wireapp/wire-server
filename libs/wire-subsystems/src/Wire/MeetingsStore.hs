@@ -66,9 +66,6 @@ data StoredMeeting = StoredMeeting
     invitedEmails :: [EmailAddress],
     -- | whether it's a trial meeting
     trial :: Bool,
-    -- | whether a join-code row exists in conversation_codes; false means the
-    -- read path serves the null-uuid placeholder join link
-    hasCode :: Bool,
     -- | when the record was created
     createdAt :: UTCTime,
     -- | when the record was last updated
@@ -104,7 +101,6 @@ type StoredMeetingTuple =
     UUID, -- conversation_id
     Data.Vector.Vector Text, -- invited_emails
     Bool, -- trial
-    Bool, -- has_code
     UTCTime, -- created_at
     UTCTime -- updated_at
   )
@@ -125,7 +121,6 @@ instance PostgresMarshall StoredMeetingTuple StoredMeeting where
           toUUID storedMeeting.conversationId,
           V.fromList (map fromEmail storedMeeting.invitedEmails),
           storedMeeting.trial,
-          storedMeeting.hasCode,
           storedMeeting.createdAt,
           storedMeeting.updatedAt
         )
@@ -145,7 +140,6 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       conversationId',
       invitedEmails',
       trial',
-      hasCode',
       createdAt',
       updateAt'
       ) = do
@@ -166,15 +160,13 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
             conversationId = Id conversationId',
             invitedEmails = mapMaybe emailAddressText (V.toList invitedEmails'),
             trial = trial',
-            hasCode = hasCode',
             createdAt = createdAt',
             updatedAt = updateAt'
           }
 
 data MeetingsStore m a where
   -- | The id is supplied by the caller (pre-generated so the join code can be
-  -- created before the row) and 'hasCode' records whether a join-code row was
-  -- inserted into conversation_codes.
+  -- created before the row).
   CreateMeeting ::
     MeetingId ->
     Range 1 256 Text ->
@@ -186,7 +178,6 @@ data MeetingsStore m a where
     Maybe Recurrence ->
     ConvId ->
     [EmailAddress] ->
-    Bool ->
     Bool ->
     MeetingsStore m StoredMeeting
   UpdateMeeting ::

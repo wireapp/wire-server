@@ -52,6 +52,8 @@ interpretCodeStoreToPostgres = interpret $ \case
     Code.mkKey (CodeReferentConv cid) >>= deleteCode
   DeleteMeetingCode mid ->
     Code.mkKey (CodeReferentMeeting mid) >>= deleteCode
+  GetMeetingCode mid ->
+    Code.mkKey (CodeReferentMeeting mid) >>= lookupCode <&> fmap fst
   CreateMeetingCode mid t -> do
     code <- Code.generate (CodeReferentMeeting mid) t
     insertCode code Nothing

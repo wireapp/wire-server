@@ -173,7 +173,6 @@ storedMeeting meetingId convId startTime endTime =
       Store.conversationId = convId,
       Store.invitedEmails = [],
       Store.trial = False,
-      Store.hasCode = True,
       Store.createdAt = startTime,
       Store.updatedAt = startTime
     }

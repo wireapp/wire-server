@@ -279,7 +279,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               conversationId = Id $ read "00000000-0000-0000-0000-00000000000b",
               invitedEmails = [],
               trial = False,
-              hasCode = False,
               createdAt = now,
               updatedAt = now
             }
@@ -311,7 +310,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
               invitedEmails = [],
               trial = False,
-              hasCode = True,
               createdAt = now,
               updatedAt = now
             }
@@ -2042,7 +2040,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               nil,
               V.empty,
               False,
-              False,
               t0,
               t0
             )
@@ -2073,7 +2070,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               nil,
               V.empty,
               False,
-              False,
               t0,
               t0
             )
@@ -2100,7 +2096,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               Nothing,
               nil,
               V.empty,
-              False,
               False,
               t0,
               t0
