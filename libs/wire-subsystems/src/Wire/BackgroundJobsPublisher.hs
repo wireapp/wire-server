@@ -19,11 +19,10 @@
 
 module Wire.BackgroundJobsPublisher where
 
-import Data.Id
 import Polysemy
 import Wire.API.BackgroundJobs (BackgroundJobPayload)
 
 data BackgroundJobPublisher m a where
-  PublishJob :: JobId -> BackgroundJobPayload -> BackgroundJobPublisher m ()
+  PublishJob :: BackgroundJobPayload -> BackgroundJobPublisher m ()
 
 makeSem ''BackgroundJobPublisher
