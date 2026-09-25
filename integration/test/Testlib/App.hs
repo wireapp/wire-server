@@ -18,6 +18,7 @@
 module Testlib.App where
 
 import Control.Applicative ((<|>))
+import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import qualified Control.Retry as Retry
@@ -66,6 +67,28 @@ instance MakesValue Domain where
 -- backwards-compatible way so everybody can benefit.
 retryT :: App a -> App a
 retryT action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
+
+-- | Retry a request that fans out over federation on transient errors.
+--
+-- Conversation creates and membership changes federate to all involved remote
+-- backends concurrently, and 'ensureNoUnreachableBackends' fails fast on the
+-- first unreachable backend with no retries (HTTP 533). Under CI load a single
+-- transient federation-ping failure (connection refused, TLS handshake, DNS) to
+-- one backend can therefore surface as 533 even though the backend is healthy.
+-- This tolerates 533 (unreachable backends / unexpected federation response),
+-- 521 (connection refused) and 525 (SSL), in addition to 500/422. Bounded by a
+-- cumulative 30s cap so genuine failures still surface.
+retryTransient :: App Response -> App Response
+retryTransient action = go (0 :: Int) (100_000 :: Int)
+  where
+    go spent delay = do
+      resp <- action
+      if resp.status `elem` [500, 422, 521, 525, 533] && spent < maxCumulative
+        then do
+          liftIO $ threadDelay delay
+          go (spent + delay) (min 2_000_000 (delay * 2))
+        else pure resp
+    maxCumulative = 30_000_000
 
 -- | make Bool lazy
 liftBool :: (Functor f) => f Bool -> BoolT f
