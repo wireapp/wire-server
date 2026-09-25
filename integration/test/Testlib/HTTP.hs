@@ -17,6 +17,7 @@
 
 module Testlib.HTTP where
 
+import Control.Concurrent (threadDelay)
 import qualified Control.Exception as E
 import Control.Monad.Extra (whenM)
 import Control.Monad.Reader
@@ -149,6 +150,27 @@ getJSON status = flip withResponse \resp -> do
 -- | assert a response code in the 2** range
 assertSuccess :: (HasCallStack) => Response -> App ()
 assertSuccess = flip withResponse \resp -> resp.status `shouldMatchRange` (200, 299)
+
+-- | Retry a federated request that transiently failed with a 533.
+--
+-- Federated calls in galley/brig are live federator round-trips with no
+-- caching or retries in production; despite startup warm-up, ingress
+-- paths still go transiently cold mid-run or under fan-out, surfacing as
+-- 533 (unreachable_backends / federation-remote-error). Conversation
+-- creates roll back on 533 and MLS commit bundles fail their reachability
+-- pre-check before mutating, so retrying is safe. Bounded by a cumulative
+-- cap so genuine failures still surface. (WPB-3797)
+retryOn533 :: App Response -> App Response
+retryOn533 action = go (0 :: Int) (100_000 :: Int)
+  where
+    go spent delay = do
+      resp <- action
+      if resp.status == 533 && spent < maxCumulative
+        then do
+          liftIO $ threadDelay delay
+          go (spent + delay) (min 2_000_000 (delay * 2))
+        else pure resp
+    maxCumulative = 30_000_000
 
 -- | assert a response status code
 assertStatus :: (HasCallStack) => Int -> Response -> App ()
