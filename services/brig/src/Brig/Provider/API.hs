@@ -107,7 +107,8 @@ import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
-import Wire.API.Routes.Versioned
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
@@ -922,11 +923,11 @@ guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
   unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))
 
-botGetSelf :: (Member UserSubsystem r, Member (Input (Local ())) r) => BotId -> Handler r Public.UserProfile
+botGetSelf :: (Member UserSubsystem r, Member (Input (Local ())) r) => BotId -> Handler r (V.Versioned V.V18 Public.UserProfile)
 botGetSelf bot = do
   getBy <- lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [botUserId bot], includePendingInvitations = NoPendingInvitations}
   p <- fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
-  maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf u Nothing UserLegalHoldNoConsent) p
+  maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ V.Versioned @V.V18 $ Public.mkUserProfile EmailVisibleToSelf u Nothing UserLegalHoldNoConsent) p
 
 botGetClient :: (Member GalleyAPIAccess r, Member ClientStore r) => BotId -> (Handler r) (Maybe Public.Client)
 botGetClient bot = do

@@ -129,7 +129,7 @@ type GetUserVerb v =
     '[ ErrorResponse 'UserNotFound,
        VersionedRespond (ToVersion v) 200 "User found" UserProfile
      ]
-    (Maybe (Versioned (ToVersion v) UserProfile))
+    (Maybe UserProfile)
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -227,19 +227,19 @@ type UserAPI =
                     '[ ErrorResponse 'HandleNotFound,
                        VersionedRespond (ToVersion (Until 'V19)) 200 "User found" UserProfile
                      ]
-                    (Maybe (Versioned (ToVersion (Until 'V19)) UserProfile))
+                    (Maybe UserProfile)
            )
     :<|> Named
-        "list-users-by-unqualified-ids-or-handles"
-        ( Summary "List users (deprecated)"
-            :> Until 'V2
-            :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-            :> ZUser
-            :> "users"
-            :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
-            :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
-            :> Get '[JSON] [Versioned (ToVersion (Until 'V19)) UserProfile]
-        )
+           "list-users-by-unqualified-ids-or-handles"
+           ( Summary "List users (deprecated)"
+               :> Until 'V2
+               :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+               :> ZUser
+               :> "users"
+               :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
+               :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
+               :> Get '[JSON] [Versioned (ToVersion (Until 'V19)) UserProfile]
+           )
     :<|> Named
            "list-users-by-ids-or-handles@v18"
            ( Summary "List users"
@@ -252,16 +252,16 @@ type UserAPI =
                :> Post '[JSON] (ListUsersById (ToVersion (Until 'V19)))
            )
     :<|> Named
-        "list-users-by-ids-or-handles"
-        ( Summary "List users"
-            :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-            :> ZUser
-            :> From 'V4
-            :> "list-users"
-            :> QueryParam' [Optional, Strict, Description "Include whether each local user can currently be contacted"] "include-contact-status" Bool
-            :> ReqBody '[JSON] ListUsersQuery
-            :> Post '[JSON] (ListUsersById (ToVersion (From 'V19)))
-        )
+           "list-users-by-ids-or-handles"
+           ( Summary "List users"
+               :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+               :> ZUser
+               :> From 'V4
+               :> "list-users"
+               :> QueryParam' [Optional, Strict, Description "Include whether each local user can currently be contacted"] "include-contact-status" Bool
+               :> ReqBody '[JSON] ListUsersQuery
+               :> Post '[JSON] (ListUsersById (ToVersion (From 'V19)))
+           )
     :<|> Named
            "list-users-by-ids-or-handles@V3"
            ( Summary "List users"
@@ -2151,16 +2151,17 @@ type AppsAPI =
         :> ReqBody '[JSON] NewApp
         :> Post '[JSON] (CreatedApp (ToVersion (Until 'V19)))
     )
-    :<|> Named "create-app"
-    ( Summary "Create a new app"
-        :> From 'V12
-        :> ZLocalUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "apps"
-        :> ReqBody '[JSON] NewApp
-        :> Post '[JSON] (CreatedApp (ToVersion (From 'V19)))
-    )
+    :<|> Named
+           "create-app"
+           ( Summary "Create a new app"
+               :> From 'V12
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> ReqBody '[JSON] NewApp
+               :> Post '[JSON] (CreatedApp (ToVersion (From 'V19)))
+           )
     :<|> Named
            "get-app"
            ( Summary "Get app"

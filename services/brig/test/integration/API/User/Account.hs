@@ -82,6 +82,8 @@ import Wire.API.Asset qualified as Asset
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Permission hiding (self)
@@ -824,7 +826,7 @@ testMultipleUsers opts brig = do
         -- Check that our allowed remote user is being asked for
         if frTargetDomain req == evenFurtherAway
           then -- Return the data for u5
-            pure $ encode [u5Profile]
+            pure $ encode [V.Versioned @V.V18 u5Profile]
           else -- Otherwise mock an unavailable federation server
             throw $ MockErrorResponse Http.status500 "Down for maintenance"
       -- Galley isn't needed, but this is what mock federators are available.
@@ -846,10 +848,9 @@ testMultipleUsers opts brig = do
   where
     result r =
       Set.fromList
-        . map (\u -> (pure $ profileName u, profileEmail u))
-        . listUsersByIdFound
+        . map ((\u -> (pure $ profileName u, profileEmail u)) . (V.unVersioned @V.V18)) . listUsersByIdFound
         <$> responseJsonMaybe r
-    resultFailed r = fmap (Set.fromList . NonEmpty.toList) . listUsersByIdFailed <$> responseJsonMaybe r
+    resultFailed r = fmap (Set.fromList . NonEmpty.toList) . listUsersByIdFailed @V.V18 <$> responseJsonMaybe r
 
 testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
@@ -1584,4 +1585,5 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
                   profileHandle =<< u'
                 )
             )
+          . (fmap (V.unVersioned @V.V18))
           . responseJsonMaybe

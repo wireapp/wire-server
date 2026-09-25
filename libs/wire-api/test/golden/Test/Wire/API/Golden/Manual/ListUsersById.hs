@@ -27,9 +27,9 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Imports
-import Wire.API.User
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
+import Wire.API.User
 
 domain1, domain2 :: Domain
 domain1 = Domain "example.com"
@@ -41,50 +41,52 @@ user2 = Id . fromJust $ UUID.fromString "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
 
 profile1, profile2 :: Versioned V19 UserProfile
 profile1 =
-  Versioned UserProfile
-    { profileQualifiedId = Qualified user1 domain1,
-      profileName = Name "user1",
-      profileTextStatus = Nothing,
-      profileAssets = [],
-      profileAccentId = ColourId 0,
-      profileDeleted = False,
-      profileService = Nothing,
-      profileHandle = Nothing,
-      profileExpire = Nothing,
-      profileTeam = Nothing,
-      profileEmail = Nothing,
-      profileLegalholdStatus = UserLegalHoldDisabled,
-      profileSupportedProtocols = defSupportedProtocols,
-      profileType = UserTypeRegular,
-      profileApp = Nothing,
-      profileSearchable = True,
-      profileContactStatus = Just (ContactStatus NonContactable)
-    }
+  Versioned
+    UserProfile
+      { profileQualifiedId = Qualified user1 domain1,
+        profileName = Name "user1",
+        profileTextStatus = Nothing,
+        profileAssets = [],
+        profileAccentId = ColourId 0,
+        profileDeleted = False,
+        profileService = Nothing,
+        profileHandle = Nothing,
+        profileExpire = Nothing,
+        profileTeam = Nothing,
+        profileEmail = Nothing,
+        profileLegalholdStatus = UserLegalHoldDisabled,
+        profileSupportedProtocols = defSupportedProtocols,
+        profileType = UserTypeRegular,
+        profileApp = Nothing,
+        profileSearchable = True,
+        profileContactStatus = Just (ContactStatus NonContactable)
+      }
 profile2 =
-  Versioned UserProfile
-    { profileQualifiedId = Qualified user2 domain2,
-      profileName = Name "user2",
-      profileTextStatus = rightToMaybe $ mkTextStatus "text status",
-      profileAssets = [],
-      profileAccentId = ColourId 0,
-      profileDeleted = False,
-      profileService = Nothing,
-      profileHandle = Nothing,
-      profileExpire = Nothing,
-      profileTeam = Nothing,
-      profileEmail = Nothing,
-      profileLegalholdStatus = UserLegalHoldDisabled,
-      profileSupportedProtocols = Set.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag],
-      profileType = UserTypeRegular,
-      profileApp =
-        Just $
-          AppInfo
-            { category = Category "other",
-              description = unsafeRange "bloob"
-            },
-      profileSearchable = True,
-      profileContactStatus = Nothing
-    }
+  Versioned
+    UserProfile
+      { profileQualifiedId = Qualified user2 domain2,
+        profileName = Name "user2",
+        profileTextStatus = rightToMaybe $ mkTextStatus "text status",
+        profileAssets = [],
+        profileAccentId = ColourId 0,
+        profileDeleted = False,
+        profileService = Nothing,
+        profileHandle = Nothing,
+        profileExpire = Nothing,
+        profileTeam = Nothing,
+        profileEmail = Nothing,
+        profileLegalholdStatus = UserLegalHoldDisabled,
+        profileSupportedProtocols = Set.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag],
+        profileType = UserTypeRegular,
+        profileApp =
+          Just $
+            AppInfo
+              { category = Category "other",
+                description = unsafeRange "bloob"
+              },
+        profileSearchable = True,
+        profileContactStatus = Nothing
+      }
 
 testObject_ListUsersById_user_1 :: ListUsersById V19
 testObject_ListUsersById_user_1 = ListUsersById mempty Nothing
