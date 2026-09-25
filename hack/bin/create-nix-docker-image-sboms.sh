@@ -7,19 +7,21 @@ GIT_ROOT="$(git rev-parse --show-toplevel)"
 
 OUTPUT_DIR_BASE="${1:-.}"
 VERSION="${2:-}"
-IMAGES_ATTR="${3:-imagesNoDocs}"
+FLAKE_EXPR="${3:-wireServer.imagesNoDocs}"
 
 if [[ -z "$VERSION" ]]; then
-  echo "Usage: $0 <output-dir-base> <version> [images-attr]"
+  echo "Usage: $0 <output-dir-base> <version> [flake-expr]"
   echo "  output-dir-base: Base directory to write SBOM files"
   echo "                   Will create subdirectories: runtime/ and buildtime/"
   echo "  version:         Version to use for SBOMs (e.g., 5.28.22)"
-  echo "  images-attr:     Nix attribute for images (default: imagesNoDocs)"
+  echo "  flake-expr:      Nix flake attrpath, either an attrset of images or a"
+  echo "                   single image derivation (default: wireServer.imagesNoDocs)"
   echo ""
-  echo "Available image attributes:"
-  echo "  - imagesNoDocs (production images, optimized)"
-  echo "  - imagesUnoptimizedNoDocs (dev images, faster builds)"
-  echo "  - images (full images with docs)"
+  echo "Examples of image attributes:"
+  echo "  - wireServer.imagesNoDocs (production images, optimized)"
+  echo "  - wireServer.imagesUnoptimizedNoDocs (dev images, faster builds)"
+  echo "  - wireServer.images (full images with docs)"
+  echo "  - nginz (standalone nginz image derivation)"
   exit 1
 fi
 
@@ -102,15 +104,37 @@ generate_sbom() {
 }
 
 echo "Generating SBOMs for Nix-built Docker images..."
-echo "Images attribute: $IMAGES_ATTR"
+echo "Flake expression: $FLAKE_EXPR"
 echo "Version: $VERSION"
 echo "Output directory (runtime): $OUTPUT_DIR_RUNTIME"
 echo "Output directory (buildtime): $OUTPUT_DIR_BUILDTIME"
 echo ""
 
-# Get list of image names from the imagesNoDocs attrset (excluding 'all')
-echo "Discovering images from $IMAGES_ATTR..."
-mapfile -t image_names < <(nix --extra-experimental-features 'nix-command flakes' eval "$GIT_ROOT#wireServer.${IMAGES_ATTR}" --apply 'images: builtins.concatStringsSep "\n" (builtins.filter (name: name != "all") (builtins.attrNames images))' --raw)
+# FLAKE_EXPR may point at either a single image derivation (e.g. "nginz") or
+# an attrset of images (e.g. "wireServer.imagesNoDocs").
+#
+# Outputs:
+#   - image_names: All image names of the flake expression (one for a single image derivation)
+#   - flake_ref_for(): Funtion from image name to Nix flake reference
+echo "Discovering images from $FLAKE_EXPR..."
+discovery=$(nix --extra-experimental-features 'nix-command flakes' eval \
+  "$GIT_ROOT#${FLAKE_EXPR}" --json --apply '
+    x:
+    if (x.type or "") == "derivation"
+    then { single = true; names = []; }
+    else {
+      single = false;
+      names = builtins.filter (name: name != "all") (builtins.attrNames x);
+    }
+  ')
+
+if [[ "$(jq -r '.single' <<< "$discovery")" == "true" ]]; then
+  image_names=("${FLAKE_EXPR##*.}")
+  flake_ref_for() { echo "$GIT_ROOT#${FLAKE_EXPR}"; }
+else
+  mapfile -t image_names < <(jq -r '.names[]' <<< "$discovery")
+  flake_ref_for() { echo "$GIT_ROOT#${FLAKE_EXPR}.$1"; }
+fi
 
 echo "Found ${#image_names[@]} images to process"
 echo ""
@@ -123,7 +147,7 @@ for image_name in "${image_names[@]}"; do
   echo "Processing image: $image_name"
 
   # Create flake reference for the image
-  flake_ref="$GIT_ROOT#wireServer.${IMAGES_ATTR}.${image_name}"
+  flake_ref=$(flake_ref_for "$image_name")
   echo "  Flake reference: $flake_ref"
 
   # Create docker image reference and metadata
