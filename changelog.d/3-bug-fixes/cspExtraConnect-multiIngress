@@ -1,0 +1,1 @@
+Enable passing cspExtraConnectSrc value to nginx-ingress-services when working with multi-ingresses (renderCSPInIngress=True). It would be required for webapp to connect to third party sft servers.
