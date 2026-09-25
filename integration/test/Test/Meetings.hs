@@ -926,9 +926,9 @@ testMeetingLink = do
   listedLink `shouldMatch` expectedLink
 
   -- V17/V18-pinned reads carry no @link@ field.
-  legacy <- getMeetingV18 owner domain meetingId >>= getJSON 200
+  legacy <- getMeetingV 18 owner domain meetingId >>= getJSON 200
   assertFieldMissing legacy "link"
-  legacyV16 <- getMeetingV16 owner domain meetingId >>= getJSON 200
+  legacyV16 <- getMeetingV 16 owner domain meetingId >>= getJSON 200
   assertFieldMissing legacyV16 "link"
 
   deleteMeeting owner domain meetingId >>= assertStatus 200
