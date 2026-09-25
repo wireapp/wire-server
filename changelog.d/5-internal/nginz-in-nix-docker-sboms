@@ -1,0 +1,4 @@
+The `nginz` image was missing from `nix-docker-*` SBOMs since it's built as a
+standalone flake derivation (`#nginz`) and not part of `#wireServer.images*`.
+The related SBOM script now takes any flake attrpath (attrset or single
+derivation) and gets called for both.
