@@ -1011,6 +1011,90 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldSatisfy` isRight
 
+  describe "refreshMeetingLink" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Refreshable Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+        meetingCodeFor mid = do
+          key <- CodeStore.makeKey (CodeReferentMeeting mid)
+          gets @(Map Key (Code, Maybe Password)) (fmap fst . Map.lookup key)
+
+    it "recreates the join code and returns the meeting with a fresh link" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        let mid = qUnqualified meeting.meeting.id
+        oldCode <- meetingCodeFor mid
+        refreshed <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id
+        newCode <- meetingCodeFor mid
+        pure (meeting, refreshed, oldCode, newCode)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (meeting, refreshed, oldCode, newCode) -> do
+          fmap (.meeting) refreshed `shouldBe` Just meeting.meeting
+          fmap (.meeting.link) refreshed
+            `shouldBe` Just (API.mkMeetingLink testCodeURIBase (qUnqualified meeting.meeting.id))
+          oldCode `shouldSatisfy` isJust
+          newCode `shouldSatisfy` isJust
+          newCode `shouldSatisfy` (/= oldCode)
+
+    it "emits a meeting.update event on success" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        _refreshed <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id
+        pushes <- gets @[Push] id
+        pure (meeting.meeting.id, extractMeetingEvents pushes)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (_qmid, events) ->
+          map (.evtType) events `shouldBe` [MeetingEvent.Update, MeetingEvent.Create]
+
+    it "returns Nothing and emits no event for a non-creator" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        refreshed <- refreshMeetingLink zUser2 (ConnId "test-conn") meeting.meeting.id
+        pushes <- gets @[Push] id
+        pure (refreshed, extractMeetingEvents pushes)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (refreshed, events) -> do
+          refreshed `shouldBe` Nothing
+          events `shouldSatisfy` all (\e -> e.evtType == MeetingEvent.Create)
+
+    it "returns Nothing for a non-existent meeting" $ do
+      let qmid = Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com")
+      result <-
+        runTestStack now gen Map.empty teamConfig $
+          refreshMeetingLink zUser1 (ConnId "test-conn") qmid
+      result `shouldBe` Right Nothing
+
+    it "throws MeetingsFeatureDisabled for a team user with meetings disabled" $ do
+      let meetingsDisabled =
+            npUpdate @MeetingsConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def) $ def
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember1]) meetingsDisabled $
+          refreshMeetingLink zUser1 (ConnId "test-conn") (Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com"))
+      result `shouldBe` Left MeetingsFeatureDisabled
+
   describe "addInvitedEmails" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42

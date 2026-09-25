@@ -192,6 +192,12 @@ data MeetingsStore m a where
   DeleteMeeting ::
     MeetingId ->
     MeetingsStore m ()
+  -- | Record whether a join-code row exists for the meeting (used by the
+  -- link-refresh flow, WPB-28216). Also bumps @updated_at@.
+  SetMeetingHasCode ::
+    MeetingId ->
+    Bool ->
+    MeetingsStore m ()
   GetMeeting ::
     MeetingId ->
     MeetingsStore m (Maybe StoredMeeting)
