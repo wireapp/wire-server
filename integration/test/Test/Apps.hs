@@ -631,6 +631,9 @@ testReAddExternalAppToGroupConversation = do
     mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
     mIds `shouldContain` [appId]
 
+  -- Client is responsible for updating the MLS group state after the
+  -- server-side team removal.
+  void $ createRemoveCommit member2Client convId [appClient] >>= sendAndConsumeCommitBundle
   removeTeamCollaborator owner2 tid2 app >>= assertSuccess
 
   eventually $ do
@@ -648,8 +651,12 @@ testReAddExternalAppToGroupConversation = do
     mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
     mIds `shouldNotContain` [appId]
 
-  void $ uploadNewKeyPackage def appClient
-  void $ createAddCommit member2Client convId [app] >>= sendAndConsumeCommitBundle
+  do
+    void $ uploadNewKeyPackage def appClient
+    mp <- createAddCommit member2Client convId [app]
+    void $ sendCommitBundle mp
+    mlsConv <- getMLSConv convId
+    traverse_ (fromWelcome convId mlsConv.ciphersuite appClient) mp.welcome
 
   bindResponse (getConversation member2 conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
