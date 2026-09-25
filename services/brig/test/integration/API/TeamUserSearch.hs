@@ -17,13 +17,12 @@
 
 module API.TeamUserSearch (tests) where
 
-import API.Search (testWithBothIndices)
+import API.Search (TestConstraints, testWithBothIndices)
 import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeState, refreshIndex)
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (initiateEmailUpdateAutoActivate)
-import Bilge (Manager, MonadHttp)
+import Bilge (Manager)
 import Brig.Options qualified as Opt
-import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (fromHandle)
@@ -38,8 +37,6 @@ import Util (Brig, Galley, randomEmail)
 import Wire.API.User (User (..), userEmail, userId)
 import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Search
-
-type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr _galley brig = do

@@ -507,6 +507,7 @@ internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRou
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
     :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalUpdateSearchIndex uid $> NoContent)
+    :<|> Named @"bump-write-time-and-update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalBumpWriteTimeAndUpdateSearchIndex uid $> NoContent)
 
 enterpriseLoginApi ::
   ( Member EnterpriseLoginSubsystem r,
@@ -894,7 +895,10 @@ deleteSSOIdH uid = lift $ do
   success <- liftSem $ UserStore.updateSSOId uid Nothing
   if success
     then liftSem $ do
-      UserSubsystem.internalUpdateSearchIndex uid
+      -- nulling `sso_id` in cassandra takes its writetime with it, so the index
+      -- version would not advance here (it can even go backwards) and the SSO
+      -- identity would stay in the index
+      UserSubsystem.internalBumpWriteTimeAndUpdateSearchIndex uid
       Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
@@ -905,7 +909,8 @@ updateManagedByH uid (ManagedByUpdate managedBy) = do
 
 deletePendingEmailUpdateH ::
   ( Member UserStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   (Handler r) NoContent
@@ -915,6 +920,10 @@ deletePendingEmailUpdateH uid = do
     lift . liftSem $ do
       ActivationCode.deleteActivationCode (mkEmailKey email)
       UserStore.deleteEmailUnvalidated uid
+      -- `udEmailUnvalidated` is part of the indexed document, and nulling the
+      -- column in cassandra takes its writetime with it, so the version has to
+      -- be bumped for the updated document to be accepted
+      UserSubsystem.internalBumpWriteTimeAndUpdateSearchIndex uid
   pure NoContent
 
 updateRichInfoH :: (Member UserStore r) => UserId -> RichInfoUpdate -> (Handler r) NoContent

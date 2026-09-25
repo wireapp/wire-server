@@ -365,22 +365,21 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . runInputConst conversationCfg
     . runClientSubsystem undefined undefined
   where
-    -- Mock BrigAPIAccess interpreter for tests
-    mockBrigAPIAccess :: forall r'. InterpreterFor BrigAPIAccess r'
-    mockBrigAPIAccess = interpret $ \case
-      _ -> error "Unimplemented BrigAPIAccess operation in mock"
     -- Mock UserClientIndexStore interpreter for tests
     mockUserClientIndexStore :: forall r'. InterpreterFor UserClientIndexStore r'
     mockUserClientIndexStore = interpret $ \case
       _ -> error "Unimplemented UserClientIndexStore operation in mock"
+
     -- Mock BackendNotificationQueueAccess interpreter for tests
     mockBackendNotificationQueueAccess :: forall r'. InterpreterFor BackendNotificationQueueAccess r'
     mockBackendNotificationQueueAccess = interpret $ \case
       _ -> error "Unimplemented BackendNotificationQueueAccess operation in mock"
+
     -- Mock ConversationSubsystem interpreter for tests
     mockConversationSubsystem :: forall r'. InterpreterFor ConversationSubsystem r'
     mockConversationSubsystem = interpretH $ \case
       _ -> error "Unimplemented ConversationSubsystem operation in mock"
+
     mockMlsKeyPackageSubsystem :: forall r'. InterpreterFor MlsKeyPackageSubsystem r'
     mockMlsKeyPackageSubsystem = interpret $ \case
       HasMlsKeyPackages {} -> pure False
@@ -786,7 +785,7 @@ interpretMaybeFederationStackState ::
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
 interpretMaybeFederationStackState mb =
-  miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem . runRecursiveAuthUserApp
+  miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem subsume . runRecursiveAuthUserApp
 
 -- FUTUREWORK(fisx): it would be nice to have a definition of an
 -- interpreter of all the subsystems combined, but since the
