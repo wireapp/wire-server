@@ -1,0 +1,18 @@
+**[Only relevant if you have overwritten `oauth_scope` directives in
+your nginx config]** The nginz route configuration syntax changed:
+`oauth_scope` (a bare scope base, e.g. `conversations_code`) is
+deprecated in favor of `oauth_scopes` (whole scopes,
+e.g. `["read:conversations_code", "write-only:conversations_code"]`).
+
+If you override nginz routes in your own values, migrate each
+`oauth_scope` entry to the equivalent `oauth_scopes` list;
+`oauth_scopes` wins where a route has both. If you use the bundled
+chart, there is nothing to do, it is already updated.
+
+The old directive and old oauth tokens remain valid with new
+wire-server, but we will remove the deprecated functionality in some
+future release.
+
+See docs/src/developer/reference/config-options.md,
+https://docs.wire.com/latest/developer/reference/oauth.html for more
+context.

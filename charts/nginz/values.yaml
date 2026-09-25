@@ -228,7 +228,8 @@ nginx_conf:
       envs:
       - staging
     - path: /self$ # Matches exactly /self
-      oauth_scope: self
+      oauth_scope: self  # deprecated, will be ignored if 'oauth_scopes' is present.
+      oauth_scopes: ["read:self"]
       envs:
       - all
     - path: /self/name
@@ -643,7 +644,8 @@ nginx_conf:
     - path: /conversations/([^/]*)/([^/]*)/name
       envs:
       - all
-      oauth_scope: conversations_name
+      oauth_scope: conversations_name  # deprecated, will be ignored if 'oauth_scopes' is present.
+      oauth_scopes: ["write-only:conversations_name"]
     - path: /broadcast
       envs:
       - all
@@ -660,11 +662,13 @@ nginx_conf:
     - path: /conversations$
       envs:
       - all
-      oauth_scope: conversations
+      oauth_scope: conversations  # deprecated, will be ignored if 'oauth_scopes' is present.
+      oauth_scopes: ["write-only:conversations"]
     - path: /conversations/([^/]*)/code
       envs:
       - all
-      oauth_scope: conversations_code
+      oauth_scope: conversations_code  # deprecated, will be ignored if 'oauth_scopes' is present.
+      oauth_scopes: ["read:conversations_code", "write-only:conversations_code"]
     - path: /conversations/join
       envs:
       - all
@@ -758,7 +762,8 @@ nginx_conf:
     - path: /feature-configs(.*)
       envs:
       - all
-      oauth_scope: feature_configs
+      oauth_scope: feature_configs  # deprecated, will be ignored if 'oauth_scopes' is present.
+      oauth_scopes: ["read:feature_configs"]
     - path: /mls/welcome
       envs:
       - all
@@ -785,12 +790,12 @@ nginx_conf:
     - path: /meetings$
       envs:
       - all
-      oauth_scope: meetings
-    ## this rule can't be expressed yet: https://wearezeta.atlassian.net/browse/WPB-28193
-    #- path: /meetings/([^/]*)/([^/]*)$
-    #  envs:
-    #  - all
-    #  oauth_scopes: [write:meetings, admin:meetings]
+      oauth_scope: meetings  # deprecated, will be ignored if 'oauth_scopes' is present.
+      oauth_scopes: ["write-only:meetings"]
+    - path: /meetings/([^/]*)/([^/]*)$
+      envs:
+      - all
+      oauth_scopes: []  # https://wearezeta.atlassian.net/browse/WPB-28194: this will be `["write-only:meetings", "delete-only:meetings"]` soon.
     - path: /meetings/(.*)
       envs:
       - all

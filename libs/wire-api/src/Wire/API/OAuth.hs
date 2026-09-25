@@ -45,7 +45,7 @@ import Imports hiding (exp, head)
 import Prelude.Singletons (Show_)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Test.QuickCheck (Arbitrary (..))
+import Test.QuickCheck (Arbitrary (..), listOf1)
 import URI.ByteString
 import URI.ByteString.QQ qualified as URI.QQ
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
@@ -195,50 +195,60 @@ instance ToSchema OAuthResponseType where
 -- with the supported scopes defined in the nginx configs.
 -- However, having this typed makes it easier to handle scopes in the backend,
 -- and e.g. provide more meaningful error messages when the scope is invalid.
+--
+-- Furthermore, since tokens are only issued if the scopes listed in
+-- the request can be parsed, so this type also guarantees that no
+-- unusable tokens can be issued.
+--
+-- A scope is a tier and a base, but not every combination of the two is a
+-- scope: only the ones listed here exist, and they are the ones the routing
+-- tables document and @charts/nginz/values.yaml@ enforces.  Anything else is
+-- rejected by 'FromByteString', so nobody can be granted e.g. a
+-- @delete-only:conversations_code@ that no endpoint honours.
 data OAuthScope
   = ReadFeatureConfigs
   | ReadSelf
-  | WriteConversations
-  | WriteConversationsCode
-  | WriteConversationsName
-  | WriteMeetings
-  | AdminMeetings
+  | ReadConversationsCode
+  | WriteOnlyConversations
+  | WriteOnlyConversationsCode
+  | WriteOnlyConversationsName
+  | WriteOnlyMeetings
   deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
 
-instance IsOAuthScope 'WriteConversations where
-  toOAuthScope = WriteConversations
-
-instance IsOAuthScope 'WriteConversationsCode where
-  toOAuthScope = WriteConversationsCode
+instance IsOAuthScope 'ReadFeatureConfigs where
+  toOAuthScope = ReadFeatureConfigs
 
 instance IsOAuthScope 'ReadSelf where
   toOAuthScope = ReadSelf
 
-instance IsOAuthScope 'ReadFeatureConfigs where
-  toOAuthScope = ReadFeatureConfigs
+instance IsOAuthScope 'ReadConversationsCode where
+  toOAuthScope = ReadConversationsCode
 
-instance IsOAuthScope 'WriteConversationsName where
-  toOAuthScope = WriteConversationsName
+instance IsOAuthScope 'WriteOnlyConversations where
+  toOAuthScope = WriteOnlyConversations
 
-instance IsOAuthScope 'WriteMeetings where
-  toOAuthScope = WriteMeetings
+instance IsOAuthScope 'WriteOnlyConversationsCode where
+  toOAuthScope = WriteOnlyConversationsCode
 
-instance IsOAuthScope 'AdminMeetings where
-  toOAuthScope = AdminMeetings
+instance IsOAuthScope 'WriteOnlyConversationsName where
+  toOAuthScope = WriteOnlyConversationsName
+
+instance IsOAuthScope 'WriteOnlyMeetings where
+  toOAuthScope = WriteOnlyMeetings
 
 instance ToByteString OAuthScope where
   builder = \case
-    WriteConversations -> "write:conversations"
-    WriteConversationsCode -> "write:conversations_code"
-    WriteConversationsName -> "write:conversations_name"
-    WriteMeetings -> "write:meetings"
-    AdminMeetings -> "admin:meetings"
-    ReadSelf -> "read:self"
     ReadFeatureConfigs -> "read:feature_configs"
+    ReadSelf -> "read:self"
+    ReadConversationsCode -> "read:conversations_code"
+    WriteOnlyConversations -> "write-only:conversations"
+    WriteOnlyConversationsCode -> "write-only:conversations_code"
+    WriteOnlyConversationsName -> "write-only:conversations_name"
+    WriteOnlyMeetings -> "write-only:meetings"
 
 instance FromByteString OAuthScope where
   parser = do
@@ -249,8 +259,16 @@ instance FromByteString OAuthScope where
       Nothing -> fail $ "invalid scope: " <> show s
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
-  deriving (Eq, Show, Generic, Monoid, Semigroup, Arbitrary)
+  deriving (Eq, Show, Generic, Monoid, Semigroup)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthScopes)
+
+instance Arbitrary OAuthScopes where
+  arbitrary = OAuthScopes . Set.fromList <$> listOf1 arbitrary
+  shrink (OAuthScopes s) =
+    [ OAuthScopes (Set.fromList xs)
+    | xs <- shrink (Set.toList s),
+      not (null xs)
+    ]
 
 instance ToSchema OAuthScopes where
   schema = OAuthScopes <$> (oauthScopesToText . unOAuthScopes) .= withParser schema oauthScopeParser
@@ -261,13 +279,52 @@ instance ToSchema OAuthScopes where
           . fmap (TE.decodeUtf8With lenientDecode . toByteString')
           . Set.toList
 
+      -- A scope we do not know is an error.  Silently dropping it, or silently
+      -- returning no scopes at all, would hand out a token that does not do
+      -- what the client asked for.
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
-      oauthScopeParser scope =
-        pure $
-          (not . T.null)
-            `filter` T.splitOn " " scope
-            & maybe Set.empty Set.fromList
-              . mapM (fromByteString' . fromStrict . TE.encodeUtf8)
+      oauthScopeParser scope = do
+        let ws = T.words scope
+        when (null ws) $ fail ("empty scope; " <> validScopes)
+        Set.fromList <$> mapM parseScope ws
+
+      parseScope :: Text -> A.Parser OAuthScope
+      parseScope s =
+        (fromByteString' . fromStrict . TE.encodeUtf8) s
+          & maybe (fail ("invalid scope: " <> show s <> "; " <> validScopes)) pure
+
+      validScopes :: String
+      validScopes =
+        "valid scopes are: "
+          <> T.unpack (oauthScopesToText (Set.fromList [minBound ..]))
+
+-- | A scope as it can appear in the database, in terms of the scopes we have
+-- now.
+--
+-- We write what 'ToByteString' gives us, but rows outlive renamings: a refresh
+-- token handed out before the tiers were split up carries a deprecated,
+-- cumulative scope.  Reading one is not one-to-one, because @write:x@ implies
+-- @read:x@, hence the 'Set'.  Scopes are stored in a set column
+-- anyway, so the extra elements simply join it.
+--
+-- Anything we cannot make sense of yields no scopes at all.  That can only
+-- shrink what a token may do, never grow it.
+storedScope :: Text -> Set OAuthScope
+storedScope t =
+  (fromByteString' . fromStrict . TE.encodeUtf8) t
+    & maybe (deprecatedScope t) Set.singleton
+
+-- | The cumulative scopes we used to hand out.  Only scopes that exist now can
+-- come out of this, so @admin:meetings@ shrinks to @write-only:meetings@: there
+-- is no @delete-only:meetings@ to grant, and no endpoint that would honour it.
+deprecatedScope :: Text -> Set OAuthScope
+deprecatedScope = \case
+  "write:conversations" -> Set.fromList [WriteOnlyConversations]
+  "write:conversations_code" -> Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]
+  "write:conversations_name" -> Set.fromList [WriteOnlyConversationsName]
+  "write:meetings" -> Set.fromList [WriteOnlyMeetings]
+  "admin:meetings" -> Set.fromList [WriteOnlyMeetings]
+  _ -> Set.empty
 
 data CodeChallengeMethod = S256
   deriving (Eq, Show, Generic)
@@ -762,16 +819,22 @@ instance Cql OAuthAuthorizationCode where
   fromCql (CqlAscii t) = OAuthAuthorizationCode <$> validateBase16 t
   fromCql _ = Left "OAuthAuthorizationCode: Ascii expected"
 
-instance Cql OAuthScope where
-  ctype = Tagged TextColumn
-  toCql = CqlText . TE.decodeUtf8With lenientDecode . toByteString'
-  fromCql (CqlText t) =
-    maybe (Left "invalid oauth scope") Right
-      $ fromByteString'
-        . fromStrict
-        . TE.encodeUtf8
-      $ t
-  fromCql _ = Left "OAuthScope: Text expected"
+-- | Scopes are read and written as a whole set, not one at a time: a single
+-- stored scope can stand for several of ours, see 'storedScope'.
+instance Cql OAuthScopes where
+  ctype = Tagged (SetColumn TextColumn)
+
+  toCql =
+    CqlSet
+      . fmap (CqlText . TE.decodeUtf8With lenientDecode . toByteString')
+      . Set.toList
+      . unOAuthScopes
+
+  fromCql (CqlSet scopes) = OAuthScopes . Set.unions <$> mapM el scopes
+    where
+      el (CqlText t) = Right (storedScope t)
+      el _ = Left "OAuthScopes: Text expected"
+  fromCql _ = Left "OAuthScopes: Set expected"
 
 instance Cql OAuthCodeChallenge where
   ctype = Tagged BlobColumn
