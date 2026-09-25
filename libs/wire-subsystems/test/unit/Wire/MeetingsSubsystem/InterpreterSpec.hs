@@ -1752,13 +1752,12 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newStart = addUTCTime 8000 now
           newEnd = addUTCTime 9000 now
           upd =
-            API.UpdateMeeting
+            API.UpdateMeetingLegacy
               { startTime = Just newStart,
                 endTime = Just newEnd,
                 title = Nothing,
                 recurrence = Nothing,
-                tzid = Nothing,
-                mtype = Nothing
+                tzid = Nothing
               }
       result <-
         runTestStack now gen Map.empty def $ do
@@ -1769,6 +1768,34 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (Just mwc') -> mwc'.meeting.endTime `shouldBe` newEnd
         Right Nothing -> fail "expected the update to apply"
 
+    it "updateMeetingV16 cannot change the stored meeting type" $ do
+      let upd =
+            API.UpdateMeetingLegacy
+              { startTime = Nothing,
+                endTime = Nothing,
+                title = Just (unsafeRange "Renamed"),
+                recurrence = Nothing,
+                tzid = Nothing
+              }
+          immediateMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Typed Meeting",
+                startTime = startT,
+                endTime = endT,
+                tzid = API.defaultLegacyTimeZone,
+                mtype = API.Immediate,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+      result <-
+        runTestStack now gen Map.empty def $ do
+          mwc <- createMeeting zUser (ConnId "test-conn") immediateMeeting
+          _ <- updateMeetingV16 zUser (ConnId "test-conn") mwc.meeting.id upd
+          getMeeting zUser mwc.meeting.id
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (Just m) -> m.mtype `shouldBe` API.Immediate
+        Right Nothing -> fail "expected a meeting"
   describe "meeting type (V19)" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42

@@ -294,11 +294,10 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
--- | V16 update path: 'API.UpdateMeetingV16' is 'API.UpdateMeeting' (both
--- carry an optional @end_time@), so this delegates straight through to the
--- shared update implementation and re-shapes the result. The legacy request
--- shape carries no @tzid@ from V15\/V16 clients, and an omitted @tzid@ leaves
--- the stored time zone unchanged, so no legacy time zone injection is needed.
+-- | V16 update path: 'API.UpdateMeetingV16' carries no @type@ field, so
+-- legacy clients cannot change the stored meeting type. The request is mapped
+-- onto 'API.UpdateMeeting' with @mtype = Nothing@ and delegated to the shared
+-- update implementation; the result is re-shaped to the legacy form.
 updateMeetingV16Impl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
@@ -317,12 +316,13 @@ updateMeetingV16Impl ::
   NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversationV16)
 updateMeetingV16Impl zUser connId meetingId updateL validityPeriod pastEditPeriod =
-  fmap API.toLegacyWithConv <$> updateMeetingImpl zUser connId meetingId updateL validityPeriod pastEditPeriod
+  fmap API.toLegacyWithConv
+    <$> updateMeetingImpl zUser connId meetingId (API.legacyUpdateToMeeting updateL) validityPeriod pastEditPeriod
 
--- | V18 update path: 'API.UpdateMeetingV18' is 'API.UpdateMeeting' (both
--- carry an optional @end_time@, @tzid@ and @type@), so this delegates
--- straight through to the shared update implementation and re-shapes the
--- result. An omitted @type@ leaves the stored meeting type unchanged.
+-- | V18 update path: 'API.UpdateMeetingV18' carries no @type@ field, so
+-- legacy clients cannot change the stored meeting type. The request is mapped
+-- onto 'API.UpdateMeeting' with @mtype = Nothing@ and delegated to the shared
+-- update implementation; the result is re-shaped to the legacy form.
 updateMeetingV18Impl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
@@ -341,7 +341,8 @@ updateMeetingV18Impl ::
   NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversationV18)
 updateMeetingV18Impl zUser connId meetingId updateL validityPeriod pastEditPeriod =
-  fmap API.toLegacyWithConvV18 <$> updateMeetingImpl zUser connId meetingId updateL validityPeriod pastEditPeriod
+  fmap API.toLegacyWithConvV18
+    <$> updateMeetingImpl zUser connId meetingId (API.legacyUpdateToMeeting updateL) validityPeriod pastEditPeriod
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,

@@ -39,6 +39,7 @@ module Wire.API.Meeting
     MeetingWithConversationV18 (..),
     NewMeetingV18 (..),
     UpdateMeetingV18,
+    UpdateMeetingLegacy (..),
 
     -- * Legacy meetings (V15/V16)
     MeetingV16 (..),
@@ -54,6 +55,7 @@ module Wire.API.Meeting
     toLegacyV18,
     toLegacyWithConvV18,
     fromLegacyNewMeetingV18,
+    legacyUpdateToMeeting,
 
     -- * Misc
     Recurrence (..),
@@ -436,19 +438,10 @@ parseMeetingType = \case
   "scheduled" -> Just Scheduled
   _ -> Nothing
 
--- | Request to update an existing meeting. @tzid@ is optional: 'Just' sets
--- the meeting's IANA time zone, while omitting it (as legacy V15\/V16
--- clients, whose request shape carries no @tzid@, always do) leaves the
--- stored time zone unchanged; @end_time@ is optional on both eras, so a
--- single type serves V17 ('UpdateMeeting'), V18 ('UpdateMeetingV18') and
--- V16 ('UpdateMeetingV16'). @type@ is optional: omitting it leaves the
--- stored meeting type unchanged.
---
--- Note: 'UpdateMeetingV16'\/'UpdateMeetingV18' are aliases of this type, so
--- V15-V18 clients can send @type@ on the frozen update endpoints and it is
--- applied server-side (mirroring how optional @tzid@ has been reachable on
--- the V15\/V16 shape since V17). Revisit before any behavior branches on
--- 'MeetingType'.
+-- | Request to update an existing meeting (V19). @tzid@ is optional: 'Just'
+-- sets the meeting's IANA time zone, while omitting it leaves the stored time
+-- zone unchanged; @end_time@ is optional. @type@ is optional: omitting it
+-- leaves the stored meeting type unchanged.
 data UpdateMeeting = UpdateMeeting
   { startTime :: Maybe UTCTime,
     endTime :: Maybe UTCTime,
@@ -462,10 +455,6 @@ data UpdateMeeting = UpdateMeeting
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeeting)
   deriving (Arbitrary) via (GenericUniform UpdateMeeting)
 
-type UpdateMeetingV16 = UpdateMeeting
-
-type UpdateMeetingV18 = UpdateMeeting
-
 instance ToSchema UpdateMeeting where
   schema =
     objectWithDocModifier (description ?~ "Request to update a meeting") $
@@ -476,6 +465,47 @@ instance ToSchema UpdateMeeting where
         <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
         <*> (.tzid) .= maybe_ (optField "tzid" schema)
         <*> (.mtype) .= maybe_ (optField "type" schema)
+
+-- | Request to update an existing meeting on the frozen V15-V18 endpoints.
+-- Identical to 'UpdateMeeting' except it carries no @type@ field, so legacy
+-- clients cannot change the stored meeting type.
+data UpdateMeetingLegacy = UpdateMeetingLegacy
+  { startTime :: Maybe UTCTime,
+    endTime :: Maybe UTCTime,
+    title :: Maybe (Range 1 256 Text),
+    recurrence :: Maybe (Maybe Recurrence),
+    tzid :: Maybe TimeZone
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeetingLegacy)
+  deriving (Arbitrary) via (GenericUniform UpdateMeetingLegacy)
+
+type UpdateMeetingV16 = UpdateMeetingLegacy
+
+type UpdateMeetingV18 = UpdateMeetingLegacy
+
+instance ToSchema UpdateMeetingLegacy where
+  schema =
+    objectWithDocModifier (description ?~ "Request to update a meeting") $
+      UpdateMeetingLegacy
+        <$> (.startTime) .= maybe_ (optField "start_time" utcTimeSchema)
+        <*> (.endTime) .= maybe_ (optField "end_time" utcTimeSchema)
+        <*> (.title) .= maybe_ (optField "title" schema)
+        <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
+        <*> (.tzid) .= maybe_ (optField "tzid" schema)
+
+-- | Map a legacy update request onto the V19 shape. @mtype@ is always
+-- 'Nothing', i.e. the stored meeting type is left unchanged.
+legacyUpdateToMeeting :: UpdateMeetingLegacy -> UpdateMeeting
+legacyUpdateToMeeting u =
+  UpdateMeeting
+    { startTime = u.startTime,
+      endTime = u.endTime,
+      title = u.title,
+      recurrence = u.recurrence,
+      tzid = u.tzid,
+      mtype = Nothing
+    }
 
 instance ToSchema Recurrence where
   schema =

@@ -35,7 +35,13 @@
 
 module Test.Wire.API.Meeting where
 
+import Control.Lens ((^?))
+import Control.Lens.At (ix)
+import Data.OpenApi qualified as S
+import Data.Proxy (Proxy (..))
+import Imports
 import Test.Tasty
+import Test.Tasty.HUnit (assertBool, testCase)
 import Test.Tasty.QuickCheck (Property, conjoin, testProperty, (===))
 import Wire.API.Meeting
 
@@ -45,8 +51,36 @@ tests =
     "Meeting"
     [ testProperty "toLegacy . fromLegacy === id (V16)" toLegacyFromLegacy,
       testProperty "toLegacyV18 preserves all meeting fields" toLegacyV18Preserves,
-      testProperty "fromLegacyNewMeetingV18 injects scheduled type" fromLegacyNewMeetingV18Scheduled
+      testProperty "fromLegacyNewMeetingV18 injects scheduled type" fromLegacyNewMeetingV18Scheduled,
+      testCase "legacy update schema does not expose type" legacyUpdateSchemaHasNoType,
+      testProperty "legacyUpdateToMeeting drops type" legacyUpdateToMeetingDropsType
     ]
+
+schemaHasTypeProperty :: (S.ToSchema a) => Proxy a -> Bool
+schemaHasTypeProperty p = isJust ((S.toSchema p) ^? S.properties . ix "type")
+
+-- | The frozen V15-V18 update endpoints must not accept a @type@ field;
+-- only the V19 'UpdateMeeting' schema exposes it.
+legacyUpdateSchemaHasNoType :: IO ()
+legacyUpdateSchemaHasNoType = do
+  assertBool "legacy update schema should not have a 'type' property" $
+    not (schemaHasTypeProperty (Proxy @UpdateMeetingLegacy))
+  assertBool "V19 update schema should have a 'type' property" $
+    schemaHasTypeProperty (Proxy @UpdateMeeting)
+
+-- | Legacy update requests map onto the V19 shape with @mtype = Nothing@,
+-- i.e. the stored meeting type is left unchanged.
+legacyUpdateToMeetingDropsType :: UpdateMeetingLegacy -> Property
+legacyUpdateToMeetingDropsType u =
+  let v19 = legacyUpdateToMeeting u
+   in conjoin
+        [ v19.mtype === Nothing,
+          v19.startTime === u.startTime,
+          v19.endTime === u.endTime,
+          v19.title === u.title,
+          v19.recurrence === u.recurrence,
+          v19.tzid === u.tzid
+        ]
 
 -- | V19->V18 conversion preserves every field of the meeting (only @mtype@
 -- is dropped).
