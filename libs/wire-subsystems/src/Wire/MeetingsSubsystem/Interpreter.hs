@@ -26,10 +26,10 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.ByteString.Conversion (toByteString')
 import Data.Code (Timeout (..))
 import Data.Default (def)
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Map qualified as Map
-import Data.Misc (HttpsUrl, httpsUrlFromText)
+import Data.Misc (HttpsUrl)
 import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
@@ -97,18 +97,12 @@ checkMeetingsEnabled ::
 meetingCodeTimeout :: Timeout
 meetingCodeTimeout = Timeout (fromIntegral (maxBound @Int32))
 
--- | Resolve the join-link base for a domain. 'Nothing' from the code store
--- only happens in multi-domain mode when the user's domain has no configured
--- URI (a misconfiguration); degrade to an https URL derived from the user's
--- own domain so a real join code still renders a valid link.
-codeURIBase :: (Member CodeStore r) => Domain -> Sem r HttpsUrl
-codeURIBase dom =
-  fromMaybe (domainFallback dom) <$> CodeStore.getConversationCodeURI (Just dom)
-
-domainFallback :: Domain -> HttpsUrl
-domainFallback dom =
-  -- A 'Domain' is a validated host name, so this URI always parses.
-  fromRight' (httpsUrlFromText ("https://" <> domainText dom <> "/"))
+-- | Resolve the join-link base for a domain. 'Nothing' means the deployment
+-- has no join-link URI configured for the user's domain (multi-ingress mode
+-- with the domain missing from the map): the @link@ field is omitted for such
+-- meetings rather than pointing at an unconfigured endpoint.
+codeURIBase :: (Member CodeStore r) => Domain -> Sem r (Maybe HttpsUrl)
+codeURIBase = CodeStore.getConversationCodeURI . Just
 
 checkMeetingsEnabled maybeTeamId =
   unlessM (meetingsFeatureEnabled maybeTeamId) $
@@ -492,8 +486,8 @@ getMeetingConversationOrFail meetingId convId = do
 
 -- | Pure meeting-record construction given the code-lookup result. Meetings
 -- without a live join code omit the link field entirely.
-mkApiMeeting :: HttpsUrl -> Domain -> Maybe Code -> Store.StoredMeeting -> API.Meeting
-mkApiMeeting base domain mCode sm =
+mkApiMeeting :: Maybe HttpsUrl -> Domain -> Maybe Code -> Store.StoredMeeting -> API.Meeting
+mkApiMeeting mBase domain mCode sm =
   API.Meeting
     { API.id = Qualified sm.id domain,
       API.title = sm.title,
@@ -507,31 +501,33 @@ mkApiMeeting base domain mCode sm =
       API.invitedEmails = sm.invitedEmails,
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt,
-      API.link = API.mkMeetingLink base sm.id <$ mCode
+      API.link = case (mBase, mCode) of
+        (Just base, Just _) -> Just (API.mkMeetingLink base sm.id)
+        _ -> Nothing
     }
 
 -- | Convert a 'Store.StoredMeeting' to an 'API.Meeting'; performs exactly
 -- one code-store lookup.
 storedMeetingToMeeting ::
   (Member CodeStore r) =>
-  HttpsUrl ->
+  Maybe HttpsUrl ->
   Domain ->
   Store.StoredMeeting ->
   Sem r API.Meeting
-storedMeetingToMeeting base domain sm =
-  (\mCode -> mkApiMeeting base domain mCode sm) <$> CodeStore.getMeetingCode sm.id
+storedMeetingToMeeting mBase domain sm =
+  (\mCode -> mkApiMeeting mBase domain mCode sm) <$> CodeStore.getMeetingCode sm.id
 
 -- | One 'CodeStore.getMeetingCodes' query for the whole batch instead of
 -- one 'getMeetingCode' per meeting.
 storedMeetingsToMeetings ::
   (Member CodeStore r) =>
-  HttpsUrl ->
+  Maybe HttpsUrl ->
   Domain ->
   [Store.StoredMeeting] ->
   Sem r [API.Meeting]
-storedMeetingsToMeetings base domain sms = do
+storedMeetingsToMeetings mBase domain sms = do
   codes <- CodeStore.getMeetingCodes (map (.id) sms)
-  pure [mkApiMeeting base domain (Map.lookup sm.id codes) sm | sm <- sms]
+  pure [mkApiMeeting mBase domain (Map.lookup sm.id codes) sm | sm <- sms]
 
 -- | Like 'storedMeetingToMeeting', but additionally carries the full
 -- 'API.Conversation' associated with the meeting.
@@ -542,13 +538,13 @@ storedMeetingsToMeetings base domain sms = do
 -- conversation itself is always created locally.
 storedMeetingToMeetingWithConversation ::
   (Member CodeStore r) =>
-  HttpsUrl ->
+  Maybe HttpsUrl ->
   Local UserId ->
   StoredConversation ->
   Store.StoredMeeting ->
   Sem r API.MeetingWithConversation
-storedMeetingToMeetingWithConversation base lUser conv sm = do
-  meeting <- storedMeetingToMeeting base (tDomain lUser) sm
+storedMeetingToMeetingWithConversation mBase lUser conv sm = do
+  meeting <- storedMeetingToMeeting mBase (tDomain lUser) sm
   pure $
     API.MeetingWithConversation
       { API.meeting = meeting,
@@ -592,10 +588,10 @@ getAllMemberMeetings ::
     Member CodeStore r
   ) =>
   Local UserId ->
-  HttpsUrl ->
+  Maybe HttpsUrl ->
   UTCTime ->
   Sem r [API.Meeting]
-getAllMemberMeetings zUser base cutoff = do
+getAllMemberMeetings zUser mBase cutoff = do
   -- We process conversations in pages
   processPage Nothing
   where
@@ -622,7 +618,7 @@ getAllMemberMeetings zUser base cutoff = do
               -- Fetch meetings for these conversations
               pageMeetings <- forM targetQConvIds $ \qConvId -> do
                 Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
-              currentMeetings <- storedMeetingsToMeetings base (tDomain zUser) (concat pageMeetings)
+              currentMeetings <- storedMeetingsToMeetings mBase (tDomain zUser) (concat pageMeetings)
               -- Check if there are more pages
               if hasMore
                 then do

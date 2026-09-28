@@ -131,10 +131,20 @@ runTestStack ::
   AllTeamFeatures ->
   Sem TestStack a ->
   IO (Either MeetingError a)
-runTestStack now gen teams configs =
+runTestStack now gen = runTestStackWithURI now gen (Left testCodeURIBase)
+
+runTestStackWithURI ::
+  UTCTime ->
+  StdGen ->
+  Either HttpsUrl (Map Domain HttpsUrl) ->
+  Map TeamId [TeamMember] ->
+  AllTeamFeatures ->
+  Sem TestStack a ->
+  IO (Either MeetingError a)
+runTestStackWithURI now gen convCodeURI teams configs =
   runM
     . fmap (either (error . show) (either (error . show) Imports.id))
-    . runInputConst (Left testCodeURIBase)
+    . runInputConst convCodeURI
     . evalState (Map.empty :: Map Key (Code, Maybe Password))
     . interpretCodeStorePure
     . runError @(Tagged 'TeamNotFound ())
@@ -229,6 +239,71 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       Right (meeting, mid, mCode) -> do
         meeting.meeting.link `shouldBe` Just (API.mkMeetingLink testCodeURIBase mid)
         mCode `shouldSatisfy` isJust
+
+  it "uses the multi-ingress URI mapped for the user's domain" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        multiBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://multi.example.com/conversation-join/"))
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Multi Ingress Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right (Map.fromList [(Domain "wire.com", multiBase)]))
+        Map.empty
+        def
+        $ do
+          meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+          pure (meeting, qUnqualified meeting.meeting.id)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, mid) ->
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink multiBase mid)
+
+  it "omits the link when the user's domain has no configured URI" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        otherBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://other.example.com/conversation-join/"))
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Unmapped Domain Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right (Map.fromList [(Domain "other.example.com", otherBase)]))
+        Map.empty
+        def
+        $ do
+          meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+          pure (meeting, qUnqualified meeting.meeting.id)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, _mid) -> meeting.meeting.link `shouldBe` Nothing
 
   it "removes the join code when the meeting is deleted" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
