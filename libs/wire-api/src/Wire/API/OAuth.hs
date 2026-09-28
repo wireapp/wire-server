@@ -208,11 +208,12 @@ instance ToSchema OAuthResponseType where
 data OAuthScope
   = ReadFeatureConfigs
   | ReadSelf
-  | ReadConversationsCode
+  | ReadConversations -- this is new?!
   | WriteOnlyConversations
   | WriteOnlyConversationsCode
   | WriteOnlyConversationsName
   | WriteOnlyMeetings
+  | DeleteOnlyMeetings
   deriving (Eq, Show, Generic, Ord, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
@@ -249,6 +250,7 @@ instance ToByteString OAuthScope where
     WriteOnlyConversationsCode -> "write-only:conversations_code"
     WriteOnlyConversationsName -> "write-only:conversations_name"
     WriteOnlyMeetings -> "write-only:meetings"
+    DeleteOnlyMeetings -> "delete-only:meetings"
 
 instance FromByteString OAuthScope where
   parser = do
@@ -270,6 +272,11 @@ instance Arbitrary OAuthScopes where
       not (null xs)
     ]
 
+-- | Parse a string of space-separated scopes into a set of `OAuthScope`.
+--
+-- Accepts legacy scope tiers `write`, `admin`, which are cumulative
+-- and imply `read`, `write` resp, and translates them into (sets of)
+-- current scopes.
 instance ToSchema OAuthScopes where
   schema = OAuthScopes <$> (oauthScopesToText . unOAuthScopes) .= withParser schema oauthScopeParser
     where
@@ -286,17 +293,51 @@ instance ToSchema OAuthScopes where
       oauthScopeParser scope = do
         let ws = T.words scope
         when (null ws) $ fail ("empty scope; " <> validScopes)
-        Set.fromList <$> mapM parseScope ws
+        Set.unions <$> mapM parseScopeSet ws
+
+      parseScopeSet :: Text -> A.Parser (Set OAuthScope)
+      parseScopeSet s = do
+        case fromByteString' (fromStrict (TE.encodeUtf8 s)) of
+          Just scope -> pure (Set.singleton scope)
+          Nothing -> do
+            let expanded = deprecatedScope s
+            if Set.null expanded
+              then fail ("invalid scope: " <> show s <> "; " <> validScopes)
+              else pure expanded
 
       parseScope :: Text -> A.Parser OAuthScope
       parseScope s =
         (fromByteString' . fromStrict . TE.encodeUtf8) s
           & maybe (fail ("invalid scope: " <> show s <> "; " <> validScopes)) pure
 
+      -- Deprecated scopes are still handled correctly, but no need to brag about it.
       validScopes :: String
       validScopes =
         "valid scopes are: "
           <> T.unpack (oauthScopesToText (Set.fromList [minBound ..]))
+
+allScopes :: Text -> Set OAuthScope
+allScopes t =
+  case T.splitOn ":" t of
+    [oldTier, base] ->
+      let tierMap =
+            Map.fromList
+              [ ("read", ["read"]),
+                ("write", ["read", "write-only"]),
+                ("admin", ["read", "write-only", "delete-only"]),
+                ("write-only", ["write-only"]),
+                ("delete-only", ["delete-only"])
+              ]
+          newTiers = Map.lookup (T.toLower oldTier) tierMap
+       in maybe Set.empty (expandTiers base) newTiers
+    _ -> Set.empty
+  where
+    expandTiers :: Text -> [Text] -> Set OAuthScope
+    expandTiers base tiers =
+      Set.fromList $
+        mapMaybe
+          (\tier -> fromByteString' (fromStrict (TE.encodeUtf8 (tier <> ":" <> base))))
+          tiers
 
 -- | A scope as it can appear in the database, in terms of the scopes we have
 -- now.

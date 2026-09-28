@@ -63,16 +63,53 @@ testScopesParseOnlyKnown :: Assertion
 testScopesParseOnlyKnown = do
   (eitherDecode "\"read:self write-only:conversations\"" :: Either String OAuthScopes)
     @?= Right (OAuthScopes (Set.fromList [ReadSelf, WriteOnlyConversations]))
+  -- deprecated scopes should parse (with translation)
+  (eitherDecode "\"write:conversations\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.singleton WriteOnlyConversations))
+  (eitherDecode "\"write:conversations_code\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]))
   for_
     [ "\"\"", -- empty scope
       "\"read:pizza\"", -- no such scope
-      "\"write:conversations\"", -- deprecated tier
       "\"read:self read:pizza\"" -- one bad scope spoils the request
     ]
     $ \bad -> case eitherDecode bad :: Either String OAuthScopes of
       Left _ -> pure ()
       Right scopes ->
         assertFailure $ "expected a parse error for " <> show bad <> ", got " <> show scopes
+
+  (eitherDecode "\"read:feature_configs read:self\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
+
+  (eitherDecode "\"read:feature_configs read:self\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
+
+  (eitherDecode "\"write:feature_configs read:self\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
+
+{-
+
+ WriteConversations
+write:conversations
+write-only:conversations
+
+ WriteConversationsCode
+write:conversations_code
+write-only:conversations_code
+
+ WriteConversationsName
+read:conversations_name
+write-only:conversations_name
+
+ WriteMeetings
+write:meetings
+write-only:meetings
+
+ AdminMeetings
+admin:meetings
+delete-only-meetings
+
+-}
 
 testCodeChallengeVerification :: Assertion
 testCodeChallengeVerification = do
