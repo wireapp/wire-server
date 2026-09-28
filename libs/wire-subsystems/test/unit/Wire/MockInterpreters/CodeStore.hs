@@ -58,6 +58,14 @@ interpretCodeStorePure = interpret $ \case
   GetMeetingCode mid -> do
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
     gets (fmap fst . Map.lookup k)
+  GetMeetingCodes mids -> do
+    ks <- embed (traverse (\mid -> (mid,) <$> Code.mkKey (CodeReferentMeeting mid)) mids)
+    gets $ \m ->
+      Map.fromList
+        [ (mid, c)
+        | (mid, k) <- ks,
+          Just (c, _) <- [Map.lookup k m]
+        ]
   MakeKey ref -> embed (Code.mkKey ref)
   GenerateCode ref t -> embed (Code.generate ref t)
   GetConversationCodeURI mbHost -> do

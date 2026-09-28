@@ -26,6 +26,8 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
 import Data.UUID (UUID)
+import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
@@ -54,6 +56,8 @@ interpretCodeStoreToPostgres = interpret $ \case
     Code.mkKey (CodeReferentMeeting mid) >>= deleteCode
   GetMeetingCode mid ->
     Code.mkKey (CodeReferentMeeting mid) >>= lookupCode <&> fmap fst
+  GetMeetingCodes mids ->
+    lookupMeetingCodes mids
   CreateMeetingCode mid t -> do
     code <- Code.generate (CodeReferentMeeting mid) t
     insertCode code Nothing
@@ -114,6 +118,48 @@ lookupCode k = do
                           target :: text
                         FROM conversation_codes
                         WHERE key = ($1 :: text) AND expires_at > now ()
+                        |]
+
+-- | Look up join codes for many meetings with a single query. Rows are
+-- matched back to meeting ids by their (Haskell-derived) key; meetings
+-- without a live (non-expired) row are absent from the result. A row whose
+-- key/value/target/password fails to decode is dropped silently (absent
+-- link) rather than failing the whole list request — rows are only ever
+-- written through 'insertCode', so a decode failure indicates schema drift.
+lookupMeetingCodes :: (PGConstraints r) => [MeetingId] -> Sem r (Map MeetingId Code)
+lookupMeetingCodes mids
+  | null mids = pure Map.empty
+  | otherwise = do
+      keys <-
+        Map.fromList
+          <$> traverse (\mid -> (,mid) <$> Code.mkKey (CodeReferentMeeting mid)) mids
+      rows <-
+        V.toList
+          <$> runStatement
+            (V.fromList (map (postgresMarshall . fst) (Map.toList keys)), postgresMarshall CodeTargetMeeting)
+            selectMeetingCodes
+      pure $
+        Map.fromList
+          [ (mid, fst (toCode k (val', ttl, codeReferentFromTarget target' targetId, mPw')))
+          | (key, val, ttl, targetId, mPw, target) <- rows,
+            Right k <- [postgresUnmarshall key],
+            mid <- maybeToList (Map.lookup k keys),
+            Right val' <- [postgresUnmarshall val],
+            Right target' <- [postgresUnmarshall target],
+            Right mPw' <- [traverse postgresUnmarshall mPw]
+          ]
+  where
+    selectMeetingCodes :: Hasql.Statement (Vector Text, Text) (Vector (Text, Text, Int32, UUID, Maybe ByteString, Text))
+    selectMeetingCodes =
+      [vectorStatement|SELECT
+                          key :: text,
+                          value :: text,
+                          GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (expires_at - now()))))::int4 AS ttl_secs,
+                          conversation :: uuid,
+                          password :: bytea?,
+                          target :: text
+                        FROM conversation_codes
+                        WHERE key = ANY ($1 :: text[]) AND target = ($2 :: text) AND expires_at > now()
                         |]
 
 deleteCode :: (PGConstraints r) => Key -> Sem r ()

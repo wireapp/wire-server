@@ -889,8 +889,9 @@ testMeetingType = do
           ]
   postMeetings owner badMeeting >>= assertStatus 400
 
--- | WPB-28987: the V19 meeting object exposes a @link@ join link whose final
--- path segment is the meeting's UUID. Legacy endpoint shapes are unchanged.
+-- | WPB-28987: the V19 meeting object exposes an optional @link@ join link
+-- whose final path segment is the meeting's UUID; it is present only when the
+-- meeting has a live join code. Legacy endpoint shapes are unchanged.
 testMeetingLink :: (HasCallStack) => App ()
 testMeetingLink = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -901,29 +902,37 @@ testMeetingLink = do
   meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   -- Both the link base and the final segment are deployment-dependent: the
-  -- base is @conversationCodeURI@, and Cassandra-backed code stores hold no
-  -- meeting codes, so the server serves the nil-uuid placeholder segment.
+  -- base is @conversationCodeURI@, and meetings whose code store cannot hold
+  -- meeting codes (Cassandra-only mode) carry no link at all.
   cfg <- readServiceConfig Galley
   baseURI <- cfg %. "settings.conversationCodeURI" >>= asString
   codeStorage <- cfg %. "postgresMigration.conversationCodes" >>= asString
   -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash.
   let base = if "/" `isSuffixOf` baseURI then init baseURI else baseURI
-      segment
-        | codeStorage == "cassandra" = "00000000-0000-0000-0000-000000000000"
-        | otherwise = meetingId
-      expectedLink = base <> "/" <> segment
-  link <- meeting %. "link" >>= asString
-  link `shouldMatch` expectedLink
+      expectedLink = base <> "/" <> meetingId
+  if codeStorage == "cassandra"
+    then do
+      -- Meeting codes never live in Cassandra; the link field is omitted.
+      assertFieldMissing meeting "link"
+      fetched <- getMeeting owner domain meetingId >>= getJSON 200
+      assertFieldMissing fetched "link"
+      listResp <- getMeetingsList owner
+      assertSuccess listResp
+      meetingsList <- listResp.json & asList
+      assertFieldMissing (head meetingsList) "link"
+    else do
+      link <- meeting %. "link" >>= asString
+      link `shouldMatch` expectedLink
 
-  fetched <- getMeeting owner domain meetingId >>= getJSON 200
-  fetchedLink <- fetched %. "link" >>= asString
-  fetchedLink `shouldMatch` expectedLink
+      fetched <- getMeeting owner domain meetingId >>= getJSON 200
+      fetchedLink <- fetched %. "link" >>= asString
+      fetchedLink `shouldMatch` expectedLink
 
-  listResp <- getMeetingsList owner
-  assertSuccess listResp
-  meetingsList <- listResp.json & asList
-  listedLink <- head meetingsList %. "link" >>= asString
-  listedLink `shouldMatch` expectedLink
+      listResp <- getMeetingsList owner
+      assertSuccess listResp
+      meetingsList <- listResp.json & asList
+      listedLink <- head meetingsList %. "link" >>= asString
+      listedLink `shouldMatch` expectedLink
 
   -- V17/V18-pinned reads carry no @link@ field.
   legacy <- getMeetingV 18 owner domain meetingId >>= getJSON 200

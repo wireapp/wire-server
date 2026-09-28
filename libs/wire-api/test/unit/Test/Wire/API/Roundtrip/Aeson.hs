@@ -499,11 +499,11 @@ meetingLinkVersioningTests =
     [ testProperty "V18 response omits link" $
         \(m :: Meeting.MeetingV18) ->
           linkField (toJSON m) === Nothing,
-      testProperty "V19 response renders link as a non-empty string" $
+      testProperty "V19 response renders link iff meeting has one" $
         \(m :: Meeting.Meeting) ->
           case linkField (toJSON m) of
-            Just t -> t /= mempty
-            Nothing -> False
+            Just t -> isJust m.link && t /= mempty
+            Nothing -> isNothing m.link
     ]
 
 -- | Extract the @link@ string from a 'Meeting' JSON object, if present.

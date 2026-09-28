@@ -154,8 +154,10 @@ data Meeting = Meeting
     invitedEmails :: [EmailAddress],
     createdAt :: UTCTime,
     updatedAt :: UTCTime,
-    -- | https join link whose final path segment is the meeting's UUID
-    link :: HttpsUrl
+    -- | https join link whose final path segment is the meeting's UUID;
+    -- 'Nothing' when the meeting has no live join code (legacy meetings, or
+    -- code-store modes that cannot hold meeting codes)
+    link :: Maybe HttpsUrl
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
@@ -216,7 +218,7 @@ meetingObject =
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
-    <*> (.link) .= field "link" schema
+    <*> (.link) .= maybe_ (optField "link" schema)
 
 instance ToSchema Meeting where
   schema = objectWithDocModifier (description ?~ "A meeting (immediate or scheduled)") meetingObject
@@ -542,10 +544,10 @@ toLegacy m =
 
 -- | Convert a legacy 'MeetingV16' to the V19 'Meeting' shape, injecting the
 -- given 'TimeZone' as @tzid@ and defaulting @mtype@ to 'Scheduled'. All other
--- fields (including @end_time@) are preserved. The caller supplies the join
--- 'link'; legacy meetings carry none.
-fromLegacy :: TimeZone -> HttpsUrl -> MeetingV16 -> Meeting
-fromLegacy tz link m =
+-- fields (including @end_time@) are preserved. Legacy meetings carry no join
+-- @link@.
+fromLegacy :: TimeZone -> MeetingV16 -> Meeting
+fromLegacy tz m =
   Meeting
     { id = m.id,
       title = m.title,
@@ -559,13 +561,12 @@ fromLegacy tz link m =
       invitedEmails = m.invitedEmails,
       createdAt = m.createdAt,
       updatedAt = m.updatedAt,
-      link = link
+      link = Nothing
     }
 
 -- | Join link for a meeting: the configured code URI with the meeting's
 -- UUID appended as final path segment (trailing slashes on the configured
--- base are normalized). Meetings without a stored code pass the nil UUID,
--- yielding the documented placeholder link.
+-- base are normalized).
 mkMeetingLink :: HttpsUrl -> MeetingId -> HttpsUrl
 mkMeetingLink (HttpsUrl base) mid =
   HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid}

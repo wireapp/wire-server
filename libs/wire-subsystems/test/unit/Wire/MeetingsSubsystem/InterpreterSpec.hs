@@ -227,7 +227,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     case result of
       Left err -> fail $ "Error: " <> show err
       Right (meeting, mid, mCode) -> do
-        meeting.meeting.link `shouldBe` API.mkMeetingLink testCodeURIBase mid
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink testCodeURIBase mid)
         mCode `shouldSatisfy` isJust
 
   it "removes the join code when the meeting is deleted" $ do
@@ -260,7 +260,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         deleted `shouldBe` True
         isNothing mCode `shouldBe` True
 
-  it "serves the nil-uuid placeholder link for meetings without a join code" $ do
+  it "omits the link field for meetings without a join code" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -289,8 +289,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right fetched ->
-        fmap (.link) fetched `shouldBe` Just (API.mkMeetingLink testCodeURIBase (Id nil))
+      Right fetched -> do
+        fetched `shouldSatisfy` isJust
+        (fetched >>= (.link)) `shouldBe` Nothing
 
   it "cleanup removes expired meetings together with their join codes" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -328,6 +329,46 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       Right (n, mCode) -> do
         n `shouldBe` 1
         isNothing mCode `shouldBe` True
+
+  it "listMeetings gives only meetings with a live code a link" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        mkStoredMeeting mid =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Listed Meeting",
+              creator = uid,
+              startTime = addUTCTime 60 now,
+              endTime = addUTCTime 3600 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
+              invitedEmails = [],
+              trial = False,
+              createdAt = now,
+              updatedAt = now
+            }
+        midWithCode = Id $ read "00000000-0000-0000-0000-00000000000e"
+        midWithoutCode = Id $ read "00000000-0000-0000-0000-00000000000f"
+
+    result <-
+      runTestStack now gen Map.empty def $ do
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
+        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600)
+        meetings <- listMeetings zUser
+        pure [(qUnqualified m.id, m.link) | m <- meetings]
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right links ->
+        links
+          `shouldBe` [ (midWithCode, Just (API.mkMeetingLink testCodeURIBase midWithCode)),
+                       (midWithoutCode, Nothing)
+                     ]
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0

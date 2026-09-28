@@ -65,6 +65,9 @@ interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   -- hold meeting codes, so the lookup must go straight to Postgres.
   GetMeetingCode mid ->
     Postgres.interpretCodeStoreToPostgres $ CodeStore.getMeetingCode mid
+  -- Meeting codes are Postgres-only (see GetMeetingCode routing).
+  GetMeetingCodes mids ->
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.getMeetingCodes mids
   MakeKey ref -> case ref of
     CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.makeKey ref
     CodeReferentMeeting _ -> Postgres.interpretCodeStoreToPostgres $ CodeStore.makeKey ref

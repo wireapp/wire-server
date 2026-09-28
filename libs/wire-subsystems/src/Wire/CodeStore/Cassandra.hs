@@ -52,11 +52,14 @@ interpretCodeStoreToCassandra = interpret $ \case
     CodeReferentConv cid -> embedClientInput $ insertCode cid code mPw
     CodeReferentMeeting _ -> throwS @'CodeStoreNotFound
   -- Meeting codes never live in Cassandra; report unsupported so callers
-  -- degrade to the placeholder join link instead of failing the request.
+  -- degrade to a meeting without a link instead of failing the request.
   CreateMeetingCode _ _ -> pure False
   -- Meeting codes never live in Cassandra; short-circuit without a network
-  -- round trip so callers degrade to the placeholder join link.
+  -- round trip so callers omit the link instead of failing the request.
   GetMeetingCode _ -> pure Nothing
+  -- Meeting codes never live in Cassandra; return no codes so callers omit
+  -- the join links instead of failing the request.
+  GetMeetingCodes _ -> pure Map.empty
   DeleteConversationCode cid ->
     Code.mkKey (CodeReferentConv cid) >>= embedClientInput . deleteCode
   -- Meeting codes never live in Cassandra; deletion is a no-op so that

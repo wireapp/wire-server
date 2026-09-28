@@ -34,7 +34,6 @@ import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDom
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
-import Data.UUID (nil)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -52,6 +51,7 @@ import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), Meetings
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as CodeStore
+import Wire.CodeStore.Code (Code)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
@@ -100,7 +100,7 @@ meetingCodeTimeout = Timeout (fromIntegral (maxBound @Int32))
 -- | Resolve the join-link base for a domain. 'Nothing' from the code store
 -- only happens in multi-domain mode when the user's domain has no configured
 -- URI (a misconfiguration); degrade to an https URL derived from the user's
--- own domain so the nil-uuid placeholder stays recognizable.
+-- own domain so a real join code still renders a valid link.
 codeURIBase :: (Member CodeStore r) => Domain -> Sem r HttpsUrl
 codeURIBase dom =
   fromMaybe (domainFallback dom) <$> CodeStore.getConversationCodeURI (Just dom)
@@ -256,7 +256,7 @@ createMeetingImpl zUser connId newMeeting = do
   -- Create the join code BEFORE the meeting row: a row without a code would
   -- serve a dead link, while an unreferenced code is harmless. Code-store
   -- modes that cannot hold meeting codes (Cassandra-only) return False;
-  -- degrade to the placeholder link instead of failing the request.
+  -- degrade to a meeting without a link instead of failing the request.
   hasJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout
   unless hasJoinCode $
     TinyLog.warn $
@@ -490,33 +490,48 @@ getMeetingConversationOrFail meetingId convId = do
           . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
       pure Nothing
 
--- | Convert a 'Store.StoredMeeting' to an 'API.Meeting'. Meetings without a
--- join-code row in the code store serve the nil-uuid placeholder link;
--- code presence is derived at read time.
+-- | Pure meeting-record construction given the code-lookup result. Meetings
+-- without a live join code omit the link field entirely.
+mkApiMeeting :: HttpsUrl -> Domain -> Maybe Code -> Store.StoredMeeting -> API.Meeting
+mkApiMeeting base domain mCode sm =
+  API.Meeting
+    { API.id = Qualified sm.id domain,
+      API.title = sm.title,
+      API.creator = Qualified sm.creator domain,
+      API.startTime = sm.startTime,
+      API.endTime = sm.endTime,
+      API.tzid = sm.tzid,
+      API.mtype = sm.meetingType,
+      API.recurrence = sm.recurrence,
+      API.conversationId = Qualified sm.conversationId domain,
+      API.invitedEmails = sm.invitedEmails,
+      API.createdAt = sm.createdAt,
+      API.updatedAt = sm.updatedAt,
+      API.link = API.mkMeetingLink base sm.id <$ mCode
+    }
+
+-- | Convert a 'Store.StoredMeeting' to an 'API.Meeting'; performs exactly
+-- one code-store lookup.
 storedMeetingToMeeting ::
   (Member CodeStore r) =>
   HttpsUrl ->
   Domain ->
   Store.StoredMeeting ->
   Sem r API.Meeting
-storedMeetingToMeeting base domain sm = do
-  hasCode <- isJust <$> CodeStore.getMeetingCode sm.id
-  pure $
-    API.Meeting
-      { API.id = Qualified sm.id domain,
-        API.title = sm.title,
-        API.creator = Qualified sm.creator domain,
-        API.startTime = sm.startTime,
-        API.endTime = sm.endTime,
-        API.tzid = sm.tzid,
-        API.mtype = sm.meetingType,
-        API.recurrence = sm.recurrence,
-        API.conversationId = Qualified sm.conversationId domain,
-        API.invitedEmails = sm.invitedEmails,
-        API.createdAt = sm.createdAt,
-        API.updatedAt = sm.updatedAt,
-        API.link = API.mkMeetingLink base (if hasCode then sm.id else Id nil)
-      }
+storedMeetingToMeeting base domain sm =
+  (\mCode -> mkApiMeeting base domain mCode sm) <$> CodeStore.getMeetingCode sm.id
+
+-- | One 'CodeStore.getMeetingCodes' query for the whole batch instead of
+-- one 'getMeetingCode' per meeting.
+storedMeetingsToMeetings ::
+  (Member CodeStore r) =>
+  HttpsUrl ->
+  Domain ->
+  [Store.StoredMeeting] ->
+  Sem r [API.Meeting]
+storedMeetingsToMeetings base domain sms = do
+  codes <- CodeStore.getMeetingCodes (map (.id) sms)
+  pure [mkApiMeeting base domain (Map.lookup sm.id codes) sm | sm <- sms]
 
 -- | Like 'storedMeetingToMeeting', but additionally carries the full
 -- 'API.Conversation' associated with the meeting.
@@ -566,7 +581,7 @@ listMeetingsImpl zUser validityPeriod = do
       -- Combine and deduplicate
       allMeetings <-
         (<> memberMeetings)
-          <$> traverse (storedMeetingToMeeting base (tDomain zUser)) createdMeetings
+          <$> storedMeetingsToMeetings base (tDomain zUser) createdMeetings
       let uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
       pure uniqueMeetings
     else pure []
@@ -607,7 +622,7 @@ getAllMemberMeetings zUser base cutoff = do
               -- Fetch meetings for these conversations
               pageMeetings <- forM targetQConvIds $ \qConvId -> do
                 Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
-              currentMeetings <- traverse (storedMeetingToMeeting base (tDomain zUser)) (concat pageMeetings)
+              currentMeetings <- storedMeetingsToMeetings base (tDomain zUser) (concat pageMeetings)
               -- Check if there are more pages
               if hasMore
                 then do
