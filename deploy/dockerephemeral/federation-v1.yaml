@@ -39,8 +39,8 @@ services:
         condition: service_completed_successfully
     environment:
       - AWS_REGION=eu-west-1
-      - AWS_ACCESS_KEY_ID=dummykey
-      - AWS_SECRET_ACCESS_KEY=dummysecret
+      - AWS_ACCESS_KEY_ID=GKdeadbeefcafebabe0000000000000000
+      - AWS_SECRET_ACCESS_KEY=deadbeefcafebabe0000000000000000deadbeefcafebabe0000000000000000
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 
@@ -76,8 +76,8 @@ services:
         condition: service_completed_successfully
     environment:
       - AWS_REGION=eu-west-1
-      - AWS_ACCESS_KEY_ID=dummykey
-      - AWS_SECRET_ACCESS_KEY=dummysecret
+      - AWS_ACCESS_KEY_ID=GKdeadbeefcafebabe0000000000000000
+      - AWS_SECRET_ACCESS_KEY=deadbeefcafebabe0000000000000000deadbeefcafebabe0000000000000000
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 
@@ -96,8 +96,8 @@ services:
         condition: service_completed_successfully
     environment:
       - AWS_REGION=eu-west-1
-      - AWS_ACCESS_KEY_ID=dummykey
-      - AWS_SECRET_ACCESS_KEY=dummysecret
+      - AWS_ACCESS_KEY_ID=GKdeadbeefcafebabe0000000000000000
+      - AWS_SECRET_ACCESS_KEY=deadbeefcafebabe0000000000000000deadbeefcafebabe0000000000000000
 
   gundeck_schema-v1:
     container_name: gundeck-schema-federation-v1
@@ -131,8 +131,8 @@ services:
         condition: service_started
     environment:
       - AWS_REGION=eu-west-1
-      - AWS_ACCESS_KEY_ID=dummykey
-      - AWS_SECRET_ACCESS_KEY=dummysecret
+      - AWS_ACCESS_KEY_ID=GKdeadbeefcafebabe0000000000000000
+      - AWS_SECRET_ACCESS_KEY=deadbeefcafebabe0000000000000000deadbeefcafebabe0000000000000000
 
   spar_schema-v1:
     container_name: spar-schema-federation-v1

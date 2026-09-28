@@ -68,13 +68,16 @@ services:
 
   fake_s3:
     container_name: demo_wire_s3
-    image: quay.io/minio/minio:RELEASE.2023-07-07T07-13-57Z
+    image: dxflrs/garage:v2.4.1
     ports:
-      - "127.0.0.1:4570:9000"
+      - "127.0.0.1:4570:3900"
     environment:
-      MINIO_ACCESS_KEY: dummykey
-      MINIO_SECRET_KEY: dummysecret # minio requires a secret of at least 8 chars
-    command: server /tmp
+      GARAGE_DEFAULT_ACCESS_KEY: GKdeadbeefcafebabe0000000000000000
+      GARAGE_DEFAULT_SECRET_KEY: deadbeefcafebabe0000000000000000deadbeefcafebabe0000000000000000
+      GARAGE_DEFAULT_BUCKET: dummy-bucket
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml
+    command: /garage server --single-node --default-bucket
     networks:
       - demo_wire
 
