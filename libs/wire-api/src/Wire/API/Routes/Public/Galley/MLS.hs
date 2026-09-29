@@ -107,10 +107,8 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedMessage
                :> "messages"
                :> "targeted"
-               :> APIVersion Version
                :> ZLocalUser
                :> ZClient
-               :> ZConn
                :> ReqBody '[MLS] TargetedMessageBatch
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Targeted messages sent" MLSMessageSendingStatus)
            )

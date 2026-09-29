@@ -64,8 +64,17 @@ tests =
       testCase "key package ref" testKeyPackageRef,
       testCase "create signed remove proposal" testRemoveProposalMessageSignature,
       testCase "parse client identity" testParseClientIdentity,
-      testCase "parse targeted message batch" testParseTargetedMessageBatch
+      testCase "parse targeted message batch" testParseTargetedMessageBatch,
+      testCase "targeted message epoch window" testTargetedMessageEpochWindow
     ]
+
+testTargetedMessageEpochWindow :: IO ()
+testTargetedMessageEpochWindow = do
+  let current = Epoch 10
+  isAtMost3EpochsPast current (Epoch 10) @?= True
+  isAtMost3EpochsPast current (Epoch 7) @?= True
+  isAtMost3EpochsPast current (Epoch 6) @?= False
+  isAtMost3EpochsPast current (Epoch 11) @?= False
 
 testParseTargetedMessageBatch :: IO ()
 testParseTargetedMessageBatch = do
