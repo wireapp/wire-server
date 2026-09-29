@@ -358,6 +358,12 @@ data ConversationSubsystem m a where
   InternalDeleteLocalConversation ::
     Local ConvId ->
     ConversationSubsystem m ()
+  -- | Run all fallible checks of 'DeleteLocalConversation' without applying
+  -- the deletion or sending notifications.
+  CheckDeleteLocalConversation ::
+    Local UserId ->
+    Local ConvId ->
+    ConversationSubsystem m ()
   InternalDeleteLocalAdminlessGroup ::
     Maybe (Local UserId) ->
     Local ConvId ->

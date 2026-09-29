@@ -1850,9 +1850,6 @@ removeMemberFromChannel qusr lconv victim = do
   ensureAllowed @'ConversationRemoveMembersTag lconv action conv actorContext
   let notificationTargets = convBotsAndMembers conv
   kickMember qusr lconv notificationTargets victim
-  where
-    getTeamMembership :: StoredConversation -> Local UserId -> Sem r (Maybe TeamMember)
-    getTeamMembership conv luid = maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember (tUnqualified luid)) conv.metadata.cnvmTeam
 
 -- OTR
 

@@ -570,12 +570,13 @@ testMeetingDelete = do
     deleteMeeting owner domain meetingId >>= assertStatus 200
     -- meeting.delete is sent before the conversation is deleted (WPB-29046):
     -- await both notifications and assert their arrival order.
-    [firstDel, _secondDel] <-
+    [firstDel, secondDel] <-
       awaitNMatches
         2
         (\n -> (||) <$> isMeetingDeleteNotif n <*> isConvDeleteMeetingNotif n)
         ws
     assertBool "expected meeting.delete before conversation.delete-meeting" =<< isMeetingDeleteNotif firstDel
+    assertBool "expected conversation.delete-meeting after meeting.delete" =<< isConvDeleteMeetingNotif secondDel
   getMeeting owner domain meetingId >>= assertStatus 404
 
 -- | WPB-27907: meeting lifecycle events are delivered to all conversation
