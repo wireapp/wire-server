@@ -365,8 +365,9 @@ rmUser lusr conn = do
   --
   -- Swapping the two steps is not a fix: 'leaveLocalConversations'
   -- does not delete team 1:1 conversations the way
-  -- 'deleteUserFromTeamConversations' does, and the two emit
-  -- different member-leave reasons.  This smells like our
+  -- 'deleteUserFromTeamConversations' does: the two emit different
+  -- events (a 'ConversationRemoveMembers' action event vs. an
+  -- 'EdMembersLeave' member-leave event). This smells like our
   -- architecture is a bit lopsided, but would need further
   -- investigation.
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
