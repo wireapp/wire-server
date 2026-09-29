@@ -1,1 +1,1 @@
-Votre Compte ${brand}
+Panini Error

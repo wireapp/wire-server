@@ -14,7 +14,7 @@ New availability: ${new_availability}
 Team name: ${team_name}
 Team ID: ${team_id}
 
-Open Team Management [${url}]If you have any questions, please contact us [${support}].
+Open Team Management [${url}] If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------

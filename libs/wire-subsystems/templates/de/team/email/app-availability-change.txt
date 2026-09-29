@@ -14,7 +14,7 @@ Neue Verfügbarkeit: ${new_availability}
 Team-Name: ${team_name}
 Team-ID: ${team_id}
 
-Team-Management öffnen [${url}]Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
+Team-Management öffnen [${url}] Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------
