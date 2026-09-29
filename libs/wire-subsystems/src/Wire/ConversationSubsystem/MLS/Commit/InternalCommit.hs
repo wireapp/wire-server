@@ -149,7 +149,13 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
                 -- FUTUREWORK: add tests against this situation for conv v subconv
                 when (removedClients /= clientsInConv) $ do
-                  -- FUTUREWORK: turn this error into a proper response
+                  logMLSClientMismatch
+                    "remove"
+                    qtarget
+                    clients
+                    clientsInConv
+                    (cnvmlsGroupId convOrSub.mlsMeta)
+                    epoch
                   throwS @'MLSClientMismatch
 
                 pure qtarget
@@ -162,7 +168,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
           -- here, so we simply return the empty list.
           failedAddFetching <- case convOrSub.id of
             SubConv _ _ -> pure [] -- FUTUREWORK: fold this case into checkClients
-            Conv _ -> checkClients lConvOrSub ciphersuite (paAdd action)
+            Conv _ -> checkClients lConvOrSub ciphersuite (cnvmlsGroupId convOrSub.mlsMeta) epoch (paAdd action)
           for_
             (unreachableFromList failedAddFetching)
             (throw . unreachableUsersToUnreachableBackends)
