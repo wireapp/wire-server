@@ -487,7 +487,7 @@ refreshMeetingLinkImpl zUser connId meetingId validityPeriod = do
     updated <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updated.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
-    pure $ storedMeetingToMeetingWithConversation base zUser conv updated
+    lift $ storedMeetingToMeetingWithConversation base zUser conv updated
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,

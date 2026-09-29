@@ -1180,7 +1180,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (meeting, refreshed, oldCode, newCode) -> do
           fmap (.meeting) refreshed `shouldBe` Just meeting.meeting
           fmap (.meeting.link) refreshed
-            `shouldBe` Just (API.mkMeetingLink testCodeURIBase (qUnqualified meeting.meeting.id))
+            `shouldBe` Just (Just (API.mkMeetingLink testCodeURIBase (qUnqualified meeting.meeting.id)))
           oldCode `shouldSatisfy` isJust
           newCode `shouldSatisfy` isJust
           newCode `shouldSatisfy` (/= oldCode)
