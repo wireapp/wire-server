@@ -1,0 +1,3 @@
+Document multi-ingress config settings for account-pages and improve the
+existing documentation of the webapp. Add a section for team-settings,
+explaining that it doesn't support multi-ingress (yet).
