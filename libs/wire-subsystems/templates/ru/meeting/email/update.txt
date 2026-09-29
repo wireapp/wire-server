@@ -1,0 +1,31 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+${meeting_title}
+${host_name} (${host_email}) updated a meeting on Wire.
+
+What changed
+${change_summary}
+
+When
+${start_date}
+${start_time} – ${end_time} (${timezone_short})
+Add to calendar [${ics_url}]
+
+How to join
+At the time of the meeting, select Join meeting below. You can also paste this
+link into your browser:
+${join_url} [${join_url}]
+
+Join meeting [${join_url}]Report abusive invitation [${support}]
+
+Что такое Wire?Wire является самой защищенной платформой для совместной работы.
+Работайте со своей командой и внешними партнерами, где бы вы ни находились
+посредством сообщений, видеоконференций и обмена файлами - всегда защищенными
+сквозным шифрованием.
+Узнать больше [https://wire.com/].
+
+Остались вопросы? Свяжитесь с нами [${support}]
+
+{> ru/footer-new}}
