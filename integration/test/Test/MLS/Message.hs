@@ -133,20 +133,52 @@ testMultipleMessages = do
 
 testTargetedMessage :: (HasCallStack) => App ()
 testTargetedMessage = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
   convId <- createNewGroup def alice1
 
-  void $ withWebSocket bob $ \ws -> do
-    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
-    void $ awaitMatch isMemberJoinNotif ws
+  void $ withWebSockets [alice, bob, charlie] $ \[aliceWs, bobWs, charlieWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif bobWs
+    void $ awaitMatch isMemberJoinNotif charlieWs
 
     targeted <- createTargetedMessage convId alice1 bob1 "targeted hello"
     postMLSTargetedMessage targeted.sender targeted.message >>= assertStatus 201
 
-    notification <- awaitMatch isNewMLSTargetedMessageNotif ws
+    notification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
     event <- notification %. "payload.0"
     event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     event %. "from" `shouldMatch` targeted.sender.user
     event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
+
+testTargetedMessageBatch :: (HasCallStack) => App ()
+testTargetedMessageBatch = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
+  convId <- createNewGroup def alice1
+
+  void $ withWebSockets [alice, bob, charlie] $ \[aliceWs, bobWs, charlieWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif bobWs
+    void $ awaitMatch isMemberJoinNotif charlieWs
+
+    bobMessage <- createTargetedMessage convId alice1 bob1 "targeted hello bob"
+    charlieMessage <- createTargetedMessage convId alice1 charlie1 "targeted hello charlie"
+    postMLSTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) >>= assertStatus 201
+
+    bobNotification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
+    bobEvent <- bobNotification %. "payload.0"
+    bobEvent %. "from" `shouldMatch` alice1.user
+    bobEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode bobMessage.message))
+
+    charlieNotification <- awaitMatch isNewMLSTargetedMessageNotif charlieWs
+    charlieEvent <- charlieNotification %. "payload.0"
+    charlieEvent %. "from" `shouldMatch` alice1.user
+    charlieEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode charlieMessage.message))
+
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
