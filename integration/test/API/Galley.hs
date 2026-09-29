@@ -331,6 +331,11 @@ postMLSMessage cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/messages"
   submit "POST" (addMLS msg req)
 
+postMLSTargetedMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
+postMLSTargetedMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages/targeted"
+  submit "POST" (addMLS msg req)
+
 postMLSCommitBundle :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
 postMLSCommitBundle cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/commit-bundles"

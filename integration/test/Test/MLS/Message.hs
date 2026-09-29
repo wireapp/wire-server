@@ -21,6 +21,8 @@ module Test.MLS.Message where
 
 import API.Galley
 import API.Gundeck
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Char8 as B8
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -128,3 +130,23 @@ testMultipleMessages = do
 
     void $ createApplicationMessage convId alice1 "world" >>= sendAndConsumeMessage
     traverse_ (awaitMatch isNewMLSMessageNotif) wss
+
+testTargetedMessage :: (HasCallStack) => App ()
+testTargetedMessage = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  void $ withWebSocket bob $ \ws -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif ws
+
+    targeted <- createTargetedMessage convId alice1 bob1 "targeted hello"
+    postMLSTargetedMessage targeted.sender targeted.message >>= assertStatus 201
+
+    notification <- awaitMatch isNewMLSTargetedMessageNotif ws
+    event <- notification %. "payload.0"
+    event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    event %. "from" `shouldMatch` targeted.sender.user
+    event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
