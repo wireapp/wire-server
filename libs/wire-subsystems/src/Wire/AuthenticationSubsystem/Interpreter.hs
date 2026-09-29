@@ -402,9 +402,10 @@ verifyUserPasswordImpl uid plaintext = do
     UserStore.lookupHashedPassword uid
       >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
   verifiedPassword <- verifyPasswordWithStatus (RateLimitUser uid) plaintext password
-  case toPlainTextPassword8 plaintext of
-    Just {} -> pure $ verifiedPassword & _2 .~ PasswordStatusNeedsUpdate
-    Nothing -> pure verifiedPassword
+  pure $
+    case toPlainTextPassword8 plaintext of
+      Just _ -> verifiedPassword & _2 .~ PasswordStatusNeedsUpdate
+      Nothing -> verifiedPassword
 
 verifyUserPasswordErrorImpl ::
   ( Member (Error AuthenticationSubsystemError) r,
