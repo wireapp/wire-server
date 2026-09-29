@@ -75,6 +75,19 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{- end -}}
 
 {{/*
+Gateway listener section names. Overridable so this chart can attach to an
+externally created Gateway whose listeners are named differently. The defaults
+match the listeners rendered by gateway.yaml.
+*/}}
+{{- define "wire-ingress.httpsSectionName" -}}
+{{- .Values.gateway.listeners.https.sectionName | default "https" -}}
+{{- end -}}
+
+{{- define "wire-ingress.federatorSectionName" -}}
+{{- .Values.gateway.listeners.federator.sectionName | default "federator" -}}
+{{- end -}}
+
+{{/*
 Normalized list of ingress domains, returned as a JSON array so callers can
 `fromJsonArray` and range over it.
 
@@ -117,7 +130,7 @@ primary (bool), csp (bool).
     {{- $tls := $domain.tls | default dict -}}
     {{- $issuer := $tls.issuer | default dict -}}
     {{- $suffix := ternary "" (printf "-%s" $name) $primary -}}
-    {{- $section := ternary "https" (printf "https-%s" $name) $primary -}}
+    {{- $section := ternary (include "wire-ingress.httpsSectionName" $root) ($domain.sectionName | default (printf "https-%s" $name)) $primary -}}
     {{- $secretName := "" -}}
     {{- if $tls.secretName -}}{{- $secretName = $tls.secretName -}}
     {{- else if $primary -}}{{- $secretName = include "wire-ingress.certificateSecretName" $root -}}
@@ -158,7 +171,7 @@ primary (bool), csp (bool).
   {{- $base := include "wire-ingress.zone" . -}}
   {{- $entry := dict
       "suffix" ""
-      "section" "https"
+      "section" (include "wire-ingress.httpsSectionName" .)
       "hostname" .Values.gateway.listeners.https.hostname
       "https" (required "config.dns.https is required" $dns.https)
       "ssl" ($dns.ssl | default "")

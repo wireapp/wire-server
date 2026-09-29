@@ -14,7 +14,7 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: {{ include "wire-ingress.gatewayName" . | quote }}
-      sectionName: federator
+      sectionName: {{ include "wire-ingress.federatorSectionName" . }}
   {{- if .Values.gateway.proxyProtocol.enabled }}
   proxyProtocol:
     optional: {{ .Values.gateway.proxyProtocol.optional }}

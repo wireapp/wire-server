@@ -46,7 +46,7 @@ spec:
             kind: Secret
     {{- end }}
     {{- if .Values.federator.enabled }}
-    - name: federator
+    - name: {{ include "wire-ingress.federatorSectionName" . }}
       port: {{ .Values.gateway.listeners.https.port }}
       protocol: HTTPS
       hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}

@@ -31,8 +31,10 @@ spec:
   type: JSONPatch
   jsonPatches:
     - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
-      # Route config name: <namespace>/<gateway-name>/federator
-      name: {{ printf "%s/%s/federator" .Release.Namespace (include "wire-ingress.gatewayName" .) | quote }}
+      {{- /* Route configs for TLS listeners are named <namespace>/<gateway>/<section>
+           regardless of the xDS name scheme: routeConfigName() delegates to
+           httpsListenerFilterChainName(), which ignores XDSNameSchemeV2. */}}
+      name: {{ printf "%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) (include "wire-ingress.federatorSectionName" .) | quote }}
       operation:
         op: add
         path: "/virtual_hosts/0/domains/-"
