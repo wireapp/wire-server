@@ -176,6 +176,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
   PostMLSMessageFromLocalUser v lusr c conn smsg ->
     mapErrors $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
+  PostMLSTargetedMessagesFromLocalUser lusr c batch ->
+    mapErrors $ MLSMessage.postMLSTargetedMessagesFromLocalUser lusr c batch
   IsMLSEnabled ->
     mapErrors $ MLSEnabled.isMLSEnabled
   GetConversationsInternal luser mids mstart msize ->

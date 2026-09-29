@@ -20,6 +20,7 @@ module Wire.ConversationSubsystem.MLS.Message
     postMLSCommitBundle,
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
+    postMLSTargetedMessagesFromLocalUser,
     postMLSMessage,
   )
 where
@@ -55,6 +56,7 @@ import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation (Event (..), EventData (..), EventFrom (..))
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
@@ -64,12 +66,16 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Epoch (isAtMost3EpochsPast)
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.Message
 import Wire.API.MLS.OutOfSync
+import Wire.API.MLS.ProtocolVersion (defaultProtocolVersion)
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.MLS.TargetedMessage
+import Wire.API.Message (defMessageMetadata)
 import Wire.API.Routes.Version
 import Wire.API.Team.LegalHold
 import Wire.BrigAPIAccess (BrigAPIAccess)
@@ -96,6 +102,7 @@ import Wire.FederationAPIAccess
 import Wire.FederationSubsystem
 import Wire.MeetingNotifier
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.StoredConversation
@@ -166,6 +173,112 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
       <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) (enableOutOfSyncCheckFromVersion v) imsg
   t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus events t
+
+postMLSTargetedMessagesFromLocalUser ::
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (Error MLSProtocolError) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  ClientId ->
+  TargetedMessageBatch ->
+  Sem r MLSMessageSendingStatus
+postMLSTargetedMessagesFromLocalUser lusr client batch = do
+  assertMLSEnabled
+  firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
+  (ctype, qualifiedConvOrSubId) <- getConvFromGroupId firstMessage.value.groupId
+  convOrSubId <- foldQualified lusr pure (const $ throwS @'ConvNotFound) qualifiedConvOrSubId
+  validateAndPropagateTargetedMessages
+    lusr
+    client
+    ctype
+    convOrSubId
+    batch.messages
+  t <- toUTCTimeMillis <$> Now.get
+  pure $ MLSMessageSendingStatus [] t
+
+validateAndPropagateTargetedMessages ::
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (Error MLSProtocolError) r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  ClientId ->
+  ConvType ->
+  Local ConvOrSubConvId ->
+  [RawMLS PersistentTargetedMessage] ->
+  Sem r ()
+validateAndPropagateTargetedMessages _lusr _client _ctype _lconv [] =
+  throw $ mlsProtocolError "targeted message batch is empty"
+validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMessage : _) = do
+  lconvOrSub <- fetchConvOrSub (tUntagged lusr) firstGroupId ctype lconv
+  let convOrSub = tUnqualified lconvOrSub
+      expectedClient = mkClientIdentity (tUntagged lusr) client
+      currentEpoch = (.epoch) <$> convOrSub.mlsMeta.cnvmlsActiveData
+      recipients = map ((.recipient) . (.value)) messages
+  unless (all ((== firstGroupId) . (.groupId) . (.value)) messages) $
+    throw $
+      mlsProtocolError "targeted messages must belong to one group"
+  when (length recipients /= Set.size (Set.fromList recipients)) $
+    throw $
+      mlsProtocolError "targeted message recipients must be unique"
+  validated <- for messages $ \raw -> do
+    let msg = raw.value
+    unless (msg.protocolVersion == defaultProtocolVersion && msg.wireFormat == TargetedMessageWireFormat) $
+      throwS @'MLSUnsupportedMessage
+    case currentEpoch of
+      Nothing -> throw $ mlsProtocolError "targeted message group has no active epoch"
+      Just epoch -> do
+        unless (isAtMost3EpochsPast epoch msg.epoch) $
+          throwS @'MLSStaleMessage
+    case imLookup convOrSub.indexMap msg.sender of
+      Just (RegularClient senderClient)
+        | senderClient == expectedClient -> pure ()
+        | otherwise -> throwS @'MLSClientSenderUserMismatch
+      _ -> throwS @'MLSInvalidLeafNodeIndex
+    recipientClient <- case imLookup convOrSub.indexMap msg.recipient of
+      Just (RegularClient recipient) -> pure recipient
+      _ -> throwS @'MLSInvalidLeafNodeIndex
+    pure (raw, recipientClient)
+  for_ validated $ \(raw, recipientClient) -> do
+    let qt =
+          tUntagged lconvOrSub <&> \case
+            Conv c -> (c.mcId, Nothing)
+            SubConv c s -> (c.mcId, Just s.scSubConvId)
+        qcnv = fst <$> qt
+        sconv = snd (qUnqualified qt)
+    now <- Now.get
+    let event =
+          Event
+            { evtConv = qcnv,
+              evtSubConv = sconv,
+              evtFrom = EventFromUser (tUntagged lusr),
+              evtTime = now,
+              evtTeam = Nothing,
+              evtData = EdMLSTargetedMessage raw.raw
+            }
+    runMessagePush lconvOrSub (Just qcnv) $
+      newMessagePush mempty Nothing defMessageMetadata [(recipientClient.ciUser, recipientClient.ciClient)] event
+  where
+    firstGroupId = firstMessage.value.groupId
 
 postMLSCommitBundle ::
   ( Member MeetingNotifier r,
