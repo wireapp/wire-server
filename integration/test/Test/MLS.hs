@@ -925,7 +925,7 @@ testBackendRemoveProposalTeamConv = do
   teamConvId <- createNewGroupWith def alice1 defMLS {team = Just tid}
   void $ createAddCommit alice1 teamConvId [bob] >>= sendAndConsumeCommitBundle
 
-  -- Ror testing the "remove from conv because personal user chose to leave it" path.
+  -- For testing the "remove from conv because personal user chose to leave it" path.
   personalConvId <- createNewGroup def alice1
   void $ createAddCommit alice1 personalConvId [bob] >>= sendAndConsumeCommitBundle
 
