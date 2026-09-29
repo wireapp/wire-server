@@ -907,7 +907,7 @@ testBackendRemoveProposal suite domain = do
 -- | Regression coverage for the conversation-enumeration order in
 -- 'Galley.API.Internal.rmUser'. On user deletion, @leaveTeams@ runs before
 -- @goConvPages@ and strips the deleted user from every team conversation via
--- 'deleteUserFromTeamConversations', which has no MLS step. Both that removal
+-- 'deleteUserFromTeamConversations'. Before this fix, that path had no MLS step. Both that removal
 -- and the subsequent conversation enumeration go through the
 -- @conversation_member@ table, so by the time @leaveLocalConversations@ would
 -- call @removeUser@, team conversations are no longer listed.
