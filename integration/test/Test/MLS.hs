@@ -921,7 +921,7 @@ testBackendRemoveProposalTeamConv = do
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   replicateM_ 2 $ uploadNewKeyPackage def bob1
 
-  -- Ror testing the "remove from conv because team member has been terminated" path.
+  -- For testing the "remove from conv because team member has been terminated" path.
   teamConvId <- createNewGroupWith def alice1 defMLS {team = Just tid}
   void $ createAddCommit alice1 teamConvId [bob] >>= sendAndConsumeCommitBundle
 
