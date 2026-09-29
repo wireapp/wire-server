@@ -38,12 +38,19 @@ module Gundeck.Push
     addToken,
     listTokens,
     deleteToken,
+    addWebSubscription,
+    deleteWebSubscription,
+    listWebSubscriptions,
+    getVapidPublicKey,
     -- (for testing)
     pushAll,
     splitPush,
     MonadPushAll (..),
     MonadNativeTargets (..),
     MonadMapAsync (..),
+    validateEndpointHost,
+    endpointHost,
+    addressToSubscription,
   )
 where
 
@@ -62,6 +69,7 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
 import Data.Timeout
 import Data.UUID qualified as UUID
@@ -76,6 +84,8 @@ import Gundeck.Presence.Data qualified as Presence
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
+import Gundeck.Push.Web qualified as WebPush
+import Gundeck.Push.Web.Runner (runWebPush)
 import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
 import Gundeck.Util
@@ -86,6 +96,8 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
+import URI.ByteString (strictURIParserOptions)
+import URI.ByteString qualified as URI
 import UnliftIO (pooledMapConcurrentlyN)
 import Util.Options
 import Wire.API.Internal.Notification
@@ -95,6 +107,13 @@ import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
 import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
+import Wire.WebPushStore
+  ( WebPushAddress (..),
+    deleteSubscription,
+    insertSubscription,
+    lookupSubscriptions,
+    purgeExpired,
+  )
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -112,6 +131,21 @@ class (MonadThrow m) => MonadPushAll m where
   mpaBulkPush :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
   mpaStreamAdd :: NotificationId -> NonEmpty NotificationTarget -> NonEmpty Aeson.Object -> NotificationTTL -> m ()
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
+
+  -- | Deliver a web push notification to a list of resolved web push
+  -- subscriptions. Analogous to 'mpaPushNative' but for the W3C Push API
+  -- (RFC 8030 application-server path) instead of AWS SNS. No-op when the
+  -- address list is empty; the underlying 'WebPush.push' handles fan-out
+  -- under the configured per-push concurrency budget.
+  mpaPushWeb :: Notification -> Priority -> [WebPushAddress] -> m ()
+
+  -- | Look up all web push subscriptions registered for a user. Returns
+  -- @[]@ on lookup failure (transient Postgres outage, etc.) after
+  -- logging; this matches the resilient semantics of the surrounding
+  -- dispatch code where a per-user lookup failure must not abort the
+  -- entire push batch.
+  mpaWebTargets :: UserId -> m [WebPushAddress]
+
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
   mpaGetClients :: Set UserId -> m UserClientsFull
@@ -126,6 +160,18 @@ instance MonadPushAll Gundeck where
   mpaBulkPush = Web.bulkPush
   mpaStreamAdd = Data.add
   mpaPushNative = pushNative
+  mpaPushWeb notif prio addrs =
+    WebPush.push (NativePush (ntfId notif) prio Nothing) addrs
+  mpaWebTargets uid = do
+    pool <- view pgPool
+    runWebPush pool (lookupSubscriptions uid) >>= \case
+      Left storeErr -> do
+        Log.err $
+          msg (val "Web push subscription lookup failed")
+            . Log.field "user" (UUID.toASCIIBytes (toUUID uid))
+            . Log.field "error" (show storeErr)
+        pure []
+      Right addrs -> pure addrs
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
   mpaGetClients = getClients
@@ -289,7 +335,13 @@ pushAllLegacy newNotifications userClientsFull = do
       let alreadySentClients = Set.fromList $ mapMaybe (\p -> (p.userId,) <$> p.clientId) alreadySent
           rabbitmqClients = Map.map (Set.filter supportsConsumableNotifications) userClientsFull.userClientsFull
           rabbitmqClientIds = Map.foldMapWithKey (\uid clients -> Set.map (\c -> (uid, c.clientId)) clients) rabbitmqClients
-      pushNativeWithBudget notif psh (Set.toList $ Set.union alreadySentClients rabbitmqClientIds)
+      let dontPush = Set.toList $ Set.union alreadySentClients rabbitmqClientIds
+      pushNativeWithBudget notif psh dontPush
+      -- Web push uses the same 'dontPush' set as native: a client already
+      -- served over websocket must not receive a duplicate web push. The
+      -- underlying 'WebPush.push' fans out under the configured per-push
+      -- concurrency budget (reused from native for v1).
+      pushWebWithBudget notif psh dontPush
 
 pushNativeWithBudget :: (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) => Notification -> Push -> [(UserId, ClientId)] -> m ()
 pushNativeWithBudget notif psh dontPush = do
@@ -304,6 +356,29 @@ pushNativeWithBudget notif psh dontPush = do
   unless (psh ^. pushTransient) $
     mpaRunWithBudget cost () $
       mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' dontPush
+
+-- | Web push counterpart to 'pushNativeWithBudget'. Fans a notification out to
+-- all eligible web push subscriptions under the same per-push concurrency
+-- budget as native push (intentional for v1; web push is unmediated by SNS
+-- but still bounded by 'perNativePushConcurrency' to avoid flooding browser
+-- push services).
+--
+-- Transient pushes are skipped, matching 'pushNativeWithBudget' semantics:
+-- web push is for durable notices, and a transient push signals the client is
+-- reachable over websocket right now.
+pushWebWithBudget ::
+  (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) =>
+  Notification ->
+  Push ->
+  [(UserId, ClientId)] ->
+  m ()
+pushWebWithBudget notif psh dontPush = do
+  perPushConcurrency <- mntgtPerPushConcurrency
+  let rcps' = nativeTargetsRecipients psh
+      cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
+  unless (psh ^. pushTransient) $
+    mpaRunWithBudget cost () $
+      mpaPushWeb notif (psh ^. pushNativePriority) =<< webTargets psh rcps' dontPush
 
 pushAllViaRabbitMq :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> UserClientsFull -> m ()
 pushAllViaRabbitMq newNotifs userClientsFull = do
@@ -510,6 +585,49 @@ nativeTargets psh rcps' dontPush =
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r
 
+-- | Web push counterpart to 'nativeTargets'. Looks up 'WebPushAddress'es per
+-- recipient via 'mpaWebTargets' and filters them with the same semantics as
+-- 'nativeTargets': exclude the origin connection, require the client to be
+-- in the recipient's client set, require the connection to be on the push
+-- allowlist (or no allowlist), and skip any client already served over
+-- websocket (the @dontPush@ set).
+--
+-- A single user may have multiple web push subscriptions per client (e.g.
+-- multiple browsers); each is dispatched independently, so the returned list
+-- can contain multiple 'WebPushAddress'es for the same @(user, client)@.
+webTargets ::
+  forall m.
+  (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) =>
+  Push ->
+  [Recipient] ->
+  [(UserId, ClientId)] ->
+  m [WebPushAddress]
+webTargets psh rcps' dontPush =
+  mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+  where
+    addresses :: Recipient -> m [WebPushAddress]
+    addresses u = filter (eligible u) <$> mpaWebTargets (u ^. recipientId)
+    eligible :: Recipient -> WebPushAddress -> Bool
+    eligible u a
+      -- Never include the origin connection (matches nativeTargets).
+      | Just a.wpaUser == psh ^. pushOrigin && Just a.wpaConn == psh ^. pushOriginConnection = False
+      -- Is the specific client an intended recipient?
+      | not (eligibleWebClient a (u ^. recipientClients)) = False
+      -- Is the connection not on the push allowlist (or no allowlist)?
+      | not (whitelistedOrNoWebWhitelist a) = False
+      -- Skip clients already served over websocket.
+      | otherwise = (a.wpaUser, a.wpaClient) `notElem` dontPush
+    eligibleWebClient :: WebPushAddress -> RecipientClients -> Bool
+    eligibleWebClient _ RecipientClientsAll = True
+    eligibleWebClient a (RecipientClientsSome cs) = a.wpaClient `elem` cs
+    whitelistedOrNoWebWhitelist :: WebPushAddress -> Bool
+    whitelistedOrNoWebWhitelist a =
+      null (psh ^. pushConnections)
+        || a.wpaConn `elem` psh ^. pushConnections
+    check :: Either SomeException [a] -> m [a]
+    check (Left e) = mntgtLogErr e >> pure []
+    check (Right r) = pure r
+
 type AddTokenResponse = Either Public.AddTokenError Public.AddTokenSuccess
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
@@ -675,3 +793,188 @@ deleteToken uid tok = do
 
 listTokens :: UserId -> Gundeck PushTokenList
 listTokens uid = PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.LocalQuorum
+
+--------------------------------------------------------------------------------
+-- Web push subscriptions
+
+-- | Register a web push subscription (RFC 8030 application-server side).
+--
+-- Validates the endpoint against the configured host allowlist (SSRF
+-- mitigation, see 'validateEndpointHost'), then — within a single store
+-- transaction — enforces the per-user subscription cap
+-- ('maxWebPushSubscriptionsPerUser'), purges any expired subscriptions for the
+-- user, and upserts. Re-registering the same @(client, endpoint)@ updates
+-- keys/expiry without duplicating rows: the store's primary key is
+-- @(user, client, endpoint)@.
+addWebSubscription ::
+  UserId ->
+  ConnId ->
+  WebPushSubscription ->
+  Gundeck (Either AddWebPushError AddWebPushSuccess)
+addWebSubscription uid conn sub = do
+  wp <- requireWebPushOpts
+  case validateEndpointHost (wp ^. endpointAllowlist) (sub ^. wpsEndpoint) of
+    Left validationErr -> pure (Left validationErr)
+    Right () -> do
+      pool <- view pgPool
+      runWebPush pool register >>= \case
+        Left storeErr -> do
+          Log.err $
+            msg (val "Web push subscription insert failed")
+              . Log.field "error" (show storeErr)
+          throwM (mkError status500 "web-push-error" "Web Push Error")
+        Right result -> pure result
+  where
+    register = do
+      -- Cap before insert: distinct endpoints are NOT deduped by the store's
+      -- upsert (only identical @(client, endpoint)@ pairs are), so without a
+      -- guard a client could register an unbounded number of rows and cause
+      -- unbounded fan-out at dispatch time (POSTs to every row).
+      -- The cap also bounds the cost of 'purgeExpired' below.
+      existing <- lookupSubscriptions uid
+      if length existing >= maxWebPushSubscriptionsPerUser
+        then pure (Left AddWebPushErrorTooMany)
+        else do
+          purgeExpired uid
+          insertSubscription uid sub conn
+          pure (Right (AddWebPushSuccess sub))
+
+-- | Conservative v1 cap on the number of web push subscriptions a single user
+-- may hold. Bounding this is what makes the per-register 'purgeExpired' and the
+-- fan-out (which POSTs to every row for a user) safe against a buggy or hostile
+-- client. The value is generous for legitimate use — a user typically holds one
+-- subscription per browser profile — and is not yet configurable.
+maxWebPushSubscriptionsPerUser :: Int
+maxWebPushSubscriptionsPerUser = 32
+
+-- | Unregister a web push subscription by endpoint. Idempotent: deleting an
+-- unknown endpoint returns @'Just' ()@ (which the route maps to HTTP 204),
+-- matching the REST convention for DELETE rather than 404-ing on a missing
+-- resource.
+deleteWebSubscription ::
+  UserId ->
+  DeleteWebPushRequest ->
+  Gundeck (Maybe ())
+deleteWebSubscription uid req = do
+  _ <- requireWebPushOpts
+  pool <- view pgPool
+  runWebPush pool (deleteSubscription uid req.deleteWebPushRequestEndpoint) >>= \case
+    Left storeErr -> do
+      Log.err $
+        msg (val "Web push subscription delete failed")
+          . Log.field "error" (show storeErr)
+      throwM (mkError status500 "web-push-error" "Web Push Error")
+    Right () -> pure (Just ())
+
+-- | List all web push subscriptions for a user.
+--
+-- The store's 'lookupSubscriptions' returns 'WebPushAddress'es (the dispatch
+-- shape), which carry everything except expiration time; the expiration is
+-- therefore reported as 'Nothing' here. This is a known v1 limitation: the
+-- per-user dispatch hot path does not need expiry, and the store exposes no
+-- separate full-subscription lookup.
+listWebSubscriptions ::
+  UserId ->
+  Gundeck WebPushSubscriptionList
+listWebSubscriptions uid = do
+  _ <- requireWebPushOpts
+  pool <- view pgPool
+  runWebPush pool (lookupSubscriptions uid) >>= \case
+    Left storeErr -> do
+      Log.err $
+        msg (val "Web push subscription lookup failed")
+          . Log.field "error" (show storeErr)
+      throwM (mkError status500 "web-push-error" "Web Push Error")
+    Right addrs -> pure (WebPushSubscriptionList (addressToSubscription <$> addrs))
+
+-- | Surface the 'WebPushOpts' or reject with HTTP 503 when web push is disabled
+-- (no @webpush:@ config section). Mirrors the contract: absent config
+-- disables the feature uniformly across all handlers, so deployments without
+-- the section behave exactly as before.
+requireWebPushOpts :: Gundeck WebPushOpts
+requireWebPushOpts =
+  view (options . webpush) >>= \case
+    Nothing -> throwM (mkError status503 "web-push-disabled" "Web push is not enabled")
+    Just wp -> pure wp
+
+-- | Convert a stored 'WebPushAddress' back into the API 'WebPushSubscription'
+-- shape. 'wpsExpirationTime' is not retained by the dispatch address, so it is
+-- reported as 'Nothing' (see 'listWebSubscriptions').
+addressToSubscription :: WebPushAddress -> WebPushSubscription
+addressToSubscription a =
+  webPushSubscription a.wpaEndpoint a.wpaKeys Nothing a.wpaClient
+
+-- | Return the server's static VAPID public key (RFC 8292) so that web clients
+-- can pass it as @applicationServerKey@ to @pushManager.subscribe()@.
+--
+-- Rejects with HTTP 503 (@web-push-disabled@) when web push is not configured
+-- (no @webpush:@ section), mirroring the contract enforced by
+-- 'requireWebPushOpts'. The keypair itself is parsed once at startup
+-- ('Gundeck.Env.mkVapidKeyPair'), so the '_vkpPublicB64' field here is just a
+-- read — no crypto, no allocation, no failure mode other than the disabled
+-- feature. The 500 branch below is purely defensive: if '_vapid' is 'Nothing'
+-- while the option is present, startup parsing is broken and the operator
+-- should know immediately.
+getVapidPublicKey :: Gundeck VapidPublicKeyResponse
+getVapidPublicKey = do
+  _ <- requireWebPushOpts
+  view vapid >>= \case
+    Nothing ->
+      throwM $
+        mkError
+          status500
+          "web-push-error"
+          "VAPID keypair missing despite enabled config"
+    Just kp -> pure (VapidPublicKeyResponse (kp ^. vkpPublicB64))
+
+--------------------------------------------------------------------------------
+-- SSRF validation (application-layer)
+
+-- | Validate that the endpoint's host is on the configured allowlist. This is
+-- the application-layer SSRF mitigation called out in the
+-- @endpoint@ is attacker-controllable and gundeck will later POST to it,
+-- so we reject endpoints whose host we did not pre-approve.
+--
+-- Matching is performed on the endpoint's /parsed/ hostname, never on a raw
+-- 'Text.isSuffixOf' over the whole URL: naive suffix matching is a classic
+-- SSRF bypass (an allowlist entry @example.com@ must not match
+-- @example.com.attacker.tld@, and @evil.com@ must not match @notevil.com@).
+-- An entry matches when the host equals it exactly or is a subdomain on a dot
+-- boundary.
+--
+-- An empty allowlist disables the check (accept all) — intended for
+-- development; see @_endpointAllowlist@ in 'WebPushOpts'.
+--
+-- Note: matching is on the ASCII host as parsed. Full IDNA normalization
+-- (punycode) is out of scope here; real browser push services (FCM, Mozilla
+-- autopush) use ASCII hosts, and the manager-layer filter catches the rest.
+validateEndpointHost ::
+  -- | Allowed push-service host suffixes (@_endpointAllowlist@).
+  [Text] ->
+  EndpointUrl ->
+  Either AddWebPushError ()
+validateEndpointHost allowlist url
+  | null allowlist = Right ()
+  | otherwise =
+      case endpointHost url of
+        Nothing -> Left AddWebPushErrorInvalid
+        Just parsedHost
+          | any (hostMatches (Text.toLower parsedHost)) allowlist -> Right ()
+          | otherwise -> Left AddWebPushErrorInvalid
+  where
+    -- Hostnames are case-insensitive (RFC 3986 §3.2.2); compare on the
+    -- normalized lowercase form of both sides so a mixed-case endpoint or
+    -- allowlist entry does not weaken (or accidentally bypass) the check.
+    hostMatches h entry =
+      let e = Text.toLower entry
+       in h == e || Text.isSuffixOf ("." <> e) h
+
+-- | Extract the hostname from an 'EndpointUrl'. 'EndpointUrl' is already
+-- guaranteed HTTPS by its smart constructor 'mkEndpointUrl', so a parse
+-- failure here is unexpected (the URL round-tripped validation on the way in)
+-- and is treated as an invalid endpoint.
+endpointHost :: EndpointUrl -> Maybe Text
+endpointHost (EndpointUrl raw) =
+  case URI.parseURI strictURIParserOptions (encodeUtf8 raw) of
+    Left _ -> Nothing
+    Right uri -> (decodeUtf8 . URI.hostBS . URI.authorityHost) <$> URI.uriAuthority uri
