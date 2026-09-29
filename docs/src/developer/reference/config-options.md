@@ -1830,7 +1830,7 @@ Then, any other variable that will contain the string `[[hostname]]` will be rep
 
 You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
 
-For example, as Helm chart values :
+For example, as Helm chart values:
 
 ```yaml
 config:
