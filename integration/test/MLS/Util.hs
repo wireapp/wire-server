@@ -49,6 +49,7 @@ import GHC.Stack
 import Notifications
 import SetupHelpers (randomUUIDString)
 import System.Directory
+import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
 import System.IO hiding (print, putStrLn)
@@ -169,14 +170,16 @@ mlscliGroupMem mConvId cs groupMem args mbstdin = do
 
 runCli :: (HasCallStack) => FilePath -> [String] -> Maybe ByteString -> App ByteString
 runCli store args mStdin =
-  spawn
-    ( proc
-        "mls-test-cli"
-        ( ["--store", store]
-            <> args
-        )
-    )
-    mStdin
+  do
+    cli <- liftIO $ fromMaybe "mls-test-cli" <$> lookupEnv "MLS_TEST_CLI"
+    spawn
+      ( proc
+          cli
+          ( ["--store", store]
+              <> args
+          )
+      )
+      mStdin
 
 argSubst :: String -> String -> String -> String
 argSubst from to_ s =
@@ -979,6 +982,46 @@ createApplicationMessage convId cid messageContent = do
   pure
     MessagePackage
       { sender = cid,
+        convId = convId,
+        message = message,
+        welcome = Nothing,
+        groupInfo = Nothing,
+        appMessage = Nothing
+      }
+
+createTargetedMessage ::
+  (HasCallStack) =>
+  ConvId ->
+  ClientIdentity ->
+  ClientIdentity ->
+  String ->
+  App MessagePackage
+createTargetedMessage convId sender recipient messageContent = do
+  conv <- getMLSConv convId
+  senderState <- getClientGroupState sender
+  groupState <- assertJust "Sender has no MLS group state" (Map.lookup convId senderState.groups)
+  groupMembers <- readGroupState groupState
+  recipientLeaf <-
+    assertJust
+      "Recipient is not an MLS group member"
+      (lookup (RegularClient recipient) groupMembers)
+  message <-
+    mlscli
+      (Just convId)
+      conv.ciphersuite
+      sender
+      [ "targeted-message",
+        "--group-in",
+        "<group-in>",
+        "--recipient",
+        show recipientLeaf,
+        messageContent
+      ]
+      Nothing
+
+  pure
+    MessagePackage
+      { sender = sender,
         convId = convId,
         message = message,
         welcome = Nothing,
