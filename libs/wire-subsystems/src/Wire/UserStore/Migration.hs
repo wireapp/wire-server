@@ -23,6 +23,7 @@ module Wire.UserStore.Migration where
 import Cassandra hiding (Set)
 import Cassandra.Util
 import Conduit
+import Control.Monad.Extra (mapMaybeM)
 import Data.Conduit.List qualified as C
 import Data.Handle
 import Data.Id
@@ -145,7 +146,7 @@ migrateUser migTimeout migCounter migDuration uid =
     case mCassData of
       Nothing -> pure ()
       Just cassData -> do
-        let eithPGRow = mkUserRowPG cassData.id cassData.user cassData.handleClaimValidity cassData.richInfo
+        eithPGRow <- mkUserRowPG cassData.id cassData.user cassData.handleClaimValidity cassData.richInfo
         case eithPGRow of
           Left e ->
             warn $
@@ -214,11 +215,25 @@ getUserData uid = do
 data InvalidUserError = UserHasNoName | UserHasNoActivated
   deriving (Show)
 
-mkUserRowPG :: UserId -> UserRowCass -> HandleClaimValidity -> Maybe RichInfoAssocList -> Either InvalidUserError UserRowPG
-mkUserRowPG id_ cass@UserRowCass {..} handleClaimValidity richInfo = run . runError $ do
+filterValidAssets :: (Member TinyLog r) => UserId -> [PotentiallyInvalidAsset] -> Sem r [Asset]
+filterValidAssets uid potentiallyInvalidAssets = do
+  let results = zip potentiallyInvalidAssets (map parseAsset potentiallyInvalidAssets)
+  flip mapMaybeM results $ \case
+    (invalidAsset, Left e) -> do
+      warn $
+        Log.msg (Log.val "Invalid asset found, the asset will not be migrated, user still gets migrated")
+          . Log.field "id" (idToText uid)
+          . Log.field "error" (show e)
+          . Log.field "invalidAsset" (show invalidAsset)
+      pure Nothing
+    (_, Right asset) -> pure $ Just asset
+
+mkUserRowPG :: (Member TinyLog r) => UserId -> UserRowCass -> HandleClaimValidity -> Maybe RichInfoAssocList -> Sem r (Either InvalidUserError UserRowPG)
+mkUserRowPG id_ cass@UserRowCass {..} handleClaimValidity richInfo = runError $ do
   pgName <- note UserHasNoName cass.name
   pgActivated <- note UserHasNoActivated cass.activated
   createdAt <- note UserHasNoActivated $ writetimeToUTC <$> cass.activatedWriteTime
+  assets <- traverse (filterValidAssets id_) potentiallyInvalidAssets
   pure $
     UserRowPG
       { accentId = fromMaybe defaultAccentId cass.accentId,

@@ -19,10 +19,13 @@
 
 module Wire.UserStore.Migration.Types where
 
+import Cassandra qualified as C
 import Cassandra.Util
+import Data.ByteString.Conversion qualified as BSC
 import Data.Handle
 import Data.Id
 import Data.Json.Util
+import Data.Text.Encoding qualified as Text
 import Data.Time
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
@@ -42,6 +45,57 @@ data HandleClaimValidity
   = HandleClaimValid
   | HandleNotClaimed
   | HandleClaimedByAnotherUser UserId
+
+-- | This type can deal with null fields which the 'Asset' type actually expects
+-- to be not null. Cassandra can guarantee the shape of the asset type, but not
+-- guarantee the presence of all subfields.
+data PotentiallyInvalidAsset = PotentiallyInvalidAsset
+  { assetType :: Maybe Int32,
+    assetKey :: Maybe Text,
+    assetSize :: Maybe Int32
+  }
+  deriving (Show, Eq)
+
+parseAsset :: PotentiallyInvalidAsset -> Either String Asset
+parseAsset asset = do
+  case asset.assetType of
+    Just 0 -> Right ()
+    Just n -> Left $ "Invalid asset type: " <> show n
+    Nothing -> Left $ "Asset type missing"
+  k <- maybe (Left "Missing asset key") (BSC.runParser BSC.parser . Text.encodeUtf8) asset.assetKey
+  s <- case asset.assetSize of
+    Nothing -> Right Nothing
+    Just 0 -> Right $ Just AssetPreview
+    Just 1 -> Right $ Just AssetComplete
+    Just n -> Left $ "Invalid asset size: " <> show n
+  pure $ ImageAsset k s
+
+instance C.Cql PotentiallyInvalidAsset where
+  ctype =
+    C.Tagged
+      ( C.UdtColumn
+          "asset"
+          [ ("typ", C.MaybeColumn C.IntColumn),
+            ("key", C.MaybeColumn C.TextColumn),
+            ("size", C.MaybeColumn C.IntColumn)
+          ]
+      )
+  toCql asset =
+    C.CqlUdt
+      [ ("typ", C.toCql asset.assetType),
+        ("key", C.toCql asset.assetKey),
+        ("size", C.toCql asset.assetSize)
+      ]
+  fromCql (C.CqlUdt kv) = do
+    t <- lookupAndParse "typ"
+    k <- lookupAndParse "key"
+    s <- lookupAndParse "size"
+    pure $ PotentiallyInvalidAsset t k s
+    where
+      lookupAndParse :: (C.Cql a) => Text -> Either String (Maybe a)
+      lookupAndParse k =
+        maybe (Right Nothing) C.fromCql (lookup k kv)
+  fromCql _ = Left "UserAsset: UDT expected"
 
 -- | Some fields are read as 'Maybe' even if they're supposed to always be
 -- there. This is to deal with potential old data in the DB.
@@ -67,7 +121,7 @@ data UserRowCass = UserRowCass
     teamId :: Maybe TeamId,
     textStatus :: Maybe TextStatus,
     userType :: Maybe UserType,
-    assets :: Maybe [Asset],
+    potentiallyInvalidAssets :: Maybe [PotentiallyInvalidAsset],
     pict :: Maybe Pict,
     activatedWriteTime :: Maybe (Writetime ())
   }
