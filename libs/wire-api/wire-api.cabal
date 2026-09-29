@@ -143,6 +143,7 @@ library
     Wire.API.MLS.ProtocolVersion
     Wire.API.MLS.RatchetTree
     Wire.API.MLS.Serialisation
+    Wire.API.MLS.TargetedMessage
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation
     Wire.API.MLS.Validation
