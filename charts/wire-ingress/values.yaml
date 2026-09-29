@@ -1,37 +1,17 @@
-# Default values for wire-ingress
-# BSI TR-02102-2 (2026-01): TLS profile for the recommendation period through 2031.
-# https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf?__blob=publicationFile
-# Uses stock Envoy FIPS_202205 (EG 1.8.3 / Envoy 1.38.3 tested); the flag alone
-# does NOT establish BSI conformance or FIPS certification.
-# Overrides gateway.tls: TLS 1.2–1.3, P-256/P-384, and these cipher suites:
-# TLS 1.2:
-#   ECDHE-ECDSA-AES128-GCM-SHA256
-#   ECDHE-ECDSA-AES256-GCM-SHA384
-#   ECDHE-RSA-AES128-GCM-SHA256
-#   ECDHE-RSA-AES256-GCM-SHA384
-# TLS 1.3:
-#   TLS_AES_128_GCM_SHA256
-#   TLS_AES_256_GCM_SHA384
-# ECDSA-only server certificates leave the two ECDSA TLS 1.2 + both TLS 1.3 suites.
-# All six suites are BSI-allowlisted (Tables 3 and 13), including AES-128-GCM.
-# For BSI TR-02102-2 conformance through the end of 2031, also:
-# - Use ECDSA P-256/P-384 server certificates on EVERY listener, including external
-#   secrets, and verify certificate chains use recommended signatures/key sizes.
-# - Exclude RSA PKCS#1 v1.5 handshake AND certificate signatures: their BSI
-#   recommendation expired at the end of 2025 (Tables 7 and 12). RSA-PSS is still
-#   recommended; RSA as a whole is not obsolete. FIPS_202205 still permits PKCS#1
-#   v1.5 and overrides signature preferences, hence ECDSA-only server certificates.
-# - For federation/mTLS, enforce approved client certificates/chains and handshake
-#   signatures too; an ECDSA server certificate does not constrain client auth.
-# - Verify all public TLS endpoints and the remaining TR requirements separately;
-#   see README, TLS profiles. Client restrictions are not server-side enforcement.
-# TLS 1.2 and classical-only P-256/P-384 key agreement are recommended only through
-# 2031 in this edition. Plan migration before 2032 and review newer BSI editions.
-# Requires a dedicated, unmerged Gateway and the enabled EnvoyPatchPolicy API.
-# The Gateway may be created externally (gateway.create: false) as long as it is
-# in this release's namespace; see README, external Gateways.
-# Does not configure other TLS terminators or outbound connections.
+# This is a top-level variable which makes use of the FIPS_202205 patch,
+# and OVERRIDES all other TLS settings below (all other TLS settings have no effect if this is set to true!)
+# This compliance mode is useful to help conform to BSI's TR-02102-2
+# When true, TLS is configures to use the values documented in
+# https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#enum-extensions-transport-sockets-tls-v3-tlsparameters-compliancepolicy
+# i.e. these ones:
+#   TLS 1.2 or 1.3
+#   For TLS 1.2, only ECDHE_[RSA|ECDSA]_WITH_AES_*_GCM_SHA*.
+#   For TLS 1.3, only AES-GCM
+#   P-256 or P-384 for key agreement.
+#   For server signatures, only PKCS#1/PSS with SHA256/384/512, or ECDSA with P-256 or P-384.
+# See the README of this chart and deployment documentation for more details
 FIPS_202205_tls_profile: false
+
 httpRoute:
   # Annotations added to every HTTPRoute created by this chart.
   annotations: {}
@@ -138,9 +118,7 @@ gateway:
     maxVersion: "1.3"
     # Names must be supported by the deployed Envoy crypto library.
     ecdhCurves: ["X25519MLKEM768", "X25519", "P-256", "P-384", "P-521"]
-    # In case TLS 1.2 is activated, this defaults to a smaller set of more secure ciphers.
-    # TLS <=1.2 only; omitted when minVersion is "1.3". To enable TLS 1.2,
-    # lower minVersion AND add a classical ecdhCurves group (e.g. P-256).
+    # TLS <=1.2 only; this section is omitted when minVersion is "1.3".
     ciphers:
       - ECDHE-ECDSA-AES128-GCM-SHA256
       - ECDHE-ECDSA-AES256-GCM-SHA384
