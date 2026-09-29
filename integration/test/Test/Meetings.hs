@@ -568,9 +568,14 @@ testMeetingDelete = do
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   withWebSocket owner $ \ws -> do
     deleteMeeting owner domain meetingId >>= assertStatus 200
-    void $ awaitMatch isConvDeleteMeetingNotif ws
-    -- the creator's other client connection (this websocket) now receives meeting.delete
-    void $ awaitMatch isMeetingDeleteNotif ws
+    -- meeting.delete is sent before the conversation is deleted (WPB-29046):
+    -- await both notifications and assert their arrival order.
+    [firstDel, _secondDel] <-
+      awaitNMatches
+        2
+        (\n -> (||) <$> isMeetingDeleteNotif n <*> isConvDeleteMeetingNotif n)
+        ws
+    assertBool "expected meeting.delete before conversation.delete-meeting" =<< isMeetingDeleteNotif firstDel
   getMeeting owner domain meetingId >>= assertStatus 404
 
 -- | WPB-27907: meeting lifecycle events are delivered to all conversation
@@ -611,7 +616,7 @@ testMeetingLifecycleEventsDeliveredToMembers = do
       awaitMatch isMeetingUpdateNotif ws
   assertMeetingNotif updateNotif (meeting %. "qualified_id")
 
-  -- The non-initiator member receives 'meeting.delete'. The preceding
+  -- The non-initiator member receives 'meeting.delete'. The subsequent
   -- 'conversation.delete-meeting' event is expected and skipped by 'awaitMatch'.
   deleteNotif <-
     withWebSocket participant $ \ws -> do

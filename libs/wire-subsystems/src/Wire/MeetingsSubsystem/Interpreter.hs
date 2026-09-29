@@ -419,13 +419,15 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
       conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
+      -- The meeting.delete event must reach clients before the conversation is
+      -- deleted, which emits conversation.delete-meeting (WPB-29046).
+      lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
       when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
         lift $
           void $
             ConversationSubsystem.deleteLocalConversation zUser connId lConvId
       lift $ CodeStore.deleteMeetingCode (qUnqualified meetingId)
       lift $ Store.deleteMeeting (qUnqualified meetingId)
-      lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
   pure $ isJust result
 
 getMeetingImpl ::
