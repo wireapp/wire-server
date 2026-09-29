@@ -33,7 +33,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
-import Wire.API.Routes.Version (Version (V18))
+import Wire.API.Routes.Version (Version (V19))
 import Wire.API.Routes.Versioned (Versioned (..))
 import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
@@ -139,7 +139,7 @@ testUserProfile = do
             profileSearchable = True,
             profileContactStatus = Nothing
           }
-  let profileJSONAsText = show $ Aeson.encode (Versioned @V18 userProfile)
+  let profileJSONAsText = show $ Aeson.encode (Versioned @V19 userProfile)
   let msg = "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
   assertBool msg (not $ "null" `isInfixOf` profileJSONAsText)
 

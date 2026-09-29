@@ -80,6 +80,8 @@ instance ToSchema SearchResponse
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type BrigApi =
   FedEndpoint "api-version" () VersionInfo
+    -- FUTUREWORK: When we introduce a new federation api version ,
+    -- we should return V18 UserProfiles in older API versions and V19 ones starting with the newer one.
     :<|> FedEndpoint "get-user-by-handle" Handle (Maybe (V.Versioned V.V18 UserProfile))
     :<|> FedEndpoint "get-users-by-ids" [UserId] [V.Versioned V.V18 UserProfile]
     :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
