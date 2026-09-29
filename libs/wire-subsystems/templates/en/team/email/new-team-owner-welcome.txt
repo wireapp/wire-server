@@ -10,8 +10,8 @@ your conversations and history. You are now the owner of the team (${team_name}
 Invite other people to join your team and adjust settings in your team
 management dashboard.
 
-OPEN TEAM MANAGEMENT [${url}]If you can’t select the button, copy and paste this
-link to your browser:
+OPEN TEAM MANAGEMENT [${url}] If you can’t select the button, copy and paste
+this link to your browser:
 
 ${url}
 

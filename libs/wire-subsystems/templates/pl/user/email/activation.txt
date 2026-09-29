@@ -6,7 +6,7 @@ POTWIERDŹ SWÓJ ADRES EMAIL
 ${email} został użyty do rejestracji ${brand}.
 Kliknij przycisk, aby zweryfikować swój adres.
 
-Zweryfikuj [${url}]If you can’t select the button, copy and paste this link to
+Zweryfikuj [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

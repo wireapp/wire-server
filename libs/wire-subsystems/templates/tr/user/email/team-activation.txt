@@ -6,8 +6,8 @@ ${brand}'DA YENI HESABINIZ
 ${email} ile yeni bir ${brand} takımı oluşturuldu. Lütfen e-postanızı
 doğrulayın.
 
-Doğrula [${url}]If you can’t select the button, copy and paste this link to your
-browser:
+Doğrula [${url}] If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

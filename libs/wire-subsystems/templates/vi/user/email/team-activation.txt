@@ -6,7 +6,7 @@ TÀI KHOẢN MỚI CỦA BẠN TRÊN ${brand}
 Một nhóm ${brand} đã được tại với ${email}. Vui lòng xác minh địa chỉ email của
 bạn.
 
-Xác minh [${url}]If you can’t select the button, copy and paste this link to
+Xác minh [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

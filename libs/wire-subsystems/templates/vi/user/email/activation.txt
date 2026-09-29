@@ -6,7 +6,7 @@ XÁC MINH ĐỊA CHỈ EMAL CỦA BẠN
 ${email} đã được dùng để đăng ký ${brand}.
 Nhấp vào nút để xác minh địa chỉ của bạn.
 
-Xác minh [${url}]If you can’t select the button, copy and paste this link to
+Xác minh [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

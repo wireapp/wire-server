@@ -6,7 +6,7 @@ XÁC MINH ĐỊA CHỈ EMAL CỦA BẠN
 ${email} đã được đăng ký như là địa chỉ email mới của bạn trên ${brand}. Nhấp
 vào nút phía bên dưới để xác minh địa chỉ email của bạn.
 
-Xác minh [${url}]If you can’t select the button, copy and paste this link to
+Xác minh [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

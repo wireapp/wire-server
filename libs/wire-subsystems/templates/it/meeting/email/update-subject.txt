@@ -1,0 +1,1 @@
+Aggiornato: ${meeting_title}
