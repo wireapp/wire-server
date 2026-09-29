@@ -22,6 +22,7 @@ module Wire.ConversationSubsystem.MLS.Message
     postMLSMessageFromLocalUser,
     postMLSTargetedMessagesFromLocalUser,
     postMLSMessage,
+    validateAndPropagateTargetedMessages,
   )
 where
 

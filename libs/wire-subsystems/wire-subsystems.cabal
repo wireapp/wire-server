@@ -637,6 +637,7 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.MLS.CheckClientsSpec
+    Wire.ConversationSubsystem.MLS.TargetedMessageSpec
     Wire.ConversationSubsystem.One2OneSpec
     Wire.EmailSending.SESSpec
     Wire.EmailSubsystem.TemplateFixtures
