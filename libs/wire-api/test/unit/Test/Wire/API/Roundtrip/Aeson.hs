@@ -402,6 +402,7 @@ tests =
       testRoundTripWithSwagger @[Meeting.MeetingV16],
       testRoundTripWithSwagger @[Meeting.MeetingV18],
       meetingTypeVersioningTests,
+      meetingLinkVersioningTests,
       testFeatureFlagsCanonicalJsonRoundtrip
     ]
 
@@ -486,6 +487,29 @@ meetingTypeVersioningTests =
 typeField :: Value -> Maybe Text
 typeField = \case
   Object o -> case KeyMap.lookup (Key.fromString "type") o of
+    Just (String t) -> Just t
+    _ -> Nothing
+  _ -> Nothing
+
+-- | WPB-28987: the @link@ join-link field exists only on the V19 shape.
+meetingLinkVersioningTests :: T.TestTree
+meetingLinkVersioningTests =
+  T.testGroup
+    "Meeting link field versioning"
+    [ testProperty "V18 response omits link" $
+        \(m :: Meeting.MeetingV18) ->
+          linkField (toJSON m) === Nothing,
+      testProperty "V19 response renders link iff meeting has one" $
+        \(m :: Meeting.Meeting) ->
+          case linkField (toJSON m) of
+            Just t -> isJust m.link && t /= mempty
+            Nothing -> isNothing m.link
+    ]
+
+-- | Extract the @link@ string from a 'Meeting' JSON object, if present.
+linkField :: Value -> Maybe Text
+linkField = \case
+  Object o -> case KeyMap.lookup (Key.fromString "link") o of
     Just (String t) -> Just t
     _ -> Nothing
   _ -> Nothing

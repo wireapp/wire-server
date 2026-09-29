@@ -165,7 +165,10 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
           }
 
 data MeetingsStore m a where
+  -- | The id is supplied by the caller (pre-generated so the join code can be
+  -- created before the row).
   CreateMeeting ::
+    MeetingId ->
     Range 1 256 Text ->
     UserId ->
     UTCTime ->

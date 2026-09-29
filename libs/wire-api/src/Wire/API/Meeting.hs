@@ -50,6 +50,7 @@ module Wire.API.Meeting
     -- * Conversions
     toLegacy,
     fromLegacy,
+    mkMeetingLink,
     toLegacyWithConv,
     fromLegacyNewMeeting,
     toLegacyV18,
@@ -67,9 +68,11 @@ where
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON, toJSON)
 import Data.ByteString.Char8 qualified as BS
+import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
+import Data.Misc (HttpsUrl (..))
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Range (Range)
@@ -80,6 +83,7 @@ import Data.Time.Zones.All (TZLabel (..), fromTZName, toTZName, tzByLabel)
 import Data.Time.Zones.Types (TZ)
 import Imports
 import Test.QuickCheck (elements)
+import URI.ByteString (uriPath)
 import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -149,7 +153,11 @@ data Meeting = Meeting
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
     createdAt :: UTCTime,
-    updatedAt :: UTCTime
+    updatedAt :: UTCTime,
+    -- | https join link whose final path segment is the meeting's UUID;
+    -- 'Nothing' when the meeting has no live join code (legacy meetings, or
+    -- code-store modes that cannot hold meeting codes)
+    link :: Maybe HttpsUrl
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
@@ -210,6 +218,7 @@ meetingObject =
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
+    <*> (.link) .= maybe_ (optField "link" schema)
 
 instance ToSchema Meeting where
   schema = objectWithDocModifier (description ?~ "A meeting (immediate or scheduled)") meetingObject
@@ -535,7 +544,8 @@ toLegacy m =
 
 -- | Convert a legacy 'MeetingV16' to the V19 'Meeting' shape, injecting the
 -- given 'TimeZone' as @tzid@ and defaulting @mtype@ to 'Scheduled'. All other
--- fields (including @end_time@) are preserved.
+-- fields (including @end_time@) are preserved. Legacy meetings carry no join
+-- @link@.
 fromLegacy :: TimeZone -> MeetingV16 -> Meeting
 fromLegacy tz m =
   Meeting
@@ -550,8 +560,16 @@ fromLegacy tz m =
       conversationId = m.conversationId,
       invitedEmails = m.invitedEmails,
       createdAt = m.createdAt,
-      updatedAt = m.updatedAt
+      updatedAt = m.updatedAt,
+      link = Nothing
     }
+
+-- | Join link for a meeting: the configured code URI with the meeting's
+-- UUID appended as final path segment (trailing slashes on the configured
+-- base are normalized).
+mkMeetingLink :: HttpsUrl -> MeetingId -> HttpsUrl
+mkMeetingLink (HttpsUrl base) mid =
+  HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid}
 
 -- | 'toLegacy' lifted over 'MeetingWithConversation'.
 toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16

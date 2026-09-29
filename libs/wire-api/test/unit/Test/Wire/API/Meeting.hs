@@ -117,6 +117,11 @@ fromLegacyNewMeetingV18Scheduled nm =
         ]
 
 -- | V16->V19->V16 round-trips: @end_time@ (the source of truth) is preserved
--- verbatim, so the legacy shape is recovered exactly.
+-- verbatim, so the legacy shape is recovered exactly; legacy meetings carry
+-- no join link.
 toLegacyFromLegacy :: TimeZone -> MeetingV16 -> Property
-toLegacyFromLegacy tz lm = toLegacy (fromLegacy tz lm) === lm
+toLegacyFromLegacy tz lm =
+  conjoin
+    [ toLegacy (fromLegacy tz lm) === lm,
+      (fromLegacy tz lm).link === Nothing
+    ]

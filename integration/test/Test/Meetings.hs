@@ -889,6 +889,96 @@ testMeetingType = do
           ]
   postMeetings owner badMeeting >>= assertStatus 400
 
+-- | WPB-28987: the V19 meeting object exposes an optional @link@ join link
+-- whose final path segment is the meeting's UUID; it is present only when the
+-- meeting has a live join code. Legacy endpoint shapes are unchanged.
+testMeetingLink :: (HasCallStack) => App ()
+testMeetingLink = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Linked Meeting" startTime endTime []
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  -- The link is present iff a join-link URI is configured for the user's
+  -- domain AND the code store can hold meeting codes (they are Postgres-only,
+  -- so dualwrite serves links too); otherwise it is omitted.
+  cfg <- readServiceConfig Galley
+  codeStorage <- cfg %. "postgresMigration.conversationCodes" >>= asString
+  -- Mirror 'MeetingsSubsystem.Interpreter.codeURIBase': single-ingress
+  -- 'conversationCodeURI' first, then the per-domain 'multiIngress' entry;
+  -- a Null value counts as unset.
+  mBase <- do
+    mSingle <- lookupField cfg "settings.conversationCodeURI" >>= maybe (pure Nothing) asStringM
+    case mSingle of
+      Just uri -> pure (Just uri)
+      Nothing -> do
+        mMulti <- lookupField cfg "settings.multiIngress"
+        ownDomain <- asString OwnDomain
+        maybe (pure Nothing) (`lookupField` ownDomain) mMulti >>= maybe (pure Nothing) asStringM
+  -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash.
+  let supportsMeetingCodes = codeStorage /= "cassandra"
+      normalize s = if "/" `isSuffixOf` s then init s else s
+      expectedLink base = normalize base <> "/" <> meetingId
+  case (mBase, supportsMeetingCodes) of
+    (Just baseURI, True) -> do
+      let expected = expectedLink baseURI
+      link <- meeting %. "link" >>= asString
+      link `shouldMatch` expected
+
+      fetched <- getMeeting owner domain meetingId >>= getJSON 200
+      fetchedLink <- fetched %. "link" >>= asString
+      fetchedLink `shouldMatch` expected
+
+      listResp <- getMeetingsList owner
+      assertSuccess listResp
+      meetingsList <- listResp.json & asList
+      listedLink <- head meetingsList %. "link" >>= asString
+      listedLink `shouldMatch` expected
+    _ -> do
+      -- Either no join-link URI is configured for the user's domain, or the
+      -- code store cannot hold meeting codes; the link field is omitted.
+      assertFieldMissing meeting "link"
+      fetched <- getMeeting owner domain meetingId >>= getJSON 200
+      assertFieldMissing fetched "link"
+      listResp <- getMeetingsList owner
+      assertSuccess listResp
+      meetingsList <- listResp.json & asList
+      assertFieldMissing (head meetingsList) "link"
+
+  -- V17/V18-pinned reads carry no @link@ field.
+  legacy <- getMeetingV 18 owner domain meetingId >>= getJSON 200
+  assertFieldMissing legacy "link"
+  legacyV16 <- getMeetingV 16 owner domain meetingId >>= getJSON 200
+  assertFieldMissing legacyV16 "link"
+
+  deleteMeeting owner domain meetingId >>= assertStatus 200
+  getMeeting owner domain meetingId >>= assertStatus 404
+
+-- | WPB-28987: in multi-ingress mode a meeting created by a user whose domain
+-- has no configured join-link URI carries no @link@ field (the old fallback
+-- would have fabricated one). Holds regardless of code-storage mode.
+testMeetingLinkMultiIngress :: (HasCallStack) => App ()
+testMeetingLinkMultiIngress =
+  withModifiedBackend
+    ( def
+        { galleyCfg = \conf ->
+            conf
+              & setField "settings.conversationCodeURI" Null
+              & setField
+                "settings.multiIngress"
+                (object ["red.example.com" .= ("https://red.example.com/conversation-join/" :: String)])
+        }
+    )
+    $ \domain -> do
+      (owner, _tid, _members) <- createTeam domain 1
+      now <- liftIO getCurrentTime
+      let newMeeting = defaultMeetingJson "Multi Ingress Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+      meeting <- postMeetings owner newMeeting >>= getJSON 201
+      -- The dynamic backend's domain is not in the multiIngress map.
+      assertFieldMissing meeting "link"
+
 -- | A meeting created via the V18 shape (no @type@) is readable via V19 and
 -- carries the stored default type @scheduled@.
 testMeetingInteropV18ToV19 :: (HasCallStack) => App ()

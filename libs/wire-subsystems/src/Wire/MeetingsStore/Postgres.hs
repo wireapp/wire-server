@@ -29,7 +29,7 @@ import Data.List qualified as List
 import Data.Profunctor (dimap)
 import Data.Range (Range, fromRange)
 import Data.Time.Clock
-import Data.UUID (UUID, nil)
+import Data.UUID (UUID)
 import Data.Vector qualified as V
 import Hasql.Session
 import Hasql.Statement
@@ -47,8 +47,8 @@ interpretMeetingsStoreToPostgres ::
   InterpreterFor MeetingsStore r
 interpretMeetingsStoreToPostgres =
   interpret $ \case
-    CreateMeeting title creator startTime endTime tzid mtype recurrence convId emails trial ->
-      createMeetingImpl title creator startTime endTime tzid mtype recurrence convId emails trial
+    CreateMeeting mid title creator startTime endTime tzid mtype recurrence convId emails trial ->
+      createMeetingImpl mid title creator startTime endTime tzid mtype recurrence convId emails trial
     UpdateMeeting meetingId title startDate endTime tzid mMType schedule ->
       updateMeetingImpl meetingId title startDate endTime tzid mMType schedule
     DeleteMeeting meetingId ->
@@ -72,6 +72,7 @@ interpretMeetingsStoreToPostgres =
 
 createMeetingImpl ::
   (PGConstraints r) =>
+  MeetingId ->
   Range 1 256 Text ->
   UserId ->
   UTCTime ->
@@ -83,11 +84,11 @@ createMeetingImpl ::
   [EmailAddress] ->
   Bool ->
   Sem r StoredMeeting
-createMeetingImpl title creator startTime endTime tzid mtype recurrence convId emails trial = do
+createMeetingImpl mid title creator startTime endTime tzid mtype recurrence convId emails trial = do
   now <- liftIO getCurrentTime
   let sm =
         StoredMeeting
-          { id = Id nil,
+          { id = mid,
             title = title,
             creator = creator,
             startTime = startTime,
@@ -105,19 +106,20 @@ createMeetingImpl title creator startTime endTime tzid mtype recurrence convId e
 
 insertStatement :: Statement StoredMeeting StoredMeeting
 insertStatement =
-  dimap (tupleWithoutId . postgresMarshall @StoredMeetingTuple @StoredMeeting) Imports.id $
+  dimap (postgresMarshall @StoredMeetingTuple @StoredMeeting) Imports.id $
     refineResult
       (postgresUnmarshall @StoredMeetingTuple @StoredMeeting)
       [singletonStatement|
         INSERT INTO meetings
-        (title, creator, start_time, end_time, tzid, mtype,
+        (id, title, creator, start_time, end_time, tzid, mtype,
          recurrence_frequency, recurrence_interval, recurrence_until,
          conversation_id, invited_emails, trial, created_at, updated_at)
         VALUES
-        ($1 :: text, $2 :: uuid, $3 :: timestamptz, $4 :: timestamptz, $5 :: text,
-         $6 :: text :: meeting_type,
-         $7 :: text? :: recurrence_frequency, $8 :: int4?, $9 :: timestamptz?,
-         $10 :: uuid, $11 :: text[], $12 :: boolean, $13 :: timestamptz, $14 :: timestamptz)
+        ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: timestamptz, $5 :: timestamptz, $6 :: text,
+         $7 :: text :: meeting_type,
+         $8 :: text? :: recurrence_frequency, $9 :: int4?, $10 :: timestamptz?,
+         $11 :: uuid, $12 :: text[], $13 :: boolean,
+         $14 :: timestamptz, $15 :: timestamptz)
         RETURNING
           id :: uuid, title :: text, creator :: uuid,
           start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
@@ -126,9 +128,6 @@ insertStatement =
           conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
           created_at :: timestamptz, updated_at :: timestamptz
       |]
-  where
-    tupleWithoutId (_, t, c, st, et, tz, mt, rf, ri, ru, ci, ie, tr, ca, ua) =
-      (t, c, st, et, tz, mt, rf, ri, ru, ci, ie, tr, ca, ua)
 
 -- * Update
 

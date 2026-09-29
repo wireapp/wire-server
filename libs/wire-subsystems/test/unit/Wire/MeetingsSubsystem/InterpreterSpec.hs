@@ -19,11 +19,13 @@ module Wire.MeetingsSubsystem.InterpreterSpec (spec) where
 
 import Data.Aeson (Result (..), Value (Object), fromJSON)
 import Data.ByteString.Char8 qualified as C
+import Data.Code (Key, Timeout (..))
 import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
+import Data.Misc (HttpsUrl (..))
 import Data.Qualified
 import Data.Range (checked, unsafeRange)
 import Data.Set qualified as Set
@@ -43,16 +45,21 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
+import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Conversation (Access (CodeAccess, InviteAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..))
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
+import Wire.API.Password (Password)
 import Wire.API.PostgresMarshall (PostgresUnmarshall (postgresUnmarshall))
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
 import Wire.API.Team.Permission (fullPermissions)
+import Wire.CodeStore (CodeStore)
+import Wire.CodeStore qualified as CodeStore
+import Wire.CodeStore.Code (Code, CodeReferent (..))
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -92,8 +99,14 @@ type TestStack =
      State StdGen,
      ErrorS 'TeamMemberNotFound,
      ErrorS 'TeamNotFound,
+     CodeStore,
+     State (Map Key (Code, Maybe Password)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Embed IO
    ]
+
+testCodeURIBase :: HttpsUrl
+testCodeURIBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://code.example/conversation-join/"))
 
 interpretFeaturesConfigSubsystemPure :: AllTeamFeatures -> InterpreterFor FeaturesConfigSubsystem r
 interpretFeaturesConfigSubsystemPure configs = interpret $ \case
@@ -118,9 +131,22 @@ runTestStack ::
   AllTeamFeatures ->
   Sem TestStack a ->
   IO (Either MeetingError a)
-runTestStack now gen teams configs =
+runTestStack now gen = runTestStackWithURI now gen (Left testCodeURIBase)
+
+runTestStackWithURI ::
+  UTCTime ->
+  StdGen ->
+  Either HttpsUrl (Map Domain HttpsUrl) ->
+  Map TeamId [TeamMember] ->
+  AllTeamFeatures ->
+  Sem TestStack a ->
+  IO (Either MeetingError a)
+runTestStackWithURI now gen convCodeURI teams configs =
   runM
     . fmap (either (error . show) (either (error . show) Imports.id))
+    . runInputConst convCodeURI
+    . evalState (Map.empty :: Map Key (Code, Maybe Password))
+    . interpretCodeStorePure
     . runError @(Tagged 'TeamNotFound ())
     . runError @(Tagged 'TeamMemberNotFound ())
     . evalState gen
@@ -184,6 +210,240 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting.meeting.title `shouldBe` fromJust (checked "Test Meeting")
         meeting.conversation.qualifiedId `shouldBe` meeting.meeting.conversationId
         fetched `shouldBe` Just meeting.meeting
+
+  it "returns a join link and stores a join code for a new meeting" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Linked Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+      let mid = qUnqualified meeting.meeting.id
+      key <- CodeStore.makeKey (CodeReferentMeeting mid)
+      mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+      pure (meeting, mid, mCode)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, mid, mCode) -> do
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink testCodeURIBase mid)
+        mCode `shouldSatisfy` isJust
+
+  it "uses the multi-ingress URI mapped for the user's domain" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        multiBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://multi.example.com/conversation-join/"))
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Multi Ingress Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right (Map.fromList [(Domain "wire.com", multiBase)]))
+        Map.empty
+        def
+        $ do
+          meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+          pure (meeting, qUnqualified meeting.meeting.id)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, mid) ->
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink multiBase mid)
+
+  it "omits the link when the user's domain has no configured URI" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        otherBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://other.example.com/conversation-join/"))
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Unmapped Domain Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right (Map.fromList [(Domain "other.example.com", otherBase)]))
+        Map.empty
+        def
+        $ do
+          meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+          pure (meeting, qUnqualified meeting.meeting.id)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, _mid) -> meeting.meeting.link `shouldBe` Nothing
+
+  it "removes the join code when the meeting is deleted" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Doomed Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+      let mid = qUnqualified meeting.meeting.id
+      key <- CodeStore.makeKey (CodeReferentMeeting mid)
+      deleted <- deleteMeeting zUser (ConnId "test-conn") meeting.meeting.id
+      mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+      pure (deleted, mCode)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (deleted, mCode) -> do
+        deleted `shouldBe` True
+        isNothing mCode `shouldBe` True
+
+  it "omits the link field for meetings without a join code" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        mid = Id $ read "00000000-0000-0000-0000-00000000000a"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        sm =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Legacy Meeting",
+              creator = uid,
+              startTime = now,
+              endTime = addUTCTime 3600 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000b",
+              invitedEmails = [],
+              trial = False,
+              createdAt = now,
+              updatedAt = now
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
+      getMeeting zUser (Qualified mid (Domain "wire.com"))
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right fetched -> do
+        fetched `shouldSatisfy` isJust
+        (fetched >>= (.link)) `shouldBe` Nothing
+
+  it "cleanup removes expired meetings together with their join codes" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        mid = Id $ read "00000000-0000-0000-0000-00000000000c"
+        sm =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Expired Meeting",
+              creator = uid,
+              startTime = now,
+              endTime = addUTCTime 60 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
+              invitedEmails = [],
+              trial = False,
+              createdAt = now,
+              updatedAt = now
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
+      key <- CodeStore.makeKey (CodeReferentMeeting mid)
+      code <- CodeStore.generateCode (CodeReferentMeeting mid) (Timeout 3600)
+      CodeStore.createCode code Nothing
+      n <- cleanupOldMeetings (addUTCTime 7200 now) 10
+      mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+      pure (n, mCode)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (n, mCode) -> do
+        n `shouldBe` 1
+        isNothing mCode `shouldBe` True
+
+  it "listMeetings gives only meetings with a live code a link" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        mkStoredMeeting mid =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Listed Meeting",
+              creator = uid,
+              startTime = addUTCTime 60 now,
+              endTime = addUTCTime 3600 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
+              invitedEmails = [],
+              trial = False,
+              createdAt = now,
+              updatedAt = now
+            }
+        midWithCode = Id $ read "00000000-0000-0000-0000-00000000000e"
+        midWithoutCode = Id $ read "00000000-0000-0000-0000-00000000000f"
+
+    result <-
+      runTestStack now gen Map.empty def $ do
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
+        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600)
+        meetings <- listMeetings zUser
+        pure [(qUnqualified m.id, m.link) | m <- meetings]
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right links ->
+        links
+          `shouldBe` [ (midWithCode, Just (API.mkMeetingLink testCodeURIBase midWithCode)),
+                       (midWithoutCode, Nothing)
+                     ]
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0

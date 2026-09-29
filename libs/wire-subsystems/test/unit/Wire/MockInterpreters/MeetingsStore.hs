@@ -26,15 +26,12 @@ import Polysemy.State
 import Wire.MeetingsStore
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
-import Wire.Sem.Random (Random)
-import Wire.Sem.Random qualified as Random
 
 inMemoryMeetingsStoreInterpreter ::
-  (Member (State (Map MeetingId StoredMeeting)) r, Member Now r, Member Random r) =>
+  (Member (State (Map MeetingId StoredMeeting)) r, Member Now r) =>
   InterpreterFor MeetingsStore r
 inMemoryMeetingsStoreInterpreter = interpret $ \case
-  CreateMeeting title creator startTime endTime tzid mtype recurrence conversationId invitedEmails trial -> do
-    mid <- Random.newId
+  CreateMeeting mid title creator startTime endTime tzid mtype recurrence conversationId invitedEmails trial -> do
     now <- Now.get
     let sm =
           StoredMeeting
