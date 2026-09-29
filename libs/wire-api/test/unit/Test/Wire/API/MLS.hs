@@ -50,6 +50,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.TargetedMessage
 import Wire.API.MLS.Welcome
 
 tests :: TestTree
@@ -62,8 +63,27 @@ tests =
       testCase "parse welcome and groupinfo message" testParseWelcomeAndGroupInfo,
       testCase "key package ref" testKeyPackageRef,
       testCase "create signed remove proposal" testRemoveProposalMessageSignature,
-      testCase "parse client identity" testParseClientIdentity
+      testCase "parse client identity" testParseClientIdentity,
+      testCase "parse targeted message batch" testParseTargetedMessageBatch
     ]
+
+testParseTargetedMessageBatch :: IO ()
+testParseTargetedMessageBatch = do
+  let message n =
+        mkRawMLS
+          PersistentTargetedMessage
+            { protocolVersion = defaultProtocolVersion,
+              wireFormat = TargetedMessageWireFormat,
+              counter = n,
+              sender = 1,
+              recipient = n,
+              epoch = Epoch 4,
+              groupId = GroupId "group",
+              payload = HPKECiphertext "kem-output" "ciphertext",
+              signature = "signature"
+            }
+      batch = TargetedMessageBatch [message 2, message 3]
+  decodeMLS' (encodeMLS' batch) @?= Right batch
 
 testParseClientIdentity :: IO ()
 testParseClientIdentity = do
