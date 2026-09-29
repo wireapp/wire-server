@@ -1,0 +1,1 @@
+Tolerate invalid asset when migrating users to postgresql. These assets are simply ignored.
