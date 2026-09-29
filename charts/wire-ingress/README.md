@@ -400,6 +400,42 @@ listener names this patch targets. Tested with EG 1.8.3 / Envoy 1.38.3. The patc
 covers all TLS filter chains on the HTTPS socket, including federation and extra
 listeners. 
 
+#### What else is needed for BSI TR-02102-2 conformance?
+
+For **BSI TR-02102-2 conformance through the end of 2031** under edition 2026-01
+enabling this profile is only the TLS-parameter step. Operators must also:
+
+- Use ECDSA P-256/P-384 server certificates on every listener, including externally
+  supplied certificates. The chart checks main certificates it issues, not external
+  secrets. The [BoringSSL policy](https://boringssl.googlesource.com/boringssl/+/HEAD/include/openssl/ssl.h)
+  still permits RSA PKCS#1 v1.5 handshake signatures and overrides signature
+  preferences; using an RSA server key would leave that unwanted option available.
+- Verify certificate chains use recommended signatures and key sizes (Sections
+  3.3.3, 3.4.3 and 3.6). **RSA PKCS#1 v1.5 ceased to be recommended after 2025**
+  for both TLS 1.2 handshake signatures and certificate signatures (Tables 7 and
+  12). This does not exclude RSA-PSS, which remains recommended. An ECDSA leaf
+  alone does not fix a PKCS#1-signed chain; do not assume the default Let's Encrypt
+  chain is suitable. The tested ECDSA chain was anchored at ISRG Root X2.
+- For federation/mTLS, also enforce approved client certificate chains and client
+  handshake signatures. An ECDSA server does not prevent RSA PKCS#1 client
+  authentication. Restrict client credentials to an approved ECDSA profile or
+  independently enforce the permitted signature schemes; the FIPS flag does not
+  enforce this restriction.
+- Audit every other public TLS terminator and the remaining TR requirements,
+  including authentication, key handling and random-number generation. This chart
+  does not establish whole-system conformance.
+
+The 2031 horizon applies to TLS 1.2 and classical-only P-256/P-384 key agreement
+(Tables 6 and 10), not just cipher suites. Plan migration before 2032 and review
+newer BSI editions; this profile is not a guarantee against future guideline changes.
+
+For operator acceptance, scan every public hostname for both allowed and
+forbidden suites, protocols, groups and signatures; verify the served certificate
+chain too. Repeat after proxy upgrades and certificate renewal. A rendered Helm
+policy or a Wire-client-only test is not evidence of server-side enforcement.
+
+See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
+
 ##### xDS name scheme
 
 The patch targets a generated xDS listener by name, and Envoy Gateway has two
@@ -466,39 +502,6 @@ Because of the routing constraint above, "externally created" in practice means
 the same Gateway shape this chart would have rendered, provisioned by Terraform
 or a cluster operator instead of Helm.
 
-For **BSI TR-02102-2 conformance through the end of 2031** under edition 2026-01,
-enabling this profile is only the TLS-parameter step. Operators must also:
-
-- Use ECDSA P-256/P-384 server certificates on every listener, including externally
-  supplied certificates. The chart checks main certificates it issues, not external
-  secrets. The [BoringSSL policy](https://boringssl.googlesource.com/boringssl/+/HEAD/include/openssl/ssl.h)
-  still permits RSA PKCS#1 v1.5 handshake signatures and overrides signature
-  preferences; using an RSA server key would leave that unwanted option available.
-- Verify certificate chains use recommended signatures and key sizes (Sections
-  3.3.3, 3.4.3 and 3.6). **RSA PKCS#1 v1.5 ceased to be recommended after 2025**
-  for both TLS 1.2 handshake signatures and certificate signatures (Tables 7 and
-  12). This does not exclude RSA-PSS, which remains recommended. An ECDSA leaf
-  alone does not fix a PKCS#1-signed chain; do not assume the default Let's Encrypt
-  chain is suitable. The tested ECDSA chain was anchored at ISRG Root X2.
-- For federation/mTLS, also enforce approved client certificate chains and client
-  handshake signatures. An ECDSA server does not prevent RSA PKCS#1 client
-  authentication. Restrict client credentials to an approved ECDSA profile or
-  independently enforce the permitted signature schemes; the FIPS flag does not
-  enforce this restriction.
-- Audit every other public TLS terminator and the remaining TR requirements,
-  including authentication, key handling and random-number generation. This chart
-  does not establish whole-system conformance.
-
-The 2031 horizon applies to TLS 1.2 and classical-only P-256/P-384 key agreement
-(Tables 6 and 10), not just cipher suites. Plan migration before 2032 and review
-newer BSI editions; this profile is not a guarantee against future guideline changes.
-
-For operator acceptance, scan every public hostname for both allowed and
-forbidden suites, protocols, groups and signatures; verify the served certificate
-chain too. Repeat after proxy upgrades and certificate renewal. A rendered Helm
-policy or a Wire-client-only test is not evidence of server-side enforcement.
-
-See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
 
 ### Federator mTLS uses Envoy Gateway policies
 
