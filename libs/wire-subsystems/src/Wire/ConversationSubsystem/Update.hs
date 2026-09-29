@@ -138,7 +138,7 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
 import Wire.ConversationSubsystem.Action
-import Wire.ConversationSubsystem.Action.Kick (kickMember)
+import Wire.ConversationSubsystem.Action.Kick (kickMember, kickMemberWith)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Notify qualified as Notify
@@ -1665,7 +1665,10 @@ deleteUserFromTeamConversationsImpl ::
     Member Now r,
     Member Random r,
     Member TeamSubsystem r,
-    Member JobSubsystem r
+    Member JobSubsystem r,
+    Member ProposalStore r,
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -1689,26 +1692,36 @@ deleteUserFromTeamConversationsImpl lusr conn tid remove = do
                               (qualifyAs lusr dc.id_)
                               lusr
                               (tUntagged (qualifyAs lusr remove))
-                            E.deleteMembers dc.id_ (UserList [remove] [])
-                            let (bots, allLocUsers) = localBotsAndUsers dc.localMembers
-                                targets =
-                                  BotsAndMembers
-                                    (Set.fromList $ (.id_) <$> allLocUsers)
-                                    (Set.fromList $ (.id_) <$> dc.remoteMembers)
-                                    (Set.fromList bots)
-                            void $
-                              sendConversationActionNotifications
-                                SConversationRemoveMembersTag
-                                (tUntagged lusr)
-                                True
-                                conn
-                                (qualifyAs lusr dc)
-                                targets
-                                ( ConversationRemoveMembers
-                                    (pure . tUntagged . qualifyAs lusr $ remove)
-                                    EdReasonDeleted
-                                )
-                                def
+                            -- 'kickMemberWith' deletes the member and, for MLS
+                            -- conversations, sends the external remove proposals
+                            -- that this backend-initiated removal requires. Every
+                            -- other removal path does the same (see
+                            -- 'Wire.ConversationSubsystem.Action.Leave.leaveConversation'
+                            -- and @performAction \@'ConversationRemoveMembersTag@);
+                            -- doing it by hand here is what left MLS groups with a
+                            -- stale leaf for the removed member.
+                            --
+                            -- Federation errors are logged rather than propagated:
+                            -- this is a loop over every conversation of the team, and
+                            -- one unreachable backend must not abort the removal from
+                            -- the remaining conversations.
+                            try @FederationError
+                              ( kickMemberWith
+                                  (tUntagged lusr)
+                                  conn
+                                  EdReasonDeleted
+                                  (qualifyAs lusr dc)
+                                  (convBotsAndMembers dc)
+                                  (tUntagged (qualifyAs lusr remove))
+                              )
+                              >>= \case
+                                Right () -> pure ()
+                                Left e ->
+                                  warn $
+                                    Log.msg (Log.val "failed to remove user from team conversation")
+                                      . Log.field "conversation_id" (idToText dc.id_)
+                                      . Log.field "user_id" (idToText remove)
+                                      . Log.field "error" (show e)
                   | otherwise -> pure ()
             )
     )
