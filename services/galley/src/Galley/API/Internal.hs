@@ -348,6 +348,28 @@ rmUser ::
   Sem r ()
 rmUser lusr conn = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  -- NB: the order of 'leaveTeams' and 'goConvPages' is load-bearing,
+  -- and they partition the work between them rather than overlapping.
+  --
+  -- 'leaveTeams' removes the user from the conversations of their team,
+  -- and it does so by deleting rows from the same @conversation_member@ table
+  -- that 'conversationIdsPageFrom' reads. So by the time 'goConvPages' runs, the
+  -- team conversations are no longer enumerated and 'leaveLocalConversations'
+  -- only sees the remaining, non-team ones.
+  --
+  -- That is correct only because each step removes the user from MLS groups
+  -- itself: 'leaveTeams' via 'deleteUserFromTeamConversations' and 'goConvPages'
+  -- via 'removeUser' below. If either stops doing that, the members left in
+  -- those groups never receive a remove proposal and the deleted user's leaf
+  -- goes stale.
+  --
+  -- Swapping the two steps is not a fix: 'leaveLocalConversations'
+  -- does not delete team 1:1 conversations the way
+  -- 'deleteUserFromTeamConversations' does: the two emit different
+  -- events (a 'ConversationRemoveMembers' action event vs. an
+  -- 'EdMembersLeave' member-leave event). This smells like our
+  -- architecture is a bit lopsided, but would need further
+  -- investigation.
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams tids
   allConvIds <- conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)

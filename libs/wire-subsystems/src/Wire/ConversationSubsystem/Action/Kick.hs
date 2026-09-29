@@ -65,14 +65,41 @@ kickMember ::
   BotsAndMembers ->
   Qualified UserId ->
   Sem r ()
-kickMember qusr lconv targets victim = void . runError @NoChanges $ do
+kickMember qusr = kickMemberWith qusr Nothing EdReasonRemoved
+
+-- | Like 'kickMember', but with an explicit originating connection and leave
+-- reason.
+--
+-- Removal paths that are not a member removing another member need to report a
+-- different reason: team member deletion and team collaborator removal use
+-- 'EdReasonDeleted'.
+kickMemberWith ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member ConversationStore r,
+    Member TinyLog r,
+    Member Random r
+  ) =>
+  Qualified UserId ->
+  Maybe ConnId ->
+  EdMemberLeftReason ->
+  Local StoredConversation ->
+  BotsAndMembers ->
+  Qualified UserId ->
+  Sem r ()
+kickMemberWith qusr conn reason lconv targets victim = void . runError @NoChanges $ do
   leaveConversation victim lconv
   sendConversationActionNotifications
     (sing @'ConversationRemoveMembersTag)
     qusr
     True
-    Nothing
+    conn
     lconv
     targets
-    (ConversationRemoveMembers (pure victim) EdReasonRemoved)
+    (ConversationRemoveMembers (pure victim) reason)
     def
