@@ -82,12 +82,12 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.className` | `""` | **Required.** Name of the `GatewayClass` installed by the Envoy Gateway controller (e.g. `envoy`). Must match the `GatewayClass` object whose `spec.controllerName` is `gateway.envoyproxy.io/gatewayclass-controller`. |
 | `gateway.alpn.enabled` | `true` | Enables ALPN configuration via `ClientTrafficPolicy` to support HTTP/2 despite overlapping certificate SANs across multiple service listeners. When disabled, ALPN defaults to HTTP/1.1 only. |
 | `gateway.alpn.protocols` | `[h2, http/1.1]` | List of ALPN protocols to advertise to clients. Defaults to HTTP/2 with HTTP/1.1 fallback. |
-| `FIPS_202205_tls_profile` | `false` | Apply stock Envoy's FIPS_202205 negotiation policy, not a full BSI conformance guarantee; see [TLS profiles](#tls-profiles). |
+| `FIPS_202205_tls_profile` | `false` | Override all TLS settings to use FIPS_202205 compliance. Before setting this to true, read the section [TLS profiles](#tls-profiles). |
 | `gateway.tls.enabled` | `true` | Configure TLS parameters on all HTTPS listeners. Must remain enabled with the FIPS profile. |
-| `gateway.tls.minVersion` | `"1.3"` | Minimum TLS version. Lowering to `"1.2"` also requires adding a classical key-agreement group. |
-| `gateway.tls.maxVersion` | `"1.3"` | Maximum TLS version. Same value set as `minVersion`. |
+| `gateway.tls.minVersion` | `"1.3"` | Minimum TLS version. |
+| `gateway.tls.maxVersion` | `"1.3"` | Maximum TLS version. |
 | `gateway.tls.ciphers` | Four ECDHE ECDSA/RSA AES-GCM suites (see values) | TLS <=1.2 only. Omitted when minVersion is 1.3; does not constrain TLS 1.3 suites. |
-| `gateway.tls.ecdhCurves` | `["X25519MLKEM768", "X25519", "P-256", "P-384", "P-521"]` | Hybrid PQ only; clients and the Envoy crypto library must support this group. No classical fallback. |
+| `gateway.tls.ecdhCurves` | `["X25519MLKEM768", "X25519", "P-256", "P-384", "P-521"]` | Clients and the Envoy crypto library must support this group. |
 | `gateway.tls.signatureAlgorithms` | `[]` | Optional signature preferences; also affects federation client authentication. |
 | `gateway.patchPolicies.xdsNameSchemeV2` | _(unset)_ | Must match the controller's `XDSNameSchemeV2` runtime flag. Required only when `FIPS_202205_tls_profile` is on — see [xDS name scheme](#xds-name-scheme). |
 | `gateway.patchPolicies.xdsListenerName` | `""` | Legacy scheme only. Overrides the xDS listener name the FIPS patch targets, for an externally created Gateway that declares another listener first on the HTTPS port. |
@@ -347,11 +347,9 @@ certificate SANs across listeners, while retaining HTTP/1.1 support.
 
 ### TLS profiles
 
-The default requires TLS 1.3 and `X25519MLKEM768` hybrid key agreement, including
-for federation clients. Clients without this group cannot connect. Without the
-FIPS profile, Envoy's TLS 1.3 cipher defaults (including ChaCha20) remain in effect.
+**By default**, this chart requires TLS 1.3 and uses all three TLS 1.3 ciphers. The X25519MLKEM768 Post-Quantum Traditional (PQ/T) Hybrid Key Exchange is also allowed.
 
-For an explicit TLS 1.2 compatibility profile, set both protocol and groups:
+You can specify different TLS settings, like:
 
 ```yaml
 gateway:
@@ -360,8 +358,7 @@ gateway:
     ecdhCurves: [X25519MLKEM768, P-256, P-384]
 ```
 
-This uses the four ECDHE-ECDSA/RSA AES-128/256-GCM suites in `gateway.tls.ciphers`.
-Lowering the minimum alone is insufficient: TLS 1.2 also needs a classical group.
+OR you can also make use of the top-level `FIPS_202205_tls_profile` variable:
 
 #### FIPS_202205 profile and BSI TR-02102-2 limitations
 
@@ -372,17 +369,14 @@ gateway:
   patchPolicies:
     enabled: true
     targetGatewayClass: false
-    # No default: must match the controller. See xDS name scheme below.
+    # must match the controller: (usually false for envoy gateay < 1.9 and true for envoy gateway >= 1.10 unless set explicitly). See xDS name scheme below.
     xdsNameSchemeV2: false
 ```
 
 The `FIPS_202205` patch overrides `gateway.tls` with AES-GCM, P-256/P-384 and
-TLS 1.2–1.3; it cannot be combined with TLS 1.3-only or PQ settings. Without a
-matching patch, the baseline permits only the fixed AES-GCM TLS 1.2 profile.
-This works with stock Envoy, but does not make the image FIPS-certified.
+TLS 1.2–1.3; it cannot be combined with TLS 1.3-only or PQ settings. 
 
-The policy enables these six suites (OpenSSL names). An ECDSA-only server
-certificate leaves four: the two ECDSA TLS 1.2 suites and both TLS 1.3 suites.
+The policy enables these six suites. 
 
 | TLS version | Cipher suite | Available with ECDSA-only server certificates |
 |---|---|---|
@@ -393,22 +387,18 @@ certificate leaves four: the two ECDSA TLS 1.2 suites and both TLS 1.3 suites.
 | 1.3 | `TLS_AES_128_GCM_SHA256` | Yes |
 | 1.3 | `TLS_AES_256_GCM_SHA384` | Yes |
 
-All six are on the cipher allowlist in
-[BSI TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf?__blob=publicationFile),
-edition **2026-01**. In particular, Table 3 (page 7) recommends both TLS 1.2
-AES-128-GCM suites through 2031; they are **not** FIPS-only exceptions. Table 13
-recommends both TLS 1.3 suites. No client-side cipher exclusion is needed for
-this edition's cipher allowlist. More generally, restricting Wire clients
-cannot make a server reject a forbidden suite offered by another client.
+An ECDSA-only server certificate (recommended) leaves four: the two ECDSA TLS 1.2 suites and both TLS 1.3 suites.
 
-Requires `extensionApis.enableEnvoyPatchPolicy: true` and a dedicated, unmerged
+Also read the cipher allowlist in
+[BSI TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf?__blob=publicationFile),
+
+Requires (on the Envoy Proxy) a`extensionApis.enableEnvoyPatchPolicy: true` and a dedicated, unmerged
 Gateway — which this chart may or may not have created, see
 [External Gateways](#external-gateways). `mergeGateways` and
 `patchPolicies.targetGatewayClass` are rejected: both change the generated
 listener names this patch targets. Tested with EG 1.8.3 / Envoy 1.38.3. The patch
 covers all TLS filter chains on the HTTPS socket, including federation and extra
-listeners. EnvoyPatchPolicy is an unstable extension API: restrict write access,
-check Accepted/Programmed status and retest after upgrades.
+listeners. 
 
 ##### xDS name scheme
 
@@ -509,24 +499,6 @@ chain too. Repeat after proxy upgrades and certificate renewal. A rendered Helm
 policy or a Wire-client-only test is not evidence of server-side enforcement.
 
 See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
-
-#### Classical fallback without the FIPS profile
-
-To allow classical TLS 1.3 clients without changing the cipher profile:
-
-```yaml
-gateway:
-  tls:
-    ecdhCurves: [X25519MLKEM768, X25519, P-256, P-384]
-```
-
-Verify with a PQ-capable client (OpenSSL 3.5+), including certificate validation:
-
-```sh
-openssl s_client -connect nginz-https.example.com:443 \
-  -servername nginz-https.example.com -verify_hostname nginz-https.example.com \
-  -verify_return_error -tls1_3 -groups X25519MLKEM768 -brief </dev/null
-```
 
 ### Federator mTLS uses Envoy Gateway policies
 
