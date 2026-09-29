@@ -21,6 +21,8 @@ module Test.MLS.Message where
 
 import API.Galley
 import API.Gundeck
+import Data.Bits (shiftR)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import MLS.Util
@@ -182,3 +184,90 @@ testTargetedMessageBatch = do
     charlieEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode charlieMessage.message))
 
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
+
+testTargetedMessageRejectsUnauthorizedSender :: (HasCallStack) => App ()
+testTargetedMessageRejectsUnauthorizedSender = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  void $ withWebSocket bob $ \ws -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif ws
+
+    targeted <- createTargetedMessage convId alice1 bob1 "unauthorized sender"
+    postMLSTargetedMessage bob1 targeted.message `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-client-sender-user-mismatch"
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif ws
+
+testTargetedMessageRejectsInvalidRecipient :: (HasCallStack) => App ()
+testTargetedMessageRejectsInvalidRecipient = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  void $ withWebSocket bob $ \ws -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif ws
+
+    targeted <- createTargetedMessage convId alice1 bob1 "invalid recipient"
+    let invalidRecipient = replaceTargetedRecipient targeted.message 99
+    postMLSTargetedMessage alice1 invalidRecipient `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif ws
+  where
+    -- Replace the four-byte, big-endian recipient field at offset 12. The
+    -- signature is deliberately left unchanged: this test exercises the
+    -- server's leaf-index validation before any cryptographic verification.
+    replaceTargetedRecipient :: ByteString -> Word32 -> ByteString
+    replaceTargetedRecipient message recipient =
+      BS.take 12 message
+        <> BS.pack
+          [ fromIntegral (recipient `shiftR` 24),
+            fromIntegral (recipient `shiftR` 16),
+            fromIntegral (recipient `shiftR` 8),
+            fromIntegral recipient
+          ]
+        <> BS.drop 16 message
+
+testTargetedMessageRejectsDuplicateRecipient :: (HasCallStack) => App ()
+testTargetedMessageRejectsDuplicateRecipient = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  void $ withWebSocket bob $ \ws -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif ws
+
+    first <- createTargetedMessage convId alice1 bob1 "duplicate recipient one"
+    second <- createTargetedMessage convId alice1 bob1 "duplicate recipient two"
+    postMLSTargetedMessage alice1 (first.message <> second.message) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-protocol-error"
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif ws
+
+testTargetedMessageRejectsCrossGroupBatch :: (HasCallStack) => App ()
+testTargetedMessageRejectsCrossGroupBatch = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  void $ uploadNewKeyPackage def bob1
+  firstConvId <- createNewGroup def alice1
+  secondConvId <- createNewGroup def alice1
+
+  void $ withWebSocket bob $ \ws -> do
+    void $ createAddCommit alice1 firstConvId [bob] >>= sendAndConsumeCommitBundle
+    void $ createAddCommit alice1 secondConvId [bob] >>= sendAndConsumeCommitBundle
+
+    first <- createTargetedMessage firstConvId alice1 bob1 "first group"
+    second <- createTargetedMessage secondConvId alice1 bob1 "second group"
+    postMLSTargetedMessage alice1 (first.message <> second.message) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-protocol-error"
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif ws
