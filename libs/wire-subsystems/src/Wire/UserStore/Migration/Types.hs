@@ -67,7 +67,7 @@ parseAsset asset = do
     Nothing -> Right Nothing
     Just 0 -> Right $ Just AssetPreview
     Just 1 -> Right $ Just AssetComplete
-    Just n -> Left $ "Inlvalid asset size: " <> show n
+    Just n -> Left $ "Invalid asset size: " <> show n
   pure $ ImageAsset k s
 
 instance C.Cql PotentiallyInvalidAsset where
