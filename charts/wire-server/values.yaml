@@ -857,6 +857,26 @@ spar:
       # tlsCaSecretRef:
       #   name: <secret-name>
       #   key: <ca-attribute>
+
+    # Postgres connection (libpq key/value map). See:
+    # https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    postgresql:
+      host: postgresql
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
+    # Per-store storage-location flags (shared type). Spar-relevant stores are
+    # added by their migration tasks; defaults stay on Cassandra.
+    postgresMigration:
+      conversation: cassandra
+      conversationCodes: cassandra
+      teamFeatures: cassandra
+      domainRegistration: cassandra
+      user: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
 
@@ -996,6 +1016,8 @@ background-worker:
     cassandra:
       host: aws-cassandra
     cassandraBrig:
+      host: aws-cassandra
+    cassandraSpar:
       host: aws-cassandra
 
     postgresqlPool:
