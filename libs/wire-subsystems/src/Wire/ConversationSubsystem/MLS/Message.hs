@@ -198,7 +198,11 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
   assertMLSEnabled
   firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
   (ctype, qualifiedConvOrSubId) <- getConvFromGroupId firstMessage.value.groupId
-  convOrSubId <- foldQualified lusr pure (const $ throwS @'ConvNotFound) qualifiedConvOrSubId
+  -- Targeted messages currently support locally hosted conversations only.
+  -- Keep the remote branch explicit so federation can be added here later.
+  let rejectRemoteConversation _ =
+        throw $ mlsProtocolError "targeted messages to remote conversations are not supported"
+  convOrSubId <- foldQualified lusr pure rejectRemoteConversation qualifiedConvOrSubId
   validateAndPropagateTargetedMessages
     lusr
     client
@@ -258,6 +262,11 @@ validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMess
     recipientClient <- case imLookup convOrSub.indexMap msg.recipient of
       Just (RegularClient recipient) -> pure recipient
       _ -> throwS @'MLSInvalidLeafNodeIndex
+    -- Delivery below uses the local notification path. Remote recipients need
+    -- a federation path and are therefore rejected until that is implemented.
+    unless (recipientClient.ciDomain == tDomain lusr) $
+      throw $
+        mlsProtocolError "targeted messages to remote members are not supported"
     pure (raw, recipientClient)
   for_ validated $ \(raw, recipientClient) -> do
     let qt =
@@ -276,6 +285,8 @@ validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMess
               evtTeam = Nothing,
               evtData = EdMLSTargetedMessage raw.raw
             }
+    -- This is intentionally a local push. Remote delivery requires a
+    -- federation request and can be added without changing message validation.
     runMessagePush lconvOrSub (Just qcnv) $
       newMessagePush mempty Nothing defMessageMetadata [(recipientClient.ciUser, recipientClient.ciClient)] event
   where
