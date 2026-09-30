@@ -105,13 +105,12 @@ type BotAPI =
     :<|> Named
            "bot-get-self"
            ( Summary "Get self"
-               :> Until V19
                :> CanThrow 'UserNotFound
                :> CanThrow 'AccessDenied
                :> ZBot
                :> "bot"
                :> "self"
-               :> Get '[JSON] (Versioned (ToVersion (Until 'V19)) UserProfile)
+               :> Get '[JSON] (Versioned V18 UserProfile)
            )
     :<|> Named
            "bot-delete-self"

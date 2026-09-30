@@ -241,6 +241,7 @@ testGetUserByHandleRestrictions opts brig = do
         opts
           & Opt.settingsLens . Opt.federationDomainConfigsLens
             ?~ [ Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainNoSearch NoSearch FederationRestrictionAllowAll,
+                 Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainExactHandle ExactHandleSearch FederationRestrictionAllowAll,
                  Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainFullSearch FullSearch FederationRestrictionAllowAll
                ]
 
