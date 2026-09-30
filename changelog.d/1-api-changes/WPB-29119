@@ -1,0 +1,3 @@
+The meeting `type` is no longer accepted on `PUT /meetings/{domain}/{id}`.
+
+`"recurrence": null` in an update body is now honored as "unset the recurrence" on all API versions (V15–V19); previously it was rejected with a 400 decode error.

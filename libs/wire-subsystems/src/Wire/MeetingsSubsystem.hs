@@ -108,7 +108,7 @@ data MeetingsSubsystem m a where
     Local UserId ->
     ConnId ->
     Qualified MeetingId ->
-    UpdateMeetingV16 ->
+    UpdateMeeting ->
     MeetingsSubsystem m (Maybe MeetingWithConversationV16)
   GetMeetingV16 ::
     Local UserId ->
@@ -126,7 +126,7 @@ data MeetingsSubsystem m a where
     Local UserId ->
     ConnId ->
     Qualified MeetingId ->
-    UpdateMeetingV18 ->
+    UpdateMeeting ->
     MeetingsSubsystem m (Maybe MeetingWithConversationV18)
   GetMeetingV18 ::
     Local UserId ->
