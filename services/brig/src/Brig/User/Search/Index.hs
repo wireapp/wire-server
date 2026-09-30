@@ -364,6 +364,15 @@ indexMapping =
                   mpAnalyzer = Nothing,
                   mpFields = mempty
                 },
+            -- teams this user collaborates with (without being a member of them)
+            "collaborating_teams"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
             "accent_id"
               .= MappingProperty
                 { mpType = MPByte,

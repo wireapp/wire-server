@@ -49,6 +49,7 @@ interpretTeamCollaboratorsStoreToPostgres =
     GetAllTeamCollaborators teamId -> getAllTeamCollaboratorsImpl teamId
     GetTeamCollaborator teamId userId -> getTeamCollaboratorImpl teamId userId
     GetTeamCollaborations userId -> getTeamCollaborationsImpl userId
+    GetTeamCollaborationsForUsers userIds -> getTeamCollaborationsForUsersImpl userIds
     GetTeamCollaboratorsWithIds teamIds userIds -> getTeamCollaboratorsWithIdsImpl teamIds userIds
     UpdateTeamCollaborator userId teamId permissions -> updateTeamCollaboratorImpl userId teamId permissions
     RemoveTeamCollaborator userId teamId -> removeTeamCollaboratorImpl userId teamId
@@ -179,6 +180,22 @@ getTeamCollaborationsImpl teamId = do
       dimap toUUID (Data.Vector.toList . (toTeamCollaborator <$>)) $
         [vectorStatement|
           select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where user_id = ($1 :: uuid)
+          |]
+
+getTeamCollaborationsForUsersImpl ::
+  (PGConstraints r) =>
+  Set UserId ->
+  Sem r [TeamCollaborator]
+getTeamCollaborationsForUsersImpl userIds = do
+  runStatement (Data.Set.toList userIds) getAllCollaborationsByUsersStatement
+  where
+    getAllCollaborationsByUsersStatement :: Statement [UserId] [TeamCollaborator]
+    getAllCollaborationsByUsersStatement =
+      dimap
+        (Data.Vector.fromList . Imports.map toUUID)
+        (Data.Vector.toList . (toTeamCollaborator <$>))
+        $ [vectorStatement|
+            select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where user_id = ANY($1 :: uuid[])
           |]
 
 getTeamCollaboratorsWithIdsImpl ::

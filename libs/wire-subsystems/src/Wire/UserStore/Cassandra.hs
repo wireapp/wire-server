@@ -66,6 +66,7 @@ interpretUserStoreCassandra casClient =
       UpdateEmail uid email -> updateEmailImpl uid email
       UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
       DeleteEmailUnvalidated uid -> deleteEmailUnvalidatedImpl uid
+      BumpWriteTime uid -> bumpWriteTimeImpl uid
       UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
       UpdateSSOId uid ssoId -> updateSSOIdImpl uid ssoId
       UpdateManagedBy uid managedBy -> updateManagedByImpl uid managedBy
@@ -147,6 +148,8 @@ interpretUserStoreToCassandraAndPostgres casClient =
       runAppropriateInterpreter casClient uid $ UserStore.updateEmailUnvalidated uid email
     DeleteEmailUnvalidated uid ->
       runAppropriateInterpreter casClient uid $ UserStore.deleteEmailUnvalidated uid
+    BumpWriteTime uid ->
+      runAppropriateInterpreter casClient uid $ UserStore.bumpWriteTime uid
     LookupName uid ->
       runAppropriateInterpreter casClient uid $ UserStore.lookupName uid
     LookupHandle hdl -> do
@@ -576,6 +579,9 @@ getRichInfoImpl uid =
 deleteEmailImpl :: UserId -> Client ()
 deleteEmailImpl u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
+bumpWriteTimeImpl :: UserId -> Client ()
+bumpWriteTimeImpl u = retry x5 $ write writeTimeBump (params LocalQuorum (Identity u))
+
 setUserSearchableImpl :: UserId -> SetSearchable -> Client ()
 setUserSearchableImpl uid (SetSearchable searchable) = retry x5 $ write q (params LocalQuorum (searchable, uid))
   where
@@ -721,3 +727,8 @@ localeSelect = "SELECT language, country FROM user WHERE id = ?"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
 userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null, write_time_bumper = 0 WHERE id = ?"
+
+-- | Only the *writetime* of `write_time_bumper` matters; the value is
+-- irrelevant.  See 'Wire.UserSearch.Types.WriteTimeBumper'.
+writeTimeBump :: PrepQuery W (Identity UserId) ()
+writeTimeBump = "UPDATE user SET write_time_bumper = 0 WHERE id = ?"

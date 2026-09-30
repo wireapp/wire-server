@@ -116,6 +116,8 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
     pure $ storedUserToIndexUser <$> mUser
   GetIndexUsersPaginated _pageSize _pagingState ->
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
+  -- the in-memory store has no writetimes, so there is nothing to bump
+  BumpWriteTime _ -> pure ()
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
