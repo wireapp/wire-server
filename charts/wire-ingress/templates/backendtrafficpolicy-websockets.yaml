@@ -16,6 +16,12 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
+  {{- if .Values.gateway.zoneAwareRouting.enabled }}
+  {{- /* Envoy Gateway applies only the most specific BackendTrafficPolicy per
+       route unless a mergeType is given. Without this, this policy would
+       shadow the Gateway-wide zone-aware one for the WebSocket route. */}}
+  mergeType: StrategicMerge
+  {{- end }}
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute

@@ -37,13 +37,36 @@
 -}}
 {{- $accessLogSink := dict "type" "File" "file" (dict "path" "/dev/stdout") -}}
 {{- $accessLogSetting := dict "format" (dict "type" "JSON" "json" $accessLogJSON) "sinks" (list $accessLogSink) -}}
-{{- $defaultTelemetry := dict "telemetry" (dict "accessLog" (dict "settings" (list $accessLogSetting))) -}}
-{{- $spec := deepCopy $defaultTelemetry }}
-{{- with .Values.gateway.envoyProxy.spec }}
-{{- $spec = mergeOverwrite $spec . }}
+{{- $ep := .Values.gateway.envoyProxy -}}
+{{- /*
+  High availability defaults. A single proxy pod makes every node drain,
+  cluster upgrade and autoscaler scale-down an ingress outage, and without a
+  PodDisruptionBudget nothing stops an eviction taking the whole fleet at once.
+  The spread constraints are advisory (ScheduleAnyway) so a single-node or
+  single-zone cluster still schedules the pods, just co-located.
+*/ -}}
+{{- $deployment := dict "replicas" (int $ep.replicas) -}}
+{{- with $ep.topologySpreadKeys -}}
+{{- $selector := dict "matchLabels" (include "wire-ingress.proxyPodSelector" $ | fromYaml) -}}
+{{- $spread := list -}}
+{{- range . -}}
+{{- $spread = append $spread (dict "maxSkew" 1 "topologyKey" . "whenUnsatisfiable" "ScheduleAnyway" "labelSelector" $selector) -}}
+{{- end -}}
+{{- $_ := set $deployment "pod" (dict "topologySpreadConstraints" $spread) -}}
+{{- end -}}
+{{- $kubernetes := dict "envoyDeployment" $deployment -}}
+{{- with $ep.podDisruptionBudget }}{{- $_ := set $kubernetes "envoyPDB" . }}{{- end -}}
+{{- $spec := dict
+    "telemetry" (dict "accessLog" (dict "settings" (list $accessLogSetting)))
+    "provider" (dict "type" "Kubernetes" "kubernetes" $kubernetes) -}}
+{{- /* Free-form spec wins over every default above. */ -}}
+{{- with $ep.spec }}
+{{- $spec = mergeOverwrite $spec (deepCopy .) }}
 {{- end }}
+{{- /* Shorthand for one leaf, so it must not replace the whole provider stanza. */ -}}
 {{- if .Values.gateway.manageServiceType }}
-{{- $_ := set $spec "provider" (dict "type" "Kubernetes" "kubernetes" (dict "envoyService" (dict "type" .Values.gateway.serviceType))) }}
+{{- $k8s := $spec.provider.kubernetes }}
+{{- $_ := set $k8s "envoyService" (merge (dict "type" .Values.gateway.serviceType) ($k8s.envoyService | default dict)) }}
 {{- end }}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy

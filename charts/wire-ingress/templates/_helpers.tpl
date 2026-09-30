@@ -273,3 +273,13 @@ signatureAlgorithms: {{ toJson $tls.signatureAlgorithms }}
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Label selector matching the Envoy proxy pods Envoy Gateway creates for this
+chart's Gateway. Only correct for a chart-created EnvoyProxy: a proxy shared
+via mergeGateways is owned by the GatewayClass and labelled accordingly.
+*/}}
+{{- define "wire-ingress.proxyPodSelector" -}}
+gateway.envoyproxy.io/owning-gateway-name: {{ include "wire-ingress.gatewayName" . }}
+gateway.envoyproxy.io/owning-gateway-namespace: {{ .Release.Namespace }}
+{{- end -}}
