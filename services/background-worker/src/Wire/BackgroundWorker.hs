@@ -85,15 +85,14 @@ run opts galleyOpts = do
           withNamedLogger "migrate-users" $
             Migrations.users opts.migrationOptions
       else pure $ pure ()
-
-  cleanupJobs <-
-    runAppT env $
-      withNamedLogger "background-job-consumer" $
-        Jobs.startWorker amqpEP
   cleanupJobRunner <-
     runAppT env $
       withNamedLogger "job-runner" $
         Workers.startWorker opts.jobs opts.meetingsCleanup
+  cleanupJobs <-
+    runAppT env $
+      withNamedLogger "background-job-consumer" $
+        Jobs.startWorker amqpEP
   let cleanup =
         void $
           runConcurrently $

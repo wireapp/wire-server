@@ -18,7 +18,7 @@
 module Wire.BackgroundJobsPublisher.RabbitMQ where
 
 import Data.Aeson qualified as Aeson
-import Data.Id (JobId, RequestId (..), idToText)
+import Data.Id (JobId, RequestId (..), idToText, randomId)
 import Data.Text.Encoding qualified as T
 import Imports
 import Network.AMQP qualified as Q
@@ -33,7 +33,8 @@ interpretBackgroundJobPublisherRabbitMQ ::
   InterpreterFor BackgroundJobPublisher r
 interpretBackgroundJobPublisherRabbitMQ requestId channelMVar =
   interpret $ \case
-    PublishJob jobId jobPayload -> do
+    PublishJob jobPayload -> do
+      jobId <- randomId
       channel <- readMVar channelMVar
       publishJob requestId channel jobId jobPayload
 
