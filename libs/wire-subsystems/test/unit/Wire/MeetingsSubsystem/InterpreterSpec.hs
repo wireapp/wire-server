@@ -174,6 +174,11 @@ runTestStackWithURI now gen convCodeURI teams configs =
           pastEditPeriod = configuredPastEditPeriod
         }
 
+-- | An update that sets no fields (rejected with 'EmptyUpdate'); use record
+-- update on it to set individual fields.
+emptyUpdate :: API.UpdateMeeting
+emptyUpdate = API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing
+
 -- | Decode all 'Push' payloads that are meeting lifecycle events. Any push that
 -- decodes as a 'MeetingEvent.Event' is one: conversation events use distinct
 -- @type@ tags that the meeting 'EventType' enum rejects.
@@ -414,7 +419,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               conversationId = Id $ read "00000000-0000-0000-0000-00000000000f",
               invitedEmails = [],
               trial = False,
-              hasCode = False,
               createdAt = now,
               updatedAt = now
             }
@@ -446,7 +450,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               conversationId = Id $ read "00000000-0000-0000-0000-000000000011",
               invitedEmails = [],
               trial = False,
-              hasCode = True,
               createdAt = now,
               updatedAt = now
             }
@@ -821,7 +824,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
-        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id emptyUpdate
 
       result `shouldBe` Left EmptyUpdate
 
@@ -843,7 +846,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           zUser1
           (ConnId "test-conn")
           meeting.meeting.id
-          (API.UpdateMeeting Nothing Nothing Nothing Nothing (Just newTz) Nothing)
+          (API.UpdateMeeting Nothing Nothing Nothing Nothing (Just newTz))
       case result of
         Left err -> fail $ "Expected the update to be applied, got: " <> show err
         Right Nothing -> fail "Expected the update to be applied"
@@ -871,8 +874,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Just (addUTCTime 3600 now),
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing,
-                  mtype = Nothing
+                  tzid = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes EndBeforeStart)
@@ -897,8 +899,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing,
-                  mtype = Nothing
+                  tzid = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
 
@@ -928,8 +929,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing,
-                  mtype = Nothing
+                  tzid = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
 
@@ -957,8 +957,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing,
-                  mtype = Nothing
+                  tzid = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes TimesBeyondPastEditWindow)
@@ -983,8 +982,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Just (addUTCTime (negate (configuredPastEditPeriod + 1)) now),
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing,
-                  mtype = Nothing
+                  tzid = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes TimesBeyondPastEditWindow)
@@ -1015,8 +1013,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                     endTime = Nothing,
                     title = Just (unsafeRange "Edited While Ongoing"),
                     recurrence = Nothing,
-                    tzid = Nothing,
-                    mtype = Nothing
+                    tzid = Nothing
                   }
           updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       case result of
@@ -1047,8 +1044,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                     endTime = Nothing,
                     title = Nothing,
                     recurrence = Nothing,
-                    tzid = Nothing,
-                    mtype = Nothing
+                    tzid = Nothing
                   }
           updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes EndBeforeStart)
@@ -1068,7 +1064,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
-        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -1086,7 +1082,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
-        updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing Nothing)
+        updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -1106,7 +1102,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         -- Simulate a data-inconsistency: the meeting's conversation vanished.
         modify @(Map ConvId StoredConversation) (Map.delete (qUnqualified meeting.meeting.conversationId))
-        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -1132,10 +1128,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               update.title
               update.recurrence
               update.tzid
-              update.mtype
           effectiveStart = fromMaybe baseMeeting.startTime sanitizedUpdate.startTime
           effectiveEndTime = fromMaybe baseMeeting.endTime sanitizedUpdate.endTime
-          isNotEmpty = sanitizedUpdate /= API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing Nothing
+          isNotEmpty = sanitizedUpdate /= emptyUpdate
           hasValidTimes = effectiveEndTime > effectiveStart
        in isNotEmpty && hasValidTimes ==>
             ioProperty $ do
@@ -1797,7 +1792,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
-          updateMeeting zUser (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
+          updateMeeting zUser (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
       fmap isJust result `shouldBe` Right True
 
     it "addInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
@@ -2000,7 +1995,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right meeting -> do
           result2 <-
             runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-              updateMeeting zUserTeam (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
+              updateMeeting zUserTeam (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
 
@@ -2110,7 +2105,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
           meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
-          _ <- updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
+          _ <- updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
           get @[Push]
 
       case result of
@@ -2140,7 +2135,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
           meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
-          _ <- updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing Nothing Nothing)
+          _ <- updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing Nothing)
           get @[Push]
 
       case result of
@@ -2245,7 +2240,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newStart = addUTCTime 8000 now
           newEnd = addUTCTime 9000 now
           upd =
-            API.UpdateMeetingLegacy
+            API.UpdateMeeting
               { startTime = Just newStart,
                 endTime = Just newEnd,
                 title = Nothing,
@@ -2261,34 +2256,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (Just mwc') -> mwc'.meeting.endTime `shouldBe` newEnd
         Right Nothing -> fail "expected the update to apply"
 
-    it "updateMeetingV16 cannot change the stored meeting type" $ do
-      let upd =
-            API.UpdateMeetingLegacy
-              { startTime = Nothing,
-                endTime = Nothing,
-                title = Just (unsafeRange "Renamed"),
-                recurrence = Nothing,
-                tzid = Nothing
-              }
-          immediateMeeting =
-            API.NewMeeting
-              { title = fromJust $ checked "Typed Meeting",
-                startTime = startT,
-                endTime = endT,
-                tzid = API.defaultLegacyTimeZone,
-                mtype = API.Immediate,
-                recurrence = Nothing,
-                invitedEmails = []
-              }
-      result <-
-        runTestStack now gen Map.empty def $ do
-          mwc <- createMeeting zUser (ConnId "test-conn") immediateMeeting
-          _ <- updateMeetingV16 zUser (ConnId "test-conn") mwc.meeting.id upd
-          getMeeting zUser mwc.meeting.id
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right (Just m) -> m.mtype `shouldBe` API.Immediate
-        Right Nothing -> fail "expected a meeting"
   describe "meeting type (V19)" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -2334,32 +2301,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (Just m) -> m.mtype `shouldBe` API.Scheduled
         Right Nothing -> fail "expected the meeting to be retrievable"
 
-    it "updateMeeting with a type changes the stored type" $ do
-      result <-
-        runTestStack now gen Map.empty def $ do
-          mwc <- createMeeting zUser (ConnId "test-conn") (newMeeting API.Scheduled)
-          updateMeeting
-            zUser
-            (ConnId "test-conn")
-            mwc.meeting.id
-            API.UpdateMeeting
-              { startTime = Nothing,
-                endTime = Nothing,
-                title = Nothing,
-                recurrence = Nothing,
-                tzid = Nothing,
-                mtype = Just API.Immediate
-              }
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right (Just mwc') -> mwc'.meeting.mtype `shouldBe` API.Immediate
-        Right Nothing -> fail "expected the update to be applied"
-
-    it "updateMeeting without a type preserves the stored type" $ do
+    it "updateMeeting preserves the stored type" $ do
       result <-
         runTestStack now gen Map.empty def $ do
           mwc <- createMeeting zUser (ConnId "test-conn") (newMeeting API.Immediate)
-          _ <- updateMeeting zUser (ConnId "test-conn") mwc.meeting.id (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "Renamed")) Nothing Nothing Nothing)
+          _ <- updateMeeting zUser (ConnId "test-conn") mwc.meeting.id (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "Renamed")) Nothing Nothing)
           getMeeting zUser mwc.meeting.id
       case result of
         Left err -> fail $ "Error: " <> show err

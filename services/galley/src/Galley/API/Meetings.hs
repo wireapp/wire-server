@@ -118,7 +118,7 @@ updateMeetingV16 ::
   ConnId ->
   Domain ->
   MeetingId ->
-  UpdateMeetingV16 ->
+  UpdateMeeting ->
   Sem r MeetingWithConversationV16
 updateMeetingV16 zUser connId domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
@@ -158,7 +158,7 @@ updateMeetingV18 ::
   ConnId ->
   Domain ->
   MeetingId ->
-  UpdateMeetingV18 ->
+  UpdateMeeting ->
   Sem r MeetingWithConversationV18
 updateMeetingV18 zUser connId domain meetingId update = do
   let qMeetingId = Qualified meetingId domain

@@ -95,7 +95,7 @@ type MeetingsAPI =
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
                :> CanThrow MeetingError
-               :> ReqBody '[JSON] UpdateMeetingV16
+               :> ReqBody '[JSON] UpdateMeeting
                :> MultiVerb
                     'PUT
                     '[JSON]
@@ -115,7 +115,7 @@ type MeetingsAPI =
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
                :> CanThrow MeetingError
-               :> ReqBody '[JSON] UpdateMeetingV18
+               :> ReqBody '[JSON] UpdateMeeting
                :> MultiVerb
                     'PUT
                     '[JSON]

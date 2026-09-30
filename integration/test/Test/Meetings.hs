@@ -845,8 +845,8 @@ testMeetingInteropLegacyToNew = do
   tzid <- modern %. "tzid" >>= asString
   tzid `shouldMatch` ("Europe/Berlin" :: String)
 
--- | WPB-28985: the V19 meeting object exposes a @type@ field
--- (@immediate@ or @scheduled@); required on create, optional on update.
+-- | The V19 meeting object exposes a @type@ field
+-- (@immediate@ or @scheduled@); type is required on create and not updatable.
 testMeetingType :: (HasCallStack) => App ()
 testMeetingType = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -868,10 +868,12 @@ testMeetingType = do
   mtype <- fetched %. "type" >>= asString
   mtype `shouldMatch` ("immediate" :: String)
 
-  -- Update the type and read it back.
-  updated <- putMeeting owner domain meetingId (object ["type" .= ("scheduled" :: String)]) >>= getJSON 200
-  updatedType <- updated %. "type" >>= asString
-  updatedType `shouldMatch` ("scheduled" :: String)
+  -- The type is set at creation and cannot be changed (WPB-29119): an
+  -- update carrying only @type@ decodes to an empty update and is rejected.
+  putMeeting owner domain meetingId (object ["type" .= ("scheduled" :: String)]) >>= assertLabel 403 "invalid-op"
+  unchanged <- getMeeting owner domain meetingId >>= getJSON 200
+  unchangedType <- unchanged %. "type" >>= asString
+  unchangedType `shouldMatch` ("immediate" :: String)
 
   -- V18-pinned reads carry no @type@ field.
   legacy <- getMeetingV 18 owner domain meetingId >>= getJSON 200
