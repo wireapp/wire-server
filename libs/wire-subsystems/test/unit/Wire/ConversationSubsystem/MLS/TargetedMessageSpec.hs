@@ -82,6 +82,10 @@ spec = describe "targeted MLS messages" do
         message = mapTargetedMessage (targetedMessage 1) (\msg -> msg {recipient = 99})
     expectRejected fx [message]
 
+  it "rejects a remote recipient until federation support is added" do
+    let fx = fixture {recipientDomain = Domain "remote.example.com"}
+    expectRejected fx [targetedMessage 1]
+
   it "rejects a batch containing messages from different groups" do
     let fx = fixture
         message = mapTargetedMessage (targetedMessage 2) (\msg -> msg {Targeted.groupId = GroupId "other-group"})
@@ -101,6 +105,7 @@ data Fixture = Fixture
     senderClient :: ClientId,
     recipientUser :: UserId,
     recipientClient :: ClientId,
+    recipientDomain :: Domain,
     senderLeaf :: LeafIndex,
     recipientLeaf :: LeafIndex
   }
@@ -126,6 +131,7 @@ fixture =
       senderClient = senderC,
       recipientUser = recipient,
       recipientClient = recipientC,
+      recipientDomain = Domain "example.com",
       senderLeaf = 0,
       recipientLeaf = 1
     }
@@ -219,7 +225,7 @@ targetedMessageIndexMap :: Fixture -> IndexMap
 targetedMessageIndexMap fx =
   imFromList
     [ (fx.senderLeaf, RegularClient (mkClientIdentity (Qualified fx.senderUser (Domain "example.com")) fx.senderClient)),
-      (fx.recipientLeaf, RegularClient (mkClientIdentity (Qualified fx.recipientUser (Domain "example.com")) fx.recipientClient))
+      (fx.recipientLeaf, RegularClient (mkClientIdentity (Qualified fx.recipientUser fx.recipientDomain) fx.recipientClient))
     ]
 
 interpretExternalAccess :: Sem (ExternalAccess ': r) a -> Sem r a
