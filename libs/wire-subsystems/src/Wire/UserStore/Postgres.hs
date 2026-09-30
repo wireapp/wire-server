@@ -104,7 +104,8 @@ type InsertUserRow =
   ( UserId, Name, Maybe TextStatus, Pict, Maybe EmailAddress,
     Maybe UserSSOId, ColourId, Maybe Password, Bool, AccountStatus,
     Maybe UTCTimeMillis, Language, Maybe Country, Maybe ProviderId, Maybe ServiceId,
-    Maybe TeamId, ManagedBy, Set BaseProtocolTag, Bool, UserType
+    Maybe TeamId, ManagedBy, Set BaseProtocolTag, Bool, UserType,
+    Text
   )
 type
   SelectUserRow =
@@ -191,7 +192,8 @@ createUserImpl new mbConv =
         new.managedBy,
         new.supportedProtocols,
         new.searchable,
-        new.userType
+        new.userType,
+        normalized (fromName new.name)
       )
 
     insertUser :: Hasql.Statement InsertUserRow ()
@@ -202,14 +204,17 @@ createUserImpl new mbConv =
            (id, name, text_status, picture, email,
            sso_id, accent_id, password, activated, account_status,
            expires, language, country, provider, service,
-           team, managed_by, supported_protocols, searchable, user_type)
+           team, managed_by, supported_protocols, searchable, user_type,
+           name_normalized)
            VALUES
            ($1 :: uuid, $2 :: text, $3 :: text?, $4 :: jsonb, $5 :: text?,
             $6 :: jsonb?, $7 :: integer, $8 :: text?, $9 :: boolean, $10 :: integer,
             $11 :: timestamptz?, $12 :: text, $13 :: text?, $14 :: uuid?, $15 :: uuid?,
-            $16 :: uuid?, $17 :: integer, $18 :: integer, $19 :: boolean, $20 :: integer)
+            $16 :: uuid?, $17 :: integer, $18 :: integer, $19 :: boolean, $20 :: integer,
+            $21 :: text)
            ON CONFLICT (id) DO UPDATE
            SET name = EXCLUDED.name,
+              name_normalized = EXCLUDED.name_normalized,
                text_status = EXCLUDED.text_status,
                picture = EXCLUDED.picture,
                email = EXCLUDED.email,
@@ -503,7 +508,7 @@ updateUserImpl uid MkStoredUserUpdate {..} = do
   warn $ Log.msg (Log.val "Updating user") . Log.field "locale" (show locale)
   runTransaction Serializable Write $ do
     Transaction.statement
-      (uid, name, textStatus, pict, accentId, supportedProtocols)
+      (uid, name, textStatus, pict, accentId, supportedProtocols, fmap (normalized . fromName) name)
       updateUserFields
     for_ locale $ \newLocale ->
       Transaction.statement (uid, newLocale.lLanguage, newLocale.lCountry) updateLocale
@@ -511,12 +516,13 @@ updateUserImpl uid MkStoredUserUpdate {..} = do
       Transaction.statement uid deleteAssetsStatement
       Transaction.statement (mkAssetRows uid newAssets) insertAssetsStatement
   where
-    updateUserFields :: Hasql.Statement (UserId, Maybe Name, Maybe TextStatus, Maybe Pict, Maybe ColourId, Maybe (Set BaseProtocolTag)) ()
+    updateUserFields :: Hasql.Statement (UserId, Maybe Name, Maybe TextStatus, Maybe Pict, Maybe ColourId, Maybe (Set BaseProtocolTag), Maybe Text) ()
     updateUserFields =
       lmapPG
         [resultlessStatement|
           UPDATE wire_user
           SET name =                COALESCE($2 :: text?,    name),
+              name_normalized =     COALESCE($7 :: text?,    name_normalized),
               text_status =         COALESCE($3 :: text?,    text_status),
               picture =             COALESCE($4 :: jsonb?,   picture),
               accent_id =           COALESCE($5 :: integer?, accent_id),

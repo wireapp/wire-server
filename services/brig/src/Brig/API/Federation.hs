@@ -75,6 +75,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.UserSearchStore (UserSearchStore)
+import Wire.UserSearchStore qualified as UserSearchStore
 import Wire.UserStore
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem)
@@ -91,7 +93,8 @@ federationSitemap ::
     Member UserStore r,
     Member ClientStore r,
     Member MlsKeyPackageSubsystem r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member UserSearchStore r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -226,7 +229,8 @@ searchUsers ::
   forall r.
   ( Member FederationConfigStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserSearchStore r
   ) =>
   Domain ->
   SearchRequest ->
@@ -252,10 +256,13 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
     go contacts maxResult (search : searches) = do
       contactsNew <- search maxResult
       go (contacts <> contactsNew) (maxResult - length contactsNew) searches
-
     fullSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
     fullSearch n
-      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams mbUserTypeFilter) searchTerm n
+      | n > 0 = do
+          backend <- lift $ asks (.searchBackend)
+          lift $ case backend of
+            SearchBackendElasticSearch -> searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams mbUserTypeFilter) searchTerm n
+            SearchBackendPostgres -> searchResults <$> liftSem (UserSearchStore.searchUsersFederated mOnlyInTeams searchTerm n mbUserTypeFilter)
       | otherwise = pure []
 
     exactHandleSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
