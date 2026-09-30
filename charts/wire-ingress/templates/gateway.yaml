@@ -7,6 +7,10 @@ kind: Gateway
 metadata:
   name: {{ include "wire-ingress.gatewayName" . | quote }}
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"
@@ -19,11 +23,15 @@ spec:
   {{- else if .Values.gateway.envoyProxy.name }}
   {{- $envoyProxyName = .Values.gateway.envoyProxy.name }}
   {{- end }}
-  {{- if (or .Values.gateway.infrastructure.annotations $envoyProxyName) }}
+  {{- if (or .Values.gateway.infrastructure.annotations .Values.gateway.infrastructure.labels $envoyProxyName) }}
   infrastructure:
-    {{- if .Values.gateway.infrastructure.annotations }}
+    {{- with .Values.gateway.infrastructure.annotations }}
     annotations:
-      {{- toYaml .Values.gateway.infrastructure.annotations | nindent 6 }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.gateway.infrastructure.labels }}
+    labels:
+      {{- toYaml . | nindent 6 }}
     {{- end }}
     {{- if $envoyProxyName }}
     parametersRef:

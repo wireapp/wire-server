@@ -102,6 +102,13 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set `mergeGateways`, custom service annotations, etc. |
 | `gateway.manageServiceType` | `true` | Shorthand that sets `envoyService.type` to `gateway.serviceType`. Disable when managing the service type via `gateway.envoyProxy.spec` directly. |
 | `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
+| `gateway.envoyProxy.replicas` | `2` | Proxy pod count. Envoy Gateway defaults to 1 — see [Availability of the proxy fleet](#availability-of-the-proxy-fleet). |
+| `gateway.envoyProxy.podDisruptionBudget` | `{minAvailable: 1}` | PDB for the proxy pods. Set exactly one of `minAvailable` / `maxUnavailable`, or `{}` for none. |
+| `gateway.envoyProxy.topologySpreadKeys` | node, then zone | Topology keys to spread the proxy pods over. Advisory (`ScheduleAnyway`). `[]` for none. |
+| `gateway.zoneAwareRouting.enabled` | `false` | Prefer same-zone backend endpoints to cut inter-AZ traffic cost — see [Zone-aware routing](#zone-aware-routing). |
+| `gateway.zoneAwareRouting.minEndpointsThreshold` | `6` | Below this many backend endpoints across all zones, Envoy balances normally. |
+| `gateway.annotations` | `{}` | Annotations on the `Gateway` object itself, e.g. for external-dns' `gateway-httproute` source. Not propagated to the proxy Service. |
+| `gateway.infrastructure.labels` | `{}` | Labels forwarded to the resources Envoy Gateway generates. Gateway API >= v1.1. |
 | `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
 | `gateway.proxyProtocol.enabled` | `false` | Enables PROXY protocol on all listeners (via the Gateway-wide `ClientTrafficPolicy`). Required when the upstream load balancer is configured to send PROXY protocol headers. |
 | `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
@@ -215,6 +222,68 @@ Set `gateway.envoyProxy.name` (with `create: false`) to reference an existing `E
 `gateway.manageServiceType: true` (default) is a shorthand that sets
 `provider.kubernetes.envoyService.type` to `gateway.serviceType`. Disable it when managing
 the service type via `envoyProxy.spec` or a cluster-level `EnvoyProxy`.
+
+### Availability of the proxy fleet
+
+Only the Envoy proxy pods are in the request path; the `Gateway`, `HTTPRoute` and policy
+objects are configuration and cannot go down.
+
+When `gateway.envoyProxy.create: true`, this chart's `EnvoyProxy` owns those pods and
+`gateway.envoyProxy.replicas`, `.podDisruptionBudget` and `.topologySpreadKeys` apply. They
+are merged under `gateway.envoyProxy.spec`, so anything else from the
+[EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) —
+resource requests, `nodeSelector`, `shutdown` drain timeouts — can be set there, and overrides
+these defaults. When `create: false` a `GatewayClass`-level `EnvoyProxy` owns the pods instead
+and these values have no effect.
+
+The Envoy Gateway controller is a separate concern, configured in its own Helm release rather
+than here. It is not in the request path — Envoy keeps serving its last configuration if the
+controller dies — but while it is down nothing reconciles. It leader-elects, so more than one
+replica is safe; the upstream chart defaults to one, and to
+`podDisruptionBudget.minAvailable: 0`, which renders no PDB at all.
+
+### Zone-aware routing
+
+`gateway.zoneAwareRouting.enabled: true` renders a Gateway-wide `BackendTrafficPolicy` with
+`loadBalancer.zoneAware.preferLocal`, making Envoy prefer backend endpoints in its own zone.
+On a multi-zone cluster every cross-zone request is billed as inter-AZ transfer and adds
+latency; with three zones and no preference, roughly two thirds of requests cross a boundary.
+The policy is inert where there is only one zone.
+
+It is a preference, not a fence: Envoy fills local-zone endpoints as far as it can while
+keeping per-endpoint load even, and spills into other zones as soon as the local one is short
+on capacity. Losing a zone costs money, not availability.
+
+`trafficDistribution: PreferClose` on the backend Services would not work here. Envoy Gateway
+routes to pod endpoints directly — `EnvoyProxy.spec.routingType` defaults to `Endpoint` — so it
+reads `EndpointSlice`s and never consults the `Service`. The policy also reaches backends whose
+`Service` this chart does not own, such as nginz.
+
+Envoy Gateway applies only the *most specific* `BackendTrafficPolicy` per route, so the chart's
+route-level policy (the WebSocket idle timeout) gains `mergeType: StrategicMerge` when this is
+enabled; otherwise it would shadow the Gateway-wide policy for exactly the traffic that
+benefits most.
+
+Requires nodes labelled `topology.kubernetes.io/zone` and the Envoy Gateway topology injector
+(enabled by default) so proxy pods know their own zone. This covers the Envoy → backend hop
+only; the client → Envoy hop belongs to the load balancer.
+
+### Annotations
+
+The chart sets no annotation of its own. Four values place them, and only one is
+platform-specific:
+
+| Value | Applied to | Portable |
+| --- | --- | --- |
+| `gateway.annotations` | the `Gateway` object | yes |
+| `httpRoute.annotations` | every `HTTPRoute` | yes |
+| `gateway.infrastructure.annotations` / `.labels` | the `Service` and `Deployment` Envoy Gateway generates | **no — cloud-specific** |
+
+`infrastructure.annotations` is where `service.beta.kubernetes.io/aws-load-balancer-*` (EKS) or
+`load-balancer.hetzner.cloud/*` (Hetzner) belong, and it is the one value that has to vary per
+environment. The only portable annotation anything interprets is external-dns'
+`external-dns.alpha.kubernetes.io/*`, and whether that belongs on the `Gateway` or on the
+`HTTPRoute`s depends on which external-dns source is enabled.
 
 ### GatewayClass is not created
 

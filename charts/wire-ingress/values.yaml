@@ -17,6 +17,11 @@ httpRoute:
   annotations: {}
 
 gateway:
+  # Annotations on the Gateway object itself. NOT propagated to the proxy
+  # Service — cloud load balancer annotations go in infrastructure.annotations.
+  # external-dns reads its annotations here when the gateway-httproute source
+  # is enabled.
+  annotations: {}
   # If true, a Gateway resource is created by this chart.
   # If false, set gateway.name to reference an existing Gateway.
   create: true
@@ -52,6 +57,28 @@ gateway:
     #         envoyService:
     #           type: ClusterIP
     spec: {}
+
+    # ---- Availability of the proxy fleet. Only used when create: true; with
+    # create: false the fleet belongs to the GatewayClass-level EnvoyProxy and
+    # these have no effect. All of them are merged under `spec` above, so
+    # anything here can be overridden or extended there. ----
+
+    # Envoy Gateway defaults to 1, which makes every node drain, cluster
+    # upgrade and autoscaler scale-down a full ingress outage.
+    replicas: 2
+    # PodDisruptionBudget for the proxy pods, so an eviction cannot take the
+    # whole fleet at once. Set exactly one of minAvailable / maxUnavailable, or
+    # {} for no PDB. minAvailable is the safer expression: maxUnavailable: 1
+    # against a one-replica deployment still permits going to zero.
+    podDisruptionBudget:
+      minAvailable: 1
+    # Spread the proxy pods over these topology keys, in order. The constraints
+    # are advisory (whenUnsatisfiable: ScheduleAnyway), so a single-node or
+    # single-zone cluster still schedules them, just co-located. Set to [] to
+    # place no constraints.
+    topologySpreadKeys:
+      - kubernetes.io/hostname
+      - topology.kubernetes.io/zone
   # Convenience shorthand for provider.kubernetes.envoyService.type.
   # Only takes effect when manageServiceType: true.
   # Do not combine with envoyProxy.spec.provider.kubernetes.envoyService.
@@ -69,6 +96,23 @@ gateway:
   #       service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
   infrastructure:
     annotations: {}
+    # Labels propagated to the same generated resources. Gateway API >= v1.1.
+    labels: {}
+  # Make Envoy prefer backend endpoints in its own zone, so that most traffic
+  # stays inside one availability zone. On a multi-AZ cluster every cross-zone
+  # request is billed as inter-AZ transfer; inert where there is only one zone.
+  #
+  # This is a preference, not a fence: Envoy spills into other zones as soon as
+  # the local one is short on capacity, so losing a zone costs money, not
+  # availability.
+  #
+  # Requires nodes labelled topology.kubernetes.io/zone and the Envoy Gateway
+  # topology injector (on by default) so proxy pods know their own zone.
+  zoneAwareRouting:
+    enabled: false
+    # Below this many backend endpoints across all zones, Envoy balances
+    # normally. Guards small deployments against a single-zone hotspot.
+    minEndpointsThreshold: 6
   # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
   # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
   # ClientTrafficPolicy targeting the Gateway.
