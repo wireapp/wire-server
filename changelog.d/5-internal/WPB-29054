@@ -1,0 +1,1 @@
+Fix broken test setup due to unavailable minio image
