@@ -1,0 +1,6 @@
+Gundeck can again store presences in PostgreSQL: the presence store is
+selectable via `gundeck.presenceStore` (`redis` (default) or `postgresql`)
+or the `GUNDECK_PRESENCE_STORE` environment variable.  When PostgreSQL is
+selected, configure `gundeck.config.postgresql` (plus `postgresqlPool`,
+and optionally `secrets.pgPassword`) like brig's postgresql settings; the
+`redis-ephemeral` release and its TLS certificates are then unnecessary.

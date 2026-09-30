@@ -16,6 +16,7 @@ resources:
       ca:
         secretName: elasticsearch-ca
 
+{{- if ne (env "GUNDECK_PRESENCE_STORE") "postgresql" }}
   # redis CA and certificate
   - apiVersion: cert-manager.io/v1
     kind: Issuer
@@ -68,6 +69,7 @@ resources:
       issuerRef:
         name: redis-issuer
         kind: Issuer
+{{- end }}
 
   # RabbitMQ CA and certificate
   - apiVersion: cert-manager.io/v1

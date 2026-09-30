@@ -50,6 +50,7 @@ spec:
           secret:
             secretName: {{ (include "gundeck.tlsSecretRef" .Values.gundeck.config | fromYaml).name }}
         {{- end }}
+        {{- if ne (include "gundeck.presenceStore" $) "postgresql" }}
         {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
         - name: "redis-ca"
           secret:
@@ -59,6 +60,12 @@ spec:
         - name: "additional-redis-ca"
           secret:
             secretName: {{ include "gundeck.additionalRedisTlsSecretName" .Values.gundeck.config }}
+        {{- end }}
+        {{- end }}
+        {{- if hasKey .Values.gundeck.secrets "pgPassword" }}
+        - name: "gundeck-secrets"
+          secret:
+            secretName: "gundeck"
         {{- end }}
       containers:
         - name: gundeck
@@ -75,6 +82,7 @@ spec:
           - name: "gundeck-cassandra"
             mountPath: "/etc/wire/gundeck/cassandra"
           {{- end }}
+          {{- if ne (include "gundeck.presenceStore" $) "postgresql" }}
           {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
           - name: "redis-ca"
             mountPath: "/etc/wire/gundeck/redis-ca/"
@@ -82,6 +90,11 @@ spec:
           {{- if eq (include "gundeck.configureAdditionalRedisCa" .Values.gundeck.config) "true" }}
           - name: "additional-redis-ca"
             mountPath: "/etc/wire/gundeck/additional-redis-ca/"
+          {{- end }}
+          {{- end }}
+          {{- if hasKey .Values.gundeck.secrets "pgPassword" }}
+          - name: "gundeck-secrets"
+            mountPath: "/etc/wire/gundeck/secrets"
           {{- end }}
           {{- if and .Values.gundeck.config.rabbitmq .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
@@ -110,6 +123,7 @@ spec:
                 name: gundeck
                 key: awsSecretKey
           {{- end }}
+          {{- if ne (include "gundeck.presenceStore" $) "postgresql" }}
           {{- if hasKey .Values.gundeck.secrets "redisUsername" }}
           - name: REDIS_USERNAME
             valueFrom:
@@ -137,6 +151,7 @@ spec:
               secretKeyRef:
                 name: gundeck
                 key: redisAdditionalWritePassword
+          {{- end }}
           {{- end }}
           - name: AWS_REGION
             value: "{{ .Values.gundeck.config.aws.region }}"

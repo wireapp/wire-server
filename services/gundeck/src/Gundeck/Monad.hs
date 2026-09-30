@@ -113,7 +113,10 @@ newtype WithDefaultRedis a = WithDefaultRedis {runWithDefaultRedis :: Gundeck a}
 
 instance Redis.MonadRedis WithDefaultRedis where
   liftRedis action = do
-    defaultConn <- view rstate
+    defaultConn <-
+      view presenceBackend >>= \case
+        PresenceBackendRedis c _ -> pure c
+        PresenceBackendPostgres _ -> error "gundeck: redis not configured (presenceStore is postgresql)"
     Redis.runRobust defaultConn action
 
 instance Redis.RedisCtx WithDefaultRedis (Either Redis.Reply) where
@@ -142,10 +145,16 @@ newtype WithAdditionalRedis a = WithAdditionalRedis {runWithAdditionalRedis :: G
 
 instance Redis.MonadRedis WithAdditionalRedis where
   liftRedis action = do
-    defaultConn <- view rstate
+    defaultConn <-
+      view presenceBackend >>= \case
+        PresenceBackendRedis c _ -> pure c
+        PresenceBackendPostgres _ -> error "gundeck: redis not configured (presenceStore is postgresql)"
     ret <- Redis.runRobust defaultConn action
 
-    mAdditionalRedisConn <- view rstateAdditionalWrite
+    mAdditionalRedisConn <-
+      view presenceBackend >>= \case
+        PresenceBackendRedis _ mAdd -> pure mAdd
+        PresenceBackendPostgres _ -> error "gundeck: redis not configured (presenceStore is postgresql)"
     for_ mAdditionalRedisConn $ \additionalRedisConn ->
       -- We just fire and forget this call, as there is not much we can do if
       -- this fails.

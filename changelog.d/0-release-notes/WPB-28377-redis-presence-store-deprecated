@@ -1,0 +1,17 @@
+**[Only relevant if you run gundeck with its default Redis presence
+store]** Storing presence data in Redis is deprecated; PostgreSQL is
+now supported as gundeck's presence store and will become the default
+in a future release, at which point Redis support will be removed.
+
+To migrate: set the helm value `gundeck.presenceStore: postgresql` and
+configure `gundeck.config.postgresql` (values in libpq format) plus
+`gundeck.config.postgresqlPool`; the password can be set via
+`gundeck.secrets.pgPassword`.  Gundeck creates the `presence` table on
+startup; no data migration is needed, presences are re-registered as
+clients reconnect.  The `redis-ephemeral` release, its TLS
+certificates and gundeck's `redis` settings become unnecessary.
+
+If you do nothing, gundeck keeps using Redis for now.
+
+See
+https://docs.wire.com/latest/how-to/install/infrastructure-configuration.html#gundeck-presence-store

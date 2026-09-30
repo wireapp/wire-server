@@ -98,6 +98,9 @@
 {{- end -}}
 
 {{/* GUNDECK */}}
+{{- define "gundeck.presenceStore" -}}
+{{- $.Values.gundeck.presenceStore | default "redis" -}}
+{{- end -}}
 {{- define "gundeck.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
@@ -107,7 +110,7 @@
 {{- end -}}
 
 {{- define "gundeck.configureRedisCa" -}}
-{{ or (hasKey .redis "tlsCa") (hasKey .redis "tlsCaSecretRef") }}
+{{ and (hasKey . "redis") (or (hasKey .redis "tlsCa") (hasKey .redis "tlsCaSecretRef")) }}
 {{- end -}}
 
 {{- define "gundeck.redisTlsSecretName" -}}
