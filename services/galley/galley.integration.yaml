@@ -268,3 +268,4 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   user: postgresql
+  service: postgresql

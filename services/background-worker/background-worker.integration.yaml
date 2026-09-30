@@ -59,6 +59,7 @@ migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
 migrateUsers: false
+migrateService: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -93,3 +94,4 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   user: postgresql
+  service: postgresql
