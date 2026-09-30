@@ -50,6 +50,12 @@ type ConversationsQueueName = "conversations"
 conversationsQueueName :: Text
 conversationsQueueName = Text.pack $ symbolVal (Proxy @ConversationsQueueName)
 
+-- | The queue/table for jobs that operate on activation keys.
+type ActivationKeysQueueName = "activation-keys"
+
+activationKeysQueueName :: Text
+activationKeysQueueName = Text.pack $ symbolVal (Proxy @ActivationKeysQueueName)
+
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
   deriving stock (Eq, Generic, Show)
@@ -60,6 +66,17 @@ instance ToSchema MeetingsCleanupJob where
 
 instance Arbitrary MeetingsCleanupJob where
   arbitrary = pure MeetingsCleanupJob
+
+-- | Empty payload because the schedule itself carries all execution context.
+data ActivationKeysCleanupJob = ActivationKeysCleanupJob
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ActivationKeysCleanupJob)
+
+instance ToSchema ActivationKeysCleanupJob where
+  schema = object $ pure ActivationKeysCleanupJob
+
+instance Arbitrary ActivationKeysCleanupJob where
+  arbitrary = pure ActivationKeysCleanupJob
 
 -- | Payload for adminless deletions.
 -- Arbiter persists these payloads and workers decode them later, so changes to
@@ -193,6 +210,47 @@ deriving via (Schema MeetingsJobPayload) instance S.ToSchema MeetingsJobPayload
 instance Arbitrary MeetingsJobPayload where
   arbitrary = MeetingsCleanup <$> arbitrary
 
+-- | Payload for the activation-keys queue.
+data ActivationKeysJobPayload
+  = ActivationKeysCleanup ActivationKeysCleanupJob
+  deriving stock (Eq, Generic, Show)
+
+data ActivationKeysJobPayloadTag
+  = ActivationKeysCleanupTag
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ActivationKeysJobPayloadTag
+
+instance ToSchema ActivationKeysJobPayloadTag where
+  schema =
+    enum @Text $
+      element "activation_keys_cleanup" ActivationKeysCleanupTag
+
+makePrisms ''ActivationKeysJobPayload
+
+activationKeysJobPayloadObjectSchema :: ObjectSchema SwaggerDoc ActivationKeysJobPayload
+activationKeysJobPayloadObjectSchema = taggedJobPayloadObjectSchema toTag toSchema
+  where
+    toTag :: ActivationKeysJobPayload -> ActivationKeysJobPayloadTag
+    toTag =
+      \case
+        ActivationKeysCleanup {} -> ActivationKeysCleanupTag
+
+    toSchema :: ActivationKeysJobPayloadTag -> ObjectSchema SwaggerDoc ActivationKeysJobPayload
+    toSchema = \case
+      ActivationKeysCleanupTag -> tag _ActivationKeysCleanup (field "data" schema)
+
+instance ToSchema ActivationKeysJobPayload where
+  schema = object activationKeysJobPayloadObjectSchema
+
+deriving via (Schema ActivationKeysJobPayload) instance FromJSON ActivationKeysJobPayload
+
+deriving via (Schema ActivationKeysJobPayload) instance ToJSON ActivationKeysJobPayload
+
+deriving via (Schema ActivationKeysJobPayload) instance S.ToSchema ActivationKeysJobPayload
+
+instance Arbitrary ActivationKeysJobPayload where
+  arbitrary = ActivationKeysCleanup <$> arbitrary
+
 -- | Payload persisted in the conversations queue. Keep the type tags and
 -- nested data shapes stable when changing job payloads.
 data ConversationsJobPayload
@@ -250,5 +308,6 @@ instance Arbitrary ConversationsJobPayload where
 -- | Registry for the jobs we expose via Arbiter.
 type JobRegistry =
   '[ Queue MeetingsQueueName MeetingsJobPayload,
-     Queue ConversationsQueueName ConversationsJobPayload
+     Queue ConversationsQueueName ConversationsJobPayload,
+     Queue ActivationKeysQueueName ActivationKeysJobPayload
    ]

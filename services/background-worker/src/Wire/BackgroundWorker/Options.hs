@@ -55,9 +55,11 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     migrateDomainRegistration :: !Bool,
+    migrateActivationKeys :: !Bool,
     migrateUsers :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
+    activationKeysCleanup :: ActivationKeysCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig
   }
   deriving (Show, Generic)
@@ -205,3 +207,19 @@ instance FromJSON MeetingsCleanupConfig where
           Left e -> parserThrowError [Key "schedule"] $ "Cannot parse cronjob syntax: " <> e
           Right x -> pure x
       pure $ MeetingsCleanupConfig {..}
+
+data ActivationKeysCleanupConfig = ActivationKeysCleanupConfig
+  { -- | Cron schedule for the expired-activation-keys cleanup job
+    schedule :: CronSchedule
+  }
+  deriving (Show, Generic)
+
+instance FromJSON ActivationKeysCleanupConfig where
+  parseJSON =
+    withObject "ActivationKeysCleanupConfig" $ \o -> do
+      scheduleRaw <- o .: "schedule"
+      schedule <-
+        case parseCronSchedule scheduleRaw of
+          Left e -> parserThrowError [Key "schedule"] $ "Cannot parse cronjob syntax: " <> e
+          Right x -> pure x
+      pure $ ActivationKeysCleanupConfig {..}
