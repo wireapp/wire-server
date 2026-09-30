@@ -25,7 +25,7 @@ gundeck:
         - "localhost"
         - "127.0.0.1"
         - "10.0.0.0/8"
-        - "elasticsearch-external"
+        - "opensearch-external"
         - "cassandra-external"
         - "redis-ephemeral"
         - "fake-aws-sqs"
@@ -306,7 +306,7 @@ As of 2020-08-10, the documentation sections below are partially out of date and
 ## Metrics/logging
 
 - [Monitoring wire-server using Prometheus and Grafana](monitoring.md#monitoring)
-- [Installing centralized logging dashboards using Kibana](logging.md#logging)
+- Installing centralized logging dashboards using OpenSearch Dashboards
 
 ## SMTP server
 

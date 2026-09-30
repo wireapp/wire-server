@@ -27,12 +27,14 @@ import Data.Aeson.Types (parseMaybe)
 import Data.ByteString qualified as LBS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy qualified as BL
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as M
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error (lenientDecode)
 import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client
@@ -84,9 +86,7 @@ getTeamSizeImpl ::
   TeamId ->
   Sem r TeamSize
 getTeamSizeImpl cfg tid = do
-  r <- embed $ ES.runBH cfg.conn.env $ do
-    res <- ES.searchByType cfg.conn.indexName mappingName search
-    liftIO $ ES.parseEsResponse res
+  r <- runES cfg.conn.env (ES.searchByIndex cfg.conn.indexName search)
   result <- either (embed . throwIO . IndexLookupError) pure (r :: Either ES.EsError (ES.SearchResult UserDoc))
   let aggs = fromMaybe mempty (ES.aggregations result)
       getCount name = maybe 0 (.filterDocCount) $ M.lookup name aggs >>= parseMaybe (parseJSON @FilterResult)
@@ -139,35 +139,35 @@ upsertImpl ::
   ES.VersionControl ->
   Sem r ()
 upsertImpl cfg docId userDoc versioning = do
-  void $ runInBothES cfg indexDoc
+  (res, additionalRes) <- runInBothES cfg (\idx -> ES.indexDocument idx settings userDoc docId)
+  handle res
+  mapM_ handle additionalRes
   where
-    indexDoc :: ES.IndexName -> ES.BH (Sem r) ()
-    indexDoc idx = do
-      r <- ES.indexDocument idx mappingName settings userDoc docId
-      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        lift $ Metrics.incCounter indexUpdateErrorCounter
-        res <- liftIO $ ES.parseEsResponse r
-        liftIO . throwIO . IndexUpdateError . either id id $ res
-      lift $ Metrics.incCounter indexUpdateSuccessCounter
-
     settings = ES.defaultIndexDocumentSettings {ES.idsVersionControl = versioning}
+    handle (Right _) = Metrics.incCounter indexUpdateSuccessCounter
+    handle (Left e)
+      -- Version conflicts are tolerated: parity with the old `isVersionConflict`.
+      | isVersionConflictError e = Metrics.incCounter indexUpdateSuccessCounter
+      | otherwise = Metrics.incCounter indexUpdateErrorCounter >> embed (throwIO (IndexUpdateError e))
+    isVersionConflictError (ES.EsError st _) = st == Just 409
 
 updateTeamSearchVisibilityInboundImpl :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> TeamId -> SearchVisibilityInbound -> Sem r ()
-updateTeamSearchVisibilityInboundImpl cfg tid vis =
-  void $ runInBothES cfg updateAllDocs
+updateTeamSearchVisibilityInboundImpl cfg tid vis = do
+  (res, additionalRes) <- runInBothES cfg (\idx -> ES.updateByQuery @(ES.BH IO) idx query (Just script) >>= \r -> pure (r :: Value))
+  either handleError (const (pure ())) res
+  forM_ additionalRes (either handleError (const (pure ())))
   where
-    updateAllDocs :: ES.IndexName -> ES.BH (Sem r) ()
-    updateAllDocs idx = do
-      r <- ES.updateByQuery idx query (Just script)
-      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        res <- liftIO $ ES.parseEsResponse r
-        liftIO . throwIO . IndexUpdateError . either id id $ res
+    isVersionConflictError (ES.EsError st _) = st == Just 409
+    handleError e
+      -- Version conflicts are tolerated: parity with the old `isVersionConflict`.
+      | isVersionConflictError e = pure ()
+      | otherwise = embed . throwIO . IndexUpdateError $ e
 
     query :: ES.Query
     query = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing
 
     script :: ES.Script
-    script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
+    script = ES.Script (Just (ES.ScriptLanguage "painless")) (ES.ScriptInline scriptText) Nothing Nothing
 
     -- Unfortunately ES disallows updating ctx._version with a "Update By Query"
     scriptText =
@@ -180,10 +180,9 @@ updateTeamSearchVisibilityInboundImpl cfg tid vis =
 bulkUpsertImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> [(ES.DocId, UserDoc, ES.VersionControl)] -> Sem r ()
 bulkUpsertImpl cfg docs = do
   let bhe = cfg.conn.env
-      ES.IndexName idx = cfg.conn.indexName
-      ES.MappingName mpp = mappingName
+      idx = ES.unIndexName cfg.conn.indexName
       (ES.Server base) = ES.bhServer bhe
-  baseReq <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
+  baseReq <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/_bulk")
   let reqWithoutCreds =
         baseReq
           { method = "POST",
@@ -192,9 +191,16 @@ bulkUpsertImpl cfg docs = do
           }
   req <- embed $ bhe.bhRequestHook reqWithoutCreds
   res <- embed $ httpLbs req (ES.bhManager bhe)
-  unless (ES.isSuccess res) $ do
-    parsedRes <- liftIO $ ES.parseEsResponse res
-    liftIO . throwIO . IndexUpdateError . either id id $ parsedRes
+  let sc = statusCode (responseStatus res)
+  unless (sc >= 200 && sc < 300) $
+    liftIO . throwIO . IndexUpdateError $
+      ES.EsError
+        (Just sc)
+        ( "Bulk request failed: "
+            <> Text.pack (show sc)
+            <> ": "
+            <> Text.take 512 (Text.decodeUtf8With lenientDecode (BL.toStrict (responseBody res)))
+        )
   where
     encodeJSONToString :: (ToJSON a) => a -> Builder
     encodeJSONToString = fromEncoding . toEncoding
@@ -211,7 +217,6 @@ bulkUpsertImpl cfg docs = do
       let (versionType :: Maybe Text, version) = case versionControl of
             ES.NoVersionControl -> (Nothing, Nothing)
             ES.InternalVersion v -> (Nothing, Just v)
-            ES.ExternalGT (ES.ExternalDocVersion v) -> (Just "external", Just v)
             ES.ExternalGTE (ES.ExternalDocVersion v) -> (Just "external_gte", Just v)
             ES.ForceVersion (ES.ExternalDocVersion v) -> (Just "force", Just v)
        in object
@@ -225,8 +230,10 @@ bulkUpsertImpl cfg docs = do
 
 doesIndexExistImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> Sem r Bool
 doesIndexExistImpl cfg = do
-  (mainExists, fromMaybe True -> additionalExists) <- runInBothES cfg ES.indexExists
-  pure $ mainExists && additionalExists
+  (mainExists, additionalExists) <- runInBothES cfg ES.indexExists
+  main <- either (embed . throwIO . IndexLookupError) pure mainExists
+  additional <- maybe (pure True) (either (embed . throwIO . IndexLookupError) pure) additionalExists
+  pure $ main && additional
 
 searchUsersImpl ::
   (Member (Embed IO) r) =>
@@ -260,7 +267,7 @@ defaultUserQuery searcher mSearcherTeamId teamSearchInfo mTypes (normalized -> t
               (ES.QueryString term')
           )
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
-              ES.multiMatchQueryOperator = ES.And
+              ES.multiMatchQueryOperator = Just ES.And
             }
       query =
         ES.QueryBoolQuery
@@ -317,7 +324,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
           mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
           results = mapMaybe ES.hitSource hits
        in SearchResult
-            { searchFound = ES.hitsTotalValue . ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = maybe 0 (.value) (ES.hitsTotal (ES.searchHits es)),
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -328,9 +335,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
 
 searchInMainIndex :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> ES.Search -> Sem r (ES.SearchResult UserDoc)
 searchInMainIndex cfg search = do
-  r <- ES.runBH cfg.conn.env $ do
-    res <- ES.searchByType cfg.conn.indexName mappingName search
-    liftIO $ ES.parseEsResponse res
+  r <- runES cfg.conn.env (ES.searchByIndex cfg.conn.indexName search)
   either (embed . throwIO . IndexLookupError) pure r
 
 queryIndex ::
@@ -346,7 +351,7 @@ queryIndex cfg s (IndexQuery q f _) = do
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotalValue . ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = maybe 0 (.value) (ES.hitsTotal (ES.searchHits es)),
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -412,7 +417,7 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter
             (ES.QueryString term')
         )
           { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
-            ES.multiMatchQueryOperator = ES.And
+            ES.multiMatchQueryOperator = Just ES.And
           }
 
     teamFilter :: ES.Filter
@@ -517,7 +522,7 @@ termQ :: Text -> Text -> ES.Query
 termQ f v =
   ES.TermQuery
     ES.Term
-      { ES.termField = f,
+      { ES.termField = Key.fromText f,
         ES.termValue = v
       }
     Nothing
@@ -648,7 +653,7 @@ matchTeamMembersSearchableByAllTeams =
     boolQuery
       { ES.boolQueryMustMatch =
           [ ES.QueryExistsQuery $ ES.FieldName "team",
-            ES.TermQuery (ES.Term (Key.toText searchVisibilityInboundFieldName) "searchable-by-all-teams") Nothing
+            ES.TermQuery (ES.Term searchVisibilityInboundFieldName "searchable-by-all-teams") Nothing
           ]
       }
 
@@ -669,15 +674,14 @@ matchUsersNotInTeam tid =
 --------------------------------------------
 -- Utils
 
-runInBothES :: (Monad m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m (a, Maybe a)
-runInBothES cfg f = do
-  x <- ES.runBH cfg.conn.env $ f cfg.conn.indexName
-  y <- forM cfg.additionalConn $ \additional ->
-    ES.runBH additional.env $ f additional.indexName
-  pure (x, y)
+runES :: (Member (Embed IO) r) => ES.BHEnv -> ES.BH IO a -> Sem r (Either ES.EsError a)
+runES env act = join <$> embed (ES.runBH env (ES.tryEsError act))
 
-mappingName :: ES.MappingName
-mappingName = ES.MappingName "user"
+runInBothES :: (Member (Embed IO) r) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH IO a) -> Sem r (Either ES.EsError a, Maybe (Either ES.EsError a))
+runInBothES cfg f = do
+  x <- runES cfg.conn.env (f cfg.conn.indexName)
+  y <- forM cfg.additionalConn (\c -> runES c.env (f c.indexName))
+  pure (x, y)
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []

@@ -46,7 +46,8 @@ import Brig.Options qualified as Opts
 import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Options qualified as CassOpts
-import Control.Lens ((.~), (?~), (^.), (^?), (^?!))
+import Control.Exception (try)
+import Control.Lens ((.~), (?~), (^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (Value, decode)
 import Data.Aeson qualified as Aeson
@@ -87,7 +88,6 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
-import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch (defaultMigrationIndexName)
 import Wire.PostgresMigrationOpts
 
@@ -201,27 +201,25 @@ testSearchableMissing opts brig galley = do
   let indexName = opts.elasticsearch.index
       docId = ES.DocId $ UUID.toText $ toUUID uid
   userJson :: Aeson.Value <- do
-    resp <- liftIO $ runBH opts $ ES.getDocument indexName mappingName docId
-    responseJsonError $ fmap Just resp
+    resp <- liftIO $ runBH opts $ ES.getDocument indexName docId
+    pure $ maybe Aeson.Null ES._source (ES.foundResult resp)
   liftIO $
     assertBool "Newly created users have searchable field set" $
       isJust $
-        userJson ^? Aeson.key "_source" . Aeson.key "searchable"
-  let userJson' = userJson ^?! Aeson.key "_source"
-      userJsonLegacy = userJson' & Aeson.atKey "searchable" .~ Nothing -- this raw JSON has now "searchable" field removed
-  void $ liftIO $ runBH opts $ ES.deleteDocument indexName mappingName docId
-  void $ liftIO $ runBH opts $ ES.indexDocument indexName mappingName ES.defaultIndexDocumentSettings userJsonLegacy docId
+        userJson ^? Aeson.key "searchable"
+  let userJsonLegacy = userJson & Aeson.atKey "searchable" .~ Nothing -- this raw JSON has now "searchable" field removed
+  void $ liftIO $ runBH opts $ ES.deleteDocument indexName docId
+  void $ liftIO $ runBH opts $ ES.indexDocument indexName ES.defaultIndexDocumentSettings userJsonLegacy docId
   refreshIndex brig
 
   -- get updated raw JSON and double-check that "searchable" field is gone
   userJsonLegacyCheck :: Aeson.Value <- do
-    resp <- liftIO (runBH opts $ ES.getDocument indexName mappingName docId)
-    responseJsonError $ fmap Just resp
+    resp <- liftIO (runBH opts $ ES.getDocument indexName docId)
+    pure $ maybe Aeson.Null ES._source (ES.foundResult resp)
   liftIO $
     assertBool "Updated user has no searchable field" $
       isNothing $
-        userJsonLegacyCheck ^? Aeson.key "_source" . Aeson.key "searchable"
-
+        userJsonLegacyCheck ^? Aeson.key "searchable"
   -- perform search and still get the user
   searcher <- userId <$> mkTeamMember (Member.rolePermissions RoleMember)
   s' <- Search.executeSearch brig searcher $ fromName $ userDisplayName user
@@ -700,7 +698,7 @@ testMigrationToNewIndex ::
   m ()
 testMigrationToNewIndex opts brig additionalIndexServer migrateIndexCommand = do
   logger <- Log.create Log.StdOut
-  migrationIndexName <- ES.IndexName <$> randomHandle
+  migrationIndexName <- mkIndexNameIO =<< randomHandle
   -- running brig with `withSettingsOverride` to direct it to the expected index(es).  it's
   -- important to make both old and new index name/url explicit via `withESProxy`, or the
   -- calls to `refreshIndex` in this test will interfere with parallel test runs of this test.
@@ -851,7 +849,7 @@ withESProxy ::
   (ES.Server -> ES.IndexName -> m a) ->
   m a
 withESProxy lg opts migrationIndexName f = do
-  indexName <- ES.IndexName <$> randomHandle
+  indexName <- mkIndexNameIO =<< randomHandle
   liftIO $ createEsIndexCommand lg opts indexName migrationIndexName
   withESProxyOnly [indexName] opts $ flip f indexName
 
@@ -903,7 +901,7 @@ indexProxyServer idxs opts mgr =
       proxyApp req
         | (headMay (Wai.pathInfo req)) `elem` [Just "_reindex", Just "_tasks"] =
             forwardRequest
-        | (any (\(ES.IndexName idx) -> (headMay (Wai.pathInfo req) == Just idx)) idxs) =
+        | (any (\idx -> (headMay (Wai.pathInfo req) == Just (ES.unIndexName idx))) idxs) =
             forwardRequest
         | otherwise =
             denyRequest req
@@ -927,48 +925,48 @@ testWithBothIndicesAndOpts opts mgr name f =
         f newOpts <* deleteIndex opts indexName
     ]
 
-withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.IndexName -> WaiTest.Session a -> m a
+withOldIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> ES.IndexName -> WaiTest.Session a -> m a
 withOldIndex opts migrationIndexName f = do
   lg <- Log.create Log.StdOut
   indexName <- randomHandle
   createIndexWithMapping lg opts migrationIndexName indexName oldMapping
-  let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName)
+  let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ (mkIndexName indexName)
   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
-optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.IndexName -> m (Opt.Opts, Text)
+optsForOldIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> ES.IndexName -> m (Opt.Opts, Text)
 optsForOldIndex opts migrationIndexName = do
   lg <- Log.create Log.StdOut
   indexName <- randomHandle
   createIndexWithMapping lg opts migrationIndexName indexName oldMapping
-  pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName), indexName)
+  pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ (mkIndexName indexName), indexName)
 
-createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> ES.IndexName -> Text -> Value -> m ()
+createIndexWithMapping :: (MonadIO m, MonadCatch m, HasCallStack) => Log.Logger -> Opt.Opts -> ES.IndexName -> Text -> Value -> m ()
 createIndexWithMapping lg opts migrationIndexName name val = do
-  let indexName = ES.IndexName name
+  let indexName = mkIndexName name
   let elasticSettings = mkElasticSettings opts indexName migrationIndexName
       settings = mkCreateIndexSettings elasticSettings
       conn = elasticSettings ^. esConnection
 
   e <- liftIO $ initIndex lg conn opts.galley
   runIndexIO e $ createIndexWithoutMapping True settings
-  mappingReply <- runBH opts $ ES.putNamedMapping indexName mappingName val
-  unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
-    liftIO $ assertFailure $ "failed to create mapping: " <> show name <> ", error: " <> show mappingReply
+  void $ runBH opts $ ES.putMapping @ES.Acknowledged indexName val
+
+deleteIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> Text -> m ()
 
 -- | This doesn't fail if ES returns error because we don't really want to fail the tests for this
-deleteIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> m ()
 deleteIndex opts name = do
-  let indexName = ES.IndexName name
-  void $ runBH opts $ ES.deleteIndex indexName
+  let indexName = mkIndexName name
+  -- Errors are swallowed because we don't want to fail tests on teardown errors.
+  void . liftIO . try @ES.EsError $ runBH opts (ES.deleteIndex indexName)
 
 runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let (ES.Server esURL) = opts ^. Opt.elasticsearchLens . Opt.urlLens
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   let bEnv = mkBHEnv esURL mgr
-  ES.runBH bEnv action
+  result <- ES.runBH bEnv action
+  either (liftIO . assertFailure . show) pure result
 
--- | This was generated from Brig.User.Search.Index.indexMapping at commit 18885bc
 -- how to generate:
 -- - run `cabal repl brig`
 -- - ghci> import Brig.User.Search.Index
@@ -1089,6 +1087,7 @@ oldMapping =
           "type": "keyword"
         }
       },
+
       "type": "nested"
     },
     "team": {
@@ -1099,3 +1098,9 @@ oldMapping =
   }
 }
 |]
+
+mkIndexName :: Text -> ES.IndexName
+mkIndexName t = either (error . Text.unpack) id (ES.mkIndexName t)
+
+mkIndexNameIO :: (MonadIO m) => Text -> m ES.IndexName
+mkIndexNameIO = pure . mkIndexName
