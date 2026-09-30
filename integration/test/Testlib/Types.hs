@@ -136,7 +136,6 @@ data GlobalEnv = GlobalEnv
     gFederationV2Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
-    gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMqAdminOpts,
