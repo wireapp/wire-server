@@ -46,5 +46,8 @@ spec:
     {{- if and $root.Values.accountPages.enabled $domain.accountPages }}
     - {{ $domain.accountPages }}
     {{- end }}
+    {{- range $root.Values.tls.extraDnsNames }}
+    - {{ . | quote }}
+    {{- end }}
 {{- end }}
 {{- end -}}

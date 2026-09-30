@@ -17,7 +17,7 @@ spec:
     - name: {{ include "wire-ingress.gatewayName" . | quote }}
       namespace: {{ .Release.Namespace | quote }}
       kind: Gateway
-      sectionName: federator
+      sectionName: {{ include "wire-ingress.federatorSectionName" . }}
   hostnames:
     - {{ .Values.config.dns.federator | quote }}
   rules:
