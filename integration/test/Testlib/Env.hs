@@ -87,8 +87,6 @@ mkGlobalEnv cfgFile = do
           )
           intConfig.cassandra.cassTlsCa
 
-  manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-
   mbCassCertFilePath <- liftIO $ getCassCertFilePath
   mbSSLContext <- liftIO $ createSSLContext mbCassCertFilePath
   let basicCassSettings =
@@ -134,7 +132,6 @@ mkGlobalEnv cfgFile = do
         gFederationV2Domain = intConfig.federationV2.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 19,
-        gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
@@ -168,6 +165,11 @@ mkGlobalEnv cfgFile = do
 mkEnv :: Maybe String -> GlobalEnv -> Codensity IO Env
 mkEnv currentTestName ge = do
   mls <- liftIO . newIORef =<< mkMLSState
+  -- Fresh connection pool per test: HTTP requests must never reuse
+  -- keep-alive connections (or their state) from a previous test. The manager
+  -- closes itself automatically once the env (its only holder) is unreachable;
+  -- the explicit `closeManager` is deprecated.
+  manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
   liftIO $ do
     curlTrace <- newIORef []
     reqId <- newIORef 0
@@ -192,7 +194,7 @@ mkEnv currentTestName ge = do
                 (gFederationV1Domain ge, 5),
                 (gFederationV2Domain ge, 8)
               ],
-          manager = gManager ge,
+          manager = manager,
           servicesCwdBase = gServicesCwdBase ge,
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
