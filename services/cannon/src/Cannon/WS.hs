@@ -39,6 +39,7 @@ module Cannon.WS
     Websocket,
     connection,
     connIdent,
+    wsApiVersion,
     Key,
     mkKey,
     key2bytes,
@@ -83,6 +84,7 @@ import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
 import Wire.API.Presence
+import Wire.API.Routes.Version (Version)
 
 -----------------------------------------------------------------------------
 -- Key
@@ -112,13 +114,14 @@ keyConnBytes = snd . _key
 
 data Websocket = Websocket
   { connection :: Connection,
-    connIdent :: !Word
+    connIdent :: !Word,
+    wsApiVersion :: !Version
   }
 
-mkWebSocket :: Connection -> WS Websocket
-mkWebSocket c = do
+mkWebSocket :: Version -> Connection -> WS Websocket
+mkWebSocket v c = do
   g <- WS $ asks rand
-  Websocket c <$> liftIO (uniform g)
+  Websocket c <$> liftIO (uniform g) <*> pure v
 
 -----------------------------------------------------------------------------
 -- Clock
