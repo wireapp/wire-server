@@ -177,6 +177,7 @@ library
     Test.Login
     Test.Meetings
     Test.MessageTimer
+    Test.Migration.BlockList
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
