@@ -497,7 +497,8 @@ spec = do
                 teamFeatures = CassandraStorage,
                 domainRegistration = CassandraStorage,
                 user = CassandraStorage,
-                blockList = CassandraStorage
+                blockList = CassandraStorage,
+                passwordReset = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -562,7 +563,8 @@ spec = do
                 teamFeatures = CassandraStorage,
                 domainRegistration = CassandraStorage,
                 user = CassandraStorage,
-                blockList = CassandraStorage
+                blockList = CassandraStorage,
+                passwordReset = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

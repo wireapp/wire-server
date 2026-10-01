@@ -60,7 +60,6 @@ mapPRQueryData f prqd = prqd {prqdRetries = f prqd.prqdRetries, prqdTimeout = f 
 
 data PasswordResetCodeStore m a where
   GenerateEmailCode :: PasswordResetCodeStore m PasswordResetCode
-  GeneratePhoneCode :: PasswordResetCodeStore m PasswordResetCode
   CodeSelect :: PasswordResetKey -> PasswordResetCodeStore m (Maybe (PRQueryData Maybe))
   CodeInsert :: PasswordResetKey -> PRQueryData Identity -> Int32 -> PasswordResetCodeStore m ()
   CodeDelete :: PasswordResetKey -> PasswordResetCodeStore m ()
