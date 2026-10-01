@@ -44,6 +44,11 @@ data MeetingsSubsystem m a where
     ConnId ->
     Qualified MeetingId ->
     MeetingsSubsystem m Bool
+  RefreshMeetingLink ::
+    Local UserId ->
+    ConnId ->
+    Qualified MeetingId ->
+    MeetingsSubsystem m (Maybe MeetingWithConversation)
   GetMeeting ::
     Local UserId ->
     Qualified MeetingId ->

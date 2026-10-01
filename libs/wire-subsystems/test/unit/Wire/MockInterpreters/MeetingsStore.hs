@@ -120,6 +120,14 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                 }
         modify (Map.insert mid updatedMeeting)
   DeleteMeeting mid -> modify (Map.delete mid)
+  -- \| @StoredMeeting@ does not model the @has_code@ column (it lives in the
+  -- code store); mirror the Postgres impl by bumping @updated_at@ only.
+  SetMeetingHasCode mid _hasCode -> do
+    now <- Now.get
+    modify $
+      Map.adjust
+        (\sm -> sm {updatedAt = now})
+        mid
   GetOldMeetings cutoffTime batchSize ->
     gets $
       take batchSize
