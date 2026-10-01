@@ -275,7 +275,9 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
               mFoundUserTeamId <- lift $ liftSem $ UserStore.getUserTeam foundUser
               localFoundUser <- qualifyLocal foundUser
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
-                then lift . liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser
+                then do
+                  mFoundUser <- lift . liftSem $ UserSubsystem.getLocalUserProfile localFoundUser
+                  fmap contactFromProfile <$> filterHandleResults localFoundUser (maybeToList mFoundUser)
                 else pure []
           let filterTypes = case mbUserTypeFilter of
                 Just [] -> id
