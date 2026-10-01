@@ -1,0 +1,1 @@
+Rewrite the user searchability page: use API and configuration names consistently, separate the team search visibility from the `searchVisibility` team feature that allows changing it, and document the team role, per-user searchability, searchers without a team, and handle lookup.
