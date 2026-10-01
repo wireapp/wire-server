@@ -113,6 +113,56 @@ testOnLastAdminLeaveReturnEligibleMembers = do
       req <- baseRequest remover Galley (ExplicitVersion 15) (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
       submit "DELETE" req
 
+testOnLastAdminLeaveReturnsEligibleMembersForGroupType :: (HasCallStack) => TaggedBool "channel" -> App ()
+testOnLastAdminLeaveReturnsEligibleMembersForGroupType (TaggedBool isChannel) = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
+  when isChannel $ do
+    setTeamFeatureLockStatus alice tid "channels" "unlocked"
+    void
+      $ Public.setTeamFeatureConfig
+        alice
+        tid
+        "channels"
+        ( object
+            [ "status" .= ("enabled" :: String),
+              "config"
+                .= object
+                  [ "allowed_to_create_channels" .= ("team-members" :: String),
+                    "allowed_to_open_channels" .= ("team-members" :: String)
+                  ]
+            ]
+        )
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+
+  conv <-
+    if isChannel
+      then do
+        channel <-
+          postConversation
+            alice1
+            defMLS
+              { groupConvType = Just "channel",
+                team = Just tid,
+                addPermission = Just "admins"
+              }
+            >>= getJSON 201
+        convId <- objConvId channel
+        createGroup def alice1 convId
+        void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+        pure channel
+      else createTeamMLSConversation alice tid alice1 [bob]
+
+  bindResponse (removeMember alice conv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "adminless-conversation"
+    eligibleMembers <- resp.json %. "eligible_members" & asList
+    expected <- bob %. "qualified_id"
+    eligibleMembers `shouldMatchSet` [expected]
+
 testPersonalUserLastAdminLeaveReturnsAdminlessConversation :: (HasCallStack) => App ()
 testPersonalUserLastAdminLeaveReturnsAdminlessConversation = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
@@ -684,17 +734,45 @@ testOnLastAdminLeaveFeatureDisabled = do
   bindResponse (removeMember alice conv alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-testOnLastAdminTeamMemberDeletionAutopromotes :: (HasCallStack) => App ()
-testOnLastAdminTeamMemberDeletionAutopromotes = do
+testOnLastAdminTeamMemberDeletionAutopromotes :: (HasCallStack) => TaggedBool "channel" -> App ()
+testOnLastAdminTeamMemberDeletionAutopromotes (TaggedBool isChannel) = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
 
   setTeamFeatureLockStatus OwnDomain tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
 
+  when isChannel $ do
+    setTeamFeatureLockStatus alice tid "channels" "unlocked"
+    void
+      $ Public.setTeamFeatureConfig
+        alice
+        tid
+        "channels"
+        ( object
+            [ "status" .= ("enabled" :: String),
+              "config"
+                .= object
+                  [ "allowed_to_create_channels" .= ("team-members" :: String),
+                    "allowed_to_open_channels" .= ("team-members" :: String)
+                  ]
+            ]
+        )
+
   [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   traverse_ (uploadNewKeyPackage def) [alice1, charlie1]
 
-  conv <- postConversation charlie defMLS {team = Just tid} >>= getJSON 201
+  conv <-
+    if isChannel
+      then
+        postConversation
+          charlie1
+          defMLS
+            { groupConvType = Just "channel",
+              team = Just tid,
+              addPermission = Just "admins"
+            }
+          >>= getJSON 201
+      else postConversation charlie defMLS {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
   createGroup def charlie1 convId
   void $ createAddCommit charlie1 convId [alice] >>= sendAndConsumeCommitBundle

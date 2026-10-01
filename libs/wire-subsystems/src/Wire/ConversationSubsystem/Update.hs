@@ -1195,7 +1195,7 @@ removeMemberQualified responseMode lusr con qcnv victim =
 isAdminlessCheckCandidate :: StoredConversation -> Bool
 isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
-    && maybe True (== GroupConversation) conv.metadata.cnvmGroupConvType
+    && maybe True (`elem` [GroupConversation, Channel]) conv.metadata.cnvmGroupConvType
 
 systemAdminlessDeletionSupported ::
   (Member (E.FederationAPIAccess FederatorClient) r) =>
