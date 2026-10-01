@@ -531,6 +531,13 @@ testUserSearchable = do
     foundUids <- for docs objId
     assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
 
+  -- POST /list-users must not resolve a non-searchable user by exact handle.
+  BrigP.listUsersByHandles u1 OwnDomain [u3handle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    foundUids <- for profiles objId
+    assertBool "list-users must not return non-searchable users by exact handle" $ notElem u3id foundUids
+
   -- /teams/:tid/members, both admin and regular user get only searchable members
   searchableUsers'Uids <- mapM objId [owner, admin, u2]
   let findOnlySearchable searcher =
@@ -594,12 +601,16 @@ testStealthUsersWithFederation = do
   BrigP.putSelf searchee (def {BrigP.name = Just searchTerm}) >>= assertSuccess
   BrigI.refreshIndex OtherDomain
 
+  searcheeHandle <- API.randomHandle
+  BrigP.putHandle searchee searcheeHandle >>= assertSuccess
+
   assertCanFind searcher searchee searchTerm OtherDomain
 
   BrigP.setUserSearchable owner searcheeId False >>= assertSuccess
   BrigI.refreshIndex OtherDomain
 
   assertCannotFind searcher searchee searchTerm OtherDomain
+  assertCannotFind searcher searchee searcheeHandle OtherDomain
 
 testSuspendedUserSearch :: (HasCallStack) => App ()
 testSuspendedUserSearch = do
