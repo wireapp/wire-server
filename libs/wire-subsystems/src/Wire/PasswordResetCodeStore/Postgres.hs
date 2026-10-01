@@ -23,16 +23,13 @@ module Wire.PasswordResetCodeStore.Postgres
 where
 
 import Data.Id (UserId)
-import Data.Text (pack)
-import Data.Text.Ascii (encodeBase64Url, unsafeFromText)
+import Data.Text.Ascii (encodeBase64Url)
 import Data.Time.Clock (UTCTime)
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
-import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Text.Printf (printf)
 import Wire.API.PostgresMarshall
 import Wire.API.User.Password
 import Wire.PasswordResetCodeStore (PRQueryData (..), PasswordResetCodeStore (..))
@@ -43,7 +40,6 @@ interpretPasswordResetCodeStoreToPostgres ::
   InterpreterFor PasswordResetCodeStore r
 interpretPasswordResetCodeStoreToPostgres = interpret $ \case
   GenerateEmailCode -> genEmailCode
-  GeneratePhoneCode -> genPhoneCode
   CodeSelect prk -> codeSelect prk
   CodeInsert prk prqd ttl -> codeInsert prk prqd ttl
   CodeDelete prk -> codeDelete prk
@@ -51,14 +47,6 @@ interpretPasswordResetCodeStoreToPostgres = interpret $ \case
 -- | 24 random bytes, base64url-encoded (mirrors the Cassandra interpreter).
 genEmailCode :: (Member (Embed IO) r) => Sem r PasswordResetCode
 genEmailCode = PasswordResetCode . encodeBase64Url <$> embed @IO (randBytes 24)
-
--- | A 6-digit, zero-padded code (mirrors the Cassandra interpreter). The
--- phone-reset path is currently unreachable (no production callsite), but the
--- interpreter must stay total.
-genPhoneCode :: (Member (Embed IO) r) => Sem r PasswordResetCode
-genPhoneCode =
-  PasswordResetCode . unsafeFromText . pack . printf "%06d"
-    <$> embed @IO (randIntegerZeroToNMinusOne 1000000)
 
 codeSelect ::
   (PGConstraints r) =>

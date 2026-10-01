@@ -69,9 +69,9 @@ testPasswordResetMigration = do
         -- A wrong code decrements the retries and re-inserts the row (with a
         -- refreshed expiry); the API rejects it with a 400.
         completePasswordReset domain u2.key (u2.code <> "X") "some-password" >>= assertStatus 400
-        initiateReset domain >>= \u3' -> do
-          waitForMigration domain counterName
-          pure u3'
+        u3 <- initiateReset domain
+        waitForMigration domain counterName
+        pure u3
 
     -- P4 postgresql: reads are served exclusively from Postgres
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do

@@ -40,7 +40,6 @@ inMemoryPasswordResetCodeStore =
     \case
       GenerateEmailCode ->
         pure . PasswordResetCode . encodeBase64Url $ "email-code"
-      GeneratePhoneCode -> (error "deprecated")
       CodeSelect resetKey -> do
         gets $
           fmap (mapPRQueryData (Just . runIdentity))

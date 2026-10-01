@@ -29,8 +29,8 @@ import Wire.PasswordResetCodeStore.Postgres qualified as Postgres
 import Wire.Postgres (PGConstraints)
 
 -- | During migration, Cassandra remains the source of truth for reads while
--- writes are mirrored to Postgres. The generation constructors are pure (they
--- only draw randomness); they run exactly once — invoking both interpreters
+-- writes are mirrored to Postgres. The code-generation constructor is pure (it
+-- only draws randomness); it runs exactly once — invoking both interpreters
 -- would produce two independent random codes.
 interpretPasswordResetCodeStoreToCassandraAndPostgres ::
   forall m r.
@@ -41,8 +41,6 @@ interpretPasswordResetCodeStoreToCassandraAndPostgres ::
   InterpreterFor PasswordResetCodeStore r
 interpretPasswordResetCodeStoreToCassandraAndPostgres = interpret $ \case
   GenerateEmailCode -> Postgres.genEmailCode
-  GeneratePhoneCode ->
-    passwordResetCodeStoreToCassandra @m $ generatePhoneCode
   CodeSelect prk ->
     passwordResetCodeStoreToCassandra @m $ codeSelect prk
   CodeInsert prk prqd ttl -> do
