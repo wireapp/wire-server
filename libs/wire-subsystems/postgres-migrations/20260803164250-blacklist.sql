@@ -1,3 +1,3 @@
-CREATE TABLE IF NOT EXISTS blacklist (
-  key text PRIMARY KEY
+CREATE TABLE IF NOT EXISTS email_blocklist (
+  email text PRIMARY KEY
 );

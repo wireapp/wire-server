@@ -46,7 +46,7 @@ insertKey key =
   where
     insertStatement :: Hasql.Statement Text ()
     insertStatement =
-      [resultlessStatement|INSERT INTO blacklist (key)
+      [resultlessStatement|INSERT INTO email_blocklist (email)
                            VALUES ($1 :: text)
                            ON CONFLICT DO NOTHING
                           |]
@@ -59,8 +59,8 @@ existsImpl key =
     existsStatement =
       [singletonStatement|SELECT EXISTS (
                            SELECT 1
-                           FROM blacklist
-                           WHERE key = ($1 :: text)
+                           FROM email_blocklist
+                           WHERE email = ($1 :: text)
                          ) :: bool|]
 
 deleteImpl :: (PGConstraints r) => EmailKey -> Sem r ()
@@ -69,6 +69,6 @@ deleteImpl key =
   where
     deleteStatement :: Hasql.Statement Text ()
     deleteStatement =
-      [resultlessStatement|DELETE FROM blacklist
-                           WHERE key = ($1 :: text)
+      [resultlessStatement|DELETE FROM email_blocklist
+                           WHERE email = ($1 :: text)
                           |]
