@@ -62,6 +62,7 @@ module Wire.API.Meeting
     Recurrence (..),
     Frequency (..),
     MeetingEmailsInvitation (..),
+    RefreshMeetingLinkRequest (..),
   )
 where
 
@@ -72,7 +73,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
-import Data.Misc (HttpsUrl (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword8)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Range (Range)
@@ -641,6 +642,22 @@ instance ToSchema MeetingEmailsInvitation where
     objectWithDocModifier (description ?~ "Emails invitation") $
       MeetingEmailsInvitation
         <$> (.emails) .= field "emails" (array schema)
+
+newtype RefreshMeetingLinkRequest = RefreshMeetingLinkRequest
+  { password :: Maybe PlainTextPassword8
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RefreshMeetingLinkRequest)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RefreshMeetingLinkRequest
+
+instance ToSchema RefreshMeetingLinkRequest where
+  schema =
+    objectWithDocModifier
+      (description ?~ "Request body for refreshing a meeting's join link")
+      $ RefreshMeetingLinkRequest
+        <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
+    where
+      desc = description ?~ "Optional password for the join link. Replaces any previously set password; omit or null for a passwordless link."
 
 instance PostgresMarshall (Maybe Text, Maybe DI.Int32, Maybe UTCTime) (Maybe Recurrence) where
   postgresMarshall Nothing = (Nothing, Nothing, Nothing)

@@ -230,7 +230,8 @@ refreshMeetingLink ::
   ConnId ->
   Domain ->
   MeetingId ->
+  RefreshMeetingLinkRequest ->
   Sem r MeetingWithConversation
-refreshMeetingLink zUser connId domain meetingId =
+refreshMeetingLink zUser connId domain meetingId req =
   noteS @'MeetingNotFound
-    =<< Meetings.refreshMeetingLink zUser connId (Qualified meetingId domain)
+    =<< Meetings.refreshMeetingLink zUser connId (Qualified meetingId domain) req

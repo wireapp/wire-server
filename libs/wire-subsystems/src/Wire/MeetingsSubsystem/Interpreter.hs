@@ -58,6 +58,8 @@ import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
+import Wire.HashPassword (HashPassword, hashPassword8)
+import Wire.RateLimit (RateLimit, RateLimitKey (RateLimitUser))
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random qualified as Random
@@ -144,7 +146,9 @@ interpretMeetingsSubsystem ::
     Member (Error MeetingError) r,
     Member (Input (Local ())) r,
     Member CodeStore r,
-    Member Random.Random r
+    Member Random.Random r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   -- | System-wide meeting configuration.
   MeetingSystemConfig ->
@@ -156,8 +160,8 @@ interpretMeetingsSubsystem cfg = interpret $ \case
     updateMeetingImpl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   DeleteMeeting zUser connId meetingId ->
     deleteMeetingImpl zUser connId meetingId cfg.validityPeriod
-  RefreshMeetingLink zUser connId meetingId ->
-    refreshMeetingLinkImpl zUser connId meetingId cfg.validityPeriod
+  RefreshMeetingLink zUser connId meetingId req ->
+    refreshMeetingLinkImpl zUser connId meetingId req cfg.validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetings zUser ->
@@ -253,7 +257,7 @@ createMeetingImpl zUser connId newMeeting = do
   -- serve a dead link, while an unreferenced code is harmless. Code-store
   -- modes that cannot hold meeting codes (Cassandra-only) return False;
   -- degrade to a meeting without a link instead of failing the request.
-  hasJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout
+  hasJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout Nothing
   unless hasJoinCode $
     TinyLog.warn $
       Log.msg ("meeting created without join link" :: ByteString)
@@ -442,12 +446,15 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       lift $ Store.deleteMeeting (qUnqualified meetingId)
   pure $ isJust result
 
--- | Drop and recreate a meeting's join link (WPB-28216). Permissions and
--- event emission mirror 'updateMeetingImpl': the meetings feature must be
--- enabled, the caller must be the creator of a live local meeting, and a
+-- | Refresh a meeting's join link (WPB-28216). Permissions and event
+-- emission mirror 'updateMeetingImpl': the meetings feature must be enabled,
+-- the caller must be the creator of a live local meeting, and a
 -- @meeting.update@ event is emitted on success. Returns 'Nothing' (surfaced
--- as 404) when any guard fails. The old join code is deleted and a fresh one
--- is created; if the code store cannot hold meeting codes the meeting
+-- as 404) when any guard fails. The old join code is replaced atomically
+-- (single upsert in the code store), the meeting conversation's guest link
+-- is revoked, and the optional password is hashed and stored on the code,
+-- replacing any previously set password; when no password is given the link
+-- is passwordless. If the code store cannot hold meeting codes the meeting
 -- degrades to the placeholder link, mirroring 'createMeetingImpl'.
 refreshMeetingLinkImpl ::
   ( Member Store.MeetingsStore r,
@@ -458,14 +465,17 @@ refreshMeetingLinkImpl ::
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   ConnId ->
   Qualified MeetingId ->
+  API.RefreshMeetingLinkRequest ->
   NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversation)
-refreshMeetingLinkImpl zUser connId meetingId validityPeriod = do
+refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   base <- codeURIBase (tDomain zUser)
@@ -476,18 +486,20 @@ refreshMeetingLinkImpl zUser connId meetingId validityPeriod = do
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
-    lift $ CodeStore.deleteMeetingCode (qUnqualified meetingId)
-    hasJoinCode <- lift $ CodeStore.createMeetingCode (qUnqualified meetingId) meetingCodeTimeout
+    conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
+    mHashedPw <- lift $ for req.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
+    hasJoinCode <- lift $ CodeStore.createMeetingCode (qUnqualified meetingId) meetingCodeTimeout mHashedPw
     unless hasJoinCode $
       lift $
         TinyLog.warn $
           Log.msg ("meeting link refreshed without join code" :: ByteString)
             . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
-    lift $ Store.setMeetingHasCode (qUnqualified meetingId) hasJoinCode
-    updated <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
-    conv <- MaybeT $ getMeetingConversationOrFail meetingId updated.conversationId
+    -- Revoke the meeting conversation's guest link so it cannot be used to
+    -- bypass the refreshed (old) join link. The meeting.update event already
+    -- notifies conversation members, so no separate conversation event is sent.
+    lift $ CodeStore.deleteConversationCode meeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
-    lift $ storedMeetingToMeetingWithConversation base zUser conv updated
+    lift $ storedMeetingToMeetingWithConversation base zUser conv meeting
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,

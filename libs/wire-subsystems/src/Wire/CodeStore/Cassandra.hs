@@ -53,7 +53,7 @@ interpretCodeStoreToCassandra = interpret $ \case
     CodeReferentMeeting _ -> throwS @'CodeStoreNotFound
   -- Meeting codes never live in Cassandra; report unsupported so callers
   -- degrade to a meeting without a link instead of failing the request.
-  CreateMeetingCode _ _ -> pure False
+  CreateMeetingCode _ _ _ -> pure False
   -- Meeting codes never live in Cassandra; short-circuit without a network
   -- round trip so callers omit the link instead of failing the request.
   GetMeetingCode _ -> pure Nothing
