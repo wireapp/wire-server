@@ -36,7 +36,7 @@ import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Wire.API.Meeting (MeetingType, Recurrence, TimeZone, renderMeetingType, renderTimeZone)
+import Wire.API.Meeting (MeetingType, Recurrence, TimeZone, renderTimeZone)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
 import Wire.API.User.Identity (EmailAddress, fromEmail)
 import Wire.MeetingsStore
@@ -49,8 +49,8 @@ interpretMeetingsStoreToPostgres =
   interpret $ \case
     CreateMeeting mid title creator startTime endTime tzid mtype recurrence convId emails trial ->
       createMeetingImpl mid title creator startTime endTime tzid mtype recurrence convId emails trial
-    UpdateMeeting meetingId title startDate endTime tzid mMType schedule ->
-      updateMeetingImpl meetingId title startDate endTime tzid mMType schedule
+    UpdateMeeting meetingId title startDate endTime tzid schedule ->
+      updateMeetingImpl meetingId title startDate endTime tzid schedule
     DeleteMeeting meetingId ->
       deleteMeetingImpl meetingId
     SetMeetingHasCode meetingId hasCode ->
@@ -138,7 +138,6 @@ type UpdateStoredMeetingWithRecurrenceTuple =
     Maybe UTCTime, -- start_time
     Maybe UTCTime, -- end_time
     Maybe Text, -- tzid
-    Maybe Text, -- mtype
     Maybe Text, -- recurrence_frequency
     Maybe Int32, -- recurrence_interval
     Maybe UTCTime, -- recurrence_until
@@ -150,19 +149,17 @@ type UpdateMeetingWithRecurrenceTuple =
     Maybe UTCTime, -- start_time
     Maybe UTCTime, -- end_time
     Maybe TimeZone, -- tzid
-    Maybe MeetingType, -- mtype
     Maybe Recurrence, -- recurrence
     MeetingId -- meeting id
   )
 
 instance PostgresMarshall UpdateStoredMeetingWithRecurrenceTuple UpdateMeetingWithRecurrenceTuple where
-  postgresMarshall (mTitle, mStartTime, mEndTime, mTzid, mMType, recurrence, id') =
+  postgresMarshall (mTitle, mStartTime, mEndTime, mTzid, recurrence, id') =
     let (rFreq, rInterval, rUntil) = postgresMarshall recurrence
      in ( fromRange <$> mTitle,
           mStartTime,
           mEndTime,
           renderTimeZone <$> mTzid,
-          renderMeetingType <$> mMType,
           rFreq,
           rInterval,
           rUntil,
@@ -174,7 +171,6 @@ type UpdateStoredMeetingWithoutRecurrenceTuple =
     Maybe UTCTime, -- start_time
     Maybe UTCTime, -- end_time
     Maybe Text, -- tzid
-    Maybe Text, -- mtype
     UUID -- meeting id
   )
 
@@ -183,17 +179,15 @@ type UpdateMeetingWithoutRecurrenceTuple =
     Maybe UTCTime, -- start_time
     Maybe UTCTime, -- end_time
     Maybe TimeZone, -- tzid
-    Maybe MeetingType, -- mtype
     MeetingId -- meeting id
   )
 
 instance {-# OVERLAPPING #-} PostgresMarshall UpdateStoredMeetingWithoutRecurrenceTuple UpdateMeetingWithoutRecurrenceTuple where
-  postgresMarshall (mTitle, mStartTime, mEndTime, mTzid, mMType, id') =
+  postgresMarshall (mTitle, mStartTime, mEndTime, mTzid, id') =
     ( fromRange <$> mTitle,
       mStartTime,
       mEndTime,
       renderTimeZone <$> mTzid,
-      renderMeetingType <$> mMType,
       toUUID id'
     )
 
@@ -204,15 +198,14 @@ updateMeetingImpl ::
   Maybe UTCTime ->
   Maybe UTCTime ->
   Maybe TimeZone ->
-  Maybe MeetingType ->
   Maybe (Maybe Recurrence) ->
   Sem r (Maybe StoredMeeting)
-updateMeetingImpl meetingId mTitle mStartDate mEndTime mTzid mMType mRecurrence = do
+updateMeetingImpl meetingId mTitle mStartDate mEndTime mTzid mRecurrence = do
   case mRecurrence of
     Nothing ->
-      runStatement (mTitle, mStartDate, mEndTime, mTzid, mMType, meetingId) updateWithoutRecurrenceStatement
+      runStatement (mTitle, mStartDate, mEndTime, mTzid, meetingId) updateWithoutRecurrenceStatement
     Just recurrence ->
-      runStatement (mTitle, mStartDate, mEndTime, mTzid, mMType, recurrence, meetingId) updateWithRecurrenceStatement
+      runStatement (mTitle, mStartDate, mEndTime, mTzid, recurrence, meetingId) updateWithRecurrenceStatement
   where
     updateWithRecurrenceStatement :: Statement UpdateMeetingWithRecurrenceTuple (Maybe StoredMeeting)
     updateWithRecurrenceStatement =
@@ -227,12 +220,11 @@ updateMeetingImpl meetingId mTitle mStartDate mEndTime mTzid mMType mRecurrence 
               start_time = COALESCE($2 :: timestamptz?, start_time),
               end_time = COALESCE($3 :: timestamptz?, end_time),
               tzid = COALESCE($4 :: text?, tzid),
-              mtype = COALESCE($5 :: text? :: meeting_type, mtype),
-              recurrence_frequency = $6 :: text? :: recurrence_frequency,
-              recurrence_interval = $7 :: int4?,
-              recurrence_until = $8 :: timestamptz?,
+              recurrence_frequency = $5 :: text? :: recurrence_frequency,
+              recurrence_interval = $6 :: int4?,
+              recurrence_until = $7 :: timestamptz?,
               updated_at = NOW()
-          WHERE id = ($9 :: uuid)
+          WHERE id = ($8 :: uuid)
           RETURNING
             id :: uuid, title :: text, creator :: uuid,
             start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
@@ -255,9 +247,8 @@ updateMeetingImpl meetingId mTitle mStartDate mEndTime mTzid mMType mRecurrence 
               start_time = COALESCE($2 :: timestamptz?, start_time),
               end_time = COALESCE($3 :: timestamptz?, end_time),
               tzid = COALESCE($4 :: text?, tzid),
-              mtype = COALESCE($5 :: text? :: meeting_type, mtype),
               updated_at = NOW()
-          WHERE id = ($6 :: uuid)
+          WHERE id = ($5 :: uuid)
           RETURNING
             id :: uuid, title :: text, creator :: uuid,
             start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
