@@ -58,9 +58,9 @@ interpretCodeStoreToPostgres = interpret $ \case
     Code.mkKey (CodeReferentMeeting mid) >>= lookupCode <&> fmap fst
   GetMeetingCodes mids ->
     lookupMeetingCodes mids
-  CreateMeetingCode mid t -> do
+  CreateMeetingCode mid t mPw -> do
     code <- Code.generate (CodeReferentMeeting mid) t
-    insertCode code Nothing
+    insertCode code mPw
     pure True
   MakeKey ref -> do
     Code.mkKey ref

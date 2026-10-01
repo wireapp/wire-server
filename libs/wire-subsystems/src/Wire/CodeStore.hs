@@ -33,10 +33,11 @@ data CodeStore m a where
   GetCode :: Key -> CodeStore m (Maybe (Code, Maybe Password))
   DeleteConversationCode :: ConvId -> CodeStore m ()
   DeleteMeetingCode :: MeetingId -> CodeStore m ()
-  -- | Generate and insert a join code for a meeting. Returns 'False' when the
-  -- backing store cannot hold meeting codes (Cassandra-only mode); callers
-  -- degrade to a meeting without a link instead of failing the request.
-  CreateMeetingCode :: MeetingId -> Timeout -> CodeStore m Bool
+  -- | Generate and insert a join code for a meeting, storing the (hashed)
+  -- password if given. Returns 'False' when the backing store cannot hold
+  -- meeting codes (Cassandra-only mode); callers degrade to a meeting without
+  -- a link instead of failing the request.
+  CreateMeetingCode :: MeetingId -> Timeout -> Maybe Password -> CodeStore m Bool
   -- | Look up a meeting's join code by meeting id. 'Nothing' when no code row
   -- exists (legacy meeting, or code creation failed) or the backing store
   -- cannot hold meeting codes (Cassandra-only mode).

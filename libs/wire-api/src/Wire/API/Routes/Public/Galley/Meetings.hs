@@ -299,6 +299,7 @@ type MeetingsAPI =
                :> Capture "id" MeetingId
                :> "link"
                :> "refresh"
+               :> ReqBody '[JSON] RefreshMeetingLinkRequest
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
                :> CanThrow MeetingError
