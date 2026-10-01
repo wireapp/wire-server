@@ -64,15 +64,15 @@ import Wire.CodeStore.Code (Code, CodeReferent (..))
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.HashPassword (HashPassword, verifyPassword)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
-import Wire.RateLimit (RateLimit, RateLimitExceeded, RateLimitKey (RateLimitUser))
-import Wire.HashPassword (HashPassword, verifyPassword)
 import Wire.MockInterpreters
 import Wire.NotificationSubsystem (NotificationSubsystem, Push (..), Recipient (recipientUserId))
+import Wire.RateLimit (RateLimit, RateLimitExceeded, RateLimitKey (RateLimitUser))
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
