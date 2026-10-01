@@ -1112,3 +1112,13 @@ getMeetingV :: (HasCallStack, MakesValue user) => Int -> user -> String -> Strin
 getMeetingV v user domain meetingId = do
   req <- baseRequest user Galley (ExplicitVersion v) (joinHttpPath ["meetings", domain, meetingId])
   submit "GET" req
+
+getMeetingLinkJoin :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getMeetingLinkJoin user domain meetingId = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "link", "join"])
+  submit "GET" req
+
+postMeetingLinkJoin :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+postMeetingLinkJoin user domain meetingId = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "link", "join"])
+  submit "POST" req

@@ -33,6 +33,8 @@ module Galley.API.Meetings
     removeMeetingInvitation,
     replaceMeetingInvitation,
     refreshMeetingLink,
+    getMeetingByLink,
+    joinMeeting,
   )
 where
 
@@ -234,3 +236,34 @@ refreshMeetingLink ::
 refreshMeetingLink zUser connId domain meetingId =
   noteS @'MeetingNotFound
     =<< Meetings.refreshMeetingLink zUser connId (Qualified meetingId domain)
+
+-- | WPB-28989: resolve a meeting join link. Unlike 'getMeeting' no creator
+-- or conversation membership is required; anything that does not resolve to
+-- a live local meeting with a real join code is surfaced as 404.
+getMeetingByLink ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  Domain ->
+  MeetingId ->
+  Sem r Meeting
+getMeetingByLink zUser domain meetingId =
+  noteS @'MeetingNotFound
+    =<< Meetings.getMeetingByLink zUser (Qualified meetingId domain)
+
+-- | WPB-28989: join a meeting conversation through its join link, like
+-- @POST /conversations/join@. A link that does not resolve is surfaced as
+-- 404 meeting-not-found; join failures surface their conversation errors.
+joinMeeting ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  MeetingId ->
+  Sem r MeetingWithConversation
+joinMeeting zUser connId domain meetingId =
+  noteS @'MeetingNotFound
+    =<< Meetings.joinMeeting zUser connId (Qualified meetingId domain)
