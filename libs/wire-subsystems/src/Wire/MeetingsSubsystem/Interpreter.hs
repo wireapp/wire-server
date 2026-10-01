@@ -55,10 +55,10 @@ import Wire.CodeStore.Code (Code)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
+import Wire.HashPassword (HashPassword, hashPassword8)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
-import Wire.HashPassword (HashPassword, hashPassword8)
 import Wire.RateLimit (RateLimit, RateLimitKey (RateLimitUser))
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
