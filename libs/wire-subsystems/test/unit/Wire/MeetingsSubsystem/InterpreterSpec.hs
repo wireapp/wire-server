@@ -47,8 +47,9 @@ import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty,
 import Text.Email.Parser (unsafeEmailAddress)
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Conversation (Access (CodeAccess, InviteAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
+import Wire.API.Conversation.Role (pattern DeleteConversation)
 import Wire.API.Error (ErrorS)
-import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..))
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..), pattern ActionDenied)
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.Password (Password)
@@ -87,6 +88,7 @@ type TestStack =
      NotificationSubsystem,
      TinyLog,
      Error MeetingError,
+     ErrorS ('ActionDenied 'DeleteConversation),
      State (Map MeetingId Store.StoredMeeting),
      State (Map ConvId StoredConversation),
      State (Map ConvId (Set UserId)),
@@ -131,8 +133,15 @@ runTestStack ::
   AllTeamFeatures ->
   Sem TestStack a ->
   IO (Either MeetingError a)
-runTestStack now gen = runTestStackWithURI now gen (Left testCodeURIBase)
+runTestStack now gen teams configs sem = do
+  result <- runTestStackWithURI now gen (Left testCodeURIBase) teams configs sem
+  case result of
+    Left _denied -> error "unexpected CheckDeleteLocalConversation denial"
+    Right meetingResult -> pure meetingResult
 
+-- | Like 'runTestStack', but surfaces a denied @CheckDeleteLocalConversation@
+-- as a typed @Left@ instead of crashing, so tests can exercise the
+-- conversation-deletion preflight failure path (WPB-29046).
 runTestStackWithURI ::
   UTCTime ->
   StdGen ->
@@ -140,7 +149,7 @@ runTestStackWithURI ::
   Map TeamId [TeamMember] ->
   AllTeamFeatures ->
   Sem TestStack a ->
-  IO (Either MeetingError a)
+  IO (Either (Tagged ('ActionDenied 'DeleteConversation) ()) (Either MeetingError a))
 runTestStackWithURI now gen convCodeURI teams configs =
   runM
     . fmap (either (error . show) (either (error . show) Imports.id))
@@ -159,6 +168,7 @@ runTestStackWithURI now gen convCodeURI teams configs =
     . evalState Map.empty
     . evalState Map.empty
     . evalState Map.empty
+    . runError @(Tagged ('ActionDenied 'DeleteConversation) ())
     . runError @MeetingError
     . discardTinyLogs
     . inMemoryNotificationSubsystemInterpreter
@@ -264,9 +274,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (Right (Map.fromList [(Domain "wire.com", multiBase)]))
         Map.empty
         def
-        $ do
-          meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
-          pure (meeting, qUnqualified meeting.meeting.id)
+        ( do
+            meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+            pure (meeting, qUnqualified meeting.meeting.id)
+        )
+        >>= either (error . show) pure
 
     case result of
       Left err -> fail $ "Error: " <> show err
@@ -297,9 +309,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (Right (Map.fromList [(Domain "other.example.com", otherBase)]))
         Map.empty
         def
-        $ do
-          meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
-          pure (meeting, qUnqualified meeting.meeting.id)
+        ( do
+            meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+            pure (meeting, qUnqualified meeting.meeting.id)
+        )
+        >>= either (error . show) pure
 
     case result of
       Left err -> fail $ "Error: " <> show err
@@ -1901,6 +1915,28 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           let events = extractMeetingEvents pushes
           length events `shouldBe` 1
           (head events).evtType `shouldBe` MeetingEvent.Delete
+
+    it "does not emit meeting.delete when the conversation-deletion preflight fails" $ do
+      -- The creator is removed from the conversation members, so the mock
+      -- conversation subsystem denies CheckDeleteLocalConversation and
+      -- deleteMeeting must abort before publishing any event (WPB-29046).
+      -- The event ordering itself (meeting.delete before
+      -- conversation.delete-meeting) is asserted end-to-end by the
+      -- integration test in integration/test/Test/Meetings.hs.
+      result <-
+        runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) teamConfig $ do
+          meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+          -- Force the mock to deny the preflight (mock-only semantics: the
+          -- creator is not in the conversation members set)
+          modify @(Map ConvId (Set UserId)) $
+            Map.adjust (Set.delete uid1) (qUnqualified meeting.meeting.conversationId)
+          put @[Push] []
+          void $ deleteMeeting zUser1 (ConnId "test-conn") meeting.meeting.id
+
+      case result of
+        Left _denied -> pure ()
+        Right (Left err) -> fail $ "unexpected MeetingError: " <> show err
+        Right (Right _) -> fail "deleteMeeting succeeded despite the denied preflight"
 
     it "does not emit an event when updateMeeting fails (non-creator)" $ do
       result <-

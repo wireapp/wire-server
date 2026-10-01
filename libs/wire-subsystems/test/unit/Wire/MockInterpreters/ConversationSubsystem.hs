@@ -29,11 +29,15 @@ import Polysemy.State
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol (ConversationMLSData (..), Protocol (..))
+import Wire.API.Conversation.Role (pattern DeleteConversation)
+import Wire.API.Error (ErrorS, throwS)
+import Wire.API.Error.Galley (pattern ActionDenied, pattern TeamNotFound)
 import Wire.API.MLS.Group (GroupId (..))
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationSubsystem
+import Wire.NotificationSubsystem (Push)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation
@@ -41,7 +45,13 @@ import Wire.StoredConversation
 type ConversationMembers = Map ConvId (Set UserId)
 
 inMemoryConversationSubsystemInterpreter ::
-  (Member (State (Map ConvId StoredConversation)) r, Member (State ConversationMembers) r, Member Random r) =>
+  ( Member (State (Map ConvId StoredConversation)) r,
+    Member (State ConversationMembers) r,
+    Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (State [Push]) r,
+    Member Random r
+  ) =>
   InterpreterFor ConversationSubsystem r
 inMemoryConversationSubsystemInterpreter = interpretH $ \case
   InternalCreateGroupConversation lusr _mconn newConv -> do
@@ -88,7 +98,18 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
     modify @(Map ConvId StoredConversation) (Map.delete (tUnqualified lcnv))
     modify @ConversationMembers (Map.delete (tUnqualified lcnv))
     pureT ()
-  CheckDeleteLocalConversation _lusr _lcnv -> pureT ()
+  CheckDeleteLocalConversation lusr lcnv -> do
+    members <- gets @ConversationMembers (Map.findWithDefault Set.empty (tUnqualified lcnv))
+    if Set.member (tUnqualified lusr) members
+      then pureT ()
+      else do
+        -- If any push was published since the caller cleared the log, a
+        -- meeting notification raced ahead of this preflight (WPB-29046
+        -- ordering regression); surface it as a distinctive failure instead
+        -- of the plain denial.
+        pushes <- get @[Push]
+        unless (null pushes) (throwS @'TeamNotFound)
+        throwS @('ActionDenied 'DeleteConversation)
   GetConversationIds _lusr _range _pagingState -> do
     pureT $ MultiTablePaging.MultiTablePage [] False (Public.ConversationPagingState MultiTablePaging.PagingLocals Nothing)
   GetConversations cids -> do
