@@ -246,6 +246,7 @@ type UserAPI =
                :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
                :> ZUser
                :> From 'V4
+               :> Until 'V19
                :> "list-users"
                :> QueryParam' [Optional, Strict, Description "Include whether each local user can currently be contacted"] "include-contact-status" Bool
                :> ReqBody '[JSON] ListUsersQuery

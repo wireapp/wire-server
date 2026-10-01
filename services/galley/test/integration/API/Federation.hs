@@ -878,11 +878,11 @@ sendMessage = do
   bobId <- randomId
   bobClient <- liftIO $ generate arbitrary
   let bob = Qualified bobId remoteDomain
-      bobProfile = V.Versioned @V.V19 $ mkProfile bob (Name "Bob")
+      bobProfile = V.Versioned @V.V18 $ mkProfile bob (Name "Bob")
   chadId <- randomId
   chadClient <- liftIO $ generate arbitrary
   let chad = Qualified chadId remoteDomain
-      chadProfile = V.Versioned @V.V19 $ mkProfile chad (Name "Chad")
+      chadProfile = V.Versioned @V.V18 $ mkProfile chad (Name "Chad")
 
   connectWithRemoteUser aliceId bob
   connectWithRemoteUser aliceId chad
