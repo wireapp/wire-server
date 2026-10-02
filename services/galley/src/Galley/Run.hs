@@ -108,7 +108,9 @@ mkApp opts =
     otelMiddleware <- lift Otel.newOpenTelemetryWaiMiddleware
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
-          versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
+          federationVersionMiddleware
+            (foldMap Federation.expandVersionExp (opts ^. settings . disabledFederationAPIVersions))
+            . versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
             . requestIdMiddleware logger defaultRequestIdHeaderName
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . federationVersionMiddleware
