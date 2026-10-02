@@ -52,6 +52,7 @@ import Util.Options
 import Util.SuffixNamer
 import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
@@ -521,6 +522,7 @@ data Settings = Settings
     keyPackageMaximumLifetime :: Maybe NominalDiffTime,
     -- | Disabled versions are not advertised and are completely disabled.
     disabledAPIVersions :: !(Set VersionExp),
+    disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp),
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
     -- use `2FACodeGenerationDelaySecs` as the getter function which always provides a default value
     twoFACodeGenerationDelaySecsInternal :: !(Maybe Int),
@@ -821,6 +823,7 @@ instance FromJSON Settings where
               "oAuthEnabledInternal" -> "setOAuthEnabled"
               "oAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
               "oAuthMaxActiveRefreshTokensInternal" -> "setOAuthMaxActiveRefreshTokens"
+              "disabledFederationAPIVersions" -> "setDisabledFederationAPIVersions"
               other -> "set" <> capitalise other
           }
 

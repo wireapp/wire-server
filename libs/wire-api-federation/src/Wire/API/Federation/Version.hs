@@ -25,13 +25,19 @@ module Wire.API.Federation.Version
     V2Sym0,
     V3Sym0,
     V4Sym0,
+    V5Sym0,
     intToVersion,
     versionInt,
     versionText,
+    FederationVersionExp (..),
+    developmentVersions,
+    expandVersionExp,
     supportsVersionRange,
     supportedVersions,
     VersionInfo (..),
     versionInfo,
+    versionInfoFor,
+    federationVersionMiddleware,
     groupIdFedVersion,
 
     -- * VersionRange
@@ -44,7 +50,7 @@ module Wire.API.Federation.Version
   )
 where
 
-import Control.Lens ((?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.ByteString.Char8 qualified as BS
 import Data.OpenApi qualified as S
@@ -52,11 +58,17 @@ import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LText
 import Imports
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai
+import Network.Wai.Utilities.Error
+import Network.Wai.Utilities.Response
 import Servant.API (ToHttpApiData (..))
 import Wire.API.MLS.Group.Serialisation
+import Wire.API.VersionInfo qualified as API
 
-data Version = V0 | V1 | V2 | V3 | V4
+data Version = V0 | V1 | V2 | V3 | V4 | V5
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
@@ -70,12 +82,10 @@ versionInt V1 = 1
 versionInt V2 = 2
 versionInt V3 = 3
 versionInt V4 = 4
+versionInt V5 = 5
 
 versionText :: Version -> Text
 versionText = ("v" <>) . Text.pack . show . versionInt
-
-supportsVersionRange :: VersionRange -> VersionInfo -> Bool
-supportsVersionRange range = any (maybe False (inVersionRange range) . intToVersion) . (.vinfoSupported)
 
 versionByteString :: Version -> ByteString
 versionByteString = ("v" <>) . BS.pack . show . versionInt
@@ -90,11 +100,38 @@ instance ToSchema Version where
         element 1 V1,
         element 2 V2,
         element 3 V3,
-        element 4 V4
+        element 4 V4,
+        element 5 V5
       ]
 
 supportedVersions :: Set Version
 supportedVersions = Set.fromList [minBound .. maxBound]
+
+developmentVersions :: Set Version
+developmentVersions = Set.singleton V5
+
+data FederationVersionExp
+  = FederationVersionExpConst Version
+  | FederationVersionExpDevelopment
+  deriving (Show, Eq, Ord, Generic)
+
+$(makePrisms ''FederationVersionExp)
+
+instance ToSchema FederationVersionExp where
+  schema =
+    named "FederationVersionExp" $
+      tag _FederationVersionExpConst (unnamed schema)
+        <> tag
+          _FederationVersionExpDevelopment
+          (unnamed (enum @Text (element "development" ())))
+
+deriving via Schema FederationVersionExp instance FromJSON FederationVersionExp
+
+deriving via Schema FederationVersionExp instance ToJSON FederationVersionExp
+
+expandVersionExp :: FederationVersionExp -> Set Version
+expandVersionExp (FederationVersionExpConst v) = Set.singleton v
+expandVersionExp FederationVersionExpDevelopment = developmentVersions
 
 data VersionInfo = VersionInfo
   { vinfoSupported :: [Int]
@@ -122,7 +159,30 @@ instance ToSchema VersionInfo where
           }
 
 versionInfo :: VersionInfo
-versionInfo = VersionInfo (map versionInt (toList supportedVersions))
+versionInfo = versionInfoFor supportedVersions
+
+versionInfoFor :: Set Version -> VersionInfo
+versionInfoFor versions = VersionInfo (map versionInt (toList versions))
+
+federationVersionMiddleware :: Set Version -> Middleware
+federationVersionMiddleware disabled app req k
+  | "federation" : _ <- pathInfo req =
+      case lookup API.versionHeader (requestHeaders req) of
+        Nothing -> allow V0
+        Just value -> case parseVersionHeader value of
+          Nothing -> unsupported "invalid federation API version"
+          Just version -> allow version
+  | otherwise = app req k
+  where
+    allow version
+      | version `elem` disabled = unsupported ("federation API version " <> versionText version)
+      | otherwise = app req k
+    parseVersionHeader :: ByteString -> Maybe Version
+    parseVersionHeader value = readMaybe (BS.unpack value) >>= intToVersion
+
+    unsupported :: Text -> IO ResponseReceived
+    unsupported message =
+      k . errorRs . mkError HTTP.status404 "unsupported-version" $ LText.fromStrict message
 
 ----------------------------------------------------------------------
 
@@ -177,6 +237,9 @@ instance Semigroup VersionRange where
 inVersionRange :: VersionRange -> Version -> Bool
 inVersionRange (VersionRange a b) v =
   v >= a && VersionUpperBound v < b
+
+supportsVersionRange :: VersionRange -> VersionInfo -> Bool
+supportsVersionRange range = any (maybe False (inVersionRange range) . intToVersion) . (.vinfoSupported)
 
 rangeFromVersion :: Version -> VersionRange
 rangeFromVersion v = VersionRange v Unbounded

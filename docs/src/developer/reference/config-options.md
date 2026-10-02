@@ -1252,6 +1252,21 @@ This setting is required to be present for all the services (brig, cannon, cargo
 
 The default value (provided under `charts/<service>/values.yaml`) is `[ development ]` and disables the development versions. To enable all versions including the development versions set the value to be empty: `[]`.
 
+#### Disabling federation API versions
+
+Federation API versions are configured independently from public client API versions. The development federation version is disabled by default. Set the value to `[]` to enable it, or list an explicit version or `development` to disable it.
+
+When using the unified `wire-server` chart, configure this once at the chart root:
+
+```yaml
+apiVersions:
+  disabledFederationAPIVersions: [ development ]
+```
+
+When deploying service charts separately, configure the corresponding Brig, Galley, and Cargohold service-level settings with the same value.
+
+When disabled, a federation version is omitted from version negotiation and incoming requests using it are rejected. Outgoing federation requests do not negotiate a disabled local version.
+
 ### Team invitation URL for personal users
 
 To configure the team invitation URL for personal users that is sent vai email, `emailSMS.team.tExistingUserInvitationUrl` should be set to the desired URL, e.g.:

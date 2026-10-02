@@ -75,6 +75,25 @@ testVersionUnsupported = bindResponse (baseRequest OwnDomain Brig (ExplicitVersi
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "unsupported-version"
 
+testFederationAPIVersionEnabled :: App ()
+testFederationAPIVersionEnabled = bindResponse (postFederationAPIVersion OwnDomain) $ \resp -> do
+  resp.status `shouldMatchInt` 200
+  supported <- resp.json %. "supported_versions" & asList >>= traverse asInt
+  assertBool "development federation API version should be advertised" $ 5 `elem` supported
+
+testFederationAPIVersionDisabled :: App ()
+testFederationAPIVersionDisabled = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledFederationAPIVersions" ["development"]}
+  $ \domain -> do
+    bindResponse (postFederationAPIVersion domain) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      supported <- resp.json %. "supported_versions" & asList >>= traverse asInt
+      assertBool "disabled development federation API version should not be advertised" $ 5 `notElem` supported
+
+    bindResponse (postFederationAPIVersionWithVersion domain 5) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+      resp.json %. "label" `shouldMatch` "unsupported-version"
+
 testVersionDisabled :: App ()
 testVersionDisabled = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v2"]}

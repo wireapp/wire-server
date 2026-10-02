@@ -64,6 +64,8 @@ import Servant.API
 import Servant.Server hiding (Handler, runHandler)
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Wire.API.Federation.Version (federationVersionMiddleware)
+import qualified Wire.API.Federation.Version as Federation
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
@@ -91,7 +93,8 @@ mkApp o = Codensity $ \k ->
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (foldMap expandVersionExp o.settings.disabledAPIVersions)
+      federationVersionMiddleware (foldMap Federation.expandVersionExp o.settings.disabledFederationAPIVersions)
+        . versionMiddleware (foldMap expandVersionExp o.settings.disabledAPIVersions)
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.defaultGzipSettings
