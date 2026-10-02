@@ -52,6 +52,7 @@ where
 
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 qualified as BS
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -136,7 +137,14 @@ expandVersionExp FederationVersionExpDevelopment = developmentVersions
 data VersionInfo = VersionInfo
   { vinfoSupported :: [Int]
   }
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VersionInfo)
+  deriving (FromJSON, S.ToSchema) via (Schema VersionInfo)
+
+instance ToJSON VersionInfo where
+  toJSON VersionInfo {vinfoSupported} =
+    Aeson.object
+      [ "supported_versions" Aeson..= vinfoSupported,
+        "supported" Aeson..= filter (`elem` [0, 1]) vinfoSupported
+      ]
 
 instance ToSchema VersionInfo where
   schema =
@@ -166,6 +174,9 @@ versionInfoFor versions = VersionInfo (map versionInt (toList versions))
 
 federationVersionMiddleware :: Set Version -> Middleware
 federationVersionMiddleware disabled app req k
+  | ["federation", "api-version"] <- pathInfo req,
+    Nothing <- lookup API.versionHeader (requestHeaders req) =
+      app req k
   | "federation" : _ <- pathInfo req =
       case lookup API.versionHeader (requestHeaders req) of
         Nothing -> allow V0

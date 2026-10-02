@@ -171,7 +171,8 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                 cveEnv = FederatorClientEnv {..}
                 cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
                 fcEnv = FederatorClientVersionedEnv {..}
-            sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
+            when (V0 `Set.member` ceLocalVersions) $
+              sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
             lift $ ack envelope
             metrics <- asks backendNotificationMetrics
             withLabel metrics.pushedCounter (domainText targetDomain) incCounter
