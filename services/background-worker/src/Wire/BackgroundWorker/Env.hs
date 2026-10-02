@@ -30,7 +30,6 @@ import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
 import Data.Secret (SecretText)
-import Data.Set qualified as Set
 import HTTP2.Client.Manager
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
@@ -184,8 +183,7 @@ mkEnv opts galleyOpts = do
       backgroundJobsConfig = opts.backgroundJobs
       federationDomain = galleyOpts._settings._federationDomain
       federationVersions =
-        Federation.supportedVersions
-          Set.\\ foldMap Federation.expandVersionExp galleyOpts._settings._disabledFederationAPIVersions
+        Federation.enabledFederationVersions galleyOpts._settings._disabledFederationAPIVersions
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
       galleyEndpoint = opts.galley

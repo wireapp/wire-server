@@ -32,6 +32,7 @@ module Wire.API.Federation.Version
     FederationVersionExp (..),
     developmentVersions,
     expandVersionExp,
+    enabledFederationVersions,
     supportsVersionRange,
     supportedVersions,
     VersionInfo (..),
@@ -133,6 +134,10 @@ deriving via Schema FederationVersionExp instance ToJSON FederationVersionExp
 expandVersionExp :: FederationVersionExp -> Set Version
 expandVersionExp (FederationVersionExpConst v) = Set.singleton v
 expandVersionExp FederationVersionExpDevelopment = developmentVersions
+
+enabledFederationVersions :: Set FederationVersionExp -> Set Version
+enabledFederationVersions disabled =
+  supportedVersions Set.\\ foldMap expandVersionExp disabled
 
 data VersionInfo = VersionInfo
   { vinfoSupported :: [Int]

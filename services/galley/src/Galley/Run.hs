@@ -109,10 +109,10 @@ mkApp opts =
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
-            . federationVersionMiddleware
-              (foldMap Federation.expandVersionExp (opts ^. settings . disabledFederationAPIVersions))
             . requestIdMiddleware logger defaultRequestIdHeaderName
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
+            . federationVersionMiddleware
+              (foldMap Federation.expandVersionExp (opts ^. settings . disabledFederationAPIVersions))
             . otelMiddleware
             . GZip.gunzip
             . GZip.gzip GZip.defaultGzipSettings

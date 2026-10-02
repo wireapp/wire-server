@@ -26,7 +26,6 @@ import Control.Monad.Codensity
 import Data.Id
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as Set
 import Imports hiding (head)
 import Servant.API
 import Servant.Types.SourceT
@@ -96,9 +95,7 @@ mkFederatorClientEnv remote = do
         ceFederator = endpoint,
         ceHttp2Manager = mgr,
         ceOriginRequestId = rid,
-        ceLocalVersions =
-          Federation.supportedVersions
-            Set.\\ foldMap Federation.expandVersionExp disabled
+        ceLocalVersions = Federation.enabledFederationVersions disabled
       }
 
 executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a
