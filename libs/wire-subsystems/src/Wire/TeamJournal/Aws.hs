@@ -31,6 +31,6 @@ interpretTeamJournal ::
   Sem (TeamJournal ': r) a ->
   Sem r a
 interpretTeamJournal mEnv = interpret $ \case
-  EnqueueTeamEvent ev -> case mEnv of
+  EnqueueTeamEvent tid ev -> case mEnv of
     Nothing -> pure ()
-    Just e -> embed $ WA.execute e (WA.enqueue ev)
+    Just e -> embed $ WA.execute e (WA.enqueue tid ev)

@@ -1,0 +1,1 @@
+Galley now publishes team events to the FIFO queue using the team ID as the message group, preserving ordering within each team while allowing events from different teams to be processed concurrently.
