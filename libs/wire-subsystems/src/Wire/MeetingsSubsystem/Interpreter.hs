@@ -419,13 +419,25 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
       conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
-      when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
+      let isMeetingConv = conv.metadata.cnvmGroupConvType == Just MeetingConversation
+      -- Preflight: run all fallible conversation-deletion checks before
+      -- publishing meeting.delete, so members do not receive a deletion event
+      -- when one of these checks fails (WPB-29046). Scoped to meeting
+      -- conversations, matching the deletion below.
+      when isMeetingConv $ do
+        lift $ ConversationSubsystem.checkDeleteLocalConversation zUser lConvId
+        -- The meeting.delete event must reach clients before the conversation is
+        -- deleted, which emits conversation.delete-meeting (WPB-29046). If
+        -- authorization is revoked concurrently between the preflight above and
+        -- the deletion below, members receive a deletion event for a meeting
+        -- that survives; accepted residual race — server state stays consistent
+        -- because deleteLocalConversation re-runs all checks.
+        lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
         lift $
           void $
             ConversationSubsystem.deleteLocalConversation zUser connId lConvId
       lift $ CodeStore.deleteMeetingCode (qUnqualified meetingId)
       lift $ Store.deleteMeeting (qUnqualified meetingId)
-      lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
   pure $ isJust result
 
 getMeetingImpl ::

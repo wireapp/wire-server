@@ -242,6 +242,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.deleteLocalConversation lusr con lcnv
   InternalDeleteLocalConversation lcnv ->
     mapErrors $ Action.updateLocalConversationDeleteUnchecked lcnv
+  CheckDeleteLocalConversation lusr lcnv ->
+    void $ mapErrors $ Action.checkLocalConversationDelete lcnv (tUntagged lusr)
   InternalDeleteLocalAdminlessGroup lusr lcnv ->
     mapErrors $ Update.adminlessAutopromoteOrDelete lusr lcnv
   InternalNotifyAdminlessReminder lusr lcnv deletionScheduledFor ->
