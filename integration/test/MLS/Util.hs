@@ -326,6 +326,13 @@ createOne2OneSubConv cs convId cid subId keys = do
   resetOne2OneGroupGeneric cs cid sub keys
   void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
 
+-- | An MLS 1:1 group is not created by a client: the backend derives
+-- the group id and only materialises the conversation on the first
+-- commit.  So in place of 'createGroup', 'resetOne2OneGroup' points
+-- the test's MLS state at that group id (this client as the only
+-- member, epoch 0) and has mls-cli create the group with the
+-- backend's removal key from @public_keys@ of the conversation, which
+-- is what makes the backend an accepted external sender.
 resetOne2OneGroup :: (HasCallStack, MakesValue one2OneConv) => Ciphersuite -> ClientIdentity -> one2OneConv -> App ()
 resetOne2OneGroup cs cid one2OneConv =
   resetOne2OneGroupGeneric cs cid (one2OneConv %. "conversation") (one2OneConv %. "public_keys")
