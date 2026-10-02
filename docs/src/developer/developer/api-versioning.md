@@ -11,11 +11,12 @@ exposed through `/federation/api-version` and `/federation/...` endpoints.
 ## Supported and development versions
 
 An *API version* is a natural number, represented as `vN`, where `N` is the
-version. For example, version `3` is denoted `v3`.
+version. For example, version `5` is denoted `v5`.
 
-A public API backend advertises a set of *supported* API versions, divided into
-stable and development versions. These sets can be discovered via the
-`GET /api-version` endpoint, which returns a JSON object of the form:
+A backend advertises a set of *supported* API versions, divided into a set of
+*stable* API versions and a set of *development* API versions. These sets can
+be discovered via the `GET /api-version` endpoint, which returns a JSON object
+of the form:
 
 ```default
 { "supported": [0, 1, 2, 3, 4],
