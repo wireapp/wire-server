@@ -1,0 +1,1 @@
+Add `POST /meetings/{domain}/{id}/link/refresh`, which drops and recreates a meeting's join link, and `POST /meetings/{domain}/{id}/join`, which resolves the link and enforces its optional password.

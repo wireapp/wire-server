@@ -59,8 +59,8 @@ interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   DeleteMeetingCode mid ->
     Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteMeetingCode mid
   -- Meeting codes are Postgres-only (see CreateCode/MakeKey routing).
-  CreateMeetingCode mid t ->
-    Postgres.interpretCodeStoreToPostgres $ CodeStore.createMeetingCode mid t
+  CreateMeetingCode mid t mPw ->
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.createMeetingCode mid t mPw
   -- Meeting codes are Postgres-only: GetCode reads Cassandra, which cannot
   -- hold meeting codes, so the lookup must go straight to Postgres.
   GetMeetingCode mid ->

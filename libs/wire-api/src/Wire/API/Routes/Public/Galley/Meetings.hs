@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.Meetings where
 
+import Data.Code (Value)
 import Data.Domain (Domain)
 import Data.Id (MeetingId)
 import Servant
@@ -286,4 +287,45 @@ type MeetingsAPI =
                     '[JSON]
                     '[RespondEmpty 200 "Invitations replaced"]
                     ()
+           )
+    :<|> Named
+           "refresh-meeting-link"
+           ( Summary "Refresh the join link of a meeting"
+               :> DescriptionOAuthScope 'WriteMeetings
+               :> From 'V19
+               :> ZLocalUser
+               :> ZConn
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "link"
+               :> "refresh"
+               :> ReqBody '[JSON] RefreshMeetingLinkRequest
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 200 "Meeting link refreshed" MeetingWithConversation]
+                    MeetingWithConversation
+           )
+    :<|> Named
+           "join-meeting-by-link"
+           ( Summary "Resolve a meeting join link"
+               :> From 'V19
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "join"
+               :> Capture "code" Value
+               :> ReqBody '[JSON] MeetingJoinRequest
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'InvalidMeetingPassword
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 200 "Meeting" Meeting]
+                    Meeting
            )

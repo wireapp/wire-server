@@ -50,14 +50,14 @@ interpretCodeStorePure = interpret $ \case
   DeleteMeetingCode mid -> do
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
     modify (Map.delete k)
-  CreateMeetingCode mid t -> do
+  CreateMeetingCode mid t mPw -> do
     code <- embed (Code.generate (CodeReferentMeeting mid) t)
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
-    modify (Map.insert k (code, Nothing))
+    modify (Map.insert k (code, mPw))
     pure True
   GetMeetingCode mid -> do
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
-    gets (fmap fst . Map.lookup k)
+    gets (Map.lookup k)
   GetMeetingCodes mids -> do
     ks <- embed (traverse (\mid -> (mid,) <$> Code.mkKey (CodeReferentMeeting mid)) mids)
     gets $ \m ->

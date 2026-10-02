@@ -923,14 +923,15 @@ testMeetingLink = do
         mMulti <- lookupField cfg "settings.multiIngress"
         ownDomain <- asString OwnDomain
         maybe (pure Nothing) (`lookupField` ownDomain) mMulti >>= maybe (pure Nothing) asStringM
-  -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash.
+  -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash
+  -- and appends the meeting id and the live join-code value.
   let supportsMeetingCodes = codeStorage /= "cassandra"
       normalize s = if "/" `isSuffixOf` s then init s else s
-      expectedLink base = normalize base <> "/" <> meetingId
   case (mBase, supportsMeetingCodes) of
     (Just baseURI, True) -> do
-      let expected = expectedLink baseURI
       link <- meeting %. "link" >>= asString
+      let code = linkCode link
+          expected = normalize baseURI <> "/" <> meetingId <> "/" <> code
       link `shouldMatch` expected
 
       fetched <- getMeeting owner domain meetingId >>= getJSON 200
@@ -1006,3 +1007,108 @@ testMeetingInteropV18ToV19 = do
   modern <- getMeeting owner domain meetingId >>= getJSON 200
   mtype <- modern %. "type" >>= asString
   mtype `shouldMatch` ("scheduled" :: String)
+
+-- | WPB-28216: refreshing a meeting's join link recreates the join code
+-- (rotating the code embedded in the @link@ URL), revokes the meeting
+-- conversation's guest link, and enforces creator-only access.
+testMeetingLinkRefresh :: (HasCallStack) => App ()
+testMeetingLinkRefresh = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Refresh Integration" startTime endTime []
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  titleBefore <- meeting %. "title" >>= asString
+  mLinkBefore <- meeting %. "link" >>= asStringM
+
+  conv <- meeting %. "conversation"
+
+  -- Plant a guest link on the meeting conversation; refresh must revoke it.
+  postConversationCode owner conv Nothing Nothing >>= assertSuccess
+  getConversationCode owner conv Nothing >>= assertStatus 200
+
+  refreshed <- postMeetingLinkRefresh owner domain meetingId (object []) >>= getJSON 200
+  -- V19 MeetingWithConversation flattens the meeting fields to the top level.
+  refreshedTitle <- refreshed %. "title" >>= asString
+  refreshedTitle `shouldMatch` titleBefore
+  refreshedLink <- refreshed %. "link" >>= asStringM
+
+  -- The refresh rotates the code carried by the link URL.
+  case (mLinkBefore, refreshedLink) of
+    (Just linkBefore, Just linkAfter) -> do
+      linkAfter `shouldNotMatch` linkBefore
+      -- The stale (pre-refresh) link code no longer resolves.
+      postMeetingJoin owner domain meetingId (linkCode linkBefore) (object []) >>= assertLabel 404 "meeting-not-found"
+      postMeetingJoin owner domain meetingId (linkCode linkAfter) (object []) >>= assertStatus 200
+    (Nothing, Nothing) -> pure () -- no join-link URI configured
+    _ -> assertFailure "refresh changed link presence"
+
+  -- The meeting conversation's guest link is revoked.
+  getConversationCode owner conv Nothing >>= assertLabel 404 "no-conversation-code"
+
+  -- Only the creator may refresh.
+  (otherUser, _, _) <- createTeam OwnDomain 1
+  postMeetingLinkRefresh otherUser domain meetingId (object []) >>= assertStatus 404
+
+  -- Refreshing a deleted meeting yields 404.
+  deleteMeeting owner domain meetingId >>= assertStatus 200
+  postMeetingLinkRefresh owner domain meetingId (object []) >>= assertStatus 404
+
+  -- A too-short password is rejected by the request schema (min length 8).
+  meeting2 <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
+  postMeetingLinkRefresh owner domain2 meetingId2 (object ["password" .= ("short7" :: String)]) >>= assertStatus 400
+
+-- | Extract the join-code value from a meeting link URL
+-- (@\<base\>/\<meetingId\>/\<code\>@).
+linkCode :: String -> String
+linkCode = Text.unpack . last . Text.split (== '/') . Text.pack
+
+-- | WPB-28216: @POST /meetings/{domain}/{id}/join/{code}@ resolves a meeting
+-- join link for any authenticated local user and enforces the optional
+-- password. The code segment is the rotating capability: stale values
+-- (superseded by a refresh) yield 404.
+testMeetingJoinByLink :: (HasCallStack) => App ()
+testMeetingJoinByLink = do
+  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Join Integration" startTime endTime []
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  mLink <- meeting %. "link" >>= asStringM
+
+  -- A non-creator can resolve a passwordless link.
+  case mLink of
+    Nothing -> pure () -- no join-link URI configured; the link is unusable
+    Just link -> do
+      title <- meeting %. "title" >>= asString
+      let oldCode = linkCode link
+      joined <- postMeetingJoin bob domain meetingId oldCode (object []) >>= getJSON 200
+      joinedTitle <- joined %. "title" >>= asString
+      joinedTitle `shouldMatch` title
+      -- Password-protect the link via refresh; this rotates the code.
+      refreshed <- postMeetingLinkRefresh owner domain meetingId (object ["password" .= ("supersecret8" :: String)]) >>= getJSON 200
+      newLink <- refreshed %. "link" >>= asString
+      let newCode = linkCode newLink
+
+      -- The stale (pre-refresh) code no longer resolves.
+      postMeetingJoin bob domain meetingId oldCode (object []) >>= assertLabel 404 "meeting-not-found"
+      postMeetingJoin bob domain meetingId newCode (object []) >>= assertLabel 403 "invalid-meeting-password"
+      postMeetingJoin bob domain meetingId newCode (object ["password" .= ("wrongpass1" :: String)]) >>= assertLabel 403 "invalid-meeting-password"
+      ok <- postMeetingJoin bob domain meetingId newCode (object ["password" .= ("supersecret8" :: String)])
+      assertStatus 200 ok
+
+      -- Clearing the password makes the link passwordless again.
+      clearedLink <- postMeetingLinkRefresh owner domain meetingId (object ["password" .= Null]) >>= getJSON 200 >>= (%. "link") >>= asString
+      let clearedCode = linkCode clearedLink
+      postMeetingJoin bob domain meetingId clearedCode (object []) >>= assertStatus 200
+
+      -- A deleted meeting has no resolvable link.
+      deleteMeeting owner domain meetingId >>= assertStatus 200
+      postMeetingJoin bob domain meetingId clearedCode (object []) >>= assertLabel 404 "meeting-not-found"

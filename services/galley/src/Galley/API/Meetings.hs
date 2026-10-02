@@ -32,9 +32,12 @@ module Galley.API.Meetings
     addMeetingInvitation,
     removeMeetingInvitation,
     replaceMeetingInvitation,
+    refreshMeetingLink,
+    joinMeetingByLink,
   )
 where
 
+import Data.Code (Value)
 import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified
@@ -220,3 +223,34 @@ replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails)
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.replaceInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
+
+refreshMeetingLink ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  MeetingId ->
+  RefreshMeetingLinkRequest ->
+  Sem r MeetingWithConversation
+refreshMeetingLink zUser connId domain meetingId req =
+  noteS @'MeetingNotFound
+    =<< Meetings.refreshMeetingLink zUser connId (Qualified meetingId domain) req
+
+joinMeetingByLink ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r,
+    Member (ErrorS 'InvalidMeetingPassword) r
+  ) =>
+  Local UserId ->
+  Domain ->
+  MeetingId ->
+  Value ->
+  MeetingJoinRequest ->
+  Sem r Meeting
+joinMeetingByLink zUser domain meetingId codeValue req =
+  Meetings.joinMeetingByLink zUser (Qualified meetingId domain) codeValue req >>= \case
+    Meetings.JoinMeetingNotFound -> throwS @'MeetingNotFound
+    Meetings.JoinMeetingInvalidPassword -> throwS @'InvalidMeetingPassword
+    Meetings.JoinMeetingOk meeting -> pure meeting
