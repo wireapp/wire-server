@@ -60,7 +60,7 @@ import Wire.API.Team.Member (TeamMember, mkTeamMember)
 import Wire.API.Team.Permission (fullPermissions)
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as CodeStore
-import Wire.CodeStore.Code (Code, CodeReferent (..))
+import Wire.CodeStore.Code (Code (..), CodeReferent (..))
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -255,7 +255,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     case result of
       Left err -> fail $ "Error: " <> show err
       Right (meeting, mid, mCode) -> do
-        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink testCodeURIBase mid)
+        meeting.meeting.link
+          `shouldBe` (API.mkMeetingLink testCodeURIBase mid . (.codeValue) . fst <$> mCode)
         mCode `shouldSatisfy` isJust
 
   it "uses the multi-ingress URI mapped for the user's domain" $ do
@@ -284,14 +285,18 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         def
         ( do
             meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
-            pure (meeting, qUnqualified meeting.meeting.id)
+            let mid = qUnqualified meeting.meeting.id
+            key <- CodeStore.makeKey (CodeReferentMeeting mid)
+            mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+            pure (meeting, mid, mCode)
         )
         >>= either (error . show) pure
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right (meeting, mid) ->
-        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink multiBase mid)
+      Right (meeting, mid, mCode) ->
+        meeting.meeting.link
+          `shouldBe` (API.mkMeetingLink multiBase mid . (.codeValue) . fst <$> mCode)
 
   it "omits the link when the user's domain has no configured URI" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -456,16 +461,16 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
         void $ CodeStore.createMeetingCode midWithCode (Timeout 3600) Nothing
+        key <- CodeStore.makeKey (CodeReferentMeeting midWithCode)
+        mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
         meetings <- listMeetings zUser
-        pure [(qUnqualified m.id, m.link) | m <- meetings]
+        let expectedLink = API.mkMeetingLink testCodeURIBase midWithCode . (.codeValue) . fst <$> mCode
+        pure ([(qUnqualified m.id, m.link) | m <- meetings], expectedLink)
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right links ->
-        links
-          `shouldBe` [ (midWithCode, Just (API.mkMeetingLink testCodeURIBase midWithCode)),
-                       (midWithoutCode, Nothing)
-                     ]
+      Right (links, expectedLink) ->
+        links `shouldBe` [(midWithCode, expectedLink), (midWithoutCode, Nothing)]
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -1192,18 +1197,29 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         refreshed <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest Nothing)
         newCode <- meetingCodeFor mid
         guestAfter <- convCodeFor cid
-        pure (meeting, refreshed, oldCode, newCode, guestAfter)
+        -- a URL carrying the stale code no longer resolves
+        let joinWith u code = joinMeetingByLink u meeting.meeting.id code.codeValue (API.MeetingJoinRequest Nothing)
+        joinOld <- traverse (joinWith zUser2) oldCode
+        joinNew <- traverse (joinWith zUser2) newCode
+        pure (meeting, refreshed, oldCode, newCode, guestAfter, joinOld, joinNew)
 
       case result of
         Left err -> fail $ "Error: " <> show err
-        Right (meeting, refreshed, oldCode, newCode, guestAfter) -> do
-          fmap (.meeting) refreshed `shouldBe` Just meeting.meeting
-          fmap (.meeting.link) refreshed
-            `shouldBe` Just (Just (API.mkMeetingLink testCodeURIBase (qUnqualified meeting.meeting.id)))
+        Right (meeting, refreshed, oldCode, newCode, guestAfter, joinOld, joinNew) -> do
+          fmap (.meeting) refreshed
+            `shouldBe` Just
+              ( meeting.meeting
+                  { API.link = API.mkMeetingLink testCodeURIBase (qUnqualified meeting.meeting.id) . (.codeValue) <$> newCode
+                  }
+              )
           oldCode `shouldSatisfy` isJust
           newCode `shouldSatisfy` isJust
           -- the old join code value no longer resolves (replaced in one atomic upsert)
           newCode `shouldSatisfy` (/= oldCode)
+          joinOld `shouldBe` Just JoinMeetingNotFound
+          joinNew `shouldSatisfy` \case
+            Just (JoinMeetingOk _) -> True
+            _ -> False
           -- the meeting conversation's guest link is revoked
           guestAfter `shouldBe` Nothing
 
@@ -1305,38 +1321,45 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               invitedEmails = []
             }
         pw = plainTextPassword8Unsafe "join secret pw"
-
+        meetingCodeVal mid = do
+          key <- CodeStore.makeKey (CodeReferentMeeting mid)
+          mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+          maybe (error "no meeting code stored") (pure . (.codeValue) . fst) mCode
     it "resolves a passwordless live link" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
-        joined <- joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest Nothing)
-        pure (meeting.meeting, joined)
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        joined <- joinMeetingByLink zUser2 meeting.meeting.id codeVal (API.MeetingJoinRequest Nothing)
+        pure (meeting.meeting, codeVal, joined)
       case result of
         Left err -> fail $ "Error: " <> show err
-        Right (meeting, JoinMeetingOk m) -> do
+        Right (meeting, codeVal, JoinMeetingOk m) -> do
           m.title `shouldBe` meeting.title
-          m.link `shouldBe` meeting.link
-        Right (_, r) -> fail $ "expected JoinMeetingOk, got: " <> show r
+          m.link `shouldBe` (API.mkMeetingLink testCodeURIBase (qUnqualified meeting.id) <$> Just codeVal)
+        Right (_, _, r) -> fail $ "expected JoinMeetingOk, got: " <> show r
 
     it "rejects a missing password on a protected link" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
-        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest Nothing)
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        joinMeetingByLink zUser2 meeting.meeting.id codeVal (API.MeetingJoinRequest Nothing)
       result `shouldBe` Right JoinMeetingInvalidPassword
 
     it "rejects a wrong password on a protected link" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
-        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest (Just (plainTextPassword8Unsafe "wrong secret")))
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        joinMeetingByLink zUser2 meeting.meeting.id codeVal (API.MeetingJoinRequest (Just (plainTextPassword8Unsafe "wrong secret")))
       result `shouldBe` Right JoinMeetingInvalidPassword
 
     it "accepts the correct password on a protected link" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
-        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest (Just pw))
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        joinMeetingByLink zUser2 meeting.meeting.id codeVal (API.MeetingJoinRequest (Just pw))
       case result of
         Right (JoinMeetingOk _) -> pure ()
         r -> fail $ "expected JoinMeetingOk, got: " <> show r
@@ -1344,7 +1367,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "ignores a password supplied for a passwordless link" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
-        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest (Just pw))
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        joinMeetingByLink zUser2 meeting.meeting.id codeVal (API.MeetingJoinRequest (Just pw))
       case result of
         Right (JoinMeetingOk _) -> pure ()
         r -> fail $ "expected JoinMeetingOk, got: " <> show r
@@ -1354,7 +1378,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
         _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest Nothing)
-        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest Nothing)
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        joinMeetingByLink zUser2 meeting.meeting.id codeVal (API.MeetingJoinRequest Nothing)
       case result of
         Right (JoinMeetingOk _) -> pure ()
         r -> fail $ "expected JoinMeetingOk, got: " <> show r
@@ -1362,14 +1387,24 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "returns JoinMeetingNotFound when the join code is gone" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
         CodeStore.deleteMeetingCode (qUnqualified meeting.meeting.id)
-        joinMeetingByLink zUser1 meeting.meeting.id (API.MeetingJoinRequest Nothing)
+        joinMeetingByLink zUser1 meeting.meeting.id codeVal (API.MeetingJoinRequest Nothing)
+      result `shouldBe` Right JoinMeetingNotFound
+
+    it "returns JoinMeetingNotFound for a stale code value" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        oldCodeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest Nothing)
+        joinMeetingByLink zUser2 meeting.meeting.id oldCodeVal (API.MeetingJoinRequest Nothing)
       result `shouldBe` Right JoinMeetingNotFound
 
     it "returns JoinMeetingNotFound for a foreign-domain meeting id" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
-        joinMeetingByLink zUser1 (Qualified (qUnqualified meeting.meeting.id) (Domain "other.example.com")) (API.MeetingJoinRequest Nothing)
+        codeVal <- meetingCodeVal (qUnqualified meeting.meeting.id)
+        joinMeetingByLink zUser1 (Qualified (qUnqualified meeting.meeting.id) (Domain "other.example.com")) codeVal (API.MeetingJoinRequest Nothing)
       result `shouldBe` Right JoinMeetingNotFound
 
   describe "addInvitedEmails" $ do
