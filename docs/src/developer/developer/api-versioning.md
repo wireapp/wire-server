@@ -53,6 +53,12 @@ response. `POST /federation/api-version` returns versions in the
 `supported` field. Federation does not expose a separate `development` field.
 The development federation version is controlled through runtime configuration.
 
+> **Note:** For federation, `development` is an internal configuration label
+> for the current development version. Once enabled, that version is advertised
+> and negotiated like any other supported version. Any federation version can
+> be disabled through configuration. The development version may still change
+> over time, while stable versions retain fixed contracts.
+
 In the unified `wire-server` Helm chart, federation versions are configured at
 the chart root:
 
