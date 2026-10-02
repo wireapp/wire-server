@@ -171,12 +171,20 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                 cveEnv = FederatorClientEnv {..}
                 cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
                 fcEnv = FederatorClientVersionedEnv {..}
-            when (V0 `Set.member` ceLocalVersions) $
-              sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
-            lift $ ack envelope
-            metrics <- asks backendNotificationMetrics
-            withLabel metrics.pushedCounter (domainText targetDomain) incCounter
-            withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+            if V0 `Set.member` ceLocalVersions
+              then do
+                sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
+                lift $ ack envelope
+                metrics <- asks backendNotificationMetrics
+                withLabel metrics.pushedCounter (domainText targetDomain) incCounter
+                withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+              else do
+                Log.fatal $
+                  Log.msg (Log.val "Legacy notification requires disabled federation API version V0; the notification will remain queued")
+                    . Log.field "domain" (domainText targetDomain)
+                    . Log.field "path" notif.path
+                metrics <- asks backendNotificationMetrics
+                withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 1)
       Right bundle -> do
         federator <- asks (.federatorInternal)
         manager <- asks http2Manager

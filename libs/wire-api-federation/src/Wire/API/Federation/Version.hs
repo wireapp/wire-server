@@ -141,7 +141,11 @@ enabledFederationVersions disabled =
 data VersionInfo = VersionInfo
   { vinfoSupported :: [Int]
   }
-  deriving (FromJSON, S.ToSchema) via (Schema VersionInfo)
+  deriving (S.ToSchema) via (Schema VersionInfo)
+
+instance FromJSON VersionInfo where
+  parseJSON = Aeson.withObject "VersionInfo" $ \obj ->
+    VersionInfo <$> obj Aeson..:? "supported_versions" Aeson..!= [0]
 
 instance ToJSON VersionInfo where
   toJSON VersionInfo {vinfoSupported} =
@@ -161,8 +165,10 @@ instance ToSchema VersionInfo where
             (fromMaybe [0])
             (optField "supported_versions" (array schema))
         -- legacy field to support older versions of the backend with broken
-        -- version negotiation
-        <* const [0 :: Int, 1] .= field "supported" (array schema)
+        -- version negotiation. Its value is intentionally ignored when
+        -- decoding; newer backends may filter it according to configuration.
+        <* const (Nothing :: Maybe [Int])
+          .= maybe_ (optField "supported" (array (schema @Int)))
     where
       example :: VersionInfo
       example =
