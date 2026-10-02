@@ -1,0 +1,30 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+${meeting_title}
+${host_name} (${host_email}) hat Sie zu einem Meeting auf Wire eingeladen.
+
+Wann
+${start_date}
+${start_time} – ${end_time} (${timezone_short})
+Zum Kalender hinzufügen [${ics_url}]
+
+So können Sie teilnehmen
+Wenn das Meeting beginnt, wählen Sie Meeting beitreten. Sie können auch diesen
+Link in Ihrem Browser öffnen:
+${join_url} [${join_url}]
+
+Meeting beitreten [${join_url}]Missbräuchliche Einladung melden [${support}]
+
+Was ist Wire?Wire ist die sicherste Plattform für Ihre Kommunikation. Wo auch
+immer Sie sind, arbeiten Sie mit Ihrem Team und externen Partnern zusammen –
+mittels Nachrichten, Videokonferenzen und Dateifreigabe. Stets Ende-zu-Ende
+verschlüsselt.
+Mehr erfahren [https://wire.com/].
+
+Haben Sie Fragen? Kontaktieren Sie uns [${support}]
+
+Datenschutzerklärung und Nutzungsbedingungen [${legal}]· Missbrauch melden
+[${misuse}]
+${copyright}. Alle Rechte vorbehalten.

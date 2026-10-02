@@ -1,0 +1,22 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+${meeting_title}
+${host_name} (${host_email}) cancelled a meeting on Wire.
+
+Was scheduled for
+${start_date}
+${start_time} – ${end_time} (${timezone_short})
+
+The meeting has been removed from your calendar.
+
+What is Wire?Wire is the most secure collaboration platform. Work with your team
+and external partners wherever you are through messages, video conferencing and
+file sharing – always secured with end-to-end-encryption.
+Learn more [https://wire.com/].
+
+Any questions? Contact us [${support}]
+
+Privacy Policy and Terms of Use [${legal}]· Report misuse [${misuse}]
+${copyright}. All rights reserved.
