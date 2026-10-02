@@ -63,6 +63,7 @@ module Wire.API.Meeting
     Frequency (..),
     MeetingEmailsInvitation (..),
     RefreshMeetingLinkRequest (..),
+    MeetingJoinRequest (..),
   )
 where
 
@@ -658,6 +659,22 @@ instance ToSchema RefreshMeetingLinkRequest where
         <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
     where
       desc = description ?~ "Optional password for the join link. Replaces any previously set password; omit or null for a passwordless link."
+
+newtype MeetingJoinRequest = MeetingJoinRequest
+  { password :: Maybe PlainTextPassword8
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MeetingJoinRequest)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MeetingJoinRequest
+
+instance ToSchema MeetingJoinRequest where
+  schema =
+    objectWithDocModifier
+      (description ?~ "Request body for resolving a meeting join link")
+      $ MeetingJoinRequest
+        <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
+    where
+      desc = description ?~ "Optional password for the join link; required when the link is password-protected."
 
 instance PostgresMarshall (Maybe Text, Maybe DI.Int32, Maybe UTCTime) (Maybe Recurrence) where
   postgresMarshall Nothing = (Nothing, Nothing, Nothing)

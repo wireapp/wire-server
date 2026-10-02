@@ -309,3 +309,21 @@ type MeetingsAPI =
                     '[Respond 200 "Meeting link refreshed" MeetingWithConversation]
                     MeetingWithConversation
            )
+    :<|> Named
+           "join-meeting-by-link"
+           ( Summary "Resolve a meeting join link"
+               :> From 'V19
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "join"
+               :> ReqBody '[JSON] MeetingJoinRequest
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'InvalidMeetingPassword
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 200 "Meeting" Meeting]
+                    Meeting
+           )

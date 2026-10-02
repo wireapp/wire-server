@@ -41,3 +41,4 @@ meetingsAPI =
     <@> mkNamedAPI @"remove-meeting-invitation" Meetings.removeMeetingInvitation
     <@> mkNamedAPI @"replace-meeting-invitation" Meetings.replaceMeetingInvitation
     <@> mkNamedAPI @"refresh-meeting-link" Meetings.refreshMeetingLink
+    <@> mkNamedAPI @"join-meeting-by-link" Meetings.joinMeetingByLink
