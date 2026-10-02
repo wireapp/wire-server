@@ -1285,6 +1285,93 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           refreshMeetingLink zUser1 (ConnId "test-conn") (Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com")) (API.RefreshMeetingLinkRequest Nothing)
       result `shouldBe` Left MeetingsFeatureDisabled
 
+  describe "joinMeetingByLink" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamConfig =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Joinable Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+        pw = plainTextPassword8Unsafe "join secret pw"
+
+    it "resolves a passwordless live link" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        joined <- joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest Nothing)
+        pure (meeting.meeting, joined)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (meeting, JoinMeetingOk m) -> do
+          m.title `shouldBe` meeting.title
+          m.link `shouldBe` meeting.link
+        Right (_, r) -> fail $ "expected JoinMeetingOk, got: " <> show r
+
+    it "rejects a missing password on a protected link" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
+        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest Nothing)
+      result `shouldBe` Right JoinMeetingInvalidPassword
+
+    it "rejects a wrong password on a protected link" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
+        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest (Just (plainTextPassword8Unsafe "wrong secret")))
+      result `shouldBe` Right JoinMeetingInvalidPassword
+
+    it "accepts the correct password on a protected link" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
+        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest (Just pw))
+      case result of
+        Right (JoinMeetingOk _) -> pure ()
+        r -> fail $ "expected JoinMeetingOk, got: " <> show r
+
+    it "ignores a password supplied for a passwordless link" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest (Just pw))
+      case result of
+        Right (JoinMeetingOk _) -> pure ()
+        r -> fail $ "expected JoinMeetingOk, got: " <> show r
+
+    it "accepts a passwordless join after the password was cleared" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest (Just pw))
+        _ <- refreshMeetingLink zUser1 (ConnId "test-conn") meeting.meeting.id (API.RefreshMeetingLinkRequest Nothing)
+        joinMeetingByLink zUser2 meeting.meeting.id (API.MeetingJoinRequest Nothing)
+      case result of
+        Right (JoinMeetingOk _) -> pure ()
+        r -> fail $ "expected JoinMeetingOk, got: " <> show r
+
+    it "returns JoinMeetingNotFound when the join code is gone" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        CodeStore.deleteMeetingCode (qUnqualified meeting.meeting.id)
+        joinMeetingByLink zUser1 meeting.meeting.id (API.MeetingJoinRequest Nothing)
+      result `shouldBe` Right JoinMeetingNotFound
+
+    it "returns JoinMeetingNotFound for a foreign-domain meeting id" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        joinMeetingByLink zUser1 (Qualified (qUnqualified meeting.meeting.id) (Domain "other.example.com")) (API.MeetingJoinRequest Nothing)
+      result `shouldBe` Right JoinMeetingNotFound
+
   describe "addInvitedEmails" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42

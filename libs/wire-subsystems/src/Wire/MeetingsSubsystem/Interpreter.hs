@@ -55,7 +55,7 @@ import Wire.CodeStore.Code (Code)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
-import Wire.HashPassword (HashPassword, hashPassword8)
+import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
@@ -162,6 +162,8 @@ interpretMeetingsSubsystem cfg = interpret $ \case
     deleteMeetingImpl zUser connId meetingId cfg.validityPeriod
   RefreshMeetingLink zUser connId meetingId req ->
     refreshMeetingLinkImpl zUser connId meetingId req cfg.validityPeriod
+  JoinMeetingByLink zUser meetingId req ->
+    joinMeetingByLinkImpl zUser meetingId req cfg.validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetings zUser ->
@@ -501,6 +503,58 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     lift $ storedMeetingToMeetingWithConversation base zUser conv meeting
 
+-- | Resolve a meeting join link (WPB-28216). Read-only: no membership
+-- change, no events. The live code row is the capability: a dead or expired
+-- row (or a store that cannot hold meeting codes, i.e. Cassandra-only mode)
+-- yields 'JoinMeetingNotFound'. When the code carries a (hashed) password,
+-- the request must supply the matching plaintext password or
+-- 'JoinMeetingInvalidPassword' is returned; a password supplied for an
+-- unprotected link is ignored, mirroring the conversation join-by-code
+-- semantics. No @checkMeetingsEnabled@ gate: the joiner's team feature
+-- state is irrelevant, matching conversation join-by-code. Errors are
+-- returned rather than thrown because a throw from interpreter space is
+-- invisible to callers' local error handlers (PR #5571 review lesson).
+joinMeetingByLinkImpl ::
+  ( Member Store.MeetingsStore r,
+    Member CodeStore r,
+    Member Now r,
+    Member HashPassword r,
+    Member RateLimit r
+  ) =>
+  Local UserId ->
+  Qualified MeetingId ->
+  API.MeetingJoinRequest ->
+  NominalDiffTime ->
+  Sem r JoinMeetingResult
+joinMeetingByLinkImpl zUser meetingId req validityPeriod = do
+  base <- codeURIBase (tDomain zUser)
+  now <- Now.get
+  let cutoff = addUTCTime (negate validityPeriod) now
+  mMeeting <- Store.getMeeting (qUnqualified meetingId)
+  case mMeeting of
+    Just meeting
+      | isAlive cutoff meeting,
+        qDomain meetingId == tDomain zUser ->
+        resolveCode base meeting
+    _ -> pure JoinMeetingNotFound
+  where
+    resolveCode base meeting = do
+      mCode <- CodeStore.getMeetingCode (qUnqualified meetingId)
+      case mCode of
+        Nothing -> pure JoinMeetingNotFound
+        Just (code, mHashedPw) -> case (mHashedPw, req.password) of
+          -- Reuse the fetched code row: the lookup result doubles as the
+          -- capability for building the response, so no second query.
+          (Nothing, _) -> pure (joinOk base meeting (Just code))
+          (Just _, Nothing) -> pure JoinMeetingInvalidPassword
+          (Just hashed, Just pt) -> do
+            ok <- verifyPassword (RateLimitUser (tUnqualified zUser)) pt hashed
+            if ok
+              then pure (joinOk base meeting (Just code))
+              else pure JoinMeetingInvalidPassword
+    joinOk base meeting mCode =
+      JoinMeetingOk (mkApiMeeting base (tDomain zUser) mCode meeting)
+
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
@@ -588,7 +642,7 @@ storedMeetingToMeeting ::
   Store.StoredMeeting ->
   Sem r API.Meeting
 storedMeetingToMeeting mBase domain sm =
-  (\mCode -> mkApiMeeting mBase domain mCode sm) <$> CodeStore.getMeetingCode sm.id
+  (\mCode -> mkApiMeeting mBase domain (fst <$> mCode) sm) <$> CodeStore.getMeetingCode sm.id
 
 -- | One 'CodeStore.getMeetingCodes' query for the whole batch instead of
 -- one 'getMeetingCode' per meeting.

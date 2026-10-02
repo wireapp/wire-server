@@ -1006,3 +1006,83 @@ testMeetingInteropV18ToV19 = do
   modern <- getMeeting owner domain meetingId >>= getJSON 200
   mtype <- modern %. "type" >>= asString
   mtype `shouldMatch` ("scheduled" :: String)
+
+-- | WPB-28216: refreshing a meeting's join link recreates the join code,
+-- revokes the meeting conversation's guest link, and enforces creator-only
+-- access. The @link@ URL itself is id-based and therefore unchanged.
+testMeetingLinkRefresh :: (HasCallStack) => App ()
+testMeetingLinkRefresh = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Refresh Integration" startTime endTime []
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  titleBefore <- meeting %. "title" >>= asString
+  mLinkBefore <- meeting %. "link" >>= asStringM
+
+  conv <- meeting %. "conversation"
+
+  -- Plant a guest link on the meeting conversation; refresh must revoke it.
+  postConversationCode owner conv Nothing Nothing >>= assertSuccess
+  getConversationCode owner conv Nothing >>= assertStatus 200
+
+  refreshed <- postMeetingLinkRefresh owner domain meetingId (object []) >>= getJSON 200
+  -- V19 MeetingWithConversation flattens the meeting fields to the top level.
+  refreshedTitle <- refreshed %. "title" >>= asString
+  refreshedTitle `shouldMatch` titleBefore
+  refreshedLink <- refreshed %. "link" >>= asStringM
+  refreshedLink `shouldMatch` mLinkBefore
+
+  -- The meeting conversation's guest link is revoked.
+  getConversationCode owner conv Nothing >>= assertLabel 404 "no-conversation-code"
+
+  -- Only the creator may refresh.
+  (otherUser, _, _) <- createTeam OwnDomain 1
+  postMeetingLinkRefresh otherUser domain meetingId (object []) >>= assertStatus 404
+
+  -- Refreshing a deleted meeting yields 404.
+  deleteMeeting owner domain meetingId >>= assertStatus 200
+  postMeetingLinkRefresh owner domain meetingId (object []) >>= assertStatus 404
+
+  -- A too-short password is rejected by the request schema (min length 8).
+  meeting2 <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
+  postMeetingLinkRefresh owner domain2 meetingId2 (object ["password" .= ("short7" :: String)]) >>= assertStatus 400
+
+-- | WPB-28216: @POST /meetings/{domain}/{id}/join@ resolves a meeting join
+-- link for any authenticated local user and enforces the optional password.
+testMeetingJoinByLink :: (HasCallStack) => App ()
+testMeetingJoinByLink = do
+  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Join Integration" startTime endTime []
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  title <- meeting %. "title" >>= asString
+
+  -- A non-creator can resolve a passwordless link.
+  joined <- postMeetingJoin bob domain meetingId (object []) >>= getJSON 200
+  joinedTitle <- joined %. "title" >>= asString
+  joinedTitle `shouldMatch` title
+
+  -- Password-protect the link via refresh.
+  postMeetingLinkRefresh owner domain meetingId (object ["password" .= ("supersecret8" :: String)]) >>= assertStatus 200
+
+  postMeetingJoin bob domain meetingId (object []) >>= assertLabel 403 "invalid-meeting-password"
+  postMeetingJoin bob domain meetingId (object ["password" .= ("wrongpass1" :: String)]) >>= assertLabel 403 "invalid-meeting-password"
+  ok <- postMeetingJoin bob domain meetingId (object ["password" .= ("supersecret8" :: String)])
+  assertStatus 200 ok
+
+  -- Clearing the password makes the link passwordless again.
+  postMeetingLinkRefresh owner domain meetingId (object ["password" .= Null]) >>= assertStatus 200
+  postMeetingJoin bob domain meetingId (object []) >>= assertStatus 200
+
+  -- A deleted meeting has no resolvable link.
+  deleteMeeting owner domain meetingId >>= assertStatus 200
+  postMeetingJoin bob domain meetingId (object []) >>= assertLabel 404 "meeting-not-found"
