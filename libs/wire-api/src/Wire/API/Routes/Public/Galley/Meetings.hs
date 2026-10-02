@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.Meetings where
 
+import Data.Code (Value)
 import Data.Domain (Domain)
 import Data.Id (MeetingId)
 import Servant
@@ -318,6 +319,7 @@ type MeetingsAPI =
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
                :> "join"
+               :> Capture "code" Value
                :> ReqBody '[JSON] MeetingJoinRequest
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'InvalidMeetingPassword

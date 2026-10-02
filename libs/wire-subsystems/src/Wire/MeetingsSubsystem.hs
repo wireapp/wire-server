@@ -19,6 +19,7 @@
 
 module Wire.MeetingsSubsystem where
 
+import Data.Code (Value)
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock (UTCTime)
@@ -51,15 +52,19 @@ data MeetingsSubsystem m a where
     RefreshMeetingLinkRequest ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
   -- | Resolve a meeting join link with password enforcement. Read-only: no
-  -- membership change, no events. Returns 'JoinMeetingNotFound' when the
-  -- meeting is gone, not live/local, or has no live join code (the live code
-  -- row is the capability), and 'JoinMeetingInvalidPassword' when the code
-  -- carries a password that the request does not match. Errors are returned,
-  -- not thrown, so interpreters stay observable in tests (handler-space
-  -- throws are not); the route handler maps them to 404/403.
+  -- membership change, no events. The presented code value (the rotating
+  -- token embedded in the link URL) must match the live code row; returns
+  -- 'JoinMeetingNotFound' when the meeting is gone, not live/local, or the
+  -- presented value does not match (the live code row is the capability, so
+  -- a refreshed link invalidates stale URLs). Returns
+  -- 'JoinMeetingInvalidPassword' when the code carries a password that the
+  -- request does not match. Errors are returned, not thrown, so
+  -- interpreters stay observable in tests (handler-space throws are not);
+  -- the route handler maps them to 404/403.
   JoinMeetingByLink ::
     Local UserId ->
     Qualified MeetingId ->
+    Value ->
     MeetingJoinRequest ->
     MeetingsSubsystem m JoinMeetingResult
   GetMeeting ::

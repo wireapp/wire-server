@@ -23,8 +23,9 @@ module Wire.MeetingsSubsystem.Interpreter
 where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
+import Data.ByteArray (constEq)
 import Data.ByteString.Conversion (toByteString')
-import Data.Code (Timeout (..))
+import Data.Code (Timeout (..), Value)
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
@@ -51,7 +52,7 @@ import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), Meetings
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as CodeStore
-import Wire.CodeStore.Code (Code)
+import Wire.CodeStore.Code (Code (..))
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
@@ -162,8 +163,8 @@ interpretMeetingsSubsystem cfg = interpret $ \case
     deleteMeetingImpl zUser connId meetingId cfg.validityPeriod
   RefreshMeetingLink zUser connId meetingId req ->
     refreshMeetingLinkImpl zUser connId meetingId req cfg.validityPeriod
-  JoinMeetingByLink zUser meetingId req ->
-    joinMeetingByLinkImpl zUser meetingId req cfg.validityPeriod
+  JoinMeetingByLink zUser meetingId presentedValue req ->
+    joinMeetingByLinkImpl zUser meetingId presentedValue req cfg.validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetings zUser ->
@@ -523,10 +524,11 @@ joinMeetingByLinkImpl ::
   ) =>
   Local UserId ->
   Qualified MeetingId ->
+  Value ->
   API.MeetingJoinRequest ->
   NominalDiffTime ->
   Sem r JoinMeetingResult
-joinMeetingByLinkImpl zUser meetingId req validityPeriod = do
+joinMeetingByLinkImpl zUser meetingId presentedValue req validityPeriod = do
   base <- codeURIBase (tDomain zUser)
   now <- Now.get
   let cutoff = addUTCTime (negate validityPeriod) now
@@ -535,25 +537,30 @@ joinMeetingByLinkImpl zUser meetingId req validityPeriod = do
     Just meeting
       | isAlive cutoff meeting,
         qDomain meetingId == tDomain zUser ->
-        resolveCode base meeting
+          resolveCode base meeting
     _ -> pure JoinMeetingNotFound
   where
     resolveCode base meeting = do
       mCode <- CodeStore.getMeetingCode (qUnqualified meetingId)
+      -- The presented value is the rotating capability: a value from a
+      -- link superseded by a refresh no longer matches and yields 404.
       case mCode of
-        Nothing -> pure JoinMeetingNotFound
-        Just (code, mHashedPw) -> case (mHashedPw, req.password) of
-          -- Reuse the fetched code row: the lookup result doubles as the
-          -- capability for building the response, so no second query.
-          (Nothing, _) -> pure (joinOk base meeting (Just code))
-          (Just _, Nothing) -> pure JoinMeetingInvalidPassword
-          (Just hashed, Just pt) -> do
-            ok <- verifyPassword (RateLimitUser (tUnqualified zUser)) pt hashed
-            if ok
-              then pure (joinOk base meeting (Just code))
-              else pure JoinMeetingInvalidPassword
-    joinOk base meeting mCode =
-      JoinMeetingOk (mkApiMeeting base (tDomain zUser) mCode meeting)
+        Just (code, mHashedPw)
+          | toByteString' code.codeValue `constEq` toByteString' presentedValue ->
+              checkPassword base meeting code (mHashedPw, req.password)
+        _ -> pure JoinMeetingNotFound
+    checkPassword base meeting code = \case
+      -- Reuse the fetched code row: the lookup result doubles as the
+      -- capability for building the response, so no second query.
+      (Nothing, _) -> pure (joinOk base meeting code)
+      (Just _, Nothing) -> pure JoinMeetingInvalidPassword
+      (Just hashed, Just pt) -> do
+        ok <- verifyPassword (RateLimitUser (tUnqualified zUser)) pt hashed
+        if ok
+          then pure (joinOk base meeting code)
+          else pure JoinMeetingInvalidPassword
+    joinOk base meeting code =
+      JoinMeetingOk (mkApiMeeting base (tDomain zUser) (Just code) meeting)
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -629,7 +636,7 @@ mkApiMeeting mBase domain mCode sm =
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt,
       API.link = case (mBase, mCode) of
-        (Just base, Just _) -> Just (API.mkMeetingLink base sm.id)
+        (Just base, Just code) -> Just (API.mkMeetingLink base sm.id code.codeValue)
         _ -> Nothing
     }
 

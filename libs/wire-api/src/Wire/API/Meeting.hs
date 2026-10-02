@@ -71,6 +71,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON, toJSON)
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (toByteString')
+import Data.Code (Value)
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
@@ -567,11 +568,13 @@ fromLegacy tz m =
     }
 
 -- | Join link for a meeting: the configured code URI with the meeting's
--- UUID appended as final path segment (trailing slashes on the configured
--- base are normalized).
-mkMeetingLink :: HttpsUrl -> MeetingId -> HttpsUrl
-mkMeetingLink (HttpsUrl base) mid =
-  HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid}
+-- UUID and the live join-code value appended as final path segments
+-- (trailing slashes on the configured base are normalized). The code value
+-- is the rotating capability: refreshing the link replaces it, so URLs
+-- carrying a stale value stop resolving.
+mkMeetingLink :: HttpsUrl -> MeetingId -> Value -> HttpsUrl
+mkMeetingLink (HttpsUrl base) mid codeValue =
+  HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid <> "/" <> toByteString' codeValue}
 
 -- | 'toLegacy' lifted over 'MeetingWithConversation'.
 toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
