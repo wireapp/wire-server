@@ -1102,6 +1102,63 @@ optSettings:
   setOAuthMaxActiveRefreshTokens: 10
 ```
 
+#### Scopes
+
+Which scope an OAuth token needs is configured per route in `nginz`'s Helm
+chart, and enforced by *nginz*:
+
+```yaml
+# [nginz/values.yaml]
+nginx_conf:
+  upstreams:
+    galley:
+      - path: /conversations/([^/]*)/code
+        envs:
+        - all
+        oauth_scopes: ["read:conversations_code", "write-only:conversations_code"]
+```
+
+A scope has a tier and a base, e.g. the tier `read` and the base
+`conversations_code`.  The method of the request decides which tier it needs:
+
+| method          | tier          |
+| --------------- | ------------- |
+| `GET`           | `read`        |
+| `POST`, `PUT`   | `write-only`  |
+| `DELETE`        | `delete-only` |
+
+Only the listed scopes of that tier let a token in, and the tiers are
+independent of each other: `write-only:` does not include `read:`.  So in the
+example above, a `GET` needs `read:conversations_code`, and a `DELETE` gets
+nowhere, because the list has no `delete-only:conversations_code`.
+
+A route with no `oauth_scopes` (or with an empty list) (and with no
+`oauth_scope`, see next section) accepts no OAuth token at all.  It
+may still be reachable with a cookie or a zauth token; scopes are
+about OAuth only.
+
+Every scope should also be named in the swagger docs, which is a separate
+annotation in the routing tables.  A unit test in `wire-api` compares the two
+and fails if they disagree.
+
+##### Deprecated: `oauth_scope`
+
+Older configurations name only the base and leave the tier to *nginz*:
+
+```yaml
+# [nginz/values.yaml]
+        oauth_scope: conversations_code
+```
+
+Here the tiers build on one another: `write:` includes `read:`, and `admin:`
+includes `write:`.  A `GET` therefore passes with `read:`, `write:`, or
+`admin:conversations_code`, and a `DELETE` needs `admin:conversations_code`.
+
+`oauth_scopes` replaces this, and wins over it where a route has both.  Tokens
+work across the change in either direction: a token with old scopes gets into a
+route that has moved to `oauth_scopes`, and a token with new scopes gets into a
+route that has not.
+
 #### Password hashing options
 
 Since release 5.6.0, wire-server can hash passwords with

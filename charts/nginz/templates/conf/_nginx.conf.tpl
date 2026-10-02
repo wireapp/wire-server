@@ -297,7 +297,14 @@ http {
               {{- end }}
             {{- end }}
 
-            {{- if ($location.oauth_scope) }}
+            {{- if hasKey $location "oauth_scopes" }}
+              {{- if $location.oauth_scopes }}
+        oauth_scopes {{ join " " $location.oauth_scopes }};
+              {{- else }}
+        # 'oauth_scopes: []': no OAuth token gets in here.  (Without any
+        # 'oauth_scope[s]' directive libzauth rejects them all.)
+              {{- end }}
+            {{- else if ($location.oauth_scope) }}
         oauth_scope {{ $location.oauth_scope }};
             {{- end }}
 

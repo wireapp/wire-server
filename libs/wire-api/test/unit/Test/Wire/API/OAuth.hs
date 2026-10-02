@@ -20,6 +20,7 @@
 module Test.Wire.API.OAuth where
 
 import Data.Aeson
+import Data.Set qualified as Set
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -30,8 +31,85 @@ tests =
   testGroup "Oauth" $
     [ testGroup "code challenge verification should succeed" $
         [ testCase "should" testCodeChallengeVerification
+        ],
+      testGroup "scopes" $
+        [ testCase "only known scopes parse" testScopesParseOnlyKnown,
+          testCase "stored scopes cover the deprecated ones" testStoredScopes
         ]
     ]
+
+-- | Rows outlive renamings, so what we read from the database is not what a
+-- client may ask for.  A deprecated scope was cumulative and can be worth more
+-- than one of ours.
+testStoredScopes :: Assertion
+testStoredScopes = do
+  -- what we write now
+  storedScope "read:self" @?= Set.singleton ReadSelf
+  storedScope "write-only:conversations" @?= Set.singleton WriteOnlyConversations
+  -- the deprecated write tier was a read tier as well
+  storedScope "write:conversations_code"
+    @?= Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]
+  -- the deprecated admin tier had a delete tier on top, but there is no
+  -- delete-only:meetings to grant
+  storedScope "admin:meetings" @?= Set.singleton WriteOnlyMeetings
+  -- nothing we could honour
+  storedScope "read:pizza" @?= Set.empty
+  storedScope "smell:meetings" @?= Set.empty
+
+-- | A scope nobody can be granted has to be an error.  If it were dropped, or
+-- turned the whole set into no scopes at all, the client would get a token that
+-- does not do what it asked for.
+testScopesParseOnlyKnown :: Assertion
+testScopesParseOnlyKnown = do
+  (eitherDecode "\"read:self write-only:conversations\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadSelf, WriteOnlyConversations]))
+  -- deprecated scopes should parse (with translation)
+  (eitherDecode "\"write:conversations\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.singleton WriteOnlyConversations))
+  (eitherDecode "\"write:conversations_code\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]))
+  for_
+    [ "\"\"", -- empty scope
+      "\"read:pizza\"", -- no such scope
+      "\"read:self read:pizza\"" -- one bad scope spoils the request
+    ]
+    $ \bad -> case eitherDecode bad :: Either String OAuthScopes of
+      Left _ -> pure ()
+      Right scopes ->
+        assertFailure $ "expected a parse error for " <> show bad <> ", got " <> show scopes
+
+  (eitherDecode "\"read:feature_configs read:self\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
+
+  (eitherDecode "\"read:feature_configs read:self\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
+
+  (eitherDecode "\"write:feature_configs read:self\"" :: Either String OAuthScopes)
+    @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
+
+{-
+
+ WriteConversations
+write:conversations
+write-only:conversations
+
+ WriteConversationsCode
+write:conversations_code
+write-only:conversations_code
+
+ WriteConversationsName
+read:conversations_name
+write-only:conversations_name
+
+ WriteMeetings
+write:meetings
+write-only:meetings
+
+ AdminMeetings
+admin:meetings
+delete-only-meetings
+
+-}
 
 testCodeChallengeVerification :: Assertion
 testCodeChallengeVerification = do
