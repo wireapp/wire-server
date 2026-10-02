@@ -37,7 +37,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.TeamStore
 
 data TeamJournal m a where
-  EnqueueTeamEvent :: TeamEvent -> TeamJournal m ()
+  EnqueueTeamEvent :: TeamId -> TeamEvent -> TeamJournal m ()
 
 makeSem ''TeamJournal
 
@@ -106,7 +106,7 @@ journalEvent typ tid dat tim = do
           & T.teamId .~ toBytes tid
           & T.utcTime .~ ts
           & T.maybe'eventData .~ dat
-  enqueueTeamEvent ev
+  enqueueTeamEvent tid ev
 
 ----------------------------------------------------------------------------
 -- utils
