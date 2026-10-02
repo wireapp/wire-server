@@ -33,6 +33,7 @@ import Control.Lens (to, (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Coerce (coerce)
 import Data.Qualified (Local, toLocalUnsafe)
+import Data.Set qualified as Set
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
@@ -51,6 +52,7 @@ import Wire.API.Error (ErrorS, errorToWai)
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Team.Collaborator
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
@@ -351,7 +353,8 @@ runBrigToIO e (AppT ma) = do
           { ownDomain = e.settings.federationDomain,
             federatorEndpoint = e.federator,
             http2Manager = e.http2Manager,
-            requestId = e.requestId
+            requestId = e.requestId,
+            localVersions = Federation.supportedVersions Set.\\ e.disabledFederationVersions
           }
       propertySubsystemConfig =
         PropertySubsystemConfig

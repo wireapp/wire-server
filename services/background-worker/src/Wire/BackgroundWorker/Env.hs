@@ -30,6 +30,7 @@ import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
 import Data.Secret (SecretText)
+import Data.Set qualified as Set
 import HTTP2.Client.Manager
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
@@ -48,6 +49,7 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Team.Feature (LegalholdConfig, npProject)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackgroundWorker.Options
@@ -97,6 +99,7 @@ data Env = Env
     amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
     federationDomain :: Domain,
+    federationVersions :: Set Federation.Version,
     postgresMigration :: PostgresMigrationOpts,
     gundeckEndpoint :: Endpoint,
     sparEndpoint :: Endpoint,
@@ -180,6 +183,9 @@ mkEnv opts galleyOpts = do
   let backendNotificationsConfig = opts.backendNotificationPusher
       backgroundJobsConfig = opts.backgroundJobs
       federationDomain = galleyOpts._settings._federationDomain
+      federationVersions =
+        Federation.supportedVersions
+          Set.\\ foldMap Federation.expandVersionExp galleyOpts._settings._disabledFederationAPIVersions
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
       galleyEndpoint = opts.galley

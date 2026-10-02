@@ -62,6 +62,8 @@ import Servant hiding (route)
 import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
+import Wire.API.Federation.Version (federationVersionMiddleware)
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
@@ -106,7 +108,9 @@ mkApp opts =
     otelMiddleware <- lift Otel.newOpenTelemetryWaiMiddleware
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
-          versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
+          federationVersionMiddleware
+            (foldMap Federation.expandVersionExp (opts ^. settings . disabledFederationAPIVersions))
+            . versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
             . requestIdMiddleware logger defaultRequestIdHeaderName
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . otelMiddleware

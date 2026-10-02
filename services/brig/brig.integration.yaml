@@ -237,6 +237,7 @@ optSettings:
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   setDisabledAPIVersions: []
+  setDisabledFederationAPIVersions: []
   set2FACodeGenerationDelaySecs: 5
   setNonceTtlSecs: 5
   setDpopMaxSkewSecs: 1

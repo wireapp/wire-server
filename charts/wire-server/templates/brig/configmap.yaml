@@ -379,6 +379,7 @@ data:
       setOAuthEnabled: {{ .setOAuthEnabled }}
       {{- end }}
       setDisabledAPIVersions: {{ toJson .setDisabledAPIVersions }}
+      setDisabledFederationAPIVersions: {{ toJson $.Values.apiVersions.disabledFederationAPIVersions }}
       {{- if .setOAuthRefreshTokenExpirationTimeSecs }}
       setOAuthRefreshTokenExpirationTimeSecs: {{ .setOAuthRefreshTokenExpirationTimeSecs }}
       {{- end }}

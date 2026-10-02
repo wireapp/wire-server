@@ -53,6 +53,7 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
@@ -90,6 +91,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley (GalleyError (..), MeetingError, NonFederatingBackends, OperationDenied, UnreachableBackends)
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Meeting (defaultLegacyTimeZone, parseTimeZone)
 import Wire.API.Team.Collaborator
@@ -461,7 +463,10 @@ evalGalley e =
           { ownDomain = e._options._settings._federationDomain,
             federatorEndpoint = e._options._federator,
             http2Manager = e._http2Manager,
-            requestId = e._reqId
+            requestId = e._reqId,
+            localVersions =
+              Federation.supportedVersions
+                Set.\\ foldMap Federation.expandVersionExp e._options._settings._disabledFederationAPIVersions
           }
       conversationSubsystemConfig =
         ConversationSubsystemConfig
