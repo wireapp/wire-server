@@ -63,6 +63,7 @@ module Wire.API.Event.Conversation
     _EdTyping,
     _EdOtrMessage,
     _EdMLSMessage,
+    _EdMLSTargetedMessage,
     _EdMLSWelcome,
     _EdAddPermissionUpdate,
     _EdSystemConvDelete,
@@ -201,6 +202,7 @@ data EventType
   | ConvReceiptModeUpdate
   | OtrMessageAdd
   | MLSMessageAdd
+  | MLSTargetedMessage
   | MLSWelcome
   | Typing
   | ProtocolUpdate
@@ -233,6 +235,7 @@ instance ToSchema EventType where
           element "conversation.typing" Typing,
           element "conversation.otr-message-add" OtrMessageAdd,
           element "conversation.mls-message-add" MLSMessageAdd,
+          element "conversation.mls-message-targeted" MLSTargetedMessage,
           element "conversation.mls-welcome" MLSWelcome,
           element "conversation.protocol-update" ProtocolUpdate,
           element "conversation.add-permission-update" AddPermissionUpdate,
@@ -259,6 +262,7 @@ data EventData
   | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
+  | EdMLSTargetedMessage ByteString
   | EdMLSWelcome ByteString
   | EdProtocolUpdate P.ProtocolTag
   | EdAddPermissionUpdate Conv.AddPermissionUpdate
@@ -283,6 +287,7 @@ genEventData = \case
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
+  MLSTargetedMessage -> EdMLSTargetedMessage <$> arbitrary
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
   ConvDeleteMeeting -> pure EdConvDeleteMeeting
@@ -308,6 +313,7 @@ eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
 eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
+eventDataType (EdMLSTargetedMessage _) = MLSTargetedMessage
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 eventDataType EdConvDeleteMeeting = ConvDeleteMeeting
@@ -344,6 +350,7 @@ isCellsConversationEvent eventType =
     Typing -> False
     OtrMessageAdd -> False
     MLSMessageAdd -> False
+    MLSTargetedMessage -> False
     MLSWelcome -> False
     ProtocolUpdate -> False
     AddPermissionUpdate -> False
@@ -649,6 +656,7 @@ taggedEventDataSchema =
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
       MLSMessageAdd -> tag _EdMLSMessage base64Schema
+      MLSTargetedMessage -> tag _EdMLSTargetedMessage base64Schema
       MLSWelcome -> tag _EdMLSWelcome base64Schema
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
