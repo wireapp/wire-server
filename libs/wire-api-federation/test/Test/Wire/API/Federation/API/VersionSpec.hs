@@ -1,5 +1,6 @@
 module Test.Wire.API.Federation.API.VersionSpec where
 
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 qualified as BS
 import Data.Set qualified as Set
 import Imports
@@ -19,6 +20,11 @@ spec = describe "Federation API versions" $ do
   it "does not advertise disabled versions" $ do
     (versionInfoFor (supportedVersions Set.\\ developmentVersions)).vinfoSupported
       `shouldBe` [0, 1, 2, 3, 4]
+
+  it "decodes version information with filtered legacy versions" $ do
+    let info = versionInfoFor (Set.fromList [V2, V3, V4, V5])
+    fmap vinfoSupported (Aeson.decode (Aeson.encode info) :: Maybe VersionInfo)
+      `shouldBe` Just [2, 3, 4, 5]
 
   it "keeps explicitly selected versions available" $ do
     expandVersionExp (FederationVersionExpConst V4) `shouldBe` Set.fromList [V4]
