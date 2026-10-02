@@ -94,9 +94,9 @@ mkApp o = Codensity $ \k ->
     middleware :: Env -> Wai.Middleware
     middleware e =
       versionMiddleware (foldMap expandVersionExp o.settings.disabledAPIVersions)
-        . federationVersionMiddleware (foldMap Federation.expandVersionExp o.settings.disabledFederationAPIVersions)
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
+        . federationVersionMiddleware (foldMap Federation.expandVersionExp o.settings.disabledFederationAPIVersions)
         . GZip.gzip GZip.defaultGzipSettings
         . catchErrors e.appLogger defaultRequestIdHeaderName
     servantApp :: Env -> Application

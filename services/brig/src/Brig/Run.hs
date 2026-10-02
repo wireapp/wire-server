@@ -130,11 +130,11 @@ mkApp opts = do
     middleware e =
       -- these rewrite the request, so they must be at the top (i.e. applied last)
       versionMiddleware e.disabledVersions
-        . federationVersionMiddleware e.disabledFederationVersions
         . internalHandleCompatibilityMiddleware
         -- this also rewrites the request
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
+        . federationVersionMiddleware e.disabledFederationVersions
         . GZip.gunzip
         . GZip.gzip GZip.defaultGzipSettings
         . catchErrors e.appLogger defaultRequestIdHeaderName

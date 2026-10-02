@@ -53,7 +53,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
@@ -465,8 +464,7 @@ evalGalley e =
             http2Manager = e._http2Manager,
             requestId = e._reqId,
             localVersions =
-              Federation.supportedVersions
-                Set.\\ foldMap Federation.expandVersionExp e._options._settings._disabledFederationAPIVersions
+              Federation.enabledFederationVersions e._options._settings._disabledFederationAPIVersions
           }
       conversationSubsystemConfig =
         ConversationSubsystemConfig
