@@ -23,9 +23,7 @@ import API.Brig as Brig
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
-import qualified API.GalleyInternal as GalleyI
 import API.Gundeck
-import Control.Lens hiding ((.=))
 import Data.Aeson.QQ.Simple
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -692,32 +690,164 @@ testReAddExternalAppToGroupConversation = do
     mIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) mems
     mIds `shouldContain` [appId]
 
-testRemoveReAddExternalAppOne2OneConversation :: (HasCallStack) => App ()
-testRemoveReAddExternalAppOne2OneConversation = do
+-- | The ways in which an MLS 1:1 conversation can end.
+data EndOfRelationship
+  = -- | A full member is removed from the team, account is deleted.
+    TeamMemberRemoved
+  | -- | An app collaborating with the team gets removed.
+    AppCollaboratorRemoved
+  | -- | An app keeps its collaborator record, but loses every
+    -- permission.  (Nothing about the conversation changes.)
+    AppCollaboratorPermissionsDropped
+  | -- | The app's own team deletes the app, so its account goes away.
+    AppDeleted
+  | -- | Like 'AppCollaboratorRemoved', but with a regular user as the
+    -- collaborator.  Unlike an app, a regular user *could* be connected, so
+    -- the conversation may only be dissolved after establishing that they are
+    -- not (see 'ConnectedUserCollaboratorRemoved').
+    UserCollaboratorRemoved
+  | -- | A regular user who is both connected to the team member and a
+    -- collaborator of their team loses the collaborator record.  The
+    -- connection still justifies the conversation, so nothing about it may
+    -- change at all.
+    --
+    -- NOTE: collaborators of type "user" are not a thing in our
+    -- product. Its existence is an artefact of how external apps have
+    -- been implement, and nobody in the product department knows or
+    -- cares about this.  We still keep these two cases to document
+    -- that backend does intentionally work that way.
+    ConnectedUserCollaboratorRemoved
+  deriving (Generic, Show, Eq)
+
+-- | An established MLS 1:1 conversation survives the end of the relationship
+-- that justified it.
+--
+-- The conversation is never deleted: the remaining party keeps it
+-- with all its metadata, and the only change is that the other party
+-- is no longer a member.
+--
+-- Removing the other party from the conversation and removing them from the
+-- MLS group go together: whenever the member is gone, the backend must also
+-- have signed an external remove proposal for their leaf, and whenever the
+-- member stays, there must be no such proposal.  (That a remaining client can
+-- consume the proposal and commit the removal is covered by
+-- 'testReAddExternalAppToGroupConversation', and is not repeated here.)
+testMLSOne2OneAfterEndOfRelationship :: (HasCallStack) => EndOfRelationship -> App ()
+testMLSOne2OneAfterEndOfRelationship scenario = do
   (owner1, tid1, []) <- createTeam OwnDomain 1
-  (owner2, tid2, [member2]) <- createTeam OwnDomain 2
+  (owner2, tid2, [member2, teamMate2]) <- createTeam OwnDomain 3
 
-  let newApp = def {name = "external-app-o2o"} :: NewApp
-  app <- bindResponse (createApp owner1 tid1 newApp) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "user"
+  let collaboratorPermissions = ["create_team_conversation", "implicit_connection"]
 
-  let appPermissions = ["create_team_conversation", "implicit_connection"]
-  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+      mkApp :: (HasCallStack) => App Value
+      mkApp = do
+        app <- bindResponse (createApp owner1 tid1 (def {name = "external-app-o2o"} :: NewApp)) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "user"
+        addTeamCollaborator owner2 tid2 app collaboratorPermissions >>= assertSuccess
+        pure app
 
-  convId <-
-    postOne2OneConversation member2 app tid2 "chit-chat" `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.json %. "qualified_id"
+  -- The other party of the 1:1, the action that ends the relationship, and
+  -- whether that action should remove the other party from the conversation
+  -- (and, equivalently, from the MLS group).
+  (other, endRelationship, expectOtherRemoved) <- case scenario of
+    TeamMemberRemoved ->
+      pure
+        ( teamMate2,
+          deleteTeamMember tid2 owner2 teamMate2 >>= assertSuccess,
+          True
+        )
+    AppCollaboratorRemoved -> do
+      app <- mkApp
+      pure
+        ( app,
+          removeTeamCollaborator owner2 tid2 app >>= assertSuccess,
+          True
+        )
+    AppCollaboratorPermissionsDropped -> do
+      app <- mkApp
+      pure
+        ( app,
+          updateTeamCollaborator owner2 tid2 app [] >>= assertSuccess,
+          False
+        )
+    AppDeleted -> do
+      app <- mkApp
+      pure
+        ( app,
+          deleteTeamMember tid1 owner1 app >>= assertSuccess,
+          True
+        )
+    UserCollaboratorRemoved -> do
+      user <- randomUser OwnDomain def
+      addTeamCollaborator owner2 tid2 user collaboratorPermissions >>= assertSuccess
+      pure
+        ( user,
+          removeTeamCollaborator owner2 tid2 user >>= assertSuccess,
+          True
+        )
+    ConnectedUserCollaboratorRemoved -> do
+      user <- randomUser OwnDomain def
+      connectTwoUsers member2 user
+      addTeamCollaborator owner2 tid2 user collaboratorPermissions >>= assertSuccess
+      pure
+        ( user,
+          removeTeamCollaborator owner2 tid2 user >>= assertSuccess,
+          False
+        )
 
-  GalleyI.getConversation convId >>= assertSuccess
-  getMLSOne2OneConversation member2 app >>= assertSuccess
+  otherId <- other %. "qualified_id.id" & asString
 
-  removeTeamCollaborator owner2 tid2 app >>= assertSuccess
+  -- The team member establishes the MLS 1:1 conversation with the other party.
+  one2OneConv <- getMLSOne2OneConversation member2 other >>= getJSON 200
+  convQid <- one2OneConv %. "conversation.qualified_id"
+  convId <- objConvId $ one2OneConv %. "conversation"
+  [member2Client, otherClient] <- traverse (createMLSClient def) [member2, other]
+  void $ uploadNewKeyPackage def otherClient
+  resetOne2OneGroup def member2Client one2OneConv
+  void $ createAddCommit member2Client convId [other] >>= sendAndConsumeCommitBundle
 
-  getConversation member2 convId >>= assertLabel 404 "no-conversation"
-  GalleyI.getConversation convId >>= assertLabel 404 "no-conversation"
-  getMLSOne2OneConversation member2 app >>= assertLabel 403 "not-connected"
+  convBefore <- getConversation member2 convQid >>= getJSON 200
+  do
+    mems <- convBefore %. "members.others" >>= asList
+    mIds <- traverse (\m -> m %. "qualified_id.id" & asString) mems
+    mIds `shouldMatch` [otherId]
 
-  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
-  getMLSOne2OneConversation member2 app >>= assertSuccess
+  -- How the conversation should look afterwards: the other party is gone (or
+  -- not, in the control case), everything else is unchanged.
+  convAfterExpected <-
+    if expectOtherRemoved
+      then convBefore & setField "members.others" ([] :: [Value])
+      else pure convBefore
+
+  endRelationship
+
+  convAfter <- eventually $ do
+    conv <- getConversation member2 convQid >>= getJSON 200
+    conv `shouldMatch` convAfterExpected
+    pure conv
+
+  -- The remaining client is told about the removal in the MLS group as well.
+  -- Not consumed here: it is enough that the backend sends the proposal, see
+  -- the haddock of this test.
+  eventually $ do
+    -- The other party is the second member of the group, so its leaf is at index
+    -- 1, and a removal initiated by the backend is signed by external sender 0.
+    let isBackendRemoveProposal :: (HasCallStack) => Value -> App Bool
+        isBackendRemoveProposal n =
+          isNewMLSMessageNotif n
+            &&~ isNotifConvId convId n
+            &&~ do
+              msg <- n %. "payload.0.data" & asByteString >>= showMessage def member2Client
+              fieldEquals msg "message.content.body.Proposal.Remove.removed" (1 :: Int)
+                &&~ fieldEquals msg "message.content.sender.External" (0 :: Int)
+    notifs <- getNotifications member2 def {client = Just member2Client.client} >>= getJSON 200
+    proposals <- notifs %. "notifications" & asList >>= filterM isBackendRemoveProposal
+    length proposals `shouldMatchInt` (if expectOtherRemoved then 1 else 0)
+
+  -- The remaining member can still use the conversation, and (made
+  -- explicit here to catch regression) using it does not change it.
+  do
+    mp <- createApplicationMessage convId member2Client "hello"
+    postMLSMessage mp.sender mp.message >>= assertStatus 201
+  getConversation member2 convQid >>= getJSON 200 >>= (`shouldMatch` convAfter)
