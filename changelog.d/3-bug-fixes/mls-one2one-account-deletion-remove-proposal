@@ -1,0 +1,4 @@
+When a user account is deleted, send the external remove proposals for their
+clients in 1:1 conversations as well. Before, the member row was deleted
+silently, so the remaining party of an MLS 1:1 conversation was left with a
+stale leaf for a user that no longer exists.
