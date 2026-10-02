@@ -1,20 +1,21 @@
 # API versioning
 
 This document details the versioning scheme used for wire-server’s HTTP APIs.
-This applies equally to:
+The public client API and federation API use the same general version-range
+mechanism, but their version discovery and deployment rules differ.
 
-- the public-facing API (defined in `wire-api`)
-- the federation API (defined in `wire-api-federation`).
+The public client API is defined in `wire-api` and exposed through
+`/api-version`. The federation API is defined in `wire-api-federation` and
+exposed through `/federation/api-version` and `/federation/...` endpoints.
 
 ## Supported and development versions
 
 An *API version* is a natural number, represented as `vN`, where `N` is the
-version. For example, version `5` is denoted `v5`.
+version. For example, version `3` is denoted `v3`.
 
-A backend advertises a set of *supported* API versions, divided into a set of
-*stable* API versions and a set of *development* API versions. These sets can
-be discovered via the `GET /api-version` endpoint, which returns a JSON object
-of the form:
+A public API backend advertises a set of *supported* API versions, divided into
+stable and development versions. These sets can be discovered via the
+`GET /api-version` endpoint, which returns a JSON object of the form:
 
 ```default
 { "supported": [0, 1, 2, 3, 4],
@@ -46,14 +47,35 @@ development versions on their backend. This is not strictly necessary, but it
 can be used as a safeguard against mistakes in deployment.
 
 The `/api-version` endpoint returns information about the public-facing
-(client) API. The corresponding information for the federation API is available
-at `/federation/api-version`.
+(client) API. The federation endpoint has a different, compatibility-oriented
+response. `POST /federation/api-version` returns versions in the
+`supported_versions` field; older backends may only provide the legacy
+`supported` field. Federation does not expose a separate `development` field.
+The development federation version is controlled through runtime configuration.
+
+In the unified `wire-server` Helm chart, federation versions are configured at
+the chart root:
+
+```yaml
+apiVersions:
+  disabledFederationAPIVersions: [development]
+```
+
+The development version is disabled by default. A disabled version is omitted
+from federation version negotiation and incoming requests using it are
+rejected. Outgoing federation calls only negotiate versions enabled locally.
 
 ## Making requests to a particular version
 
 An API at version `N` can be accessed by prepending `/vN/` to endpoint paths.
 So, for example, to access the endpoint `/conversations` for version `3`, the
 correct path is `/v3/conversations`.
+
+Federation requests use the same version prefix when routed through a Wire
+backend. The routing middleware removes the prefix and passes the numeric
+version in the `X-Wire-API-Version` header to federation handlers. Direct
+federation clients send that header themselves. An unversioned federation
+request is treated as version `V0` for compatibility with legacy backends.
 
 To support clients that have not yet implemented versioning, backends that
 support version `0` will also accept unversioned requests, which will
@@ -103,7 +125,7 @@ by this system. It is still possible to implement them, but they will appear as
 different endpoints (and have different names) on the same path, and with
 non-overlapping version ranges.
 
-### Version bump checklist
+### Public client API version bump checklist
 
 When making the client API version bump, i.e., when finalising a version, there
 are several steps to take apart from deciding what endpoint changes are part of
@@ -118,6 +140,37 @@ the version. In these example we assume that version `V6` should be finalized an
 - Set the version for `gDefaultAPIVersion` in `integration/test/Testlib/Env.hs` to 7.
 - Consider updating the `backendApiVersion` value in Stern, which is
   unit-tested by checking if it is listed as supported in the response to `GET /api-version`.
+
+### Federation API version bump checklist
+
+When finalising the current federation development version and creating the next
+one, complete the following steps:
+
+- In `wire-api-federation`, append the new constructor to `Version` and update
+  `versionInt` and the `ToSchema Version` enumeration. Keep versions ordered;
+  negotiation selects the highest common version.
+- Update `developmentVersions` so the new version is the development version
+  and the finalised version is no longer part of that set.
+- Review every federation endpoint’s `From`/`Until` range and every
+  notification version range. Add or remove endpoint implementations where the
+  contract changes.
+- Update the federation `VersionSpec` tests and the integration version tests
+  in `integration/test/Test/Version.hs` when version discovery or runtime
+  enablement changes.
+- Update federation version configuration. In the unified chart, use
+  `apiVersions.disabledFederationAPIVersions` and keep the development version
+  disabled by default. Configuration only needs to change when a particular
+  federation version should be explicitly disabled.
+- Verify that incoming federation requests reject disabled versions and that
+  `/federation/api-version` does not advertise them.
+- Add or update local and CI backend artifacts for every legacy federation
+  version needed by compatibility tests. Keep artifacts pinned to the binary
+  that implements that version.
+- Run federation use-case tests across all supported version pairs. At a
+  minimum, cover user creation, conversation creation, and sending messages;
+  only version pairs with a common supported version are valid.
+- Update federation API documentation and release notes when the version or
+  its operator configuration changes.
 
 ### Examples of endpoint evolution
 
