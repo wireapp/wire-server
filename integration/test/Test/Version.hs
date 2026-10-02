@@ -75,6 +75,42 @@ testVersionUnsupported = bindResponse (baseRequest OwnDomain Brig (ExplicitVersi
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "unsupported-version"
 
+testFederationAPIVersionEnabled :: App ()
+testFederationAPIVersionEnabled = bindResponse (postFederationAPIVersion OwnDomain) $ \resp -> do
+  resp.status `shouldMatchInt` 200
+  supported <- resp.json %. "supported_versions" & asList >>= traverse asInt
+  assertBool "development federation API version should be advertised" $ 5 `elem` supported
+
+testFederationAPIVersionDisabled :: App ()
+testFederationAPIVersionDisabled = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledFederationAPIVersions" ["development"]}
+  $ \domain -> do
+    bindResponse (postFederationAPIVersion domain) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      supported <- resp.json %. "supported_versions" & asList >>= traverse asInt
+      assertBool "disabled development federation API version should not be advertised" $ 5 `notElem` supported
+
+    bindResponse (postFederationAPIVersionWithVersion domain 5) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+      resp.json %. "label" `shouldMatch` "unsupported-version"
+
+testFederationAPIVersionDisabledPathVersion :: App ()
+testFederationAPIVersionDisabledPathVersion = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledFederationAPIVersions" ["development"]}
+  $ \domain -> bindResponse (postFederationAPIVersionAtPathVersion domain 5) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "unsupported-version"
+
+testFederationAPIVersionDiscoveryWithV0Disabled :: App ()
+testFederationAPIVersionDiscoveryWithV0Disabled = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledFederationAPIVersions" [0 :: Int]}
+  $ \domain -> bindResponse (postFederationAPIVersion domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    supportedVersions <- resp.json %. "supported_versions" & asList >>= traverse asInt
+    legacySupportedVersions <- resp.json %. "supported" & asList >>= traverse asInt
+    assertBool "disabled V0 should not be advertised" $ 0 `notElem` supportedVersions
+    assertBool "disabled V0 should not be advertised in the legacy field" $ 0 `notElem` legacySupportedVersions
+
 testVersionDisabled :: App ()
 testVersionDisabled = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v2"]}

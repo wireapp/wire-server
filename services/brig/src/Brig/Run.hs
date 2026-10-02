@@ -62,6 +62,7 @@ import System.Logger (flush, msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Util.Timeout
+import Wire.API.Federation.Version (federationVersionMiddleware)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig
@@ -133,6 +134,7 @@ mkApp opts = do
         -- this also rewrites the request
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
+        . federationVersionMiddleware e.disabledFederationVersions
         . GZip.gunzip
         . GZip.gzip GZip.defaultGzipSettings
         . catchErrors e.appLogger defaultRequestIdHeaderName

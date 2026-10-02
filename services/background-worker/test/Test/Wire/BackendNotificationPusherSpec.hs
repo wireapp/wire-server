@@ -490,6 +490,7 @@ spec = do
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
+          federationVersions = supportedVersions
           postgresMigration =
             PostgresMigrationOpts
               { conversation = CassandraStorage,
@@ -556,6 +557,7 @@ spec = do
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
+          federationVersions = supportedVersions
           postgresMigration =
             PostgresMigrationOpts
               { conversation = CassandraStorage,

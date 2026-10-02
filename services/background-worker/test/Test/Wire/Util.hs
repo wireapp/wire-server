@@ -30,6 +30,7 @@ import Network.HTTP.Client hiding (Proxy)
 import System.Logger.Class qualified as Logger
 import Util.Options (Endpoint (..), PasswordHashingOptions (..))
 import Wire.API.Conversation.Config
+import Wire.API.Federation.Version (supportedVersions)
 import Wire.API.Team.FeatureFlags
 import Wire.BackgroundWorker.Env hiding (federatorInternal)
 import Wire.BackgroundWorker.Env qualified as E
@@ -74,6 +75,7 @@ testEnv = do
       amqpJobsPublisherChannel = undefined
       amqpBackendNotificationsChannel = undefined
       federationDomain = Domain "local"
+      federationVersions = supportedVersions
       gundeckEndpoint = undefined
       brigEndpoint = undefined
       sparEndpoint = Endpoint "localhost" 0

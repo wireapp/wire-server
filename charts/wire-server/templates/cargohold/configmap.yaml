@@ -61,4 +61,5 @@ data:
       assetAuditLogEnabled: {{ .assetAuditLogEnabled }}
       federationDomain: {{ $.Values.cargohold.config.settings.federationDomain }}
       disabledAPIVersions: {{ toJson .disabledAPIVersions }}
+      disabledFederationAPIVersions: {{ toJson $.Values.apiVersions.disabledFederationAPIVersions }}
       {{- end }}
