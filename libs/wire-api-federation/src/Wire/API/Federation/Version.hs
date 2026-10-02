@@ -36,7 +36,6 @@ module Wire.API.Federation.Version
     supportsVersionRange,
     supportedVersions,
     VersionInfo (..),
-    versionInfo,
     versionInfoFor,
     federationVersionMiddleware,
     groupIdFedVersion,
@@ -170,9 +169,6 @@ instance ToSchema VersionInfo where
         VersionInfo
           { vinfoSupported = map versionInt (toList supportedVersions)
           }
-
-versionInfo :: VersionInfo
-versionInfo = versionInfoFor supportedVersions
 
 versionInfoFor :: Set Version -> VersionInfo
 versionInfoFor versions = VersionInfo (map versionInt (toList versions))
