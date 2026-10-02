@@ -573,7 +573,7 @@ testMeetingDelete = do
     [firstDel, secondDel] <-
       awaitNMatches
         2
-        (\n -> (||) <$> isMeetingDeleteNotif n <*> isConvDeleteMeetingNotif n)
+        (\n -> isMeetingDeleteNotif n ||~ isConvDeleteMeetingNotif n)
         ws
     assertBool "expected meeting.delete before conversation.delete-meeting" =<< isMeetingDeleteNotif firstDel
     assertBool "expected conversation.delete-meeting after meeting.delete" =<< isConvDeleteMeetingNotif secondDel

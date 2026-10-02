@@ -421,9 +421,9 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
       let isMeetingConv = conv.metadata.cnvmGroupConvType == Just MeetingConversation
       -- Preflight: run all fallible conversation-deletion checks before
-      -- publishing meeting.delete, so members never receive a deletion event
-      -- for a meeting whose deletion ultimately fails (WPB-29046). Scoped to
-      -- meeting conversations, matching the deletion below.
+      -- publishing meeting.delete, so members do not receive a deletion event
+      -- when one of these checks fails (WPB-29046). Scoped to meeting
+      -- conversations, matching the deletion below.
       when isMeetingConv $ do
         lift $ ConversationSubsystem.checkDeleteLocalConversation zUser lConvId
         -- The meeting.delete event must reach clients before the conversation is
