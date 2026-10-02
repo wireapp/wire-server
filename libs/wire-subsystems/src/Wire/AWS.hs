@@ -46,9 +46,12 @@ import Control.Monad.Trans.Resource
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Lazy qualified as Lazy
+import Data.Id (Id (..), idToText)
 import Data.ProtoLens.Encoding (encodeMessage)
 import Data.Text.Encoding (decodeLatin1)
 import Data.UUID (toText)
+import Data.UUID qualified as UUID
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.HTTP.Client
@@ -60,6 +63,7 @@ import Network.TLS qualified as TLS
 import Polysemy (Embed, Member, Sem, embed)
 import Polysemy.Input (Input, input)
 import Proto.TeamEvents qualified as E
+import Proto.TeamEvents_Fields qualified as F
 import System.Logger qualified as Logger
 import System.Logger.Class (Logger, MonadLogger (..))
 import Util.Options (AWSEndpoint (..), awsHost, awsPort, awsSecure)
@@ -157,12 +161,17 @@ enqueue ev = do
   dedup <- liftIO nextRandom
   amaznkaEnv <- view awsEnv
   let body = decodeLatin1 $ B64.encode $ encodeMessage ev
+      groupId = teamEventGroupId ev
       req =
         SQS.newSendMessage url body
-          & SQS.sendMessage_messageGroupId ?~ "team.events"
+          & SQS.sendMessage_messageGroupId ?~ groupId
           & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
   res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const (pure . canRetry)) $ const (sendCatchEnv amaznkaEnv req)
   either (throwM . GeneralError) (const (pure ())) res
+
+teamEventGroupId :: E.TeamEvent -> Text
+teamEventGroupId ev =
+  idToText . Id . fromMaybe (error "invalid team ID in TeamEvent") . UUID.fromByteString . Lazy.fromStrict $ ev ^. F.teamId
 
 -- Polysemy-style helper used by existing code
 sendCatch ::
