@@ -200,7 +200,7 @@ lookupConnectionStatus from to =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect (params LocalQuorum (from, to)))
 
--- | Lookup all relations between two sets of users (cartesian product).
+-- | Lookup all relations between one set of users and *all* their relations.
 lookupConnectionStatus' :: (MonadClient m) => [UserId] -> m [ConnectionStatus]
 lookupConnectionStatus' from =
   map toConnectionStatus
