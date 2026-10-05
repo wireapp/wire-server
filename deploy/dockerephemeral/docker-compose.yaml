@@ -297,8 +297,9 @@ services:
     healthcheck:
       test: "nodetool status"
       interval: 10s
-      start_period: 20s
-      timeout: 2s
+      start_period: 120s
+      timeout: 5s
+      retries: 3
 
       # on nixos, you also may need to run
       #   sysctl -w vm.max_map_count=1048576
