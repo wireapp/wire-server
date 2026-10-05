@@ -94,26 +94,12 @@ services:
 
   redis-cluster:
     image: "redis:7.2-alpine"
-    command:
-      - redis-cli
-      - --cluster
-      - create
-      - 172.20.0.31:6373
-      - 172.20.0.32:6374
-      - 172.20.0.33:6375
-      - 172.20.0.34:6376
-      - 172.20.0.35:6377
-      - 172.20.0.36:6378
-      - --cluster-replicas
-      - "1"
-      - --cluster-yes
-      - -a
-      - very-secure-redis-cluster-password
-      - --cacert
-      - /usr/local/etc/redis/ca.pem
-      - --tls
+    entrypoint: /scripts/init_redis_cluster.sh
+    environment:
+      REDISCLI_AUTH: very-secure-redis-cluster-password
     volumes:
       - ./docker/redis-ca.pem:/usr/local/etc/redis/ca.pem
+      - ./docker/init_redis_cluster.sh:/scripts/init_redis_cluster.sh:ro
     networks:
       redis:
         ipv4_address: 172.20.0.30
