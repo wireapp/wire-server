@@ -25,7 +25,7 @@ import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Pool qualified as HasqlPool
 import Imports
 import PostgresqlConnectionString qualified
-import Pqi.Native
+import Pqi.Ffi
 import Prometheus
 import Text.Megaparsec qualified as Megaparsec
 import UnliftIO.IO (getMonotonicTime)

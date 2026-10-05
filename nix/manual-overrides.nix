@@ -70,6 +70,7 @@ hself: hsuper: {
   # Tests require a running postgresql
   hasql = hlib.dontCheck hsuper.hasql;
   pqi-native = hlib.dontCheck hsuper.pqi-native;
+  pqi-ffi = hlib.dontCheck hsuper.pqi-ffi;
 
   # The library builds with hasql-1.10.x, but its packaged test suite still
   # uses older hasql APIs.

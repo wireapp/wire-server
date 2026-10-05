@@ -112,7 +112,7 @@ library
     , metrics-wai
     , monad-control
     , postgresql-connection-string
-    , pqi-native
+    , pqi-ffi
     , prometheus-client
     , ram
     , retry

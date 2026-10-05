@@ -237,7 +237,7 @@ let
     };
     pqi-ffi = {
       version = "1.0.1.0";
-      sha256 = "";
+      sha256 = "sha256-wZfnWVJwMNG40YS6MAarGIDZ9Nudqup+jncERD1fhmU=";
     };
     pqi-native = {
       version = "1.0.1.12";

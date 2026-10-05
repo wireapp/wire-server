@@ -42,7 +42,7 @@ import Hasql.Statement qualified as HasqlStatement
 import Hasql.TH
 import Imports
 import PostgresqlConnectionString qualified
-import Pqi.Native
+import Pqi.Ffi
 import System.IO.Error (userError)
 import System.Timeout (timeout)
 import Util.Options (FilePathSecrets, initCredentials)
