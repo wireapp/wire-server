@@ -212,6 +212,7 @@ library
     Test.Shape
     Test.Spar
     Test.Spar.CertFingerprintAllowlist
+    Test.Spar.ExtendedNameIdAttributes
     Test.Spar.GetByEmail
     Test.Spar.IdPIssuerUpdate
     Test.Spar.MultiIngressCrossIdpSso
