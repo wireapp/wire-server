@@ -180,7 +180,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                 withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
               else do
                 Log.fatal $
-                  Log.msg (Log.val "Legacy notification requires disabled federation API version V0; the notification will remain queued")
+                  Log.msg (Log.val "Legacy notification requires enabled federation API version V0; the notification will remain queued")
                     . Log.field "domain" (domainText targetDomain)
                     . Log.field "path" notif.path
                 metrics <- asks backendNotificationMetrics
