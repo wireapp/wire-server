@@ -40,8 +40,12 @@ testObject_NewApp_1 =
     (unsafeRange "good description")
     (plainTextPassword6Unsafe "good password")
 
-testObject_CreatedApp_1 :: CreatedApp V19
+testObject_CreatedApp_1 :: CreatedApp V18
 testObject_CreatedApp_1 =
+  CreatedApp (Versioned testObject_UserProfile_user_2) someToken
+
+testObject_CreatedApp_1_v19 :: CreatedApp V19
+testObject_CreatedApp_1_v19 =
   CreatedApp (Versioned testObject_UserProfile_user_2) someToken
 
 testObject_AppInfo_1 :: AppInfo

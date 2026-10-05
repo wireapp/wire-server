@@ -103,7 +103,8 @@ tests =
             (testObject_ConversationsJobPayload_AdminlessSetup_1, "testObject_ConversationsJobPayload_AdminlessSetup_1.json")
           ],
       testGroup "CreatedApp" $
-        testObjects [(testObject_CreatedApp_1, "testObject_CreatedApp_1.json")],
+        testObjects [(testObject_CreatedApp_1, "testObject_CreatedApp_1.json")]
+          <> testObjects [(testObject_CreatedApp_1_v19, "testObject_CreatedApp_1_v19.json")],
       testGroup "AppInfo" $
         testObjects [(testObject_AppInfo_1, "testObject_AppInfo_1.json")],
       testGroup "PutApp" $
@@ -291,7 +292,12 @@ tests =
           [ (testObject_ListUsersById_user_1, "testObject_ListUsersById_user_1.json"),
             (testObject_ListUsersById_user_2, "testObject_ListUsersById_user_2.json"),
             (testObject_ListUsersById_user_3, "testObject_ListUsersById_user_3.json")
-          ],
+          ]
+          <> testObjects
+            [ (testObject_ListUsersById_user_1_v19, "testObject_ListUsersById_user_1_v19.json"),
+              (testObject_ListUsersById_user_2_v19, "testObject_ListUsersById_user_2_v19.json"),
+              (testObject_ListUsersById_user_3_v19, "testObject_ListUsersById_user_3_v19.json")
+            ],
       testGroup "CreateGroupConversation" $
         testObjects
           [ (testObject_CreateGroupConversation_1, "testObject_CreateGroupConversation_1.json"),
