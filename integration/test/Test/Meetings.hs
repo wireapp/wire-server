@@ -1027,7 +1027,9 @@ testMeetingLinkRefresh = do
   meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   titleBefore <- meeting %. "title" >>= asString
-  mLinkBefore <- meeting %. "link" >>= asStringM
+  -- The link is absent on deployments without a configured join-link URI
+  -- (e.g. the default integration stack); mirror testMeetingLink's guard.
+  mLinkBefore <- lookupField meeting "link" >>= maybe (pure Nothing) asStringM
 
   conv <- meeting %. "conversation"
 
@@ -1039,7 +1041,7 @@ testMeetingLinkRefresh = do
   -- V19 MeetingWithConversation flattens the meeting fields to the top level.
   refreshedTitle <- refreshed %. "title" >>= asString
   refreshedTitle `shouldMatch` titleBefore
-  refreshedLink <- refreshed %. "link" >>= asStringM
+  refreshedLink <- lookupField refreshed "link" >>= maybe (pure Nothing) asStringM
 
   -- The refresh rotates the code carried by the link URL.
   case (mLinkBefore, refreshedLink) of
@@ -1102,7 +1104,9 @@ testMeetingJoinByLink = do
 
   meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
-  mLink <- meeting %. "link" >>= asStringM
+  -- The link is absent on deployments without a configured join-link URI
+  -- (e.g. the default integration stack); mirror testMeetingLink's guard.
+  mLink <- lookupField meeting "link" >>= maybe (pure Nothing) asStringM
 
   -- A non-creator can resolve a passwordless link.
   case mLink of

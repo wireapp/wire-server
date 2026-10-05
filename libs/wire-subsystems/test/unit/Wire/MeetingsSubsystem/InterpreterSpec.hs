@@ -1329,7 +1329,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meetingCode mid = do
           key <- CodeStore.makeKey (CodeReferentMeeting mid)
           mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
-          maybe (error "no meeting code stored") pure (fst <$> mCode)
+          maybe (error "no meeting code stored") (pure . fst) mCode
     it "resolves a passwordless live link" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
