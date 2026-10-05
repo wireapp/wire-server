@@ -1,1 +1,2 @@
 Federation now has a runtime-controlled development API version. It is disabled by default.
+Runtime disabling is supported for V2 and newer versions; legacy V0 and V1 cannot be disabled.

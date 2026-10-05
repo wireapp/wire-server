@@ -126,7 +126,16 @@ instance ToSchema FederationVersionExp where
           _FederationVersionExpDevelopment
           (unnamed (enum @Text (element "development" ())))
 
-deriving via Schema FederationVersionExp instance FromJSON FederationVersionExp
+instance FromJSON FederationVersionExp where
+  parseJSON value = case value of
+    Aeson.String "development" -> pure FederationVersionExpDevelopment
+    _ -> do
+      version <- Aeson.parseJSON value
+      case intToVersion version of
+        Just V0 -> fail "federation API version V0 cannot be disabled at runtime"
+        Just V1 -> fail "federation API version V1 cannot be disabled at runtime"
+        Just version' -> pure (FederationVersionExpConst version')
+        Nothing -> fail "invalid federation API version"
 
 deriving via Schema FederationVersionExp instance ToJSON FederationVersionExp
 
@@ -141,11 +150,7 @@ enabledFederationVersions disabled =
 data VersionInfo = VersionInfo
   { vinfoSupported :: [Int]
   }
-  deriving (S.ToSchema) via (Schema VersionInfo)
-
-instance FromJSON VersionInfo where
-  parseJSON = Aeson.withObject "VersionInfo" $ \obj ->
-    VersionInfo <$> obj Aeson..:? "supported_versions" Aeson..!= [0]
+  deriving (FromJSON, S.ToSchema) via (Schema VersionInfo)
 
 instance ToJSON VersionInfo where
   toJSON VersionInfo {vinfoSupported} =
@@ -165,10 +170,8 @@ instance ToSchema VersionInfo where
             (fromMaybe [0])
             (optField "supported_versions" (array schema))
         -- legacy field to support older versions of the backend with broken
-        -- version negotiation. Its value is intentionally ignored when
-        -- decoding; newer backends may filter it according to configuration.
-        <* const (Nothing :: Maybe [Int])
-          .= maybe_ (optField "supported" (array (schema @Int)))
+        -- version negotiation
+        <* const [0 :: Int, 1] .= field "supported" (array schema)
     where
       example :: VersionInfo
       example =

@@ -101,15 +101,15 @@ testFederationAPIVersionDisabledPathVersion = withModifiedBackend
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "unsupported-version"
 
-testFederationAPIVersionDiscoveryWithV0Disabled :: App ()
-testFederationAPIVersionDiscoveryWithV0Disabled = withModifiedBackend
-  def {brigCfg = setField "optSettings.setDisabledFederationAPIVersions" [0 :: Int]}
+testFederationAPIVersionDiscoveryWithV2Disabled :: App ()
+testFederationAPIVersionDiscoveryWithV2Disabled = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledFederationAPIVersions" [2 :: Int]}
   $ \domain -> bindResponse (postFederationAPIVersion domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     supportedVersions <- resp.json %. "supported_versions" & asList >>= traverse asInt
     legacySupportedVersions <- resp.json %. "supported" & asList >>= traverse asInt
-    assertBool "disabled V0 should not be advertised" $ 0 `notElem` supportedVersions
-    assertBool "disabled V0 should not be advertised in the legacy field" $ 0 `notElem` legacySupportedVersions
+    assertBool "disabled V2 should not be advertised" $ 2 `notElem` supportedVersions
+    assertBool "legacy supported versions should remain unchanged" $ legacySupportedVersions == [0, 1]
 
 testVersionDisabled :: App ()
 testVersionDisabled = withModifiedBackend

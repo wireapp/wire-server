@@ -56,9 +56,11 @@ The development federation version is controlled through runtime configuration.
 
 > **Note:** For federation, `development` is an internal configuration label
 > for the current development version. Once enabled, that version is advertised
-> and negotiated like any other supported version. Any federation version can
-> be disabled through configuration. The development version may still change
-> over time, while stable versions retain fixed contracts.
+> and negotiated like any other supported version. Runtime configuration can
+> disable V2 and newer federation versions, including the development version;
+> legacy versions V0 and V1 cannot be disabled this way. The development
+> version may still change over time, while stable versions retain fixed
+> contracts.
 
 In the unified `wire-server` Helm chart, federation versions are configured at
 the chart root:
@@ -166,8 +168,8 @@ one, complete the following steps:
   enablement changes.
 - Update federation version configuration. In the unified chart, use
   `apiVersions.disabledFederationAPIVersions` and keep the development version
-  disabled by default. Configuration only needs to change when a particular
-  federation version should be explicitly disabled.
+  disabled by default. Only V2 and newer versions can be explicitly disabled;
+  V0 and V1 are always enabled for legacy compatibility.
 - Verify that incoming federation requests reject disabled versions and that
   `/federation/api-version` does not advertise them.
 - Add or update local and CI backend artifacts for every legacy federation

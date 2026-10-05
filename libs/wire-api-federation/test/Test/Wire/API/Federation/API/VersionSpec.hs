@@ -22,9 +22,13 @@ spec = describe "Federation API versions" $ do
       `shouldBe` [0, 1, 2, 3, 4]
 
   it "decodes version information with filtered legacy versions" $ do
-    let info = versionInfoFor (Set.fromList [V2, V3, V4, V5])
+    let info = versionInfoFor (Set.fromList [V0, V1, V2, V3, V4])
     fmap vinfoSupported (Aeson.decode (Aeson.encode info) :: Maybe VersionInfo)
-      `shouldBe` Just [2, 3, 4, 5]
+      `shouldBe` Just [0, 1, 2, 3, 4]
+
+  it "does not allow disabling legacy versions at runtime" $ do
+    Aeson.decode "0" `shouldBe` (Nothing :: Maybe FederationVersionExp)
+    Aeson.decode "1" `shouldBe` (Nothing :: Maybe FederationVersionExp)
 
   it "keeps explicitly selected versions available" $ do
     expandVersionExp (FederationVersionExpConst V4) `shouldBe` Set.fromList [V4]
