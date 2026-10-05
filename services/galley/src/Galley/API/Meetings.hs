@@ -37,7 +37,7 @@ module Galley.API.Meetings
   )
 where
 
-import Data.Code (Value)
+import Data.Code (Key, Value)
 import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified
@@ -244,13 +244,12 @@ joinMeetingByLink ::
     Member (ErrorS 'InvalidMeetingPassword) r
   ) =>
   Local UserId ->
-  Domain ->
-  MeetingId ->
+  Key ->
   Value ->
   MeetingJoinRequest ->
   Sem r Meeting
-joinMeetingByLink zUser domain meetingId codeValue req =
-  Meetings.joinMeetingByLink zUser (Qualified meetingId domain) codeValue req >>= \case
+joinMeetingByLink zUser key codeValue req =
+  Meetings.joinMeetingByLink zUser key codeValue req >>= \case
     Meetings.JoinMeetingNotFound -> throwS @'MeetingNotFound
     Meetings.JoinMeetingInvalidPassword -> throwS @'InvalidMeetingPassword
     Meetings.JoinMeetingOk meeting -> pure meeting

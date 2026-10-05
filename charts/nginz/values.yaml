@@ -797,7 +797,7 @@ nginx_conf:
       oauth_scope: meetings
     # Join-link resolution: authenticated like conversation join-by-code, no
     # oauth scope, rate-limited per address (mirrors /conversations/join).
-    - path: /meetings/([^/]*)/([^/]*)/join$
+    - path: /meetings/join$
       envs:
       - all
       specific_user_rate_limit: reqs_per_addr

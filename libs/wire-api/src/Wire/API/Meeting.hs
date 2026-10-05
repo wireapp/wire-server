@@ -71,7 +71,8 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON, toJSON)
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (toByteString')
-import Data.Code (Value)
+import Data.Code (Key, Value)
+import Data.Domain (Domain)
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
@@ -87,6 +88,7 @@ import Data.Time.Zones.Types (TZ)
 import Imports
 import Test.QuickCheck (elements)
 import URI.ByteString (uriPath)
+import URI.ByteString qualified as URI
 import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -157,9 +159,9 @@ data Meeting = Meeting
     invitedEmails :: [EmailAddress],
     createdAt :: UTCTime,
     updatedAt :: UTCTime,
-    -- | https join link whose final path segment is the meeting's UUID;
-    -- 'Nothing' when the meeting has no live join code (legacy meetings, or
-    -- code-store modes that cannot hold meeting codes)
+    -- | https join link containing the meeting's live join code as query
+    -- parameters; 'Nothing' when the meeting has no live join code (legacy
+    -- meetings, or code-store modes that cannot hold meeting codes)
     link :: Maybe HttpsUrl
   }
   deriving stock (Eq, Show, Generic)
@@ -567,14 +569,31 @@ fromLegacy tz m =
       link = Nothing
     }
 
--- | Join link for a meeting: the configured code URI with the meeting's
--- UUID and the live join-code value appended as final path segments
--- (trailing slashes on the configured base are normalized). The code value
--- is the rotating capability: refreshing the link replaces it, so URLs
--- carrying a stale value stop resolving.
-mkMeetingLink :: HttpsUrl -> MeetingId -> Value -> HttpsUrl
-mkMeetingLink (HttpsUrl base) mid codeValue =
-  HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid <> "/" <> toByteString' codeValue}
+-- | Join link for a meeting: the configured code URI rewritten to the
+-- @meeting-join@ path, with the meeting's stable code key, its live
+-- (rotating) code value and its domain as query parameters — mirroring
+-- conversation join links. The code value is the rotating capability:
+-- refreshing the link replaces it, so URLs carrying a stale value stop
+-- resolving.
+mkMeetingLink :: HttpsUrl -> Domain -> Key -> Value -> HttpsUrl
+mkMeetingLink (HttpsUrl base) domain key value =
+  HttpsUrl $
+    base
+      { uriPath = meetingJoinPath (uriPath base),
+        URI.uriQuery =
+          URI.Query
+            [ ("key", toByteString' key),
+              ("code", toByteString' value),
+              ("domain", toByteString' domain)
+            ]
+      }
+  where
+    meetingJoinPath path =
+      let normalized = BS.dropWhileEnd (== '/') path
+          conversationJoinPath = "/conversation-join"
+       in if conversationJoinPath `BS.isSuffixOf` normalized
+            then BS.take (BS.length normalized - BS.length conversationJoinPath) normalized <> "/meeting-join/"
+            else normalized <> "/"
 
 -- | 'toLegacy' lifted over 'MeetingWithConversation'.
 toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
