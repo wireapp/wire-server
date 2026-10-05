@@ -21,6 +21,7 @@ import API.Brig
 import qualified Data.Set as Set
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.VersionedFed (AnyFedDomain)
 
 newtype Versioned' = Versioned' Versioned
 
@@ -80,6 +81,16 @@ testFederationAPIVersionEnabled = bindResponse (postFederationAPIVersion OwnDoma
   resp.status `shouldMatchInt` 200
   supported <- resp.json %. "supported_versions" & asList >>= traverse asInt
   assertBool "development federation API version should be advertised" $ 5 `elem` supported
+
+testFederationAPIVersionLegacySmoke :: AnyFedDomain -> App ()
+testFederationAPIVersionLegacySmoke domain = do
+  bindResponse (postFederationAPIVersion domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  alice <- randomUser OwnDomain def
+  bob <- randomUser domain def
+  bob' <- getUser alice bob >>= getJSON 200
+  bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
 
 testFederationAPIVersionDisabled :: App ()
 testFederationAPIVersionDisabled = withModifiedBackend
