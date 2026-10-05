@@ -1,6 +1,0 @@
-Fix: always send MLS remove proposals when removing users from team conversations.
-
-This reproduces and fixes two related issues:
-
-1. Add collaborator A to team T, add A to conversation C, remove A from T, then add A back to T and to C.  Problem: removal from T did not issue the MLS remove proposal, leaving inconsistent group state on the server and a silent failure to re-add the collaborator to the conversation.
-2. Remove a regular team member from its team.  Their conversation membership was deleted before the step that issues remove proposals could see it, so the remaining members got the member-leave event but their MLS group kept the removed member's leaf.

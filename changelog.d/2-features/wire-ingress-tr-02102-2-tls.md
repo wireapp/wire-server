@@ -1,1 +1,0 @@
-charts/wire-ingress: Set more secure TLS defaults (minimum TLS 1.3, allow post-quantum key exchange). Add support for a new `FIPS_202205_tls_profile` variable, which overrides TLS settings and can help with (but is alone not sufficient for) BSI's TR-02102-2 conformance. See the wire-ingress README for more details.

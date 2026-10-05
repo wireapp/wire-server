@@ -1,3 +1,83 @@
+# [2026-10-05] (Chart Release 5.37.0)
+
+## Release notes
+
+
+* Brig's `emailSMS.general.emailSender` now rejects domains whose final label starts with a digit, aligning validation with AWS SES requirements. (#5550)
+
+
+## API changes
+
+
+* The meetings endpoints (POST /meetings, PUT /meetings/{domain}/{id}, GET /meetings/{domain}/{id}, GET /meetings/list) expose a `type` field (`"immediate"` or `"scheduled"`) on the meeting object starting at API version V19: required on create, optional on update (omitting it keeps the stored type). Meetings created via V15–V18 endpoints and all pre-existing meetings are `scheduled`. The V17/V18 endpoint shapes are unchanged. (#5556)
+
+* The meetings endpoints (POST /meetings, PUT /meetings/{domain}/{id}, GET /meetings/{domain}/{id}, GET /meetings/list) expose a `link` field on the meeting object starting at API version V19: an https join link whose final path segment is the meeting's UUID. The field is present only when the meeting has a live join code; it is omitted otherwise (e.g. meetings created before this change, deployments whose code store cannot hold meeting codes, or multi-ingress deployments with no join-link URI configured for the user's domain). The V15-V18 endpoint shapes are unchanged. (#5558)
+
+
+## Features
+
+
+* Adminless group protection and automatic admin promotion now apply to channels as well as regular group conversations. (#5579)
+
+* charts/wire-ingress: Set more secure TLS defaults (minimum TLS 1.3, allow post-quantum key exchange). Add support for a new `FIPS_202205_tls_profile` variable, which overrides TLS settings and can help with (but is alone not sufficient for) BSI's TR-02102-2 conformance. See the wire-ingress README for more details. (#5480)
+
+
+## Bug fixes and other updates
+
+
+* Check whether old passwords are shorter than 8 characters, and warn users, if they are. (#5543)
+
+* An IdP could no longer be deleted once its issuer had been updated via the
+  IdP management API (deletion failed with 404). (#5548)
+
+* Return an invalid-email error instead of a 500 response when SES rejects an activation email because of an invalid domain. (#5550)
+
+* Fix: always send MLS remove proposals when removing users from team conversations.
+
+  This reproduces and fixes two related issues:
+
+  1. Add collaborator A to team T, add A to conversation C, remove A from T, then add A back to T and to C.  Problem: removal from T did not issue the MLS remove proposal, leaving inconsistent group state on the server and a silent failure to re-add the collaborator to the conversation.
+  2. Remove a regular team member from its team.  Their conversation membership was deleted before the step that issues remove proposals could see it, so the remaining members got the member-leave event but their MLS group kept the removed member's leaf. (#5555)
+
+* Enable passing cspExtraConnectSrc value to nginx-ingress-services when working with multi-ingresses (renderCSPInIngress=True). It would be required for webapp to connect to third party sft servers. (#5236)
+
+* Tolerate invalid assets when migrating users to postgresql. These assets are simply ignored. (#5569)
+
+
+## Documentation
+
+
+* Document multi-ingress config settings for account-pages and improve the
+  existing documentation of the webapp. Add a section for team-settings,
+  explaining that it doesn't support multi-ingress (yet). (#5568)
+
+
+## Internal changes
+
+
+* brig: migrate blacklist (BlockListStore) from Cassandra to PostgreSQL (#5409)
+
+* Add diagnostic logging for rejected MLS commit bundles, including proposal type, target and held clients, group ID, and epoch. (#5566)
+
+* Replace minio with garagehq in ./deploy/dockerephemeral/. (#5567)
+
+* Fix broken test setup due to unavailable minio image (#5575)
+
+* Galley now publishes team events to the FIFO queue using the team ID as the message group, preserving ordering within each team while allowing events from different teams to be processed concurrently. (#5580)
+
+* Migration of password reset from cassandra to postgres (#5412)
+
+* The `nginz` image was missing from `nix-docker-*` SBOMs since it's built as a
+  standalone flake derivation (`#nginz`) and not part of `#wireServer.images*`.
+  The related SBOM script now takes any flake attrpath (attrset or single
+  derivation) and gets called for both.
+
+* Our local development setups (docker-compose environments) rely on
+  `minio/minio` images. These were removed from Docker Hub. As they are still
+  available from the official quay.io account, we're now sourcing them from
+  there. (#5551)
+
+
 # [2026-09-18] (Chart Release 5.36.0)
 
 ## Release notes
