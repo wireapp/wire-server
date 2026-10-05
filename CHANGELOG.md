@@ -61,7 +61,7 @@
 
 * Replace minio with garagehq in ./deploy/dockerephemeral/. (#5567)
 
-* Fix broken test setup due to unavailable minio image (#5575)
+* ~~Fix broken test setup due to unavailable minio image (#5575)~~ (overwritten by #5567)
 
 * Galley now publishes team events to the FIFO queue using the team ID as the message group, preserving ordering within each team while allowing events from different teams to be processed concurrently. (#5580)
 
@@ -72,10 +72,10 @@
   The related SBOM script now takes any flake attrpath (attrset or single
   derivation) and gets called for both.
 
-* Our local development setups (docker-compose environments) rely on
+* ~~Our local development setups (docker-compose environments) rely on
   `minio/minio` images. These were removed from Docker Hub. As they are still
   available from the official quay.io account, we're now sourcing them from
-  there. (#5551)
+  there. (#5551)~~ (overwritten by #5567)
 
 
 # [2026-09-18] (Chart Release 5.36.0)
