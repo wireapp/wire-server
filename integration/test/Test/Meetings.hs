@@ -896,8 +896,8 @@ testMeetingType = do
   postMeetings owner badMeeting >>= assertStatus 400
 
 -- | WPB-28987: the V19 meeting object exposes an optional @link@ join link
--- whose final path segment is the meeting's UUID; it is present only when the
--- meeting has a live join code. Legacy endpoint shapes are unchanged.
+-- containing the live meeting code as query parameters. Legacy endpoint
+-- shapes are unchanged.
 testMeetingLink :: (HasCallStack) => App ()
 testMeetingLink = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -923,25 +923,32 @@ testMeetingLink = do
         mMulti <- lookupField cfg "settings.multiIngress"
         ownDomain <- asString OwnDomain
         maybe (pure Nothing) (`lookupField` ownDomain) mMulti >>= maybe (pure Nothing) asStringM
-  -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash.
+  -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash and
+  -- renders the key/code/domain query parameters.
   let supportsMeetingCodes = codeStorage /= "cassandra"
       normalize s = if "/" `isSuffixOf` s then init s else s
-      expectedLink base = normalize base <> "/" <> meetingId
+      meetingBase base =
+        let normalized = normalize base
+            conversationJoinPath = "/conversation-join"
+         in if conversationJoinPath `isSuffixOf` normalized
+              then take (length normalized - length conversationJoinPath) normalized <> "/meeting-join"
+              else normalized
+      expectedLink base = meetingBase base <> "/\\?key=[A-Za-z0-9_-]{20}&code=[A-Za-z0-9_-]{6,20}&domain=" <> domain
   case (mBase, supportsMeetingCodes) of
     (Just baseURI, True) -> do
       let expected = expectedLink baseURI
       link <- meeting %. "link" >>= asString
-      link `shouldMatch` expected
+      assertBool ("unexpected meeting link: " <> link) (link =~ expected)
 
       fetched <- getMeeting owner domain meetingId >>= getJSON 200
       fetchedLink <- fetched %. "link" >>= asString
-      fetchedLink `shouldMatch` expected
+      assertBool ("unexpected fetched meeting link: " <> fetchedLink) (fetchedLink =~ expected)
 
       listResp <- getMeetingsList owner
       assertSuccess listResp
       meetingsList <- listResp.json & asList
       listedLink <- head meetingsList %. "link" >>= asString
-      listedLink `shouldMatch` expected
+      assertBool ("unexpected listed meeting link: " <> listedLink) (listedLink =~ expected)
     _ -> do
       -- Either no join-link URI is configured for the user's domain, or the
       -- code store cannot hold meeting codes; the link field is omitted.

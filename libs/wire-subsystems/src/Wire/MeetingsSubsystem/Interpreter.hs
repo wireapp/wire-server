@@ -514,7 +514,7 @@ mkApiMeeting mBase domain mCode sm =
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt,
       API.link = case (mBase, mCode) of
-        (Just base, Just _) -> Just (API.mkMeetingLink base sm.id)
+        (Just base, Just code) -> Just (API.mkMeetingLink base domain code)
         _ -> Nothing
     }
 

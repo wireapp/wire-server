@@ -246,9 +246,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right (meeting, mid, mCode) -> do
-        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink testCodeURIBase mid)
-        mCode `shouldSatisfy` isJust
+      Right (meeting, _mid, Just (code, _)) ->
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink testCodeURIBase (Domain "wire.com") code)
+      Right (_, _, Nothing) -> fail "meeting code was not stored"
 
   it "uses the multi-ingress URI mapped for the user's domain" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -276,14 +276,16 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         def
         ( do
             meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
-            pure (meeting, qUnqualified meeting.meeting.id)
+            code <- CodeStore.getMeetingCode (qUnqualified meeting.meeting.id)
+            pure (meeting, code)
         )
         >>= either (error . show) pure
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right (meeting, mid) ->
-        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink multiBase mid)
+      Right (meeting, Just code) ->
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink multiBase (Domain "wire.com") code)
+      Right (_, Nothing) -> fail "meeting code was not stored"
 
   it "omits the link when the user's domain has no configured URI" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -448,16 +450,18 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
         void $ CodeStore.createMeetingCode midWithCode (Timeout 3600)
+        code <- CodeStore.getMeetingCode midWithCode
         meetings <- listMeetings zUser
-        pure [(qUnqualified m.id, m.link) | m <- meetings]
+        pure (code, [(qUnqualified m.id, m.link) | m <- meetings])
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right links ->
+      Right (Just code, links) ->
         links
-          `shouldBe` [ (midWithCode, Just (API.mkMeetingLink testCodeURIBase midWithCode)),
+          `shouldBe` [ (midWithCode, Just (API.mkMeetingLink testCodeURIBase (Domain "wire.com") code)),
                        (midWithoutCode, Nothing)
                      ]
+      Right (Nothing, _) -> fail "meeting code was not stored"
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0

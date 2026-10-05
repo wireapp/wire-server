@@ -69,6 +69,8 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON, toJSON)
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (toByteString')
+import Data.Code (Code (..))
+import Data.Domain (Domain)
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
@@ -84,6 +86,7 @@ import Data.Time.Zones.Types (TZ)
 import Imports
 import Test.QuickCheck (elements)
 import URI.ByteString (uriPath)
+import URI.ByteString qualified as URI
 import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -154,7 +157,7 @@ data Meeting = Meeting
     invitedEmails :: [EmailAddress],
     createdAt :: UTCTime,
     updatedAt :: UTCTime,
-    -- | https join link whose final path segment is the meeting's UUID;
+    -- | https join link containing the meeting's live join code;
     -- 'Nothing' when the meeting has no live join code (legacy meetings, or
     -- code-store modes that cannot hold meeting codes)
     link :: Maybe HttpsUrl
@@ -564,12 +567,27 @@ fromLegacy tz m =
       link = Nothing
     }
 
--- | Join link for a meeting: the configured code URI with the meeting's
--- UUID appended as final path segment (trailing slashes on the configured
--- base are normalized).
-mkMeetingLink :: HttpsUrl -> MeetingId -> HttpsUrl
-mkMeetingLink (HttpsUrl base) mid =
-  HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid}
+-- | Join link for a meeting, containing the code-store key and value as query
+-- parameters. The configured conversation-join path is rewritten to
+-- @meeting-join@.
+mkMeetingLink :: HttpsUrl -> Domain -> Code -> HttpsUrl
+mkMeetingLink (HttpsUrl base) domain code =
+  HttpsUrl $
+    base
+      { uriPath = meetingJoinPath (uriPath base),
+        URI.uriQuery = URI.Query [
+          ("key", toByteString' code.codeKey),
+          ("code", toByteString' code.codeValue),
+          ("domain", toByteString' domain)
+        ]
+      }
+  where
+    meetingJoinPath path =
+      let normalized = BS.dropWhileEnd (== '/') path
+          conversationJoinPath = "/conversation-join"
+       in if conversationJoinPath `BS.isSuffixOf` normalized
+            then BS.drop (BS.length normalized - BS.length conversationJoinPath) normalized <> "/meeting-join/"
+            else normalized <> "/"
 
 -- | 'toLegacy' lifted over 'MeetingWithConversation'.
 toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
