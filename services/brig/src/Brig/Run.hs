@@ -129,8 +129,7 @@ mkApp opts = do
     middleware :: Env -> Wai.Middleware
     middleware e =
       -- these rewrite the request, so they must be at the top (i.e. applied last)
-      federationVersionMiddleware e.disabledFederationVersions
-        . versionMiddleware e.disabledVersions
+      versionMiddleware e.disabledVersions
         . internalHandleCompatibilityMiddleware
         -- this also rewrites the request
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName

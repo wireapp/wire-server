@@ -17,9 +17,6 @@ redis:
   host: redis-federation-v3
   port: 6379
   connectionMode: master
-  enableTls: true
-  tlsCa: ../../deploy/dockerephemeral/docker/redis-ca.pem
-  insecureSkipVerifyTls: false
 
 # redisAdditionalWrite:
 #   host: 127.0.0.1
