@@ -454,8 +454,8 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
 -- (single upsert in the code store), the meeting conversation's guest link
 -- is revoked, and the optional password is hashed and stored on the code,
 -- replacing any previously set password; when no password is given the link
--- is passwordless. If the code store cannot hold meeting codes the meeting
--- degrades to the placeholder link, mirroring 'createMeetingImpl'.
+-- is passwordless. If the code store cannot hold meeting codes, the returned
+-- meeting has no link, mirroring 'createMeetingImpl'.
 refreshMeetingLinkImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
