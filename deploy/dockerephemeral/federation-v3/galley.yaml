@@ -9,18 +9,6 @@ cassandra:
   keyspace: galley_test_federation_v3
   # filterNodesByDatacentre: datacenter1
 
-postgresql:
-  host: postgres
-  port: "5432"
-  user: wire-server
-  dbname: backendB
-  password: posty-the-gres
-
-postgresqlPool:
-  size: 20
-  acquisitionTimeout: 10s
-  idlenessTimeout: 10m
-
 brig:
   host: brig-federation-v3
   port: 8080
@@ -166,11 +154,3 @@ journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events-federation-v3.fifo
   endpoint: http://demo_wire_sqs:4568 # https://sqs.eu-west-1.amazonaws.com
   region: eu-west-1
-
-postgresMigration:
-  conversation: postgresql
-  conversationCodes: postgresql
-  teamFeatures: postgresql
-  domainRegistration: postgresql
-  user: postgresql
-  blockList: postgresql
