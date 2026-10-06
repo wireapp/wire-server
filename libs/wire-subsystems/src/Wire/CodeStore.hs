@@ -38,6 +38,15 @@ data CodeStore m a where
   -- meeting codes (Cassandra-only mode); callers degrade to a meeting without
   -- a link instead of failing the request.
   CreateMeetingCode :: MeetingId -> Timeout -> Maybe Password -> CodeStore m Bool
+  -- | Atomically rotate a meeting's join code (upsert of the stable-key row)
+  -- and revoke the meeting conversation's guest code, in a single
+  -- transaction. Splitting these into two writes would let a crash between
+  -- them leave the old guest link usable even though the meeting link has
+  -- already been replaced, so refresh must not compose them externally.
+  -- Returns 'False' when the backing store cannot hold meeting codes
+  -- (Cassandra-only mode); callers degrade to a meeting without a link
+  -- instead of failing the request.
+  RotateMeetingCode :: MeetingId -> ConvId -> Timeout -> Maybe Password -> CodeStore m Bool
   -- | Look up a meeting's join code by meeting id, together with its (hashed)
   -- password if one is set, so a future join endpoint can enforce it.
   -- 'Nothing' when no code

@@ -54,6 +54,14 @@ interpretCodeStoreToCassandra = interpret $ \case
   -- Meeting codes never live in Cassandra; report unsupported so callers
   -- degrade to a meeting without a link instead of failing the request.
   CreateMeetingCode {} -> pure False
+  -- Meeting codes never live in Cassandra, but the guest-code revocation
+  -- half of the rotation is real here: without it a refreshed meeting link
+  -- would leave the old conversation guest link live until TTL expiry.
+  -- Report unsupported afterwards so callers omit the link instead of
+  -- failing the request.
+  RotateMeetingCode _ cid _ _ -> do
+    Code.mkKey (CodeReferentConv cid) >>= embedClientInput . deleteCode
+    pure False
   -- Meeting codes never live in Cassandra; short-circuit without a network
   -- round trip so callers omit the link instead of failing the request.
   GetMeetingCode _ -> pure Nothing

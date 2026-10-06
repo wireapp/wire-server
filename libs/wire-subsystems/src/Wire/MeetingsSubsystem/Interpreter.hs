@@ -488,16 +488,17 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
     guard $ meeting.creator == tUnqualified zUser
     conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
     mHashedPw <- lift $ for req.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
-    hasJoinCode <- lift $ CodeStore.createMeetingCode (qUnqualified meetingId) meetingCodeTimeout mHashedPw
+    -- Rotation + guest-code revocation are one CodeStore op (see
+    -- 'CodeStore.RotateMeetingCode' for why they must not be split).
+    hasJoinCode <-
+      lift $ CodeStore.rotateMeetingCode (qUnqualified meetingId) meeting.conversationId meetingCodeTimeout mHashedPw
     unless hasJoinCode $
       lift $
         TinyLog.warn $
           Log.msg ("meeting link refreshed without join code" :: ByteString)
             . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
-    -- Revoke the meeting conversation's guest link so it cannot be used to
-    -- bypass the refreshed (old) join link. The meeting.update event already
-    -- notifies conversation members, so no separate conversation event is sent.
-    lift $ CodeStore.deleteConversationCode meeting.conversationId
+    -- The meeting.update event already notifies conversation members, so no
+    -- separate conversation event is sent.
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     lift $ storedMeetingToMeetingWithConversation base zUser conv meeting
 
