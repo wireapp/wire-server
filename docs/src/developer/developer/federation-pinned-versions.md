@@ -113,3 +113,32 @@ ENABLE_FEDERATION_V3=1 \
 TEST_INCLUDE=testFederationAPIVersionLegacySmoke \
 make ci-safe package=integration
 ```
+
+## CI and Kubernetes setup
+
+Pinned federation backends used by the Kubernetes integration tests are
+deployed by the Cailleach repository. Add the new backend to the backend
+integration-test target in Cailleach:
+
+- add the `wire-federation-vN` namespace and domain locals;
+- add a `wire_server_federation_vN` module based on
+  `tf-modules/wire-server-with-bells`, using the finalized chart version and
+  the configuration required by that release;
+- configure the pinned backend with the federation test helper, federation CA,
+  dedicated ingress, and any release-specific dependencies;
+- add the namespace to the per-version ingress controller map.
+
+See the [Cailleach V3 deployment change](https://github.com/zinfra/cailleach/commit/5c488555292d741ccd7f1f2e1876bd470fb81057)
+as a reference implementation.
+
+The wire-server repository must also contain the matching integration setup:
+
+- add `federation-vN` and `rabbitmq-vN` to the integration ConfigMap;
+- enable `ENABLE_FEDERATION_VN` and provide its RabbitMQ credentials;
+- copy the RabbitMQ secret from the pinned namespace before running tests.
+
+Make the Cailleach change available in the CI environment before opening or
+updating the wire-server PR. The PR pipeline then starts the test deployment
+and runs the existing service suites plus the main integration suite against
+the pinned backends. Verify the pinned namespace, services, certificates, and
+RabbitMQ secret as part of that pipeline when diagnosing setup failures.
