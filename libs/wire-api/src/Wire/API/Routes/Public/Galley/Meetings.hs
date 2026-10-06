@@ -17,7 +17,6 @@
 
 module Wire.API.Routes.Public.Galley.Meetings where
 
-import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id (MeetingId)
 import Servant
@@ -309,22 +308,4 @@ type MeetingsAPI =
                     '[JSON]
                     '[Respond 200 "Meeting link refreshed" MeetingWithConversation]
                     MeetingWithConversation
-           )
-    :<|> Named
-           "join-meeting-by-link"
-           ( Summary "Resolve a meeting join link"
-               :> From 'V19
-               :> ZLocalUser
-               :> "meetings"
-               :> "join"
-               :> QueryParam' [Required, Strict] "key" Code.Key
-               :> QueryParam' [Required, Strict] "code" Code.Value
-               :> ReqBody '[JSON] MeetingJoinRequest
-               :> CanThrow 'MeetingNotFound
-               :> CanThrow 'InvalidMeetingPassword
-               :> MultiVerb
-                    'POST
-                    '[JSON]
-                    '[Respond 200 "Meeting" Meeting]
-                    Meeting
            )

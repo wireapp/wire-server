@@ -39,16 +39,11 @@ data CodeStore m a where
   -- a link instead of failing the request.
   CreateMeetingCode :: MeetingId -> Timeout -> Maybe Password -> CodeStore m Bool
   -- | Look up a meeting's join code by meeting id, together with its (hashed)
-  -- password if one is set, so callers can enforce it. 'Nothing' when no code
+  -- password if one is set, so a future join endpoint can enforce it.
+  -- 'Nothing' when no code
   -- row exists (legacy meeting, or code creation failed) or the backing store
   -- cannot hold meeting codes (Cassandra-only mode).
   GetMeetingCode :: MeetingId -> CodeStore m (Maybe (Code, Maybe Password))
-  -- | Look up a join code by its stable code key (the key part of a join
-  -- link), together with its (hashed) password if one is set. 'Nothing'
-  -- when no live code row exists for the key or the backing store cannot
-  -- hold meeting codes (Cassandra-only mode); note a found row may belong
-  -- to a conversation code, so callers must check the code's referent.
-  GetMeetingCodeByKey :: Key -> CodeStore m (Maybe (Code, Maybe Password))
   -- | Look up join codes for many meetings in a single query. Meetings
   -- without a code (legacy, expired, or a backing store that cannot hold
   -- meeting codes) are absent from the result map.

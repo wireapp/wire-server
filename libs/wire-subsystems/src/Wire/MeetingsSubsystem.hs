@@ -19,7 +19,6 @@
 
 module Wire.MeetingsSubsystem where
 
-import Data.Code (Key, Value)
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock (UTCTime)
@@ -51,23 +50,6 @@ data MeetingsSubsystem m a where
     Qualified MeetingId ->
     RefreshMeetingLinkRequest ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
-  -- | Resolve a meeting join link with password enforcement. Read-only: no
-  -- membership change, no events. The link's code key addresses the code
-  -- row (stable across refreshes); its code value (the rotating token
-  -- embedded in the link URL) must match the live row, so a refreshed link
-  -- invalidates stale URLs. Returns 'JoinMeetingNotFound' when the key has
-  -- no live local meeting (including a key that addresses a conversation
-  -- code) or the presented value does not match. Returns
-  -- 'JoinMeetingInvalidPassword' when the code carries a password that the
-  -- request does not match. Errors are returned, not thrown, so
-  -- interpreters stay observable in tests (handler-space throws are not);
-  -- the route handler maps them to 404/403.
-  JoinMeetingByLink ::
-    Local UserId ->
-    Key ->
-    Value ->
-    MeetingJoinRequest ->
-    MeetingsSubsystem m JoinMeetingResult
   GetMeeting ::
     Local UserId ->
     Qualified MeetingId ->
@@ -130,16 +112,5 @@ data MeetingsSubsystem m a where
     UTCTime ->
     Int ->
     MeetingsSubsystem m Int64
-
--- | Outcome of resolving a meeting join link ('JoinMeetingByLink').
-data JoinMeetingResult
-  = -- | No live local meeting, or no live join code row for it.
-    JoinMeetingNotFound
-  | -- | The join code is password-protected and the supplied password does
-    -- not match (or is missing).
-    JoinMeetingInvalidPassword
-  | -- | The link resolved to this meeting.
-    JoinMeetingOk Meeting
-  deriving stock (Eq, Show)
 
 makeSem ''MeetingsSubsystem

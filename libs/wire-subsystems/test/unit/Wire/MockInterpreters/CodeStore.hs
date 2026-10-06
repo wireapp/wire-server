@@ -58,7 +58,6 @@ interpretCodeStorePure = interpret $ \case
   GetMeetingCode mid -> do
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
     gets (Map.lookup k)
-  GetMeetingCodeByKey key -> gets (Map.lookup key)
   GetMeetingCodes mids -> do
     ks <- embed (traverse (\mid -> (mid,) <$> Code.mkKey (CodeReferentMeeting mid)) mids)
     gets $ \m ->

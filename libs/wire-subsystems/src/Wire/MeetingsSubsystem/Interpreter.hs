@@ -23,9 +23,8 @@ module Wire.MeetingsSubsystem.Interpreter
 where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
-import Data.ByteArray (constEq)
 import Data.ByteString.Conversion (toByteString')
-import Data.Code (Key, Timeout (..), Value)
+import Data.Code (Timeout (..))
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
@@ -52,11 +51,11 @@ import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), Meetings
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as CodeStore
-import Wire.CodeStore.Code (Code (..), CodeReferent (..))
+import Wire.CodeStore.Code (Code (..))
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
-import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
+import Wire.HashPassword (HashPassword, hashPassword8)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
@@ -163,8 +162,6 @@ interpretMeetingsSubsystem cfg = interpret $ \case
     deleteMeetingImpl zUser connId meetingId cfg.validityPeriod
   RefreshMeetingLink zUser connId meetingId req ->
     refreshMeetingLinkImpl zUser connId meetingId req cfg.validityPeriod
-  JoinMeetingByLink zUser key presentedValue req ->
-    joinMeetingByLinkImpl zUser key presentedValue req cfg.validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetings zUser ->
@@ -503,67 +500,6 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
     lift $ CodeStore.deleteConversationCode meeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     lift $ storedMeetingToMeetingWithConversation base zUser conv meeting
-
--- | Resolve a meeting join link (WPB-28216). Read-only: no membership
--- change, no events. The link's code key addresses the code row (stable
--- across refreshes; its referent must be a meeting); the code value is the
--- rotating capability: a value from a link superseded by a refresh no
--- longer matches and yields 'JoinMeetingNotFound'. A dead or expired code
--- row (or a store that cannot hold meeting codes, i.e. Cassandra-only mode)
--- likewise yields 'JoinMeetingNotFound'. When the code carries a (hashed)
--- password, the request must supply the matching plaintext password or
--- 'JoinMeetingInvalidPassword' is returned; a password supplied for an
--- unprotected link is ignored, mirroring the conversation join-by-code
--- semantics. No @checkMeetingsEnabled@ gate: the joiner's team feature
--- state is irrelevant, matching conversation join-by-code. Errors are
--- returned rather than thrown because a throw from interpreter space is
--- invisible to callers' local error handlers (PR #5571 review lesson).
-joinMeetingByLinkImpl ::
-  ( Member Store.MeetingsStore r,
-    Member CodeStore r,
-    Member Now r,
-    Member HashPassword r,
-    Member RateLimit r
-  ) =>
-  Local UserId ->
-  Key ->
-  Value ->
-  API.MeetingJoinRequest ->
-  NominalDiffTime ->
-  Sem r JoinMeetingResult
-joinMeetingByLinkImpl zUser key presentedValue req validityPeriod = do
-  mCode <- CodeStore.getMeetingCodeByKey key
-  case mCode of
-    Just (code, mHashedPw) | CodeReferentMeeting mid <- code.codeReferent -> do
-      -- Only a key whose referent is a meeting resolves; a conversation
-      -- code's key yields 404. Codes resolve locally, so joiner locality
-      -- comes from 'ZLocalUser' alone; no domain guard.
-      base <- codeURIBase (tDomain zUser)
-      cutoff <- addUTCTime (negate validityPeriod) <$> Now.get
-      mMeeting <- Store.getMeeting mid
-      case mMeeting of
-        Just meeting
-          | isAlive cutoff meeting ->
-              -- The presented value is the rotating capability: a value from a
-              -- link superseded by a refresh no longer matches and yields 404.
-              if toByteString' code.codeValue `constEq` toByteString' presentedValue
-                then checkPassword base meeting code (mHashedPw, req.password)
-                else pure JoinMeetingNotFound
-        _ -> pure JoinMeetingNotFound
-    _ -> pure JoinMeetingNotFound
-  where
-    checkPassword base meeting code = \case
-      -- Reuse the fetched code row: the lookup result doubles as the
-      -- capability for building the response, so no second query.
-      (Nothing, _) -> pure (joinOk base meeting code)
-      (Just _, Nothing) -> pure JoinMeetingInvalidPassword
-      (Just hashed, Just pt) -> do
-        ok <- verifyPassword (RateLimitUser (tUnqualified zUser)) pt hashed
-        if ok
-          then pure (joinOk base meeting code)
-          else pure JoinMeetingInvalidPassword
-    joinOk base meeting code =
-      JoinMeetingOk (mkApiMeeting base (tDomain zUser) (Just code) meeting)
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,

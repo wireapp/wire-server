@@ -56,7 +56,6 @@ interpretCodeStoreToPostgres = interpret $ \case
     Code.mkKey (CodeReferentMeeting mid) >>= deleteCode
   GetMeetingCode mid ->
     Code.mkKey (CodeReferentMeeting mid) >>= lookupCode
-  GetMeetingCodeByKey key -> lookupCode key
   GetMeetingCodes mids ->
     lookupMeetingCodes mids
   CreateMeetingCode mid t mPw -> do
