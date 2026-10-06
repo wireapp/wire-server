@@ -23,7 +23,6 @@ gateway:
   manageServiceType: true
   serviceType: ClusterIP
   envoyProxy:
-    # A single-node kind cluster gains nothing from a second proxy pod.
     replicas: 1
   listeners:
     https:
