@@ -1021,8 +1021,8 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetOtherMember lcid quid upd -> do
     logEffect "ConversationStore.SetOtherMember"
     embedClient client $ updateOtherMemberLocalConv lcid quid upd
-  DeleteMembers cnv ul -> do
-    logEffect "ConversationStore.DeleteMembers"
+  DeleteMemberRowsOnly _reason cnv ul -> do
+    logEffect "ConversationStore.DeleteMemberRowsOnly"
     embedClient client $ removeMembersFromLocalConv cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
@@ -1422,12 +1422,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres (tUnqualified lcid) >>= \case
         False -> embedClient client $ updateOtherMemberLocalConv lcid quid upd
         True -> interpretConversationStoreToPostgres (ConvStore.setOtherMember lcid quid upd)
-  DeleteMembers cid ul -> do
-    logEffect "ConversationStore.DeleteMembers"
+  DeleteMemberRowsOnly reason cid ul -> do
+    logEffect "ConversationStore.DeleteMemberRowsOnly"
     withMigrationLockAndCleanup client LockShared (Left cid) $ do
       -- No need to check where these are, we just delete them from both places
       embedClient client $ removeMembersFromLocalConv cid ul
-      interpretConversationStoreToPostgres $ ConvStore.deleteMembers cid ul
+      interpretConversationStoreToPostgres $ ConvStore.deleteMemberRowsOnly reason cid ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
     withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do

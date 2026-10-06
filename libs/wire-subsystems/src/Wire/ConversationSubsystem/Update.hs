@@ -222,7 +222,7 @@ blockConvUnqualified zusr cnv = do
     throwS @'InvalidOperation
   let mems = conv.localMembers
   when (zusr `isMember` mems) $
-    E.deleteMembers cnv (UserList [zusr] [])
+    E.deleteMemberRowsOnly E.ReversibleHide cnv (UserList [zusr] [])
 
 blockRemoteConv ::
   ( Member (ErrorS 'ConvNotFound) r,
@@ -2325,7 +2325,7 @@ rmBot lusr zcon b = do
                 conn = zcon
               }
           ]
-        E.deleteMembers c.id_ (UserList [botUserId (b ^. rmBotId)] [])
+        E.deleteMemberRowsOnly E.ProteusOnlyConversation c.id_ (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)
         pure $ Updated e

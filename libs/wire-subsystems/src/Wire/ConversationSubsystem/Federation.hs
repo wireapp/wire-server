@@ -515,7 +515,15 @@ onUserDeleted origDomain udcn = do
     fromRange convIds <&> \c -> do
       lc <- qualifyLocal c
       mconv <- E.getConversation c
-      E.deleteMembers c (UserList [] [deletedUser])
+      E.deleteMemberRowsOnly
+        ( E.KnownBug
+            "the One2OneConv case below never calls removeUser, but a local \
+            \MLS 1:1 can have a remote member (see \
+            \Query.getMLSOne2OneMLSConversation), so a remote user's \
+            \deletion can leave a stale leaf in that group"
+        )
+        c
+        (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
         when (isRemoteMember deletedUser (conv.remoteMembers)) $
           case Data.convType conv of

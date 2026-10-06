@@ -79,7 +79,8 @@ internalUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                 unless (null conv.remoteMembers) $
                   acceptConnectConversation (tUnqualified lconvId)
               (LocalActor, Excluded) -> do
-                deleteMembers
+                deleteMemberRowsOnly
+                  ReversibleHide
                   (tUnqualified lconvId)
                   (UserList [tUnqualified uooLocalUser] [])
               (RemoteActor, Included) -> do
@@ -87,7 +88,8 @@ internalUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                 unless (null conv.localMembers) $
                   acceptConnectConversation (tUnqualified lconvId)
               (RemoteActor, Excluded) ->
-                deleteMembers
+                deleteMemberRowsOnly
+                  ReversibleHide
                   (tUnqualified lconvId)
                   (UserList [] [uooRemoteUser])
       doremote :: Remote ConvId -> Sem r ()

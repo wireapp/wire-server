@@ -106,7 +106,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   SelectRemoteMembers uids rcnv -> selectRemoteMembersImpl uids rcnv
   SetSelfMember qcid luid upd -> setSelfMemberImpl qcid luid upd
   SetOtherMember lcid quid upd -> setOtherMemberImpl lcid quid upd
-  DeleteMembers cnv ul -> deleteMembersImpl cnv ul
+  DeleteMemberRowsOnly _reason cnv ul -> deleteMembersImpl cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> deleteMembersInRemoteConversationImpl rcnv uids
   AddMLSClients lcnv quid cs -> addMLSClientsImpl lcnv quid cs
   AddHistoryClient groupId hid idx -> addHistoryClientImpl groupId hid idx

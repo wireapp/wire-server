@@ -66,6 +66,29 @@ data ConversationSearch = ConversationSearch
 
 makeSem ''MLSCommitLockStore
 
+-- | Why it is correct for this call site to delete a member row without the
+-- backend also signing an MLS remove proposal for that member's leaf.
+--
+-- Deleting the row alone is only half of a removal.  For an MLS conversation
+-- the other half is 'Wire.ConversationSubsystem.MLS.removeUser' (or a caller
+-- that wraps it, such as @kickMemberWith@ or @leaveConversation@); without it
+-- the group keeps a leaf for a member who is no longer in the conversation.
+-- Every call site must name which of these cases applies to it.
+data MemberRowRemovalReason
+  = -- | The caller performs the MLS half itself, around this call.
+    MlsHandledByCaller
+  | -- | The conversation cannot have an MLS group: it is a Proteus-only
+    -- conversation type ('ConnectConv'), or the member is a bot.
+    ProteusOnlyConversation
+  | -- | The row is hidden rather than removed, and is expected to come back
+    -- without a new commit. The leaf stays on purpose.
+    ReversibleHide
+  | -- | This call site is wrong: the conversation can have an MLS group with
+    -- a leaf for this member, and nothing signs a remove proposal for it.
+    -- TODO: remove this constructor and fix the bug.
+    KnownBug Text
+  deriving (Eq, Show, Generic)
+
 data ConversationStore m a where
   UpsertConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
   DeleteConversation :: ConvId -> ConversationStore m ()
@@ -117,7 +140,8 @@ data ConversationStore m a where
   SelectRemoteMembers :: [UserId] -> Remote ConvId -> ConversationStore m ([UserId], Bool)
   SetSelfMember :: Qualified ConvId -> Local UserId -> MemberUpdate -> ConversationStore m ()
   SetOtherMember :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> ConversationStore m ()
-  DeleteMembers :: ConvId -> UserList UserId -> ConversationStore m ()
+  DeleteMemberRowsOnly ::
+    MemberRowRemovalReason -> ConvId -> UserList UserId -> ConversationStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> ConversationStore m ()
   AddHistoryClient :: GroupId -> HistoryClientId -> LeafIndex -> ConversationStore m ()

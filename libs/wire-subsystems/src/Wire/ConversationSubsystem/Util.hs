@@ -378,7 +378,7 @@ convDeleteMembers ::
   StoredConversation ->
   Sem r StoredConversation
 convDeleteMembers ul conv = do
-  deleteMembers conv.id_ ul
+  deleteMemberRowsOnly MlsHandledByCaller conv.id_ ul
   let locals = Set.fromList (ulLocals ul)
       remotes = Set.fromList (ulRemotes ul)
   -- update in-memory view of the conversation

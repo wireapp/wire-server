@@ -436,14 +436,14 @@ rmUser lusr conn = do
           runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
             Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
             Right _ -> pure ()
-          ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+          ConversationStore.deleteMemberRowsOnly ConversationStore.MlsHandledByCaller c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> ConversationStore.deleteMemberRowsOnly ConversationStore.ProteusOnlyConversation c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` c.localMembers -> do
               runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
-              ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
+              ConversationStore.deleteMemberRowsOnly ConversationStore.MlsHandledByCaller c.id_ (UserList [tUnqualified lusr] [])
               let e =
                     Event
                       { evtConv = tUntagged (qualifyAs lusr c.id_),
