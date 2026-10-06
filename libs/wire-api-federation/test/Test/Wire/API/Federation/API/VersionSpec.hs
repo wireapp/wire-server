@@ -30,6 +30,10 @@ spec = describe "Federation API versions" $ do
     Aeson.decode "0" `shouldBe` (Nothing :: Maybe FederationVersionExp)
     Aeson.decode "1" `shouldBe` (Nothing :: Maybe FederationVersionExp)
 
+  it "encodes federation version expressions as their API representation" $ do
+    Aeson.encode FederationVersionExpDevelopment `shouldBe` "\"development\""
+    Aeson.encode (FederationVersionExpConst V4) `shouldBe` "4"
+
   it "keeps explicitly selected versions available" $ do
     expandVersionExp (FederationVersionExpConst V4) `shouldBe` Set.fromList [V4]
 

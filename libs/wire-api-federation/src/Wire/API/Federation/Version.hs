@@ -50,7 +50,7 @@ module Wire.API.Federation.Version
   )
 where
 
-import Control.Lens (makePrisms, (?~))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 qualified as BS
@@ -116,16 +116,6 @@ data FederationVersionExp
   | FederationVersionExpDevelopment
   deriving (Show, Eq, Ord, Generic)
 
-$(makePrisms ''FederationVersionExp)
-
-instance ToSchema FederationVersionExp where
-  schema =
-    named "FederationVersionExp" $
-      tag _FederationVersionExpConst (unnamed schema)
-        <> tag
-          _FederationVersionExpDevelopment
-          (unnamed (enum @Text (element "development" ())))
-
 instance FromJSON FederationVersionExp where
   parseJSON value = case value of
     Aeson.String "development" -> pure FederationVersionExpDevelopment
@@ -137,7 +127,9 @@ instance FromJSON FederationVersionExp where
         Just version' -> pure (FederationVersionExpConst version')
         Nothing -> fail "invalid federation API version"
 
-deriving via Schema FederationVersionExp instance ToJSON FederationVersionExp
+instance ToJSON FederationVersionExp where
+  toJSON FederationVersionExpDevelopment = Aeson.String "development"
+  toJSON (FederationVersionExpConst version) = Aeson.toJSON (versionInt version)
 
 expandVersionExp :: FederationVersionExp -> Set Version
 expandVersionExp (FederationVersionExpConst v) = Set.singleton v
