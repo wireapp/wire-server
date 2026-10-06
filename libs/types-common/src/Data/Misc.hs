@@ -554,6 +554,12 @@ instance (KnownNat (n :: Nat), Within Text n 1024) => ToSchema (PlainTextPasswor
 instance (KnownNat (n :: Nat), Within Text n 1024) => Arbitrary (PlainTextPassword' n) where
   arbitrary = PlainTextPassword' <$> arbitrary
 
+instance (KnownNat (n :: Nat), Within Text n 1024) => FromHttpApiData (PlainTextPassword' n) where
+  parseQueryParam = maybe (Left "Invalid password") (Right . PlainTextPassword') . checked
+
+instance S.ToParamSchema (PlainTextPassword' n) where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
+
 -- | Usage:
 -- 1. Use this type in patterns to mark FUTUREWORKS.
 -- 2. Remove the label constructor -> all futureworks become compiler errors

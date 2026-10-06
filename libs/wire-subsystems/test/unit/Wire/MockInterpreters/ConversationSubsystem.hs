@@ -110,6 +110,10 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
         pushes <- get @[Push]
         unless (null pushes) (throwS @'TeamNotFound)
         throwS @('ActionDenied 'DeleteConversation)
+  -- Adds the user to the members state. No conversation event is fabricated:
+  JoinMeetingConversation lusr _connId lcnv -> do
+    modify @ConversationMembers (Map.insertWith (<>) lcnv (Set.singleton (tUnqualified lusr)))
+    pureT Unchanged
   GetConversationIds _lusr _range _pagingState -> do
     pureT $ MultiTablePaging.MultiTablePage [] False (Public.ConversationPagingState MultiTablePaging.PagingLocals Nothing)
   GetConversations cids -> do

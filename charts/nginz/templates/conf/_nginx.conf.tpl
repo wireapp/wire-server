@@ -271,6 +271,11 @@ http {
         if ($sanitized_request ~ (.*)access_token=[^&\s]*(.*)) {
             set $sanitized_request $1access_token=****$2;
         }
+        # remove join-link (conversation/meeting) passwords from logs; they
+        # travel as query parameters on the code-check/join endpoints.
+        if ($sanitized_request ~ (.*)password=[^&\s]*(.*)) {
+            set $sanitized_request $1password=****$2;
+        }
 
             {{- if ($location.basic_auth) }}
         auth_basic "Restricted";
