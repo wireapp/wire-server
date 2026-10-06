@@ -38,16 +38,11 @@
 {{- $accessLogSink := dict "type" "File" "file" (dict "path" "/dev/stdout") -}}
 {{- $accessLogSetting := dict "format" (dict "type" "JSON" "json" $accessLogJSON) "sinks" (list $accessLogSink) -}}
 {{- $ep := .Values.gateway.envoyProxy -}}
-{{- /*
-  High availability defaults. A single proxy pod makes every node drain,
-  cluster upgrade and autoscaler scale-down an ingress outage, and without a
-  PodDisruptionBudget nothing stops an eviction taking the whole fleet at once.
-  The spread constraints are advisory (ScheduleAnyway) so a single-node or
-  single-zone cluster still schedules the pods, just co-located.
-*/ -}}
-{{- $deployment := dict "replicas" (int $ep.replicas) -}}
+{{- $deployment := dict "replicas" $ep.replicas -}}
 {{- with $ep.topologySpreadKeys -}}
-{{- $selector := dict "matchLabels" (include "wire-ingress.proxyPodSelector" $ | fromYaml) -}}
+{{- $selector := dict "matchLabels" (dict
+    "gateway.envoyproxy.io/owning-gateway-name" (include "wire-ingress.gatewayName" $)
+    "gateway.envoyproxy.io/owning-gateway-namespace" $.Release.Namespace) -}}
 {{- $spread := list -}}
 {{- range . -}}
 {{- $spread = append $spread (dict "maxSkew" 1 "topologyKey" . "whenUnsatisfiable" "ScheduleAnyway" "labelSelector" $selector) -}}
@@ -55,17 +50,22 @@
 {{- $_ := set $deployment "pod" (dict "topologySpreadConstraints" $spread) -}}
 {{- end -}}
 {{- $kubernetes := dict "envoyDeployment" $deployment -}}
-{{- with $ep.podDisruptionBudget }}{{- $_ := set $kubernetes "envoyPDB" . }}{{- end -}}
 {{- $spec := dict
     "telemetry" (dict "accessLog" (dict "settings" (list $accessLogSetting)))
     "provider" (dict "type" "Kubernetes" "kubernetes" $kubernetes) -}}
-{{- /* Free-form spec wins over every default above. */ -}}
+{{- /* Merge deployment and telemetry overrides before deriving the PDB. */ -}}
 {{- with $ep.spec }}
 {{- $spec = mergeOverwrite $spec (deepCopy .) }}
 {{- end }}
+{{- $k8s := $spec.provider.kubernetes }}
+{{- /* Derive the PDB from the final replica count, including spec overrides. */ -}}
+{{- if eq (int $k8s.envoyDeployment.replicas) 1 }}
+{{- $_ := unset $k8s "envoyPDB" }}
+{{- else }}
+{{- $_ := set $k8s "envoyPDB" (dict "minAvailable" 1) }}
+{{- end }}
 {{- /* Shorthand for one leaf, so it must not replace the whole provider stanza. */ -}}
 {{- if .Values.gateway.manageServiceType }}
-{{- $k8s := $spec.provider.kubernetes }}
 {{- $_ := set $k8s "envoyService" (merge (dict "type" .Values.gateway.serviceType) ($k8s.envoyService | default dict)) }}
 {{- end }}
 apiVersion: gateway.envoyproxy.io/v1alpha1

@@ -17,9 +17,7 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   {{- if .Values.gateway.zoneAwareRouting.enabled }}
-  {{- /* Envoy Gateway applies only the most specific BackendTrafficPolicy per
-       route unless a mergeType is given. Without this, this policy would
-       shadow the Gateway-wide zone-aware one for the WebSocket route. */}}
+  {{- /* Inherit the Gateway policy while keeping the WebSocket timeout. */}}
   mergeType: StrategicMerge
   {{- end }}
   targetRefs:

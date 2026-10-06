@@ -1,18 +1,5 @@
 {{- if .Values.gateway.zoneAwareRouting.enabled }}
-{{/* Prefers backend endpoints in the proxy's own zone, cutting inter-AZ
-     traffic cost on a multi-zone cluster. Inert where there is only one zone.
-
-     This has to be a BackendTrafficPolicy rather than `trafficDistribution` on
-     the backend Services: Envoy Gateway routes to pod endpoints directly
-     (EnvoyProxy routingType "Endpoint", the default) and never consults the
-     Service. It also reaches backends whose Service this chart does not own.
-
-     preferLocal is a preference, not a fence: Envoy fills local-zone endpoints
-     as far as it can while keeping per-endpoint load even, and spills into
-     other zones as soon as the local one is short on capacity.
-
-     LeastRequest is Envoy Gateway's default algorithm; the CRD requires the
-     field to be stated alongside zoneAware. */}}
+{{/* The CRD requires an explicit load balancer type alongside zoneAware. */}}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
@@ -31,5 +18,5 @@ spec:
     type: LeastRequest
     zoneAware:
       preferLocal:
-        minEndpointsThreshold: {{ int .Values.gateway.zoneAwareRouting.minEndpointsThreshold }}
+        minEndpointsThreshold: {{ .Values.gateway.zoneAwareRouting.minEndpointsThreshold }}
 {{- end }}
