@@ -174,7 +174,9 @@ one, complete the following steps:
   `/federation/api-version` does not advertise them.
 - Add or update local and CI backend artifacts for every legacy federation
   version needed by compatibility tests. Keep artifacts pinned to the binary
-  that implements that version.
+  that implements that version. See [Pinned federation backend
+  fixtures](./federation-pinned-versions.md) for the detailed fixture
+  workflow.
 - Run federation use-case tests across all supported version pairs. At a
   minimum, cover user creation, conversation creation, and sending messages;
   only version pairs with a common supported version are valid.
