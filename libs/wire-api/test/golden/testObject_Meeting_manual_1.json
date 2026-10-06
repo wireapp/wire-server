@@ -4,6 +4,7 @@
     "invited_emails": [
         "someone@example.com"
     ],
+    "link": "https://account.wire.com/conversation-join/00000001-0000-0000-0000-000000000001",
     "qualified_conversation": {
         "domain": "example.com",
         "id": "00000003-0000-0000-0000-000000000003"
@@ -18,6 +19,7 @@
     },
     "start_time": "2018-01-01T00:00:00Z",
     "title": "Weekly Sync",
+    "type": "scheduled",
     "tzid": "Europe/Berlin",
     "updated_at": "2017-12-31T00:00:00Z"
 }

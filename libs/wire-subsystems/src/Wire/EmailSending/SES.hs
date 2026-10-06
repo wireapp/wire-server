@@ -30,13 +30,24 @@ import Data.Text qualified as Text
 import Imports
 import Network.HTTP.Types
 import Network.Mail.Mime (Mail, addressEmail, mailFrom, mailTo, renderMail')
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
-import Wire.AWS
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
+import System.Logger.Message qualified as Log
+import Wire.API.Error (errorToWai)
+import Wire.API.Error.Brig qualified as E
+import Wire.AWS hiding (Error)
 import Wire.EmailSending
+import Wire.Error (HttpError (StdError))
 
 emailViaSESInterpreter ::
-  (Member (Embed IO) r) =>
+  ( Member (Embed IO) r,
+    Member (Error EmailSendingAWSError) r,
+    Member TinyLog r
+  ) =>
   Amazonka.Env ->
   InterpreterFor EmailSending r
 emailViaSESInterpreter env =
@@ -46,7 +57,9 @@ emailViaSESInterpreter env =
 
 sendMailAWSImpl ::
   ( Member (Input Amazonka.Env) r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member (Error EmailSendingAWSError) r,
+    Member TinyLog r
   ) =>
   Mail ->
   Sem r ()
@@ -57,7 +70,7 @@ sendMailAWSImpl m = do
           & SES.sendRawEmail_destinations ?~ fmap addressEmail (mailTo m)
           & SES.sendRawEmail_source ?~ addressEmail (mailFrom m)
   resp <- retrying retry5x (\_ -> pure . canRetry) $ const (sendCatch raw)
-  void . embed $ either check pure resp
+  either check (void . pure) resp
   where
     check x = case x of
       -- To map rejected domain names by SES to 400 responses, in order
@@ -69,13 +82,17 @@ sendMailAWSImpl m = do
       -- after the fact.
       AWS.ServiceError se
         | (se ^. AWS.serviceError_status == status400)
-            && ("Invalid domain name" `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code)) ->
-            throwM SESInvalidDomain
-      _ -> throwM (EmailSendingAWSGeneralError x)
+            && maybe False (Text.isPrefixOf "Invalid domain name" . AWS.toText) (se ^. AWS.serviceError_message) ->
+            throw SESInvalidDomain
+      _ -> do
+        Log.err $
+          Log.msg ("Error sending email through SES" :: ByteString)
+            . Log.field "error" (show x)
+        throw EmailSendingAWSGeneralError
 
 data EmailSendingAWSError where
   SESInvalidDomain :: EmailSendingAWSError
-  EmailSendingAWSGeneralError :: (Show e, AWS.AsError e) => e -> EmailSendingAWSError
+  EmailSendingAWSGeneralError :: EmailSendingAWSError
 
 deriving instance Show EmailSendingAWSError
 
@@ -85,3 +102,9 @@ instance Exception EmailSendingAWSError
 
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000
+
+emailSendingErrorToHttpError :: EmailSendingAWSError -> HttpError
+emailSendingErrorToHttpError =
+  \case
+    SESInvalidDomain -> StdError $ errorToWai @'E.InvalidEmail
+    EmailSendingAWSGeneralError -> StdError $ Wai.mkError status500 "server-error" "Internal Server Error"

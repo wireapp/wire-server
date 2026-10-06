@@ -160,6 +160,7 @@ test-suite types-common-tests
     Main
     Paths_types_common
     Test.Data.Mailbox
+    Test.Data.Password
     Test.Data.PEMKeys
     Test.Data.Secret
     Test.Domain

@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.10
--- Dumped by pg_dump version 17.10
+-- Dumped from database version 17.11
+-- Dumped by pg_dump version 17.11
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -48,6 +48,18 @@ ALTER SCHEMA public OWNER TO "wire-server";
 
 COMMENT ON SCHEMA public IS '';
 
+
+--
+-- Name: meeting_type; Type: TYPE; Schema: public; Owner: wire-server
+--
+
+CREATE TYPE public.meeting_type AS ENUM (
+    'immediate',
+    'scheduled'
+);
+
+
+ALTER TYPE public.meeting_type OWNER TO "wire-server";
 
 --
 -- Name: recurrence_frequency; Type: TYPE; Schema: public; Owner: wire-server
@@ -1273,6 +1285,17 @@ CREATE TABLE public.asset (
 ALTER TABLE public.asset OWNER TO "wire-server";
 
 --
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
+
+--
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1472,6 +1495,7 @@ CREATE TABLE public.meetings (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     tzid text NOT NULL,
+    mtype public.meeting_type DEFAULT 'scheduled'::public.meeting_type NOT NULL,
     CONSTRAINT meetings_recurrence_consistency CHECK ((((recurrence_frequency IS NULL) AND (recurrence_interval IS NULL) AND (recurrence_until IS NULL)) OR ((recurrence_frequency IS NOT NULL) AND (recurrence_interval IS NOT NULL)))),
     CONSTRAINT meetings_title_length CHECK ((length(title) <= 256)),
     CONSTRAINT meetings_title_not_empty CHECK ((length(TRIM(BOTH FROM title)) > 0)),
@@ -1510,6 +1534,22 @@ CREATE TABLE public.mls_history_client (
 
 
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
+
+--
+-- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.password_reset (
+    key text NOT NULL,
+    code text NOT NULL,
+    user_id uuid NOT NULL,
+    retries integer,
+    timeout timestamp with time zone,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.password_reset OWNER TO "wire-server";
 
 --
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -1854,6 +1894,13 @@ ALTER TABLE ONLY arbiter.meetings_results
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
 
+--
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
+
 
 --
 -- Name: bot_conv bot_conv_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -1965,6 +2012,14 @@ ALTER TABLE ONLY public.mls_group_member_client
 
 ALTER TABLE ONLY public.mls_history_client
     ADD CONSTRAINT mls_history_client_pkey PRIMARY KEY (group_id, id);
+
+
+--
+-- Name: password_reset password_reset_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.password_reset
+    ADD CONSTRAINT password_reset_pkey PRIMARY KEY (key);
 
 
 --

@@ -1,0 +1,1 @@
+Meeting deletion now sends the `meeting.delete` event before deleting the associated conversation (and its `conversation.delete-meeting` event), so clients learn the meeting is gone before the conversation disappears.

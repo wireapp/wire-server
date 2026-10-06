@@ -45,6 +45,25 @@ import Wire.ConversationStore
 import Wire.ProposalStore
 import Wire.StoredConversation
 
+logMLSClientMismatch ::
+  (Member TinyLog r) =>
+  ByteString ->
+  Qualified UserId ->
+  Set.Set ClientId ->
+  Set.Set ClientId ->
+  GroupId ->
+  Epoch ->
+  Sem r ()
+logMLSClientMismatch proposalType target proposedClients heldClients gid epoch =
+  TinyLog.warn $
+    Log.msg ("rejecting MLS commit bundle due to client mismatch" :: ByteString)
+      . Log.field "proposalType" proposalType
+      . Log.field "targetUser" (toByteString' (show target))
+      . Log.field "proposedClients" (toByteString' (show proposedClients))
+      . Log.field "heldClients" (toByteString' (show heldClients))
+      . Log.field "groupId" ("0x" <> hex (unGroupId gid))
+      . Log.field "epoch" (epochNumber epoch)
+
 getLocalConvForUser ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member ConversationStore r

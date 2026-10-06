@@ -42,6 +42,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.MLS.CheckClients
 import Wire.FederationAPIAccess (FederationAPIAccess (..))
+import Wire.MockInterpreters.TinyLog (noopLogger)
 import Wire.StoredConversation (MLSMigrationState (..))
 
 data TestBrigFailure = TestBrigFailure
@@ -84,11 +85,12 @@ runCheckClients behavior =
     . (fmap (fromMaybe (error "unexpected MLSIdentityMismatch")) . runErrorS @'MLSIdentityMismatch)
     . (fmap (fromMaybe (error "unexpected MLSClientMismatch")) . runErrorS @'MLSClientMismatch)
     . (fmap (either (error "unexpected MLSProtocolError") id) . runError @MLSProtocolError)
+    . noopLogger
     . asyncToIOFinal
     . embedToFinal @IO
     . interpretTestBrig behavior
     . interpretTestFederation
-    $ checkClients lConv csSuite (newCM (qUserId behavior))
+    $ checkClients lConv csSuite groupId (Epoch 0) (newCM (qUserId behavior))
 
 interpretTestBrig ::
   (Polysemy.Member (Error TestBrigFailure) r) =>

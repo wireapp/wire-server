@@ -1103,12 +1103,12 @@ putMeetingInvitation user domain meetingId invitation = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations"])
   submit "PUT" $ req & addJSON invitation
 
-postMeetingsV16 :: (HasCallStack, MakesValue user) => user -> Value -> App Response
-postMeetingsV16 user newMeeting = do
-  req <- baseRequest user Galley (ExplicitVersion 16) "/meetings"
+postMeetingsV :: (HasCallStack, MakesValue user) => Int -> user -> Value -> App Response
+postMeetingsV v user newMeeting = do
+  req <- baseRequest user Galley (ExplicitVersion v) "/meetings"
   submit "POST" $ req & addJSON newMeeting
 
-getMeetingV16 :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
-getMeetingV16 user domain meetingId = do
-  req <- baseRequest user Galley (ExplicitVersion 16) (joinHttpPath ["meetings", domain, meetingId])
+getMeetingV :: (HasCallStack, MakesValue user) => Int -> user -> String -> String -> App Response
+getMeetingV v user domain meetingId = do
+  req <- baseRequest user Galley (ExplicitVersion v) (joinHttpPath ["meetings", domain, meetingId])
   submit "GET" req

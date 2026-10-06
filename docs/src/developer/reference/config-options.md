@@ -1636,8 +1636,8 @@ Example:
 
 ```yaml
 multiIngress:
-   red.example.com: https://accounts.red.example.com/conversation-join/
-   green.example.com: https://accounts.green.example.net/conversation-join/
+   red.example.com: https://account.red.example.com/conversation-join/
+   green.example.com: https://account.green.example.net/conversation-join/
 ```
 
 ### Spar
@@ -1798,7 +1798,17 @@ administrators. Otherwise, users may be logged into other users' accounts!
 
   **If in doubt, please contact customer support!**
 
-### Webapp
+### Web apps
+
+These are *not* maintained by the backend team (which maintains this page), so
+look at the `values.yaml` files of the Helm charts for authoritative answers:
+
+- account-pages: https://github.com/wireapp/wire-account/blob/main/charts/account-pages/values.yaml
+- wire-webapp: https://github.com/wireapp/wire-webapp/blob/main/charts/webapp/values.yaml
+- wire-team-settings: https://github.com/wireapp/wire-team-settings/blob/main/charts/team-settings/values.yaml
+
+
+#### Webapp (wire-webapp)
 
 The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables).
 In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`).
@@ -1810,7 +1820,7 @@ In order to completely hide this root domain to the webapp, an environment varia
 The “hostname” is the result of the domain name minus the `webapp.` part of it.
 So querying the webapp on `webapp.red.example.com` will resolve to `red.example.com`.
 
-To enable dynamic hostname replacement, first set this variable:
+Dynamic hostname replacement is enabled by this variable:
 
 ```default
 ENABLE_DYNAMIC_HOSTNAME="true"
@@ -1820,24 +1830,81 @@ Then, any other variable that will contain the string `[[hostname]]` will be rep
 
 You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
 
-For example:
+For example, as Helm chart values:
 
-```default
-APP_BASE:                                         https://[[hostname]]
-BACKEND_REST:                                     https://nginz-https.[[hostname]]
-BACKEND_WS:                                       wss://nginz-ssl.[[hostname]]
-CSP_EXTRA_CONNECT_SRC:                            https://*.[[hostname]], wss://*.[[hostname]]
-CSP_EXTRA_DEFAULT_SRC:                            https://*.[[hostname]]
-CSP_EXTRA_FONT_SRC:                               https://*.[[hostname]]
-CSP_EXTRA_FRAME_SRC:                              https://*.[[hostname]]
-CSP_EXTRA_IMG_SRC:                                https://*.[[hostname]]
-CSP_EXTRA_MANIFEST_SRC:                           https://*.[[hostname]]
-CSP_EXTRA_MEDIA_SRC:                              https://*.[[hostname]]
-CSP_EXTRA_PREFETCH_SRC:                           https://*.[[hostname]]
-CSP_EXTRA_SCRIPT_SRC:                             https://*.[[hostname]]
-CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
-CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
+```yaml
+config:
+  externalUrls:
+    backendRest: "nginz-https.[[hostname]]"
+    backendWebsocket: "nginz-ssl.[[hostname]]"
+    appHost: "webapp.[[hostname]]"
+envVars:
+  ENABLE_DYNAMIC_HOSTNAME: "true"
+  URL_ACCOUNT_BASE: "https://account.[[hostname]]"
+  URL_TEAMS_BASE: "https://teams.[[hostname]]"
+  CSP_EXTRA_CONNECT_SRC: "https://*.[[hostname]], wss://*.[[hostname]]"
+  CSP_EXTRA_DEFAULT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FONT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FRAME_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_IMG_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MANIFEST_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MEDIA_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_OBJECT_SRC: ""
+  CSP_EXTRA_SCRIPT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_STYLE_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_WORKER_SRC: "https://*.[[hostname]]"
+  FEATURE_ENABLE_FEDERATION: "false"
 ```
+
+`FEATURE_ENABLE_FEDERATION` must be `false` under multi-ingress.
+`config.externalUrls` values are bare hosts — the chart prepends the
+`https://`/`wss://` scheme itself.
+
+`CSP_EXTRA_OBJECT_SRC` could be defined with a dynamic host as well, but app
+was tested with the `""` (empty string) value which will render to `object-src
+'none';`.
+
+Please note that this example is not a complete configuration and shows only
+multi-ingress related entries.
+
+#### Account-pages (wire-account)
+
+The account-pages app is similar to the webapp in terms of technologies and
+multi-ingress setup. So, make sure to read the section about the [webapp's
+configuration](#webapp-wire-webapp) first. The hostname is the domain minus the
+`account.` part of it (analogous to webapp's `webapp.` stripping). The
+corresponding configuration options are:
+
+```yaml
+config:
+  externalUrls:
+    backendRest: "nginz-https.[[hostname]]"
+    appHost: "account.[[hostname]]"
+envVars:
+  ENABLE_DYNAMIC_HOSTNAME: "true"
+  URL_TEAMS_BASE: "https://teams.[[hostname]]"
+  URL_WEBAPP_BASE: "https://webapp.[[hostname]]"
+  CSP_EXTRA_CONNECT_SRC: "https://*.[[hostname]], wss://*.[[hostname]]"
+  CSP_EXTRA_IMG_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_SCRIPT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_DEFAULT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FONT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_FRAME_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MANIFEST_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_OBJECT_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_MEDIA_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_STYLE_SRC: "https://*.[[hostname]]"
+  CSP_EXTRA_WORKER_SRC: "https://*.[[hostname]]"
+```
+
+Please note that this example is not a complete configuration and shows only
+multi-ingress related entries.
+
+#### Team-settings (wire-team-settings)
+
+There are no multi-ingress specific configuration options for team-settings. As
+`ENABLE_DYNAMIC_HOSTNAME` hasn't been implemented for the team-settings app,
+yet, it works only on the main domain.
 
 ## TLS-encrypted Cassandra connections
 
@@ -2182,12 +2249,16 @@ galley:
       teamFeatures: postgresql
       domainRegistration: postgresql
       user: postgresql
+      blockList: postgresql
+      passwordReset: postgresql
 background-worker:
   config:
     migrateConversations: false
     migrateConversationCodes: false
     migrateTeamFeatures: false
     migrateDomainRegistration: false
+    migrateBlockList: false
+    migratePasswordReset: false
 ```
 
 #### Migration for existing installations
@@ -2219,6 +2290,8 @@ The current settings and their background-worker flags are:
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
+- `blockList` -> `migrateBlockList`
+- `passwordReset` -> `migratePasswordReset`
 
 **Migration pattern per migration setting**
 
@@ -2239,6 +2312,8 @@ The current settings and their background-worker flags are:
          teamFeatures: migration-to-postgresql
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
+         blockList: cassandra
+         passwordReset: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2246,6 +2321,8 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: false
        migrateDomainRegistration: false
        migrateUsers: false
+       migrateBlockList: false
+       migratePasswordReset: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2261,6 +2338,8 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: true
        migrateDomainRegistration: true
        migrateUsers: true
+       migrateBlockList: true
+       migratePasswordReset: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2286,6 +2365,8 @@ The current settings and their background-worker flags are:
    > to be saved, the operator must insert some value as `name` and/or
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
+   - `blockList`: `wire_block_list_migration_finished`
+   - `passwordReset`: `wire_password_reset_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2300,6 +2381,8 @@ The current settings and their background-worker flags are:
          teamFeatures: postgresql
          domainRegistration: postgresql
          user: postgresql
+         blockList: cassandra
+         passwordReset: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2307,6 +2390,8 @@ The current settings and their background-worker flags are:
        migrateTeamFeatures: false
        migrateDomainRegistration: false
        migrateUsers: false
+       migrateBlockList: false
+       migratePasswordReset: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2395,6 +2480,8 @@ migrateConversations: false
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
+migrateBlockList: false
+migratePasswordReset: false
 
 # migration settings
 migrationOptions:

@@ -1,0 +1,18 @@
+metadata_dir = "/tmp/meta"
+data_dir = "/tmp/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "deadbeefcafebabe0000000000000000deadbeefcafebabe0000000000000000"
+
+[s3_api]
+s3_region = "eu-west-1"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "insecure-admin-token-for-dev-only"

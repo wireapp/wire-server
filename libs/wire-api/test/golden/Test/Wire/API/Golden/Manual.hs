@@ -177,6 +177,11 @@ tests =
           [ (testObject_MeetingV16_manual_1, "testObject_Meeting_v15_manual_1.json"),
             (testObject_MeetingV16_manual_2, "testObject_Meeting_v15_manual_2.json")
           ],
+      testGroup "Meeting V18" $
+        testObjects
+          [ (testObject_MeetingV18_manual_1, "testObject_Meeting_v18_manual_1.json"),
+            (testObject_MeetingV18_manual_2, "testObject_Meeting_v18_manual_2.json")
+          ],
       testGroup "Meeting" $
         testObjects
           [ (testObject_Meeting_manual_1, "testObject_Meeting_manual_1.json"),

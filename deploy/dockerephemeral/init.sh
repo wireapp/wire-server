@@ -9,8 +9,8 @@ exec_until_ready() {
 # Assumes this to be run in an environment with `aws` installed
 # Keep these in sync with .envrc
 echo 'Creating AWS resources'
-aws configure set aws_access_key_id dummykey
-aws configure set aws_secret_access_key dummysecret
+aws configure set aws_access_key_id GKdeadbeefcafebabe0000000000000000
+aws configure set aws_secret_access_key deadbeefcafebabe0000000000000000deadbeefcafebabe0000000000000000
 aws configure set region eu-west-1
 
 # Potentially delete pre-existing tables
@@ -39,8 +39,8 @@ for suffix in "" "2" "3" "4" "5" "-federation-v0"; do
 
     # Cargohold's bucket; creating a bucket is not idempotent so we just try once and wait until it is ready
     # TODO: Lifecycle configuration for the bucket, if supported.
-    aws --endpoint-url=http://s3:9000 s3api create-bucket --bucket "dummy-bucket$suffix"
-    aws --endpoint-url=http://s3:9000 s3api wait bucket-exists --bucket "dummy-bucket$suffix"
+    aws --endpoint-url=http://s3:3900 s3api create-bucket --bucket "dummy-bucket$suffix"
+    aws --endpoint-url=http://s3:3900 s3api wait bucket-exists --bucket "dummy-bucket$suffix"
 
     # Check that SQS resources are created
     exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs get-queue-url --queue-name integration-brig-events$suffix"

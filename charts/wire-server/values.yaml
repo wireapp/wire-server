@@ -90,6 +90,8 @@ galley:
       teamFeatures: cassandra
       domainRegistration: cassandra
       user: cassandra
+      blockList: cassandra
+      passwordReset: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -107,8 +109,8 @@ galley:
       # If set it must a map from `Z-Host` to URI prefix
       # Example:
       # multiIngress:
-      #    wire.example: https://accounts.wire.example/conversation-join/
-      #    example.net: https://accounts.example.net/conversation-join/
+      #    wire.example: https://account.wire.example/conversation-join/
+      #    example.net: https://account.example.net/conversation-join/
       multiIngress: null
       # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
       # brig, cannon, cargohold, galley, gundeck, proxy, spar.
@@ -1029,6 +1031,14 @@ background-worker:
     # It's important to set `settings.postgresMigration.users` to `migration-to-postgresql`
     # before starting the migration.
     migrateUsers: false
+    # This will start the migration of blacklist data.
+    # It's important to set `settings.postgresMigration.blockList` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateBlockList: false
+    # This will start the migration of password reset data.
+    # It's important to set `settings.postgresMigration.passwordReset` to `migration-to-postgresql`
+    # before starting the migration.
+    migratePasswordReset: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

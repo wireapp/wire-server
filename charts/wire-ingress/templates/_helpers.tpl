@@ -75,6 +75,19 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{- end -}}
 
 {{/*
+Gateway listener section names. Overridable so this chart can attach to an
+externally created Gateway whose listeners are named differently. The defaults
+match the listeners rendered by gateway.yaml.
+*/}}
+{{- define "wire-ingress.httpsSectionName" -}}
+{{- .Values.gateway.listeners.https.sectionName | default "https" -}}
+{{- end -}}
+
+{{- define "wire-ingress.federatorSectionName" -}}
+{{- .Values.gateway.listeners.federator.sectionName | default "federator" -}}
+{{- end -}}
+
+{{/*
 Normalized list of ingress domains, returned as a JSON array so callers can
 `fromJsonArray` and range over it.
 
@@ -117,7 +130,7 @@ primary (bool), csp (bool).
     {{- $tls := $domain.tls | default dict -}}
     {{- $issuer := $tls.issuer | default dict -}}
     {{- $suffix := ternary "" (printf "-%s" $name) $primary -}}
-    {{- $section := ternary "https" (printf "https-%s" $name) $primary -}}
+    {{- $section := ternary (include "wire-ingress.httpsSectionName" $root) ($domain.sectionName | default (printf "https-%s" $name)) $primary -}}
     {{- $secretName := "" -}}
     {{- if $tls.secretName -}}{{- $secretName = $tls.secretName -}}
     {{- else if $primary -}}{{- $secretName = include "wire-ingress.certificateSecretName" $root -}}
@@ -158,7 +171,7 @@ primary (bool), csp (bool).
   {{- $base := include "wire-ingress.zone" . -}}
   {{- $entry := dict
       "suffix" ""
-      "section" "https"
+      "section" (include "wire-ingress.httpsSectionName" .)
       "hostname" .Values.gateway.listeners.https.hostname
       "https" (required "config.dns.https is required" $dns.https)
       "ssl" ($dns.ssl | default "")
@@ -212,3 +225,51 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp = printf "%s upgrade-insecure-requests" $csp -}}
 {{- $csp -}}
 {{- end -}}
+
+{{/* Section policies replace Gateway policies, so both use the same TLS/ALPN settings. */}}
+{{- define "wire-ingress.downstreamTls" -}}
+{{- $tls := .Values.gateway.tls -}}
+{{- if .Values.gateway.alpn.enabled }}
+alpnProtocols:
+  {{- range .Values.gateway.alpn.protocols }}
+  - {{ . }}
+  {{- end }}
+{{- end }}
+{{- if $tls.enabled }}
+{{- if .Values.FIPS_202205_tls_profile }}
+# Safe baseline: only the compliance patch may enable TLS 1.3.
+minVersion: "1.2"
+maxVersion: "1.2"
+ciphers:
+  - ECDHE-ECDSA-AES128-GCM-SHA256
+  - ECDHE-ECDSA-AES256-GCM-SHA384
+  - ECDHE-RSA-AES128-GCM-SHA256
+  - ECDHE-RSA-AES256-GCM-SHA384
+ecdhCurves: [P-256, P-384]
+signatureAlgorithms:
+  - ecdsa_secp256r1_sha256
+  - ecdsa_secp384r1_sha384
+  - rsa_pss_rsae_sha256
+  - rsa_pss_rsae_sha384
+  - rsa_pss_rsae_sha512
+{{- else }}
+{{- $minVersion := $tls.minVersion | default "" | toString }}
+{{- if $minVersion }}
+minVersion: {{ $minVersion | quote }}
+{{- end }}
+{{- if $tls.maxVersion }}
+maxVersion: {{ $tls.maxVersion | toString | quote }}
+{{- end }}
+{{- /* EG rejects ciphers alongside minVersion 1.3; suites only affect TLS <=1.2. */}}
+{{- if and $tls.ciphers (ne $minVersion "1.3") }}
+ciphers: {{ toJson $tls.ciphers }}
+{{- end }}
+{{- if $tls.ecdhCurves }}
+ecdhCurves: {{ toJson $tls.ecdhCurves }}
+{{- end }}
+{{- if $tls.signatureAlgorithms }}
+signatureAlgorithms: {{ toJson $tls.signatureAlgorithms }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

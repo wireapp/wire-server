@@ -26,15 +26,12 @@ import Polysemy.State
 import Wire.MeetingsStore
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
-import Wire.Sem.Random (Random)
-import Wire.Sem.Random qualified as Random
 
 inMemoryMeetingsStoreInterpreter ::
-  (Member (State (Map MeetingId StoredMeeting)) r, Member Now r, Member Random r) =>
+  (Member (State (Map MeetingId StoredMeeting)) r, Member Now r) =>
   InterpreterFor MeetingsStore r
 inMemoryMeetingsStoreInterpreter = interpret $ \case
-  CreateMeeting title creator startTime endTime tzid recurrence conversationId invitedEmails trial -> do
-    mid <- Random.newId
+  CreateMeeting mid title creator startTime endTime tzid mtype recurrence conversationId invitedEmails trial -> do
     now <- Now.get
     let sm =
           StoredMeeting
@@ -44,6 +41,7 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
               startTime = startTime,
               endTime = endTime,
               tzid = tzid,
+              meetingType = mtype,
               recurrence = recurrence,
               conversationId = conversationId,
               invitedEmails = invitedEmails,
@@ -54,7 +52,7 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
     modify (Map.insert mid sm)
     pure sm
   GetMeeting mid -> gets (Map.lookup mid)
-  UpdateMeeting mid title startTime endTime tzid recurrence -> do
+  UpdateMeeting mid title startTime endTime tzid mMType recurrence -> do
     sm <- gets (Map.lookup mid)
     case sm of
       Nothing -> pure Nothing
@@ -66,6 +64,7 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                   startTime = startTime',
                   endTime = fromMaybe meeting.endTime endTime,
                   tzid = fromMaybe meeting.tzid tzid,
+                  meetingType = fromMaybe meeting.meetingType mMType,
                   recurrence = fromMaybe meeting.recurrence recurrence,
                   updatedAt = now
                 }

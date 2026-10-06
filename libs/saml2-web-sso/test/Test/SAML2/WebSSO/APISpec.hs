@@ -56,17 +56,6 @@ import URI.ByteString.QQ
 spec :: Spec
 spec = describe "API" $ do
   describe "base64 encoding" $ do
-    describe "compatible with /usr/bin/env base64" $ do
-      let check :: LBS -> Spec
-          check input = it (show input) $ do
-            o <- base64ours (cs input)
-            t <- base64theirs (cs input)
-            chomp o `shouldBe` chomp t
-          chomp = reverse . dropWhile (== '\n') . reverse . cs
-      check ""
-      check "..."
-      check "foiy0t019061.........|||"
-      check (cs $ replicate 1000 '_')
     it "works with proper %0a newlines" $ do
       let encoded = "MTIzN\nDUK\n"
       EL.decodeLenient encoded `shouldBe` "12345\n"

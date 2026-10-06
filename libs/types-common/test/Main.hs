@@ -23,6 +23,7 @@ where
 import Imports
 import Test.Data.Mailbox qualified as Mailbox
 import Test.Data.PEMKeys qualified as PEMKeys
+import Test.Data.Password qualified as Password
 import Test.Data.Secret qualified as Secret
 import Test.Domain qualified as Domain
 import Test.Handle qualified as Handle
@@ -43,5 +44,6 @@ main =
         Qualified.tests,
         PEMKeys.tests,
         Mailbox.tests,
-        Secret.tests
+        Secret.tests,
+        Password.tests
       ]

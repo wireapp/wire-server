@@ -296,12 +296,54 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   Set.empty
         pure $ assertNoAdminlessAction pushes updatedTargets scheduledJobs result
 
-  prop "guardPreventAdminlessGroupsFor ignores non-regular and channel conversations" $
-    \domain teamId convId leaving eligible1 eligible2 outOfScopeChannel ->
+  prop "guardPreventAdminlessGroupsFor includes channel conversations" $
+    \domain teamId convId leaving eligible1 eligible2 ->
       ioProperty $ do
         fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
         let conversations =
-              Map.adjust (withOutOfScopeMetadata outOfScopeChannel) convId fx.fixtureConversations
+              Map.adjust (withConversationMetadata RegularConv (Just Channel)) convId fx.fixtureConversations
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $
+          case result of
+            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Right _ ->
+              conjoin
+                [ updatedTargets === [head fx.fixtureEligibleMembers],
+                  scheduledJobs === [],
+                  assertMemberUpdatePush (head fx.fixtureEligibleMembers) pushes
+                ]
+
+  prop "guardPreventAdminlessGroupsFor ignores non-regular conversations" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let conversations =
+              Map.adjust (withConversationMetadata One2OneConv (Just GroupConversation)) convId fx.fixtureConversations
+            (pushes, (updatedTargets, (scheduledJobs, result))) =
+              runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
+                guardPreventAdminlessGroupsFor
+                  RemoveMemberLegacyResponse
+                  fx.fixtureLocalConversation
+                  fx.fixtureLocalUser
+                  (Set.singleton fx.fixtureVictim)
+                  Set.empty
+                  Set.empty
+        pure $ assertNoAdminlessAction pushes updatedTargets scheduledJobs result
+
+  prop "guardPreventAdminlessGroupsFor ignores meeting conversations" $
+    \domain teamId convId leaving eligible1 eligible2 ->
+      ioProperty $ do
+        fx <- mkAdminlessGroupsFixture domain teamId convId leaving eligible1 eligible2
+        let conversations =
+              Map.adjust (withConversationMetadata RegularConv (Just MeetingConversation)) convId fx.fixtureConversations
             (pushes, (updatedTargets, (scheduledJobs, result))) =
               runAdminlessGroupsTest fx.fixtureUsers fx.fixtureFeatures conversations $
                 guardPreventAdminlessGroupsFor
@@ -525,15 +567,15 @@ withRemoteMembers :: [RemoteMember] -> StoredConversation -> StoredConversation
 withRemoteMembers members (StoredConversation convId localMembers _ metadata protocol) =
   StoredConversation convId localMembers members metadata protocol
 
-withOutOfScopeMetadata :: Bool -> StoredConversation -> StoredConversation
-withOutOfScopeMetadata outOfScopeChannel (StoredConversation convId localMembers remoteMembers metadata protocol) =
+withConversationMetadata :: ConvType -> Maybe GroupConvType -> StoredConversation -> StoredConversation
+withConversationMetadata conversationType groupConvType (StoredConversation convId localMembers remoteMembers metadata protocol) =
   StoredConversation
     convId
     localMembers
     remoteMembers
     ( metadata
-        { cnvmType = if outOfScopeChannel then RegularConv else One2OneConv,
-          cnvmGroupConvType = if outOfScopeChannel then Just Channel else Just GroupConversation
+        { cnvmType = conversationType,
+          cnvmGroupConvType = groupConvType
         }
     )
     protocol

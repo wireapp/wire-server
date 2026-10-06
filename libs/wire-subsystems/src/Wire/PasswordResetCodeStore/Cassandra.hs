@@ -41,14 +41,11 @@ where
 
 import Cassandra
 import Data.Id
-import Data.Text (pack)
 import Data.Text.Ascii
 import Data.Time.Clock
 import Imports
-import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Text.Printf
 import Wire.API.User.Password
 import Wire.PasswordResetCodeStore
 
@@ -62,7 +59,6 @@ passwordResetCodeStoreToCassandra =
     embed @m
       . \case
         GenerateEmailCode -> genEmailCode
-        GeneratePhoneCode -> genPhoneCode
         CodeSelect prk ->
           (fmap . fmap) toRecord
             . retry x1
@@ -85,11 +81,6 @@ passwordResetCodeStoreToCassandra =
 
 genEmailCode :: (MonadIO m) => m PasswordResetCode
 genEmailCode = PasswordResetCode . encodeBase64Url <$> liftIO (randBytes 24)
-
-genPhoneCode :: (MonadIO m) => m PasswordResetCode
-genPhoneCode =
-  PasswordResetCode . unsafeFromText . pack . printf "%06d"
-    <$> liftIO (randIntegerZeroToNMinusOne 1000000)
 
 -- FUTUREWORK(fisx,elland): this should be replaced by a method in a
 -- future auth subsystem

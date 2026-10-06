@@ -138,7 +138,7 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
 import Wire.ConversationSubsystem.Action
-import Wire.ConversationSubsystem.Action.Kick (kickMember)
+import Wire.ConversationSubsystem.Action.Kick (kickMember, kickMemberWith)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Notify qualified as Notify
@@ -605,8 +605,7 @@ rmCode lusr zcon lcnv = do
   Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ conv.localMembers
-  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
-  E.deleteCode key
+  E.deleteConversationCode (tUnqualified lcnv)
   now <- Now.get
   let event = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing EdConvCodeDelete
   pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map (.id_) users)) bots
@@ -1196,7 +1195,7 @@ removeMemberQualified responseMode lusr con qcnv victim =
 isAdminlessCheckCandidate :: StoredConversation -> Bool
 isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
-    && maybe True (== GroupConversation) conv.metadata.cnvmGroupConvType
+    && maybe True (`elem` [GroupConversation, Channel]) conv.metadata.cnvmGroupConvType
 
 systemAdminlessDeletionSupported ::
   (Member (E.FederationAPIAccess FederatorClient) r) =>
@@ -1666,7 +1665,10 @@ deleteUserFromTeamConversationsImpl ::
     Member Now r,
     Member Random r,
     Member TeamSubsystem r,
-    Member JobSubsystem r
+    Member JobSubsystem r,
+    Member ProposalStore r,
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -1690,26 +1692,36 @@ deleteUserFromTeamConversationsImpl lusr conn tid remove = do
                               (qualifyAs lusr dc.id_)
                               lusr
                               (tUntagged (qualifyAs lusr remove))
-                            E.deleteMembers dc.id_ (UserList [remove] [])
-                            let (bots, allLocUsers) = localBotsAndUsers dc.localMembers
-                                targets =
-                                  BotsAndMembers
-                                    (Set.fromList $ (.id_) <$> allLocUsers)
-                                    (Set.fromList $ (.id_) <$> dc.remoteMembers)
-                                    (Set.fromList bots)
-                            void $
-                              sendConversationActionNotifications
-                                SConversationRemoveMembersTag
-                                (tUntagged lusr)
-                                True
-                                conn
-                                (qualifyAs lusr dc)
-                                targets
-                                ( ConversationRemoveMembers
-                                    (pure . tUntagged . qualifyAs lusr $ remove)
-                                    EdReasonDeleted
-                                )
-                                def
+                            -- 'kickMemberWith' deletes the member and, for MLS
+                            -- conversations, sends the external remove proposals
+                            -- that this backend-initiated removal requires. Every
+                            -- other removal path does the same (see
+                            -- 'Wire.ConversationSubsystem.Action.Leave.leaveConversation'
+                            -- and @performAction \@'ConversationRemoveMembersTag@);
+                            -- doing it by hand here is what left MLS groups with a
+                            -- stale leaf for the removed member.
+                            --
+                            -- Federation errors are logged rather than propagated:
+                            -- this is a loop over every conversation of the team, and
+                            -- one unreachable backend must not abort the removal from
+                            -- the remaining conversations.
+                            try @FederationError
+                              ( kickMemberWith
+                                  (tUntagged lusr)
+                                  conn
+                                  EdReasonDeleted
+                                  (qualifyAs lusr dc)
+                                  (convBotsAndMembers dc)
+                                  (tUntagged (qualifyAs lusr remove))
+                              )
+                              >>= \case
+                                Right () -> pure ()
+                                Left e ->
+                                  warn $
+                                    Log.msg (Log.val "failed to remove user from team conversation")
+                                      . Log.field "conversation_id" (idToText dc.id_)
+                                      . Log.field "user_id" (idToText remove)
+                                      . Log.field "error" (show e)
                   | otherwise -> pure ()
             )
     )
@@ -1838,9 +1850,6 @@ removeMemberFromChannel qusr lconv victim = do
   ensureAllowed @'ConversationRemoveMembersTag lconv action conv actorContext
   let notificationTargets = convBotsAndMembers conv
   kickMember qusr lconv notificationTargets victim
-  where
-    getTeamMembership :: StoredConversation -> Local UserId -> Sem r (Maybe TeamMember)
-    getTeamMembership conv luid = maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember (tUnqualified luid)) conv.metadata.cnvmTeam
 
 -- OTR
 

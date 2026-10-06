@@ -175,7 +175,9 @@ postgresMigration:
   conversationCodes: postgresql
   teamFeatures: postgresql
   domainRegistration: postgresql
+  passwordReset: postgresql
   user: postgresql
+  blockList: postgresql
 
 optSettings:
   setActivationTimeout: 4

@@ -675,13 +675,17 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
     -- won't find any users to migrate.  still, doesn't hurt much to look either.  so we
     -- leave old issuers dangling for now.
 
+    -- an entry in 'oldIssuers' either belongs to an idp that this idp replaces (still exists,
+    -- and 'clearReplacedBy' should be called on it), or to this same idp's own issuer prior to
+    -- an in-place issuer update (in which case the issuer index entry was already removed by
+    -- 'idpUpdateXML', so the lookup finds nothing and there is nothing to clear).
     updateReplacingIdP :: IdP -> Sem r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . oldIssuers) $ \oldIssuer -> do
-      iid <-
-        view SAML.idpId <$> case fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . apiVersion of
-          WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1 oldIssuer
-          WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2 oldIssuer (idp ^. SAML.idpExtraInfo . team)
-      IdPConfigStore.clearReplacedBy $ Replaced iid
+      mIid <-
+        fmap (view SAML.idpId) <$> case fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . apiVersion of
+          WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe oldIssuer
+          WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe oldIssuer (idp ^. SAML.idpExtraInfo . team)
+      for_ mIid $ IdPConfigStore.clearReplacedBy . Replaced
 
     idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
     idpDoesAuthSelf idp uid = do

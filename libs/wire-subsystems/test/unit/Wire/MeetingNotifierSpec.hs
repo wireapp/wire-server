@@ -168,6 +168,7 @@ storedMeeting meetingId convId startTime endTime =
       Store.startTime = startTime,
       Store.endTime = endTime,
       Store.tzid = API.defaultLegacyTimeZone,
+      Store.meetingType = API.Scheduled,
       Store.recurrence = Nothing,
       Store.conversationId = convId,
       Store.invitedEmails = [],

@@ -241,6 +241,9 @@ library
     Wire.BackgroundJobsRunner.Interpreter
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
+    Wire.BlockListStore.DualWrite
+    Wire.BlockListStore.Migration
+    Wire.BlockListStore.Postgres
     Wire.BoundedQueue
     Wire.BoundedQueue.STM
     Wire.BrigAPIAccess
@@ -416,6 +419,9 @@ library
     Wire.ParseException
     Wire.PasswordResetCodeStore
     Wire.PasswordResetCodeStore.Cassandra
+    Wire.PasswordResetCodeStore.DualWrite
+    Wire.PasswordResetCodeStore.Migration
+    Wire.PasswordResetCodeStore.Postgres
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.Postgres
@@ -638,6 +644,7 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.MLS.CheckClientsSpec
     Wire.ConversationSubsystem.One2OneSpec
+    Wire.EmailSending.SESSpec
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
@@ -654,6 +661,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore
+    Wire.MockInterpreters.CodeStore
     Wire.MockInterpreters.ConversationStore
     Wire.MockInterpreters.ConversationSubsystem
     Wire.MockInterpreters.CryptoSign

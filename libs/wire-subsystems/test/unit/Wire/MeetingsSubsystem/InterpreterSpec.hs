@@ -19,11 +19,13 @@ module Wire.MeetingsSubsystem.InterpreterSpec (spec) where
 
 import Data.Aeson (Result (..), Value (Object), fromJSON)
 import Data.ByteString.Char8 qualified as C
+import Data.Code (Key, Timeout (..))
 import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
+import Data.Misc (HttpsUrl (..))
 import Data.Qualified
 import Data.Range (checked, unsafeRange)
 import Data.Set qualified as Set
@@ -43,16 +45,22 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
+import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Conversation (Access (CodeAccess, InviteAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
+import Wire.API.Conversation.Role (pattern DeleteConversation)
 import Wire.API.Error (ErrorS)
-import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..))
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..), pattern ActionDenied)
 import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
+import Wire.API.Password (Password)
 import Wire.API.PostgresMarshall (PostgresUnmarshall (postgresUnmarshall))
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
 import Wire.API.Team.Permission (fullPermissions)
+import Wire.CodeStore (CodeStore)
+import Wire.CodeStore qualified as CodeStore
+import Wire.CodeStore.Code (Code, CodeReferent (..))
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -80,6 +88,7 @@ type TestStack =
      NotificationSubsystem,
      TinyLog,
      Error MeetingError,
+     ErrorS ('ActionDenied 'DeleteConversation),
      State (Map MeetingId Store.StoredMeeting),
      State (Map ConvId StoredConversation),
      State (Map ConvId (Set UserId)),
@@ -92,8 +101,14 @@ type TestStack =
      State StdGen,
      ErrorS 'TeamMemberNotFound,
      ErrorS 'TeamNotFound,
+     CodeStore,
+     State (Map Key (Code, Maybe Password)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Embed IO
    ]
+
+testCodeURIBase :: HttpsUrl
+testCodeURIBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://code.example/conversation-join/"))
 
 interpretFeaturesConfigSubsystemPure :: AllTeamFeatures -> InterpreterFor FeaturesConfigSubsystem r
 interpretFeaturesConfigSubsystemPure configs = interpret $ \case
@@ -118,9 +133,29 @@ runTestStack ::
   AllTeamFeatures ->
   Sem TestStack a ->
   IO (Either MeetingError a)
-runTestStack now gen teams configs =
+runTestStack now gen teams configs sem = do
+  result <- runTestStackWithURI now gen (Left testCodeURIBase) teams configs sem
+  case result of
+    Left _denied -> error "unexpected CheckDeleteLocalConversation denial"
+    Right meetingResult -> pure meetingResult
+
+-- | Like 'runTestStack', but surfaces a denied @CheckDeleteLocalConversation@
+-- as a typed @Left@ instead of crashing, so tests can exercise the
+-- conversation-deletion preflight failure path (WPB-29046).
+runTestStackWithURI ::
+  UTCTime ->
+  StdGen ->
+  Either HttpsUrl (Map Domain HttpsUrl) ->
+  Map TeamId [TeamMember] ->
+  AllTeamFeatures ->
+  Sem TestStack a ->
+  IO (Either (Tagged ('ActionDenied 'DeleteConversation) ()) (Either MeetingError a))
+runTestStackWithURI now gen convCodeURI teams configs =
   runM
     . fmap (either (error . show) (either (error . show) Imports.id))
+    . runInputConst convCodeURI
+    . evalState (Map.empty :: Map Key (Code, Maybe Password))
+    . interpretCodeStorePure
     . runError @(Tagged 'TeamNotFound ())
     . runError @(Tagged 'TeamMemberNotFound ())
     . evalState gen
@@ -133,6 +168,7 @@ runTestStack now gen teams configs =
     . evalState Map.empty
     . evalState Map.empty
     . evalState Map.empty
+    . runError @(Tagged ('ActionDenied 'DeleteConversation) ())
     . runError @MeetingError
     . discardTinyLogs
     . inMemoryNotificationSubsystemInterpreter
@@ -168,6 +204,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -184,6 +221,244 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting.conversation.qualifiedId `shouldBe` meeting.meeting.conversationId
         fetched `shouldBe` Just meeting.meeting
 
+  it "returns a join link and stores a join code for a new meeting" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Linked Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+      let mid = qUnqualified meeting.meeting.id
+      key <- CodeStore.makeKey (CodeReferentMeeting mid)
+      mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+      pure (meeting, mid, mCode)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, mid, mCode) -> do
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink testCodeURIBase mid)
+        mCode `shouldSatisfy` isJust
+
+  it "uses the multi-ingress URI mapped for the user's domain" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        multiBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://multi.example.com/conversation-join/"))
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Multi Ingress Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right (Map.fromList [(Domain "wire.com", multiBase)]))
+        Map.empty
+        def
+        ( do
+            meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+            pure (meeting, qUnqualified meeting.meeting.id)
+        )
+        >>= either (error . show) pure
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, mid) ->
+        meeting.meeting.link `shouldBe` Just (API.mkMeetingLink multiBase mid)
+
+  it "omits the link when the user's domain has no configured URI" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        otherBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://other.example.com/conversation-join/"))
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Unmapped Domain Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right (Map.fromList [(Domain "other.example.com", otherBase)]))
+        Map.empty
+        def
+        ( do
+            meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+            pure (meeting, qUnqualified meeting.meeting.id)
+        )
+        >>= either (error . show) pure
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (meeting, _mid) -> meeting.meeting.link `shouldBe` Nothing
+
+  it "removes the join code when the meeting is deleted" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Doomed Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
+      let mid = qUnqualified meeting.meeting.id
+      key <- CodeStore.makeKey (CodeReferentMeeting mid)
+      deleted <- deleteMeeting zUser (ConnId "test-conn") meeting.meeting.id
+      mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+      pure (deleted, mCode)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (deleted, mCode) -> do
+        deleted `shouldBe` True
+        isNothing mCode `shouldBe` True
+
+  it "omits the link field for meetings without a join code" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        mid = Id $ read "00000000-0000-0000-0000-00000000000a"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        sm =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Legacy Meeting",
+              creator = uid,
+              startTime = now,
+              endTime = addUTCTime 3600 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000b",
+              invitedEmails = [],
+              trial = False,
+              createdAt = now,
+              updatedAt = now
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
+      getMeeting zUser (Qualified mid (Domain "wire.com"))
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right fetched -> do
+        fetched `shouldSatisfy` isJust
+        (fetched >>= (.link)) `shouldBe` Nothing
+
+  it "cleanup removes expired meetings together with their join codes" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        mid = Id $ read "00000000-0000-0000-0000-00000000000c"
+        sm =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Expired Meeting",
+              creator = uid,
+              startTime = now,
+              endTime = addUTCTime 60 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
+              invitedEmails = [],
+              trial = False,
+              createdAt = now,
+              updatedAt = now
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
+      key <- CodeStore.makeKey (CodeReferentMeeting mid)
+      code <- CodeStore.generateCode (CodeReferentMeeting mid) (Timeout 3600)
+      CodeStore.createCode code Nothing
+      n <- cleanupOldMeetings (addUTCTime 7200 now) 10
+      mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+      pure (n, mCode)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right (n, mCode) -> do
+        n `shouldBe` 1
+        isNothing mCode `shouldBe` True
+
+  it "listMeetings gives only meetings with a live code a link" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        mkStoredMeeting mid =
+          Store.StoredMeeting
+            { id = mid,
+              title = fromJust $ checked "Listed Meeting",
+              creator = uid,
+              startTime = addUTCTime 60 now,
+              endTime = addUTCTime 3600 now,
+              tzid = API.defaultLegacyTimeZone,
+              meetingType = API.Scheduled,
+              recurrence = Nothing,
+              conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
+              invitedEmails = [],
+              trial = False,
+              createdAt = now,
+              updatedAt = now
+            }
+        midWithCode = Id $ read "00000000-0000-0000-0000-00000000000e"
+        midWithoutCode = Id $ read "00000000-0000-0000-0000-00000000000f"
+
+    result <-
+      runTestStack now gen Map.empty def $ do
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
+        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600)
+        meetings <- listMeetings zUser
+        pure [(qUnqualified m.id, m.link) | m <- meetings]
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right links ->
+        links
+          `shouldBe` [ (midWithCode, Just (API.mkMeetingLink testCodeURIBase midWithCode)),
+                       (midWithoutCode, Nothing)
+                     ]
+
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -195,6 +470,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -219,6 +495,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 3500 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -237,6 +514,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime (negate 3600) now,
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -257,6 +535,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime (negate expectedStartTimeTolerance) now,
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -276,6 +555,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime (negate (expectedStartTimeTolerance + 1)) now,
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -304,6 +584,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -322,6 +603,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -342,6 +624,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -365,6 +648,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -395,13 +679,14 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
-        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing Nothing)
 
       result `shouldBe` Left EmptyUpdate
 
@@ -412,6 +697,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -422,7 +708,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           zUser1
           (ConnId "test-conn")
           meeting.meeting.id
-          (API.UpdateMeeting Nothing Nothing Nothing Nothing (Just newTz))
+          (API.UpdateMeeting Nothing Nothing Nothing Nothing (Just newTz) Nothing)
       case result of
         Left err -> fail $ "Expected the update to be applied, got: " <> show err
         Right Nothing -> fail "Expected the update to be applied"
@@ -437,6 +723,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -449,7 +736,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Just (addUTCTime 3600 now),
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing
+                  tzid = Nothing,
+                  mtype = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes EndBeforeStart)
@@ -461,6 +749,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -473,7 +762,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing
+                  tzid = Nothing,
+                  mtype = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
 
@@ -490,6 +780,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -502,7 +793,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing
+                  tzid = Nothing,
+                  mtype = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
 
@@ -517,6 +809,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -529,7 +822,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Nothing,
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing
+                  tzid = Nothing,
+                  mtype = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes TimesBeyondPastEditWindow)
@@ -541,6 +835,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -553,7 +848,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = Just (addUTCTime (negate (configuredPastEditPeriod + 1)) now),
                   title = Nothing,
                   recurrence = Nothing,
-                  tzid = Nothing
+                  tzid = Nothing,
+                  mtype = Nothing
                 }
         updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes TimesBeyondPastEditWindow)
@@ -565,6 +861,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 100 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -583,7 +880,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                     endTime = Nothing,
                     title = Just (unsafeRange "Edited While Ongoing"),
                     recurrence = Nothing,
-                    tzid = Nothing
+                    tzid = Nothing,
+                    mtype = Nothing
                   }
           updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       case result of
@@ -600,6 +898,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 100 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -613,7 +912,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                     endTime = Nothing,
                     title = Nothing,
                     recurrence = Nothing,
-                    tzid = Nothing
+                    tzid = Nothing,
+                    mtype = Nothing
                   }
           updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id update
       result `shouldBe` Left (InvalidTimes EndBeforeStart)
@@ -625,6 +925,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -632,7 +933,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         passTime validityWindow
-        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -643,13 +944,14 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
-        updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing)
+        updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing Nothing Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -660,6 +962,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -668,7 +971,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         -- Simulate a data-inconsistency: the meeting's conversation vanished.
         modify @(Map ConvId StoredConversation) (Map.delete (qUnqualified meeting.meeting.conversationId))
-        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
+        updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
 
       result `shouldBe` Right Nothing
 
@@ -679,6 +982,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -693,9 +997,10 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               update.title
               update.recurrence
               update.tzid
+              update.mtype
           effectiveStart = fromMaybe baseMeeting.startTime sanitizedUpdate.startTime
           effectiveEndTime = fromMaybe baseMeeting.endTime sanitizedUpdate.endTime
-          isNotEmpty = sanitizedUpdate /= API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing
+          isNotEmpty = sanitizedUpdate /= API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing Nothing
           hasValidTimes = effectiveEndTime > effectiveStart
        in isNotEmpty && hasValidTimes ==>
             ioProperty $ do
@@ -738,6 +1043,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -757,6 +1063,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -774,6 +1081,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -800,6 +1108,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -819,6 +1128,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -853,6 +1163,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -877,6 +1188,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -895,6 +1207,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -937,6 +1250,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2, email3]
               }
@@ -961,6 +1275,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -985,6 +1300,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
@@ -1009,6 +1325,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
@@ -1027,6 +1344,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1069,6 +1387,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1093,6 +1412,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1117,6 +1437,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1141,6 +1462,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
@@ -1159,6 +1481,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1198,6 +1521,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = r,
               invitedEmails = []
             }
@@ -1221,6 +1545,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime (endOffset - 3600) now,
               endTime = addUTCTime endOffset now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = r,
               invitedEmails = []
             }
@@ -1253,7 +1578,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (ConnId "test-conn") (futureMeeting boundedRecurrence)
           passTime validityWindow
-          updateMeeting zUser (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
+          updateMeeting zUser (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
       fmap isJust result `shouldBe` Right True
 
     it "addInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
@@ -1360,6 +1685,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   startTime = startTime,
                   endTime = addUTCTime 3600 startTime,
                   tzid = API.defaultLegacyTimeZone,
+                  mtype = API.Scheduled,
                   recurrence = recurrence,
                   invitedEmails = []
                 }
@@ -1405,6 +1731,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -1454,7 +1781,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right meeting -> do
           result2 <-
             runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-              updateMeeting zUserTeam (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
+              updateMeeting zUserTeam (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
 
@@ -1539,6 +1866,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -1563,7 +1891,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
           meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
-          _ <- updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
+          _ <- updateMeeting zUser1 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing Nothing)
           get @[Push]
 
       case result of
@@ -1588,12 +1916,34 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           length events `shouldBe` 1
           (head events).evtType `shouldBe` MeetingEvent.Delete
 
+    it "does not emit meeting.delete when the conversation-deletion preflight fails" $ do
+      -- The creator is removed from the conversation members, so the mock
+      -- conversation subsystem denies CheckDeleteLocalConversation and
+      -- deleteMeeting must abort before publishing any event (WPB-29046).
+      -- The event ordering itself (meeting.delete before
+      -- conversation.delete-meeting) is asserted end-to-end by the
+      -- integration test in integration/test/Test/Meetings.hs.
+      result <-
+        runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) teamConfig $ do
+          meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+          -- Force the mock to deny the preflight (mock-only semantics: the
+          -- creator is not in the conversation members set)
+          modify @(Map ConvId (Set UserId)) $
+            Map.adjust (Set.delete uid1) (qUnqualified meeting.meeting.conversationId)
+          put @[Push] []
+          void $ deleteMeeting zUser1 (ConnId "test-conn") meeting.meeting.id
+
+      case result of
+        Left _denied -> pure ()
+        Right (Left err) -> fail $ "unexpected MeetingError: " <> show err
+        Right (Right _) -> fail "deleteMeeting succeeded despite the denied preflight"
+
     it "does not emit an event when updateMeeting fails (non-creator)" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
           meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
-          _ <- updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing Nothing)
+          _ <- updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing Nothing Nothing)
           get @[Push]
 
       case result of
@@ -1669,6 +2019,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = startT,
                 endTime = addUTCTime 3600 startT,
                 tzid = API.defaultLegacyTimeZone,
+                mtype = API.Scheduled,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1697,7 +2048,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newStart = addUTCTime 8000 now
           newEnd = addUTCTime 9000 now
           upd =
-            API.UpdateMeeting
+            API.UpdateMeetingLegacy
               { startTime = Just newStart,
                 endTime = Just newEnd,
                 title = Nothing,
@@ -1713,6 +2064,113 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (Just mwc') -> mwc'.meeting.endTime `shouldBe` newEnd
         Right Nothing -> fail "expected the update to apply"
 
+    it "updateMeetingV16 cannot change the stored meeting type" $ do
+      let upd =
+            API.UpdateMeetingLegacy
+              { startTime = Nothing,
+                endTime = Nothing,
+                title = Just (unsafeRange "Renamed"),
+                recurrence = Nothing,
+                tzid = Nothing
+              }
+          immediateMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Typed Meeting",
+                startTime = startT,
+                endTime = endT,
+                tzid = API.defaultLegacyTimeZone,
+                mtype = API.Immediate,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+      result <-
+        runTestStack now gen Map.empty def $ do
+          mwc <- createMeeting zUser (ConnId "test-conn") immediateMeeting
+          _ <- updateMeetingV16 zUser (ConnId "test-conn") mwc.meeting.id upd
+          getMeeting zUser mwc.meeting.id
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (Just m) -> m.mtype `shouldBe` API.Immediate
+        Right Nothing -> fail "expected a meeting"
+  describe "meeting type (V19)" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting mty =
+          API.NewMeeting
+            { title = fromJust $ checked "Typed Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = mty,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+        newMeetingV18 =
+          API.NewMeetingV18
+            { title = fromJust $ checked "V18 Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    it "createMeeting with immediate stores and returns the type" $ do
+      result <-
+        runTestStack now gen Map.empty def $ do
+          mwc <- createMeeting zUser (ConnId "test-conn") (newMeeting API.Immediate)
+          getMeeting zUser mwc.meeting.id
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (Just m) -> m.mtype `shouldBe` API.Immediate
+        Right Nothing -> fail "expected the meeting to be retrievable"
+
+    it "createMeetingV18 defaults the stored type to scheduled" $ do
+      result <-
+        runTestStack now gen Map.empty def $ do
+          mwc <- createMeetingV18 zUser (ConnId "test-conn") newMeetingV18
+          getMeeting zUser mwc.meeting.id
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (Just m) -> m.mtype `shouldBe` API.Scheduled
+        Right Nothing -> fail "expected the meeting to be retrievable"
+
+    it "updateMeeting with a type changes the stored type" $ do
+      result <-
+        runTestStack now gen Map.empty def $ do
+          mwc <- createMeeting zUser (ConnId "test-conn") (newMeeting API.Scheduled)
+          updateMeeting
+            zUser
+            (ConnId "test-conn")
+            mwc.meeting.id
+            API.UpdateMeeting
+              { startTime = Nothing,
+                endTime = Nothing,
+                title = Nothing,
+                recurrence = Nothing,
+                tzid = Nothing,
+                mtype = Just API.Immediate
+              }
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (Just mwc') -> mwc'.meeting.mtype `shouldBe` API.Immediate
+        Right Nothing -> fail "expected the update to be applied"
+
+    it "updateMeeting without a type preserves the stored type" $ do
+      result <-
+        runTestStack now gen Map.empty def $ do
+          mwc <- createMeeting zUser (ConnId "test-conn") (newMeeting API.Immediate)
+          _ <- updateMeeting zUser (ConnId "test-conn") mwc.meeting.id (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "Renamed")) Nothing Nothing Nothing)
+          getMeeting zUser mwc.meeting.id
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (Just m) -> do
+          m.mtype `shouldBe` API.Immediate
+          m.title `shouldBe` fromJust (checked "Renamed")
+        Right Nothing -> fail "expected the meeting to be retrievable"
+
   describe "StoredMeeting postgres unmarshall" $ do
     -- A backfilled row (tzid NOT NULL, end_time set): end_time is the truth
     -- and tzid is read straight off the column.
@@ -1727,6 +2185,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               t0,
               t1,
               "Europe/Berlin",
+              "scheduled",
               Nothing,
               Nothing,
               Nothing,
@@ -1743,6 +2202,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right sm -> do
           sm.endTime `shouldBe` t1
           sm.tzid `shouldBe` API.defaultLegacyTimeZone
+          sm.meetingType `shouldBe` API.Scheduled
 
     it "rejects a non-null but unparseable tzid instead of swallowing it" $ do
       let t0 = UTCTime (fromGregorian 2026 1 1) 0
@@ -1755,6 +2215,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               t0,
               t1,
               "not-a-zone",
+              "scheduled",
               Nothing,
               Nothing,
               Nothing,
@@ -1769,6 +2230,33 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       case result of
         Left msg -> msg `shouldBe` ("invalid tzid" :: Text)
         Right _ -> expectationFailure "expected unmarshall to reject an invalid tzid"
+
+    it "rejects an unparseable mtype instead of swallowing it" $ do
+      let t0 = UTCTime (fromGregorian 2026 1 1) 0
+          t1 = addUTCTime 3600 t0
+          badMtypeRow :: Store.StoredMeetingTuple
+          badMtypeRow =
+            ( nil,
+              "t",
+              nil,
+              t0,
+              t1,
+              "Europe/Berlin",
+              "not-a-type",
+              Nothing,
+              Nothing,
+              Nothing,
+              nil,
+              V.empty,
+              False,
+              t0,
+              t0
+            )
+      let result :: Either Text Store.StoredMeeting
+          result = postgresUnmarshall badMtypeRow
+      case result of
+        Left msg -> msg `shouldBe` ("invalid mtype" :: Text)
+        Right _ -> expectationFailure "expected unmarshall to reject an invalid mtype"
 
 -- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
 expectedStartTimeTolerance :: NominalDiffTime

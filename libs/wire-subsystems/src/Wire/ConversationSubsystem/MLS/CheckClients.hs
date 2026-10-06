@@ -35,17 +35,21 @@ import Polysemy
 import Polysemy.Async (Async)
 import Polysemy.Async qualified as P
 import Polysemy.Error
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group (GroupId)
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
 import Wire.API.User.Client
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.MLS.Commit.Core
+import Wire.ConversationSubsystem.MLS.Util (logMLSClientMismatch)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 
 checkClients ::
@@ -55,13 +59,16 @@ checkClients ::
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error MLSProtocolError) r,
     Member (Error InternalError) r,
+    Member TinyLog r,
     Member Async r
   ) =>
   Local ConvOrSubConv ->
   CipherSuiteTag ->
+  GroupId ->
+  Epoch ->
   ClientMap (LeafIndex, Maybe KeyPackage) ->
   Sem r [Qualified UserId]
-checkClients lConvOrSub ciphersuite newCM = do
+checkClients lConvOrSub ciphersuite gid epoch newCM = do
   let convOrSub = tUnqualified lConvOrSub
       cm = convOrSub.members
       assocs = Map.assocs (unClientMap newCM)
@@ -127,9 +134,15 @@ checkClients lConvOrSub ciphersuite newCM = do
             ( Set.isSubsetOf clientData.allMLSClients clients
                 && Set.isSubsetOf clients clientData.allClients
             )
-            $
-            -- FUTUREWORK: turn this error into a proper response
-            throwS @'MLSClientMismatch
+            $ do
+              logMLSClientMismatch
+                "add"
+                qtarget
+                (Map.keysSet newclients)
+                (foldMap Map.keysSet (cmLookup qtarget cm))
+                gid
+                epoch
+              throwS @'MLSClientMismatch
 
           pure False
 

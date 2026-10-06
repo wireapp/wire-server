@@ -68,6 +68,8 @@ import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.BlockListStore.DualWrite
+import Wire.BlockListStore.Postgres
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
 import Wire.ClientStore (ClientStore)
@@ -120,6 +122,8 @@ import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfi
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
+import Wire.PasswordResetCodeStore.DualWrite (interpretPasswordResetCodeStoreToCassandraAndPostgres)
+import Wire.PasswordResetCodeStore.Postgres (interpretPasswordResetCodeStoreToPostgres)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
 import Wire.PostgresMigrationOpts
@@ -219,6 +223,7 @@ type BrigLowerLevelEffects =
      UserGroupStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
+     BlockListStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -261,7 +266,6 @@ type BrigLowerLevelEffects =
      FederationConfigStore,
      Jwk,
      JwtTools,
-     BlockListStore,
      BudgetStore,
      UserPendingActivationStore InternalPaging,
      Now,
@@ -271,6 +275,7 @@ type BrigLowerLevelEffects =
      GalleyAPIAccess,
      SparAPIAccess,
      EmailSending,
+     Error EmailSendingAWSError,
      Rpc,
      Metrics,
      Embed Cas.Client,
@@ -410,6 +415,11 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
 
+      blockListStore = case e.postgresMigration.blockList of
+        CassandraStorage -> interpretBlockListStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretBlockListStoreToPostgres
+        MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -420,6 +430,26 @@ runBrigToIO e (AppT ma) = do
           CassandraStorage -> interpretUserStoreCassandra e.casClient
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
+
+      -- PasswordResetCodeStore must be peeled at this slot in the stack (between
+      -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global
+      -- runInputConst e.hasqlPool / mapError postgresUsageErrorToHttpError providers.
+      -- The Postgres-backed branches therefore supply Input Pool and Error UsageError
+      -- locally (raiseUnder2 + runInputConst + mapError) so they stay self-contained;
+      -- UsageError is mapped to HttpError (handled by rethrowHttpErrorIO further up).
+      passwordResetCodeStoreInterpreter =
+        case e.postgresMigration.passwordReset of
+          CassandraStorage -> passwordResetCodeStoreToCassandra @Cas.Client
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretPasswordResetCodeStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
+              . raiseUnder2
 
   ( either throwM pure
       <=< ( runFinal
@@ -438,16 +468,16 @@ runBrigToIO e (AppT ma) = do
               . interpretClientToIO e.casClient
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
+              . mapError emailSendingErrorToHttpError
               . emailSendingInterpreter e
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
-              . passwordResetCodeStoreToCassandra @Cas.Client
+              . passwordResetCodeStoreInterpreter
               . randomToIO
               . runDelay
               . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
               . budgetStoreToCassandra @Cas.Client
-              . interpretBlockListStoreToCassandra e.casClient
               . interpretJwtTools
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
@@ -490,6 +520,7 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . blockListStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
@@ -548,7 +579,12 @@ rethrowHttpErrorIO act = do
     Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
 
-emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
+emailSendingInterpreter ::
+  ( Member (Embed IO) r,
+    Member (Error EmailSendingAWSError) r,
+    Member TinyLog r
+  ) =>
+  Env -> InterpreterFor EmailSending r
 emailSendingInterpreter e = do
   case e.smtpEnv of
     Just smtp -> emailViaSMTPInterpreter e.appLogger smtp

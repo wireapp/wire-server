@@ -721,7 +721,7 @@ testMigrationOfInvalidUsers = do
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let domain = backend.berDomain
         brigKeyspace = backend.berBrigKeyspace
-    (validUser, noName, noNameId, noActivated, noActivatedId) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
+    (validUser, noName, noNameId, noActivated, noActivatedId, brokenAsset) <- runCodensity (startDynamicBackend backend phase1Overrides) $ \_ -> do
       validUser <- randomUser domain def
 
       noName <- randomUser domain def
@@ -730,17 +730,36 @@ testMigrationOfInvalidUsers = do
       noActivated <- randomUser domain def
       Just noActivatedId <- UUID.fromString <$> (noActivated %. "qualified_id.id" & asString)
 
+      brokenAsset <- randomUser domain def
+      Just brokenAssetId <- UUID.fromString <$> (brokenAsset %. "qualified_id.id" & asString)
+
       -- Cause users to be invalid by poking into Cassandra
       let removeName :: PrepQuery W (Identity UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET name = NULL WHERE id = ?"
           removeActivated :: PrepQuery W (Identity UUID) () = fromString $ "UPDATE " <> brigKeyspace <> ".user SET activated = NULL WHERE id = ?"
+          -- 1st one has an invalid typ,
+          -- 2nd one has an invalid key,
+          -- 3rd one has an invalid size,
+          -- 4th and 5th are valid
+          insertAsset :: PrepQuery W (Identity UUID) () =
+            fromString $ "UPDATE "
+              <> brigKeyspace
+              <> ".user SET assets = [\
+                 \{typ: 1, key: '3-4-9e1c665c-5634-caee-07b1-5adefc1bddb5'},\
+                 \{typ: 0, key: 'invalid'},\
+                 \{typ: 0, key: '3-4-9e1c665c-5634-caee-07b1-5adefc1bddb5', size: 3 }, \
+                 \{typ: 0, key: '3-5-104acf4a-bcaa-4bd1-897a-8b135f2a709d', size: 0 }, \
+                 \{typ: 0, key: '3-2-27bd772c-f7da-4143-9bbe-ffafdae290ce', size: 1 } \
+                 \] WHERE id = ?"
       write removeName $ defQueryParams LocalQuorum (Identity noNameId)
       write removeActivated $ defQueryParams LocalQuorum (Identity noActivatedId)
+      write insertAsset $ defQueryParams LocalQuorum (Identity brokenAssetId)
 
       getSelf validUser >>= assertStatus 200
       getSelf noName >>= assertStatus 500
       getSelf noActivated >>= assertStatus 500
+      getSelf brokenAsset >>= assertStatus 500
 
-      pure (validUser, noName, noNameId, noActivated, noActivatedId)
+      pure (validUser, noName, noNameId, noActivated, noActivatedId, brokenAsset)
 
     runCodensity (startDynamicBackend backend phase3Overrides) $ \_ -> do
       waitForMigration domain userMigrationFinishedCounterName
@@ -749,6 +768,13 @@ testMigrationOfInvalidUsers = do
       getSelf validUser >>= assertStatus 200
       getSelf noName >>= assertStatus 404
       getSelf noActivated >>= assertStatus 404
+      -- The migration actually fixes this user.
+      getSelf brokenAsset `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        (resp.json %. "assets")
+          `shouldMatch` [ object ["key" .= "3-5-104acf4a-bcaa-4bd1-897a-8b135f2a709d", "type" .= "image", "size" .= "preview"],
+                          object ["key" .= "3-2-27bd772c-f7da-4143-9bbe-ffafdae290ce", "type" .= "image", "size" .= "complete"]
+                        ]
 
     -- Delete invalid users from cassandra so they don't trip other tests. These
     -- other tests are usually reindexing the users, the reindex code doesn't

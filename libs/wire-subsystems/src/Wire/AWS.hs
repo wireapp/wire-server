@@ -46,6 +46,7 @@ import Control.Monad.Trans.Resource
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder (toLazyByteString)
+import Data.Id (TeamId, idToText)
 import Data.ProtoLens.Encoding (encodeMessage)
 import Data.Text.Encoding (decodeLatin1)
 import Data.UUID (toText)
@@ -151,15 +152,15 @@ mkEnv lgr mgr endpoint qname = do
 execute :: (MonadIO m) => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
-enqueue :: E.TeamEvent -> Amazon ()
-enqueue ev = do
+enqueue :: TeamId -> E.TeamEvent -> Amazon ()
+enqueue tid ev = do
   QueueUrl url <- view eventQueue
   dedup <- liftIO nextRandom
   amaznkaEnv <- view awsEnv
   let body = decodeLatin1 $ B64.encode $ encodeMessage ev
       req =
         SQS.newSendMessage url body
-          & SQS.sendMessage_messageGroupId ?~ "team.events"
+          & SQS.sendMessage_messageGroupId ?~ idToText tid
           & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
   res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const (pure . canRetry)) $ const (sendCatchEnv amaznkaEnv req)
   either (throwM . GeneralError) (const (pure ())) res

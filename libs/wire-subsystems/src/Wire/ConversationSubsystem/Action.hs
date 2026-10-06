@@ -51,6 +51,8 @@ module Wire.ConversationSubsystem.Action
     addLocalUsersToRemoteConv,
     ConversationUpdate,
     ensureAllowed,
+    checkLocalConversationDelete,
+    getTeamMembership,
     removeConversation,
   )
 where
@@ -115,7 +117,6 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
-import Wire.CodeStore.Code (CodeReferent (..))
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action.Kick
@@ -414,8 +415,7 @@ removeConversation lconv = do
       deleteGroup gidSub
     deleteGroup gidMainConv
 
-  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
-  E.deleteCode key
+  E.deleteConversationCode (tUnqualified lcnv)
   case convTeam storedConv of
     Nothing -> E.deleteConversation (tUnqualified lcnv)
     Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
@@ -924,8 +924,7 @@ performConversationAccessData qusr lconv action = do
         && CodeAccess `notElem` cupAccess action
     )
     $ do
-      key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
-      E.deleteCode key
+      E.deleteConversationCode (tUnqualified lcnv)
 
   -- Determine bots and members to be removed
   let filterBotsAndMembers =
@@ -1463,10 +1462,7 @@ updateLocalConversationUnchecked ::
   ConversationAction tag ->
   Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
-  let lcnv = fmap (.id_) lconv
-      conv = tUnqualified lconv
-  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
-  ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
+  checkConversationActionAllowed @tag lconv qusr action
   par <- performAction @tag lconv qusr con action
   sendConversationActionNotifications
     (sing @tag)
@@ -1477,25 +1473,68 @@ updateLocalConversationUnchecked lconv qusr con action = do
     (convBotsAndMembers (tUnqualified lconv) <> par.extraTargets)
     par.action
     par.extraConversationData
-  where
-    getTeamMembership :: StoredConversation -> Local UserId -> Sem r (Maybe TeamMember)
-    getTeamMembership conv luid = maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember (tUnqualified luid)) conv.metadata.cnvmTeam
 
-    ensureConversationActionAllowed :: Sing tag -> Local x -> StoredConversation -> Maybe TeamMember -> Sem r ()
-    ensureConversationActionAllowed tag loc conv mTeamMember = do
-      let hasChannelManagePerm = maybe False (hasManageChannelsPermission conv) mTeamMember
-          mMem = getConvMember lconv conv qusr :: Maybe (Either LocalMember RemoteMember)
-      -- If the actor is a conversation member, enforce conversation-role
-      -- permission unless we intentionally skip it (channel overrides or
-      -- special join case).
-      unless
-        (skipConversationRoleCheck @tag conv mTeamMember || (hasChannelManagePerm && allowChannelManagePermission @tag))
-        (for_ mMem (ensureActionAllowed (sConversationActionPermission tag)))
+-- | Perform all fallible authorisation checks of a conversation action without
+-- applying the update or sending notifications.
+checkConversationActionAllowed ::
+  forall tag r.
+  ( SingI tag,
+    IsConversationAction tag,
+    HasConversationActionEffects tag r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member TeamSubsystem r
+  ) =>
+  Local StoredConversation ->
+  Qualified UserId ->
+  ConversationAction tag ->
+  Sem r ()
+checkConversationActionAllowed lconv qusr action = do
+  let lcnv = fmap (.id_) lconv
+      conv = tUnqualified lconv
+      tag = sing @tag
+  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
+  let hasChannelManagePerm = maybe False (hasManageChannelsPermission conv) mTeamMember
+      mMem = getConvMember lcnv conv qusr :: Maybe (Either LocalMember RemoteMember)
+  -- If the actor is a conversation member, enforce conversation-role
+  -- permission unless we intentionally skip it (channel overrides or
+  -- special join case).
+  unless
+    (skipConversationRoleCheck @tag conv mTeamMember || (hasChannelManagePerm && allowChannelManagePermission @tag))
+    (for_ mMem (ensureActionAllowed (sConversationActionPermission tag)))
 
-      checkConversationType (fromSing tag) conv
+  checkConversationType (fromSing tag) conv
 
-      -- extra action-specific checks
-      ensureAllowed @tag loc action conv (ActorContext mMem mTeamMember)
+  -- extra action-specific checks
+  ensureAllowed @tag lcnv action conv (ActorContext mMem mTeamMember)
+
+getTeamMembership :: (Member TeamSubsystem r) => StoredConversation -> Local UserId -> Sem r (Maybe TeamMember)
+getTeamMembership conv luid = maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember (tUnqualified luid)) conv.metadata.cnvmTeam
+
+-- | Run all fallible checks of 'updateLocalConversationDelete' — conversation
+-- lookup, protocol validity and authorisation — without applying the deletion
+-- or sending any notifications. Intended as a preflight before side effects
+-- that must only happen once deletion is known to succeed (e.g. meeting
+-- deletion notifications, WPB-29046).
+checkLocalConversationDelete ::
+  ( HasConversationActionEffects 'ConversationDeleteTag r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationDeleteTag))) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member TeamSubsystem r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Sem r ()
+checkLocalConversationDelete lcnv qusr = do
+  conv <- getConversationWithError lcnv
+  let tag = sing @'ConversationDeleteTag
+  unless (protocolValidAction conv.protocol tag ()) $
+    throwS @'InvalidOperation
+  checkConversationActionAllowed @'ConversationDeleteTag (qualifyAs lcnv conv) qusr ()
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities

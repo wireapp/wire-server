@@ -32,14 +32,14 @@ import Data.Aeson.Types qualified as A
 import Data.Char qualified as Char
 import Data.Code qualified as Code
 import Data.Default
-import Data.Domain (Domain (..))
+import Data.Domain (Domain (..), mkDomainFromBS)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
-import Data.Schema
+import Data.Schema as Schema
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound.Types qualified as ES
@@ -126,11 +126,22 @@ instance FromJSON InternalEventsOpts where
   parseJSON = withObject "InternalEventsOpts" $ \o ->
     InternalEventsOpts <$> parseJSON (Object o)
 
+newtype StricterDomain = StricterDomain {unStricterDomain :: EmailAddress}
+  deriving newtype (Show)
+  deriving (FromJSON) via Schema StricterDomain
+
+instance ToSchema StricterDomain where
+  schema = StricterDomain <$> unStricterDomain Schema..= withParser schema checkDomain
+    where
+      checkDomain :: EmailAddress -> A.Parser EmailAddress
+      checkDomain email = do
+        either fail (const $ pure email) $ mkDomainFromBS $ domainPart email
+
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
   { -- | Email, SMS, ... template directory
     templateDir :: !FilePath,
     -- | Email sender address
-    emailSender :: !EmailAddress,
+    emailSender :: !StricterDomain,
     -- | Twilio sender identifier (sender phone number in E.104 format)
     --   or twilio messaging sender ID - see
     --   https://www.twilio.com/docs/sms/send-messages#use-an-alphanumeric-sender-id
@@ -140,6 +151,9 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     templateBranding :: !BrandingOpts
   }
   deriving (Show, Generic)
+
+checkedEmailSender :: EmailSMSGeneralOpts -> EmailAddress
+checkedEmailSender = unStricterDomain . emailSender
 
 instance FromJSON EmailSMSGeneralOpts
 

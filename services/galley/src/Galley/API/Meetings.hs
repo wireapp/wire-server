@@ -25,6 +25,10 @@ module Galley.API.Meetings
     updateMeetingV16,
     getMeetingV16,
     listMeetingsV16,
+    createMeetingV18,
+    updateMeetingV18,
+    getMeetingV18,
+    listMeetingsV18,
     addMeetingInvitation,
     removeMeetingInvitation,
     replaceMeetingInvitation,
@@ -134,6 +138,46 @@ listMeetingsV16 ::
   Local UserId ->
   Sem r [MeetingV16]
 listMeetingsV16 lUser = Meetings.listMeetingsV16 lUser
+
+createMeetingV18 ::
+  (Member Meetings.MeetingsSubsystem r) =>
+  Local UserId ->
+  ConnId ->
+  NewMeetingV18 ->
+  Sem r MeetingWithConversationV18
+createMeetingV18 lUser connId newMeeting = Meetings.createMeetingV18 lUser connId newMeeting
+
+updateMeetingV18 ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  MeetingId ->
+  UpdateMeetingV18 ->
+  Sem r MeetingWithConversationV18
+updateMeetingV18 zUser connId domain meetingId update = do
+  let qMeetingId = Qualified meetingId domain
+  noteS @'MeetingNotFound =<< Meetings.updateMeetingV18 zUser connId qMeetingId update
+
+getMeetingV18 ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  Domain ->
+  MeetingId ->
+  Sem r MeetingV18
+getMeetingV18 zUser domain meetingId = do
+  let qMeetingId = Qualified meetingId domain
+  noteS @'MeetingNotFound =<< Meetings.getMeetingV18 zUser qMeetingId
+
+listMeetingsV18 ::
+  (Member Meetings.MeetingsSubsystem r) =>
+  Local UserId ->
+  Sem r [MeetingV18]
+listMeetingsV18 lUser = Meetings.listMeetingsV18 lUser
 
 addMeetingInvitation ::
   ( Member Meetings.MeetingsSubsystem r,

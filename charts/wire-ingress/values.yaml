@@ -1,4 +1,17 @@
-# Default values for wire-ingress
+# This is a top-level variable which makes use of the FIPS_202205 patch,
+# and OVERRIDES all other TLS settings below (all other TLS settings have no effect if this is set to true!)
+# This compliance mode is useful to help conform to BSI's TR-02102-2
+# When true, TLS is configures to use the values documented in
+# https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#enum-extensions-transport-sockets-tls-v3-tlsparameters-compliancepolicy
+# i.e. these ones:
+#   TLS 1.2 or 1.3
+#   For TLS 1.2, only ECDHE_[RSA|ECDSA]_WITH_AES_*_GCM_SHA*.
+#   For TLS 1.3, only AES-GCM
+#   P-256 or P-384 for key agreement.
+#   For server signatures, only PKCS#1/PSS with SHA256/384/512, or ECDSA with P-256 or P-384.
+# See the README of this chart and deployment documentation for more details
+FIPS_202205_tls_profile: false
+
 httpRoute:
   # Annotations added to every HTTPRoute created by this chart.
   annotations: {}
@@ -76,6 +89,15 @@ gateway:
       # If your domains in config.dns span multiple subdomains, you need a custom
       # Gateway object with multiple listeners. See the Gateway API docs.
       hostname: ""
+      # Listener section name. Only change this when create: false and the
+      # externally created Gateway names its HTTPS listener something else;
+      # HTTPRoutes attach by section name, so it must match exactly.
+      sectionName: https
+    # The federation listener shares listeners.https.port and is created only
+    # when federator.enabled. Its section name is overridable for the same
+    # reason as listeners.https.sectionName.
+    federator:
+      sectionName: federator
     # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
     # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
     # See the README for configuration details.
@@ -85,6 +107,24 @@ gateway:
       # Optional hostname restriction for the HTTP listener. Set alongside
       # listeners.https.hostname when using mergeGateways.
       hostname: ""
+  # Extra HTTPS hosts (e.g. a differently named admin domain). An empty
+  # certificateSecretName reuses the main certificate; add the SAN explicitly.
+  extraHttpsListeners: []
+  # Default: TLS 1.3, shared with the federation listener.
+  # FIPS_202205_tls_profile overrides this profile with a fixed safe baseline, but other settings here are not taken into account if that is active).
+  tls:
+    enabled: true
+    minVersion: "1.3"
+    maxVersion: "1.3"
+    # Names must be supported by the deployed Envoy crypto library.
+    ecdhCurves: ["X25519MLKEM768", "X25519", "P-256", "P-384", "P-521"]
+    # TLS <=1.2 only; this section is omitted when minVersion is "1.3".
+    ciphers:
+      - ECDHE-ECDSA-AES128-GCM-SHA256
+      - ECDHE-ECDSA-AES256-GCM-SHA384
+      - ECDHE-RSA-AES128-GCM-SHA256
+      - ECDHE-RSA-AES256-GCM-SHA384
+    signatureAlgorithms: []
   # ALPN configuration for HTTP/2 support with multiple listeners.
   # When using multiple listeners with overlapping certificate SANs,
   # Envoy Gateway may downgrade to HTTP/1.1. This ClientTrafficPolicy
@@ -99,6 +139,20 @@ gateway:
   # in the EnvoyGateway ConfigMap (see README).
   patchPolicies:
     enabled: true
+    # Must match the controller's XDSNameSchemeV2 runtime flag, which renames
+    # xDS listeners from "<ns>/<gateway>/<section>" to "<protocol>-<port>".
+    # Envoy Gateway enables it by default from 1.10; earlier versions default to
+    # the legacy scheme unless you added it to runtimeFlags.enabled.
+    # Left unset deliberately: FIPS_202205_tls_profile fails until you state a
+    # value, because a stale setting silently voids the FIPS patch. Route
+    # configs for TLS listeners are unaffected, so the federation patch does not
+    # need this. Verify with: egctl config envoy-proxy listener
+    xdsNameSchemeV2: null
+    # Legacy scheme only. Overrides the xDS listener name the FIPS patch targets.
+    # The legacy name comes from the FIRST listener on the HTTPS port, which for
+    # a Gateway created by this chart is listeners.https.sectionName. Set this
+    # when an externally created Gateway declares a different listener first.
+    xdsListenerName: ""
     # Set to true when the GatewayClass uses mergeGateways: true.
     # With mergeGateways, EnvoyPatchPolicy must target the GatewayClass
     # rather than the individual Gateway. Default false targets the Gateway,
@@ -144,6 +198,7 @@ gateway:
 #     - name: blueberry                      # required; used for resource-name suffix & listener section
 #       base: blueberry.example.com          # required; CSP wildcard (*.base) and default listener hostname (*.base)
 #       # hostname: "*.blueberry.example.com" # optional listener hostname override (defaults to *.base)
+#       # sectionName: https-blueberry        # optional listener section override (defaults to https-<name>)
 #       dns:
 #         https: nginz-https.blueberry.example.com
 #         ssl: nginz-ssl.blueberry.example.com
@@ -239,6 +294,8 @@ federator:
 # TLS settings
 
 tls:
+  # Additional hosts routed by companion HTTPRoutes on this Gateway.
+  extraDnsNames: []
   secret:
     # If true, a kubernetes.io/tls Secret is created from secrets.tlsWildcardCert
     # and secrets.tlsWildcardKey. Set to false if the secret is managed externally.

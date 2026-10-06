@@ -36,4 +36,4 @@ loadTeamTemplatesWithBrigOpts o =
     o.emailSMS.team
     o.emailSMS.general.templateDir
     (defaultTemplateLocale o.settings)
-    (emailSender o.emailSMS.general)
+    (checkedEmailSender o.emailSMS.general)

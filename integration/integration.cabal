@@ -177,9 +177,11 @@ library
     Test.Login
     Test.Meetings
     Test.MessageTimer
+    Test.Migration.BlockList
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
+    Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util
@@ -213,6 +215,7 @@ library
     Test.Spar
     Test.Spar.CertFingerprintAllowlist
     Test.Spar.GetByEmail
+    Test.Spar.IdPIssuerUpdate
     Test.Spar.MultiIngressCrossIdpSso
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
