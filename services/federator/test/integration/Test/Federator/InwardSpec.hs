@@ -39,6 +39,8 @@ import Test.QuickCheck (arbitrary, generate)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
@@ -70,7 +72,7 @@ spec env =
         brig <- view teBrig <$> ask
         user <- randomUser brig
 
-        let expectedProfile = mkUserProfile EmailVisibleToSelf user Nothing UserLegalHoldNoConsent
+        let expectedProfile = V.Versioned @V.V18 $ mkUserProfile EmailVisibleToSelf user Nothing UserLegalHoldNoConsent
         bdy <-
           responseJsonError
             =<< inwardCall "/federation/brig/get-users-by-ids" (encode [userId user])

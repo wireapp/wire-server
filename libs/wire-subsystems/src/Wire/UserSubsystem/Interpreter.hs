@@ -60,6 +60,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
+import Wire.API.Routes.Versioned as V
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -495,7 +496,7 @@ getUserProfilesRemotePart ::
   Remote [UserId] ->
   Sem r [UserProfile]
 getUserProfilesRemotePart ruids = do
-  runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
+  runFederated ruids $ fmap V.unVersioned <$> fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
 getUserProfilesLocalPart ::
   forall r any.

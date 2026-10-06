@@ -165,7 +165,6 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
             "id" .= uid,
             "legalhold_status" .= "no_consent",
             "name" .= "default",
-            "picture" .= (),
             "qualified_id" .= object ["domain" .= domain, "id" .= uid],
             "searchable" .= True,
             "supported_protocols" .= ["proteus"],

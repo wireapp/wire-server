@@ -44,6 +44,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.FederationAPIAccess
@@ -369,7 +370,7 @@ ensureFederatesWith remote = do
   profiles <-
     either (throwE . ConnectFederationError) pure
       =<< lift (liftSem $ runFederatedEither remote $ fedClient @'Brig @"get-users-by-ids" [tUnqualified remote])
-  let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe profiles
+  let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe (fmap V.unVersioned profiles)
   unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
     throwE ConnectTeamFederationError
-  pure (listToMaybe profiles)
+  pure (listToMaybe $ fmap V.unVersioned profiles)

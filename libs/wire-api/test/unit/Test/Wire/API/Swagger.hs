@@ -23,6 +23,8 @@ import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty)
 import Type.Reflection (typeRep)
+import Wire.API.Routes.Version (Version (V18))
+import Wire.API.Routes.Versioned (Versioned)
 import Wire.API.User qualified as User
 import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey qualified as Prekey
@@ -34,7 +36,7 @@ import Wire.API.Wrapped qualified as Wrapped
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
-    [ testToJSON @User.UserProfile,
+    [ testToJSON @(Versioned V18 User.UserProfile),
       testToJSON @User.User,
       testToJSON @User.SelfProfile,
       testToJSON @(User.LimitedQualifiedUserIdList 20),

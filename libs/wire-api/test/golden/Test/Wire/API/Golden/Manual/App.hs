@@ -22,6 +22,8 @@ import Data.Range
 import Imports
 import Test.Wire.API.Golden.Generated.UserProfile_user
 import Web.HttpApiData
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.User
 import Wire.API.User.Auth (SomeUserToken)
 
@@ -38,9 +40,13 @@ testObject_NewApp_1 =
     (unsafeRange "good description")
     (plainTextPassword6Unsafe "good password")
 
-testObject_CreatedApp_1 :: CreatedApp
+testObject_CreatedApp_1 :: CreatedApp V18
 testObject_CreatedApp_1 =
-  CreatedApp testObject_UserProfile_user_2 someToken
+  CreatedApp (Versioned testObject_UserProfile_user_2) someToken
+
+testObject_CreatedApp_1_v19 :: CreatedApp V19
+testObject_CreatedApp_1_v19 =
+  CreatedApp (Versioned testObject_UserProfile_user_2) someToken
 
 testObject_AppInfo_1 :: AppInfo
 testObject_AppInfo_1 =
