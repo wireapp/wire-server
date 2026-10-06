@@ -35,7 +35,7 @@ while :; do
     continue
   fi
 
-  cluster_info=$(redis_cli 172.20.0.31 6373 cluster info 2>/dev/null || true)
+  cluster_info=$(redis_cli 172.20.0.31 6373 cluster info 2>/dev/null | tr -d '\r' || true)
 
   if printf '%s\n' "$cluster_info" | grep -q '^cluster_state:ok$'; then
     exit 0
