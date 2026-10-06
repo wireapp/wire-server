@@ -21,7 +21,7 @@ postgresql:
   host: postgres
   port: "5432"
   user: wire-server
-  dbname: backendB
+  dbname: backendV3
   password: posty-the-gres
 
 rabbitmq:
