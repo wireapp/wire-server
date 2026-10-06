@@ -104,7 +104,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
 | `gateway.envoyProxy.replicas` | `3` | Proxy pod count for three AZs — see [Availability of the proxy fleet](#availability-of-the-proxy-fleet). |
 | `gateway.envoyProxy.topologySpreadKeys` | node and zone | Topology keys to spread the proxy pods over. Advisory (`ScheduleAnyway`). `[]` for none. |
-| `gateway.zoneAwareRouting.enabled` | `false` | Prefer same-zone backend endpoints to cut inter-AZ traffic cost — see [Zone-aware routing](#zone-aware-routing). |
+| `gateway.zoneAwareRouting.enabled` | `true` | Prefer same-zone backend endpoints to cut inter-AZ traffic cost — see [Zone-aware routing](#zone-aware-routing). |
 | `gateway.zoneAwareRouting.minEndpointsThreshold` | `3` | Below this many backend endpoints across all zones, Envoy balances normally. |
 | `gateway.annotations` | `{}` | Annotations on the `Gateway` object itself, e.g. for external-dns' `gateway-httproute` source. Not propagated to the proxy Service. |
 | `gateway.infrastructure.labels` | `{}` | Labels forwarded to the resources Envoy Gateway generates. Gateway API >= v1.1. |
@@ -227,7 +227,7 @@ one replica disables it; otherwise it uses `minAvailable: 1`. There is no separa
 
 ### Zone-aware routing
 
-Set `gateway.zoneAwareRouting.enabled: true` to prefer same-zone backends. Requires nodes
+Same-zone backends are preferred by default (`gateway.zoneAwareRouting.enabled: true`). Requires nodes
 labelled `topology.kubernetes.io/zone` and Envoy Gateway's topology injector. The WebSocket
 policy inherits this setting while retaining its disabled idle timeout.
 

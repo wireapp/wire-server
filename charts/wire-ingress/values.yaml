@@ -86,7 +86,7 @@ gateway:
   # Prefer same-zone backends. Requires topology.kubernetes.io/zone node
   # labels and Envoy Gateway's topology injector.
   zoneAwareRouting:
-    enabled: false
+    enabled: true
     # Minimum endpoint count per upstream cluster across all zones. Enables
     # zone preference for backends with one replica in each of three AZs.
     minEndpointsThreshold: 3
