@@ -62,6 +62,7 @@ module Wire.API.Meeting
     Recurrence (..),
     Frequency (..),
     MeetingEmailsInvitation (..),
+    RefreshMeetingLinkRequest (..),
   )
 where
 
@@ -69,10 +70,12 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON, toJSON)
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (toByteString')
+import Data.Code (Key, Value)
+import Data.Domain (Domain)
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
-import Data.Misc (HttpsUrl (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword8)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Range (Range)
@@ -84,6 +87,7 @@ import Data.Time.Zones.Types (TZ)
 import Imports
 import Test.QuickCheck (elements)
 import URI.ByteString (uriPath)
+import URI.ByteString qualified as URI
 import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -154,9 +158,9 @@ data Meeting = Meeting
     invitedEmails :: [EmailAddress],
     createdAt :: UTCTime,
     updatedAt :: UTCTime,
-    -- | https join link whose final path segment is the meeting's UUID;
-    -- 'Nothing' when the meeting has no live join code (legacy meetings, or
-    -- code-store modes that cannot hold meeting codes)
+    -- | https join link containing the meeting's live join code as query
+    -- parameters; 'Nothing' when the meeting has no live join code (legacy
+    -- meetings, or code-store modes that cannot hold meeting codes)
     link :: Maybe HttpsUrl
   }
   deriving stock (Eq, Show, Generic)
@@ -564,12 +568,31 @@ fromLegacy tz m =
       link = Nothing
     }
 
--- | Join link for a meeting: the configured code URI with the meeting's
--- UUID appended as final path segment (trailing slashes on the configured
--- base are normalized).
-mkMeetingLink :: HttpsUrl -> MeetingId -> HttpsUrl
-mkMeetingLink (HttpsUrl base) mid =
-  HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid}
+-- | Join link for a meeting: the configured code URI rewritten to the
+-- @meeting-join@ path, with the meeting's stable code key, its live
+-- (rotating) code value and its domain as query parameters — mirroring
+-- conversation join links. The code value is the rotating capability:
+-- refreshing the link replaces it, so URLs carrying a stale value stop
+-- resolving.
+mkMeetingLink :: HttpsUrl -> Domain -> Key -> Value -> HttpsUrl
+mkMeetingLink (HttpsUrl base) domain key value =
+  HttpsUrl $
+    base
+      { uriPath = meetingJoinPath (uriPath base),
+        URI.uriQuery =
+          URI.Query
+            [ ("key", toByteString' key),
+              ("code", toByteString' value),
+              ("domain", toByteString' domain)
+            ]
+      }
+  where
+    meetingJoinPath path =
+      let normalized = BS.dropWhileEnd (== '/') path
+          conversationJoinPath = "/conversation-join"
+       in if conversationJoinPath `BS.isSuffixOf` normalized
+            then BS.take (BS.length normalized - BS.length conversationJoinPath) normalized <> "/meeting-join/"
+            else normalized <> "/"
 
 -- | 'toLegacy' lifted over 'MeetingWithConversation'.
 toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
@@ -641,6 +664,22 @@ instance ToSchema MeetingEmailsInvitation where
     objectWithDocModifier (description ?~ "Emails invitation") $
       MeetingEmailsInvitation
         <$> (.emails) .= field "emails" (array schema)
+
+newtype RefreshMeetingLinkRequest = RefreshMeetingLinkRequest
+  { password :: Maybe PlainTextPassword8
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RefreshMeetingLinkRequest)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RefreshMeetingLinkRequest
+
+instance ToSchema RefreshMeetingLinkRequest where
+  schema =
+    objectWithDocModifier
+      (description ?~ "Request body for refreshing a meeting's join link")
+      $ RefreshMeetingLinkRequest
+        <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
+    where
+      desc = description ?~ "Optional password for the join link. Replaces any previously set password; omit or null for a passwordless link."
 
 instance PostgresMarshall (Maybe Text, Maybe DI.Int32, Maybe UTCTime) (Maybe Recurrence) where
   postgresMarshall Nothing = (Nothing, Nothing, Nothing)

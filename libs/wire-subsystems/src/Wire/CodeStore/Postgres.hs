@@ -30,6 +30,8 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
+import Hasql.Transaction qualified as Transaction
+import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (..))
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -55,12 +57,21 @@ interpretCodeStoreToPostgres = interpret $ \case
   DeleteMeetingCode mid ->
     Code.mkKey (CodeReferentMeeting mid) >>= deleteCode
   GetMeetingCode mid ->
-    Code.mkKey (CodeReferentMeeting mid) >>= lookupCode <&> fmap fst
+    Code.mkKey (CodeReferentMeeting mid) >>= lookupCode
   GetMeetingCodes mids ->
     lookupMeetingCodes mids
-  CreateMeetingCode mid t -> do
+  CreateMeetingCode mid t mPw -> do
     code <- Code.generate (CodeReferentMeeting mid) t
-    insertCode code Nothing
+    insertCode code mPw
+    pure True
+  RotateMeetingCode mid cid t mPw -> do
+    code <- Code.generate (CodeReferentMeeting mid) t
+    convKey <- Code.mkKey (CodeReferentConv cid)
+    -- Single transaction: a crash must never leave the guest code alive
+    -- after the meeting code row has been replaced.
+    runTransactionWithRetry ReadCommitted Write $ do
+      Transaction.statement (insertTuple code mPw) insertCodeStatement
+      Transaction.statement convKey deleteCodeStatement
     pure True
   MakeKey ref -> do
     Code.mkKey ref
@@ -72,27 +83,33 @@ interpretCodeStoreToPostgres = interpret $ \case
       Left uri -> Just uri
       Right map' -> mbHost >>= flip Map.lookup map'
 
-insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
-insertCode c password = do
-  runStatement (codeKey c, targetId, password, codeValue c, round (codeTTL c), codeTarget (codeReferent c)) insert
+-- | The conversation_codes row encoding for a meeting/conversation code,
+-- shared by the direct-write and transactional paths so they cannot drift.
+insertTuple :: Code -> Maybe Password -> (Key, UUID, Maybe Password, Value, Int32, CodeTarget)
+insertTuple c password = (codeKey c, targetId, password, codeValue c, round (codeTTL c), codeTarget (codeReferent c))
   where
     targetId = case codeReferent c of
       CodeReferentConv cid -> toUUID cid
       CodeReferentMeeting mid -> toUUID mid
-    insert :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, CodeTarget) ()
-    insert =
-      lmapPG
-        [resultlessStatement|INSERT INTO conversation_codes
-                               (key, conversation, password, value, expires_at, target)
-                             VALUES
-                               ($1 :: text, $2 :: uuid, $3 :: bytea?, $4 :: text, now() + make_interval(secs => $5 :: int), $6 :: text)
-                             ON CONFLICT (key) DO UPDATE
-                             SET conversation = ($2 :: uuid),
-                                 password = ($3 :: bytea?),
-                                 value = ($4 :: text),
-                                 expires_at = now() + make_interval(secs => $5 :: int),
-                                 target = ($6 :: text)
-         |]
+
+insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
+insertCode c password =
+  runStatement (insertTuple c password) insertCodeStatement
+
+insertCodeStatement :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, CodeTarget) ()
+insertCodeStatement =
+  lmapPG
+    [resultlessStatement|INSERT INTO conversation_codes
+                           (key, conversation, password, value, expires_at, target)
+                         VALUES
+                           ($1 :: text, $2 :: uuid, $3 :: bytea?, $4 :: text, now() + make_interval(secs => $5 :: int), $6 :: text)
+                         ON CONFLICT (key) DO UPDATE
+                         SET conversation = ($2 :: uuid),
+                             password = ($3 :: bytea?),
+                             value = ($4 :: text),
+                             expires_at = now() + make_interval(secs => $5 :: int),
+                             target = ($6 :: text)
+     |]
 
 lookupCode :: (PGConstraints r) => Key -> Sem r (Maybe (Code, Maybe Password))
 lookupCode k = do
@@ -163,12 +180,11 @@ lookupMeetingCodes mids
                         |]
 
 deleteCode :: (PGConstraints r) => Key -> Sem r ()
-deleteCode k =
-  runStatement k delete
-  where
-    delete :: Hasql.Statement Key ()
-    delete =
-      lmapPG
-        [resultlessStatement|DELETE FROM conversation_codes
-                             WHERE key = ($1 :: text) 
-                            |]
+deleteCode k = runStatement k deleteCodeStatement
+
+deleteCodeStatement :: Hasql.Statement Key ()
+deleteCodeStatement =
+  lmapPG
+    [resultlessStatement|DELETE FROM conversation_codes
+                         WHERE key = ($1 :: text) 
+                        |]

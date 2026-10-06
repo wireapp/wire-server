@@ -896,8 +896,9 @@ testMeetingType = do
   postMeetings owner badMeeting >>= assertStatus 400
 
 -- | WPB-28987: the V19 meeting object exposes an optional @link@ join link
--- whose final path segment is the meeting's UUID; it is present only when the
--- meeting has a live join code. Legacy endpoint shapes are unchanged.
+-- carrying the meeting's join code as @key@/@code@ query parameters; it is
+-- present only when the meeting has a live join code. Legacy endpoint shapes
+-- are unchanged.
 testMeetingLink :: (HasCallStack) => App ()
 testMeetingLink = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -923,25 +924,30 @@ testMeetingLink = do
         mMulti <- lookupField cfg "settings.multiIngress"
         ownDomain <- asString OwnDomain
         maybe (pure Nothing) (`lookupField` ownDomain) mMulti >>= maybe (pure Nothing) asStringM
-  -- Mirror 'API.mkMeetingLink', which normalizes the base's trailing slash.
+  -- Mirror 'API.mkMeetingLink', which rewrites the base's @conversation-join@
+  -- suffix to @meeting-join@ and appends the code key, the live join-code
+  -- value and the domain as query parameters.
   let supportsMeetingCodes = codeStorage /= "cassandra"
-      normalize s = if "/" `isSuffixOf` s then init s else s
-      expectedLink base = normalize base <> "/" <> meetingId
+      meetingBase b =
+        let normalized = if "/" `isSuffixOf` b then init b else b
+         in if "/conversation-join" `isSuffixOf` normalized
+              then take (length normalized - length ("/conversation-join" :: String)) normalized <> "/meeting-join"
+              else normalized
   case (mBase, supportsMeetingCodes) of
     (Just baseURI, True) -> do
-      let expected = expectedLink baseURI
       link <- meeting %. "link" >>= asString
-      link `shouldMatch` expected
+      let expected = meetingBase baseURI <> "/\\?key=[A-Za-z0-9_-]{20}&code=[A-Za-z0-9_-]{6,20}&domain=" <> domain
+      assertBool ("unexpected meeting link: " <> link) (link =~ expected)
 
       fetched <- getMeeting owner domain meetingId >>= getJSON 200
       fetchedLink <- fetched %. "link" >>= asString
-      fetchedLink `shouldMatch` expected
+      assertBool ("unexpected fetched meeting link: " <> fetchedLink) (fetchedLink =~ expected)
 
       listResp <- getMeetingsList owner
       assertSuccess listResp
       meetingsList <- listResp.json & asList
       listedLink <- head meetingsList %. "link" >>= asString
-      listedLink `shouldMatch` expected
+      assertBool ("unexpected listed meeting link: " <> listedLink) (listedLink =~ expected)
     _ -> do
       -- Either no join-link URI is configured for the user's domain, or the
       -- code store cannot hold meeting codes; the link field is omitted.
@@ -1006,3 +1012,56 @@ testMeetingInteropV18ToV19 = do
   modern <- getMeeting owner domain meetingId >>= getJSON 200
   mtype <- modern %. "type" >>= asString
   mtype `shouldMatch` ("scheduled" :: String)
+
+-- | WPB-28216: refreshing a meeting's join link recreates the join code
+-- (rotating the code embedded in the @link@ URL), revokes the meeting
+-- conversation's guest link, and enforces creator-only access.
+testMeetingLinkRefresh :: (HasCallStack) => App ()
+testMeetingLinkRefresh = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Refresh Integration" startTime endTime []
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  titleBefore <- meeting %. "title" >>= asString
+  -- The link is absent on deployments without a configured join-link URI
+  -- (e.g. the default integration stack); mirror testMeetingLink's guard.
+  mLinkBefore <- lookupField meeting "link" >>= maybe (pure Nothing) asStringM
+
+  conv <- meeting %. "conversation"
+
+  -- Plant a guest link on the meeting conversation; refresh must revoke it.
+  postConversationCode owner conv Nothing Nothing >>= assertSuccess
+  getConversationCode owner conv Nothing >>= assertStatus 200
+
+  refreshed <- postMeetingLinkRefresh owner domain meetingId (object []) >>= getJSON 200
+  -- V19 MeetingWithConversation flattens the meeting fields to the top level.
+  refreshedTitle <- refreshed %. "title" >>= asString
+  refreshedTitle `shouldMatch` titleBefore
+  refreshedLink <- lookupField refreshed "link" >>= maybe (pure Nothing) asStringM
+
+  -- The refresh rotates the code carried by the link URL.
+  case (mLinkBefore, refreshedLink) of
+    (Just linkBefore, Just linkAfter) -> do
+      linkAfter `shouldNotMatch` linkBefore
+    (Nothing, Nothing) -> pure () -- no join-link URI configured
+    _ -> assertFailure "refresh changed link presence"
+
+  -- The meeting conversation's guest link is revoked.
+  getConversationCode owner conv Nothing >>= assertLabel 404 "no-conversation-code"
+
+  -- Only the creator may refresh.
+  (otherUser, _, _) <- createTeam OwnDomain 1
+  postMeetingLinkRefresh otherUser domain meetingId (object []) >>= assertStatus 404
+
+  -- Refreshing a deleted meeting yields 404.
+  deleteMeeting owner domain meetingId >>= assertStatus 200
+  postMeetingLinkRefresh owner domain meetingId (object []) >>= assertStatus 404
+
+  -- A too-short password is rejected by the request schema (min length 8).
+  meeting2 <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
+  postMeetingLinkRefresh owner domain2 meetingId2 (object ["password" .= ("short7" :: String)]) >>= assertStatus 400

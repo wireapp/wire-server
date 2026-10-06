@@ -287,3 +287,25 @@ type MeetingsAPI =
                     '[RespondEmpty 200 "Invitations replaced"]
                     ()
            )
+    :<|> Named
+           "refresh-meeting-link"
+           ( Summary "Refresh the join link of a meeting"
+               :> DescriptionOAuthScope 'WriteMeetings
+               :> From 'V19
+               :> ZLocalUser
+               :> ZConn
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "link"
+               :> "refresh"
+               :> ReqBody '[JSON] RefreshMeetingLinkRequest
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> CanThrow MeetingError
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 200 "Meeting link refreshed" MeetingWithConversation]
+                    MeetingWithConversation
+           )

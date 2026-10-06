@@ -33,14 +33,26 @@ data CodeStore m a where
   GetCode :: Key -> CodeStore m (Maybe (Code, Maybe Password))
   DeleteConversationCode :: ConvId -> CodeStore m ()
   DeleteMeetingCode :: MeetingId -> CodeStore m ()
-  -- | Generate and insert a join code for a meeting. Returns 'False' when the
-  -- backing store cannot hold meeting codes (Cassandra-only mode); callers
-  -- degrade to a meeting without a link instead of failing the request.
-  CreateMeetingCode :: MeetingId -> Timeout -> CodeStore m Bool
-  -- | Look up a meeting's join code by meeting id. 'Nothing' when no code row
-  -- exists (legacy meeting, or code creation failed) or the backing store
+  -- | Generate and insert a join code for a meeting, storing the (hashed)
+  -- password if given. Returns 'False' when the backing store cannot hold
+  -- meeting codes (Cassandra-only mode); callers degrade to a meeting without
+  -- a link instead of failing the request.
+  CreateMeetingCode :: MeetingId -> Timeout -> Maybe Password -> CodeStore m Bool
+  -- | Atomically rotate a meeting's join code (upsert of the stable-key row)
+  -- and revoke the meeting conversation's guest code, in a single
+  -- transaction. Splitting these into two writes would let a crash between
+  -- them leave the old guest link usable even though the meeting link has
+  -- already been replaced, so refresh must not compose them externally.
+  -- Returns 'False' when the backing store cannot hold meeting codes
+  -- (Cassandra-only mode); callers degrade to a meeting without a link
+  -- instead of failing the request.
+  RotateMeetingCode :: MeetingId -> ConvId -> Timeout -> Maybe Password -> CodeStore m Bool
+  -- | Look up a meeting's join code by meeting id, together with its (hashed)
+  -- password if one is set, so a future join endpoint can enforce it.
+  -- 'Nothing' when no code
+  -- row exists (legacy meeting, or code creation failed) or the backing store
   -- cannot hold meeting codes (Cassandra-only mode).
-  GetMeetingCode :: MeetingId -> CodeStore m (Maybe Code)
+  GetMeetingCode :: MeetingId -> CodeStore m (Maybe (Code, Maybe Password))
   -- | Look up join codes for many meetings in a single query. Meetings
   -- without a code (legacy, expired, or a backing store that cannot hold
   -- meeting codes) are absent from the result map.

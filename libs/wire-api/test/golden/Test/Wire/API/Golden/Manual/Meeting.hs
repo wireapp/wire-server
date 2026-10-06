@@ -44,7 +44,7 @@ testObject_Meeting_manual_1 =
       invitedEmails = [unsafeEmailAddress "someone" "example.com"],
       createdAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
       updatedAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
-      link = Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://account.wire.com/conversation-join/00000001-0000-0000-0000-000000000001")))
+      link = Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://account.wire.com/meeting-join/?key=AAAAAAAAAAAAAAAAAAAA&code=BBBBBBBBBBBBBBBBBBBB&domain=example.com")))
     }
 
 testObject_Meeting_manual_2 :: Meeting
