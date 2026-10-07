@@ -59,6 +59,7 @@ testObject_SelfProfile_user_1 =
                       _serviceRefProvider = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))
                     }
                 ),
+            userCollaboratorSettings = Nothing,
             userHandle = Just (fromJust (parseHandle "do9-5")),
             userExpire = Just (fromJust (readUTCTimeMillis "1864-05-07T21:09:29.342Z")),
             userTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000002"))),
