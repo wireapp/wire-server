@@ -223,5 +223,5 @@ optSettings:
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
 
-logLevel: Debug
+logLevel: Warn
 logNetStrings: false
