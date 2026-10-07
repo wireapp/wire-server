@@ -191,6 +191,7 @@ testCallsConfigMultipleV3 b opts turnUpdaterV2 = do
           :| [toTurnURI SchemeTurn "localhost" 3479 Nothing]
   modifyAndAssertV3 b opts uid turnUpdaterV2 _changes _expected
   -- Revert the config file back to the original
+  let _expected = NonEmpty.singleton $ toTurnURI SchemeTurn "localhost" 3478 Nothing
   modifyAndAssertV3 b opts uid turnUpdaterV2 "turn:localhost:3478" _expected
 
 modifyAndAssertV3 ::
