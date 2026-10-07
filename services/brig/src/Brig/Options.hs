@@ -265,7 +265,11 @@ data TurnOpts = TurnOpts
     tokenTTL :: !Word32,
     -- | How long until a new TURN configuration
     --   should be fetched, in seconds
-    configTTL :: !Word32
+    configTTL :: !Word32,
+    -- | Path to the file containing the coturn 'static-auth-secret' shared with
+    --   coturn TURN servers configured for native long-term credentials.
+    --   Enables @/calls/config/v3@; optional.
+    coturnSecret :: !(Maybe FilePath)
   }
   deriving (Show)
 
@@ -281,6 +285,7 @@ instance FromJSON TurnOpts where
       <$> o .: "secret"
       <*> o .: "tokenTTL"
       <*> o .: "configTTL"
+      <*> o .:? "coturnSecret"
 
 data TurnServersSource
   = TurnSourceDNS TurnDnsOpts

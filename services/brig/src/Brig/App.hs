@@ -274,7 +274,9 @@ newEnv opts = do
       FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
   let turnOpts = Opt.turn opts
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
-  turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
+  Just sha1 <- getDigestByName "SHA1"
+  mCoturnSecret <- forM (Opt.coturnSecret turnOpts) $ (fmap (Text.encodeUtf8 . Text.strip) . Text.readFile)
+  turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512 sha1 mCoturnSecret
   eventsQueue :: QueueEnv <- case opts.internalEvents.internalEventsQueue of
     StompQueueOpts q -> do
       stomp :: Stomp.Env <- case (opts.stompOptions, opts.settings.stomp) of

@@ -161,6 +161,8 @@ turn:
   serversSource: files # files | dns
   servers: ../../libs/wire-subsystems/test/resources/turn/servers.txt
   serversV2: ../../libs/wire-subsystems/test/resources/turn/servers-v2.txt
+  # coturn static-auth-secret for /calls/config/v3 (must match turnserver.conf's static-auth-secret)
+  coturnSecret: ../../libs/wire-subsystems/test/resources/turn/coturn-secret.txt
   # If configured to dns, also configure:
   # baseDomain: example.com
   # discoveryIntervalSeconds: 10

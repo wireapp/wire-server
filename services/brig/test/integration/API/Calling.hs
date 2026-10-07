@@ -34,7 +34,13 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (Port (..), mkHttpsUrl)
 import Data.Set qualified as Set
 import Data.String.Conversions
+import Data.Text qualified as Text
+import Data.Text.Ascii (encodeBase64)
+import Data.Text.IO qualified as Text
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports
+import OpenSSL (withOpenSSL)
+import OpenSSL.EVP.Digest (getDigestByName, hmacBS)
 import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -55,7 +61,8 @@ tests m b opts turn turnV2 = do
             test m "multiple servers using files /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
             test m "multiple servers using SRV /calls/config - 200" $ testCallsConfigSRV b opts,
             test m "multiple servers using files /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b,
-            test m "multiple servers using SRV records /calls/config/v2 - 200" $ testCallsConfigV2SRV b opts
+            test m "multiple servers using SRV records /calls/config/v2 - 200" $ testCallsConfigV2SRV b opts,
+            test m "multiple servers using files /calls/config/v3 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV3 b opts
           ],
         testGroup
           "sft"
@@ -171,6 +178,74 @@ testCallsConfigMultipleV2 b turnUpdaterV2 = do
   let _expected = NonEmpty.singleton $ toTurnURI SchemeTurn "localhost" 3478 Nothing
   modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
 
+testCallsConfigMultipleV3 :: Brig -> Opts.Opts -> TurnUpdater -> Http ()
+testCallsConfigMultipleV3 b opts turnUpdaterV2 = do
+  uid <- userId <$> randomUser b
+  -- Ensure we have a clean config
+  let _expected = NonEmpty.singleton $ toTurnURI SchemeTurn "localhost" 3478 Nothing
+  modifyAndAssertV3 b opts uid turnUpdaterV2 "turn:localhost:3478" _expected
+  -- Change server list
+  let _changes = "turn:localhost:3478\nturn:localhost:3479"
+  let _expected =
+        toTurnURI SchemeTurn "localhost" 3478 Nothing
+          :| [toTurnURI SchemeTurn "localhost" 3479 Nothing]
+  modifyAndAssertV3 b opts uid turnUpdaterV2 _changes _expected
+  -- Revert the config file back to the original
+  modifyAndAssertV3 b opts uid turnUpdaterV2 "turn:localhost:3478" _expected
+
+modifyAndAssertV3 ::
+  (HasCallStack) =>
+  Brig ->
+  Opts.Opts ->
+  UserId ->
+  (String -> IO ()) ->
+  String ->
+  NonEmpty TurnURI ->
+  Http ()
+modifyAndAssertV3 b opts uid updater newServers expected = do
+  liftIO $ updater newServers
+  cfg <- getTurnConfigurationV3 uid b
+  assertConfigurationV3 cfg expected
+  liftIO $ assertCoturnCredentials opts cfg
+
+assertConfigurationV3 :: (HasCallStack) => RTCConfigurationV3 -> NonEmpty TurnURI -> Http ()
+assertConfigurationV3 cfg expected = do
+  let actual = concatMap (toList . view iceV3URLs) $ toList $ cfg ^. rtcConfV3IceServers
+  liftIO $ assertEqual "Expected advertised TURN servers to match actual ones" (sort $ toList expected) (sort actual)
+
+-- | Asserts that the credentials are valid coturn native long-term credentials:
+-- @credential = base64(HMAC-SHA1(static-auth-secret, username))@ with
+-- @username = "<unix-expiry>:<uid>"@.
+assertCoturnCredentials :: Opts.Opts -> RTCConfigurationV3 -> IO ()
+assertCoturnCredentials opts cfg = do
+  secretPath <- case Opts.coturnSecret (Opts.turn opts) of
+    Just p -> pure p
+    Nothing -> error "turn.coturnSecret must be configured for /calls/config/v3 integration tests"
+  secret <- cs . Text.strip <$> Text.readFile secretPath
+  now <- getPOSIXTime
+  withOpenSSL $ do
+    Just sha1 <- getDigestByName "SHA1"
+    forM_ (cfg ^. rtcConfV3IceServers) $ \ice -> do
+      let u = ice ^. iceV3Username
+      assertBool "coturn username expiry should be in the future" (u ^. cuExpiresAt > now)
+      assertBool "coturn username uid should be non-empty [a-z0-9]" (Text.all (\c -> isAsciiLower c || isDigit c) (u ^. cuUid) && not (Text.null (u ^. cuUid)))
+      assertEqual
+        "coturn credential should be base64(HMAC-SHA1(secret, username))"
+        (encodeBase64 (hmacBS sha1 secret (toByteString' u)))
+        (ice ^. iceV3Credential)
+
+getTurnConfigurationV3 :: (HasCallStack) => UserId -> Brig -> ((MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfigurationV3)
+getTurnConfigurationV3 u b =
+  responseJsonError
+    =<< ( get
+            ( b
+                . paths ["/calls/config/v3"]
+                . zUser u
+                . zConn "conn"
+            )
+            <!! const 200 === statusCode
+        )
+
 -- | This test relies on pre-created public DNS records. Code here:
 -- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
 testCallsConfigSRV :: Brig -> Opts.Opts -> Http ()
@@ -215,7 +290,7 @@ testCallsConfigV2SRV b opts = do
 assertConfiguration :: (HasCallStack) => RTCConfiguration -> NonEmpty TurnURI -> Http ()
 assertConfiguration cfg expected = do
   let actual = concatMap (toList . view iceURLs) $ toList $ cfg ^. rtcConfIceServers
-  liftIO $ assertEqual "Expected adverstised TURN servers to match actual ones" (sort $ toList expected) (sort actual)
+  liftIO $ assertEqual "Expected advertised TURN servers to match actual ones" (sort $ toList expected) (sort actual)
 
 getTurnConfigurationV1 :: UserId -> Brig -> Http RTCConfiguration
 getTurnConfigurationV1 = getAndValidateTurnConfiguration ""

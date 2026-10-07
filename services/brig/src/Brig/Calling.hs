@@ -45,6 +45,8 @@ module Brig.Calling
     turnConfigTTL,
     turnSecret,
     turnSHA512,
+    turnSHA1,
+    turnV3Secret,
   )
 where
 
@@ -236,13 +238,25 @@ data TurnEnv = TurnEnv
     _turnTokenTTL :: Word32,
     _turnConfigTTL :: Word32,
     _turnSecret :: ByteString,
-    _turnSHA512 :: Digest
+    _turnSHA512 :: Digest,
+    -- | used for coturn native long-term credentials
+    _turnSHA1 :: Digest,
+    -- | coturn static-auth-secret; 'Nothing' = v3 unconfigured
+    _turnV3Secret :: Maybe ByteString
   }
 
 makeLenses ''TurnEnv
 
-mkTurnEnv :: Opts.TurnServersSource -> Word32 -> Word32 -> ByteString -> Digest -> IO TurnEnv
-mkTurnEnv serversSource _turnTokenTTL _turnConfigTTL _turnSecret _turnSHA512 = do
+mkTurnEnv ::
+  Opts.TurnServersSource ->
+  Word32 ->
+  Word32 ->
+  ByteString ->
+  Digest ->
+  Digest ->
+  Maybe ByteString ->
+  IO TurnEnv
+mkTurnEnv serversSource _turnTokenTTL _turnConfigTTL _turnSecret _turnSHA512 _turnSHA1 _turnV3Secret = do
   _turnServers <- case serversSource of
     Opts.TurnSourceDNS opts ->
       do

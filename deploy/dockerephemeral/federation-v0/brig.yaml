@@ -136,6 +136,7 @@ turn:
 
   # This should be the same secret as used by the TURN servers
   secret: /etc/wire/brig/conf/turn-secret.txt
+  coturnSecret: /etc/wire/brig/conf/coturn-secret.txt
   configTTL: 3600
   tokenTTL: 21600
 
