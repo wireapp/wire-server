@@ -54,7 +54,9 @@ services:
       - DEFAULT_REGION=eu-west-1
       - SERVICES=ses,sns
     networks:
-      - demo_wire
+      demo_wire:
+        aliases:
+          - ses
 
   basic_smtp: # needed for demo setup
     container_name: demo_wire_smtp

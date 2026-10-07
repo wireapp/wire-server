@@ -20,8 +20,10 @@ rabbitmq:
   host: rabbitmq
   port: 5672
   vHost: federation-v0
+  adminHost: rabbitmq
   adminPort: 15672
 
 backendNotificationPusher:
   pushBackoffMinWait: 1000
   pushBackoffMaxWait: 1000000
+  remotesRefreshInterval: 1

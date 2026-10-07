@@ -242,7 +242,7 @@ services:
       - demo_wire
     ports:
       - "127.0.0.1:23080:8080"
-      - "127.0.0.1:23443:8443"
+      - "0.0.0.0:23443:8443"
     depends_on:
       brig-v2:
         condition: service_healthy

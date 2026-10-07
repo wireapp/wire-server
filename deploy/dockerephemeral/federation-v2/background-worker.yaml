@@ -18,6 +18,7 @@ rabbitmq:
   host: rabbitmq
   port: 5672
   vHost: federation-v2
+  adminHost: rabbitmq
   adminPort: 15672
 
 backendNotificationPusher:
