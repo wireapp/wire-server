@@ -75,8 +75,7 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{- end -}}
 
 {{/*
-Listener section names: application HTTPS belongs to listenerset.yaml;
-federation belongs to gateway.yaml (or an externally managed Gateway).
+Section names in the chart-owned ListenerSet.
 */}}
 {{- define "wire-ingress.httpsSectionName" -}}
 {{- .Values.gateway.listeners.https.sectionName | default "https" -}}
@@ -225,7 +224,7 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp -}}
 {{- end -}}
 
-{{/* Section policies replace Gateway policies, so both use the same TLS/ALPN settings. */}}
+{{/* Section policies replace ListenerSet policies, so both use the same TLS/ALPN settings. */}}
 {{- define "wire-ingress.downstreamTls" -}}
 {{- $tls := .Values.gateway.tls -}}
 {{- if .Values.gateway.alpn.enabled }}

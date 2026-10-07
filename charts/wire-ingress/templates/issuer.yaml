@@ -31,8 +31,10 @@ spec:
       - http01:
           gatewayHTTPRoute:
             parentRefs:
-              - name: {{ include "wire-ingress.gatewayName" . | quote }}
+              - name: {{ include "wire-ingress.fullname" . | quote }}
                 namespace: {{ .Release.Namespace | quote }}
-                kind: Gateway
+                kind: ListenerSet
+                group: gateway.networking.k8s.io
+                sectionName: http
 {{- end }}
 {{- end -}}

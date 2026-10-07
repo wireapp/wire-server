@@ -43,13 +43,7 @@ spec:
       {{- else if .Values.gateway.patchPolicies.xdsListenerName }}
       name: {{ .Values.gateway.patchPolicies.xdsListenerName | quote }}
       {{- else }}
-      {{- /* Federation remains Gateway-owned for Envoy Gateway 1.8 mTLS.
-           Otherwise the first TLS listener belongs to our ListenerSet. */}}
-      {{- if .Values.federator.enabled }}
-      name: {{ printf "%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) (include "wire-ingress.federatorSectionName" .) | quote }}
-      {{- else }}
       name: {{ printf "%s/%s/%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) .Release.Namespace (include "wire-ingress.fullname" .) (include "wire-ingress.httpsSectionName" .) | quote }}
-      {{- end }}
       {{- end }}
       operation:
         op: add

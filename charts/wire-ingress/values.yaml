@@ -92,7 +92,7 @@ gateway:
     minEndpointsThreshold: 3
   # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
   # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
-  # ClientTrafficPolicy targeting the Gateway.
+  # ClientTrafficPolicy targeting this release's ListenerSet.
   proxyProtocol:
     enabled: false
     # If true, connections without a PROXY protocol header are also accepted.
@@ -114,16 +114,15 @@ gateway:
       # must reference this ListenerSet and section name.
       sectionName: https
     # The federation listener shares listeners.https.port and is created only
-    # when federator.enabled. It stays on the Gateway because Envoy Gateway
-    # 1.8 cannot target ListenerSets with ClientTrafficPolicy (mTLS).
+    # when federator.enabled. It belongs to the same ListenerSet as HTTPS.
     federator:
       sectionName: federator
     # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
-    # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
+    # gatewayHTTPRoute solver targeting the ListenerSet. Tested with cert-manager 1.20.
     # See the README for configuration details.
     http:
-      # If disabled and federation is off, a placeholder HTTP listener remains
-      # on the Gateway (required by Gateway API), with all route attachment denied.
+      # Application ports must not use 65535, reserved for the Gateway
+      # placeholder (which always denies route attachment).
       enabled: false
       port: 80
       # Optional hostname restriction for the HTTP listener. Set alongside
@@ -172,8 +171,7 @@ gateway:
     xdsNameSchemeV2: null
     # Legacy scheme only. Overrides the xDS listener name the FIPS patch targets.
     # The legacy name comes from the FIRST listener on the HTTPS port, which for
-    # a Gateway created by this chart is the federator listener if enabled,
-    # otherwise the ListenerSet HTTPS listener. Set this
+    # a Gateway created by this chart is the ListenerSet HTTPS listener. Set this
     # when an externally created Gateway declares a different listener first.
     xdsListenerName: ""
     # Set to true when the GatewayClass uses mergeGateways: true.

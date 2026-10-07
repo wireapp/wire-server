@@ -23,13 +23,7 @@ spec:
       name: {{ include "wire-ingress.fullname" $ }}-nginz-websockets{{ $domain.suffix }}
     {{- end }}
   {{- if .Values.gateway.zoneAwareRouting.enabled }}
-  {{/* EG 1.8 skips merged route policies for ListenerSet parents. Repeat the
-       Gateway's load balancer settings so the idle timeout still applies. */}}
-  loadBalancer:
-    type: LeastRequest
-    zoneAware:
-      preferLocal:
-        minEndpointsThreshold: {{ .Values.gateway.zoneAwareRouting.minEndpointsThreshold }}
+  mergeType: StrategicMerge
   {{- end }}
   timeout:
     http:

@@ -2,6 +2,9 @@
 {{- if not .Values.gateway.className }}
 {{- fail "gateway.className must be set when gateway.create is true (set it to the name of your GatewayClass, e.g. 'envoy')" }}
 {{- end }}
+{{- if or (eq (int .Values.gateway.listeners.https.port) 65535) (and .Values.gateway.listeners.http.enabled (eq (int .Values.gateway.listeners.http.port) 65535)) }}
+{{- fail "port 65535 is reserved for the Gateway placeholder listener" }}
+{{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -44,24 +47,11 @@ spec:
     namespaces:
       from: Same
   listeners:
-    {{- if .Values.federator.enabled }}
-    - name: {{ include "wire-ingress.federatorSectionName" . }}
-      port: {{ .Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
-            kind: Secret
-    {{- end }}
-    {{- if or .Values.gateway.listeners.http.enabled (not .Values.federator.enabled) }}
-    - name: http
-      port: {{ .Values.gateway.listeners.http.port }}
+    # Gateway API requires a Gateway-owned listener. Keep it off application
+    # ports: Envoy cannot apply ListenerSet policies to shared plaintext ports.
+    - name: placeholder
+      port: 65535
       protocol: HTTP
-      {{- if not .Values.gateway.listeners.http.enabled }}
-      # Gateway API requires a listener. No namespace can attach routes to this
-      # placeholder: Kubernetes always sets the namespace name label.
       allowedRoutes:
         namespaces:
           from: Selector
@@ -69,9 +59,4 @@ spec:
             matchExpressions:
               - key: kubernetes.io/metadata.name
                 operator: DoesNotExist
-      {{- end }}
-      {{- if .Values.gateway.listeners.http.hostname }}
-      hostname: {{ .Values.gateway.listeners.http.hostname | quote }}
-      {{- end }}
-    {{- end }}
 {{- end }}

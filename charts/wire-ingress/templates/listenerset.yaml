@@ -25,6 +25,17 @@ spec:
           - name: {{ $domain.secretName | quote }}
             kind: Secret
     {{- end }}
+    {{- if .Values.federator.enabled }}
+    - name: {{ include "wire-ingress.federatorSectionName" . }}
+      port: {{ .Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
+            kind: Secret
+    {{- end }}
     {{- range .Values.gateway.extraHttpsListeners }}
     - name: {{ required "extraHttpsListeners[].name is required" .name | quote }}
       port: {{ $.Values.gateway.listeners.https.port }}
@@ -35,4 +46,12 @@ spec:
         certificateRefs:
           - name: {{ .certificateSecretName | default (include "wire-ingress.certificateSecretName" $) | quote }}
             kind: Secret
+    {{- end }}
+    {{- if .Values.gateway.listeners.http.enabled }}
+    - name: http
+      port: {{ .Values.gateway.listeners.http.port }}
+      protocol: HTTP
+      {{- with .Values.gateway.listeners.http.hostname }}
+      hostname: {{ . | quote }}
+      {{- end }}
     {{- end }}
