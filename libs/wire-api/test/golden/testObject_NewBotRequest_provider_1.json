@@ -14,7 +14,8 @@
                     "id": "00000001-0000-0000-0000-000000000000",
                     "provider": "00000000-0000-0001-0000-000100000000"
                 },
-                "status": 0
+                "status": 0,
+                "type": "bot"
             },
             {
                 "conversation_role": "3m_oredfy0jqp1jvrociab2vq4z1rzklzs6_bpd04ht0",
@@ -23,7 +24,8 @@
                     "domain": "golden.example.com",
                     "id": "00000000-0000-0000-0000-000100000000"
                 },
-                "status": 0
+                "status": 0,
+                "type": "app"
             },
             {
                 "conversation_role": "0ns0gbsu3sk2cj6qsbs8bkmmculfhcbp_wntqaciff2f3j0zwf24p2ga7lxkzd13c626ruj7evj1lyqn0u7m2q5su",
@@ -32,7 +34,8 @@
                     "domain": "golden.example.com",
                     "id": "00000000-0000-0001-0000-000100000001"
                 },
-                "status": 0
+                "status": 0,
+                "type": "app"
             }
         ],
         "name": ""

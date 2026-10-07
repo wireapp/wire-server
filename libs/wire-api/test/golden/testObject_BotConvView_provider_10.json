@@ -8,7 +8,8 @@
                 "domain": "golden.example.com",
                 "id": "00000002-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         }
     ],
     "name": "􃙓#𫸜𨖜"

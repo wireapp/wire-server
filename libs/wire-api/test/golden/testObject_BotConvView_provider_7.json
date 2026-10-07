@@ -12,7 +12,8 @@
                 "id": "00000001-0000-0000-0000-000000000001",
                 "provider": "00000000-0000-0000-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "9_klbkp15t972yt659kdor1nskyqpow0hf9ir",
@@ -25,7 +26,8 @@
                 "id": "00000000-0000-0001-0000-000000000000",
                 "provider": "00000001-0000-0000-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "lxp4vgb4v2ij1rkqwm3uv4sybo5p0dku54d3",
@@ -34,7 +36,8 @@
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0000-0000-000000000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "yzltfr9pcpap1pfs8jas1s7dxckgayce3jhl_6nd_k4zc_5ofutl_kprv83m9gdsqh2qcu2a_2a7tnfzm2ie8ldudjrvvd",
@@ -47,7 +50,8 @@
                 "id": "00000001-0000-0001-0000-000000000000",
                 "provider": "00000001-0000-0001-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         }
     ],
     "name": "\n𨴯&;&S"
