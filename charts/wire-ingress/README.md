@@ -99,9 +99,15 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
-| `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set `mergeGateways`, custom service annotations, etc. |
+| `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set resource requests, custom service annotations, etc. |
 | `gateway.manageServiceType` | `true` | Shorthand that sets `envoyService.type` to `gateway.serviceType`. Disable when managing the service type via `gateway.envoyProxy.spec` directly. |
 | `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
+| `gateway.envoyProxy.replicas` | `3` | Proxy pod count for three AZs — see [Availability of the proxy fleet](#availability-of-the-proxy-fleet). |
+| `gateway.envoyProxy.topologySpreadKeys` | node and zone | Topology keys to spread the proxy pods over. Advisory (`ScheduleAnyway`). `[]` for none. |
+| `gateway.zoneAwareRouting.enabled` | `true` | Prefer same-zone backend endpoints to cut inter-AZ traffic cost — see [Zone-aware routing](#zone-aware-routing). |
+| `gateway.zoneAwareRouting.minEndpointsThreshold` | `3` | Below this many backend endpoints across all zones, Envoy balances normally. |
+| `gateway.annotations` | `{}` | Annotations on the `Gateway` object itself, e.g. for external-dns' `gateway-httproute` source. Not propagated to the proxy Service. |
+| `gateway.infrastructure.labels` | `{}` | Labels forwarded to the resources Envoy Gateway generates. Gateway API >= v1.1. |
 | `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
 | `gateway.proxyProtocol.enabled` | `false` | Enables PROXY protocol on all listeners (via the Gateway-wide `ClientTrafficPolicy`). Required when the upstream load balancer is configured to send PROXY protocol headers. |
 | `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
@@ -176,12 +182,6 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 
 ## Design decisions
 
-### Gateway API controller: Envoy Gateway
-
-The chart targets [Envoy Gateway](https://gateway.envoyproxy.io/). Implementation-specific
-resources (`ClientTrafficPolicy`, `SecurityPolicy`, `HTTPRouteFilter` with `directResponse`) are
-used where the standard Gateway API has gaps. These resources are clearly marked in each template.
-
 ### Gateway creation is optional
 
 The chart can optionally create a `Gateway` resource (controlled by `gateway.create: true`).
@@ -215,6 +215,25 @@ Set `gateway.envoyProxy.name` (with `create: false`) to reference an existing `E
 `gateway.manageServiceType: true` (default) is a shorthand that sets
 `provider.kubernetes.envoyService.type` to `gateway.serviceType`. Disable it when managing
 the service type via `envoyProxy.spec` or a cluster-level `EnvoyProxy`.
+
+### Availability of the proxy fleet
+
+When both `gateway.create` and `gateway.envoyProxy.create` are true, the chart defaults to
+three proxy replicas, a PDB with `minAvailable: 1`, and advisory node/zone spread constraints.
+This targets a three-AZ deployment; advisory spreading does not guarantee one pod per zone.
+
+The PDB is derived from the final replica count, including `envoyProxy.spec` overrides:
+one replica disables it; otherwise it uses `minAvailable: 1`. There is no separate PDB setting.
+
+### Zone-aware routing
+
+Same-zone backends are preferred by default (`gateway.zoneAwareRouting.enabled: true`). Requires nodes
+labelled `topology.kubernetes.io/zone` and Envoy Gateway's topology injector. The WebSocket
+policy inherits this setting while retaining its disabled idle timeout.
+
+`minEndpointsThreshold: 3` enables zone preference for backends with one replica in each of
+three AZs. It counts endpoints per upstream cluster across all zones, not per zone. Backend
+placement and capacity during an AZ failure must still be managed separately.
 
 ### GatewayClass is not created
 

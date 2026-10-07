@@ -22,6 +22,8 @@ gateway:
   controllerNamespace: {{ env "ENVOY_GATEWAY_NAMESPACE" }}
   manageServiceType: true
   serviceType: ClusterIP
+  envoyProxy:
+    replicas: 1
   listeners:
     https:
       # Envoy Gateway remaps privileged ports (+10000) on the proxy pod container.

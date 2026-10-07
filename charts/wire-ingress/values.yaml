@@ -17,6 +17,11 @@ httpRoute:
   annotations: {}
 
 gateway:
+  # Annotations on the Gateway object itself. NOT propagated to the proxy
+  # Service — cloud load balancer annotations go in infrastructure.annotations.
+  # external-dns reads its annotations here when the gateway-httproute source
+  # is enabled.
+  annotations: {}
   # If true, a Gateway resource is created by this chart.
   # If false, set gateway.name to reference an existing Gateway.
   create: true
@@ -41,9 +46,6 @@ gateway:
     # Free-form EnvoyProxy spec, merged verbatim at the spec root.
     # Only used when create: true.
     # See https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec
-    # Example - shared load balancer across Gateways (single wire-ingress chart):
-    #   spec:
-    #     mergeGateways: true
     # Example - ClusterIP service (integration tests / no external LB):
     #   spec:
     #     provider:
@@ -52,6 +54,16 @@ gateway:
     #         envoyService:
     #           type: ClusterIP
     spec: {}
+
+    # Used only when gateway.create and envoyProxy.create are true.
+    # Free-form spec above overrides these defaults.
+    # One proxy per AZ in a three-zone cluster (spread is advisory).
+    # A PDB with minAvailable: 1 is created unless the final replica count is 1.
+    replicas: 3
+    # Advisory node/zone spread (ScheduleAnyway). Set [] to disable.
+    topologySpreadKeys:
+      - kubernetes.io/hostname
+      - topology.kubernetes.io/zone
   # Convenience shorthand for provider.kubernetes.envoyService.type.
   # Only takes effect when manageServiceType: true.
   # Do not combine with envoyProxy.spec.provider.kubernetes.envoyService.
@@ -69,6 +81,15 @@ gateway:
   #       service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
   infrastructure:
     annotations: {}
+    # Labels propagated to the same generated resources. Gateway API >= v1.1.
+    labels: {}
+  # Prefer same-zone backends. Requires topology.kubernetes.io/zone node
+  # labels and Envoy Gateway's topology injector.
+  zoneAwareRouting:
+    enabled: true
+    # Minimum endpoint count per upstream cluster across all zones. Enables
+    # zone preference for backends with one replica in each of three AZs.
+    minEndpointsThreshold: 3
   # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
   # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
   # ClientTrafficPolicy targeting the Gateway.
