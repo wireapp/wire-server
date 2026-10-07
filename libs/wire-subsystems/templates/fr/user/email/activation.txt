@@ -1,21 +1,16 @@
-[${brand_logo}]
+PANINI ERROR
+src/pages/fr/user/email/activation.html
 
-${brand_label_url} [${brand_url}]
+The partial fr/link-button could not be found
 
-VÉRIFICATION DE VOTRE ADRESSE EMAIL
-${email} a été utilisé pour s'enregistrer sur ${brand}.
-Cliquez sur le bouton ci-dessous pour vérifier votre adresse.
-
-Vérifier [${url}]If you can’t select the button, copy and paste this link to
-your browser:
-
-${url}
-
-Si vous avez des questions, veuillez nous contacter [${support}].
-
-
---------------------------------------------------------------------------------
-
-Règles de confidentialité et conditions d'utilisation [${legal}] · Signaler un
-abus [${misuse}]
-${copyright}. TOUS DROITS RÉSERVÉS.
+STACK TRACE:
+Object.invokePartial (/home/runner/work/wire-emails/wire-emails/node_modules/handlebars/dist/cjs/handlebars/runtime.js:332:11)
+Object.invokePartialWrapper [as invokePartial] (/home/runner/work/wire-emails/wire-emails/node_modules/handlebars/dist/cjs/handlebars/runtime.js:84:39)
+Object.eval [as main] (eval at createFunctionContext (/home/runner/work/wire-emails/wire-emails/node_modules/handlebars/dist/cjs/handlebars/compiler/javascript-compiler.js:262:23), <anonymous>:17:28)
+main (/home/runner/work/wire-emails/wire-emails/node_modules/handlebars/dist/cjs/handlebars/runtime.js:208:32)
+ret (/home/runner/work/wire-emails/wire-emails/node_modules/handlebars/dist/cjs/handlebars/runtime.js:212:12)
+ret (/home/runner/work/wire-emails/wire-emails/node_modules/handlebars/dist/cjs/handlebars/compiler/compiler.js:519:21)
+HandlebarsEngine.render (/home/runner/work/wire-emails/wire-emails/node_modules/panini/engines/handlebars.js:93:14)
+/home/runner/work/wire-emails/wire-emails/node_modules/panini/lib/render.js:152:40
+Array.map (<anonymous>)
+Panini.build (/home/runner/work/wire-emails/wire-emails/node_modules/panini/lib/render.js:146:23)

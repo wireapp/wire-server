@@ -8,7 +8,7 @@ beigetreten.
 
 Genießen Sie die nahtlose und sichere Teamarbeit mit ${brand}!
 
-${brand} öffnen [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
+${brand} öffnen [${url}] Wenn Sie die Schaltfläche nicht auswählen können,
 kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}

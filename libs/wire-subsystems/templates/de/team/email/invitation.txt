@@ -5,12 +5,12 @@ ${brand_label_url} [${brand_url}]
 EINLADUNG ZUM TEAM
 ${inviter} hat Sie eingeladen, einem Team auf Wire beizutreten.
 
-Team beitreten [${url}]Oder öffnen Sie diesen Link in Ihrem Browser:
+Team beitreten [${url}] Oder öffnen Sie diesen Link in Ihrem Browser:
 ${url} [${url}]
 
 Missbräuchlichen Einladungslink melden [${support}]
 
-Was ist Wire?Wire ist die sicherste Plattform für Ihre Kommunikation. Wo auch
+Was ist Wire? Wire ist die sicherste Plattform für Ihre Kommunikation. Wo auch
 immer Sie sind, arbeiten Sie mit Ihrem Team und externen Partnern zusammen –
 mittels Nachrichten, Videokonferenzen und Dateifreigabe. Stets Ende-zu-Ende
 verschlüsselt.
