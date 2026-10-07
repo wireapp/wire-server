@@ -21,11 +21,12 @@ module Test.Federation where
 
 import qualified API.Brig as BrigP
 import API.Galley
-import Control.Lens
+import Control.Lens hiding ((&&~))
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
+import MLS.Util
 import Notifications
 import Numeric.Lens
 import qualified Proto.Otr as Proto
@@ -33,6 +34,83 @@ import qualified Proto.Otr_Fields as Proto
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
+import Testlib.VersionedFed
+
+-- | Basic federation operations across every distinct pair of enabled legacy
+-- and current backend versions.
+testBasicFederationAcrossVersions :: (HasCallStack) => FedVersionPair -> App ()
+testBasicFederationAcrossVersions pair = do
+  withFederationDomains pair $ federationTestActionMLS cs
+  where
+    cs :: Ciphersuite
+    cs =
+      if anyVersionSatisfies (maybe False (\i -> i < 2))
+        then Ciphersuite "0x0001"
+        else def
+      where
+        anyVersionSatisfies :: (Maybe Integer -> Bool) -> Bool
+        anyVersionSatisfies p = any p [versionToInt pair.localFedVersion, versionToInt pair.remoteFedVersion]
+
+        versionToInt :: FedVersion -> Maybe Integer
+        versionToInt (FedVersionLegacy i) = Just i
+        versionToInt _ = Nothing
+
+    -- Wire a pair of federation domains into the test action.
+    withFederationDomains :: (HasCallStack) => FedVersionPair -> (Value -> Value -> App a) -> App a
+    withFederationDomains pair' action =
+      if FedVersionCurrentStable `elem` [pair'.localFedVersion, pair'.remoteFedVersion]
+        then startDynamicBackends [currentVersionSettings ["development"]] $ \[stable] -> runWithStableDomain (Just stable)
+        else runWithStableDomain Nothing
+      where
+        runWithStableDomain stableDomain = do
+          localDomain <- resolveDomain pair'.localFedVersion stableDomain
+          remoteDomain <- resolveDomain pair'.remoteFedVersion stableDomain
+          action localDomain remoteDomain
+
+        resolveDomain :: (HasCallStack) => FedVersion -> Maybe String -> App Value
+        resolveDomain (FedVersionLegacy version) _ = make (AnyFedDomain version)
+        resolveDomain FedVersionCurrentStable (Just stableDomain) = make stableDomain
+        -- BackendA already enables the development federation API version.
+        resolveDomain FedVersionCurrentDevelopment _ = make OwnDomain
+        resolveDomain FedVersionCurrentStable Nothing = error "stable federation version has no dynamic backend"
+
+    currentVersionSettings :: [String] -> ServiceOverrides
+    currentVersionSettings disabledVersions =
+      def
+        { brigCfg = setField "optSettings.setDisabledFederationAPIVersions" disabledVersions,
+          galleyCfg = setField "settings.disabledFederationAPIVersions" disabledVersions,
+          cargoholdCfg = setField "settings.disabledFederationAPIVersions" disabledVersions
+        }
+
+-- | Test action independent of backend startup and domain resolution.
+federationTestActionMLS :: Ciphersuite -> Value -> Value -> App ()
+federationTestActionMLS cs localDomain remoteDomain = do
+  (localAdmin, localTeam, [localMember]) <- createTeam localDomain 2
+  (remoteAdmin, _remoteTeam, [remoteMember]) <- createTeam remoteDomain 2
+
+  for_ [remoteAdmin, remoteMember] (connectTwoUsers localAdmin)
+
+  clients@[localAdmin1, _, remoteAdmin1, _] <- traverse (createMLSClient def {ciphersuites = [cs]}) [localAdmin, localMember, remoteAdmin, remoteMember]
+  for_ clients (uploadNewKeyPackage cs)
+
+  convId <- createNewGroupWith cs localAdmin1 defMLS {team = Just localTeam}
+  void
+    $ createAddCommit localAdmin1 convId [localMember, remoteAdmin, remoteMember]
+    >>= sendAndConsumeCommitBundle
+
+  withWebSockets [localMember, remoteAdmin, remoteMember] $ \wss -> do
+    localMessage <- createApplicationMessage convId localAdmin1 "message from the local team"
+    postMLSMessage localMessage.sender localMessage.message >>= assertSuccess
+    for_ wss (awaitMatch (isMessageForConversation convId))
+
+  withWebSockets [localAdmin, localMember, remoteMember] $ \wss -> do
+    remoteMessage <- createApplicationMessage convId remoteAdmin1 "message from the remote team"
+    postMLSMessage remoteMessage.sender remoteMessage.message >>= assertSuccess
+    for_ wss (awaitMatch (isMessageForConversation convId))
+  where
+    isMessageForConversation :: ConvId -> Value -> App Bool
+    isMessageForConversation convId' notification =
+      isNewMLSMessageNotif notification &&~ isNotifConvId convId' notification
 
 testNotificationsForOfflineBackends :: (HasCallStack) => App ()
 testNotificationsForOfflineBackends = do

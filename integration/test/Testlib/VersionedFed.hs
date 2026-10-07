@@ -54,6 +54,44 @@ mkFedTestCase name n = do
 
 data AnyFedDomain = AnyFedDomain {unFedDomain :: Integer}
 
+data FedVersion
+  = FedVersionLegacy Integer
+  | FedVersionCurrentStable
+  | FedVersionCurrentDevelopment
+  deriving (Eq, Show)
+
+fedVersionName :: FedVersion -> String
+fedVersionName (FedVersionLegacy version) = "fed-v" <> show version
+fedVersionName FedVersionCurrentStable = "current-stable"
+fedVersionName FedVersionCurrentDevelopment = "current-dev"
+
+-- | Pairs of distinct enabled legacy/current backends
+data FedVersionPair = FedVersionPair
+  { localFedVersion :: FedVersion,
+    remoteFedVersion :: FedVersion
+  }
+
+instance TestCases FedVersionPair where
+  mkTestCases = do
+    legacyCases <- mkTestCases @AnyFedDomain
+    -- The pinned v0 worker requires explicit remote-domain registration, which
+    -- does not cover the dynamic backends used by these cross-version tests.
+    let legacyVersions = [FedVersionLegacy version | MkTestCase _ (AnyFedDomain version) <- legacyCases, version /= 0]
+        versions = legacyVersions <> [FedVersionCurrentStable, FedVersionCurrentDevelopment]
+    pure
+      [ MkTestCase
+          ( "[local="
+              <> fedVersionName localVersion
+              <> "][remote="
+              <> fedVersionName remoteVersion
+              <> "]"
+          )
+          (FedVersionPair localVersion remoteVersion)
+      | localVersion <- versions,
+        remoteVersion <- versions,
+        localVersion /= remoteVersion
+      ]
+
 instance MakesValue AnyFedDomain where
   make (AnyFedDomain 0) = asks (String . T.pack . (.federationV0Domain))
   make (AnyFedDomain 1) = asks (String . T.pack . (.federationV1Domain))
