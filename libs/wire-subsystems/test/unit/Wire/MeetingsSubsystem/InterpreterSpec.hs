@@ -224,6 +224,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -252,6 +253,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -283,6 +285,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -322,6 +325,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -355,6 +359,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -495,6 +500,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -520,6 +526,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 3500 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -539,6 +546,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -560,6 +568,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -580,6 +589,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -609,6 +619,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -628,6 +639,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -649,6 +661,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -673,6 +686,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -704,6 +718,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -722,6 +737,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -748,6 +764,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -773,6 +790,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -803,6 +821,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -831,6 +850,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -856,6 +876,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -881,6 +902,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -917,6 +939,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -943,6 +966,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -962,6 +986,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -980,6 +1005,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1000,6 +1026,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1060,6 +1087,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1080,6 +1108,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1098,6 +1127,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1125,6 +1155,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1145,6 +1176,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1175,6 +1207,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -1320,14 +1353,29 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
         pw = plainTextPassword8Unsafe "join secret pw"
+        pwMeeting =
+          API.NewMeeting
+            { title = newMeeting.title,
+              startTime = newMeeting.startTime,
+              endTime = newMeeting.endTime,
+              tzid = newMeeting.tzid,
+              mtype = newMeeting.mtype,
+              recurrence = newMeeting.recurrence,
+              invitedEmails = newMeeting.invitedEmails,
+              password = Just pw
+            }
         meetingCode mid = do
           key <- CodeStore.makeKey (CodeReferentMeeting mid)
           mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
           maybe (error "no meeting code stored") (pure . fst) mCode
+        meetingPasswordFor mid = do
+          key <- CodeStore.makeKey (CodeReferentMeeting mid)
+          gets @(Map Key (Code, Maybe Password)) (fmap snd . Map.lookup key)
     it "resolves a passwordless live link and joins the conversation" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
@@ -1342,6 +1390,31 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           mwc.meeting.link `shouldBe` Just (expectedLink testCodeURIBase (Domain "wire.com") code)
           members `shouldSatisfy` maybe False (Set.member uid2)
         Right (_, _, r, _) -> fail $ "expected JoinMeetingOk, got: " <> show r
+
+    it "stores a hash of the create-time password" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") pwMeeting
+        hashed <- join <$> meetingPasswordFor (qUnqualified meeting.meeting.id)
+        case hashed of
+          Nothing -> pure (False, False)
+          Just h -> do
+            good <- verifyPassword (RateLimitUser uid1) pw h
+            bad <- verifyPassword (RateLimitUser uid1) (plainTextPassword8Unsafe "wrong secret") h
+            pure (good, bad)
+      result `shouldBe` Right (True, False)
+
+    it "enforces the create-time password on join" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") pwMeeting
+        code <- meetingCode (qUnqualified meeting.meeting.id)
+        let joinWith mpw = joinMeeting zUser2 (ConnId "test-conn") (Domain "wire.com") code.codeKey code.codeValue mpw
+        noPw <- joinWith Nothing
+        wrongPw <- joinWith (Just (plainTextPassword8Unsafe "wrong secret"))
+        rightPw <- joinWith (Just pw)
+        pure (noPw, wrongPw, rightPw)
+      case result of
+        Right (JoinMeetingInvalidPassword, JoinMeetingInvalidPassword, JoinMeetingOk _) -> pure ()
+        r -> fail $ "unexpected result: " <> show r
 
     it "re-joining is an idempotent no-op" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -1455,6 +1528,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -1573,6 +1647,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1598,6 +1673,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1617,6 +1693,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -1660,6 +1737,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2, email3]
               }
@@ -1685,6 +1763,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1710,6 +1789,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
@@ -1735,6 +1815,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
@@ -1754,6 +1835,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1797,6 +1879,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1822,6 +1905,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1847,6 +1931,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1872,6 +1957,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
@@ -1891,6 +1977,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 7200 now,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = [email1, email2]
               }
@@ -1931,6 +2018,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = r,
               invitedEmails = []
             }
@@ -1955,6 +2043,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime endOffset now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = r,
               invitedEmails = []
             }
@@ -2095,6 +2184,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   endTime = addUTCTime 3600 startTime,
                   tzid = API.defaultLegacyTimeZone,
                   mtype = API.Scheduled,
+                  password = Nothing,
                   recurrence = recurrence,
                   invitedEmails = []
                 }
@@ -2141,6 +2231,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -2276,6 +2367,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
               mtype = API.Scheduled,
+              password = Nothing,
               recurrence = Nothing,
               invitedEmails = []
             }
@@ -2429,6 +2521,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 endTime = addUTCTime 3600 startT,
                 tzid = API.defaultLegacyTimeZone,
                 mtype = API.Scheduled,
+                password = Nothing,
                 recurrence = Nothing,
                 invitedEmails = []
               }
@@ -2486,7 +2579,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               tzid = API.defaultLegacyTimeZone,
               mtype = mty,
               recurrence = Nothing,
-              invitedEmails = []
+              invitedEmails = [],
+              password = Nothing
             }
         newMeetingV18 =
           API.NewMeetingV18

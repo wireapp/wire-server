@@ -346,7 +346,8 @@ data NewMeeting = NewMeeting
     mtype :: MeetingType,
     recurrence :: Maybe Recurrence,
     title :: Range 1 256 Text,
-    invitedEmails :: [EmailAddress]
+    invitedEmails :: [EmailAddress],
+    password :: Maybe PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeeting)
@@ -374,6 +375,13 @@ instance ToSchema NewMeeting where
         <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.title) .= field "title" schema
         <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
+        <*> (.password)
+          .= maybe_
+            ( optFieldWithDocModifier
+                "password"
+                (description ?~ "Optional password for the meeting's join link. The link can only be resolved and joined with this password; omit or null for a passwordless link. Minimum length 8.")
+                schema
+            )
 
 -- | Request to create a new meeting (V15/V16). Carries @end_time@ but no @tzid@.
 data NewMeetingV16 = NewMeetingV16
@@ -587,7 +595,8 @@ fromLegacyNewMeeting tz nm =
       mtype = Scheduled,
       recurrence = nm.recurrence,
       title = nm.title,
-      invitedEmails = nm.invitedEmails
+      invitedEmails = nm.invitedEmails,
+      password = Nothing
     }
 
 -- | Convert a V17/V18 'NewMeetingV18' to the V19 'NewMeeting', defaulting
@@ -602,7 +611,8 @@ fromLegacyNewMeetingV18 nm =
       mtype = Scheduled,
       recurrence = nm.recurrence,
       title = nm.title,
-      invitedEmails = nm.invitedEmails
+      invitedEmails = nm.invitedEmails,
+      password = Nothing
     }
 
 -- | Request to add/remove invited email

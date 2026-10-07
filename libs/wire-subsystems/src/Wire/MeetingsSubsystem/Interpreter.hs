@@ -207,7 +207,9 @@ createMeetingImpl ::
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member CodeStore r,
-    Member Random.Random r
+    Member Random.Random r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   ConnId ->
@@ -231,6 +233,11 @@ createMeetingImpl zUser connId newMeeting = do
   -- The deprecated meetingsPremium feature flag no longer affects this; team
   -- meetings are always non-trial (see WPB-26771).
   let trial = isNothing conversationTeamId
+
+  -- Hash the create-time password before any side effects: rate limiting on
+  -- hashing must not leave an orphan conversation behind (mirrors
+  -- 'refreshMeetingLinkImpl').
+  mHashedPw <- for newMeeting.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
 
   -- Create conversation with the meeting creator as the only member (admin role)
   let newConv =
@@ -263,7 +270,7 @@ createMeetingImpl zUser connId newMeeting = do
   -- serve a dead link, while an unreferenced code is harmless. Code-store
   -- modes that cannot hold meeting codes (Cassandra-only) return False;
   -- degrade to a meeting without a link instead of failing the request.
-  hasJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout Nothing
+  hasJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout mHashedPw
   unless hasJoinCode $
     TinyLog.warn $
       Log.msg ("meeting created without join link" :: ByteString)
