@@ -277,6 +277,7 @@ mkEnv tstOpts opts = do
       sparCtxHttpGalley = galley empty
       sparCtxRequestId = RequestId "<fake request id>"
       sparCtxScimSubsystemConfig = error "mkEnv: implement sparCtxScimSubsystemConfig when needed"
+      sparCtxHasqlPool = error "mkEnv: sparCtxHasqlPool is not available in integration tests"
   pure $
     TestEnv
       mgr

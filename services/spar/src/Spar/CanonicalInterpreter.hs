@@ -26,6 +26,7 @@ where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except hiding (mapError)
+import qualified Hasql.Pool.Extended as HasqlPoolExt
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -120,6 +121,7 @@ type LowerLevelCanonicalEffs =
      Logger (TinyLog.Msg -> TinyLog.Msg),
      Input Opts,
      Input TinyLog.Logger,
+     Input HasqlPoolExt.Pool,
      Random,
      Now,
      Embed IO,
@@ -132,6 +134,7 @@ runSparToIO ctx =
     . embedToFinal @IO
     . nowToIO
     . randomToIO
+    . runInputConst (sparCtxHasqlPool ctx)
     . runInputConst (sparCtxLogger ctx)
     . runInputConst (sparCtxOpts ctx)
     . loggerToTinyLog (sparCtxLogger ctx)
