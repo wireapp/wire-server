@@ -64,6 +64,8 @@ Update all shared local-test wiring for the new version:
 - add required DynamoDB, S3, SES, SNS, and SQS resources;
 - add DNS SRV records for the new version to every CoreDNS fixture;
 - add the backend and RabbitMQ settings to `services/integration.yaml`;
+- add `RABBITMQ_USERNAME_VN` and `RABBITMQ_PASSWORD_VN` to `.envrc` so local
+  test cleanup can delete queues for the pinned backend;
 - add the domain and queue cleanup handling to the integration test harness;
 - include the version in the parameterized federation tests.
 
