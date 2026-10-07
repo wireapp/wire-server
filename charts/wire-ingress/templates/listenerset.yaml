@@ -1,0 +1,38 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: {{ include "wire-ingress.fullname" . | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  parentRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ include "wire-ingress.gatewayName" . | quote }}
+  listeners:
+    {{- $domains := include "wire-ingress.domains" . | fromJsonArray }}
+    {{- range $domain := $domains }}
+    - name: {{ $domain.section }}
+      port: {{ $.Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      hostname: {{ required "an HTTPS listener hostname is required (gateway.listeners.https.hostname for single-domain, or config.domains[].base/hostname)" $domain.hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ $domain.secretName | quote }}
+            kind: Secret
+    {{- end }}
+    {{- range .Values.gateway.extraHttpsListeners }}
+    - name: {{ required "extraHttpsListeners[].name is required" .name | quote }}
+      port: {{ $.Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      hostname: {{ required "extraHttpsListeners[].hostname is required" .hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .certificateSecretName | default (include "wire-ingress.certificateSecretName" $) | quote }}
+            kind: Secret
+    {{- end }}

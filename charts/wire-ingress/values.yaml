@@ -107,22 +107,23 @@ gateway:
       # listener (which uses the federation domain on the same port) — without an
       # explicit hostname both listeners are catch-all and Envoy degrades ALPN to
       # HTTP/1.1-only.
-      # If your domains in config.dns span multiple subdomains, you need a custom
-      # Gateway object with multiple listeners. See the Gateway API docs.
+      # If your domains in config.dns span multiple subdomains, use config.domains or
+      # extraHttpsListeners to add listeners to the chart-owned ListenerSet.
       hostname: ""
-      # Listener section name. Only change this when create: false and the
-      # externally created Gateway names its HTTPS listener something else;
-      # HTTPRoutes attach by section name, so it must match exactly.
+      # Section name in the chart-owned ListenerSet. Companion HTTPRoutes
+      # must reference this ListenerSet and section name.
       sectionName: https
     # The federation listener shares listeners.https.port and is created only
-    # when federator.enabled. Its section name is overridable for the same
-    # reason as listeners.https.sectionName.
+    # when federator.enabled. It stays on the Gateway because Envoy Gateway
+    # 1.8 cannot target ListenerSets with ClientTrafficPolicy (mTLS).
     federator:
       sectionName: federator
     # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
     # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
     # See the README for configuration details.
     http:
+      # If disabled and federation is off, a placeholder HTTP listener remains
+      # on the Gateway (required by Gateway API), with all route attachment denied.
       enabled: false
       port: 80
       # Optional hostname restriction for the HTTP listener. Set alongside
@@ -171,7 +172,8 @@ gateway:
     xdsNameSchemeV2: null
     # Legacy scheme only. Overrides the xDS listener name the FIPS patch targets.
     # The legacy name comes from the FIRST listener on the HTTPS port, which for
-    # a Gateway created by this chart is listeners.https.sectionName. Set this
+    # a Gateway created by this chart is the federator listener if enabled,
+    # otherwise the ListenerSet HTTPS listener. Set this
     # when an externally created Gateway declares a different listener first.
     xdsListenerName: ""
     # Set to true when the GatewayClass uses mergeGateways: true.
@@ -198,7 +200,7 @@ gateway:
 # To serve the same backend on several domains, set config.domains INSTEAD of
 # config.dns. It is a list; the FIRST entry is the primary (its resources keep
 # the un-suffixed names, and its frontend apps set their own CSP). Every
-# additional entry gets its own Gateway HTTPS listener (`https-<name>`), its own
+# additional entry gets its own ListenerSet HTTPS listener (`https-<name>`), its own
 # certificate/secret, and — being an "additional ingress" — a per-domain
 # Content-Security-Policy header injected on the team-settings route (mirrors
 # the legacy nginx-ingress-services behaviour). The webapp and account-pages

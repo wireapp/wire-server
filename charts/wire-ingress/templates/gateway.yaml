@@ -40,19 +40,10 @@ spec:
       name: {{ $envoyProxyName | quote }}
     {{- end }}
   {{- end }}
+  allowedListeners:
+    namespaces:
+      from: Same
   listeners:
-    {{- $domains := include "wire-ingress.domains" . | fromJsonArray }}
-    {{- range $domain := $domains }}
-    - name: {{ $domain.section }}
-      port: {{ $.Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "an HTTPS listener hostname is required (gateway.listeners.https.hostname for single-domain, or config.domains[].base/hostname)" $domain.hostname | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ $domain.secretName | quote }}
-            kind: Secret
-    {{- end }}
     {{- if .Values.federator.enabled }}
     - name: {{ include "wire-ingress.federatorSectionName" . }}
       port: {{ .Values.gateway.listeners.https.port }}
@@ -64,21 +55,21 @@ spec:
           - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
             kind: Secret
     {{- end }}
-    {{- range .Values.gateway.extraHttpsListeners }}
-    - name: {{ required "extraHttpsListeners[].name is required" .name | quote }}
-      port: {{ $.Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "extraHttpsListeners[].hostname is required" .hostname | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ .certificateSecretName | default (include "wire-ingress.certificateSecretName" $) | quote }}
-            kind: Secret
-    {{- end }}
-    {{- if .Values.gateway.listeners.http.enabled }}
+    {{- if or .Values.gateway.listeners.http.enabled (not .Values.federator.enabled) }}
     - name: http
       port: {{ .Values.gateway.listeners.http.port }}
       protocol: HTTP
+      {{- if not .Values.gateway.listeners.http.enabled }}
+      # Gateway API requires a listener. No namespace can attach routes to this
+      # placeholder: Kubernetes always sets the namespace name label.
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: DoesNotExist
+      {{- end }}
       {{- if .Values.gateway.listeners.http.hostname }}
       hostname: {{ .Values.gateway.listeners.http.hostname | quote }}
       {{- end }}

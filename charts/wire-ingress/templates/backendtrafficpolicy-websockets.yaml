@@ -16,14 +16,21 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
-  {{- if .Values.gateway.zoneAwareRouting.enabled }}
-  {{- /* Inherit the Gateway policy while keeping the WebSocket timeout. */}}
-  mergeType: StrategicMerge
-  {{- end }}
   targetRefs:
+    {{- range $domain := include "wire-ingress.domains" . | fromJsonArray }}
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      name: {{ include "wire-ingress.fullname" . }}-nginz-websockets
+      name: {{ include "wire-ingress.fullname" $ }}-nginz-websockets{{ $domain.suffix }}
+    {{- end }}
+  {{- if .Values.gateway.zoneAwareRouting.enabled }}
+  {{/* EG 1.8 skips merged route policies for ListenerSet parents. Repeat the
+       Gateway's load balancer settings so the idle timeout still applies. */}}
+  loadBalancer:
+    type: LeastRequest
+    zoneAware:
+      preferLocal:
+        minEndpointsThreshold: {{ .Values.gateway.zoneAwareRouting.minEndpointsThreshold }}
+  {{- end }}
   timeout:
     http:
       streamIdleTimeout: "0s"
