@@ -1225,6 +1225,43 @@ testMeetingLinkJoin = do
         -- The stale (pre-refresh) code value no longer resolves.
         getMeetingCodeCheck bob domain key code Nothing >>= assertLabel 404 "meeting-not-found"
 
+-- | @POST /meetings@ accepts an optional @password@ that
+-- password-protects the join link/code at creation time; short passwords are
+-- rejected at decode time.
+testMeetingCreatePassword :: (HasCallStack) => App ()
+testMeetingCreatePassword = do
+  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+  domain <- objDomain owner
+  now <- liftIO getCurrentTime
+  let newMeeting =
+        object
+          [ "title" .= ("Password Created Meeting" :: String),
+            "start_time" .= addUTCTime 3600 now,
+            "end_time" .= addUTCTime 7200 now,
+            "tzid" .= ("Europe/Berlin" :: String),
+            "type" .= ("scheduled" :: String),
+            "invited_emails" .= ([] :: [String]),
+            "password" .= ("supersecret8" :: String)
+          ]
+
+  -- A too-short password is rejected by the request schema.
+  shortPwMeeting <- setField "password" ("short7" :: String) newMeeting
+  postMeetings owner shortPwMeeting >>= assertStatus 400
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  mLink <- lookupField meeting "link" >>= maybe (pure Nothing) asStringM
+  case mLink of
+    Nothing -> pure () -- cassandra code store or no join-link URI; link unusable
+    Just link -> do
+      let (key, code) = linkKeyAndCode link
+      -- POST join without / wrong password is rejected; correct password joins.
+      postMeetingJoin bob domain key code Nothing >>= assertLabel 403 "invalid-meeting-password"
+      postMeetingJoin bob domain key code (Just "wrongpass1") >>= assertLabel 403 "invalid-meeting-password"
+      postMeetingJoin bob domain key code (Just "supersecret8") >>= assertStatus 200
+      -- GET code-check enforces the same password.
+      getMeetingCodeCheck bob domain key code Nothing >>= assertLabel 403 "invalid-meeting-password"
+      getMeetingCodeCheck bob domain key code (Just "supersecret8") >>= assertStatus 200
+
 testMeetingLinkJoinNotFound :: (HasCallStack) => App ()
 testMeetingLinkJoinNotFound = do
   (alice, _tid, _members) <- createTeam OwnDomain 1
