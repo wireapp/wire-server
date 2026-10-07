@@ -16,6 +16,8 @@ cassandra:
 redis:
   host: redis-federation-v3
   port: 6379
+  enableTls: false
+  insecureSkipVerifyTls: false
   connectionMode: master
 
 # redisAdditionalWrite:
