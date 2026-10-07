@@ -33,7 +33,7 @@ def run_pg_dump(container, dbname, user="wire-server"):
 def get_container_id():
     return (
         subprocess.run(
-            ["docker", "ps", "--filter=name=postgres", "--format={{.ID}}"],
+            ["docker", "ps", "--filter=name=^postgres$", "--format={{.ID}}"],
             stdout=PIPE,
             check=True,
         )
