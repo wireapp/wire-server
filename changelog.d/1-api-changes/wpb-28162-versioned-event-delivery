@@ -1,0 +1,9 @@
+Event delivery is now version-aware: gundeck REST endpoints (`GET
+/notifications`, by-id, last) and cannon websockets filter stored events by
+the API version of the requesting client. Meeting-related events
+(`conversation.create-meeting`, `conversation.delete-meeting`,
+`meeting.create`, `meeting.update`, `meeting.delete`, `meeting.member-add`)
+are not delivered to clients that called the API below V15, the version
+meetings were introduced in. Storage, fan-out and native push are unchanged;
+modern clients receive byte-identical payloads. Unknown event types are always
+delivered for forward compatibility.
