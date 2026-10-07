@@ -43,6 +43,7 @@ module Brig.Index.Options
     mkCreateIndexSettings,
     toESServer,
     ReindexFromAnotherIndexSettings (..),
+    BackfillNormalizedNamesOpts (..),
     reindexDestIndex,
     reindexTimeoutSeconds,
     reindexEsConnection,
@@ -82,7 +83,15 @@ data Command
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
     UpdateMapping ESConnectionSettings Endpoint
   | Migrate ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint Int32
+  | BackfillNormalizedNames BackfillNormalizedNamesOpts
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
+  deriving (Show)
+
+-- | Options for @brig-index backfill-normalized-names@.
+data BackfillNormalizedNamesOpts = BackfillNormalizedNamesOpts
+  { backfillPgSettings :: Text,
+    backfillBatchSize :: Int32
+  }
   deriving (Show)
 
 data ESConnectionSettings = ESConnectionSettings
@@ -483,6 +492,23 @@ pageSizeParser =
         <> showDefault
     )
 
+backfillNormalizedNamesOptsParser :: Parser BackfillNormalizedNamesOpts
+backfillNormalizedNamesOptsParser =
+  BackfillNormalizedNamesOpts
+    <$> strOption
+      ( long "pg-settings"
+          <> metavar "SETTINGS"
+          <> help "libpq connection settings, e.g. \"host=... dbname=... user=... password=...\""
+      )
+    <*> option
+      auto
+      ( long "batch-size"
+          <> metavar "N"
+          <> value 500
+          <> showDefault
+          <> help "number of users per batch"
+      )
+
 commandParser :: Parser Command
 commandParser =
   hsubparser
@@ -521,6 +547,12 @@ commandParser =
           ( info
               (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser <*> pageSizeParser)
               (progDesc "Migrate data in elastic search")
+          )
+        <> command
+          "backfill-normalized-names"
+          ( info
+              (BackfillNormalizedNames <$> backfillNormalizedNamesOptsParser)
+              (progDesc "Backfill wire_user.name_normalized with the ICU-folded lowercase display name")
           )
         <> command
           "reindex-from-another-index"

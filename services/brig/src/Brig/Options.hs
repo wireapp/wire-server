@@ -325,6 +325,15 @@ instance ToSchema ListAllSFTServers where
           element "disabled" HideAllSFTServers
         ]
 
+data SearchBackend = SearchBackendElasticSearch | SearchBackendPostgres
+  deriving (Show, Eq, Generic)
+
+instance FromJSON SearchBackend where
+  parseJSON = withText "SearchBackend" $ \case
+    "elasticsearch" -> pure SearchBackendElasticSearch
+    "postgres" -> pure SearchBackendPostgres
+    _ -> fail "expected \"elasticsearch\" or \"postgres\""
+
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -348,6 +357,11 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | Backend for user search.  "elasticsearch" (default) indexes users
+    -- into ElasticSearch and serves search from there (deprecated);
+    -- "postgres" serves search from the PostgreSQL user store and stops
+    -- writing the ElasticSearch index.
+    searchBackend :: !(Maybe SearchBackend),
     -- | Postgresql settings, the key values must be in libpq format.
     -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
     postgresql :: !(Map Text Text),
