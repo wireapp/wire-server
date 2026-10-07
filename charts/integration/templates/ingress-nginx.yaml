@@ -24,7 +24,7 @@ spec:
     - host: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
       http:
         paths:
-          - path: /
+          - path: /federation
             pathType: Prefix
             backend:
               service:
