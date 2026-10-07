@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    component: {{ template "fullname" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: {{ template "fullname" . }}
+  template:
+    metadata:
+      labels:
+        component: {{ template "fullname" . }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: opensearch
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+        - name: OPENSEARCH_JAVA_OPTS
+          value: "-Xms2048m -Xmx2048m"
+        - name: "bootstrap.system_call_filter"
+          value: "false"
+        - name: "discovery.type"
+          value: "single-node"
+        - name: "action.auto_create_index"
+          value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
+        {{- if not .Values.tls.enabled }}
+        # The security plugin is not needed for the plaintext, ephemeral dev
+        # setup.
+        - name: DISABLE_SECURITY_PLUGIN
+          value: "true"
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        # The demo securityconfig (admin/admin) is replaced by the mounted
+        # {{ template "fullname" . }}-securityconfig secret (user
+        # elastic/changeme, same credentials the rest of the repo uses).
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: "true"
+        # The security plugin requires transport SSL to be configured as well
+        # (see the securityconfig's transport_enabled), and the security index
+        # must be auto-initialized from the mounted securityconfig.
+        - name: "plugins.security.ssl.http.enabled"
+          value: "true"
+        - name: "plugins.security.ssl.http.pemcert_filepath"
+          value: "certs/tls.crt"
+        - name: "plugins.security.ssl.http.pemkey_filepath"
+          value: "certs/tls.key"
+        - name: "plugins.security.ssl.http.pemtrustedcas_filepath"
+          value: "certs/ca.crt"
+        - name: "plugins.security.ssl.transport.enabled"
+          value: "true"
+        - name: "plugins.security.ssl.transport.pemcert_filepath"
+          value: "certs/tls.crt"
+        - name: "plugins.security.ssl.transport.pemkey_filepath"
+          value: "certs/tls.key"
+        - name: "plugins.security.ssl.transport.pemtrustedcas_filepath"
+          value: "certs/ca.crt"
+        - name: "plugins.security.ssl.transport.enforce_hostname_verification"
+          value: "false"
+        - name: "plugins.security.allow_default_init_securityindex"
+          value: "true"
+        - name: "plugins.security.audit.type"
+          value: "internal_opensearch"
+        readinessProbe:
+          tcpSocket:
+            port: 9200
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12
+        livenessProbe:
+          tcpSocket:
+            port: 9200
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          failureThreshold: 6
+        {{- end }}
+        ports:
+        - containerPort: 9200
+          name: http
+          protocol: TCP
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        volumeMounts:
+        - name: storage
+          mountPath: /usr/share/opensearch/data
+        {{- if .Values.tls.enabled }}
+        - name: certificate
+          mountPath: /usr/share/opensearch/config/certs
+        - name: securityconfig
+          mountPath: /usr/share/opensearch/plugins/opensearch-security/securityconfig
+        {{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - emptyDir:
+            medium: ""
+          name: "storage"
+        {{- if .Values.tls.enabled }}
+        - name: certificate
+          secret:
+            secretName: {{ template "fullname" . }}-certificate
+        - name: securityconfig
+          secret:
+            secretName: {{ template "fullname" . }}-securityconfig
+        {{- end }}

@@ -20,7 +20,7 @@ cassandra-migrations:
         key: "ca.crt"
     {{- end }}
 
-elasticsearch-index:
+opensearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     scheme: https

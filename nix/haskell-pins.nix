@@ -71,10 +71,10 @@ let
       };
     };
 
+    # Upstream bitemyapp/bloodhound v1.0.0.0 (rev-pinned in flake.nix)
     bloodhound = {
       src = inputs.bloodhound;
     };
-
 
     # Our fork because we need to a few special things
     http-client = {

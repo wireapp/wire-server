@@ -54,7 +54,9 @@ testCreateIndexWhenNotPresent brigOpts = do
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
-      indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
+      indexName <-
+        either (fail . Text.unpack) pure . ES.mkIndexName . Text.pack
+          =<< replicateM 20 (Random.randomRIO ('a', 'z'))
       let replicas = 2
           shards = 2
           refreshInterval = 5
@@ -77,21 +79,19 @@ testCreateIndexWhenNotPresent brigOpts = do
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       mgr <- liftIO $ initHttpManagerWithTLSConfig connSettings.esInsecureSkipVerifyTls connSettings.esCaCert
       let bEnv = (mkBHEnv esURL mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
-      ES.runBH bEnv $ do
+      result <- ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should exist" indexExists
-        eitherIndexSettings <- ES.getIndexSettings indexName
+        indexSettingsSummary <- ES.getIndexSettings indexName
         lift $ do
-          case eitherIndexSettings of
-            Left err -> fail $ "Failed to fetch index settings with error: " <> show err
-            Right indexSettings -> do
-              assertEqual "Shard count should be set" (ES.ShardCount replicas) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Replica count should be set" (ES.ReplicaCount replicas) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              -- Check if the `RefreshInterval` is part of `UpdateIndexSettings`.
-              -- There can be more settings. E.g. ElasticSearch 7 has these:
-              -- `[RefreshInterval 5s, RoutingAllocationInclude (NodeAttrFilter {nodeAttrFilterName = NodeAttrName "_tier_preference", nodeAttrFilterValues = "data_content" :| []} :| [])]`
-              assertBool "Refresh interval should be set" $ (ES.RefreshInterval refreshInterval) `elem` (ES.sSummaryUpdateable indexSettings)
+          assertEqual "Shard count should be set" (ES.ShardCount replicas) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettingsSummary)
+          assertEqual "Replica count should be set" (ES.ReplicaCount replicas) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettingsSummary)
+          -- Check if the `RefreshInterval` is part of `UpdateIndexSettings`.
+          -- There can be more settings. E.g. ElasticSearch 7 has these:
+          -- `[RefreshInterval 5s, RoutingAllocationInclude (NodeAttrFilter {nodeAttrFilterName = NodeAttrName "_tier_preference", nodeAttrFilterValues = "data_content" :| []} :| [])]`
+          assertBool "Refresh interval should be set" $ (ES.RefreshInterval refreshInterval) `elem` (ES.sSummaryUpdateable indexSettingsSummary)
+      either (assertFailure . show) pure result
 
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
@@ -99,7 +99,9 @@ testCreateIndexWhenPresent brigOpts = do
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
-      indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
+      indexName <-
+        either (fail . Text.unpack) pure . ES.mkIndexName . Text.pack
+          =<< replicateM 20 (Random.randomRIO ('a', 'z'))
       let replicas = 2
           shards = 2
           refreshInterval = 5
@@ -120,31 +122,30 @@ testCreateIndexWhenPresent brigOpts = do
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       mgr <- liftIO $ initHttpManagerWithTLSConfig connSettings.esInsecureSkipVerifyTls connSettings.esCaCert
       let bEnv = (mkBHEnv esURL mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
-      ES.runBH bEnv $ do
-        _ <- ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1)) indexName
+      result <- ES.runBH bEnv $ do
+        _ <- ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1) ES.defaultIndexMappingsLimits) indexName
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should exist" indexExists
+      either (assertFailure . show) pure result
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
-      ES.runBH bEnv $ do
+      result2 <- ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should still exist" indexExists
-        eitherIndexSettings <- ES.getIndexSettings indexName
+        indexSettingsSummary <- ES.getIndexSettings indexName
         lift $ do
-          case eitherIndexSettings of
-            Left err -> fail $ "Failed to fetch index settings with error: " <> show err
-            Right indexSettings -> do
-              assertEqual "Shard count should not be updated" (ES.ShardCount 1) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Replica count should not be updated" (ES.ReplicaCount 1) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              -- Ensure that the `RefreshInterval` is not part of `UpdateIndexSettings`.
-              -- There can be more settings. E.g. ElasticSearch 7 has this by default:
-              -- `[RoutingAllocationInclude (NodeAttrFilter {nodeAttrFilterName = NodeAttrName "_tier_preference", nodeAttrFilterValues = "data_content" :| []} :| [])]`
-              assertBool "Refresh interval should not be updated" $
-                none
-                  ( \case
-                      ES.RefreshInterval _ -> True
-                      _otherwise -> False
-                  )
-                  (ES.sSummaryUpdateable indexSettings)
+          assertEqual "Shard count should not be updated" (ES.ShardCount 1) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettingsSummary)
+          assertEqual "Replica count should not be updated" (ES.ReplicaCount 1) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettingsSummary)
+          -- Ensure that the `RefreshInterval` is not part of `UpdateIndexSettings`.
+          -- There can be more settings. E.g. ElasticSearch 7 has this by default:
+          -- `[RoutingAllocationInclude (NodeAttrFilter {nodeAttrFilterName = NodeAttrName "_tier_preference", nodeAttrFilterValues = "data_content" :| []} :| [])]`
+          assertBool "Refresh interval should not be updated" $
+            none
+              ( \case
+                  ES.RefreshInterval _ -> True
+                  _otherwise -> False
+              )
+              (ES.sSummaryUpdateable indexSettingsSummary)
+      either (assertFailure . show) pure result2
