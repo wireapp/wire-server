@@ -60,6 +60,38 @@ EOF
     rm -f "$tmpval"
   elif [[ "$chart_name" == "wire-server-enterprise" ]]; then
     output=$(helm template test-release "$chart_path" --set 'secrets.placeholder=placeholder')
+  elif [[ "$chart_name" == "federator" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'tls.useSharedFederatorSecret=true')
+  elif [[ "$chart_name" == "integration" ]]; then
+    output=$(helm template test-release "$chart_path" \
+      --set 'config.elasticsearch.tlsCaSecretRef.name=placeholder' \
+      --set 'config.redis.tlsCaSecretRef.name=placeholder' \
+      --set 'config.rabbitmq.tlsCaSecretRef.name=placeholder')
+  elif [[ "$chart_name" == "legalhold" ]]; then
+    output=$(helm template test-release "$chart_path" \
+      --set 'serviceToken=placeholder' \
+      --set 'tlsCrt=placeholder' \
+      --set 'tlsKey=placeholder' \
+      --set 'host=placeholder' \
+      --set 'wireApiHost=placeholder')
+  elif [[ "$chart_name" == "nginx-ingress-services" ]]; then
+    output=$(helm template test-release "$chart_path" \
+      --set 'secrets.tlsWildcardCert=placeholder' \
+      --set 'secrets.tlsWildcardKey=placeholder' \
+      --set 'config.dns.fakeS3=placeholder')
+  elif [[ "$chart_name" == "nginz" ]]; then
+    output=$(helm template test-release "$chart_path" \
+      --set 'secrets.zAuth.publicKeys=placeholder' \
+      --set 'secrets.basicAuth=placeholder')
+  elif [[ "$chart_name" == "proxy" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'secrets.proxy_config=placeholder')
+  elif [[ "$chart_name" == "wire-ingress" ]]; then
+    output=$(helm template test-release "$chart_path" \
+      --set 'secrets.tlsWildcardCert=placeholder' \
+      --set 'secrets.tlsWildcardKey=placeholder' \
+      --set 'gateway.className=placeholder' \
+      --set 'gateway.listeners.https.hostname=placeholder' \
+      --set 'config.dns.https=placeholder')
   else
     output=$(helm template test-release "$chart_path")
   fi

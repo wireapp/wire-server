@@ -1,0 +1,2 @@
+SBOM generation: add placeholder Helm values so charts render without errors in
+`hack/bin/create-helm-sboms.sh`.

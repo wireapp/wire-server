@@ -1,0 +1,3 @@
+fake-aws-s3 chart: minio and mc images now default to
+`quay.io/wire/mirror-images/minio/{minio,mc}`. As the original repository
+sources are gone, this avoids manual overrides in Helm values.
