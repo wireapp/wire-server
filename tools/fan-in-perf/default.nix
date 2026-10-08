@@ -24,7 +24,6 @@
 , prometheus-client
 , QuickCheck
 , random
-, stm
 , text
 , types-common
 , unliftio
@@ -48,7 +47,6 @@ mkDerivation {
     bytestring
     containers
     extended
-    hasql
     hasql-resource-pool
     hasql-transaction
     http-types
@@ -59,7 +57,6 @@ mkDerivation {
     primitive
     prometheus-client
     random
-    stm
     text
     types-common
     unliftio

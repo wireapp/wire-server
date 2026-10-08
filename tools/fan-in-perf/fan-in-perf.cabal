@@ -90,7 +90,6 @@ library
     , bytestring
     , containers
     , extended
-    , hasql
     , hasql-resource-pool
     , hasql-transaction
     , http-types
@@ -101,7 +100,6 @@ library
     , primitive
     , prometheus-client
     , random
-    , stm
     , text
     , types-common
     , unliftio

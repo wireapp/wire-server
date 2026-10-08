@@ -54,4 +54,4 @@ spec = do
   describe "formatSummary" $
     it "survives an empty run" $
       formatSummary report {elapsed = 0, p50 = Nothing, p99 = Nothing}
-        `shouldSatisfy` all (not . T.isInfixOf "NaN")
+        `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
