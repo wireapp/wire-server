@@ -50,6 +50,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.TargetedMessage
 import Wire.API.MLS.Welcome
 
 tests :: TestTree
@@ -62,8 +63,37 @@ tests =
       testCase "parse welcome and groupinfo message" testParseWelcomeAndGroupInfo,
       testCase "key package ref" testKeyPackageRef,
       testCase "create signed remove proposal" testRemoveProposalMessageSignature,
-      testCase "parse client identity" testParseClientIdentity
+      testCase "parse client identity" testParseClientIdentity,
+      testCase "parse targeted message batch" testParseTargetedMessageBatch,
+      testCase "targeted message epoch window" testTargetedMessageEpochWindow
     ]
+
+testTargetedMessageEpochWindow :: IO ()
+testTargetedMessageEpochWindow = do
+  let current = Epoch 10
+  isAtMost3EpochsPast current (Epoch 10) @?= True
+  isAtMost3EpochsPast current (Epoch 7) @?= True
+  isAtMost3EpochsPast current (Epoch 6) @?= False
+  isAtMost3EpochsPast current (Epoch 11) @?= False
+
+testParseTargetedMessageBatch :: IO ()
+testParseTargetedMessageBatch = do
+  let message n =
+        mkRawMLS
+          PersistentTargetedMessage
+            { protocolVersion = defaultProtocolVersion,
+              wireFormat = TargetedMessageWireFormat,
+              counter = n,
+              sender = 1,
+              recipient = n,
+              recipientId = "2",
+              epoch = Epoch 4,
+              groupId = GroupId "group",
+              payload = HPKECiphertext "kem-output" "ciphertext",
+              signature = "signature"
+            }
+      batch = TargetedMessageBatch [message 2, message 3]
+  decodeMLS' (encodeMLS' batch) @?= Right batch
 
 testParseClientIdentity :: IO ()
 testParseClientIdentity = do

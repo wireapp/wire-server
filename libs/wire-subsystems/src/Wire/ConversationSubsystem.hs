@@ -59,6 +59,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.OutOfSync (EnableOutOfSyncCheck)
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation (ConvOrSubConvId, PublicSubConversation, SubConvId)
+import Wire.API.MLS.TargetedMessage
 import Wire.API.Message (ClientMismatch, IgnoreMissing, MessageSendingStatus, NewOtrMessage, QualifiedNewOtrMessage, ReportMissing)
 import Wire.API.Pagination (PageSize, SortOrder)
 import Wire.API.Provider.Bot qualified as Public (BotConvView)
@@ -216,6 +217,11 @@ data ConversationSubsystem m a where
     ClientId ->
     ConnId ->
     RawMLS Message ->
+    ConversationSubsystem m MLSMessageSendingStatus
+  PostMLSTargetedMessagesFromLocalUser ::
+    Local UserId ->
+    ClientId ->
+    TargetedMessageBatch ->
     ConversationSubsystem m MLSMessageSendingStatus
   IsMLSEnabled :: ConversationSubsystem m Bool
   GetConversationsInternal ::

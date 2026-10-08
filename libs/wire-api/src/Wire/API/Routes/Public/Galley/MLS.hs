@@ -33,6 +33,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
+import Wire.API.MLS.TargetedMessage
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -92,6 +93,25 @@ type MLSMessagingAPI =
         :> ReqBody '[MLS] (RawMLS Message)
         :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
     )
+    :<|> Named
+           "mls-targeted-message"
+           ( Summary "Post persistent targeted MLS messages to a local conversation with local users"
+               :> From 'V19
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow 'MLSClientSenderUserMismatch
+               :> CanThrow 'MLSInvalidLeafNodeIndex
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSUnsupportedMessage
+               :> "messages"
+               :> "targeted"
+               :> ZLocalUser
+               :> ZClient
+               :> ReqBody '[MLS] TargetedMessageBatch
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Targeted messages sent" MLSMessageSendingStatus)
+           )
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"

@@ -32,7 +32,7 @@ import Wire.Arbitrary
 import Wire.Sem.FromUTC
 
 newtype Epoch = Epoch {epochNumber :: Word64}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Ord, Show)
   deriving newtype (Arbitrary, Enum, ToSchema)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Epoch)
 
@@ -44,6 +44,13 @@ instance SerialiseMLS Epoch where
 
 instance FromUTC Epoch where
   fromUTCTime = Epoch . floor . utcTimeToPOSIXSeconds
+
+-- | Whether a message epoch is no more than three epochs behind the current
+-- epoch. Future epochs are not accepted.
+isAtMost3EpochsPast :: Epoch -> Epoch -> Bool
+isAtMost3EpochsPast current message =
+  message <= current
+    && epochNumber current - epochNumber message <= 3
 
 instance C.Cql Epoch where
   ctype = C.Tagged C.BigIntColumn
