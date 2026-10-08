@@ -39,7 +39,7 @@ writerStep ::
 writerStep doPush dom entries stats reportError g = do
   let ((kind, targets), g') = genTargets dom entries g
   -- build the targets before timing so latency covers only the store call
-  _ <- evaluate (sum (fmap (T.length . targetKey) targets))
+  evaluate (forceTargets targets)
   t0 <- getMonotonicTimeNSec
   outcome <- either (PushFailed . T.pack . displayException) id <$> tryAny (doPush targets)
   t1 <- getMonotonicTimeNSec

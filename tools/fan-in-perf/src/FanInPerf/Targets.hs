@@ -12,6 +12,7 @@ module FanInPerf.Targets
     sampleDistinct,
     targetAt,
     genTargets,
+    forceTargets,
     targetKind,
     targetKey,
     mkPayload,
@@ -180,15 +181,30 @@ targetAt dom pool i = case pool of
   ConnectionsPool v -> TargetConnections (Qualified (v V.! i) dom)
 
 -- | Picks an entry uniformly, then 'perPush' distinct stream keys of it. All
--- targets of one push therefore share one constructor.
+-- targets of one push therefore share one constructor. Targets are sorted by
+-- pool index (pools are fixed, so this is one global order, and client ids per
+-- user are ascending): the store upserts rows in target order and does not
+-- sort itself, so unsorted overlapping pushes would deadlock (40P01).
 genTargets :: (RandomGen g) => Domain -> V.Vector Entry -> g -> ((TargetKind, NonEmpty Target), g)
 genTargets dom entries g0 =
   let (ei, g1) = uniformR (0, V.length entries - 1) g0
       e = entries V.! ei
       (idxs, g2) = sampleDistinct e.spec.streams e.spec.perPush g1
       -- perPush >= 1, so idxs is never empty; the fallback only satisfies the type
-      targets = targetAt dom e.pool <$> fromMaybe (0 :| []) (nonEmpty idxs)
+      targets = targetAt dom e.pool <$> fromMaybe (0 :| []) (nonEmpty (sort idxs))
    in ((e.spec.kind, targets), g2)
+
+-- | Cheap full evaluation of the (otherwise lazily built) targets, so
+-- generation cost stays out of the timed store call.
+forceTargets :: NonEmpty Target -> ()
+forceTargets = foldr (seq . forceTarget) ()
+  where
+    forceTarget = \case
+      TargetUser u -> u `seq` ()
+      TargetUserClients (u, cs) -> u `seq` foldr seq () cs
+      TargetTeam t -> t `seq` ()
+      TargetEpoch (g, e) -> g `seq` e `seq` ()
+      TargetConnections q -> qUnqualified q `seq` qDomain q `seq` ()
 
 targetKind :: Target -> TargetKind
 targetKind = \case

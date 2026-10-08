@@ -111,6 +111,17 @@ spec = do
                   && all (`elem` poolKeys kind) keys
        in all ok pushes
 
+    prop "targets within a push are in ascending pool order" $ \seed ->
+      let (entries, g0) = mkEntries 3 specs (mkStdGen seed)
+          poolKeys k = case V.find ((== k) . (.spec.kind)) entries of
+            Nothing -> []
+            Just e -> [targetKey (targetAt dom e.pool i) | i <- [0 .. e.spec.streams - 1]]
+          pushes = take 200 (unfoldr (Just . genTargets dom entries) g0)
+          ascending (kind, ts) =
+            let positions = mapMaybe (\t -> elemIndex (targetKey t) (poolKeys kind)) (NE.toList ts)
+             in positions == sort positions && length positions == length ts
+       in all ascending pushes
+
     it "uses every entry eventually" $
       let (entries, g0) = mkEntries 1 specs (mkStdGen 42)
           kinds = map fst (take 500 (unfoldr (Just . genTargets dom entries) g0))

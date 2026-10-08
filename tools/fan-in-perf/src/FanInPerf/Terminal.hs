@@ -43,7 +43,7 @@ formatStatus r =
     [ "t=" <> T.pack (show (round r.elapsed :: Int)) <> "s push/s cur=" <> rateText r.pushRate <> " max=" <> rateText r.maxPushRate,
       "err/s cur=" <> rateText r.errorRate <> " (" <> percent r.errorRatio <> ")",
       "targets/s cur=" <> rateText r.targetRate,
-      "p50=" <> formatLatency r.p50 <> " p99=" <> formatLatency r.p99
+      "p50(cum.)=" <> formatLatency r.p50 <> " p99(cum.)=" <> formatLatency r.p99
     ]
 
 formatSummary :: TickReport -> [Text]
@@ -55,7 +55,7 @@ formatSummary r =
    in [ "summary: duration=" <> T.pack (printf "%.1fs" r.elapsed),
         "  pushes=" <> groupThousands pushes <> " targets=" <> groupThousands (totalTargets r.total) <> " errors=" <> groupThousands errors <> " (" <> percent ratio <> ")",
         "  push/s avg=" <> rateText avgRate <> " max=" <> rateText r.maxPushRate,
-        "  latency p50=" <> formatLatency r.p50 <> " p99=" <> formatLatency r.p99
+        "  latency (cumulative, incl. warmup) p50=" <> formatLatency r.p50 <> " p99=" <> formatLatency r.p99
       ]
 
 clearLine :: Text

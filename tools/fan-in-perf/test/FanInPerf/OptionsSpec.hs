@@ -84,7 +84,15 @@ spec = do
       ["--db", "x", "produce", "--targets", "team:10", "--payload-bytes", "0"],
       ["--db", "x", "produce", "--targets", "team:10", "--duration", "0"],
       ["--db", "x", "produce", "--targets", "team:10", "--warmup", "-1"],
-      ["--db", "x", "--pool-size", "0", "reset"]
+      ["--db", "x", "--pool-size", "0", "reset"],
+      ["--db", "x", "--pool-size", "10001", "reset"],
+      ["--db", "x", "--metrics-port", "18446744073709551617", "reset"],
+      ["--db", "x", "produce", "--targets", "team:10", "--writers", "18446744073709551617"],
+      ["--db", "x", "produce", "--targets", "team:10", "--writers", "10001"],
+      ["--db", "x", "produce", "--targets", "team:10", "--payload-bytes", "10000001"],
+      ["--db", "x", "produce", "--targets", "team:10", "--clients-per-user", "100001"],
+      ["--db", "x", "produce", "--targets", "team:10", "--duration", "9223372036854775807"],
+      ["--db", "x", "produce", "--targets", "team:10", "--warmup", "9223372036854775807"]
     ]
     $ \args ->
       it ("rejects " <> unwords args) $ isNothing (parse args) `shouldBe` True

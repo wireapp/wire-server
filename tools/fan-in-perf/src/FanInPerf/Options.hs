@@ -65,7 +65,7 @@ globalParser :: Parser GlobalOptions
 globalParser =
   GlobalOptions
     <$> strOption (long "db" <> metavar "CONNSTR" <> help "PostgreSQL connection string")
-    <*> optional (option positive (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset)"))
+    <*> optional (option (positive maxPoolSize) (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset)"))
     <*> option port (long "metrics-port" <> metavar "PORT" <> value 9400 <> showDefault <> help "Port of the /metrics endpoint")
     <*> option domainReader (long "domain" <> metavar "DOMAIN" <> value (Domain "example.com") <> showDefaultWith (T.unpack . domainText) <> help "Local backend domain")
     <*> option isolationReader (long "isolation" <> metavar "read-committed|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
@@ -73,27 +73,36 @@ globalParser =
 produceParser :: Parser ProduceOptions
 produceParser =
   ProduceOptions
-    <$> option positive (long "writers" <> metavar "W" <> value 16 <> showDefault <> help "Concurrent writer threads")
+    <$> option (positive maxWriters) (long "writers" <> metavar "W" <> value 16 <> showDefault <> help "Concurrent writer threads")
     <*> option targetsReader (long "targets" <> metavar "SPEC" <> help "Target mix KIND:STREAMS[xK],... e.g. user:1000x20,team:10")
-    <*> option positive (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids per 'clients' target")
-    <*> option positive (long "payload-bytes" <> metavar "B" <> value 512 <> showDefault <> help "Approximate JSON payload size")
-    <*> optional (option positive (long "duration" <> metavar "SECS" <> help "Run length (default: until Ctrl-C)"))
-    <*> option nonNegative (long "warmup" <> metavar "SECS" <> value 5 <> showDefault <> help "Seconds ignored for max-rate tracking")
+    <*> option (positive maxClientsPerUser) (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids per 'clients' target")
+    <*> option (positive maxPayloadBytes) (long "payload-bytes" <> metavar "B" <> value 512 <> showDefault <> help "Approximate JSON payload size")
+    <*> optional (option (positive maxDuration) (long "duration" <> metavar "SECS" <> help "Run length (default: until Ctrl-C)"))
+    <*> option (nonNegative maxDuration) (long "warmup" <> metavar "SECS" <> value 5 <> showDefault <> help "Seconds ignored for max-rate tracking")
 
-positive :: ReadM Int
-positive = eitherReader $ \s -> case readMaybe s of
-  Just n | n > 0 -> Right n
-  _ -> Left "expected a positive integer"
+-- | Parsed as 'Integer' first so huge inputs cannot wrap around 'Int'.
+bounded :: Integer -> Integer -> String -> ReadM Int
+bounded lo hi what = eitherReader $ \s -> case readMaybe @Integer s of
+  Just n | n >= lo && n <= hi -> Right (fromInteger n)
+  _ -> Left ("expected " <> what <> " between " <> show lo <> " and " <> show hi)
 
-nonNegative :: ReadM Int
-nonNegative = eitherReader $ \s -> case readMaybe s of
-  Just n | n >= 0 -> Right n
-  _ -> Left "expected a non-negative integer"
+maxPoolSize, maxWriters, maxClientsPerUser, maxPayloadBytes, maxDuration :: Integer
+maxPoolSize = 10_000
+maxWriters = 10_000
+maxClientsPerUser = 100_000
+maxPayloadBytes = 10_000_000
+
+-- | Seconds; ten years, so @d * 1_000_000@ cannot overflow 'Int'.
+maxDuration = 315_360_000
+
+positive :: Integer -> ReadM Int
+positive hi = bounded 1 hi "an integer"
+
+nonNegative :: Integer -> ReadM Int
+nonNegative hi = bounded 0 hi "an integer"
 
 port :: ReadM Int
-port = eitherReader $ \s -> case readMaybe s of
-  Just n | n > 0 && n <= 65535 -> Right n
-  _ -> Left "expected a port between 1 and 65535"
+port = bounded 1 65535 "a port"
 
 domainReader :: ReadM Domain
 domainReader = eitherReader (mkDomain . T.pack)

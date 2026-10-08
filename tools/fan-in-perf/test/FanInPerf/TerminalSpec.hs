@@ -36,7 +36,7 @@ spec = do
   describe "formatStatus" $
     it "renders the status line" $
       formatStatus report
-        `shouldBe` "t=42s push/s cur=8 312 max=9 105 | err/s cur=3 (0.04%) | targets/s cur=41 560 | p50=3.1ms p99=12.4ms"
+        `shouldBe` "t=42s push/s cur=8 312 max=9 105 | err/s cur=3 (0.04%) | targets/s cur=41 560 | p50(cum.)=3.1ms p99(cum.)=12.4ms"
 
   describe "renderStatusLine" $ do
     it "redraws in place on a TTY" $

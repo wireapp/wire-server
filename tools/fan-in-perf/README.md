@@ -15,3 +15,12 @@ Global flags go before the sub-command. `--targets` entries are `KIND:STREAMS[xK
 
 Metrics: `http://localhost:9400/metrics` (`--metrics-port`), scraped by the
 dockerephemeral OTel collector and shown in Grafana dashboard "fan-in-perf".
+
+Notes:
+
+- Targets within a push are sorted to avoid lock-order deadlocks; the store
+  itself does not sort (RFC finding). Unsorted overlapping pushes would
+  deadlock (40P01) and be retried silently, inflating latency.
+- p50/p99 are cumulative over the whole run, including warmup.
+- `fanin_perf_targets_total{kind="clients"}` counts users (K), not rows written
+  (K x `--clients-per-user`).

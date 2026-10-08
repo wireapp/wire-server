@@ -3,6 +3,7 @@ module FanInPerf.Store
     StoreEffects,
     runStore,
     describeUsageError,
+    truncateText,
     toIsolationLevel,
   )
 where
@@ -52,9 +53,12 @@ describeUsageError :: UsageError -> Text
 describeUsageError = \case
   ConnectionError _ -> "database connection error"
   AcquisitionTimeoutUsageError -> "connection pool acquisition timeout"
-  SessionError e -> "database session error: " <> T.pack (show e)
+  SessionError e -> "database session error: " <> truncateText 200 (T.pack (show e))
 
 toIsolationLevel :: Isolation -> TxSessions.IsolationLevel
 toIsolationLevel = \case
   ReadCommitted -> TxSessions.ReadCommitted
   Serializable -> TxSessions.Serializable
+
+truncateText :: Int -> Text -> Text
+truncateText n t = if T.length t > n then T.take n t <> "…" else t

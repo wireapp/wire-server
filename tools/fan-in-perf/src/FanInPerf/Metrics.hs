@@ -37,7 +37,7 @@ newMetrics experiment writers = do
   let counterVec name help = P.register $ P.vector ("experiment", "kind") $ P.counter (P.Info name help)
       gaugeVec name help = P.register $ P.vector "experiment" $ P.gauge (P.Info name help)
   pushes <- counterVec "fanin_perf_pushes_total" "Successful pushes"
-  targets <- counterVec "fanin_perf_targets_total" "Targets written by successful pushes"
+  targets <- counterVec "fanin_perf_targets_total" "Targets of successful pushes (clients kind counts users, not user x client rows)"
   errors <- counterVec "fanin_perf_errors_total" "Failed pushes"
   pushRateCurrent <- gaugeVec "fanin_perf_push_rate_current" "Pushes per second during the last tick"
   pushRateMax <- gaugeVec "fanin_perf_push_rate_max" "Maximal pushes per second after warmup"
