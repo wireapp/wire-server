@@ -90,26 +90,38 @@ gateway:
     # Minimum endpoint count per upstream cluster across all zones. Enables
     # zone preference for backends with one replica in each of three AZs.
     minEndpointsThreshold: 3
-  # Enable when the load balancer sends PROXY protocol headers.
+  # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
+  # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
+  # ClientTrafficPolicy targeting the ListenerSet.
   proxyProtocol:
     enabled: false
     # If true, connections without a PROXY protocol header are also accepted.
     # Use this only if some traffic bypasses the load balancer (e.g. direct node access).
     optional: false
   listeners:
+    # Gateway API requires a Gateway-owned listener; it denies all routes.
+    # Use a port distinct from all application listeners on this Gateway.
+    placeholder:
+      port: 65535
     https:
       port: 443
-      # Required wildcard or hostname covering config.dns, e.g. "*.example.com".
-      # Use config.domains or extraHttpsListeners for other hostnames.
+      # Required. Hostname restriction for the HTTPS listener.
+      # Must be a wildcard or exact hostname covering this deployment's domains,
+      # e.g. "*.example.com". This prevents OverlappingTLSConfig with the federator
+      # listener (which uses the federation domain on the same port) — without an
+      # explicit hostname both listeners are catch-all and Envoy degrades ALPN to
+      # HTTP/1.1-only.
+      # Use config.domains or gateway.extraHttpsListeners when your domains
+      # require multiple listeners.
       hostname: ""
       # ListenerSet section for companion HTTPRoutes.
       sectionName: https
     # Uses the HTTPS port when federator.enabled.
     federator:
       sectionName: federator
-    # Required for cert-manager HTTP01 challenges.
+    # Enable the HTTP listener for cert-manager gatewayHTTPRoute HTTP01 challenges.
+    # See the README for configuration details.
     http:
-      # Port 65535 is reserved for the denied Gateway placeholder.
       enabled: false
       port: 80
       # Optional hostname restriction for the HTTP listener. Set alongside
@@ -147,10 +159,19 @@ gateway:
   # in the EnvoyGateway ConfigMap (see README).
   patchPolicies:
     enabled: true
-    # Must match the controller's XDSNameSchemeV2 flag; required for FIPS.
-    # Defaults to true in Envoy Gateway >= 1.10, false in earlier versions.
+    # Must match the controller's XDSNameSchemeV2 runtime flag, which renames
+    # xDS listeners from "<ns>/<gateway>/<ns>/<listenerset>/<section>" to "<protocol>-<port>".
+    # Envoy Gateway enables it by default from 1.10; earlier versions default to
+    # the legacy scheme unless you added it to runtimeFlags.enabled.
+    # Left unset deliberately: FIPS_202205_tls_profile fails until you state a
+    # value, because a stale setting silently voids the FIPS patch. Route
+    # configs for TLS listeners are unaffected, so the federation patch does not
+    # need this. Verify with: egctl config envoy-proxy listener
     xdsNameSchemeV2: null
-    # Legacy FIPS listener name override for externally managed Gateways.
+    # Legacy scheme only. Overrides the xDS listener name the FIPS patch targets.
+    # The legacy name comes from the FIRST listener on the HTTPS port, which for
+    # this chart's ListenerSet is listeners.https.sectionName. Set this
+    # when an externally created Gateway declares a different listener first.
     xdsListenerName: ""
     # Set to true when the GatewayClass uses mergeGateways: true.
     # With mergeGateways, EnvoyPatchPolicy must target the GatewayClass

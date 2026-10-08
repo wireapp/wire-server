@@ -1,6 +1,7 @@
 {{- if .Values.gateway.create }}
-{{- if or (eq (int .Values.gateway.listeners.https.port) 65535) (and .Values.gateway.listeners.http.enabled (eq (int .Values.gateway.listeners.http.port) 65535)) }}
-{{- fail "port 65535 is reserved for the Gateway placeholder listener" }}
+{{- $placeholderPort := int .Values.gateway.listeners.placeholder.port }}
+{{- if or (eq (int .Values.gateway.listeners.https.port) $placeholderPort) (and .Values.gateway.listeners.http.enabled (eq (int .Values.gateway.listeners.http.port) $placeholderPort)) }}
+{{- fail "gateway.listeners.placeholder.port must differ from the HTTPS and enabled HTTP listener ports" }}
 {{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -44,7 +45,7 @@ spec:
   listeners:
     # Required placeholder; a separate port avoids plaintext policy conflicts.
     - name: placeholder
-      port: 65535
+      port: {{ .Values.gateway.listeners.placeholder.port }}
       protocol: HTTP
       allowedRoutes:
         namespaces:

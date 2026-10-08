@@ -82,14 +82,38 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{- .Values.gateway.listeners.federator.sectionName | default "federator" -}}
 {{- end -}}
 
-{{/* Normalize config.dns/config.domains for listeners, certificates and routes.
-     The primary domain keeps unsuffixed resource names; additional domains get
-     their own certificates and team-settings CSP headers. */}}
+{{/*
+Normalized list of ingress domains, returned as a JSON array so callers can
+`fromJsonArray` and range over it.
+
+Back-compat: when `config.domains` is NOT set, a single "primary" entry is
+derived from the legacy scalar `config.dns` + `gateway.listeners.https.hostname`,
+so existing single-domain deployments render exactly as before.
+
+Multi-domain: `config.domains` is a list; the FIRST entry is the primary
+(its resources keep the un-suffixed names, and its frontend apps set their own
+CSP so no CSP is injected). Every additional entry gets a `-<name>` suffix, its
+own ListenerSet listener (`https-<name>`), its own certificate/secret, and — being
+an "additional ingress" — a per-domain CSP header injected on the team-settings
+route. The webapp and account-pages routes never get an injected CSP: those
+apps set multi-ingress aware headers themselves (see the httproute templates).
+
+Each entry has: suffix, section, hostname, https, ssl, webapp, teamSettings,
+accountPages, fakeS3, base, secretName, certName, issuerName, issuerKind,
+primary (bool), csp (bool).
+*/}}
 {{- define "wire-ingress.domains" -}}
 {{- $root := . -}}
 {{- $fullname := include "wire-ingress.fullname" . -}}
 {{- $out := list -}}
 {{- if .Values.config.domains -}}
+  {{/*
+  Multi-ingress and federation are mutually exclusive. Multi-ingress serves one
+  backend on several unrelated domains to obfuscate client relationships; the
+  federator, by contrast, is single-domain and identifies the backend to other
+  backends. Supporting both at once is out of scope, so fail fast rather than
+  render a half-working federator on top of a multi-ingress deployment.
+  */}}
   {{- if .Values.federator.enabled -}}
     {{- fail "config.domains (multi-ingress) is mutually exclusive with federator.enabled (federation). Choose one: federation with a single backend domain via config.dns, OR multi-ingress via config.domains with federator.enabled=false." -}}
   {{- end -}}
@@ -108,7 +132,13 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
     {{- else -}}{{- $secretName = printf "%s-%s-tls-certificate" $fullname $name -}}{{- end -}}
     {{- $cspFlag := not $primary -}}
     {{- if hasKey $domain "renderCSP" -}}{{- $cspFlag = $domain.renderCSP -}}{{- end -}}
-    {{/* Without cert-manager, additional domains need an existing TLS secret. */}}
+    {{/*
+    Additional domains cannot share the single wildcard secret created by
+    secret.yaml, and no cert-manager Certificate is rendered when
+    tls.useCertManager is false. Without a per-domain tls.secretName the ListenerSet
+    listener would reference a Secret that nothing ever creates, silently
+    failing TLS at runtime. Fail fast instead.
+    */}}
     {{- if and (not $primary) (not $root.Values.tls.useCertManager) (not $tls.secretName) -}}
       {{- fail (printf "config.domains[%d] (%s): additional domains need their own TLS secret, but tls.useCertManager is false and no config.domains[%d].tls.secretName is set. Either enable cert-manager (tls.useCertManager: true) or point tls.secretName at a pre-created kubernetes.io/tls Secret for this domain." $i $name $i) -}}
     {{- end -}}

@@ -1,5 +1,14 @@
 {{- if and .Values.federator.enabled .Values.gateway.patchPolicies.enabled }}
-{{/* SRV targets carry a trailing dot in the federator's HTTP/2 :authority. */}}
+{{/* Adds the FQDN variant (trailing dot) of the federator hostname to the
+     virtual host's domain list so Envoy matches requests whose :authority
+     header carries a trailing dot.
+     Wire federator resolves federation targets via DNS SRV lookups; per
+     RFC 2782, SRV records return FQDNs (e.g. "federator.example.com.").
+     HTTP/2 passes that dot in :authority; without this patch the virtual
+     host only matches "federator.example.com" and returns route_not_found.
+     Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
+     Requires extensionApis.enableEnvoyPatchPolicy: true in the
+     EnvoyGateway ConfigMap. */}}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyPatchPolicy
 metadata:
@@ -22,7 +31,9 @@ spec:
   type: JSONPatch
   jsonPatches:
     - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
-      {{- /* TLS route names are independent of XDSNameSchemeV2. */}}
+      {{- /* Route configs for TLS listeners are named <namespace>/<gateway>/<namespace>/<listenerset>/<section>
+           regardless of the xDS name scheme: routeConfigName() delegates to
+           httpsListenerFilterChainName(), which ignores XDSNameSchemeV2. */}}
       name: {{ printf "%s/%s/%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) .Release.Namespace (include "wire-ingress.fullname" .) (include "wire-ingress.federatorSectionName" .) | quote }}
       operation:
         op: add

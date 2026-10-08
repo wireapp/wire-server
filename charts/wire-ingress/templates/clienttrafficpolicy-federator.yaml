@@ -20,7 +20,9 @@ spec:
     optional: {{ .Values.gateway.proxyProtocol.optional }}
   {{- end }}
   tls:
-    {{/* The federator reports missing certificates; verify any supplied. */}}
+    {{/* Optional at the ingress level so the federator service can throw the
+         appropriate error when a cert is missing. Lua filter strips spoofed
+         X-SSL-Certificate header if no cert was actually provided. */}}
     clientValidation:
       mode: VerifyIfGiven
       caCertificateRefs:
