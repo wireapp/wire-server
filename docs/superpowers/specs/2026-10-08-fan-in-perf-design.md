@@ -118,8 +118,10 @@ spike.
 ## Data flow (`produce`)
 
 1. Parse options and `--targets`; fail fast on errors.
-2. Create pool from `--db` via new `Hasql.Pool.Extended.initPostgresPoolFromConnString`
-   (sibling of `initPostgresPool`, same metrics/instrumentation).
+2. Parse `--db` with `PostgresqlConnectionString.parse` (generic error
+   message, never echo input) and create the pool via new
+   `Hasql.Pool.Extended.initPostgresPoolFromConnString`, factored out of
+   `initPostgresPool` (same metrics/instrumentation).
 3. Probe DB once via `FanInNotificationsAdmin.Ping`; on failure print generic
    message, exit 1.
 4. Pre-generate stream keys per entry into immutable vectors (random UUIDs,
@@ -230,7 +232,15 @@ Caveat: host firewall must allow docker bridge → host port 9300. (user handles
 2. `genNotificationId = Id <$> UUIDv7.genUUID`. `Data.UUID.V7.genUUID`
    (mmzk-typeid) already returns `Data.UUID.Types.UUID`; the show/parse
    roundtrip was the identity and the retry branch was dead — same semantics.
-3. New test/perf-only effect `Wire.FanInNotificationsAdmin`:
+3. `group_id` as `bytea`: MLS `GroupId` wraps arbitrary bytes, but the
+   migration declared `group_id text` and `pushEpochNotification` used
+   `TE.decodeUtf8` (throws on non-UTF-8). Fix in the branch-local migration
+   `20260729073800-fan-in-notifications.sql`: `group_id bytea` in
+   `epoch_notifications`, `epoch_history`, `last_epoch_notifications`,
+   `epoch_notification_acks` (matches `conversation.group_id bytea`). The
+   store passes the raw `ByteString`. User re-creates the schema and
+   regenerates `postgres-schema.sql` (needs docker).
+4. New test/perf-only effect `Wire.FanInNotificationsAdmin`:
 
    ```haskell
    data FanInNotificationsAdmin m a where
@@ -247,6 +257,7 @@ Caveat: host firewall must allow docker bridge → host port 9300. (user handles
 
 | Item | Status |
 |---|---|
+| `group_id text` + `decodeUtf8` breaks on binary MLS group ids | ❌ fixed: `bytea` |
 | `GREATEST` upserts on `last_*` | ✅ matches RFC |
 | One UUIDv7 notification id per push, shared across targets | ✅ |
 | Schema PK fixes vs RFC (`last_local_connection_notifications`, `team_notification_acks`) | ✅ sensible deviations |
