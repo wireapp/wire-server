@@ -16,6 +16,7 @@ import Imports
 import Options.Applicative hiding (command)
 import Options.Applicative qualified as O
 
+-- REVIEW: Do we need this extra data type?
 data Isolation = ReadCommitted | Serializable
   deriving (Eq, Show)
 
@@ -24,6 +25,7 @@ data GlobalOptions = GlobalOptions
   { db :: Text,
     poolSize :: Maybe Int,
     metricsPort :: Int,
+    -- REVIEW: The domain doesn't need to be configurable. It can be e.g. constant `example.com`
     domain :: Domain,
     isolation :: Isolation
   }

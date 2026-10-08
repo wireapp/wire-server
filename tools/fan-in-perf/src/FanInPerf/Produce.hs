@@ -26,6 +26,8 @@ import Wire.FanInNotificationsStore
 
 data PushOutcome = PushOk | PushFailed Text
 
+-- REVIEW: Dependency injection of doPush and reportError is odd. This is what effects are for!
+
 -- | One push: generate targets, run, record. Synchronous exceptions are
 -- counted as errors so a writer never dies; async ones (cancel) propagate.
 writerStep ::
@@ -37,6 +39,7 @@ writerStep ::
   StdGen ->
   IO StdGen
 writerStep doPush dom entries stats reportError g = do
+  -- REVIEW: Can kind not be deduced from targets?
   let ((kind, targets), g') = genTargets dom entries g
   -- build the targets before timing so latency covers only the store call
   evaluate (forceTargets targets)

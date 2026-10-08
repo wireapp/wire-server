@@ -180,6 +180,8 @@ targetAt dom pool i = case pool of
   EpochPool v -> TargetEpoch (v V.! i)
   ConnectionsPool v -> TargetConnections (Qualified (v V.! i) dom)
 
+-- REVIEW: This looks overly complicated!
+
 -- | Picks an entry uniformly, then 'perPush' distinct stream keys of it. All
 -- targets of one push therefore share one constructor. Targets are sorted by
 -- pool index (pools are fixed, so this is one global order, and client ids per
@@ -193,6 +195,8 @@ genTargets dom entries g0 =
       -- perPush >= 1, so idxs is never empty; the fallback only satisfies the type
       targets = targetAt dom e.pool <$> fromMaybe (0 :| []) (nonEmpty (sort idxs))
    in ((e.spec.kind, targets), g2)
+
+-- REVIEW: Do we need this? Can the data type just be strict?
 
 -- | Cheap full evaluation of the (otherwise lazily built) targets, so
 -- generation cost stays out of the timed store call.

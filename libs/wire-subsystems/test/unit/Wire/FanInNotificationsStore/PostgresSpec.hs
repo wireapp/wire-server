@@ -9,6 +9,7 @@ import Wire.FanInNotificationsStore.Postgres (genNotificationId)
 
 spec :: Spec
 spec = describe "genNotificationId" $ do
+  -- REVIEW: This test is not required (Only shows UUID version is 7)
   it "generates version 7 UUIDs" $ do
     ids <- replicateM 100 (genNotificationId @())
     forM_ ids $ \i -> do

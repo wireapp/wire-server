@@ -23,6 +23,7 @@ import Wire.API.MLS.Group
 import Wire.FanInNotificationsStore
 import Wire.Postgres
 
+-- REVIEW: Looks superfluous
 type FanInNotificationsStorePostgresEffectConstraints r =
   PGConstraints r
 

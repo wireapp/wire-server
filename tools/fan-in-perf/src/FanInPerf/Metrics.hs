@@ -21,7 +21,8 @@ import Prometheus qualified as P
 
 -- | Only the ticker thread calls 'publish'; writers never touch these.
 data Metrics = Metrics
-  { experiment :: Text,
+  { -- REVIEW: Rename experiment -> experimentName
+    experiment :: Text,
     pushes :: P.Vector P.Label2 P.Counter,
     targets :: P.Vector P.Label2 P.Counter,
     errors :: P.Vector P.Label2 P.Counter,
@@ -85,6 +86,7 @@ latencySampleGroup experiment buckets =
       | (b, c) <- zip [0 ..] cumulative
       ]
         <> [P.Sample (name <> "_bucket") [lbl, ("le", "+Inf")] (bshow count)]
+    -- REVIEW: This needs a better explanation!
     -- midpoint of [2^b, 2^(b+1)) is 0.75 * upper bound
     approxSum :: Double
     approxSum = sum [fromIntegral c * 0.75 * bucketUpperBoundSeconds b | (b, c) <- zip [0 ..] (VU.toList buckets)]
@@ -96,6 +98,8 @@ latencySampleGroup experiment buckets =
 metricsApp :: Wai.Application
 metricsApp req respond = case Wai.pathInfo req of
   ["metrics"] -> do
+    -- The odd content-type is explained here: https://prometheus.io/docs/instrumenting/content_negotiation/#protocol-types
+    -- prometheus-client talks protocol version 0.0.4
     body <- P.exportMetricsAsText
     respond $ Wai.responseLBS status200 [(hContentType, "text/plain; version=0.0.4")] body
   _ -> respond $ Wai.responseLBS status404 [] "not found"

@@ -47,12 +47,15 @@ runStore env =
     . interpretFanInNotificationsAdminToPostgres
     . interpretFanInNotificationsStoreToPostgres env.isolation
 
+-- REVIEW: This solves an issue we don't have
+
 -- | Connection errors can contain host names or credentials; keep them out of
 -- the terminal.
 describeUsageError :: UsageError -> Text
 describeUsageError = \case
   ConnectionError _ -> "database connection error"
   AcquisitionTimeoutUsageError -> "connection pool acquisition timeout"
+  -- REVIEW: Print the full error here. No need to truncate. truncateText can then be deleted.
   SessionError e -> "database session error: " <> truncateText 200 (T.pack (show e))
 
 toIsolationLevel :: Isolation -> TxSessions.IsolationLevel
