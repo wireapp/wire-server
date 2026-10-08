@@ -442,6 +442,7 @@ services:
       - "4318:4318"
     volumes:
       - ./docker/grafana-dashboards/postgres-exporter.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/postgres-exporter.json:ro
+      - ./docker/grafana-dashboards/fan-in-perf.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/fan-in-perf.json:ro
       - ./docker/grafana-dashboards/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
     networks:
       - demo_wire
@@ -452,6 +453,8 @@ services:
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - postgres
       - postgres-exporter
