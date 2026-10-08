@@ -73,12 +73,14 @@ mkDerivation {
   executableHaskellDepends = [ base imports optparse-applicative ];
   testHaskellDepends = [
     aeson
+    async
     base
     bytestring
     containers
     hasql
     hasql-resource-pool
     hspec
+    http-types
     imports
     optparse-applicative
     prometheus-client
