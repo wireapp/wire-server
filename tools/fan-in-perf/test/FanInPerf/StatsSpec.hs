@@ -63,6 +63,15 @@ spec = do
       [r.pushRate, r.targetRate, r.errorRate, r.errorRatio, r.maxPushRate] `shouldBe` [0, 0, 0, 0, 0]
       (r.p50, r.p99) `shouldBe` (Nothing, Nothing)
 
+    it "a tiny final tick counts in totals but does not raise the max rate" $ do
+      t1 <- mkTotal 100 0
+      let (r1, st1) = tick 5 10 t1 (initialTickState 0)
+      r1.maxPushRate `shouldBe` 10
+      t2 <- mkTotal 10100 0
+      let (r2, _) = tick 5 10.001 t2 st1
+      r2.maxPushRate `shouldBe` 10
+      totalPushes r2.total `shouldBe` 10100
+
     it "computes the error ratio over the last tick" $ do
       t <- mkTotal 3 1
       let (r, _) = tick 0 1 t (initialTickState 0)

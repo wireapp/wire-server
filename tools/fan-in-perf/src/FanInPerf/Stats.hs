@@ -166,6 +166,11 @@ data TickReport = TickReport
   }
   deriving (Eq, Show)
 
+-- | Ticks shorter than this (e.g. the final one after the ticker stopped)
+-- give noisy rates and must not raise the max rate.
+minTickInterval :: Double
+minTickInterval = 0.5
+
 tick :: Double -> Double -> Snapshot -> TickState -> (TickReport, TickState)
 tick warmup now total st =
   let dt = now - st.lastTime
@@ -176,7 +181,7 @@ tick warmup now total st =
       errors = totalErrors delta
       pushRate = rate pushes
       elapsed = now - st.startTime
-      maxPushRate = if elapsed > warmup then max st.maxRateSoFar pushRate else st.maxRateSoFar
+      maxPushRate = if elapsed > warmup && dt >= minTickInterval then max st.maxRateSoFar pushRate else st.maxRateSoFar
       errorRatio = if pushes + errors > 0 then fromIntegral errors / fromIntegral (pushes + errors) else 0
       latency = latencyBuckets total
       report =
