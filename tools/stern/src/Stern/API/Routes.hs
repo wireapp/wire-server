@@ -59,9 +59,11 @@ import Servant.Swagger.UI
 import Stern.Types
 import Wire.API.CustomBackend
 import Wire.API.OAuth
+import Wire.API.Routes.CSV
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
+import Wire.API.Routes.LowLevelStream (LowLevelStream)
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.Team.Feature
@@ -259,6 +261,27 @@ type SternAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> Get '[JSON] TeamInfo
+           )
+    :<|> Named
+           "get-team-members-csv"
+           ( Summary "Get all members of the team as a CSV file"
+               :> Description
+                    "The endpoint returns data in chunked transfer encoding.\
+                    \ Internal server errors might result in a failed transfer\
+                    \ instead of a 500 response."
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> "csv"
+               :> LowLevelStream
+                    'GET
+                    200
+                    '[ '( "Content-Disposition",
+                          "attachment; filename=\"wire_team_members.csv\""
+                        )
+                     ]
+                    "CSV of team members"
+                    CSV
            )
     :<|> Named
            "get-team-admin-info"
