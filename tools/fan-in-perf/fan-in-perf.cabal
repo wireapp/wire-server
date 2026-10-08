@@ -76,6 +76,7 @@ library
   exposed-modules:
     FanInPerf.Stats
     FanInPerf.Targets
+    FanInPerf.Terminal
 
   build-depends:
     , aeson
@@ -126,6 +127,7 @@ test-suite fan-in-perf-tests
   other-modules:
     FanInPerf.StatsSpec
     FanInPerf.TargetsSpec
+    FanInPerf.TerminalSpec
 
   build-depends:
     , aeson
