@@ -139,6 +139,11 @@ initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO P
 initPostgresPool config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   connStr <- runConnStrParser $ PostgresqlConnectionString.fromKeyValueParams pgConfig
+  initPostgresPoolFromConnString config connStr mPw
+
+-- | Creates a pool from a parsed connection string and an optional password.
+initPostgresPoolFromConnString :: PoolConfig -> PostgresqlConnectionString.ConnectionString -> Maybe Text -> IO Pool
+initPostgresPoolFromConnString config connStr mPw = do
   let pgSettings =
         HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl connStr)
           <> foldMap HasqlConnSettings.password mPw
