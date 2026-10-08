@@ -73,7 +73,10 @@ common common-all
 library
   import:          common-all
   hs-source-dirs:  src
-  exposed-modules: FanInPerf.Targets
+  exposed-modules:
+    FanInPerf.Stats
+    FanInPerf.Targets
+
   build-depends:
     , aeson
     , async
@@ -120,9 +123,13 @@ test-suite fan-in-perf-tests
   main-is:        Main.hs
   hs-source-dirs: test
   ghc-options:    -threaded
-  other-modules:  FanInPerf.TargetsSpec
+  other-modules:
+    FanInPerf.StatsSpec
+    FanInPerf.TargetsSpec
+
   build-depends:
     , aeson
+    , async
     , base
     , bytestring
     , containers
