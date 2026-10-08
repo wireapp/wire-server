@@ -1,0 +1,1 @@
+Detect silent postgresql connection failures and discard connections.
