@@ -586,6 +586,7 @@ library
     , polysemy-time
     , polysemy-wire-zoo
     , postgresql-error-codes
+    , pqi-ffi
     , prometheus-client
     , QuickCheck
     , ram

@@ -24,7 +24,9 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (ask)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder (toLazyByteString)
+import Data.CaseInsensitive qualified as CI
 import Data.Foldable (toList)
+import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Data.Text qualified as Text
@@ -69,13 +71,25 @@ instrumentServantRequest ctx req = do
         ("network.protocol.version", toAttribute httpVersion),
         ("user_agent.original", toAttribute userAgent)
       ]
-  hdrs <- inject (getTracerProviderPropagators $ getTracerTracerProvider tracer) ctx $ toList req.requestHeaders
-  pure req {requestHeaders = Seq.fromList hdrs}
+  hdrs <- inject (getTracerProviderPropagators $ getTracerTracerProvider tracer) ctx $ headersToTextMap req.requestHeaders
+  pure req {requestHeaders = headersFromTextMap hdrs}
+
+headersToTextMap :: Seq Header -> TextMap
+headersToTextMap =
+  foldr
+    ( \(headerName, headerVal) ->
+        textMapInsert (T.decodeUtf8 $ CI.foldedCase headerName) (T.decodeUtf8 headerVal)
+    )
+    emptyTextMap
+
+headersFromTextMap :: TextMap -> Seq Header
+headersFromTextMap =
+  Seq.fromList . map (\(headerName, headerVal) -> (CI.mk $ T.encodeUtf8 headerName, T.encodeUtf8 headerVal)) . textMapToList
 
 instrumentServantResponse :: (MonadIO m) => Context -> Response -> m ()
 instrumentServantResponse ctx0 resp = do
   tracer <- httpTracerProvider
-  ctx <- extract (getTracerProviderPropagators $ getTracerTracerProvider tracer) (toList resp.responseHeaders) ctx0
+  ctx <- extract (getTracerProviderPropagators $ getTracerTracerProvider tracer) (headersToTextMap resp.responseHeaders) ctx0
   _ <- attachContext ctx
   forM_ (lookupSpan ctx) $ \s -> do
     when (statusCode resp.responseStatusCode >= 400) $ do
