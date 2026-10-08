@@ -53,6 +53,8 @@ data PersistentTargetedMessage = PersistentTargetedMessage
     counter :: Word32,
     sender :: LeafIndex,
     recipient :: LeafIndex,
+    -- | Qualified client identity encoded as it appears in the MLS credential.
+    recipientId :: ByteString,
     epoch :: Epoch,
     groupId :: GroupId,
     payload :: HPKECiphertext,
@@ -68,6 +70,7 @@ instance ParseMLS PersistentTargetedMessage where
       <*> parseMLS
       <*> parseMLS
       <*> parseMLS
+      <*> parseMLSBytes @VarInt
       <*> parseMLS
       <*> parseMLS
       <*> parseMLS
@@ -80,6 +83,7 @@ instance SerialiseMLS PersistentTargetedMessage where
     serialiseMLS msg.counter
     serialiseMLS msg.sender
     serialiseMLS msg.recipient
+    serialiseMLSBytes @VarInt msg.recipientId
     serialiseMLS msg.epoch
     serialiseMLS msg.groupId
     serialiseMLS msg.payload

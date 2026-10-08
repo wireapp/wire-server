@@ -86,6 +86,7 @@ testParseTargetedMessageBatch = do
               counter = n,
               sender = 1,
               recipient = n,
+              recipientId = "2",
               epoch = Epoch 4,
               groupId = GroupId "group",
               payload = HPKECiphertext "kem-output" "ciphertext",

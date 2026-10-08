@@ -82,6 +82,18 @@ spec = describe "targeted MLS messages" do
         message = mapTargetedMessage (targetedMessage 1) (\msg -> msg {recipient = 99})
     expectRejected fx [message]
 
+  it "rejects a recipient user id that does not match its leaf index" do
+    let fx = fixture
+        wrongIdentity = mkClientIdentity (Qualified fx.senderUser fx.recipientDomain) fx.recipientClient
+        message = mapTargetedMessage (targetedMessage 1) (\msg -> msg {Targeted.recipientId = encodeMLS' wrongIdentity})
+    expectRejected fx [message]
+
+  it "rejects a recipient domain that does not match its leaf index" do
+    let fx = fixture
+        wrongIdentity = mkClientIdentity (Qualified fx.recipientUser (Domain "other.example.com")) fx.recipientClient
+        message = mapTargetedMessage (targetedMessage 1) (\msg -> msg {Targeted.recipientId = encodeMLS' wrongIdentity})
+    expectRejected fx [message]
+
   it "rejects a remote recipient until federation support is added" do
     let fx = fixture {recipientDomain = Domain "remote.example.com"}
     expectRejected fx [targetedMessage 1]
@@ -155,6 +167,7 @@ targetedMessageAt counter epoch =
             counter = counter,
             sender = fixture.senderLeaf,
             recipient = fixture.recipientLeaf,
+            recipientId = encodeMLS' (mkClientIdentity (Qualified fixture.recipientUser fixture.recipientDomain) fixture.recipientClient),
             epoch = Epoch epoch,
             groupId = fixture.groupId,
             payload = HPKECiphertext "kem" "ciphertext",

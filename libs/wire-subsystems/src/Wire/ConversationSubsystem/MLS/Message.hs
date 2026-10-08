@@ -262,6 +262,9 @@ validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMess
     recipientClient <- case imLookup convOrSub.indexMap msg.recipient of
       Just (RegularClient recipient) -> pure recipient
       _ -> throwS @'MLSInvalidLeafNodeIndex
+    unless (msg.recipientId == encodeMLS' recipientClient) $
+      throw $
+        mlsProtocolError "targeted message recipient identity does not match its leaf index"
     -- Delivery below uses the local notification path. Remote recipients need
     -- a federation path and are therefore rejected until that is implemented.
     unless (recipientClient.ciDomain == tDomain lusr) $
