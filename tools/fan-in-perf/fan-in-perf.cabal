@@ -74,6 +74,7 @@ library
   import:          common-all
   hs-source-dirs:  src
   exposed-modules:
+    FanInPerf.Metrics
     FanInPerf.Stats
     FanInPerf.Targets
     FanInPerf.Terminal
@@ -125,6 +126,7 @@ test-suite fan-in-perf-tests
   hs-source-dirs: test
   ghc-options:    -threaded
   other-modules:
+    FanInPerf.MetricsSpec
     FanInPerf.StatsSpec
     FanInPerf.TargetsSpec
     FanInPerf.TerminalSpec
@@ -139,6 +141,7 @@ test-suite fan-in-perf-tests
     , hasql
     , hasql-resource-pool
     , hspec
+    , http-types
     , imports
     , optparse-applicative
     , prometheus-client
