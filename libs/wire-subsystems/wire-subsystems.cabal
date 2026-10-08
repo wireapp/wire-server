@@ -350,6 +350,8 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
+    Wire.FanInNotificationsAdmin
+    Wire.FanInNotificationsAdmin.Postgres
     Wire.FanInNotificationsStore
     Wire.FanInNotificationsStore.Postgres
     Wire.FeaturesConfigSubsystem
