@@ -1,0 +1,146 @@
+cabal-version: 3.0
+name:          fan-in-perf
+version:       1.0.0
+synopsis:
+  Benchmark the notification fan-in PostgreSQL store (WPB-26288)
+
+category:      Tools
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2023 Wire Swiss GmbH
+license:       AGPL-3.0-only
+build-type:    Simple
+
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+flag nix-dev-env
+  description: In a Nix dev environment.
+  default:     False
+  manual:      True
+
+common common-all
+  default-language:   GHC2021
+  ghc-options:
+    -O2 -Wall -Wpartial-fields -fwarn-tabs
+    -optP-Wno-nonportable-include-path
+
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+library
+  import:          common-all
+  hs-source-dirs:  src
+  exposed-modules: FanInPerf.Targets
+  build-depends:
+    , aeson
+    , async
+    , base
+    , bytestring
+    , containers
+    , extended
+    , hasql
+    , hasql-resource-pool
+    , hasql-transaction
+    , http-types
+    , imports
+    , optparse-applicative
+    , polysemy
+    , postgresql-connection-string
+    , primitive
+    , prometheus-client
+    , random
+    , stm
+    , text
+    , types-common
+    , unliftio
+    , uuid-types
+    , vector
+    , wai
+    , warp
+    , wire-api
+    , wire-subsystems
+
+executable fan-in-perf
+  import:         common-all
+  main-is:        Main.hs
+  hs-source-dirs: app
+  ghc-options:    -threaded -rtsopts "-with-rtsopts=-N -T"
+  build-depends:
+    , base
+    , fan-in-perf
+    , imports
+    , optparse-applicative
+
+test-suite fan-in-perf-tests
+  import:         common-all
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  hs-source-dirs: test
+  ghc-options:    -threaded
+  other-modules:  FanInPerf.TargetsSpec
+  build-depends:
+    , aeson
+    , base
+    , bytestring
+    , containers
+    , fan-in-perf
+    , hasql
+    , hasql-resource-pool
+    , hspec
+    , imports
+    , optparse-applicative
+    , prometheus-client
+    , QuickCheck
+    , random
+    , text
+    , types-common
+    , vector
+    , wai
+    , wire-api
+    , wire-subsystems
+
+  if !flag(nix-dev-env)
+    build-tool-depends: hspec-discover:hspec-discover
