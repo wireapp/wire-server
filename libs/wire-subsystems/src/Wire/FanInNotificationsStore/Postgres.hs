@@ -8,9 +8,7 @@ import Data.Domain (domainText)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified
-import Data.Text.Encoding qualified as TE
 import Data.UUID (UUID)
-import Data.UUID qualified as UUID
 import Data.UUID.V7 qualified as UUIDv7
 import Data.Vector qualified as V
 import Hasql.Statement
@@ -30,19 +28,21 @@ type FanInNotificationsStorePostgresEffectConstraints r =
 
 interpretFanInNotificationsStoreToPostgres ::
   (FanInNotificationsStorePostgresEffectConstraints r, Member (Input (Local ())) r) =>
+  TxSessions.IsolationLevel ->
   InterpreterFor FanInNotificationsStore r
-interpretFanInNotificationsStoreToPostgres = interpret $ \case
-  PushViaFanIn push -> pushViaFanInImpl push
+interpretFanInNotificationsStoreToPostgres isolationLevel = interpret $ \case
+  PushViaFanIn push -> pushViaFanInImpl isolationLevel push
 
 pushViaFanInImpl ::
   (FanInNotificationsStorePostgresEffectConstraints r, Member (Input (Local ())) r) =>
+  TxSessions.IsolationLevel ->
   FanInPush ->
   Sem r ()
-pushViaFanInImpl push = do
+pushViaFanInImpl isolationLevel push = do
   notifId <- embed @IO genNotificationId
   loc <- inputQualifyLocal ()
   let payload = Aeson.toJSON push.json
-  runTransactionWithRetry TxSessions.Serializable TxSessions.Write do
+  runTransactionWithRetry isolationLevel TxSessions.Write do
     forM_ push.targets \target -> do
       case target of
         TargetUser uid ->
@@ -60,13 +60,9 @@ pushViaFanInImpl push = do
             then pushLocalConnectionNotification uid.toUUID notifId payload push.origin
             else pushRemoteConnectionNotification (domainText domain) uid.toUUID notifId payload push.origin
 
+-- | Time-ordered (UUIDv7) notification id.
 genNotificationId :: IO (Id a)
-genNotificationId = do
-  uuidV7 <- UUIDv7.genUUID
-  let uuidText = show uuidV7
-  case UUID.fromString uuidText of
-    Nothing -> genNotificationId
-    Just uuid -> pure (Id uuid)
+genNotificationId = Id <$> UUIDv7.genUUID
 
 pushUserNotification ::
   UUID ->
@@ -170,24 +166,24 @@ pushEpochNotification ::
 pushEpochNotification gid epoch notifId payload origin = do
   let epoch' = fromIntegral epoch :: Int64
   Tx.statement
-    (TE.decodeUtf8 gid, epoch', notifId.toUUID, payload, fmap (.toUUID) origin)
+    (gid, epoch', notifId.toUUID, payload, fmap (.toUUID) origin)
     insertEpochNotificationStatement
   Tx.statement
-    (TE.decodeUtf8 gid, epoch', notifId.toUUID)
+    (gid, epoch', notifId.toUUID)
     upsertLastEpochNotificationStatement
   where
-    insertEpochNotificationStatement :: Statement (Text, Int64, UUID, Value, Maybe UUID) ()
+    insertEpochNotificationStatement :: Statement (ByteString, Int64, UUID, Value, Maybe UUID) ()
     insertEpochNotificationStatement =
       [resultlessStatement|
         insert into epoch_notifications (group_id, epoch, notification_id, payload, origin)
-          values ($1 :: text, $2 :: bigint, $3 :: uuid, $4 :: jsonb, $5 :: uuid?)
+          values ($1 :: bytea, $2 :: bigint, $3 :: uuid, $4 :: jsonb, $5 :: uuid?)
       |]
 
-    upsertLastEpochNotificationStatement :: Statement (Text, Int64, UUID) ()
+    upsertLastEpochNotificationStatement :: Statement (ByteString, Int64, UUID) ()
     upsertLastEpochNotificationStatement =
       [resultlessStatement|
         insert into last_epoch_notifications (group_id, epoch, notification_id)
-          values ($1 :: text, $2 :: bigint, $3 :: uuid)
+          values ($1 :: bytea, $2 :: bigint, $3 :: uuid)
           on conflict (group_id, epoch) do update
             set notification_id = greatest(last_epoch_notifications.notification_id, excluded.notification_id)
       |]
@@ -252,4 +248,3 @@ pushRemoteConnectionNotification domain uid notifId payload origin = do
           on conflict (user_domain, user_id) do update
             set notification_id = greatest(last_remote_connection_notifications.notification_id, excluded.notification_id)
       |]
-

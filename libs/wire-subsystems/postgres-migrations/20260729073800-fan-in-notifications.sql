@@ -25,7 +25,7 @@ CREATE TABLE team_notifications (
 );
 
 CREATE TABLE epoch_notifications (
-  group_id text NOT NULL,
+  group_id bytea NOT NULL,
   epoch bigint NOT NULL,
   notification_id UUID NOT NULL,
   payload jsonb NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE remote_connection_notifications (
 
 -- Epochs
 CREATE TABLE epoch_history (
-  group_id text NOT NULL,
+  group_id bytea NOT NULL,
   epoch bigint NOT NULL,
   user_id UUID NOT NULL,
   client_id bigint NOT NULL,
@@ -83,7 +83,7 @@ CREATE TABLE last_team_notifications (
 );
 
 CREATE TABLE last_epoch_notifications (
-  group_id text NOT NULL,
+  group_id bytea NOT NULL,
   epoch bigint NOT NULL,
   notification_id UUID NOT NULL,
   PRIMARY KEY (group_id, epoch)
@@ -128,7 +128,7 @@ CREATE TABLE team_notification_acks (
 CREATE TABLE epoch_notification_acks (
   user_id UUID NOT NULL,
   client_id bigint NOT NULL,
-  group_id text NOT NULL,
+  group_id bytea NOT NULL,
   epoch bigint NOT NULL,
   last_notification_id UUID NOT NULL,
   PRIMARY KEY (user_id, client_id, group_id, epoch)
