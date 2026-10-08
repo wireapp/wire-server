@@ -52,7 +52,7 @@ Global options:
 |---|---|---|
 | `--db CONNSTR` | required | PostgreSQL connection string (never logged) |
 | `--pool-size N` | `--writers` (produce) / 1 (reset) | hasql pool size |
-| `--metrics-port P` | 9300 | `/metrics` HTTP port, bound to `0.0.0.0` |
+| `--metrics-port P` | 9400 | `/metrics` HTTP port, bound to `0.0.0.0` |
 | `--domain D` | `example.com` | local domain (`Input (Local ())` for the store) |
 | `--isolation read-committed\|serializable` | `read-committed` (RFC intent) | isolation level for push transactions |
 
@@ -214,14 +214,14 @@ Tool runs on the host; OTel collector runs in docker and scrapes it.
 - `deploy/dockerephemeral/docker-compose.yaml`: `otel-collector` gets
   `extra_hosts: ["host.docker.internal:host-gateway"]`.
 - `deploy/dockerephemeral/docker/otel-collector-config.yaml`: prometheus
-  receiver scrape job `fan-in-perf`, target `host.docker.internal:9300`,
+  receiver scrape job `fan-in-perf`, target `host.docker.internal:9400`,
   interval 5 s.
 - `deploy/dockerephemeral/docker/grafana-dashboards/fan-in-perf.json`,
   mounted like `postgres-exporter.json`. Panels: push rate
   (`rate(fanin_perf_pushes_total[15s])` + tool gauges current/max), error rate
   by kind + ratio, latency p50/p99, pool in-use/ready, targets rate.
 
-Caveat: host firewall must allow docker bridge → host port 9300. (user handles this.)
+Caveat: host firewall must allow docker bridge → host port 9400. (user handles this.)
 
 ## Store changes (`libs/wire-subsystems`)
 

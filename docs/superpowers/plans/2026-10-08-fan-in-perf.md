@@ -15,7 +15,7 @@
 - DB access only via `Wire.FanInNotificationsStore` / `Wire.FanInNotificationsAdmin` effects; the tool never runs SQL itself.
 - Exactly one `Target` constructor kind per push.
 - `--isolation` default `read-committed` (RFC intent); `serializable` selectable.
-- Defaults: `--writers 16`, `--payload-bytes 512`, `--metrics-port 9300`, `--domain example.com`, `--warmup 5`, `--clients-per-user 1`, `--pool-size` = `--writers` (produce) / 1 (reset).
+- Defaults: `--writers 16`, `--payload-bytes 512`, `--metrics-port 9400`, `--domain example.com`, `--warmup 5`, `--clients-per-user 1`, `--pool-size` = `--writers` (produce) / 1 (reset).
 - `--targets` grammar `KIND:STREAMS[xK]`, kinds `user|clients|team|epoch|connections`, `1 <= K <= STREAMS <= 10_000_000`, no duplicate kinds.
 - Writers never block on metrics/terminal; only the ticker touches prometheus-client and stdout.
 - Connection string / password never printed; `GlobalOptions` has no `Show` instance.
@@ -1659,7 +1659,7 @@ spec = do
     let Just o = parse ["--db", "postgresql://u:p@localhost/db", "produce", "--targets", "team:10"]
     o.global.db `shouldBe` "postgresql://u:p@localhost/db"
     o.global.poolSize `shouldBe` Nothing
-    o.global.metricsPort `shouldBe` 9300
+    o.global.metricsPort `shouldBe` 9400
     o.global.domain `shouldBe` Domain "example.com"
     o.global.isolation `shouldBe` ReadCommitted
     o.command
@@ -1676,12 +1676,12 @@ spec = do
   it "parses all produce flags" $ do
     let Just o =
           parse
-            [ "--db", "x", "--pool-size", "8", "--metrics-port", "9400", "--domain", "b.example.com", "--isolation", "serializable",
+            [ "--db", "x", "--pool-size", "8", "--metrics-port", "9500", "--domain", "b.example.com", "--isolation", "serializable",
               "produce", "--writers", "4", "--targets", "user:100x5", "--clients-per-user", "2",
               "--payload-bytes", "64", "--duration", "30", "--warmup", "0"
             ]
     (o.global.poolSize, o.global.metricsPort, o.global.domain, o.global.isolation)
-      `shouldBe` (Just 8, 9400, Domain "b.example.com", Serializable)
+      `shouldBe` (Just 8, 9500, Domain "b.example.com", Serializable)
     o.command
       `shouldBe` Produce (ProduceOptions 4 (TargetEntry KindUser 100 5 :| []) 2 64 (Just 30) 0)
 
@@ -1778,7 +1778,7 @@ globalParser =
   GlobalOptions
     <$> strOption (long "db" <> metavar "CONNSTR" <> help "PostgreSQL connection string")
     <*> optional (option positive (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset)"))
-    <*> option port (long "metrics-port" <> metavar "PORT" <> value 9300 <> showDefault <> help "Port of the /metrics endpoint")
+    <*> option port (long "metrics-port" <> metavar "PORT" <> value 9400 <> showDefault <> help "Port of the /metrics endpoint")
     <*> option domainReader (long "domain" <> metavar "DOMAIN" <> value (Domain "example.com") <> showDefaultWith (T.unpack . domainText) <> help "Local backend domain")
     <*> option isolationReader (long "isolation" <> metavar "read-committed|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
 
@@ -2203,7 +2203,7 @@ Global flags go before the sub-command. `--targets` entries are `KIND:STREAMS[xK
 (`KIND` ∈ `user|clients|team|epoch|connections`): `STREAMS` distinct stream keys,
 `K` targets of that kind per push. Each push uses exactly one kind.
 
-Metrics: `http://localhost:9300/metrics` (`--metrics-port`), scraped by the
+Metrics: `http://localhost:9400/metrics` (`--metrics-port`), scraped by the
 dockerephemeral OTel collector and shown in Grafana dashboard "fan-in-perf".
 ````
 
@@ -2235,7 +2235,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `deploy/dockerephemeral/docker/grafana-dashboards/fan-in-perf.json`
 
 **Interfaces:**
-- Consumes: metric names from Task 8; port 9300.
+- Consumes: metric names from Task 8; port 9400.
 
 - [ ] **Step 1: Compose**
 
@@ -2260,7 +2260,7 @@ In `otel-collector-config.yaml` under `receivers.prometheus.config.scrape_config
         - job_name: 'fan-in-perf'
           scrape_interval: 5s
           static_configs:
-            - targets: ['host.docker.internal:9300']
+            - targets: ['host.docker.internal:9400']
 ```
 
 - [ ] **Step 3: Dashboard JSON**
@@ -2356,7 +2356,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 6: Hand-off note for the user (do not run)**
 
-Tell the user: restart `otel-collector` and `grafana-lgtm` containers to pick up the changes; ensure host firewall allows docker bridge → host:9300.
+Tell the user: restart `otel-collector` and `grafana-lgtm` containers to pick up the changes; ensure host firewall allows docker bridge → host:9400.
 
 ---
 
@@ -2406,7 +2406,7 @@ timeout 30 cabal run fan-in-perf -- --db "$DB" produce --writers 8 --targets tea
 tail -8 /tmp/fan-in-perf.log
 ```
 
-While it runs (second shell, within the 10 s): `curl -s localhost:9300/metrics | grep -E '^fanin_perf_(pushes_total|push_rate_max|errors_total)' | head`
+While it runs (second shell, within the 10 s): `curl -s localhost:9400/metrics | grep -E '^fanin_perf_(pushes_total|push_rate_max|errors_total)' | head`
 
 Expected: `exit=0`; log (non-TTY) has one status line per second and a summary with pushes > 0 and errors = 0; `/metrics` shows `fanin_perf_*` series for every kind. Any errors → investigate with superpowers:systematic-debugging before reporting.
 
