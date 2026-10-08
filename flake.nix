@@ -104,10 +104,11 @@
     };
 
     hasql-resource-pool = {
-      # Update this to the upstream repo/rev once the PR is merged there.
-      # https://github.com/avanov/hasql-resource-pool/pull/6
-      # Also support for hasql 2 from branch `feat/hasql-2`
-      url = "github:wireapp/hasql-resource-pool?rev=500a40e51b288c778c803c6a10741d4d05a5e0c6";
+      # Update this to the upstream repo/rev once these changes are merged there.
+      # * https://github.com/avanov/hasql-resource-pool/pull/6
+      # * Support for hasql 2 from branch `feat/hasql-2`
+      # * Fix to destroy connections when necessary: https://github.com/wireapp/hasql-resource-pool/pull/1
+      url = "github:wireapp/hasql-resource-pool?rev=750e01b1a71dbe71948c836bbebe533735f2bdf9";
       flake = false;
     };
 
