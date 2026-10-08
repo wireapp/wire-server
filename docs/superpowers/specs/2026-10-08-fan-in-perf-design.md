@@ -54,7 +54,7 @@ Global options:
 | `--pool-size N` | `--writers` (produce) / 1 (reset) | hasql pool size |
 | `--metrics-port P` | 9300 | `/metrics` HTTP port, bound to `0.0.0.0` |
 | `--domain D` | `example.com` | local domain (`Input (Local ())` for the store) |
-| `--isolation read-committed\|serializable` | `serializable` | isolation level for push transactions |
+| `--isolation read-committed\|serializable` | `read-committed` (RFC intent) | isolation level for push transactions |
 
 Sub-commands:
 
@@ -219,7 +219,7 @@ Tool runs on the host; OTel collector runs in docker and scrapes it.
   (`rate(fanin_perf_pushes_total[15s])` + tool gauges current/max), error rate
   by kind + ratio, latency p50/p99, pool in-use/ready, targets rate.
 
-Caveat: host firewall must allow docker bridge → host port 9300.
+Caveat: host firewall must allow docker bridge → host port 9300. (user handles this.)
 
 ## Store changes (`libs/wire-subsystems`)
 
