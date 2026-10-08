@@ -75,6 +75,7 @@ library
   hs-source-dirs:  src
   exposed-modules:
     FanInPerf.Metrics
+    FanInPerf.Options
     FanInPerf.Stats
     FanInPerf.Targets
     FanInPerf.Terminal
@@ -127,6 +128,7 @@ test-suite fan-in-perf-tests
   ghc-options:    -threaded
   other-modules:
     FanInPerf.MetricsSpec
+    FanInPerf.OptionsSpec
     FanInPerf.StatsSpec
     FanInPerf.TargetsSpec
     FanInPerf.TerminalSpec
