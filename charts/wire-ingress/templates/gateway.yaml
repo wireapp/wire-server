@@ -1,7 +1,4 @@
 {{- if .Values.gateway.create }}
-{{- if not .Values.gateway.className }}
-{{- fail "gateway.className must be set when gateway.create is true (set it to the name of your GatewayClass, e.g. 'envoy')" }}
-{{- end }}
 {{- if or (eq (int .Values.gateway.listeners.https.port) 65535) (and .Values.gateway.listeners.http.enabled (eq (int .Values.gateway.listeners.http.port) 65535)) }}
 {{- fail "port 65535 is reserved for the Gateway placeholder listener" }}
 {{- end }}
@@ -19,12 +16,10 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
-  gatewayClassName: {{ .Values.gateway.className | quote }}
-  {{- $envoyProxyName := "" }}
+  gatewayClassName: {{ required "gateway.className is required when gateway.create is true" .Values.gateway.className | quote }}
+  {{- $envoyProxyName := .Values.gateway.envoyProxy.name }}
   {{- if .Values.gateway.envoyProxy.create }}
-  {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.gatewayName" .) }}
-  {{- else if .Values.gateway.envoyProxy.name }}
-  {{- $envoyProxyName = .Values.gateway.envoyProxy.name }}
+  {{- $envoyProxyName = $envoyProxyName | default (include "wire-ingress.gatewayName" .) }}
   {{- end }}
   {{- if (or .Values.gateway.infrastructure.annotations .Values.gateway.infrastructure.labels $envoyProxyName) }}
   infrastructure:
@@ -47,8 +42,7 @@ spec:
     namespaces:
       from: Same
   listeners:
-    # Gateway API requires a Gateway-owned listener. Keep it off application
-    # ports: Envoy cannot apply ListenerSet policies to shared plaintext ports.
+    # Required placeholder; a separate port avoids plaintext policy conflicts.
     - name: placeholder
       port: 65535
       protocol: HTTP

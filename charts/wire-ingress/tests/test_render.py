@@ -1,4 +1,4 @@
-"""Run with python3 -m unittest discover -s charts/wire-ingress/tests (Helm + PyYAML)."""
+"""Run: python3 -m unittest discover -s charts/wire-ingress/tests (Helm + PyYAML)."""
 
 import subprocess
 import tempfile
@@ -8,68 +8,57 @@ from pathlib import Path
 import yaml
 
 CHART = Path(__file__).resolve().parents[1]
+NAME = "test-wire-ingress"
+XDS_PATH = f"test/{NAME}-gateway/test/{NAME}"
+VALUES = """
+gateway:
+  className: envoy
+  listeners:
+    https: {hostname: '*.example.com'}
+tls:
+  secret: {create: false}
+teamSettings: {enabled: true}
+accountPages: {enabled: true}
+config:
+  dns:
+    https: api.example.com
+    ssl: ws.example.com
+    webapp: web.example.com
+    fakeS3: s3.example.com
+    teamSettings: teams.example.com
+    accountPages: accounts.example.com
+    federator: fed.example.com
+"""
 
 
 def render(overrides=None, kube_version="1.36.0"):
-    values = {
-        "gateway": {
-            "className": "envoy",
-            "listeners": {"https": {"hostname": "*.example.com"}},
-        },
-        "config": {
-            "dns": {
-                "https": "api.example.com",
-                "ssl": "ws.example.com",
-                "webapp": "web.example.com",
-                "fakeS3": "s3.example.com",
-                "teamSettings": "teams.example.com",
-                "accountPages": "accounts.example.com",
-                "federator": "fed.example.com",
-            }
-        },
-        "tls": {"secret": {"create": False}},
-        "teamSettings": {"enabled": True},
-        "accountPages": {"enabled": True},
-    }
-
-    def merge(target, source):
-        for key, value in source.items():
-            if isinstance(value, dict):
-                merge(target.setdefault(key, {}), value)
-            else:
-                target[key] = value
-
-    merge(values, overrides or {})
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
-        yaml.safe_dump(values, f)
-        f.flush()
-        output = subprocess.check_output(
-            [
-                "helm",
-                "template",
-                "test",
-                str(CHART),
-                "--kube-version",
-                kube_version,
-                "-n",
-                "test",
-                "-f",
-                f.name,
-            ],
+    with tempfile.NamedTemporaryFile(mode="w") as values:
+        values.write(VALUES)
+        values.flush()
+        command = ["helm", "template", "test", str(CHART), "--namespace=test"]
+        command += [f"--kube-version={kube_version}", "-f", values.name, "-f", "-"]
+        result = subprocess.run(
+            command,
+            input=yaml.safe_dump(overrides or {}),
             text=True,
-            stderr=subprocess.PIPE,
+            capture_output=True,
+            check=True,
         )
-    return [doc for doc in yaml.safe_load_all(output) if doc]
+    return [doc for doc in yaml.safe_load_all(result.stdout) if doc]
 
 
-def resource(docs, kind):
-    return next(doc for doc in docs if doc["kind"] == kind)
+def spec(docs, kind, suffix=""):
+    return next(
+        doc["spec"]
+        for doc in docs
+        if doc["kind"] == kind and doc["metadata"]["name"].endswith(suffix)
+    )
 
 
 class ListenerSetRendering(unittest.TestCase):
     def test_default_routes_and_placeholder(self):
         docs = render()
-        gateway = resource(docs, "Gateway")["spec"]
+        gateway = spec(docs, "Gateway")
         self.assertEqual(gateway["allowedListeners"]["namespaces"], {"from": "Same"})
         placeholder = gateway["listeners"][0]
         self.assertEqual(placeholder["protocol"], "HTTP")
@@ -77,158 +66,103 @@ class ListenerSetRendering(unittest.TestCase):
             placeholder["allowedRoutes"]["namespaces"]["selector"]["matchExpressions"],
             [{"key": "kubernetes.io/metadata.name", "operator": "DoesNotExist"}],
         )
-        listeners = resource(docs, "ListenerSet")
         self.assertEqual(
-            listeners["spec"]["parentRef"]["name"], "test-wire-ingress-gateway"
+            spec(docs, "ListenerSet")["parentRef"]["name"], f"{NAME}-gateway"
         )
-        routes = [d for d in docs if d["kind"] == "HTTPRoute"]
+        routes = [doc["spec"] for doc in docs if doc["kind"] == "HTTPRoute"]
         self.assertEqual(len(routes), 6)
+        parent = dict(
+            kind="ListenerSet", name=NAME, namespace="test", sectionName="https"
+        )
         for route in routes:
-            self.assertEqual(
-                route["spec"]["parentRefs"],
-                [
-                    {
-                        "kind": "ListenerSet",
-                        "name": listeners["metadata"]["name"],
-                        "namespace": "test",
-                        "sectionName": "https",
-                    }
-                ],
-            )
+            self.assertEqual(route["parentRefs"], [parent])
 
     def test_websocket_policy_inherits_listener_set_settings(self):
         docs = render()
-        policy = next(
-            d
-            for d in docs
-            if d["kind"] == "BackendTrafficPolicy"
-            and d["metadata"]["name"].endswith("-nginz-websockets")
-        )["spec"]
+        policy = spec(docs, "BackendTrafficPolicy", "-nginz-websockets")
         self.assertEqual(policy["mergeType"], "StrategicMerge")
         self.assertEqual(policy["timeout"]["http"]["streamIdleTimeout"], "0s")
         self.assertNotIn("loadBalancer", policy)
         for kind in ("ClientTrafficPolicy", "BackendTrafficPolicy"):
-            spec = resource(docs, kind)["spec"]
-            self.assertEqual(spec["targetRefs"][0]["kind"], "ListenerSet")
-            self.assertEqual(spec["targetRefs"][0]["name"], "test-wire-ingress")
+            target = spec(docs, kind)["targetRefs"][0]
+            self.assertEqual((target["kind"], target["name"]), ("ListenerSet", NAME))
 
-    def test_external_gateway_still_gets_listeners(self):
+    def test_external_gateway(self):
         docs = render({"gateway": {"create": False, "name": "external"}})
-        self.assertFalse(any(d["kind"] in ("Gateway", "EnvoyProxy") for d in docs))
-        self.assertEqual(
-            resource(docs, "ListenerSet")["spec"]["parentRef"]["name"], "external"
-        )
+        self.assertFalse(any(doc["kind"] in ("Gateway", "EnvoyProxy") for doc in docs))
+        self.assertEqual(spec(docs, "ListenerSet")["parentRef"]["name"], "external")
 
-    def test_federation_and_fips_names(self):
-        for federation in (False, True):
-            with self.subTest(federation=federation):
+    def test_federation_and_fips(self):
+        for enabled in (False, True):
+            with self.subTest(federation=enabled):
                 docs = render(
                     {
                         "federator": {
-                            "enabled": federation,
+                            "enabled": enabled,
                             "tls": {"useCertManager": False},
                         },
                         "FIPS_202205_tls_profile": True,
                         "gateway": {"patchPolicies": {"xdsNameSchemeV2": False}},
                     }
                 )
-                patch = next(
-                    d
-                    for d in docs
-                    if d["kind"] == "EnvoyPatchPolicy"
-                    and d["metadata"]["name"].endswith("-bsi")
-                )
-                section = "test/test-wire-ingress/https"
+                patch = spec(docs, "EnvoyPatchPolicy", "-bsi")
+                self.assertEqual(patch["jsonPatches"][0]["name"], f"{XDS_PATH}/https")
+                if not enabled:
+                    continue
                 self.assertEqual(
-                    patch["spec"]["jsonPatches"][0]["name"],
-                    "test/test-wire-ingress-gateway/" + section,
+                    spec(docs, "Gateway")["listeners"][0]["name"], "placeholder"
                 )
-                if federation:
-                    self.assertEqual(
-                        resource(docs, "Gateway")["spec"]["listeners"][0]["name"],
-                        "placeholder",
-                    )
-                    self.assertIn(
-                        "federator",
-                        [
-                            l["name"]
-                            for l in resource(docs, "ListenerSet")["spec"]["listeners"]
-                        ],
-                    )
-                    route = next(
-                        d
-                        for d in docs
-                        if d["kind"] == "HTTPRoute"
-                        and d["metadata"]["name"].endswith("-federator")
-                    )
-                    self.assertEqual(
-                        route["spec"]["parentRefs"][0]["kind"], "ListenerSet"
-                    )
-                    mtls = next(
-                        d
-                        for d in docs
-                        if d["kind"] == "ClientTrafficPolicy"
-                        and d["metadata"]["name"].endswith("-federator-mtls")
-                    )
-                    self.assertEqual(
-                        mtls["spec"]["targetRefs"][0],
-                        {
-                            "kind": "ListenerSet",
-                            "group": "gateway.networking.k8s.io",
-                            "name": "test-wire-ingress",
-                            "sectionName": "federator",
-                        },
-                    )
-                    self.assertEqual(
-                        mtls["spec"]["tls"]["clientValidation"]["mode"], "VerifyIfGiven"
-                    )
-                    fqdn = next(
-                        d
-                        for d in docs
-                        if d["kind"] == "EnvoyPatchPolicy"
-                        and d["metadata"]["name"].endswith("-fqdn-domain")
-                    )
-                    self.assertEqual(
-                        fqdn["spec"]["jsonPatches"][0]["name"],
-                        "test/test-wire-ingress-gateway/test/test-wire-ingress/federator",
-                    )
+                self.assertIn(
+                    "federator",
+                    [l["name"] for l in spec(docs, "ListenerSet")["listeners"]],
+                )
+                route = spec(docs, "HTTPRoute", "-federator")
+                self.assertEqual(route["parentRefs"][0]["kind"], "ListenerSet")
+                mtls = spec(docs, "ClientTrafficPolicy", "-federator-mtls")
+                self.assertEqual(
+                    mtls["targetRefs"],
+                    [
+                        dict(
+                            kind="ListenerSet",
+                            group="gateway.networking.k8s.io",
+                            name=NAME,
+                            sectionName="federator",
+                        )
+                    ],
+                )
+                self.assertEqual(
+                    mtls["tls"]["clientValidation"]["mode"], "VerifyIfGiven"
+                )
+                fqdn = spec(docs, "EnvoyPatchPolicy", "-fqdn-domain")
+                self.assertEqual(
+                    fqdn["jsonPatches"][0]["name"], f"{XDS_PATH}/federator"
+                )
 
     def test_multi_domain_and_extra_listeners(self):
+        domains = [
+            dict(
+                name=name,
+                base=f"{name}.example.com",
+                dns=dict(https=f"api.{name}.example.com", ssl=f"ws.{name}.example.com"),
+                tls=dict(secretName=f"{name}-tls"),
+            )
+            for name in ("one", "two")
+        ]
         docs = render(
             {
-                "config": {
-                    "domains": [
-                        {
-                            "name": "one",
-                            "base": "one.example.com",
-                            "dns": {
-                                "https": "api.one.example.com",
-                                "ssl": "ws.one.example.com",
-                            },
-                        },
-                        {
-                            "name": "two",
-                            "base": "two.example.com",
-                            "dns": {
-                                "https": "api.two.example.com",
-                                "ssl": "ws.two.example.com",
-                            },
-                            "tls": {"secretName": "two-tls"},
-                        },
-                    ]
-                },
+                "config": {"domains": domains},
                 "gateway": {
                     "extraHttpsListeners": [
                         {"name": "admin", "hostname": "admin.example.com"}
                     ]
                 },
-                "webapp": {"enabled": False},
-                "fakeS3": {"enabled": False},
-                "teamSettings": {"enabled": False},
-                "accountPages": {"enabled": False},
+                **{
+                    app: {"enabled": False}
+                    for app in ("webapp", "fakeS3", "teamSettings", "accountPages")
+                },
             }
         )
-        listeners = resource(docs, "ListenerSet")["spec"]["listeners"]
+        listeners = spec(docs, "ListenerSet")["listeners"]
         self.assertEqual(
             [l["name"] for l in listeners], ["https", "https-two", "admin"]
         )
@@ -241,22 +175,13 @@ class ListenerSetRendering(unittest.TestCase):
             ],
             ["https", "https-two", "https", "https-two"],
         )
-
-        policy = next(
-            d
-            for d in docs
-            if d["kind"] == "BackendTrafficPolicy"
-            and d["metadata"]["name"].endswith("-nginz-websockets")
-        )["spec"]
+        policy = spec(docs, "BackendTrafficPolicy", "-nginz-websockets")
         self.assertEqual(
             [ref["name"] for ref in policy["targetRefs"]],
-            [
-                "test-wire-ingress-nginz-websockets",
-                "test-wire-ingress-nginz-websockets-two",
-            ],
+            [f"{NAME}-nginz-websockets", f"{NAME}-nginz-websockets-two"],
         )
 
-    def test_http01_attaches_to_listener_set(self):
+    def test_http01(self):
         docs = render(
             {
                 "tls": {"useCertManager": True},
@@ -264,25 +189,25 @@ class ListenerSetRendering(unittest.TestCase):
                 "gateway": {"listeners": {"http": {"enabled": True}}},
             }
         )
-        placeholder = resource(docs, "Gateway")["spec"]["listeners"][0]
+        placeholder = spec(docs, "Gateway")["listeners"][0]
         self.assertEqual(placeholder["port"], 65535)
         self.assertIn("allowedRoutes", placeholder)
+        self.assertEqual(spec(docs, "ListenerSet")["listeners"][-1]["name"], "http")
+        solver = spec(docs, "Issuer")["acme"]["solvers"][0]["http01"]
         self.assertEqual(
-            resource(docs, "ListenerSet")["spec"]["listeners"][-1]["name"], "http"
-        )
-        solver = resource(docs, "Issuer")["spec"]["acme"]["solvers"][0]["http01"]
-        self.assertEqual(
-            solver["gatewayHTTPRoute"]["parentRefs"][0],
-            {
-                "kind": "ListenerSet",
-                "name": "test-wire-ingress",
-                "namespace": "test",
-                "group": "gateway.networking.k8s.io",
-                "sectionName": "http",
-            },
+            solver["gatewayHTTPRoute"]["parentRefs"],
+            [
+                dict(
+                    kind="ListenerSet",
+                    name=NAME,
+                    namespace="test",
+                    group="gateway.networking.k8s.io",
+                    sectionName="http",
+                )
+            ],
         )
 
-    def test_unsupported_kubernetes_and_reserved_port_are_rejected(self):
+    def test_unsupported_kubernetes_and_reserved_port(self):
         with self.assertRaises(subprocess.CalledProcessError) as error:
             render(kube_version="1.32.0")
         self.assertIn("kubeVersion", error.exception.stderr)

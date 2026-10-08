@@ -1,5 +1,5 @@
 {{- if .Values.federator.enabled }}
-{{/* This section policy replaces the ListenerSet policy: repeat TLS/ALPN/PROXY settings. */}}
+{{/* Section policies replace, rather than merge with, ListenerSet policies. */}}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: ClientTrafficPolicy
 metadata:
@@ -20,9 +20,7 @@ spec:
     optional: {{ .Values.gateway.proxyProtocol.optional }}
   {{- end }}
   tls:
-    {{/* Optional at the ingress level so the federator service can throw the
-         appropriate error when a cert is missing. Lua filter strips spoofed
-         X-SSL-Certificate header if no cert was actually provided. */}}
+    {{/* The federator reports missing certificates; verify any supplied. */}}
     clientValidation:
       mode: VerifyIfGiven
       caCertificateRefs:

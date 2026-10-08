@@ -20,5 +20,4 @@
 .idea/
 *.tmproj
 
-# Local render checks
 tests/

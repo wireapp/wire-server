@@ -5,23 +5,14 @@
 {{- if or .Values.gateway.patchPolicies.targetGatewayClass .Values.gateway.envoyProxy.spec.mergeGateways }}
 {{- fail "FIPS_202205_tls_profile requires a dedicated Gateway: mergeGateways and GatewayClass-wide patching change the generated listener names this patch targets" }}
 {{- end }}
-{{/* gateway.tls.enabled is load-bearing, not cosmetic: the patch adds a key
-     inside common_tls_context.tls_params, a node Envoy Gateway emits only when a
-     ClientTrafficPolicy sets TLS parameters. With an externally created Gateway,
-     also verify this chart's ClientTrafficPolicy is the one that won — a
-     pre-existing policy on the same target makes ours Conflicted, dropping
-     tls_params and silently voiding this patch. */}}
+{{/* The patch requires tls_params from an accepted ClientTrafficPolicy. */}}
 {{- if or (not .Values.gateway.tls.enabled) (not .Values.gateway.patchPolicies.enabled) }}
 {{- fail "FIPS_202205_tls_profile requires gateway.tls.enabled and gateway.patchPolicies.enabled" }}
 {{- end }}
 {{- if and .Values.tls.useCertManager (or (ne .Values.tls.privateKey.algorithm "ECDSA") (not (has (.Values.tls.privateKey.size | int) (list 256 384)))) }}
 {{- fail "FIPS_202205_tls_profile requires an ECDSA P-256/P-384 server certificate; FIPS_202205 also permits PKCS#1 signatures with RSA certificates" }}
 {{- end }}
-{{/* The xDS name scheme is a controller-wide setting this chart cannot read, and
-     its default flips in Envoy Gateway 1.10, so it must be stated explicitly.
-     Guessing wrong is not fatal but is near-invisible: the patch lands in the
-     policy's ResourceNotFound condition and the listener keeps the restrictive
-     TLS 1.2-only baseline from wire-ingress.downstreamTls. */}}
+{{/* A wrong xDS name leaves the TLS 1.2 fallback unpatched. */}}
 {{- if not (kindIs "bool" .Values.gateway.patchPolicies.xdsNameSchemeV2) }}
 {{- fail "gateway.patchPolicies.xdsNameSchemeV2 must be set explicitly to true or false when FIPS_202205_tls_profile is enabled. Envoy Gateway >= 1.10 enables the XDSNameSchemeV2 runtime flag by default (set true); earlier versions default to the legacy scheme (set false, unless you added XDSNameSchemeV2 to runtimeFlags.enabled). Confirm with: egctl config envoy-proxy listener" }}
 {{- end }}
@@ -47,8 +38,6 @@ spec:
       {{- end }}
       operation:
         op: add
-        # All TLS filter chains on this socket, including federation and
-        # additional domains. Never assume filter_chains[0] is the only one.
         jsonPath: "$.filter_chains[*].transport_socket.typed_config.common_tls_context.tls_params"
         path: compliance_policies
         value: [FIPS_202205]

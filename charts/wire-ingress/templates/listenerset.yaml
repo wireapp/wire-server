@@ -13,8 +13,7 @@ spec:
     kind: Gateway
     name: {{ include "wire-ingress.gatewayName" . | quote }}
   listeners:
-    {{- $domains := include "wire-ingress.domains" . | fromJsonArray }}
-    {{- range $domain := $domains }}
+    {{- range $domain := include "wire-ingress.domains" . | fromJsonArray }}
     - name: {{ $domain.section }}
       port: {{ $.Values.gateway.listeners.https.port }}
       protocol: HTTPS
