@@ -71,6 +71,7 @@ import Wire.API.Internal.Notification (QueuedNotification)
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
+import Wire.API.Routes.LowLevelStream (LowLevelStreamingBody)
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
@@ -148,6 +149,7 @@ sitemap' =
     :<|> Named @"delete-user-blacklist" deleteFromBlacklist
     :<|> Named @"get-team-info-by-member-email" getTeamInfoByMemberEmail
     :<|> Named @"get-team-info" getTeamInfo
+    :<|> Named @"get-team-members-csv" getTeamMembersCsv
     :<|> Named @"get-team-admin-info" getTeamAdminInfo
     :<|> Named @"get-route-legalhold-config" (mkFeatureGetRoute @LegalholdConfig)
     :<|> Named @"put-route-legalhold-config" (mkFeatureStatusPutRoute @LegalholdConfig)
@@ -355,6 +357,9 @@ getTeamInfoByMemberEmail e = do
 
 getTeamInfo :: TeamId -> Handler TeamInfo
 getTeamInfo = Intra.getTeamInfo
+
+getTeamMembersCsv :: TeamId -> Handler LowLevelStreamingBody
+getTeamMembersCsv = Intra.getTeamMembersCsv
 
 getTeamAdminInfo :: TeamId -> Handler TeamAdminInfo
 getTeamAdminInfo = fmap toAdminInfo . Intra.getTeamInfo

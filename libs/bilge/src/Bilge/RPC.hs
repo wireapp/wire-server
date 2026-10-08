@@ -24,6 +24,7 @@ module Bilge.RPC
     rpc,
     rpc',
     parseResponse,
+    parseResponseLBS,
     rpcExceptionMsg,
   )
 where
@@ -112,5 +113,21 @@ parseResponse ::
   Response (Maybe LByteString) ->
   m a
 parseResponse f r = either throwM pure $ do
-  b <- note (f "no response body") (responseBody r)
+  b <- checkResponseBody f r
   fmapL (f . pack) (eitherDecode' b)
+
+parseResponseLBS ::
+  (Exception e, MonadThrow m) =>
+  (LText -> e) ->
+  Response (Maybe LByteString) ->
+  m LByteString
+parseResponseLBS f =
+  either throwM pure
+    . checkResponseBody f
+
+checkResponseBody ::
+  (LText -> e) ->
+  Response (Maybe LByteString) ->
+  Either e LByteString
+checkResponseBody f r =
+  note (f "no response body") (responseBody r)

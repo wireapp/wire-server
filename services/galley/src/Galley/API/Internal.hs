@@ -41,6 +41,7 @@ import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.Public.Servant
 import Galley.API.Teams
 import Galley.API.Teams qualified as Teams
+import Galley.API.Teams.Export qualified as Export
 import Galley.API.Teams.Features
 import Galley.App
 import Galley.Monad
@@ -210,6 +211,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
+              <@> mkNamedAPI @"unchecked-get-team-members-csv" (Export.getTeamMembersCSVUnchecked tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembersWithLimit tid)
               <@> mkNamedAPI @"unchecked-select-team-member-infos" (\userIds -> TeamSubsystem.internalSelectTeamMemberInfos tid (cUsers userIds))
               <@> mkNamedAPI @"unchecked-select-team-members" (\userIds -> TeamSubsystem.internalSelectTeamMembers tid (cUsers userIds))

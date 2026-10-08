@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Teams.Export (getTeamMembersCSV) where
+module Galley.API.Teams.Export (getTeamMembersCSV, getTeamMembersCSVUnchecked) where
 
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
@@ -48,7 +48,7 @@ import Wire.SparAPIAccess qualified as Spar
 import Wire.TeamMemberStore (TeamMemberStore, listTeamMembers)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-
+import Debug.Trace
 -- | Cache of inviter handles.
 --
 -- This is used to make sure that inviters are only looked up once in brig,
@@ -132,7 +132,19 @@ getTeamMembersCSV lusr tid = do
   TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= \case
     Nothing -> throwS @'AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
+  getTeamMembersCSVUnchecked tid
 
+getTeamMembersCSVUnchecked ::
+  forall r.
+  ( Member BrigAPIAccess r,
+    Member (TeamMemberStore InternalPaging) r,
+    Member (Final IO) r,
+    Member Spar.SparAPIAccess r
+  ) =>
+  TeamId ->
+  Sem r LowLevelStreamingBody
+getTeamMembersCSVUnchecked tid = do
+  traceShowM $ "getting csv for team: " <> show tid
   chan <- embedFinal newChan
   cache <- embedFinal $ newIORef mempty
 
@@ -140,7 +152,8 @@ getTeamMembersCSV lusr tid = do
   let produceTeamExportUsers = do
         embedFinal $ writeChan chan (Just headerLine)
         E.withChunks (\mps -> listTeamMembers @InternalPaging tid mps maxBound) $
-          \members -> unsafePooledForConcurrentlyN_ 8 members $ \member -> do
+          \members -> unsafePooledForConcurrentlyN_ 8 (traceShowId $ members) $ \member -> do
+            traceShowM $ "getting csv for team member: " <> show member
             mRecord <-
               runErrorS @TeamMemberNotFound $
                 getUserRecord cache member

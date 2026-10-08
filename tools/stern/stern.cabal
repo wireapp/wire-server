@@ -76,6 +76,7 @@ library
       aeson
     , base
     , bilge
+    , binary
     , bytestring
     , bytestring-conversion
     , containers

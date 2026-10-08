@@ -61,6 +61,9 @@ import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
+import Debug.Trace (traceShowM)
+import Bilge.RPC (parseResponseLBS)
+import Control.Exception (ErrorCall(..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -99,6 +102,7 @@ tests s =
       test s "PUT /teams/:tid/features/outlookCalIntegration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @OutlookCalIntegrationConfig,
       test s "GET /i/consent" testGetConsentLog,
       test s "GET /teams/:id" testGetTeamInfo,
+      test s "GET /teams/:id/members/csv" testMemberCsv,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
       test s "/teams/:tid/search-visibility" testSearchVisibility,
       test s "/sso-domain-redirect" testRudSsoDomainRedirect,
@@ -260,6 +264,14 @@ testDeleteTeam = do
   eventually $ do
     info <- getTeamInfo tid
     liftIO $ assertEqual "team status should be 'Deleted'" Team.Deleted info.tiData.tdStatus
+
+testMemberCsv :: TestM ()
+testMemberCsv = do
+  (_uid, tid, _) <- createTeamWithNMembers 1
+  do
+    csv <- getMembersCsv tid
+    traceShowM $ show csv
+    liftIO $ assertBool "" False -- "csv should contain member uid" uid csv
 
 testEjpdInfo :: TestM ()
 testEjpdInfo = do
@@ -711,6 +723,12 @@ getTeamInfo tid = do
   stern <- view tsStern
   r <- get (stern . paths ["teams", toByteString' tid] . expect2xx)
   pure $ responseJsonUnsafe r
+
+getMembersCsv :: TeamId -> TestM LByteString
+getMembersCsv tid = do
+  stern <- view tsStern
+  r <- get (stern . paths ["teams", toByteString' tid, "members", "csv"] . expect2xx)
+  parseResponseLBS (\lText -> ErrorCall $ show lText) r
 
 searchUsers :: UserId -> TestM (SearchResult Contact)
 searchUsers uid = do

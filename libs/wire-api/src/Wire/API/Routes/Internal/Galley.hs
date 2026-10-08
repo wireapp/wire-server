@@ -56,10 +56,12 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.FederationStatus
 import Wire.API.Provider.Service (ServiceRef)
+import Wire.API.Routes.CSV
 import Wire.API.Routes.Features
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra
+import Wire.API.Routes.LowLevelStream (LowLevelStream)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -276,6 +278,20 @@ type ITeamsAPIBase =
                  :> ReqBody '[JSON] NewTeamMember
                  :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "OK")
              )
+             :<|> Named
+                    "unchecked-get-team-members-csv"
+                    ( "csv"
+                        :> CanThrow 'TeamNotFound
+                        :> LowLevelStream
+                             'GET
+                             200
+                             '[ '( "Content-Disposition",
+                                   "attachment; filename=\"wire_team_members.csv\""
+                                 )
+                              ]
+                             "CSV of team members"
+                             CSV
+                    )
              :<|> Named
                     "unchecked-get-team-members"
                     ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)

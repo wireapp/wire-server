@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.LowLevelStream where
+module Wire.API.Routes.LowLevelStream (Codensity(..), LowLevelStreamingBody, LowLevelStream, RenderHeaders) where
 
 import Control.Lens (at, (.~), (?~), _Just)
 import Control.Monad.Codensity

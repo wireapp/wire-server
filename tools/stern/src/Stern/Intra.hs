@@ -44,6 +44,7 @@ module Stern.Intra
     isBlacklisted,
     setBlacklistStatus,
     getTeamFeatureFlag,
+    getTeamMembersCsv,
     setTeamFeatureFlag,
     patchTeamFeatureFlag,
     setTeamFeatureLockStatus,
@@ -79,6 +80,7 @@ import Control.Lens (view, (^.))
 import Data.Aeson hiding (Error)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
+import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion as BSC
 import Data.ByteString.UTF8 qualified as UTF8
@@ -121,6 +123,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
+import Wire.API.Routes.LowLevelStream (Codensity (..), LowLevelStreamingBody)
 import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
@@ -687,6 +690,23 @@ getTeamMembers tid = do
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
+
+getTeamMembersCsv :: TeamId -> Handler LowLevelStreamingBody
+getTeamMembersCsv tid = do
+  info $ msg "Getting team members csv"
+  g <- asks (.galley)
+  r <-
+    catchRpcErrors $
+      rpc'
+        "galley"
+        g
+        ( method GET
+            . Bilge.paths ["i", "teams", toByteString' tid, "members", "csv"]
+            . expect2xx
+        )
+  bs <- parseResponseLBS (mkError status502 "bad-upstream") r
+  pure $ Codensity
+          (\k -> k (\write flush' -> write (Builder.fromLazyByteString bs) >> flush'))
 
 getEmailConsentLog :: EmailAddress -> Handler ConsentLog
 getEmailConsentLog email = do
