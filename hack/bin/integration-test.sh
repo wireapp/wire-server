@@ -54,8 +54,9 @@ summary() {
     return 0
 }
 
-# Copy the secrets from the wire-federation-v0 namespace to the current namespace to be able to delete RabbitMQ queues that are created by the integration tests to avoid overflows
-for fedVersion in $(seq 0 2); do
+# Copy the secrets from the pinned federation namespaces to the current namespace
+# so the integration tests can delete RabbitMQ queues and avoid overflows.
+for fedVersion in $(seq 0 3); do
     kubectl -n "$NAMESPACE" delete --force secret "rabbitmq-v${fedVersion}" || true
     kubectl -n "wire-federation-v${fedVersion}" get secrets rabbitmq -ojson | jq 'del(.metadata.namespace) | del(.metadata.resourceVersion) | del(.metadata.uid) | .metadata.name="rabbitmq-v'"${fedVersion}"'"' | kubectl -n "$NAMESPACE" apply -f -
 done

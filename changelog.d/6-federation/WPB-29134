@@ -1,0 +1,1 @@
+Added a pinned Federation API V3 backend fixture and integration-test setup for local and Kubernetes CI testing.

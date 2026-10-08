@@ -20,3 +20,4 @@ _wire-server-federator._tcp.d3  IN SRV 0 0 12443 host.docker.internal.
 _wire-server-federator._tcp.federation-v0  IN SRV 0 0 21443 host.docker.internal.
 _wire-server-federator._tcp.federation-v1  IN SRV 0 0 22443 host.docker.internal.
 _wire-server-federator._tcp.federation-v2  IN SRV 0 0 23443 host.docker.internal.
+_wire-server-federator._tcp.federation-v3  IN SRV 0 0 24443 host.docker.internal.

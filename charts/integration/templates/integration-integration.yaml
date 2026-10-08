@@ -332,7 +332,7 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
-    {{- range $version := list 0 1 2 }}
+    {{- range $version := list 0 1 2 3 }}
     - name: RABBITMQ_USERNAME_V{{$version}}
       value: "wire-server"
     - name: RABBITMQ_PASSWORD_V{{$version}}

@@ -30,6 +30,9 @@ services:
       - '127.0.0.1:22082:8080'
     healthcheck: &haskell_health_check
       test: "curl --fail localhost:8080/i/status"
+      start_period: 120s
+      timeout: 5s
+      retries: 3
     depends_on:
       brig_schema-v1:
         condition: service_completed_successfully
