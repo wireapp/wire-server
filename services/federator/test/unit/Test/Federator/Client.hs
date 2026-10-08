@@ -69,6 +69,7 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version (supportedVersions)
 import Wire.API.Routes.Version qualified as V
 import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User (UserProfile)
@@ -115,7 +116,8 @@ withMockFederatorClient mock action = withTempMockFederator mock $ \port -> do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
             ceHttp2Manager = mgr,
-            ceOriginRequestId = RequestId defRequestId
+            ceOriginRequestId = RequestId defRequestId,
+            ceLocalVersions = supportedVersions
           }
   a <- runFederatorClient env action
   case a of
@@ -155,7 +157,8 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
             ceHttp2Manager = mgr,
-            ceOriginRequestId = RequestId defRequestId
+            ceOriginRequestId = RequestId defRequestId,
+            ceLocalVersions = supportedVersions
           }
       venv = FederatorClientVersionedEnv env Nothing
   let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig))
@@ -220,7 +223,8 @@ testClientConnectionError = do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" 1,
             ceHttp2Manager = mgr,
-            ceOriginRequestId = RequestId defRequestId
+            ceOriginRequestId = RequestId defRequestId,
+            ceLocalVersions = supportedVersions
           }
   result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
   case result of

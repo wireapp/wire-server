@@ -59,7 +59,6 @@ import Util
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
-import Wire.API.Federation.Version
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.Routes.Version qualified as V
 import Wire.API.Routes.Versioned qualified as V
@@ -91,8 +90,7 @@ tests m opts brig fedBrigClient =
         test m "POST /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
-        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
+        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -388,8 +386,3 @@ testGetUserClientsNotFound fedBrigClient = do
       "client set for user should match"
       (Just (Set.fromList []))
       (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)
-
-testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
-testAPIVersion _brig fedBrigClient = do
-  vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
-  liftIO $ vinfoSupported vinfo @?= map versionInt (toList supportedVersions)

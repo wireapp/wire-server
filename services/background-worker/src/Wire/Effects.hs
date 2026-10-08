@@ -390,7 +390,8 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
         { ownDomain = env.federationDomain,
           federatorEndpoint = Just env.federatorInternal,
           http2Manager = env.http2Manager,
-          requestId = requestId
+          requestId = requestId,
+          localVersions = env.federationVersions
         }
     jobSubsystemConfig =
       JobSubsystemConfig
