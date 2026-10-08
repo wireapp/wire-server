@@ -76,7 +76,10 @@ library
   exposed-modules:
     FanInPerf.Metrics
     FanInPerf.Options
+    FanInPerf.Produce
+    FanInPerf.Run
     FanInPerf.Stats
+    FanInPerf.Store
     FanInPerf.Targets
     FanInPerf.Terminal
 
@@ -129,6 +132,7 @@ test-suite fan-in-perf-tests
   other-modules:
     FanInPerf.MetricsSpec
     FanInPerf.OptionsSpec
+    FanInPerf.ProduceSpec
     FanInPerf.StatsSpec
     FanInPerf.TargetsSpec
     FanInPerf.TerminalSpec
