@@ -95,6 +95,7 @@ library
     , hasql-transaction
     , http-types
     , imports
+    , megaparsec
     , optparse-applicative
     , polysemy
     , postgresql-connection-string

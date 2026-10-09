@@ -3,49 +3,73 @@ module FanInPerf.TargetSpecParser
   )
 where
 
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import Data.Set qualified as Set
-import Data.Text qualified as T
-import Data.Text.Read qualified as T
+import Data.Bifunctor (first)
+import Data.Containers.ListUtils (nubOrd)
+import Data.List.NonEmpty (NonEmpty (..))
 import FanInPerf.Targets (TargetConfig (..), TargetKind, allKinds, kindName)
 import Imports
+import Text.Megaparsec
+import Text.Megaparsec.Char (char, string)
+import Text.Megaparsec.Char.Lexer qualified as L
 
+type Parser = Parsec Void Text
+
+-- | Parses the value of the @--targets@ option.
+--
+-- Grammar:
+--
+-- @
+-- spec  ::= entry (',' entry)*   -- no kind may occur twice
+-- entry ::= kind ':' streams ('x' perPush)?
+-- kind  ::= \"user\" | \"clients\" | \"team\" | \"epoch\" | \"connections\"
+-- streams, perPush ::= decimal number, 1 .. 10_000_000
+-- @
+--
+-- @perPush@ defaults to 1 and must not exceed @streams@.
+--
+-- Mapping of an example to 'TargetConfig' fields from CLI:
+--
+-- @
+-- --targets user:1000x5,team:10
+--            │    │   │
+--            │    │   └ perPush K=5: targets per push (default 1)
+--            │    └ streams N=1000: distinct keys in pool
+--            └ kind
+-- @
 parseTargetSpec :: Text -> Either String (NonEmpty TargetConfig)
-parseTargetSpec spec = do
-  entries <- traverse parseEntry (T.splitOn "," spec)
-  let kinds = map (.kind) entries
-  when (Set.size (Set.fromList kinds) /= length kinds) $
-    Left "duplicate target kind"
-  maybe (Left "empty target spec") Right (nonEmpty entries)
+parseTargetSpec = first errorBundlePretty . parse (specP <* eof) "--targets"
   where
-    parseEntry :: Text -> Either String TargetConfig
-    parseEntry entry = case T.splitOn ":" entry of
-      [k, counts] -> do
-        kind <- parseKind k
-        (streams, perPush) <- case T.splitOn "x" counts of
-          [s] -> (,1) <$> parseCount s
-          [s, p] -> (,) <$> parseCount s <*> parseCount p
-          _ -> malformed entry
-        when (perPush > streams) $
-          Left ("targets per push exceed streams: " <> T.unpack entry)
-        pure TargetConfig {..}
-      _ -> malformed entry
+    specP :: Parser (NonEmpty TargetConfig)
+    specP = do
+      e <- entryP
+      es <- many (char ',' *> entryP)
+      let entries = e :| es
+          kinds = map (.kind) (e : es)
+      when (length (nubOrd kinds) /= length kinds) $
+        fail "duplicate target kind"
+      pure entries
 
-    malformed :: Text -> Either String a
-    malformed entry = Left ("malformed target entry (expected KIND:STREAMS[xK]): " <> T.unpack entry)
+    entryP :: Parser TargetConfig
+    entryP = do
+      kind <- kindP
+      _ <- char ':'
+      streams <- countP
+      perPush <- fromMaybe 1 <$> optional (char 'x' *> countP)
+      when (perPush > streams) $
+        fail ("targets per push exceed streams: " <> show perPush <> " > " <> show streams)
+      pure TargetConfig {..}
 
-    parseKind :: Text -> Either String TargetKind
-    parseKind t =
-      maybe (Left ("unknown target kind: " <> T.unpack t)) Right $
-        find ((== t) . kindName) allKinds
+    kindP :: Parser TargetKind
+    kindP = choice [k <$ string (kindName k) | k <- allKinds] <?> "target kind"
 
-    -- Parsed as 'Integer' first so huge inputs cannot overflow 'Int'.
-    parseCount :: Text -> Either String Int
-    parseCount t = case T.decimal @Integer t of
-      Right (n, rest)
-        | T.null rest && n > 0 && n <= toInteger maxStreams -> Right (fromInteger n)
-      _ -> Left ("expected a number between 1 and " <> show maxStreams <> ", got: " <> T.unpack t)
+    -- \| Parsed as 'Integer' first so huge inputs cannot overflow 'Int'.
+    countP :: Parser Int
+    countP = label "number" $ do
+      n <- L.decimal :: Parser Integer
+      when (n < 1 || n > toInteger maxStreams) $
+        fail ("expected a number between 1 and " <> show maxStreams <> ", got: " <> show n)
+      pure (fromInteger n)
 
-    -- Stream keys are kept in memory, so their number is bounded.
+    -- \| Stream keys are kept in memory, so their number is bounded.
     maxStreams :: Int
     maxStreams = 10_000_000

@@ -17,6 +17,7 @@
 , http-types
 , imports
 , lib
+, megaparsec
 , optparse-applicative
 , polysemy
 , postgresql-connection-string
@@ -50,6 +51,7 @@ mkDerivation {
     hasql-transaction
     http-types
     imports
+    megaparsec
     optparse-applicative
     polysemy
     postgresql-connection-string

@@ -52,4 +52,12 @@ spec = do
 
     it "gives a clear message for absurd numbers" $
       parseTargetSpec "team:99999999999999999999"
-        `shouldBe` Left "expected a number between 1 and 10000000, got: 99999999999999999999"
+        `shouldBe` Left
+          ( unlines
+              [ "--targets:1:26:",
+                "  |",
+                "1 | team:99999999999999999999",
+                "  |                          ^",
+                "expected a number between 1 and 10000000, got: 99999999999999999999"
+              ]
+          )
