@@ -25,7 +25,7 @@ data GlobalOptions = GlobalOptions
 
 data ProduceOptions = ProduceOptions
   { writers :: Int,
-    targets :: NonEmpty TargetEntry,
+    targets :: NonEmpty TargetConfig,
     clientsPerUser :: Int,
     payloadBytes :: Int,
     duration :: Maybe Int,
@@ -110,5 +110,5 @@ isolationReader = eitherReader $ \case
   "serializable" -> Right Serializable
   _ -> Left "expected read-committed, repeatable-read or serializable"
 
-targetsReader :: ReadM (NonEmpty TargetEntry)
+targetsReader :: ReadM (NonEmpty TargetConfig)
 targetsReader = eitherReader (parseTargetSpec . T.pack)

@@ -22,18 +22,18 @@ spec :: Spec
 spec = do
   describe "parseTargetSpec" $ do
     it "parses a single entry with default targets per push" $
-      parseTargetSpec "team:10" `shouldBe` Right (TargetEntry KindTeam 10 1 :| [])
+      parseTargetSpec "team:10" `shouldBe` Right (TargetConfig KindTeam 10 1 :| [])
 
     it "parses several entries with targets per push" $
       parseTargetSpec "user:1000x20,team:10"
-        `shouldBe` Right (TargetEntry KindUser 1000 20 :| [TargetEntry KindTeam 10 1])
+        `shouldBe` Right (TargetConfig KindUser 1000 20 :| [TargetConfig KindTeam 10 1])
 
     it "parses every kind" $
       fmap (fmap (.kind)) (parseTargetSpec "user:1,clients:1,team:1,epoch:1,connections:1")
         `shouldBe` Right (KindUser :| [KindClients, KindTeam, KindEpoch, KindConnections])
 
     it "accepts K == STREAMS" $
-      parseTargetSpec "user:5x5" `shouldBe` Right (TargetEntry KindUser 5 5 :| [])
+      parseTargetSpec "user:5x5" `shouldBe` Right (TargetConfig KindUser 5 5 :| [])
 
     it "accepts the maximum number of streams" $
       fmap (fmap (.streams)) (parseTargetSpec "team:10000000") `shouldBe` Right (10_000_000 :| [])
@@ -68,7 +68,7 @@ spec = do
 
   describe "renderTargetSpec" $
     it "round-trips" $
-      let spec' = TargetEntry KindUser 1000 20 :| [TargetEntry KindTeam 10 1]
+      let spec' = TargetConfig KindUser 1000 20 :| [TargetConfig KindTeam 10 1]
        in parseTargetSpec (renderTargetSpec spec') `shouldBe` Right spec'
 
   describe "kindName" $
@@ -87,11 +87,11 @@ spec = do
 
   describe "genTargets" $ do
     let specs =
-          TargetEntry KindUser 50 5
-            :| [ TargetEntry KindClients 20 3,
-                 TargetEntry KindTeam 4 1,
-                 TargetEntry KindEpoch 10 2,
-                 TargetEntry KindConnections 30 7
+          TargetConfig KindUser 50 5
+            :| [ TargetConfig KindClients 20 3,
+                 TargetConfig KindTeam 4 1,
+                 TargetConfig KindEpoch 10 2,
+                 TargetConfig KindConnections 30 7
                ]
         perPushOf k = maybe 0 (.perPush) (find ((== k) . (.kind)) specs)
 
@@ -131,17 +131,17 @@ spec = do
        in nubOrd kinds `shouldMatchList` allKinds
 
     it "gives clients targets the configured number of client ids" $
-      let (entries, g0) = mkEntries 3 (TargetEntry KindClients 5 2 :| []) (mkStdGen 7)
+      let (entries, g0) = mkEntries 3 (TargetConfig KindClients 5 2 :| []) (mkStdGen 7)
           (ts, _) = genTargets entries g0
        in [length cs | TargetUserClients (_, cs) <- NE.toList ts] `shouldBe` [3, 3]
 
     it "generates 32-byte binary group ids" $
-      let (entries, g0) = mkEntries 1 (TargetEntry KindEpoch 5 1 :| []) (mkStdGen 9)
+      let (entries, g0) = mkEntries 1 (TargetConfig KindEpoch 5 1 :| []) (mkStdGen 9)
           (ts, _) = genTargets entries g0
        in [BS.length gid.unGroupId | TargetEpoch (gid, _) <- NE.toList ts] `shouldBe` [32]
 
     it "qualifies connection targets with the local domain" $
-      let (entries, g0) = mkEntries 1 (TargetEntry KindConnections 5 1 :| []) (mkStdGen 3)
+      let (entries, g0) = mkEntries 1 (TargetConfig KindConnections 5 1 :| []) (mkStdGen 3)
           (ts, _) = genTargets entries g0
        in [qDomain q | TargetConnections q <- NE.toList ts] `shouldBe` [localDomain]
 

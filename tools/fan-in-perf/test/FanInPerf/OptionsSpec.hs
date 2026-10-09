@@ -2,7 +2,7 @@ module FanInPerf.OptionsSpec (spec) where
 
 import Data.List.NonEmpty (NonEmpty (..))
 import FanInPerf.Options
-import FanInPerf.Targets (TargetEntry (..), TargetKind (..))
+import FanInPerf.Targets (TargetConfig (..), TargetKind (..))
 import Hasql.Transaction.Sessions (IsolationLevel (..))
 import Imports
 import Options.Applicative
@@ -26,7 +26,7 @@ spec = do
       `shouldBe` Produce
         ProduceOptions
           { writers = 16,
-            targets = TargetEntry KindTeam 10 1 :| [],
+            targets = TargetConfig KindTeam 10 1 :| [],
             clientsPerUser = 1,
             payloadBytes = 512,
             duration = Nothing,
@@ -64,7 +64,7 @@ spec = do
     (o.global.poolSize, o.global.metricsPort, o.global.isolation)
       `shouldBe` (Just 8, 9500, Serializable)
     o.command
-      `shouldBe` Produce (ProduceOptions 4 (TargetEntry KindUser 100 5 :| []) 2 64 (Just 30) 0 (Just (-42)))
+      `shouldBe` Produce (ProduceOptions 4 (TargetConfig KindUser 100 5 :| []) 2 64 (Just 30) 0 (Just (-42)))
 
   it "parses reset" $
     fmap (.command) (parse ["--db", "x", "reset"]) `shouldBe` Just Reset

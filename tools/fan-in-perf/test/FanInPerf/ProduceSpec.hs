@@ -12,7 +12,7 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
-  let (entries, _) = mkEntries 1 (TargetEntry KindTeam 3 2 :| []) (mkStdGen 1)
+  let (entries, _) = mkEntries 1 (TargetConfig KindTeam 3 2 :| []) (mkStdGen 1)
       payload = mkPayload 0
 
   describe "writerStep" $ do
