@@ -4,10 +4,10 @@ import FanInPerf.Options (optionsInfo)
 import FanInPerf.Run (run)
 import FanInPerf.Terminal (newConsole)
 import Imports
-import Options.Applicative (execParser)
+import Options.Applicative (customExecParser, prefs, showHelpOnError)
 
 main :: IO ()
 main = do
-  opts <- execParser optionsInfo
+  opts <- customExecParser (prefs showHelpOnError) optionsInfo
   console <- newConsole
   run console opts
