@@ -36,6 +36,8 @@ module FanInPerf.Stats
 where
 
 import Data.Bits (countLeadingZeros)
+import Data.IntMap.Strict (IntMap)
+import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict qualified as Map
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.Targets (TargetKind)
@@ -45,19 +47,20 @@ import Imports
 numBuckets :: Int
 numBuckets = 40
 
--- | Counters per target kind (absent = 0) and a latency histogram.
+-- | Counters per target kind (absent = 0) and a sparse latency histogram
+-- (bucket index -> count, absent = 0).
 data Snapshot = Snapshot
   { pushes :: !(Map TargetKind Int),
     targets :: !(Map TargetKind Int),
     errors :: !(Map TargetKind Int),
-    latency :: !(VU.Vector Int)
+    latency :: !(IntMap Int)
   }
   deriving (Eq, Show)
 
 newtype WriterStats = WriterStats (IORef Snapshot)
 
 emptySnapshot :: Snapshot
-emptySnapshot = Snapshot mempty mempty mempty (VU.replicate numBuckets 0)
+emptySnapshot = Snapshot mempty mempty mempty mempty
 
 newWriterStats :: IO WriterStats
 newWriterStats = WriterStats <$> newIORef emptySnapshot
@@ -76,7 +79,7 @@ recordSuccess stats k n latencyNs =
     s
       { pushes = bump k 1 s.pushes,
         targets = bump k n s.targets,
-        latency = VU.accum (+) s.latency [(bucketIndex latencyNs, 1)]
+        latency = IntMap.insertWith (+) (bucketIndex latencyNs) 1 s.latency
       }
 
 recordError :: WriterStats -> TargetKind -> IO ()
@@ -96,7 +99,7 @@ sumSnapshots = foldl' addSnapshot emptySnapshot
         { pushes = Map.unionWith (+) x.pushes y.pushes,
           targets = Map.unionWith (+) x.targets y.targets,
           errors = Map.unionWith (+) x.errors y.errors,
-          latency = VU.zipWith (+) x.latency y.latency
+          latency = IntMap.unionWith (+) x.latency y.latency
         }
 
 diffSnapshot :: Snapshot -> Snapshot -> Snapshot
@@ -105,7 +108,7 @@ diffSnapshot new old =
     { pushes = diffMap new.pushes old.pushes,
       targets = diffMap new.targets old.targets,
       errors = diffMap new.errors old.errors,
-      latency = VU.zipWith (-) new.latency old.latency
+      latency = IntMap.unionWith (+) new.latency (negate <$> old.latency)
     }
   where
     -- absent key = 0, so a key in only one of the maps still diffs correctly
@@ -122,7 +125,7 @@ totalTargets s = sum s.targets
 totalErrors s = sum s.errors
 
 latencyBuckets :: Snapshot -> VU.Vector Int
-latencyBuckets s = s.latency
+latencyBuckets s = VU.accum (+) (VU.replicate numBuckets 0) (IntMap.toList s.latency)
 
 bucketIndex :: Word64 -> Int
 bucketIndex ns = min (numBuckets - 1) (63 - countLeadingZeros (max 1 ns))
