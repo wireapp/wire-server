@@ -13,7 +13,6 @@ module FanInPerf.Targets
     localDomain,
     targetAt,
     genTargets,
-    forceTargets,
     targetKind,
     targetKey,
     mkPayload,
@@ -200,20 +199,6 @@ genTargets entries g0 =
       -- perPush >= 1, so idxs is never empty; the fallback only satisfies the type
       targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty (sort idxs))
    in ((e.spec.kind, targets), g2)
-
--- REVIEW: Do we need this? Can the data type just be strict?
-
--- | Cheap full evaluation of the (otherwise lazily built) targets, so
--- generation cost stays out of the timed store call.
-forceTargets :: NonEmpty Target -> ()
-forceTargets = foldr (seq . forceTarget) ()
-  where
-    forceTarget = \case
-      TargetUser u -> u `seq` ()
-      TargetUserClients (u, cs) -> u `seq` foldr seq () cs
-      TargetTeam t -> t `seq` ()
-      TargetEpoch (g, e) -> g `seq` e `seq` ()
-      TargetConnections q -> qUnqualified q `seq` qDomain q `seq` ()
 
 targetKind :: Target -> TargetKind
 targetKind = \case

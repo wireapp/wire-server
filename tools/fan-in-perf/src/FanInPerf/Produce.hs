@@ -50,6 +50,10 @@ writerStep doPush entries stats reportError g = do
       recordError stats kind
       reportError (kindName kind <> ": " <> msg)
   pure g'
+  where
+    -- 'Target' has strict fields, so forcing each element to WHNF is enough.
+    forceTargets :: NonEmpty Target -> ()
+    forceTargets = foldr seq ()
 
 storePush :: Env -> A.Object -> NonEmpty Target -> IO PushOutcome
 storePush env payload targets =
