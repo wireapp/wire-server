@@ -21,8 +21,7 @@ import Prometheus qualified as P
 
 -- | Only the ticker thread calls 'publish'; writers never touch these.
 data Metrics = Metrics
-  { -- REVIEW: Rename experiment -> experimentName
-    experiment :: Text,
+  { experimentName :: Text,
     pushes :: P.Vector P.Label2 P.Counter,
     targets :: P.Vector P.Label2 P.Counter,
     errors :: P.Vector P.Label2 P.Counter,
@@ -34,7 +33,7 @@ data Metrics = Metrics
   }
 
 newMetrics :: Text -> Int -> IO Metrics
-newMetrics experiment writers = do
+newMetrics experimentName writers = do
   let counterVec name help = P.register $ P.vector ("experiment", "kind") $ P.counter (P.Info name help)
       gaugeVec name help = P.register $ P.vector "experiment" $ P.gauge (P.Info name help)
   pushes <- counterVec "fanin_perf_pushes_total" "Successful pushes"
@@ -45,15 +44,15 @@ newMetrics experiment writers = do
   errorRateCurrent <- gaugeVec "fanin_perf_error_rate_current" "Errors per second during the last tick"
   errorRatioCurrent <- gaugeVec "fanin_perf_error_ratio_current" "errors / (pushes + errors) during the last tick"
   writersGauge <- gaugeVec "fanin_perf_writers" "Concurrent writer threads"
-  P.withLabel writersGauge experiment (`P.setGauge` fromIntegral writers)
+  P.withLabel writersGauge experimentName (`P.setGauge` fromIntegral writers)
   latency <- newIORef (VU.replicate numBuckets 0)
-  _ <- P.register (latencyMetric experiment latency)
+  _ <- P.register (latencyMetric experimentName latency)
   pure Metrics {..}
 
 publish :: Metrics -> TickReport -> IO ()
 publish m r = do
   for_ allKinds $ \k -> do
-    let lbl = (m.experiment, kindName k)
+    let lbl = (m.experimentName, kindName k)
     add m.pushes lbl (pushesOf k r.delta)
     add m.targets lbl (targetsOf k r.delta)
     add m.errors lbl (errorsOf k r.delta)
@@ -64,7 +63,7 @@ publish m r = do
   writeIORef m.latency (latencyBuckets r.total)
   where
     add v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fromIntegral n))
-    set g x = P.withLabel g m.experiment (`P.setGauge` x)
+    set g x = P.withLabel g m.experimentName (`P.setGauge` x)
 
 -- | Histogram served from the ticker's latest bucket snapshot. Bucket bounds
 -- are powers of two in nanoseconds; '_sum' is approximated by bucket midpoints.
