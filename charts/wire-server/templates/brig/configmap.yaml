@@ -242,6 +242,11 @@ data:
       secret: /etc/wire/brig/secrets/turn-secret.txt
       configTTL: 3600 # 1 hour
       tokenTTL: 43200 # 12 hours
+      {{- with $.Values.brig.secrets.turn }}
+      {{- if .coturnSecret }}
+      coturnSecret: /etc/wire/brig/secrets/coturn-secret.txt
+      {{- end }}
+      {{- end }}
 
     {{- if .sft }}
     {{- with .sft }}

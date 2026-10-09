@@ -42,7 +42,7 @@ import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Wire.API.Call.Config (RTCConfiguration)
+import Wire.API.Call.Config (RTCConfiguration, RTCConfigurationV3)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
 import Wire.API.Error
@@ -1954,6 +1954,20 @@ type CallingAPI =
                :> "v2"
                :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
                :> Get '[JSON] RTCConfiguration
+           )
+    :<|> Named
+           "get-calls-config-v3"
+           ( Summary
+               "Retrieve all TURN server addresses and coturn native long-term credentials. \
+               \Clients are expected to do a DNS lookup to resolve \
+               \the IP addresses of the given hostnames"
+               :> ZUser
+               :> ZConn
+               :> "calls"
+               :> "config"
+               :> "v3"
+               :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
+               :> Get '[JSON] RTCConfigurationV3
            )
 
 -- Teams API -----------------------------------------------------

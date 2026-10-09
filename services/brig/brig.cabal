@@ -502,12 +502,13 @@ test-suite brig-tests
     , binary
     , brig
     , bytestring
+    , bytestring-conversion
     , containers
     , data-timeout
     , dns
     , dns-util
     , exceptions
-    , HsOpenSSL          >=0.10
+    , HsOpenSSL              >=0.10
     , imports
     , lens
     , polysemy
