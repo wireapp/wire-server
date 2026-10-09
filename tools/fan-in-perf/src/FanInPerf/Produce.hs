@@ -62,8 +62,8 @@ storePush env payload targets =
 
 runProduce :: Console -> Env -> ProduceOptions -> IO ()
 runProduce console env opts = do
-  gen <- initStdGen
-  let (entries, gen') = mkEntries opts.clientsPerUser opts.targets gen
+  seed <- maybe randomIO pure opts.seed
+  let (entries, gen') = mkEntries opts.clientsPerUser opts.targets (mkStdGen seed)
       payload = mkPayload opts.payloadBytes
       writerGens = take opts.writers (unfoldr (Just . split) gen')
   metrics <- newMetrics "produce" opts.writers
@@ -80,7 +80,7 @@ runProduce console env opts = do
   stateRef <- newIORef (initialTickState start)
   let doTick = tickOnce console metrics (fromIntegral opts.warmup) stats errors stateRef
   printLine console $
-    "produce: writers=" <> T.pack (show opts.writers) <> " targets=" <> renderTargetSpec opts.targets
+    "produce: writers=" <> T.pack (show opts.writers) <> " targets=" <> renderTargetSpec opts.targets <> " seed=" <> T.pack (show seed)
   withAsync (mapConcurrently_ writer (zip stats writerGens)) $ \writersA -> do
     link writersA
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do

@@ -125,11 +125,11 @@ data Entry = Entry
 
 mkEntries :: (RandomGen g) => Int -> NonEmpty TargetEntry -> g -> (V.Vector Entry, g)
 mkEntries clientsPerUser specs g0 =
-  let step (acc, g) s =
+  let step g s =
         let (p, g') = mkPool clientsPerUser s g
-         in (Entry s p : acc, g')
-      (entries, g1) = foldl' step ([], g0) (NE.toList specs)
-   in (V.fromList (reverse entries), g1)
+         in (g', Entry s p)
+      (g1, entries) = mapAccumL step g0 (NE.toList specs)
+   in (V.fromList entries, g1)
 
 mkPool :: (RandomGen g) => Int -> TargetEntry -> g -> (StreamPool, g)
 mkPool clientsPerUser s g0 =
@@ -160,15 +160,16 @@ genGroupEpoch g0 =
 
 -- | @k@ distinct indices from @[0, n)@ using Floyd's algorithm: exactly @k@
 -- random draws regardless of how close @k@ is to @n@. Requires @1 <= k <= n@.
+-- Result is ascending.
 sampleDistinct :: (RandomGen g) => Int -> Int -> g -> ([Int], g)
-sampleDistinct n k = go (n - k) IntSet.empty []
+sampleDistinct n k = go (n - k) IntSet.empty
   where
-    go j seen acc g
-      | j >= n = (acc, g)
+    go j seen g
+      | j >= n = (IntSet.toAscList seen, g)
       | otherwise =
           let (t, g') = uniformR (0, j) g
               pick = if IntSet.member t seen then j else t
-           in go (j + 1) (IntSet.insert pick seen) (pick : acc) g'
+           in go (j + 1) (IntSet.insert pick seen) g'
 
 -- | Domain of every generated qualified target; the store only needs it to be consistent.
 localDomain :: Domain
@@ -195,7 +196,7 @@ genTargets entries g0 =
       e = entries V.! ei
       (idxs, g2) = sampleDistinct e.spec.streams e.spec.perPush g1
       -- perPush >= 1, so idxs is never empty; the fallback only satisfies the type
-      targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty (sort idxs))
+      targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty idxs)
    in (targets, g2)
 
 targetKind :: Target -> TargetKind

@@ -30,7 +30,8 @@ spec = do
             clientsPerUser = 1,
             payloadBytes = 512,
             duration = Nothing,
-            warmup = 5
+            warmup = 5,
+            seed = Nothing
           }
 
   it "parses all produce flags" $ do
@@ -56,12 +57,14 @@ spec = do
           "--duration",
           "30",
           "--warmup",
-          "0"
+          "0",
+          "--seed",
+          "-42"
         ]
     (o.global.poolSize, o.global.metricsPort, o.global.isolation)
       `shouldBe` (Just 8, 9500, Serializable)
     o.command
-      `shouldBe` Produce (ProduceOptions 4 (TargetEntry KindUser 100 5 :| []) 2 64 (Just 30) 0)
+      `shouldBe` Produce (ProduceOptions 4 (TargetEntry KindUser 100 5 :| []) 2 64 (Just 30) 0 (Just (-42)))
 
   it "parses reset" $
     fmap (.command) (parse ["--db", "x", "reset"]) `shouldBe` Just Reset
@@ -88,7 +91,9 @@ spec = do
       ["--db", "x", "produce", "--targets", "team:10", "--payload-bytes", "10000001"],
       ["--db", "x", "produce", "--targets", "team:10", "--clients-per-user", "100001"],
       ["--db", "x", "produce", "--targets", "team:10", "--duration", "9223372036854775807"],
-      ["--db", "x", "produce", "--targets", "team:10", "--warmup", "9223372036854775807"]
+      ["--db", "x", "produce", "--targets", "team:10", "--warmup", "9223372036854775807"],
+      ["--db", "x", "produce", "--targets", "team:10", "--seed", "abc"],
+      ["--db", "x", "produce", "--targets", "team:10", "--seed", "9223372036854775808"]
     ]
     $ \args ->
       it ("rejects " <> unwords args) $ isNothing (parse args) `shouldBe` True

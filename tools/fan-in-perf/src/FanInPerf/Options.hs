@@ -29,7 +29,8 @@ data ProduceOptions = ProduceOptions
     clientsPerUser :: Int,
     payloadBytes :: Int,
     duration :: Maybe Int,
-    warmup :: Int
+    warmup :: Int,
+    seed :: Maybe Int
   }
   deriving (Eq, Show)
 
@@ -73,6 +74,7 @@ produceParser =
     <*> option (positive maxPayloadBytes) (long "payload-bytes" <> metavar "B" <> value 512 <> showDefault <> help "Approximate JSON payload size")
     <*> optional (option (positive maxDuration) (long "duration" <> metavar "SECS" <> help "Run length (default: until Ctrl-C)"))
     <*> option (nonNegative maxDuration) (long "warmup" <> metavar "SECS" <> value 5 <> showDefault <> help "Seconds ignored for max-rate tracking")
+    <*> optional (option anyInt (long "seed" <> metavar "INT" <> help "RNG seed (default: random, printed at start)"))
 
 -- | Parsed as 'Integer' first so huge inputs cannot wrap around 'Int'.
 bounded :: Integer -> Integer -> String -> ReadM Int
@@ -94,6 +96,9 @@ positive hi = bounded 1 hi "an integer"
 
 nonNegative :: Integer -> ReadM Int
 nonNegative hi = bounded 0 hi "an integer"
+
+anyInt :: ReadM Int
+anyInt = bounded (toInteger (minBound @Int)) (toInteger (maxBound @Int)) "an integer"
 
 port :: ReadM Int
 port = bounded 1 65535 "a port"

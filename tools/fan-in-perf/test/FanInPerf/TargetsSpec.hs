@@ -76,12 +76,13 @@ spec = do
       length (nubOrd (map kindName allKinds)) `shouldBe` length allKinds
 
   describe "sampleDistinct" $
-    prop "returns k distinct indices in [0, n)" $ \(Positive n0) (Positive k0) seed ->
+    prop "returns k distinct ascending indices in [0, n)" $ \(Positive n0) (Positive k0) seed ->
       let n = min 500 n0
           k = 1 + (k0 - 1) `mod` n
           (xs, _) = sampleDistinct n k (mkStdGen seed)
        in length xs == k
             && length (nubOrd xs) == k
+            && xs == sort xs
             && all (\x -> x >= 0 && x < n) xs
 
   describe "genTargets" $ do
