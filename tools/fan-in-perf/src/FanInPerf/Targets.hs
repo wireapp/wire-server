@@ -10,6 +10,7 @@ module FanInPerf.Targets
     Entry (..),
     mkEntries,
     sampleDistinct,
+    localDomain,
     targetAt,
     genTargets,
     forceTargets,
@@ -172,13 +173,17 @@ sampleDistinct n k = go (n - k) IntSet.empty []
               pick = if IntSet.member t seen then j else t
            in go (j + 1) (IntSet.insert pick seen) (pick : acc) g'
 
-targetAt :: Domain -> StreamPool -> Int -> Target
-targetAt dom pool i = case pool of
+-- | Domain of every generated qualified target; the store only needs it to be consistent.
+localDomain :: Domain
+localDomain = Domain "example.com"
+
+targetAt :: StreamPool -> Int -> Target
+targetAt pool i = case pool of
   UserPool v -> TargetUser (v V.! i)
   ClientsPool v -> TargetUserClients (v V.! i)
   TeamPool v -> TargetTeam (v V.! i)
   EpochPool v -> TargetEpoch (v V.! i)
-  ConnectionsPool v -> TargetConnections (Qualified (v V.! i) dom)
+  ConnectionsPool v -> TargetConnections (Qualified (v V.! i) localDomain)
 
 -- REVIEW: This looks overly complicated!
 
@@ -187,13 +192,13 @@ targetAt dom pool i = case pool of
 -- pool index (pools are fixed, so this is one global order, and client ids per
 -- user are ascending): the store upserts rows in target order and does not
 -- sort itself, so unsorted overlapping pushes would deadlock (40P01).
-genTargets :: (RandomGen g) => Domain -> V.Vector Entry -> g -> ((TargetKind, NonEmpty Target), g)
-genTargets dom entries g0 =
+genTargets :: (RandomGen g) => V.Vector Entry -> g -> ((TargetKind, NonEmpty Target), g)
+genTargets entries g0 =
   let (ei, g1) = uniformR (0, V.length entries - 1) g0
       e = entries V.! ei
       (idxs, g2) = sampleDistinct e.spec.streams e.spec.perPush g1
       -- perPush >= 1, so idxs is never empty; the fallback only satisfies the type
-      targets = targetAt dom e.pool <$> fromMaybe (0 :| []) (nonEmpty (sort idxs))
+      targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty (sort idxs))
    in ((e.spec.kind, targets), g2)
 
 -- REVIEW: Do we need this? Can the data type just be strict?

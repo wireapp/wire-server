@@ -8,7 +8,6 @@ module FanInPerf.Options
   )
 where
 
-import Data.Domain
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
 import FanInPerf.Targets
@@ -25,8 +24,6 @@ data GlobalOptions = GlobalOptions
   { db :: Text,
     poolSize :: Maybe Int,
     metricsPort :: Int,
-    -- REVIEW: The domain doesn't need to be configurable. It can be e.g. constant `example.com`
-    domain :: Domain,
     isolation :: Isolation
   }
 
@@ -69,7 +66,6 @@ globalParser =
     <$> strOption (long "db" <> metavar "CONNSTR" <> help "PostgreSQL connection string")
     <*> optional (option (positive maxPoolSize) (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset)"))
     <*> option port (long "metrics-port" <> metavar "PORT" <> value 9400 <> showDefault <> help "Port of the /metrics endpoint")
-    <*> option domainReader (long "domain" <> metavar "DOMAIN" <> value (Domain "example.com") <> showDefaultWith (T.unpack . domainText) <> help "Local backend domain")
     <*> option isolationReader (long "isolation" <> metavar "read-committed|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
 
 produceParser :: Parser ProduceOptions
@@ -105,9 +101,6 @@ nonNegative hi = bounded 0 hi "an integer"
 
 port :: ReadM Int
 port = bounded 1 65535 "a port"
-
-domainReader :: ReadM Domain
-domainReader = eitherReader (mkDomain . T.pack)
 
 isolationReader :: ReadM Isolation
 isolationReader = eitherReader $ \case

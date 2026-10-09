@@ -8,7 +8,6 @@ where
 import Control.Concurrent.Async
 import Control.Exception (AsyncException (UserInterrupt), evaluate, handleJust)
 import Data.Aeson qualified as A
-import Data.Domain
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
 import Data.Vector qualified as V
@@ -32,15 +31,14 @@ data PushOutcome = PushOk | PushFailed Text
 -- counted as errors so a writer never dies; async ones (cancel) propagate.
 writerStep ::
   (NonEmpty Target -> IO PushOutcome) ->
-  Domain ->
   V.Vector Entry ->
   WriterStats ->
   (Text -> IO ()) ->
   StdGen ->
   IO StdGen
-writerStep doPush dom entries stats reportError g = do
+writerStep doPush entries stats reportError g = do
   -- REVIEW: Can kind not be deduced from targets?
-  let ((kind, targets), g') = genTargets dom entries g
+  let ((kind, targets), g') = genTargets entries g
   -- build the targets before timing so latency covers only the store call
   evaluate (forceTargets targets)
   t0 <- getMonotonicTimeNSec
@@ -58,8 +56,8 @@ storePush env payload targets =
   either (PushFailed . describeUsageError) (const PushOk)
     <$> runStore env (pushViaFanIn (mkPush payload targets))
 
-runProduce :: Console -> Env -> Domain -> ProduceOptions -> IO ()
-runProduce console env dom opts = do
+runProduce :: Console -> Env -> ProduceOptions -> IO ()
+runProduce console env opts = do
   gen <- initStdGen
   let (entries, gen') = mkEntries opts.clientsPerUser opts.targets gen
       payload = mkPayload opts.payloadBytes
@@ -72,7 +70,7 @@ runProduce console env dom opts = do
         full <- isFullTBQueue errors
         unless full (writeTBQueue errors msg)
       writer (ws, g0) =
-        let loop !g = writerStep (storePush env payload) dom entries ws reportError g >>= loop
+        let loop !g = writerStep (storePush env payload) entries ws reportError g >>= loop
          in loop g0
   start <- getMonotonicTime
   stateRef <- newIORef (initialTickState start)

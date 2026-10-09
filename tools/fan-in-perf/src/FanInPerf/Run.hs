@@ -8,6 +8,7 @@ import FanInPerf.Metrics (runMetricsServer)
 import FanInPerf.Options
 import FanInPerf.Produce (runProduce)
 import FanInPerf.Store
+import FanInPerf.Targets (localDomain)
 import FanInPerf.Terminal
 import Hasql.Pool.Extended (PoolConfig (..), initPostgresPoolFromConnString)
 import Imports
@@ -25,7 +26,7 @@ run console opts = do
   let env =
         Env
           { pool,
-            local = toLocalUnsafe opts.global.domain (),
+            local = toLocalUnsafe localDomain (),
             isolation = toIsolationLevel opts.global.isolation
           }
   checkDatabase env
@@ -39,7 +40,7 @@ run console opts = do
       withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
         -- e.g. port already in use: fail loudly instead of running unobserved
         link server
-        runProduce console env opts.global.domain p
+        runProduce console env p
 
 checkDatabase :: Env -> IO ()
 checkDatabase env =

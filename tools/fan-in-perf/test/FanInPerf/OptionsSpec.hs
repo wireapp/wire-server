@@ -1,6 +1,5 @@
 module FanInPerf.OptionsSpec (spec) where
 
-import Data.Domain (Domain (..))
 import Data.List.NonEmpty (NonEmpty (..))
 import FanInPerf.Options
 import FanInPerf.Targets (TargetEntry (..), TargetKind (..))
@@ -21,7 +20,6 @@ spec = do
     o.global.db `shouldBe` "postgresql://u:p@localhost/db"
     o.global.poolSize `shouldBe` Nothing
     o.global.metricsPort `shouldBe` 9400
-    o.global.domain `shouldBe` Domain "example.com"
     o.global.isolation `shouldBe` ReadCommitted
     o.command
       `shouldBe` Produce
@@ -43,8 +41,6 @@ spec = do
           "8",
           "--metrics-port",
           "9500",
-          "--domain",
-          "b.example.com",
           "--isolation",
           "serializable",
           "produce",
@@ -61,8 +57,8 @@ spec = do
           "--warmup",
           "0"
         ]
-    (o.global.poolSize, o.global.metricsPort, o.global.domain, o.global.isolation)
-      `shouldBe` (Just 8, 9500, Domain "b.example.com", Serializable)
+    (o.global.poolSize, o.global.metricsPort, o.global.isolation)
+      `shouldBe` (Just 8, 9500, Serializable)
     o.command
       `shouldBe` Produce (ProduceOptions 4 (TargetEntry KindUser 100 5 :| []) 2 64 (Just 30) 0)
 
@@ -76,7 +72,6 @@ spec = do
       ["--db", "x", "produce", "--targets", "team:10", "--writers", "0"],
       ["--db", "x", "--isolation", "dirty", "reset"],
       ["--db", "x", "--metrics-port", "70000", "reset"],
-      ["--db", "x", "--domain", "not a domain", "reset"],
       ["--db", "x"],
       ["--db", "x", "produce", "--targets", "team:10", "--clients-per-user", "0"],
       ["--db", "x", "produce", "--targets", "team:10", "--clients-per-user", "-1"],

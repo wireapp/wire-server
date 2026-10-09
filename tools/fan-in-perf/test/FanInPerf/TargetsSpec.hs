@@ -4,7 +4,6 @@ import Data.Aeson qualified as A
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.Containers.ListUtils (nubOrd)
-import Data.Domain (Domain (..))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified (qDomain)
@@ -86,8 +85,7 @@ spec = do
             && all (\x -> x >= 0 && x < n) xs
 
   describe "genTargets" $ do
-    let dom = Domain "example.com"
-        specs =
+    let specs =
           TargetEntry KindUser 50 5
             :| [ TargetEntry KindClients 20 3,
                  TargetEntry KindTeam 4 1,
@@ -101,8 +99,8 @@ spec = do
           poolKeys k =
             case V.find ((== k) . (.spec.kind)) entries of
               Nothing -> []
-              Just e -> [targetKey (targetAt dom e.pool i) | i <- [0 .. e.spec.streams - 1]]
-          pushes = take 200 (unfoldr (Just . genTargets dom entries) g0)
+              Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
+          pushes = take 200 (unfoldr (Just . genTargets entries) g0)
           ok (kind, ts) =
             let keys = map targetKey (NE.toList ts)
              in all ((== kind) . targetKind) ts
@@ -115,8 +113,8 @@ spec = do
       let (entries, g0) = mkEntries 3 specs (mkStdGen seed)
           poolKeys k = case V.find ((== k) . (.spec.kind)) entries of
             Nothing -> []
-            Just e -> [targetKey (targetAt dom e.pool i) | i <- [0 .. e.spec.streams - 1]]
-          pushes = take 200 (unfoldr (Just . genTargets dom entries) g0)
+            Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
+          pushes = take 200 (unfoldr (Just . genTargets entries) g0)
           ascending (kind, ts) =
             let positions = mapMaybe (\t -> elemIndex (targetKey t) (poolKeys kind)) (NE.toList ts)
              in positions == sort positions && length positions == length ts
@@ -124,23 +122,23 @@ spec = do
 
     it "uses every entry eventually" $
       let (entries, g0) = mkEntries 1 specs (mkStdGen 42)
-          kinds = map fst (take 500 (unfoldr (Just . genTargets dom entries) g0))
+          kinds = map fst (take 500 (unfoldr (Just . genTargets entries) g0))
        in nubOrd kinds `shouldMatchList` allKinds
 
     it "gives clients targets the configured number of client ids" $
       let (entries, g0) = mkEntries 3 (TargetEntry KindClients 5 2 :| []) (mkStdGen 7)
-          ((_, ts), _) = genTargets dom entries g0
+          ((_, ts), _) = genTargets entries g0
        in [length cs | TargetUserClients (_, cs) <- NE.toList ts] `shouldBe` [3, 3]
 
     it "generates 32-byte binary group ids" $
       let (entries, g0) = mkEntries 1 (TargetEntry KindEpoch 5 1 :| []) (mkStdGen 9)
-          ((_, ts), _) = genTargets dom entries g0
+          ((_, ts), _) = genTargets entries g0
        in [BS.length gid.unGroupId | TargetEpoch (gid, _) <- NE.toList ts] `shouldBe` [32]
 
     it "qualifies connection targets with the local domain" $
       let (entries, g0) = mkEntries 1 (TargetEntry KindConnections 5 1 :| []) (mkStdGen 3)
-          ((_, ts), _) = genTargets dom entries g0
-       in [qDomain q | TargetConnections q <- NE.toList ts] `shouldBe` [dom]
+          ((_, ts), _) = genTargets entries g0
+       in [qDomain q | TargetConnections q <- NE.toList ts] `shouldBe` [localDomain]
 
   describe "mkPayload" $
     it "has roughly the requested size" $
