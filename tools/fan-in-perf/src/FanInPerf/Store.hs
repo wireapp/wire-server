@@ -2,14 +2,11 @@ module FanInPerf.Store
   ( Env (..),
     StoreEffects,
     runStore,
-    describeUsageError,
-    truncateText,
   )
 where
 
 import Data.Qualified
-import Data.Text qualified as T
-import Hasql.Pool (UsageError (..))
+import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended (Pool)
 import Hasql.Transaction.Sessions qualified as TxSessions
 import Imports
@@ -44,17 +41,3 @@ runStore env =
     . runInputConst env.local
     . interpretFanInNotificationsAdminToPostgres
     . interpretFanInNotificationsStoreToPostgres env.isolation
-
--- REVIEW: This solves an issue we don't have
-
--- | Connection errors can contain host names or credentials; keep them out of
--- the terminal.
-describeUsageError :: UsageError -> Text
-describeUsageError = \case
-  ConnectionError _ -> "database connection error"
-  AcquisitionTimeoutUsageError -> "connection pool acquisition timeout"
-  -- REVIEW: Print the full error here. No need to truncate. truncateText can then be deleted.
-  SessionError e -> "database session error: " <> truncateText 200 (T.pack (show e))
-
-truncateText :: Int -> Text -> Text
-truncateText n t = if T.length t > n then T.take n t <> "…" else t

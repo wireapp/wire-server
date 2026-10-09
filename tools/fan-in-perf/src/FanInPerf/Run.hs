@@ -3,6 +3,7 @@ module FanInPerf.Run (run) where
 import Control.Concurrent.Async (link, withAsync)
 import Data.Misc (Duration (..))
 import Data.Qualified (toLocalUnsafe)
+import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import FanInPerf.Metrics (runMetricsServer)
 import FanInPerf.Options
@@ -34,7 +35,7 @@ run console opts = do
     Reset ->
       runStore env truncateAll
         >>= either
-          (\e -> abort ("reset failed: " <> describeUsageError e))
+          (\e -> abort ("reset failed: " <> T.pack (show e)))
           (const (printLine console "truncated all fan-in notification tables"))
     Produce p ->
       withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
@@ -46,7 +47,7 @@ checkDatabase :: Env -> IO ()
 checkDatabase env =
   tryAny (runStore env ping) >>= \case
     Right (Right ()) -> pure ()
-    Right (Left e) -> abort ("cannot reach database: " <> describeUsageError e)
+    Right (Left e) -> abort ("cannot reach database: " <> T.pack (show e))
     Left _ -> abort "cannot reach database"
 
 defaultPoolSize :: Command -> Int

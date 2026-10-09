@@ -53,7 +53,7 @@ writerStep doPush entries stats reportError g = do
 
 storePush :: Env -> A.Object -> NonEmpty Target -> IO PushOutcome
 storePush env payload targets =
-  either (PushFailed . describeUsageError) (const PushOk)
+  either (PushFailed . T.pack . show) (const PushOk)
     <$> runStore env (pushViaFanIn (mkPush payload targets))
 
 runProduce :: Console -> Env -> ProduceOptions -> IO ()

@@ -5,10 +5,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text qualified as T
 import FanInPerf.Produce
 import FanInPerf.Stats
-import FanInPerf.Store (describeUsageError, truncateText)
 import FanInPerf.Targets hiding (spec)
-import Hasql.Errors (ConnectionError (NetworkingConnectionError))
-import Hasql.Pool (UsageError (..))
 import Imports
 import System.Random (mkStdGen)
 import Test.Hspec
@@ -40,15 +37,3 @@ spec = do
       s <- readSnapshot ws
       (errorsOf KindTeam s, pushesOf KindTeam s) `shouldBe` (1, 1)
       readIORef reported >>= (`shouldSatisfy` any (T.isInfixOf "boom"))
-
-  describe "describeUsageError" $
-    it "does not leak connection details" $ do
-      let msg = describeUsageError (ConnectionError (NetworkingConnectionError "host=db.internal password=hunter2"))
-      msg `shouldSatisfy` (not . T.isInfixOf "hunter2")
-      msg `shouldSatisfy` (not . T.isInfixOf "db.internal")
-
-  describe "truncateText" $ do
-    it "truncates long text with an ellipsis" $
-      truncateText 5 "abcdefgh" `shouldBe` "abcde…"
-    it "keeps short text" $
-      truncateText 5 "abc" `shouldBe` "abc"
