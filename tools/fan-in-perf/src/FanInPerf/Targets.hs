@@ -23,6 +23,7 @@ where
 
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KM
+import Data.Bifunctor (first)
 import Data.Domain
 import Data.Id
 import Data.IntSet qualified as IntSet
@@ -32,7 +33,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Read qualified as T
-import Data.UUID.Types qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import System.Random
@@ -149,10 +149,7 @@ mkPool clientsPerUser s g0 =
     genUserClients g = let (u, g') = genId g in ((u, clientIds), g')
 
 genId :: (RandomGen g) => g -> (Id a, g)
-genId g0 =
-  let (w1, g1) = uniform g0
-      (w2, g2) = uniform g1
-   in (Id (UUID.fromWords64 w1 w2), g2)
+genId = first Id . uniform
 
 -- | MLS group ids are arbitrary bytes; 32 random bytes like real ones.
 genGroupEpoch :: (RandomGen g) => g -> ((GroupId, Epoch), g)
