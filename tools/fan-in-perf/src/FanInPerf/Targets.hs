@@ -36,6 +36,7 @@ import Data.Text.Read qualified as T
 import Data.Vector qualified as V
 import Imports
 import System.Random
+import System.Random.Stateful (runStateGen, uniformByteStringM, uniformRM)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.Push.V2 (Route (RouteAny))
@@ -153,10 +154,10 @@ genId = first Id . uniform
 
 -- | MLS group ids are arbitrary bytes; 32 random bytes like real ones.
 genGroupEpoch :: (RandomGen g) => g -> ((GroupId, Epoch), g)
-genGroupEpoch g0 =
-  let (bytes, g1) = genByteString 32 g0
-      (epoch, g2) = uniformR (0, 1000) g1
-   in ((GroupId bytes, Epoch epoch), g2)
+genGroupEpoch g = runStateGen g $ \gen -> do
+  bytes <- uniformByteStringM 32 gen
+  epoch <- uniformRM (0, 1000) gen
+  pure (GroupId bytes, Epoch epoch)
 
 -- | @k@ distinct indices from @[0, n)@ using Floyd's algorithm: exactly @k@
 -- random draws regardless of how close @k@ is to @n@. Requires @1 <= k <= n@.
