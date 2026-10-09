@@ -101,8 +101,9 @@ spec = do
               Nothing -> []
               Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
           pushes = take 200 (unfoldr (Just . genTargets entries) g0)
-          ok (kind, ts) =
-            let keys = map targetKey (NE.toList ts)
+          ok ts =
+            let kind = pushKind ts
+                keys = map targetKey (NE.toList ts)
              in all ((== kind) . targetKind) ts
                   && length ts == perPushOf kind
                   && length (nubOrd keys) == length keys
@@ -115,29 +116,30 @@ spec = do
             Nothing -> []
             Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
           pushes = take 200 (unfoldr (Just . genTargets entries) g0)
-          ascending (kind, ts) =
-            let positions = mapMaybe (\t -> elemIndex (targetKey t) (poolKeys kind)) (NE.toList ts)
+          ascending ts =
+            let kind = pushKind ts
+                positions = mapMaybe (\t -> elemIndex (targetKey t) (poolKeys kind)) (NE.toList ts)
              in positions == sort positions && length positions == length ts
        in all ascending pushes
 
     it "uses every entry eventually" $
       let (entries, g0) = mkEntries 1 specs (mkStdGen 42)
-          kinds = map fst (take 500 (unfoldr (Just . genTargets entries) g0))
+          kinds = map pushKind (take 500 (unfoldr (Just . genTargets entries) g0))
        in nubOrd kinds `shouldMatchList` allKinds
 
     it "gives clients targets the configured number of client ids" $
       let (entries, g0) = mkEntries 3 (TargetEntry KindClients 5 2 :| []) (mkStdGen 7)
-          ((_, ts), _) = genTargets entries g0
+          (ts, _) = genTargets entries g0
        in [length cs | TargetUserClients (_, cs) <- NE.toList ts] `shouldBe` [3, 3]
 
     it "generates 32-byte binary group ids" $
       let (entries, g0) = mkEntries 1 (TargetEntry KindEpoch 5 1 :| []) (mkStdGen 9)
-          ((_, ts), _) = genTargets entries g0
+          (ts, _) = genTargets entries g0
        in [BS.length gid.unGroupId | TargetEpoch (gid, _) <- NE.toList ts] `shouldBe` [32]
 
     it "qualifies connection targets with the local domain" $
       let (entries, g0) = mkEntries 1 (TargetEntry KindConnections 5 1 :| []) (mkStdGen 3)
-          ((_, ts), _) = genTargets entries g0
+          (ts, _) = genTargets entries g0
        in [qDomain q | TargetConnections q <- NE.toList ts] `shouldBe` [localDomain]
 
   describe "mkPayload" $

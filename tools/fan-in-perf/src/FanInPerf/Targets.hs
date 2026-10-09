@@ -14,6 +14,7 @@ module FanInPerf.Targets
     targetAt,
     genTargets,
     targetKind,
+    pushKind,
     targetKey,
     mkPayload,
     mkPush,
@@ -191,14 +192,14 @@ targetAt pool i = case pool of
 -- pool index (pools are fixed, so this is one global order, and client ids per
 -- user are ascending): the store upserts rows in target order and does not
 -- sort itself, so unsorted overlapping pushes would deadlock (40P01).
-genTargets :: (RandomGen g) => V.Vector Entry -> g -> ((TargetKind, NonEmpty Target), g)
+genTargets :: (RandomGen g) => V.Vector Entry -> g -> (NonEmpty Target, g)
 genTargets entries g0 =
   let (ei, g1) = uniformR (0, V.length entries - 1) g0
       e = entries V.! ei
       (idxs, g2) = sampleDistinct e.spec.streams e.spec.perPush g1
       -- perPush >= 1, so idxs is never empty; the fallback only satisfies the type
       targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty (sort idxs))
-   in ((e.spec.kind, targets), g2)
+   in (targets, g2)
 
 targetKind :: Target -> TargetKind
 targetKind = \case
@@ -207,6 +208,10 @@ targetKind = \case
   TargetTeam _ -> KindTeam
   TargetEpoch _ -> KindEpoch
   TargetConnections _ -> KindConnections
+
+-- | Kind of a push; all its targets share one constructor.
+pushKind :: NonEmpty Target -> TargetKind
+pushKind = targetKind . NE.head
 
 -- | Stream key as text, for tests and diagnostics.
 targetKey :: Target -> Text

@@ -37,8 +37,8 @@ writerStep ::
   StdGen ->
   IO StdGen
 writerStep doPush entries stats reportError g = do
-  -- REVIEW: Can kind not be deduced from targets?
-  let ((kind, targets), g') = genTargets entries g
+  let (targets, g') = genTargets entries g
+      kind = pushKind targets
   -- build the targets before timing so latency covers only the store call
   evaluate (forceTargets targets)
   t0 <- getMonotonicTimeNSec
