@@ -70,11 +70,7 @@ renderLogLine tty line = (if tty then clearLine else "") <> line <> "\n"
 newtype Console = Console {isTty :: Bool}
 
 newConsole :: IO Console
-newConsole = do
-  tty <- hIsTerminalDevice stdout
-  -- REVIEW: Is this the best buffering setting for our task?
-  hSetBuffering stdout (BlockBuffering Nothing)
-  pure (Console tty)
+newConsole = Console <$> hIsTerminalDevice stdout
 
 drawStatus :: Console -> Text -> IO ()
 drawStatus c line = T.putStr (renderStatusLine c.isTty line) >> hFlush stdout
