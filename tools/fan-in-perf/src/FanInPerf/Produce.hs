@@ -8,7 +8,6 @@ where
 import Control.Concurrent.Async
 import Control.Exception (AsyncException (UserInterrupt), evaluate, handleJust)
 import Data.Aeson qualified as A
-import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
 import Data.Vector qualified as V
 import FanInPerf.Metrics
@@ -30,35 +29,39 @@ data PushOutcome = PushOk | PushFailed Text
 -- | One push: generate targets, run, record. Synchronous exceptions are
 -- counted as errors so a writer never dies; async ones (cancel) propagate.
 writerStep ::
-  (NonEmpty Target -> IO PushOutcome) ->
+  (FanInPush -> IO PushOutcome) ->
+  A.Object ->
   V.Vector Entry ->
   WriterStats ->
   (Text -> IO ()) ->
   StdGen ->
   IO StdGen
-writerStep doPush entries stats reportError g = do
-  let (targets, g') = genTargets entries g
-      kind = pushKind targets
+writerStep doPush payload entries stats reportError g = do
+  let (push, g') = genPush payload entries g
   -- build the targets before timing so latency covers only the store call
-  evaluate (forceTargets targets)
+  evaluate (forceTargets push.targets)
   t0 <- getMonotonicTimeNSec
-  outcome <- either (PushFailed . T.pack . displayException) id <$> tryAny (doPush targets)
+  outcome <- either (PushFailed . T.pack . displayException) id <$> tryAny (doPush push)
   t1 <- getMonotonicTimeNSec
-  case outcome of
-    PushOk -> recordSuccess stats kind (length targets) (t1 - t0)
-    PushFailed msg -> do
-      recordError stats kind
-      reportError (kindName kind <> ": " <> msg)
+  recordOutcome push outcome t0 t1
   pure g'
   where
     -- 'Target' has strict fields, so forcing each element to WHNF is enough.
-    forceTargets :: NonEmpty Target -> ()
+    forceTargets :: [Target] -> ()
     forceTargets = foldr seq ()
 
-storePush :: Env -> A.Object -> NonEmpty Target -> IO PushOutcome
-storePush env payload targets =
+    recordOutcome push outcome t0 t1 = do
+      let kind = pushKind push
+      case outcome of
+        PushOk -> recordSuccess stats kind (length push.targets) (t1 - t0)
+        PushFailed msg -> do
+          recordError stats kind
+          reportError (kindName kind <> ": " <> msg)
+
+storePush :: Env -> FanInPush -> IO PushOutcome
+storePush env push =
   either (PushFailed . T.pack . show) (const PushOk)
-    <$> runStore env (pushViaFanIn (mkPush payload targets))
+    <$> runStore env (pushViaFanIn push)
 
 runProduce :: Console -> Env -> ProduceOptions -> IO ()
 runProduce console env opts = do
@@ -74,7 +77,7 @@ runProduce console env opts = do
         full <- isFullTBQueue errors
         unless full (writeTBQueue errors msg)
       writer (ws, g0) =
-        let loop !g = writerStep (storePush env payload) entries ws reportError g >>= loop
+        let loop !g = writerStep (storePush env) payload entries ws reportError g >>= loop
          in loop g0
   start <- getMonotonicTime
   stateRef <- newIORef (initialTickState start)

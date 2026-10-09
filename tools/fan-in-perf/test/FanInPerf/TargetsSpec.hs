@@ -16,7 +16,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 import Wire.API.MLS.Group (GroupId (..))
-import Wire.FanInNotificationsStore (Target (..))
+import Wire.FanInNotificationsStore (FanInPush (..), Target (..))
 
 spec :: Spec
 spec = do
@@ -101,10 +101,11 @@ spec = do
             case V.find ((== k) . (.spec.kind)) entries of
               Nothing -> []
               Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
-          pushes = take 200 (unfoldr (Just . genTargets entries) g0)
-          ok ts =
-            let kind = pushKind ts
-                keys = map targetKey (NE.toList ts)
+          pushes = take 200 (unfoldr (Just . genPush (mkPayload 0) entries) g0)
+          ok push =
+            let ts = push.targets
+                kind = pushKind push
+                keys = map targetKey ts
              in all ((== kind) . targetKind) ts
                   && length ts == perPushOf kind
                   && length (nubOrd keys) == length keys
@@ -116,16 +117,17 @@ spec = do
           poolKeys k = case V.find ((== k) . (.spec.kind)) entries of
             Nothing -> []
             Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
-          pushes = take 200 (unfoldr (Just . genTargets entries) g0)
-          ascending ts =
-            let kind = pushKind ts
-                positions = mapMaybe (\t -> elemIndex (targetKey t) (poolKeys kind)) (NE.toList ts)
+          pushes = take 200 (unfoldr (Just . genPush (mkPayload 0) entries) g0)
+          ascending push =
+            let ts = push.targets
+                kind = pushKind push
+                positions = mapMaybe (\t -> elemIndex (targetKey t) (poolKeys kind)) ts
              in positions == sort positions && length positions == length ts
        in all ascending pushes
 
     it "uses every entry eventually" $
       let (entries, g0) = mkEntries 1 specs (mkStdGen 42)
-          kinds = map pushKind (take 500 (unfoldr (Just . genTargets entries) g0))
+          kinds = map pushKind (take 500 (unfoldr (Just . genPush (mkPayload 0) entries) g0))
        in nubOrd kinds `shouldMatchList` allKinds
 
     it "gives clients targets the configured number of client ids" $

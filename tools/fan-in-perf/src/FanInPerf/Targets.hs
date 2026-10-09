@@ -13,11 +13,11 @@ module FanInPerf.Targets
     localDomain,
     targetAt,
     genTargets,
+    genPush,
     targetKind,
     pushKind,
     targetKey,
     mkPayload,
-    mkPush,
   )
 where
 
@@ -200,6 +200,12 @@ genTargets entries g0 =
       targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty idxs)
    in (targets, g2)
 
+-- | A random push with the given payload and 'genTargets' targets.
+genPush :: (RandomGen g) => A.Object -> V.Vector Entry -> g -> (FanInPush, g)
+genPush payload entries g =
+  let (targets, g') = genTargets entries g
+   in (mkPush payload targets, g')
+
 targetKind :: Target -> TargetKind
 targetKind = \case
   TargetUser _ -> KindUser
@@ -209,8 +215,11 @@ targetKind = \case
   TargetConnections _ -> KindConnections
 
 -- | Kind of a push; all its targets share one constructor.
-pushKind :: NonEmpty Target -> TargetKind
-pushKind = targetKind . NE.head
+pushKind :: FanInPush -> TargetKind
+pushKind push = case push.targets of
+  t : _ -> targetKind t
+  -- 'genPush' never produces a push without targets
+  [] -> minBound
 
 -- | Stream key as text, for tests and diagnostics.
 targetKey :: Target -> Text
