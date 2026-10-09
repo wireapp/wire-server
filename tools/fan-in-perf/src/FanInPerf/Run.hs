@@ -27,7 +27,7 @@ run console opts = do
         Env
           { pool,
             local = toLocalUnsafe localDomain (),
-            isolation = toIsolationLevel opts.global.isolation
+            isolation = opts.global.isolation
           }
   checkDatabase env
   case opts.command of

@@ -3,6 +3,7 @@ module FanInPerf.OptionsSpec (spec) where
 import Data.List.NonEmpty (NonEmpty (..))
 import FanInPerf.Options
 import FanInPerf.Targets (TargetEntry (..), TargetKind (..))
+import Hasql.Transaction.Sessions (IsolationLevel (..))
 import Imports
 import Options.Applicative
 import Test.Hspec

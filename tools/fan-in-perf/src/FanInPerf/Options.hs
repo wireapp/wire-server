@@ -1,6 +1,5 @@
 module FanInPerf.Options
-  ( Isolation (..),
-    GlobalOptions (..),
+  ( GlobalOptions (..),
     ProduceOptions (..),
     Command (..),
     Options (..),
@@ -11,20 +10,17 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
 import FanInPerf.Targets
+import Hasql.Transaction.Sessions (IsolationLevel (..))
 import Imports
 import Options.Applicative hiding (command)
 import Options.Applicative qualified as O
-
--- REVIEW: Do we need this extra data type?
-data Isolation = ReadCommitted | Serializable
-  deriving (Eq, Show)
 
 -- | No 'Show' instance: 'db' contains the database password.
 data GlobalOptions = GlobalOptions
   { db :: Text,
     poolSize :: Maybe Int,
     metricsPort :: Int,
-    isolation :: Isolation
+    isolation :: IsolationLevel
   }
 
 data ProduceOptions = ProduceOptions
@@ -66,7 +62,7 @@ globalParser =
     <$> strOption (long "db" <> metavar "CONNSTR" <> help "PostgreSQL connection string")
     <*> optional (option (positive maxPoolSize) (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset)"))
     <*> option port (long "metrics-port" <> metavar "PORT" <> value 9400 <> showDefault <> help "Port of the /metrics endpoint")
-    <*> option isolationReader (long "isolation" <> metavar "read-committed|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
+    <*> option isolationReader (long "isolation" <> metavar "read-committed|repeatable-read|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
 
 produceParser :: Parser ProduceOptions
 produceParser =
@@ -102,11 +98,12 @@ nonNegative hi = bounded 0 hi "an integer"
 port :: ReadM Int
 port = bounded 1 65535 "a port"
 
-isolationReader :: ReadM Isolation
+isolationReader :: ReadM IsolationLevel
 isolationReader = eitherReader $ \case
   "read-committed" -> Right ReadCommitted
+  "repeatable-read" -> Right RepeatableRead
   "serializable" -> Right Serializable
-  _ -> Left "expected read-committed or serializable"
+  _ -> Left "expected read-committed, repeatable-read or serializable"
 
 targetsReader :: ReadM (NonEmpty TargetEntry)
 targetsReader = eitherReader (parseTargetSpec . T.pack)

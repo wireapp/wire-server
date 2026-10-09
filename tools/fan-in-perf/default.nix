@@ -74,6 +74,7 @@ mkDerivation {
     containers
     hasql
     hasql-resource-pool
+    hasql-transaction
     hspec
     http-types
     imports

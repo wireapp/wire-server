@@ -4,13 +4,11 @@ module FanInPerf.Store
     runStore,
     describeUsageError,
     truncateText,
-    toIsolationLevel,
   )
 where
 
 import Data.Qualified
 import Data.Text qualified as T
-import FanInPerf.Options (Isolation (..))
 import Hasql.Pool (UsageError (..))
 import Hasql.Pool.Extended (Pool)
 import Hasql.Transaction.Sessions qualified as TxSessions
@@ -57,11 +55,6 @@ describeUsageError = \case
   AcquisitionTimeoutUsageError -> "connection pool acquisition timeout"
   -- REVIEW: Print the full error here. No need to truncate. truncateText can then be deleted.
   SessionError e -> "database session error: " <> truncateText 200 (T.pack (show e))
-
-toIsolationLevel :: Isolation -> TxSessions.IsolationLevel
-toIsolationLevel = \case
-  ReadCommitted -> TxSessions.ReadCommitted
-  Serializable -> TxSessions.Serializable
 
 truncateText :: Int -> Text -> Text
 truncateText n t = if T.length t > n then T.take n t <> "…" else t

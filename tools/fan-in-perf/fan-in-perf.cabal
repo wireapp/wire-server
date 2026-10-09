@@ -143,6 +143,7 @@ test-suite fan-in-perf-tests
     , fan-in-perf
     , hasql
     , hasql-resource-pool
+    , hasql-transaction
     , hspec
     , http-types
     , imports
