@@ -81,6 +81,7 @@ library
     FanInPerf.Stats
     FanInPerf.Store
     FanInPerf.Targets
+    FanInPerf.TargetSpecParser
     FanInPerf.Terminal
 
   build-depends:
@@ -131,6 +132,7 @@ test-suite fan-in-perf-tests
     FanInPerf.OptionsSpec
     FanInPerf.ProduceSpec
     FanInPerf.StatsSpec
+    FanInPerf.TargetSpecParserSpec
     FanInPerf.TargetsSpec
     FanInPerf.TerminalSpec
 

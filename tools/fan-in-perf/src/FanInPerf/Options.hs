@@ -9,6 +9,7 @@ where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
+import FanInPerf.TargetSpecParser (parseTargetSpec)
 import FanInPerf.Targets
 import Hasql.Transaction.Sessions (IsolationLevel (..))
 import Imports
