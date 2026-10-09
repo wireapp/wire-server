@@ -46,7 +46,7 @@ spec:
       {{- /* Legacy scheme names the socket after the FIRST listener on the port,
            so this defaults to the HTTPS section. Override via xdsListenerName
            if an externally created Gateway declares another listener first. */}}
-      name: {{ printf "%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) (include "wire-ingress.httpsSectionName" .) | quote }}
+      name: {{ printf "%s/%s/%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) .Release.Namespace (include "wire-ingress.fullname" .) (include "wire-ingress.httpsSectionName" .) | quote }}
       {{- end }}
       operation:
         op: add

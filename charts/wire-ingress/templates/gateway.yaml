@@ -1,6 +1,7 @@
 {{- if .Values.gateway.create }}
-{{- if not .Values.gateway.className }}
-{{- fail "gateway.className must be set when gateway.create is true (set it to the name of your GatewayClass, e.g. 'envoy')" }}
+{{- $placeholderPort := int .Values.gateway.listeners.placeholder.port }}
+{{- if or (eq (int .Values.gateway.listeners.https.port) $placeholderPort) (and .Values.gateway.listeners.http.enabled (eq (int .Values.gateway.listeners.http.port) $placeholderPort)) }}
+{{- fail "gateway.listeners.placeholder.port must differ from the HTTPS and enabled HTTP listener ports" }}
 {{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -16,12 +17,10 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
-  gatewayClassName: {{ .Values.gateway.className | quote }}
-  {{- $envoyProxyName := "" }}
+  gatewayClassName: {{ required "gateway.className is required when gateway.create is true" .Values.gateway.className | quote }}
+  {{- $envoyProxyName := .Values.gateway.envoyProxy.name }}
   {{- if .Values.gateway.envoyProxy.create }}
-  {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.gatewayName" .) }}
-  {{- else if .Values.gateway.envoyProxy.name }}
-  {{- $envoyProxyName = .Values.gateway.envoyProxy.name }}
+  {{- $envoyProxyName = $envoyProxyName | default (include "wire-ingress.gatewayName" .) }}
   {{- end }}
   {{- if (or .Values.gateway.infrastructure.annotations .Values.gateway.infrastructure.labels $envoyProxyName) }}
   infrastructure:
@@ -40,47 +39,19 @@ spec:
       name: {{ $envoyProxyName | quote }}
     {{- end }}
   {{- end }}
+  allowedListeners:
+    namespaces:
+      from: Same
   listeners:
-    {{- $domains := include "wire-ingress.domains" . | fromJsonArray }}
-    {{- range $domain := $domains }}
-    - name: {{ $domain.section }}
-      port: {{ $.Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "an HTTPS listener hostname is required (gateway.listeners.https.hostname for single-domain, or config.domains[].base/hostname)" $domain.hostname | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ $domain.secretName | quote }}
-            kind: Secret
-    {{- end }}
-    {{- if .Values.federator.enabled }}
-    - name: {{ include "wire-ingress.federatorSectionName" . }}
-      port: {{ .Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
-            kind: Secret
-    {{- end }}
-    {{- range .Values.gateway.extraHttpsListeners }}
-    - name: {{ required "extraHttpsListeners[].name is required" .name | quote }}
-      port: {{ $.Values.gateway.listeners.https.port }}
-      protocol: HTTPS
-      hostname: {{ required "extraHttpsListeners[].hostname is required" .hostname | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: {{ .certificateSecretName | default (include "wire-ingress.certificateSecretName" $) | quote }}
-            kind: Secret
-    {{- end }}
-    {{- if .Values.gateway.listeners.http.enabled }}
-    - name: http
-      port: {{ .Values.gateway.listeners.http.port }}
+    # Required placeholder; a separate port avoids plaintext policy conflicts.
+    - name: placeholder
+      port: {{ .Values.gateway.listeners.placeholder.port }}
       protocol: HTTP
-      {{- if .Values.gateway.listeners.http.hostname }}
-      hostname: {{ .Values.gateway.listeners.http.hostname | quote }}
-      {{- end }}
-    {{- end }}
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: DoesNotExist
 {{- end }}

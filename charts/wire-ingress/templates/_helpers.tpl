@@ -74,11 +74,6 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{- end -}}
 {{- end -}}
 
-{{/*
-Gateway listener section names. Overridable so this chart can attach to an
-externally created Gateway whose listeners are named differently. The defaults
-match the listeners rendered by gateway.yaml.
-*/}}
 {{- define "wire-ingress.httpsSectionName" -}}
 {{- .Values.gateway.listeners.https.sectionName | default "https" -}}
 {{- end -}}
@@ -98,7 +93,7 @@ so existing single-domain deployments render exactly as before.
 Multi-domain: `config.domains` is a list; the FIRST entry is the primary
 (its resources keep the un-suffixed names, and its frontend apps set their own
 CSP so no CSP is injected). Every additional entry gets a `-<name>` suffix, its
-own Gateway listener (`https-<name>`), its own certificate/secret, and — being
+own ListenerSet listener (`https-<name>`), its own certificate/secret, and — being
 an "additional ingress" — a per-domain CSP header injected on the team-settings
 route. The webapp and account-pages routes never get an injected CSP: those
 apps set multi-ingress aware headers themselves (see the httproute templates).
@@ -140,7 +135,7 @@ primary (bool), csp (bool).
     {{/*
     Additional domains cannot share the single wildcard secret created by
     secret.yaml, and no cert-manager Certificate is rendered when
-    tls.useCertManager is false. Without a per-domain tls.secretName the Gateway
+    tls.useCertManager is false. Without a per-domain tls.secretName the ListenerSet
     listener would reference a Secret that nothing ever creates, silently
     failing TLS at runtime. Fail fast instead.
     */}}
@@ -226,7 +221,7 @@ Call with a dict: {https, ssl, base, websockets (bool)}.
 {{- $csp -}}
 {{- end -}}
 
-{{/* Section policies replace Gateway policies, so both use the same TLS/ALPN settings. */}}
+{{/* Shared TLS/ALPN settings for the ListenerSet and federation policies. */}}
 {{- define "wire-ingress.downstreamTls" -}}
 {{- $tls := .Values.gateway.tls -}}
 {{- if .Values.gateway.alpn.enabled }}

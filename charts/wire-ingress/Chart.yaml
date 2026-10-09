@@ -2,3 +2,4 @@ apiVersion: v2
 description: A Helm chart for Wire server ingress using the Kubernetes Gateway API
 name: wire-ingress
 version: 0.1.0
+kubeVersion: ">=1.33.0-0"

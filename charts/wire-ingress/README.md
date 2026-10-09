@@ -14,10 +14,14 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 ## Prerequisites
 
-### Gateway API
+### Supported versions
 
-Install the [Gateway API](https://gateway-api.sigs.k8s.io/) into your cluster.
-This chart makes use of the kinds defined in the `gateway.networking.k8s.io/v1` API.
+Requires **Envoy Gateway >= 1.9** and Kubernetes **>= 1.33**.
+Envoy Gateway 1.9 supports Kubernetes **1.33–1.36** with **Gateway API 1.6.1 CRDs**,
+including `ListenerSet`. Install the [standard 1.6.1 CRD bundle](https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml)
+and the Envoy Gateway extension CRDs matching your controller version.
+The bundle version is distinct from the resource API versions: this chart uses
+`gateway.networking.k8s.io/v1` and `gateway.envoyproxy.io/v1alpha1`. See the [compatibility matrix](https://gateway.envoyproxy.io/news/releases/matrix/).
 
 You must use install it in the same namespace as the `wire-server` helm chart, otherwise references will not work.
 FUTUREWORK: Make this helm chart a subchart of `wire-server` before releasing it and remove this paragraph.
@@ -25,7 +29,8 @@ FUTUREWORK: Make this helm chart a subchart of `wire-server` before releasing it
 ### Envoy Gateway
 
 [Envoy Gateway](https://gateway.envoyproxy.io/) must be installed in the cluster before deploying
-this chart. The `EnvoyPatchPolicy` extension API must be enabled (required for federation — see
+this chart. Enable Lua (for federation certificate-header forwarding) and the
+`EnvoyPatchPolicy` extension API (required for federation — see
 [EnvoyPatchPolicy](#envoypatchpolicy)):
 
 ```yaml
@@ -33,6 +38,7 @@ config:
   envoyGateway:
     extensionApis:
       enableEnvoyPatchPolicy: true
+      enableLua: true
 ```
 
 Also make sure you've created a `GatewayClass` object with 
@@ -58,8 +64,8 @@ Add a `gateway` block to your values and review at least the following keys:
 - `gateway.className` — set to the `GatewayClass` name created during installation (see above).
 - `gateway.create` — if `false`, you must create a `Gateway` object yourself and set `gateway.name` to its name.
 - `gateway.listeners.https.hostname` — set to `*.<your-domain>`. This assumes all domains under
-  `config.dns.*` are subdomains of `<your-domain>`. If that is not the case, create your own
-  `Gateway` and set `gateway.create: false`.
+  `config.dns.*` are subdomains of `<your-domain>`. If that is not the case, add
+  listeners with `config.domains` or `gateway.extraHttpsListeners`.
 - `gateway.proxyProtocol.enabled` — set to `true` if your load balancer sends PROXY protocol headers.
 - `gateway.patchPolicies.targetGatewayClass` — depends on your setup; see [EnvoyPatchPolicy](#envoypatchpolicy).
 - `gateway.envoyProxy.create` and `gateway.manageServiceType` — depend on your setup; see the parameter table below.
@@ -91,12 +97,13 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.tls.signatureAlgorithms` | `[]` | Optional signature preferences; also affects federation client authentication. |
 | `gateway.patchPolicies.xdsNameSchemeV2` | _(unset)_ | Must match the controller's `XDSNameSchemeV2` runtime flag. Required only when `FIPS_202205_tls_profile` is on — see [xDS name scheme](#xds-name-scheme). |
 | `gateway.patchPolicies.xdsListenerName` | `""` | Legacy scheme only. Overrides the xDS listener name the FIPS patch targets, for an externally created Gateway that declares another listener first on the HTTPS port. |
-| `gateway.listeners.https.sectionName` | `https` | Name of the HTTPS listener section. Change only to match an externally created Gateway — see [External Gateways](#external-gateways). |
-| `gateway.listeners.federator.sectionName` | `federator` | Name of the federation listener section. Same reason as above. |
+| `gateway.listeners.https.sectionName` | `https` | Name of the HTTPS section in the chart-owned ListenerSet. |
+| `gateway.listeners.federator.sectionName` | `federator` | Name of the federation section in the chart-owned ListenerSet. |
 | `config.domains[].sectionName` | _(derived)_ | Per-domain listener section override for multi-ingress. Defaults to `https-<name>`; the first entry uses `gateway.listeners.https.sectionName`. |
 | `gateway.extraHttpsListeners` | `[]` | Extra named HTTPS listeners on the same port, with `hostname` and optional `certificateSecretName`; useful for admin hostnames outside the API wildcard. Attach routes explicitly and issue a matching certificate. The FIPS patch covers these listeners too. |
 | `tls.extraDnsNames` | `[]` | Additional certificate SANs for companion routes on this Gateway. |
-| `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
+| `gateway.listeners.placeholder.port` | `65535` | Port for the denied Gateway-owned listener; must differ from application listener ports. |
+| `gateway.listeners.http.enabled` | `false` | Creates the ListenerSet HTTP listener. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
 | `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set resource requests, custom service annotations, etc. |
@@ -109,7 +116,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.annotations` | `{}` | Annotations on the `Gateway` object itself, e.g. for external-dns' `gateway-httproute` source. Not propagated to the proxy Service. |
 | `gateway.infrastructure.labels` | `{}` | Labels forwarded to the resources Envoy Gateway generates. Gateway API >= v1.1. |
 | `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
-| `gateway.proxyProtocol.enabled` | `false` | Enables PROXY protocol on all listeners (via the Gateway-wide `ClientTrafficPolicy`). Required when the upstream load balancer is configured to send PROXY protocol headers. |
+| `gateway.proxyProtocol.enabled` | `false` | Enables PROXY protocol on all listeners (via the ListenerSet-wide `ClientTrafficPolicy`). Required when the upstream load balancer is configured to send PROXY protocol headers. |
 | `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
 | `gateway.patchPolicies.targetGatewayClass` | `false` | When `true`, `EnvoyPatchPolicy` targets the `GatewayClass` instead of the `Gateway`. **Required when `gateway.envoyProxy.spec.mergeGateways: true`**: with merged Gateways, policies targeting a `Gateway` are not applied — they must target the `GatewayClass`. Leave `false` for single-Gateway deployments (e.g. integration tests). |
 | `gateway.controllerNamespace` | `envoy-gateway-system` | Can be ignored, relevant only for integration tests. Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
@@ -184,19 +191,21 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 
 ### Gateway creation is optional
 
-The chart can optionally create a `Gateway` resource (controlled by `gateway.create: true`).
-When `gateway.create: false`, all `HTTPRoute` and policy resources still reference the gateway by
-name (`gateway.name`). This allows operators to share a Gateway across multiple charts or manage it
-separately.
+All application listeners and HTTPRoutes use the release's `ListenerSet`.
+Client and backend policies target that ListenerSet; federation mTLS targets its
+`federator` section. WebSocket and certificate-header policies target HTTPRoutes.
+`EnvoyPatchPolicy` targets the Gateway, or GatewayClass with merged Gateways.
 
-The default values create the Gateway. The default `gateway.name` is derived from the release name,
-so that self-referencing is consistent by default.
+The chart creates a Gateway admitting ListenerSets from the same namespace.
+Set `gateway.create: false` and `gateway.name` to use an existing Gateway in that
+namespace; it must allow ListenerSet attachment.
 
-An externally created Gateway must be in the release namespace and its listener sections must match
-`gateway.listeners.https.sectionName` and `gateway.listeners.federator.sectionName`, because
-`HTTPRoute` resources attach by section name and policies cannot cross namespaces. See
-[External Gateways](#external-gateways) for the full list, including the `FIPS_202205_tls_profile`
-case.
+Gateway API requires a Gateway-owned listener. Its placeholder denies all routes
+and uses `gateway.listeners.placeholder.port` (default `65535`). Set it to an unused
+port on this Gateway, distinct from its application listener ports, to avoid
+plaintext client-policy conflicts.
+ListenerSets sharing a Gateway also need distinct HTTP ports when using separate
+client policies. See [External Gateways](#external-gateways) for FIPS requirements.
 
 ### EnvoyProxy resource
 
@@ -229,7 +238,7 @@ one replica disables it; otherwise it uses `minAvailable: 1`. There is no separa
 
 Same-zone backends are preferred by default (`gateway.zoneAwareRouting.enabled: true`). Requires nodes
 labelled `topology.kubernetes.io/zone` and Envoy Gateway's topology injector. The WebSocket
-policy inherits this setting while retaining its disabled idle timeout.
+policy inherits these settings via `StrategicMerge` while disabling its idle timeout.
 
 `minEndpointsThreshold: 3` enables zone preference for backends with one replica in each of
 three AZs. It counts endpoints per upstream cluster across all zones, not per zone. Backend
@@ -254,7 +263,7 @@ error. Adding the FQDN as an additional domain in the route configuration allows
 both the bare hostname and the FQDN.
 
 The policy patches the `RouteConfiguration` named
-`<namespace>/<gateway>/<gateway.listeners.federator.sectionName>`. Route configuration names are
+`<namespace>/<gateway>/<namespace>/<listenerset>/<gateway.listeners.federator.sectionName>`. Route configuration names are
 per-namespace even when multiple Gateways share a single Envoy proxy, so the name is predictable
 from chart values. It is also independent of the `XDSNameSchemeV2` runtime flag — for TLS
 listeners the route config keeps the section-based name — so this policy needs no changes for
@@ -306,9 +315,9 @@ disabled — setting both fails template rendering with a clear error.
 
 ### HTTP01 certificate challenges
 
-cert-manager can complete ACME HTTP01 challenges through the Gateway using the `gatewayHTTPRoute`
-solver (cert-manager >= 1.14). The **default solver** in this chart uses `gatewayHTTPRoute` — it
-requires the HTTP listener to be enabled:
+The default solver targets the ListenerSet's `http` section. Enable
+[Gateway API support in cert-manager](https://cert-manager.io/docs/usage/gateway/)
+and the HTTP listener:
 
 ```yaml
 gateway:
@@ -354,11 +363,11 @@ federator:
 
 ---
 
-### One Gateway-wide ClientTrafficPolicy
+### One ListenerSet-wide ClientTrafficPolicy
 
 ALPN, TLS parameters and PROXY protocol are all rendered into a *single*
-`ClientTrafficPolicy` (`<gateway>-client-traffic`): policies for the same target
-conflict rather than merge. Federation's section policy replaces the Gateway
+`ClientTrafficPolicy` (`<release>-wire-ingress-client-traffic`): policies for the same target
+conflict rather than merge. Federation's section policy replaces the ListenerSet
 policy, so it repeats these settings alongside client-certificate validation.
 
 By default, explicit ALPN `[h2, http/1.1]` allows HTTP/2 even with overlapping
@@ -415,7 +424,7 @@ Requires (on the Envoy Proxy) a`extensionApis.enableEnvoyPatchPolicy: true` and 
 Gateway — which this chart may or may not have created, see
 [External Gateways](#external-gateways). `mergeGateways` and
 `patchPolicies.targetGatewayClass` are rejected: both change the generated
-listener names this patch targets. Tested with EG 1.8.3 / Envoy 1.38.3. The patch
+listener names this patch targets. The patch
 covers all TLS filter chains on the HTTPS socket, including federation and extra
 listeners. 
 
@@ -453,7 +462,7 @@ forbidden suites, protocols, groups and signatures; verify the served certificat
 chain too. Repeat after proxy upgrades and certificate renewal. A rendered Helm
 policy or a Wire-client-only test is not evidence of server-side enforcement.
 
-See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.8/tasks/extensibility/envoy-patch-policy/).
+See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.9/tasks/extensibility/envoy-patch-policy/).
 
 ##### xDS name scheme
 
@@ -462,7 +471,7 @@ naming schemes selected by the controller-wide `XDSNameSchemeV2` runtime flag:
 
 | Scheme | Listener name | Default in |
 |---|---|---|
-| Legacy | `<gateway-namespace>/<gateway-name>/<listener-section>` | EG <= 1.9 |
+| Legacy | `<gateway-namespace>/<gateway-name>/<listenerset-namespace>/<listenerset-name>/<listener-section>` | EG 1.9 |
 | V2 | `<protocol>-<port>`, e.g. `tcp-443` | EG >= 1.10 |
 
 `gateway.patchPolicies.xdsNameSchemeV2` must state which one the controller uses.
@@ -486,8 +495,8 @@ migration for EG 1.10.
 
 Under the legacy scheme the socket is named after the **first** listener on the
 port, not the one you might expect: EG builds one xDS listener per address+port
-and the first Gateway listener it encounters supplies the name. For a Gateway
-created by this chart that is `gateway.listeners.https.sectionName`. If an
+and the first listener it encounters supplies the name. For this chart's
+ListenerSet that is `gateway.listeners.https.sectionName`. If an
 external Gateway declares a different listener first, set
 `gateway.patchPolicies.xdsListenerName` to the name from the `egctl` dump above.
 
@@ -498,37 +507,25 @@ patch requires this chart to own the Gateway; it attaches by name. The
 prerequisites are:
 
 - **Same namespace.** `EnvoyPatchPolicy.spec.targetRef` is a
-  `LocalPolicyTargetReference` and `ClientTrafficPolicy.spec.targetRefs` a
-  `LocalPolicyTargetReferenceWithSectionName` — neither has a `namespace` field
-  (Gateway API dropped it in v1.1). A policy only affects a target in its own
-  namespace. This is not FIPS-specific: every HTTPRoute in this chart pins
-  `parentRefs[].namespace` to the release namespace, so a Gateway elsewhere
-  receives no routes at all.
-- **Matching listener section names.** HTTPRoutes attach by section name. Either
-  name the external listeners `https` and `federator`, or point
-  `gateway.listeners.https.sectionName` / `gateway.listeners.federator.sectionName`
-  at whatever they are called.
-- **`allowedRoutes` admitting this namespace** on those listeners.
+  `LocalPolicyTargetReference` and has no `namespace` field. The chart's
+  ListenerSet also references the Gateway in the release namespace.
+- **`allowedListeners` admitting this namespace** on the Gateway. Application
+  listeners remain chart-managed in the ListenerSet, including their section names.
 - **This chart's `ClientTrafficPolicy` must win.** The patch adds a key inside
   `common_tls_context.tls_params`, which EG emits only when a
   `ClientTrafficPolicy` sets TLS parameters. Policies targeting the same object
-  do not merge — the oldest wins and the other is `Conflicted`. If the cluster
-  operator already attached one to the shared Gateway, ours is ignored,
-  `tls_params` is absent, and the patch matches nothing. Verify with
+  do not merge — the oldest wins and the other is `Conflicted`. If another policy
+  already targets this ListenerSet, ours can be ignored, `tls_params` is absent,
+  and the patch matches nothing. Verify with
   `kubectl get clienttrafficpolicy -n <ns> -o wide`.
-
-Because of the routing constraint above, "externally created" in practice means
-the same Gateway shape this chart would have rendered, provisioned by Terraform
-or a cluster operator instead of Helm.
-
 
 ### Federator mTLS uses Envoy Gateway policies
 
 Federator mTLS is implemented using:
 
-- `ClientTrafficPolicy` to configure TLS settings on the federator `Gateway` listener (client
+- `ClientTrafficPolicy` to configure TLS settings on the federator `ListenerSet` section (client
   certificate validation, verify depth)
-- A separate `Gateway` listener for the federator so that mTLS settings apply only to that listener
+- A separate listener in the same `ListenerSet` for the federator so that mTLS settings apply only to that listener
 - `X-SSL-Certificate` header forwarding is handled via an `EnvoyExtensionPolicy` with an inline
   Lua filter that reads the URL-encoded PEM client certificate from the connection and injects it
   as a request header, matching nginx's `$ssl_client_escaped_cert` behaviour
