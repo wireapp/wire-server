@@ -336,6 +336,24 @@ getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"
   submit "GET" req
 
+postFederationAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
+postFederationAPIVersion domain = do
+  req <- baseRequest domain Brig Unversioned "/federation/api-version"
+  origin <- objDomain domain
+  submit "POST" $ req & addHeader "Wire-Origin-Domain" origin & addJSON ()
+
+postFederationAPIVersionWithVersion :: (HasCallStack, MakesValue domain) => domain -> Int -> App Response
+postFederationAPIVersionWithVersion domain version = do
+  req <- rawBaseRequest domain Brig Unversioned "/federation/api-version"
+  origin <- objDomain domain
+  submit "POST" $ req & addHeader "Wire-Origin-Domain" origin & addHeader "X-Wire-API-Version" (show version) & addJSON ()
+
+postFederationAPIVersionAtPathVersion :: (HasCallStack, MakesValue domain) => domain -> Int -> App Response
+postFederationAPIVersionAtPathVersion domain version = do
+  req <- rawBaseRequest domain Brig (ExplicitVersion version) "/federation/api-version"
+  origin <- objDomain domain
+  submit "POST" $ req & addHeader "Wire-Origin-Domain" origin & addJSON ()
+
 postConnection ::
   ( HasCallStack,
     MakesValue userFrom,

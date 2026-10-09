@@ -173,6 +173,29 @@ Setting up these real, but in-memory internal and “fake” external dependenci
 deploy/dockerephemeral/run.sh
 ```
 
+To start the pinned federation backends used by the local federation tests,
+enable the corresponding versions before starting the containers:
+
+```bash
+export ENABLE_FEDERATION_V0=1
+export ENABLE_FEDERATION_V1=1
+export ENABLE_FEDERATION_V2=1
+export ENABLE_FEDERATION_V3=1
+./deploy/dockerephemeral/run.sh
+```
+
+The same variables must be set when running the integration tests. For
+example, after the containers are running, use the following command to build
+and run the integration package with all V0--V3 federation test cases enabled:
+
+```bash
+ENABLE_FEDERATION_V0=1 \
+ENABLE_FEDERATION_V1=1 \
+ENABLE_FEDERATION_V2=1 \
+ENABLE_FEDERATION_V3=1 \
+make ci-safe package=integration
+```
+
 Also make sure your system is able to resolve the fully qualified domain `localhost.` (note the trailing dot). This is surprisingly not trivial, because of limitations in how libc parses `/etc/hosts`. You can check that with, for example, `ping localhost.`. If you get a name resolution error, you need to add `localhost.` explicitly to your `/etc/hosts` file.
 
 After all containers are up you can use these Makefile targets to run the tests locally:

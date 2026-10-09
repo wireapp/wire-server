@@ -13,6 +13,9 @@ tags:
   integration: false
   proxy: false
 
+apiVersions:
+  disabledFederationAPIVersions: [development]
+
 galley:
   replicaCount: 3
   image:

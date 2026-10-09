@@ -42,6 +42,7 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
+import Data.Set qualified as Set
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
@@ -97,7 +98,10 @@ federationSitemap ::
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
-  Named @"api-version" (\_ _ -> pure versionInfo)
+  ( Named @"api-version" $ \_ _ -> do
+      disabled <- asks (.disabledFederationVersions)
+      pure $ versionInfoFor (supportedVersions Set.\\ disabled)
+  )
     :<|> Named @"get-user-by-handle" getUserByHandle
     :<|> Named @"get-users-by-ids" getUsersByIds
     :<|> Named @"claim-prekey" claimPrekey

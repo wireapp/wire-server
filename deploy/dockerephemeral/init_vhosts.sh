@@ -22,5 +22,6 @@ create_vhost d3.example.com
 create_vhost federation-v0
 create_vhost federation-v1
 create_vhost federation-v2
+create_vhost federation-v3
 
 echo 'RabbitMQ resources created successfully!'

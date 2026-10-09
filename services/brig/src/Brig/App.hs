@@ -71,6 +71,7 @@ module Brig.App
     keyPackageLocalLockLens,
     rabbitmqChannelLens,
     disabledVersionsLens,
+    disabledFederationVersionsLens,
     enableSFTFederationLens,
     rateLimitEnvLens,
     amqpJobsPublisherChannelLens,
@@ -164,6 +165,7 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Util.SuffixNamer
 import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
@@ -224,6 +226,7 @@ data Env = Env
     keyPackageLocalLock :: MVar (),
     rabbitmqChannel :: MVar Q.Channel,
     disabledVersions :: Set Version,
+    disabledFederationVersions :: Set Federation.Version,
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
     amqpJobsPublisherChannel :: MVar Q.Channel,
@@ -297,6 +300,7 @@ newEnv opts = do
   kpLock <- newMVar ()
   rabbitChan <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
+      allDisabledFederationVersions = foldMap Federation.expandVersionExp opts.settings.disabledFederationAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
@@ -342,6 +346,7 @@ newEnv opts = do
         keyPackageLocalLock = kpLock,
         rabbitmqChannel = rabbitChan,
         disabledVersions = allDisabledVersions,
+        disabledFederationVersions = allDisabledFederationVersions,
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
         amqpJobsPublisherChannel,

@@ -34,6 +34,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import qualified Wire.API.Federation.Version as Federation
 
 -- Note [Asset streaming]
 -- ~~~~~~~~~~~~~~~~~~~~~~
@@ -86,13 +87,15 @@ mkFederatorClientEnv remote = do
       >>= maybe (throwE federationNotConfigured) pure
   mgr <- asks (.http2Manager)
   rid <- asks (.requestId)
+  disabled <- asks (.options.settings.disabledFederationAPIVersions)
   pure
     FederatorClientEnv
       { ceOriginDomain = tDomain loc,
         ceTargetDomain = tDomain remote,
         ceFederator = endpoint,
         ceHttp2Manager = mgr,
-        ceOriginRequestId = rid
+        ceOriginRequestId = rid,
+        ceLocalVersions = Federation.enabledFederationVersions disabled
       }
 
 executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a

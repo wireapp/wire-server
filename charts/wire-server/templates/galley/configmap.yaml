@@ -103,6 +103,7 @@ data:
           ecdsa_secp521r1_sha512: "/etc/wire/galley/secrets/removal_ecdsa_secp521r1_sha512.pem"
       {{- end }}
       disabledAPIVersions: {{ toJson .settings.disabledAPIVersions }}
+      disabledFederationAPIVersions: {{ toJson $.Values.apiVersions.disabledFederationAPIVersions }}
       {{- if .settings.featureFlags }}
       {{- if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
