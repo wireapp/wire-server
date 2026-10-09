@@ -16,7 +16,7 @@ import Imports
 import PostgresqlConnectionString qualified
 import System.Exit (ExitCode (..), exitWith)
 import UnliftIO.Exception (tryAny)
-import Wire.FanInNotificationsAdmin (ping, truncateAll)
+import Wire.FanInNotificationsAdmin (MigrateResult (..), migrate, ping, truncateAll)
 
 run :: Console -> Options -> IO ()
 run console opts = do
@@ -32,6 +32,11 @@ run console opts = do
           }
   checkDatabase env
   case opts.command of
+    Migrate ->
+      runStore env migrate >>= \case
+        Left e -> abort ("migrate failed: " <> T.pack (show e))
+        Right Migrated -> printLine console "created fan-in notification tables"
+        Right AlreadyMigrated -> printLine console "fan-in notification tables already exist"
     Reset ->
       runStore env truncateAll
         >>= either
@@ -52,6 +57,7 @@ checkDatabase env =
 
 defaultPoolSize :: Command -> Int
 defaultPoolSize = \case
+  Migrate -> 1
   Reset -> 1
   Produce p -> p.writers
 

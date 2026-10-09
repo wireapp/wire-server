@@ -66,6 +66,9 @@ spec = do
     o.command
       `shouldBe` Produce (ProduceOptions 4 (TargetConfig KindUser 100 5 :| []) 2 64 (Just 30) 0 (Just (-42)))
 
+  it "parses migrate" $
+    fmap (.command) (parse ["--db", "x", "migrate"]) `shouldBe` Just Migrate
+
   it "parses reset" $
     fmap (.command) (parse ["--db", "x", "reset"]) `shouldBe` Just Reset
 

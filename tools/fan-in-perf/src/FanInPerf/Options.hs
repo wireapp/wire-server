@@ -35,7 +35,7 @@ data ProduceOptions = ProduceOptions
   }
   deriving (Eq, Show)
 
-data Command = Reset | Produce ProduceOptions
+data Command = Migrate | Reset | Produce ProduceOptions
   deriving (Eq, Show)
 
 data Options = Options
@@ -54,7 +54,8 @@ optionsParser =
   Options
     <$> globalParser
     <*> hsubparser
-      ( O.command "reset" (info (pure Reset) (progDesc "Truncate all fan-in notification tables"))
+      ( O.command "migrate" (info (pure Migrate) (progDesc "Create the fan-in notification tables (idempotent)"))
+          <> O.command "reset" (info (pure Reset) (progDesc "Truncate all fan-in notification tables"))
           <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
       )
 

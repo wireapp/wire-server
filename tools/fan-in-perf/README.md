@@ -4,6 +4,7 @@ Benchmarks the notification fan-in PostgreSQL store (WPB-26288) through
 `Wire.FanInNotificationsStore`. Design: `docs/superpowers/specs/2026-10-08-fan-in-perf-design.md`.
 
 ```sh
+fan-in-perf --db "postgresql://wire-server:posty-the-gres@localhost:5432/backendA" migrate
 fan-in-perf --db "postgresql://wire-server:posty-the-gres@localhost:5432/backendA" reset
 fan-in-perf --db "postgresql://wire-server:posty-the-gres@localhost:5432/backendA" \
   produce --writers 32 --targets user:100000x20,team:10,epoch:1000 --duration 60
