@@ -41,7 +41,29 @@ spec = do
       wss <- replicateM 8 newWriterStats
       forConcurrently_ wss $ \ws -> replicateM_ 10000 (recordSuccess ws KindUser 1 500)
       s <- sumSnapshots <$> traverse readSnapshot wss
-      totalPushes s `shouldBe` 80000
+      (totalPushes s, totalTargets s, VU.sum (latencyBuckets s)) `shouldBe` (80000, 80000, 80000)
+
+    it "sumSnapshots adds kinds present in only one snapshot" $ do
+      a <- newWriterStats
+      b <- newWriterStats
+      recordSuccess a KindUser 2 1000
+      recordSuccess b KindTeam 3 1000
+      recordError b KindEpoch
+      s <- sumSnapshots <$> traverse readSnapshot [a, b]
+      (pushesOf KindUser s, pushesOf KindTeam s, targetsOf KindTeam s, errorsOf KindEpoch s, VU.sum (latencyBuckets s))
+        `shouldBe` (1, 1, 3, 1, 2)
+
+    it "diffSnapshot subtracts per kind, including kinds absent from the old snapshot" $ do
+      old <- newWriterStats
+      recordSuccess old KindUser 1 1000
+      s0 <- readSnapshot old
+      recordSuccess old KindUser 3 1000
+      recordSuccess old KindTeam 2 1000
+      recordError old KindEpoch
+      s1 <- readSnapshot old
+      let d = diffSnapshot s1 s0
+      (pushesOf KindUser d, targetsOf KindUser d, pushesOf KindTeam d, errorsOf KindEpoch d, VU.sum (latencyBuckets d))
+        `shouldBe` (1, 3, 1, 1, 2)
 
   describe "tick" $ do
     let mkTotal pushes errs = do

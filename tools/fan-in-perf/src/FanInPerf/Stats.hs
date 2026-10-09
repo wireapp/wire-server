@@ -1,10 +1,12 @@
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-}
-
--- | Lock-free statistics. Every writer thread owns one 'WriterStats' and is
--- its only writer; the ticker thread reads all of them. Counters live in a
--- pinned, 64-byte aligned 'MutablePrimArray' padded to whole cache lines, so
--- writers never share a cache line and recording never allocates.
+-- | Statistics without contention between writers. Every writer thread owns one
+-- 'WriterStats' (an 'IORef' holding a pure 'Snapshot') and is its only writer;
+-- the ticker thread reads all of them and sums the snapshots.
+--
+-- Both sides use the atomic 'IORef' operations ('atomicModifyIORef'') on
+-- purpose: they act as memory barriers, so a snapshot published by a writer is
+-- fully visible to the ticker on other cores. Plain 'readIORef' / 'writeIORef'
+-- give no such ordering guarantee. The cost is irrelevant here (uncontended;
+-- the ticker reads once per second).
 module FanInPerf.Stats
   ( WriterStats,
     newWriterStats,
@@ -34,97 +36,93 @@ module FanInPerf.Stats
 where
 
 import Data.Bits (countLeadingZeros)
-import Data.Primitive.ByteArray (MutableByteArray (..), newAlignedPinnedByteArray)
-import Data.Primitive.PrimArray (MutablePrimArray (..), setPrimArray)
+import Data.Map.Strict qualified as Map
 import Data.Vector.Unboxed qualified as VU
-import FanInPerf.Targets (TargetKind, allKinds)
-import GHC.Exts (Int (I#), RealWorld, atomicReadIntArray#, fetchAddIntArray#)
-import GHC.IO (IO (IO))
+import FanInPerf.Targets (TargetKind)
 import Imports
-
-numKinds :: Int
-numKinds = length allKinds
 
 -- | Bucket @b@ holds latencies in @[2^b, 2^(b+1))@ ns: 1 ns .. ~18 min.
 numBuckets :: Int
 numBuckets = 40
 
-slotPushes, slotTargets, slotErrors :: TargetKind -> Int
-slotPushes k = fromEnum k
-slotTargets k = numKinds + fromEnum k
-slotErrors k = 2 * numKinds + fromEnum k
-
-slotBucket :: Int -> Int
-slotBucket b = 3 * numKinds + b
-
-numSlots :: Int
-numSlots = 3 * numKinds + numBuckets
-
--- | Whole cache lines (8 Ints each) plus one spare line.
-allocatedSlots :: Int
-allocatedSlots = (numSlots `div` 8 + 2) * 8
-
-newtype WriterStats = WriterStats (MutablePrimArray RealWorld Int)
-
-newWriterStats :: IO WriterStats
-newWriterStats = do
-  MutableByteArray mba <- newAlignedPinnedByteArray (allocatedSlots * 8) 64
-  let arr = MutablePrimArray mba
-  setPrimArray arr 0 allocatedSlots 0
-  pure (WriterStats arr)
-
--- primitive-0.9 only offers atomics on PrimVar, so use the primops directly.
-fetchAddSlot :: MutablePrimArray RealWorld Int -> Int -> Int -> IO ()
-fetchAddSlot (MutablePrimArray mba) (I# i) (I# n) =
-  IO $ \s -> case fetchAddIntArray# mba i n s of
-    (# s', _ #) -> (# s', () #)
-
-atomicReadSlot :: MutablePrimArray RealWorld Int -> Int -> IO Int
-atomicReadSlot (MutablePrimArray mba) (I# i) =
-  IO $ \s -> case atomicReadIntArray# mba i s of
-    (# s', r #) -> (# s', I# r #)
-
-recordSuccess :: WriterStats -> TargetKind -> Int -> Word64 -> IO ()
-recordSuccess (WriterStats a) k targets latencyNs = do
-  fetchAddSlot a (slotPushes k) 1
-  fetchAddSlot a (slotTargets k) targets
-  fetchAddSlot a (slotBucket (bucketIndex latencyNs)) 1
-
-recordError :: WriterStats -> TargetKind -> IO ()
-recordError (WriterStats a) k = fetchAddSlot a (slotErrors k) 1
-
--- | Cells are read one by one; a snapshot may be off by one push between
--- cells, which is irrelevant at one-second granularity.
-newtype Snapshot = Snapshot (VU.Vector Int)
+-- | Counters per target kind (absent = 0) and a latency histogram.
+data Snapshot = Snapshot
+  { pushes :: !(Map TargetKind Int),
+    targets :: !(Map TargetKind Int),
+    errors :: !(Map TargetKind Int),
+    latency :: !(VU.Vector Int)
+  }
   deriving (Eq, Show)
 
-emptySnapshot :: Snapshot
-emptySnapshot = Snapshot (VU.replicate numSlots 0)
+newtype WriterStats = WriterStats (IORef Snapshot)
 
+emptySnapshot :: Snapshot
+emptySnapshot = Snapshot mempty mempty mempty (VU.replicate numBuckets 0)
+
+newWriterStats :: IO WriterStats
+newWriterStats = WriterStats <$> newIORef emptySnapshot
+
+-- | Atomic (memory barrier sensitive) update; the strict 'Snapshot' is fully
+-- evaluated when published, so no thunks build up.
+modifyStats :: WriterStats -> (Snapshot -> Snapshot) -> IO ()
+modifyStats (WriterStats r) f = atomicModifyIORef' r (\s -> (f s, ()))
+
+bump :: TargetKind -> Int -> Map TargetKind Int -> Map TargetKind Int
+bump k n = Map.insertWith (+) k n
+
+recordSuccess :: WriterStats -> TargetKind -> Int -> Word64 -> IO ()
+recordSuccess stats k n latencyNs =
+  modifyStats stats $ \s ->
+    s
+      { pushes = bump k 1 s.pushes,
+        targets = bump k n s.targets,
+        latency = VU.accum (+) s.latency [(bucketIndex latencyNs, 1)]
+      }
+
+recordError :: WriterStats -> TargetKind -> IO ()
+recordError stats k = modifyStats stats $ \s -> s {errors = bump k 1 s.errors}
+
+-- | An identity atomic read-modify-write rather than 'readIORef': it is a full
+-- barrier, so the ticker never observes a stale snapshot from another core.
+-- (Lock-free, but it can make a concurrent writer's CAS retry once.)
 readSnapshot :: WriterStats -> IO Snapshot
-readSnapshot (WriterStats a) = Snapshot <$> VU.generateM numSlots (atomicReadSlot a)
+readSnapshot (WriterStats r) = atomicModifyIORef' r (\s -> (s, s))
 
 sumSnapshots :: [Snapshot] -> Snapshot
-sumSnapshots = foldl' (\(Snapshot x) (Snapshot y) -> Snapshot (VU.zipWith (+) x y)) emptySnapshot
+sumSnapshots = foldl' addSnapshot emptySnapshot
+  where
+    addSnapshot x y =
+      Snapshot
+        { pushes = Map.unionWith (+) x.pushes y.pushes,
+          targets = Map.unionWith (+) x.targets y.targets,
+          errors = Map.unionWith (+) x.errors y.errors,
+          latency = VU.zipWith (+) x.latency y.latency
+        }
 
 diffSnapshot :: Snapshot -> Snapshot -> Snapshot
-diffSnapshot (Snapshot new) (Snapshot old) = Snapshot (VU.zipWith (-) new old)
-
-slot :: Int -> Snapshot -> Int
-slot i (Snapshot v) = v VU.! i
+diffSnapshot new old =
+  Snapshot
+    { pushes = diffMap new.pushes old.pushes,
+      targets = diffMap new.targets old.targets,
+      errors = diffMap new.errors old.errors,
+      latency = VU.zipWith (-) new.latency old.latency
+    }
+  where
+    -- absent key = 0, so a key in only one of the maps still diffs correctly
+    diffMap new' old' = Map.unionWith (+) new' (negate <$> old')
 
 pushesOf, targetsOf, errorsOf :: TargetKind -> Snapshot -> Int
-pushesOf = slot . slotPushes
-targetsOf = slot . slotTargets
-errorsOf = slot . slotErrors
+pushesOf k s = Map.findWithDefault 0 k s.pushes
+targetsOf k s = Map.findWithDefault 0 k s.targets
+errorsOf k s = Map.findWithDefault 0 k s.errors
 
 totalPushes, totalTargets, totalErrors :: Snapshot -> Int
-totalPushes s = sum [pushesOf k s | k <- allKinds]
-totalTargets s = sum [targetsOf k s | k <- allKinds]
-totalErrors s = sum [errorsOf k s | k <- allKinds]
+totalPushes s = sum s.pushes
+totalTargets s = sum s.targets
+totalErrors s = sum s.errors
 
 latencyBuckets :: Snapshot -> VU.Vector Int
-latencyBuckets (Snapshot v) = VU.slice (slotBucket 0) numBuckets v
+latencyBuckets s = s.latency
 
 bucketIndex :: Word64 -> Int
 bucketIndex ns = min (numBuckets - 1) (63 - countLeadingZeros (max 1 ns))

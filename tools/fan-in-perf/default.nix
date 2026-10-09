@@ -20,7 +20,6 @@
 , optparse-applicative
 , polysemy
 , postgresql-connection-string
-, primitive
 , prometheus-client
 , QuickCheck
 , random
@@ -54,7 +53,6 @@ mkDerivation {
     optparse-applicative
     polysemy
     postgresql-connection-string
-    primitive
     prometheus-client
     random
     text

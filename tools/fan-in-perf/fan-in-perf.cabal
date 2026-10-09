@@ -97,7 +97,6 @@ library
     , optparse-applicative
     , polysemy
     , postgresql-connection-string
-    , primitive
     , prometheus-client
     , random
     , text
