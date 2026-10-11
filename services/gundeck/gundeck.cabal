@@ -37,6 +37,11 @@ library
     Gundeck.Push.Native
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
+    Gundeck.Push.Web
+    Gundeck.Push.Web.Crypto
+    Gundeck.Push.Web.Runner
+    Gundeck.Push.Web.Serialise
+    Gundeck.Push.Web.Ssrf
     Gundeck.Push.Websocket
     Gundeck.React
     Gundeck.Redis
@@ -121,11 +126,13 @@ library
     , attoparsec                            >=0.10
     , auto-update                           >=0.1
     , base                                  >=4.7     && <5
+    , base64-bytestring                     >=1.0
     , bilge                                 >=0.21
     , bytestring                            >=0.9
     , bytestring-conversion                 >=0.2
     , cassandra-util                        >=0.16.2
     , containers                            >=0.5
+    , crypton
     , crypton-x509-store
     , data-timeout
     , errors                                >=2.0
@@ -133,6 +140,7 @@ library
     , extended
     , extra                                 >=1.1
     , foldl
+    , hasql-pool
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -142,10 +150,12 @@ library
     , imports
     , lens                                  >=4.4
     , lens-aeson                            >=1.0
+    , memory
     , metrics-core                          >=0.2.1
     , metrics-wai
     , mtl                                   >=2.2
     , network-uri                           >=2.6
+    , polysemy
     , prometheus-client
     , psqueues                              >=0.2.2
     , raw-strings-qq
@@ -163,6 +173,7 @@ library
     , types-common-aws
     , unliftio                              >=0.2
     , unordered-containers                  >=0.2
+    , uri-bytestring                        >=0.3.2.2
     , uuid                                  >=1.3
     , wai                                   >=3.2
     , wai-extra                             >=3.0
@@ -170,6 +181,7 @@ library
     , wai-utilities                         >=0.16
     , wire-api
     , wire-otel
+    , wire-subsystems
     , yaml                                  >=0.8
 
   default-language:   GHC2021
@@ -481,6 +493,13 @@ test-suite gundeck-tests
     Paths_gundeck
     Push
     ThreadBudget
+    Vapid
+    WebPushCrypto
+    WebPushDispatch
+    WebPushHandlers
+    WebPushRunner
+    WebPushSerialise
+    WebPushSsrf
 
   hs-source-dirs:     test/unit
   default-extensions:
@@ -538,13 +557,20 @@ test-suite gundeck-tests
     , amqp
     , async
     , base
+    , base64-bytestring
+    , bytestring
     , bytestring-conversion
     , containers
+    , crypton
     , exceptions
+    , extended
     , gundeck
+    , hasql-pool
     , HsOpenSSL
+    , http-types
     , imports
     , lens
+    , memory
     , MonadRandom
     , mtl
     , multiset
@@ -559,9 +585,11 @@ test-suite gundeck-tests
     , tasty-quickcheck
     , text
     , these
+    , time
     , tinylog
     , types-common
     , wire-api
+    , wire-subsystems
 
   default-language:   GHC2021
 

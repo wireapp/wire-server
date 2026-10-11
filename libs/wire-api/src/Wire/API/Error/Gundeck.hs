@@ -29,6 +29,9 @@ data GundeckError
   | AddTokenErrorApnsVoipNotSupported
   | TokenNotFound
   | NotificationNotFound
+  | WebPushErrorInvalid
+  | WebPushSubscriptionNotFound
+  | WebPushErrorTooMany
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GundeckError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -48,3 +51,9 @@ type instance MapError 'AddTokenErrorApnsVoipNotSupported = 'StaticError 400 "ap
 type instance MapError 'TokenNotFound = 'StaticError 404 "not-found" "Push token not found"
 
 type instance MapError 'NotificationNotFound = 'StaticError 404 "not-found" "Some notifications not found"
+
+type instance MapError 'WebPushErrorInvalid = 'StaticError 400 "invalid-web-push-subscription" "Invalid web push subscription"
+
+type instance MapError 'WebPushSubscriptionNotFound = 'StaticError 404 "not-found" "Web push subscription not found"
+
+type instance MapError 'WebPushErrorTooMany = 'StaticError 413 "too-many-web-push-subscriptions" "Too many web push subscriptions"
