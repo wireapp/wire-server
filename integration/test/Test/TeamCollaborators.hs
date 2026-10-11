@@ -17,6 +17,8 @@
 
 module Test.TeamCollaborators where
 
+import API.Brig
+import API.Common
 import API.Galley
 import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra
@@ -24,9 +26,13 @@ import Notifications (isConvLeaveNotif, isTeamCollaboratorAddedNotif, isTeamColl
 import SetupHelpers
 import Testlib.Prelude
 
-testCreateTeamCollaborator :: (HasCallStack) => App ()
-testCreateTeamCollaborator = do
+testCrudTeamCollaborator :: (HasCallStack) => App ()
+testCrudTeamCollaborator = do
   (owner, team, [alice]) <- createTeam OwnDomain 2
+
+  ownerEmail <- owner %. "email" & asString
+  loginResp <- login owner ownerEmail defPassword >>= getJSON 200
+  ownerAuthHeader <- asString $ loginResp %. "access_token"
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
   user <- randomUser OwnDomain def
@@ -51,12 +57,35 @@ testCreateTeamCollaborator = do
     awaitMatch isTeamCollaboratorAddedNotif wsOwner >>= checkEvent
     assertNoEvent 1 wsAlice
 
-  bindResponse (getAllTeamCollaborators owner team) $ \resp -> do
+  bindResponse (getAllTeamCollaborators owner team ownerAuthHeader) $ \resp -> do
     resp.status `shouldMatchInt` 200
     res <- (resp.json & asList) <&> assertOne
     res %. "user" `shouldMatch` userId
     res %. "team" `shouldMatch` team
     res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]
+
+  -- TODO: update, assert events, get all collabs and check that it worked.
+  -- TODO: always get team member, too.
+
+  withWebSockets [owner, alice] $ \[wsOwner, wsAlice] -> do
+    removeTeamCollaborator
+      owner
+      team
+      user
+      >>= assertSuccess
+
+    let checkEvent :: (MakesValue a) => a -> App ()
+        checkEvent evt = do
+          evt %. "payload.0.data.user" `shouldMatch` userId
+          evt %. "payload.0.team" `shouldMatch` team
+          evt %. "transient" `shouldMatch` {- TODO: this is actually transient?! -} True
+
+    forM_ [wsOwner, wsAlice] $ \mem ->
+      awaitMatch isTeamMemberLeaveNotif mem >>= checkEvent
+
+  bindResponse (getAllTeamCollaborators owner team ownerAuthHeader) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    asList resp.json `shouldMatch` ([] :: [()])
 
 testTeamCollaboratorEndpointsForbiddenForOtherTeams :: (HasCallStack) => App ()
 testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
@@ -74,7 +103,7 @@ testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
     ]
     >>= assertStatus 403
 
-  getAllTeamCollaborators owner team2 >>= assertStatus 403
+  getAllTeamCollaborators owner team2 undefined >>= assertStatus 403
 
 testCreateTeamCollaboratorPostTwice :: (HasCallStack) => App ()
 testCreateTeamCollaboratorPostTwice = do
