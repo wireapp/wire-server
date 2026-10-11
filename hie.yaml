@@ -1,2 +1,5 @@
 cradle:
-  cabal: {}
+  cabal:
+    # hls performance: make sure that components are not loaded
+    # lazily, which may trigger redundant re-loads.
+    component: all
