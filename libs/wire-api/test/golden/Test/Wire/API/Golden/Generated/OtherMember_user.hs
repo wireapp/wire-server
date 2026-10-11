@@ -25,6 +25,7 @@ import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation (OtherMember (..))
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
+import Wire.API.User
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -33,6 +34,7 @@ testObject_OtherMember_user_1 :: OtherMember
 testObject_OtherMember_user_1 =
   OtherMember
     { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000008-0000-0009-0000-000f00000001"))) domain,
+      omType = UserTypeRegular,
       omService =
         Just
           ( ServiceRef
@@ -47,6 +49,7 @@ testObject_OtherMember_user_2 :: OtherMember
 testObject_OtherMember_user_2 =
   OtherMember
     { omQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-000c-0000-001c0000000f"))) domain,
+      omType = UserTypeRegular,
       omService = Nothing,
       omConvRoleName = fromJust (parseRoleName "y9z93u3kbwt873eghekqgmy0ho8hgrtlo3f5e6nq9icedmjbzx7ao0ycr5_gyunq4uuw")
     }

@@ -12,7 +12,8 @@
                 "id": "00000001-0000-0001-0000-000000000001",
                 "provider": "00000000-0000-0001-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "jjul6e4r5t730pq",
@@ -25,7 +26,8 @@
                 "id": "00000001-0000-0001-0000-000000000000",
                 "provider": "00000000-0000-0000-0000-000000000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "k3bw4yhyumit9o1lpk7iy9ogve8u6nznowc1alk3x0bdl1uyaqrw_efoeypetjmwrh_g8nrjs05p5tqbxh4owg26um942kwd3dm4j284ainzekcumltvybeiy_6h_",
@@ -38,7 +40,8 @@
                 "id": "00000001-0000-0000-0000-000100000000",
                 "provider": "00000001-0000-0001-0000-000000000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "bl59s90cn3twutjvl959knjlt",
@@ -47,7 +50,8 @@
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0000-0000-000100000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "han76ra8y4b7bhu9ozk0100nya3m2v1zsjsxp6oyjop06elopq7x87b5dxp808_6sa856be5qemzd2ut0nksn22udjbktkyz436b2x9qsw8_8tjj1lon9ph9",
@@ -60,7 +64,8 @@
                 "id": "00000001-0000-0001-0000-000000000000",
                 "provider": "00000000-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         }
     ],
     "name": "ᡩy\u0003𨼞K"

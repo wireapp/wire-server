@@ -8,7 +8,8 @@
                 "domain": "golden.example.com",
                 "id": "00000001-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "42x9zfnob1_hgp1rg64rvfts9msejhx35dpnbmxdl57vyzlp619mrjmi32hce89_lw1j5glj3hx64p7wvbc8mz8riemi",
@@ -17,7 +18,8 @@
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0001-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "ro15_31l0ltsuoq8ifvlnhmhb",
@@ -30,7 +32,8 @@
                 "id": "00000001-0000-0000-0000-000000000001",
                 "provider": "00000000-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         }
     ],
     "name": "n깨"
