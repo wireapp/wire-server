@@ -21,7 +21,7 @@ import Text.Printf (printf)
 groupThousands :: Int -> Text
 groupThousands n
   | n < 0 = "-" <> groupThousands (negate n)
-  | otherwise = T.intercalate " " . reverse . map T.reverse . T.chunksOf 3 . T.reverse . T.pack $ show n
+  | otherwise = T.intercalate "," . reverse . map T.reverse . T.chunksOf 3 . T.reverse . T.pack $ show n
 
 formatLatency :: Maybe Double -> Text
 formatLatency = \case
