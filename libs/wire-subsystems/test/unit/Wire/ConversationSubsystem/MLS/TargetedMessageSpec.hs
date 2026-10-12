@@ -96,9 +96,19 @@ spec = describe "targeted MLS messages" do
         message = mapTargetedMessage (targetedMessage 1) (\msg -> msg {Targeted.recipientId = encodeMLS' wrongIdentity})
     expectRejected fx [message]
 
-  it "rejects a remote recipient until federation support is added" do
-    let fx = fixture {recipientDomain = Domain "remote.example.com"}
-    expectRejected fx [targetedMessage 1]
+  it "accepts a remote recipient without a local push" do
+    let remoteDomain = Domain "remote.example.com"
+        fx = fixture {recipientDomain = remoteDomain}
+        message =
+          mapTargetedMessage (targetedMessage 1) $ \msg ->
+            msg
+              { Targeted.recipientId =
+                  encodeMLS' (mkClientIdentity (Qualified fx.recipientUser remoteDomain) fx.recipientClient)
+              }
+    case runTargeted fx [message] of
+      Right [] -> pure ()
+      Right pushes -> expectationFailure ("expected no local pushes, got " <> show (length pushes))
+      Left err -> expectationFailure err
 
   it "rejects a batch containing messages from different groups" do
     let fx = fixture
@@ -253,6 +263,8 @@ interpretExternalAccess = interpret $ \case
 
 interpretBackendNotificationQueueAccess :: Sem (BackendNotificationQueueAccess ': r) a -> Sem r a
 interpretBackendNotificationQueueAccess = interpret $ \case
-  EnqueueNotification {} -> error "unexpected federation notification in local delivery test"
+  EnqueueNotification _ _ _ ->
+    -- The queued action's result is ignored by this test interpreter.
+    pure (Right (error "queued action result is not evaluated in this test"))
   EnqueueNotificationsConcurrently {} -> error "unexpected federation notification in local delivery test"
   EnqueueNotificationsConcurrentlyBuckets {} -> error "unexpected federation notification in local delivery test"
