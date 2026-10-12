@@ -86,6 +86,33 @@ testAppMessageSomeReachable = do
   mp <- createApplicationMessage convId alice1 "hi, bob!"
   void $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
+testTargetedMessageFederatedRecipient :: (HasCallStack) => App ()
+testTargetedMessageFederatedRecipient = do
+  ownDomain <- make OwnDomain & asString
+  remoteDomain <- make OtherDomain & asString
+  [alice, bob, charlie] <- createAndConnectUsers [ownDomain, remoteDomain, remoteDomain]
+
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
+  convId <- createNewGroup def alice1
+
+  withWebSockets [alice, bob, charlie] $ \[aliceWs, bobWs, charlieWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif bobWs
+    void $ awaitMatch isMemberJoinNotif charlieWs
+
+    targeted <- createTargetedMessage convId alice1 bob1 "federated targeted hello"
+    postMLSTargetedMessage targeted.sender targeted.message >>= assertStatus 201
+
+    notification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
+    event <- notification %. "payload.0"
+    event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    event %. "from" `shouldMatch` targeted.sender.user
+    event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
+
 testMessageNotifications :: (HasCallStack) => Domain -> App ()
 testMessageNotifications bobDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, bobDomain]
