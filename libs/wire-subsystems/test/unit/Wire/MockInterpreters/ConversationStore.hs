@@ -48,6 +48,13 @@ inMemoryConversationStoreInterpreterWithMLS store mlsClients =
       pure $ do
         conv <- Map.lookup cid store
         find ((== uid) . (.id_)) conv.localMembers
-    LookupMLSClientLeafIndices gid -> pure (fromMaybe (mempty, mempty) (Map.lookup gid mlsClients))
+    LookupMLSClientLeafIndices gid ->
+      pure $
+        case Map.lookup gid mlsClients of
+          Just leafIndices -> leafIndices
+          Nothing ->
+            error $
+              "ConversationStore mock: missing MLS client/index state for GroupId in LookupMLSClientLeafIndices: "
+                <> show gid
     SetOtherMember _ target _ -> modify @[(Qualified UserId)] (<> [target])
     _ -> error "ConversationStore: not implemented in mock"
