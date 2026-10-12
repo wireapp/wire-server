@@ -44,6 +44,7 @@ import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
 import Galley.Types.Error
 import Imports
+import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Async (Async)
 import Polysemy.Error
@@ -79,6 +80,7 @@ import Wire.API.MLS.TargetedMessage
 import Wire.API.Message (defMessageMetadata)
 import Wire.API.Routes.Version
 import Wire.API.Team.LegalHold
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
@@ -176,13 +178,12 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSTargetedMessagesFromLocalUser ::
-  ( Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
+  ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error FederationError) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member BackendNotificationQueueAccess r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member ConversationStore r,
     Member ExternalAccess r,
@@ -198,19 +199,47 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
   assertMLSEnabled
   firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
   (ctype, qualifiedConvOrSubId) <- getConvFromGroupId firstMessage.value.groupId
-  -- Targeted messages currently support locally hosted conversations only.
-  -- Keep the remote branch explicit so federation can be added here later.
-  let rejectRemoteConversation _ =
-        throw $ mlsProtocolError "targeted messages to remote conversations are not supported"
-  convOrSubId <- foldQualified lusr pure rejectRemoteConversation qualifiedConvOrSubId
-  validateAndPropagateTargetedMessages
+  foldQualified
     lusr
-    client
-    ctype
-    convOrSubId
-    batch.messages
+    (\convOrSubId -> validateAndPropagateTargetedMessages (tUntagged lusr) client ctype convOrSubId batch.messages)
+    (postMLSTargetedMessagesToRemoteConv lusr client ctype batch)
+    qualifiedConvOrSubId
   t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus [] t
+
+postMLSTargetedMessagesToRemoteConv ::
+  ( Members MLSMessageStaticErrors r,
+    Member (Error MLSProtocolError) r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (FederationAPIAccess FederatorClient) r
+  ) =>
+  Local UserId ->
+  ClientId ->
+  ConvType ->
+  TargetedMessageBatch ->
+  Remote ConvOrSubConvId ->
+  Sem r ()
+postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
+  -- The conversation-owning backend is authoritative for the MLS membership
+  -- map and epoch, so it performs recipient and message validation.
+  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+  response <-
+    runFederated rConvOrSubId $
+      fedClient @'Galley @"send-mls-targeted-message" $
+        MLSMessageSendRequest
+          { convOrSubId = tUnqualified rConvOrSubId,
+            sender = tUnqualified lusr,
+            senderClient = client,
+            rawMessage = Base64ByteString (encodeMLS' batch),
+            enableOutOfSyncCheck = Nothing
+          }
+  case response of
+    MLSMessageResponseError responseError -> rethrowErrors @MLSMessageStaticErrors responseError
+    MLSMessageResponseProtocolError protocolError -> throw (mlsProtocolError protocolError)
+    MLSMessageResponseUpdates [] -> pure ()
+    MLSMessageResponseUpdates _ -> throw $ mlsProtocolError "unexpected conversation updates for targeted messages"
+    _ -> throw $ mlsProtocolError "unexpected federation response for targeted messages"
 
 validateAndPropagateTargetedMessages ::
   ( Member (ErrorS 'ConvNotFound) r,
@@ -219,24 +248,26 @@ validateAndPropagateTargetedMessages ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSProtocolError) r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
     Member TinyLog r
   ) =>
-  Local UserId ->
+  Qualified UserId ->
   ClientId ->
   ConvType ->
   Local ConvOrSubConvId ->
   [RawMLS PersistentTargetedMessage] ->
   Sem r ()
-validateAndPropagateTargetedMessages _lusr _client _ctype _lconv [] =
+validateAndPropagateTargetedMessages _sender _client _ctype _lconv [] =
   throw $ mlsProtocolError "targeted message batch is empty"
-validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMessage : _) = do
-  lconvOrSub <- fetchConvOrSub (tUntagged lusr) firstGroupId ctype lconv
+validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMessage : _) = do
+  lconvOrSub <- fetchConvOrSub sender firstGroupId ctype lconv
   let convOrSub = tUnqualified lconvOrSub
-      expectedClient = mkClientIdentity (tUntagged lusr) client
+      expectedClient = mkClientIdentity sender client
       currentEpoch = (.epoch) <$> convOrSub.mlsMeta.cnvmlsActiveData
       recipients = map ((.recipient) . (.value)) messages
   unless (all ((== firstGroupId) . (.groupId) . (.value)) messages) $
@@ -265,11 +296,6 @@ validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMess
     unless (msg.recipientId == encodeMLS' recipientClient) $
       throw $
         mlsProtocolError "targeted message recipient identity does not match its leaf index"
-    -- Delivery below uses the local notification path. Remote recipients need
-    -- a federation path and are therefore rejected until that is implemented.
-    unless (recipientClient.ciDomain == tDomain lusr) $
-      throw $
-        mlsProtocolError "targeted messages to remote members are not supported"
     pure (raw, recipientClient)
   let qt =
         tUntagged lconvOrSub <&> \case
@@ -283,15 +309,30 @@ validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMess
           Event
             { evtConv = qcnv,
               evtSubConv = sconv,
-              evtFrom = EventFromUser (tUntagged lusr),
+              evtFrom = EventFromUser sender,
               evtTime = now,
               evtTeam = Nothing,
               evtData = EdMLSTargetedMessage raw.raw
             }
-    -- This is intentionally a local push. Remote delivery requires a
-    -- federation request and can be added without changing message validation.
-    runMessagePush lconvOrSub (Just qcnv) $
-      newMessagePush mempty Nothing defMessageMetadata [(recipientClient.ciUser, recipientClient.ciClient)] event
+    -- Deliver locally or forward a targeted notification to the recipient's
+    -- backend; validation is shared before either delivery path.
+    if recipientClient.ciDomain == tDomain lconvOrSub
+      then
+        runMessagePush lconvOrSub (Just qcnv) $
+          newMessagePush mempty Nothing defMessageMetadata [(recipientClient.ciUser, recipientClient.ciClient)] event
+      else
+        enqueueNotification Q.Persistent (toRemoteUnsafe recipientClient.ciDomain ()) $
+          sendBundle
+            =<< makeMLSTargetedMessageBundle
+              RemoteMLSTargetedMessage
+                { time = now,
+                  sender = sender,
+                  conversation = qUnqualified qcnv,
+                  subConversation = sconv,
+                  recipient = recipientClient.ciUser,
+                  recipientClient = recipientClient.ciClient,
+                  message = Base64ByteString raw.raw
+                }
   where
     firstGroupId = firstMessage.value.groupId
 

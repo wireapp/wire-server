@@ -28,6 +28,7 @@ import Data.Default
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
@@ -66,6 +67,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.MLS.TargetedMessage (PersistentTargetedMessage (..), TargetedMessageBatch (..))
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.API.Routes.Public.Galley.MLS
@@ -811,6 +813,38 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
       (fromMaybe def msr.enableOutOfSyncCheck)
       msg
 
+sendMLSTargetedMessage ::
+  ( Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    Member E.ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member P.TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
+  ) =>
+  Domain ->
+  MLSMessageSendRequest ->
+  Sem r MLSMessageResponse
+sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors $ do
+  assertMLSEnabled
+  loc <- qualifyLocal ()
+  let sender = toRemoteUnsafe remoteDomain req.sender
+  batch <- either (throw . mlsProtocolError) pure $ decodeMLS' @TargetedMessageBatch (fromBase64ByteString req.rawMessage)
+  firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
+  (ctype, qConvOrSub) <- getConvFromGroupId firstMessage.value.groupId
+  when (qUnqualified qConvOrSub /= req.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+  foldQualified
+    loc
+    ( \convOrSubId -> do
+        validateAndPropagateTargetedMessages (tUntagged sender) req.senderClient ctype convOrSubId batch.messages
+        pure (MLSMessageResponseUpdates [])
+    )
+    (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
+    qConvOrSub
+
 getSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
@@ -1014,6 +1048,59 @@ onMLSMessageSent domain rmm =
           Log.~~ Log.msg
             ("Cannot process remote MLS message because MLS is disabled on this backend" :: ByteString)
     logError _ = pure ()
+
+onMLSTargetedMessageSent ::
+  ( Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member E.ConversationStore r,
+    Member P.TinyLog r
+  ) =>
+  Domain ->
+  RemoteMLSTargetedMessage ->
+  Sem r EmptyResponse
+onMLSTargetedMessageSent domain targeted = do
+  loc <- qualifyLocal ()
+  let rconv = toRemoteUnsafe domain targeted.conversation
+  (members, allMembers) <- E.selectRemoteMembers [targeted.recipient] rconv
+  senderIsMember <-
+    if qDomain targeted.sender == domain
+      then pure True
+      else
+        if qDomain targeted.sender == tDomain loc
+          then E.checkLocalMemberRemoteConv (qUnqualified targeted.sender) rconv
+          else do
+            (senderMembers, _) <- E.selectRemoteMembers [qUnqualified targeted.sender] rconv
+            pure (qUnqualified targeted.sender `elem` senderMembers)
+  unless senderIsMember $
+    P.warn $
+      Log.field "sender" (toByteString' (qUnqualified targeted.sender))
+        Log.~~ Log.field "conversation" (toByteString' targeted.conversation)
+        Log.~~ Log.msg
+          ("Federated targeted MLS message sender is not a conversation member" :: ByteString)
+  unless allMembers $
+    P.warn $
+      Log.field "conversation" (toByteString' targeted.conversation)
+        Log.~~ Log.field "domain" (toByteString' domain)
+        Log.~~ Log.field "recipient" (toByteString' targeted.recipient)
+        Log.~~ Log.msg
+          ("Federated targeted MLS message recipient is not a conversation member" :: ByteString)
+  when (senderIsMember && targeted.recipient `elem` members) $ do
+    let event =
+          Event
+            (tUntagged rconv)
+            targeted.subConversation
+            (EventFromUser targeted.sender)
+            targeted.time
+            Nothing
+            (EdMLSTargetedMessage (fromBase64ByteString targeted.message))
+        recipient =
+          Recipient
+            targeted.recipient
+            (RecipientClientsSome (targeted.recipientClient :| []))
+    runMessagePush loc (Just (tUntagged rconv)) $
+      newMessagePush mempty Nothing defMessageMetadata [recipient] event
+  pure EmptyResponse
 
 mlsSendWelcome ::
   ( Member (Error InternalError) r,

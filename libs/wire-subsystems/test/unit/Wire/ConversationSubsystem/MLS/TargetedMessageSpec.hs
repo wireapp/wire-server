@@ -18,6 +18,7 @@ import Test.Hspec
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error.Galley
+import Wire.API.Federation.Error (FederationError)
 import Wire.API.MLS.CipherSuite (legacyCipherSuite)
 import Wire.API.MLS.Commit (HPKECiphertext (..))
 import Wire.API.MLS.Credential
@@ -30,6 +31,7 @@ import Wire.API.MLS.SubConversation (ConvOrSubChoice (Conv))
 import Wire.API.MLS.TargetedMessage
 import Wire.API.MLS.TargetedMessage qualified as Targeted
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsSome))
+import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.MLS.Message
 import Wire.ExternalAccess
@@ -212,6 +214,7 @@ runTargetedWithPushes fx messages =
         . runState @[Push] []
         . runError @TargetedMessageTestError
         . runErrorAsTestFailure @MLSProtocolError
+        . runErrorAsTestFailure @FederationError
         . runErrorAsTestFailure @(Tagged 'MLSStaleMessage ())
         . runErrorAsTestFailure @(Tagged 'MLSUnsupportedMessage ())
         . runErrorAsTestFailure @(Tagged 'MLSInvalidLeafNodeIndex ())
@@ -222,12 +225,13 @@ runTargetedWithPushes fx messages =
           (Map.singleton fx.conversation.id_ fx.conversation)
           (Map.singleton fx.groupId (mempty, targetedMessageIndexMap fx))
         . interpretExternalAccess
+        . interpretBackendNotificationQueueAccess
         . inMemoryNotificationSubsystemInterpreter
         . interpretNowConst defaultTime
         . noopLogger
         $ do
           validateAndPropagateTargetedMessages
-            (toLocalUnsafe (Domain "example.com") fx.senderUser)
+            (Qualified fx.senderUser (Domain "example.com"))
             fx.senderClient
             RegularConv
             (qualifyAs (toLocalUnsafe (Domain "example.com") fx.senderUser) (Conv fx.conversation.id_))
@@ -246,3 +250,9 @@ interpretExternalAccess = interpret $ \case
   Deliver _ -> pure []
   DeliverAsync _ -> pure ()
   DeliverAndDeleteAsync _ _ -> pure ()
+
+interpretBackendNotificationQueueAccess :: Sem (BackendNotificationQueueAccess ': r) a -> Sem r a
+interpretBackendNotificationQueueAccess = interpret $ \case
+  EnqueueNotification {} -> error "unexpected federation notification in local delivery test"
+  EnqueueNotificationsConcurrently {} -> error "unexpected federation notification in local delivery test"
+  EnqueueNotificationsConcurrentlyBuckets {} -> error "unexpected federation notification in local delivery test"

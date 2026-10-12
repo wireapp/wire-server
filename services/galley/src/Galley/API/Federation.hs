@@ -45,6 +45,7 @@ federationSitemap =
     :<|> Named @"update-conversation" federationUpdateConversation
     :<|> Named @"mls-welcome" federationMlsSendWelcome
     :<|> Named @"send-mls-message" federationSendMLSMessage
+    :<|> Named @"send-mls-targeted-message" federationSendMLSTargetedMessage
     :<|> Named @"send-mls-commit-bundle" federationSendMLSCommitBundle
     :<|> Named @"query-group-info" federationQueryGroupInfo
     :<|> Named @"update-typing-indicator" federationUpdateTypingIndicator
@@ -57,6 +58,7 @@ federationSitemap =
     :<|> Named @"on-client-removed" federationOnClientRemoved
     :<|> Named @"on-message-sent" federationOnMessageSent
     :<|> Named @"on-mls-message-sent" federationOnMLSMessageSent
+    :<|> Named @"on-mls-targeted-message-sent" federationOnMLSTargetedMessageSent
     :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0
     :<|> Named @"on-conversation-updated" federationOnConversationUpdated
     :<|> Named @"on-user-deleted-conversations" federationOnUserDeleted

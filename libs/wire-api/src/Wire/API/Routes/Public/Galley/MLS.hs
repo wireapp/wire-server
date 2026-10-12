@@ -95,7 +95,7 @@ type MLSMessagingAPI =
     )
     :<|> Named
            "mls-targeted-message"
-           ( Summary "Post persistent targeted MLS messages to a local conversation with local users"
+           ( Summary "Post persistent targeted MLS messages to a conversation with local or federated users"
                :> From 'V19
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvMemberNotFound

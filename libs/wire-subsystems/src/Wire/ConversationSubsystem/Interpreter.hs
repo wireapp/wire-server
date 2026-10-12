@@ -196,6 +196,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.mlsSendWelcome domain req
   FederationSendMLSMessage domain msr ->
     mapErrors $ Federation.sendMLSMessage domain msr
+  FederationSendMLSTargetedMessage domain msr ->
+    mapErrors $ Federation.sendMLSTargetedMessage domain msr
   FederationSendMLSCommitBundle domain msr ->
     mapErrors $ Federation.sendMLSCommitBundle domain msr
   FederationQueryGroupInfo domain req ->
@@ -220,6 +222,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.onMessageSent domain rm
   FederationOnMLSMessageSent domain rmm ->
     mapErrors $ Federation.onMLSMessageSent domain rmm
+  FederationOnMLSTargetedMessageSent domain rmm ->
+    mapErrors $ Federation.onMLSTargetedMessageSent domain rmm
   FederationOnConversationUpdated domain cu ->
     mapErrors $ Federation.onConversationUpdated domain cu
   FederationOnSystemMemberUpdate domain notification ->

@@ -113,6 +113,42 @@ testTargetedMessageFederatedRecipient = do
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
 
+testTargetedMessageFederatedSender :: (HasCallStack) => App ()
+testTargetedMessageFederatedSender = do
+  ownDomain <- make OwnDomain & asString
+  remoteDomain <- make OtherDomain & asString
+  [alice, bob, charlie, david] <- createAndConnectUsers [ownDomain, ownDomain, remoteDomain, remoteDomain]
+
+  [alice1, bob1, charlie1, david1] <- traverse (createMLSClient def) [alice, bob, charlie, david]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1, david1]
+  convId <- createNewGroup def alice1
+
+  withWebSockets [alice, bob, charlie, david] $ \[aliceWs, bobWs, charlieWs, davidWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie, david] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs, davidWs]
+
+    targetedToLocal <- createTargetedMessage convId charlie1 bob1 "targeted from remote to local"
+    postMLSTargetedMessage targetedToLocal.sender targetedToLocal.message >>= assertStatus 201
+    localNotification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
+    localEvent <- localNotification %. "payload.0"
+    localEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    localEvent %. "from" `shouldMatch` targetedToLocal.sender.user
+    localEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode targetedToLocal.message))
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif davidWs
+
+    targetedToRemote <- createTargetedMessage convId charlie1 david1 "targeted from remote to remote"
+    postMLSTargetedMessage targetedToRemote.sender targetedToRemote.message >>= assertStatus 201
+    remoteNotification <- awaitMatch isNewMLSTargetedMessageNotif davidWs
+    remoteEvent <- remoteNotification %. "payload.0"
+    remoteEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    remoteEvent %. "from" `shouldMatch` targetedToRemote.sender.user
+    remoteEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode targetedToRemote.message))
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif bobWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
+
 testMessageNotifications :: (HasCallStack) => Domain -> App ()
 testMessageNotifications bobDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, bobDomain]

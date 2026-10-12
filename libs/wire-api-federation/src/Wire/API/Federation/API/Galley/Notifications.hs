@@ -47,6 +47,7 @@ data GalleyNotificationTag
   = OnClientRemovedTag
   | OnMessageSentTag
   | OnMLSMessageSentTag
+  | OnMLSTargetedMessageSentTag
   | OnConversationUpdatedTagV0
   | OnConversationUpdatedTag
   | OnUserDeletedConversationsTag
@@ -72,6 +73,11 @@ instance HasNotificationEndpoint 'OnMessageSentTag where
 instance HasNotificationEndpoint 'OnMLSMessageSentTag where
   type Payload 'OnMLSMessageSentTag = RemoteMLSMessage
   type NotificationPath 'OnMLSMessageSentTag = "on-mls-message-sent"
+
+instance HasNotificationEndpoint 'OnMLSTargetedMessageSentTag where
+  type Payload 'OnMLSTargetedMessageSentTag = RemoteMLSTargetedMessage
+  type NotificationPath 'OnMLSTargetedMessageSentTag = "on-mls-targeted-message-sent"
+  type NotificationMods 'OnMLSTargetedMessageSentTag = '[From 'V5]
 
 -- used by the backend that owns a conversation to inform this backend of
 -- changes to the conversation
@@ -115,6 +121,7 @@ type GalleyNotificationAPI =
   NotificationFedEndpoint 'OnClientRemovedTag
     :<|> NotificationFedEndpoint 'OnMessageSentTag
     :<|> NotificationFedEndpoint 'OnMLSMessageSentTag
+    :<|> NotificationFedEndpoint 'OnMLSTargetedMessageSentTag
     :<|> NotificationFedEndpoint 'OnConversationUpdatedTagV0
     :<|> NotificationFedEndpoint 'OnConversationUpdatedTag
     :<|> NotificationFedEndpoint 'OnUserDeletedConversationsTag
@@ -169,6 +176,22 @@ data RemoteMLSMessage = RemoteMLSMessage
   deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
 
 instance ToSchema RemoteMLSMessage
+
+-- | A targeted MLS message forwarded only to the backend hosting its recipient.
+data RemoteMLSTargetedMessage = RemoteMLSTargetedMessage
+  { time :: UTCTime,
+    sender :: Qualified UserId,
+    conversation :: ConvId,
+    subConversation :: Maybe SubConvId,
+    recipient :: UserId,
+    recipientClient :: ClientId,
+    message :: Base64ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteMLSTargetedMessage)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSTargetedMessage)
+
+instance ToSchema RemoteMLSTargetedMessage
 
 data ConversationUpdateV0 = ConversationUpdateV0
   { cuTime :: UTCTime,

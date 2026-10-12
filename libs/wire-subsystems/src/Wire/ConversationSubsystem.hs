@@ -258,6 +258,10 @@ data ConversationSubsystem m a where
     Domain ->
     MLSMessageSendRequest ->
     ConversationSubsystem m MLSMessageResponse
+  FederationSendMLSTargetedMessage ::
+    Domain ->
+    MLSMessageSendRequest ->
+    ConversationSubsystem m MLSMessageResponse
   FederationSendMLSCommitBundle ::
     Domain ->
     MLSMessageSendRequest ->
@@ -305,6 +309,10 @@ data ConversationSubsystem m a where
   FederationOnMLSMessageSent ::
     Domain ->
     RemoteMLSMessage ->
+    ConversationSubsystem m EmptyResponse
+  FederationOnMLSTargetedMessageSent ::
+    Domain ->
+    RemoteMLSTargetedMessage ->
     ConversationSubsystem m EmptyResponse
   FederationOnConversationUpdated ::
     Domain ->
