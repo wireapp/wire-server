@@ -37,15 +37,18 @@ import Wire.API.MLS.Serialisation
 data TargetedMessageWireFormat = TargetedMessageWireFormat
   deriving stock (Eq, Show, Generic)
 
+targetedMessagesWireFormatValue :: Word16
+targetedMessagesWireFormatValue = 0xf001
+
 instance ParseMLS TargetedMessageWireFormat where
   parseMLS = do
     wireFormat <- getWord16be
-    if wireFormat == 0xf001
+    if wireFormat == targetedMessagesWireFormatValue
       then pure TargetedMessageWireFormat
       else fail $ "unsupported targeted message wire format: " <> show wireFormat
 
 instance SerialiseMLS TargetedMessageWireFormat where
-  serialiseMLS _ = putWord16be 0xf001
+  serialiseMLS _ = putWord16be targetedMessagesWireFormatValue
 
 data PersistentTargetedMessage = PersistentTargetedMessage
   { protocolVersion :: ProtocolVersion,

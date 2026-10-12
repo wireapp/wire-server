@@ -271,13 +271,13 @@ validateAndPropagateTargetedMessages lusr client ctype lconv messages@(firstMess
       throw $
         mlsProtocolError "targeted messages to remote members are not supported"
     pure (raw, recipientClient)
+  let qt =
+        tUntagged lconvOrSub <&> \case
+          Conv c -> (c.mcId, Nothing)
+          SubConv c s -> (c.mcId, Just s.scSubConvId)
+      qcnv = fst <$> qt
+      sconv = snd (qUnqualified qt)
   for_ validated $ \(raw, recipientClient) -> do
-    let qt =
-          tUntagged lconvOrSub <&> \case
-            Conv c -> (c.mcId, Nothing)
-            SubConv c s -> (c.mcId, Just s.scSubConvId)
-        qcnv = fst <$> qt
-        sconv = snd (qUnqualified qt)
     now <- Now.get
     let event =
           Event

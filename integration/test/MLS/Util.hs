@@ -171,7 +171,7 @@ mlscliGroupMem mConvId cs groupMem args mbstdin = do
 runCli :: (HasCallStack) => FilePath -> [String] -> Maybe ByteString -> App ByteString
 runCli store args mStdin =
   do
-    cli <- liftIO $ fromMaybe "mls-test-cli" <$> lookupEnv "MLS_TEST_CLI"
+    cli <- liftIO $ fromMaybe "mls-test-cli" . find notNullOrWS <$> lookupEnv "MLS_TEST_CLI"
     spawn
       ( proc
           cli
@@ -180,6 +180,8 @@ runCli store args mStdin =
           )
       )
       mStdin
+  where
+    notNullOrWS str = not $ null str || all isSpace str
 
 argSubst :: String -> String -> String -> String
 argSubst from to_ s =
