@@ -783,16 +783,10 @@ openapi-validate:
 
 BRIG_URL ?= http://localhost:8082
 
-# Usage: make openapi-lint-regression VERSION=16 [BRIG_URL=<brig public url>]
+# Usage: make openapi-lint-regression [VERSION=<n>] [BRIG_URL=<brig public url>] [UPDATE=1]
 .PHONY: openapi-lint-regression
 openapi-lint-regression:
-	@if [ -z "$(VERSION)" ]; then \
-		echo "usage: make openapi-lint-regression VERSION=<n> [BRIG_URL=<brig public url>]"; \
-		exit 1; \
+	@if [ -n "$(VERSION)" ] && ! echo "$(VERSION)" | grep -qE '^[0-9]+$$'; then \
+		echo "VERSION must be a positive integer" >&2; exit 1; \
 	fi
-	@case "$(VERSION)" in *[!0-9]*) echo "VERSION must be a positive integer" >&2; exit 1;; esac
-	curl -fsS "$(BRIG_URL)/v$(VERSION)/api/swagger.json" > /tmp/openapi-actual-v$(VERSION).json
-	cabal run lint-openapi-regression -- \
-		--baseline-dir services/brig/docs \
-		--api-version "$(VERSION)" \
-		/tmp/openapi-actual-v$(VERSION).json
+	$(if $(VERSION),cabal run lint-openapi-regression -- --baseline-dir services/brig/docs --brig-url $(BRIG_URL) --api-version $(VERSION) $(if $(wildcard .lint-ignore/v$(VERSION).json),--ignore .lint-ignore/v$(VERSION).json,) $(if $(UPDATE),--update,),cabal run lint-openapi-regression -- --baseline-dir services/brig/docs --brig-url $(BRIG_URL) $(if $(UPDATE),--update,))

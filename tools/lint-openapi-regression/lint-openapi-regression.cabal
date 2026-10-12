@@ -21,6 +21,7 @@ library
   exposed-modules:
     LintOpenAPI.Baseline
     LintOpenAPI.Compare
+    LintOpenAPI.Fetch
     LintOpenAPI.Ignore
     LintOpenAPI.Normalize
     LintOpenAPI.Parse
@@ -81,8 +82,12 @@ library
     , bytestring
     , containers
     , filepath
+    , http-client
+    , http-client-tls
+    , http-types
     , imports
     , text
+    , unliftio
     , vector
 
   default-language:   GHC2021
@@ -139,8 +144,9 @@ executable lint-openapi-regression
     -Wunused-packages
 
   build-depends:
-      base
-    , containers
+      aeson
+    , base
+    , filepath
     , imports
     , lint-openapi-regression
     , optparse-applicative

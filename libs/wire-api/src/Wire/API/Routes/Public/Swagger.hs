@@ -15,14 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | The swagger docs for the public API of the development version.
---
--- Older versions are frozen and served from the pregenerated JSON files in
--- @services/brig/docs/@; this is the only version that is still assembled from
--- the routing tables.  It lives here rather than in brig so that tests in this
--- package can get at it -- see @Test.Wire.API.Routes.OAuthScopes@.
+-- | Live-rendered OpenAPI of the public API for a given version, assembled
+-- from the routing tables.  It lives here rather than in brig so that tests in
+-- this package can get at it -- see @Test.Wire.API.Routes.OAuthScopes@.
 module Wire.API.Routes.Public.Swagger
-  ( devVersion,
+  ( allServicesSwagger,
+    devVersion,
     devVersionSwagger,
   )
 where
@@ -31,7 +29,8 @@ import Control.Lens ((.~))
 import Data.OpenApi qualified as S
 import Imports
 import Servant.API (toUrlPiece)
-import Wire.API.Routes.API (serviceSwagger)
+import Servant.OpenApi (HasOpenApi)
+import Wire.API.Routes.API (SpecialisedAPIRoutes, serviceSwagger)
 import Wire.API.Routes.Public.Brig (BrigAPITag)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPITag)
 import Wire.API.Routes.Public.Cannon (CannonAPITag)
@@ -54,22 +53,36 @@ devVersion =
       -- if you get this error, you also need to update the version literals below.
       error "libs/wire-api/src/Wire/API/Routes/Public/Swagger.hs#devVersion: please update to latest api version!"
 
+-- | Live-rendered OpenAPI of all public services restricted to version @v@.
+allServicesSwagger ::
+  forall v.
+  ( HasOpenApi (SpecialisedAPIRoutes v BrigAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GalleyAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v SparAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CargoholdAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CannonAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GundeckAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v OAuthAPITag)
+  ) =>
+  S.OpenApi
+allServicesSwagger =
+  serviceSwagger @VersionAPITag @v
+    <> serviceSwagger @BrigAPITag @v
+    <> serviceSwagger @GalleyAPITag @v
+    <> serviceSwagger @SparAPITag @v
+    <> serviceSwagger @CargoholdAPITag @v
+    <> serviceSwagger @CannonAPITag @v
+    <> serviceSwagger @GundeckAPITag @v
+    <> serviceSwagger @ProxyAPITag @v
+    <> serviceSwagger @OAuthAPITag @v
+
 -- | Note that brig additionally sets @info.description@ from
 -- @services/brig/docs/swagger.md@, which cannot move here: it is embedded
 -- relative to the brig package.  'cleanupSwagger' does not touch
 -- @info.description@, so setting it afterwards is equivalent.
 devVersionSwagger :: S.OpenApi
 devVersionSwagger =
-  ( serviceSwagger @VersionAPITag @'V19
-      <> serviceSwagger @BrigAPITag @'V19
-      <> serviceSwagger @GalleyAPITag @'V19
-      <> serviceSwagger @SparAPITag @'V19
-      <> serviceSwagger @CargoholdAPITag @'V19
-      <> serviceSwagger @CannonAPITag @'V19
-      <> serviceSwagger @GundeckAPITag @'V19
-      <> serviceSwagger @ProxyAPITag @'V19
-      <> serviceSwagger @OAuthAPITag @'V19
-  )
+  (allServicesSwagger @'V19)
     & S.info . S.title .~ "Wire-Server API"
     & S.servers .~ [S.Server ("/" <> toUrlPiece devVersion) Nothing mempty]
     & cleanupSwagger

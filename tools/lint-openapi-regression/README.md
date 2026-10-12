@@ -1,8 +1,14 @@
 # lint-openapi-regression
 
-Detects backward-incompatible changes in OpenAPI JSON files by comparing a
-candidate spec against historical baseline versions (e.g. `swagger-v5.json`,
-`swagger-v6.json`).
+Detects backward-incompatible changes in OpenAPI specs. Two modes:
+
+- **Single-version drift check** (`--api-version N`): compares the saved
+  baseline snapshot `swagger-vN.json` against the spec that a running brig
+  *live-renders* for version N (`GET /vN/api/swagger.json`). This catches
+  regressions of old API versions that snapshots alone cannot see.
+- **All-versions mode** (no `--api-version`): for every baseline snapshot
+  (v5+), fetches the live spec of that same version and compares
+  snapshot-vs-live per version.
 
 ## What it checks
 
@@ -39,7 +45,7 @@ cabal test lint-openapi-regression-tests \
 ## CLI usage
 
 ```
-lint-openapi-regression [OPTIONS] INPUT_FILE
+lint-openapi-regression [OPTIONS] [INPUT_FILE]
 ```
 
 ### Options
@@ -47,47 +53,38 @@ lint-openapi-regression [OPTIONS] INPUT_FILE
 | Flag               | Default                | Description                                          |
 |--------------------|------------------------|------------------------------------------------------|
 | `--baseline-dir`   | `services/brig/docs`   | Directory containing baseline `swagger-v*.json` files |
-| `--update`         | off                    | Update the ignore file with new breaking changes     |
-| `--api-version N`  | (none)                 | Compare only against the saved baseline of this version instead of all baselines |
+| `--brig-url`       | `http://localhost:8082`| Base URL of a running brig for live spec fetching (use `https:` for any non-local brig; `--update` should only run against a trusted brig since its response shapes the committed ignore files) |
+| `--api-version N`  | (none)                 | Check only version N (baseline vN vs live vN spec)    |
+| `INPUT_FILE`       | (none)                 | Offline candidate spec (only with `--api-version`)    |
+| `--ignore FILE`    | (none)                 | Flat JSON ignore file (only with `--api-version`)     |
+| `--ignore-dir DIR` | `.lint-ignore`         | Directory for per-version ignore files `vN.json`      |
+| `--update`         | off                    | Write the current violations to the ignore file(s)    |
+
+There is no default/implicit ignore file: violations are only suppressed via an
+explicit `--ignore` file. `make openapi-lint-regression` passes
+`.lint-ignore/vN.json` when it exists.
 
 ### Examples
 
-Check a new spec against all baselines in the default directory:
+Check every baseline version against the live specs served by brig:
 
 ```bash
-lint-openapi-regression services/brig/docs/swagger.json
+lint-openapi-regression --brig-url http://localhost:8082
 ```
 
-Check against baselines in a custom directory:
+Check one version, applying its ignore file if present (via
+`make openapi-lint-regression VERSION=15`):
 
 ```bash
-lint-openapi-regression --baseline-dir path/to/baselines new-spec.json
+lint-openapi-regression --brig-url http://localhost:8082 \
+  --api-version 15 --ignore .lint-ignore/v15.json
 ```
 
-Use an ignore file to suppress known violations:
+Check an offline candidate file instead of fetching from brig:
 
 ```bash
-lint-openapi-regression --ignore .lint-ignore.json services/brig/docs/swagger.json
+lint-openapi-regression --api-version 15 new-spec.json
 ```
-
-Auto-update the ignore file with any new violations found:
-
-```bash
-lint-openapi-regression --ignore .lint-ignore.json --update services/brig/docs/swagger.json
-```
-
-Fetch the OpenAPI served for a specific version from a running brig and compare
-it against the saved baseline of that same version (frozen-version drift check;
-via `make openapi-lint-regression`):
-
-```bash
-make openapi-lint-regression VERSION=16
-```
-
-Note: `.lint-ignore.json`-style ignore files are keyed by baseline version and
-record intentional changes *since* each version, so combining `--api-version`
-with such a file masks frozen-version drift. Use a separate ignore file if you
-need to suppress known drift.
 
 ## Exit codes
 
@@ -95,16 +92,17 @@ need to suppress known drift.
 |------|--------------------------------------------|
 | 0    | No breaking changes (or all are ignored)   |
 | 1    | Breaking changes detected                  |
-| 2    | Input error (file not found, parse failure, version mismatch, missing baseline) |
+| 2    | Input error (file not found, parse failure, fetch failure, version mismatch, missing baseline) |
 
 ## Ignore file format
 
-The ignore file is a JSON object mapping baseline version keys to sets of route
-identifiers (either `operationId` or rendered route like `GET /users/{_}`):
+Ignore files are flat, per-version JSON arrays of route identifiers — either
+an `operationId` or a rendered route like `GET /users/{_}`:
 
 ```json
-{
-  "v5": ["getUser", "POST /teams"],
-  "v6": ["GET /users/{_}"]
-}
+[ "add-bot", "GET /users/{_}" ]
 ```
+
+`--update` writes the **full current violation set** of each checked version
+(ignored and unignored), so stale entries are pruned automatically: if a
+suppressed violation disappears, the next `--update` run removes it.

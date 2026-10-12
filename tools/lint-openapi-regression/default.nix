@@ -10,10 +10,14 @@
 , containers
 , filepath
 , hspec
+, http-client
+, http-client-tls
+, http-types
 , imports
 , lib
 , optparse-applicative
 , text
+, unliftio
 , vector
 }:
 mkDerivation {
@@ -28,13 +32,18 @@ mkDerivation {
     bytestring
     containers
     filepath
+    http-client
+    http-client-tls
+    http-types
     imports
     text
+    unliftio
     vector
   ];
   executableHaskellDepends = [
+    aeson
     base
-    containers
+    filepath
     imports
     optparse-applicative
     text

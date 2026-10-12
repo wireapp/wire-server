@@ -1,5 +1,6 @@
 module LintOpenAPI.Baseline
   ( discoverBaselineFiles,
+    extractVersionNum,
     selectBaselineFile,
     expectVersion,
   )
