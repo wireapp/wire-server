@@ -15,6 +15,7 @@ import Hasql.Transaction.Sessions (IsolationLevel (..))
 import Imports
 import Options.Applicative hiding (command)
 import Options.Applicative qualified as O
+import Options.Applicative.Help (Doc, pretty, vsep)
 
 -- | No 'Show' instance: 'db' contains the database password.
 data GlobalOptions = GlobalOptions
@@ -71,12 +72,29 @@ produceParser :: Parser ProduceOptions
 produceParser =
   ProduceOptions
     <$> option (positive maxWriters) (long "writers" <> metavar "W" <> value 16 <> showDefault <> help "Concurrent writer threads")
-    <*> option targetsReader (long "targets" <> metavar "SPEC" <> help "Target mix KIND:STREAMS[xK],... e.g. user:1000x20,team:10")
+    <*> option targetsReader (long "targets" <> metavar "SPEC" <> helpDoc (Just targetsHelp))
     <*> option (positive maxClientsPerUser) (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids per 'clients' target")
     <*> option (positive maxPayloadBytes) (long "payload-bytes" <> metavar "B" <> value 512 <> showDefault <> help "Approximate JSON payload size")
     <*> optional (option (positive maxDuration) (long "duration" <> metavar "SECS" <> help "Run length (default: until Ctrl-C)"))
     <*> option (nonNegative maxDuration) (long "warmup" <> metavar "SECS" <> value 5 <> showDefault <> help "Seconds ignored for max-rate tracking")
     <*> optional (option anyInt (long "seed" <> metavar "INT" <> help "RNG seed (default: random, printed at start)"))
+
+targetsHelp :: Doc
+targetsHelp =
+  vsep $
+    map
+      (pretty @String)
+      [ "Target mix: comma-separated entries KIND:STREAMS[xK].",
+        "KIND: user|clients|team|epoch|connections (each at most once).",
+        "STREAMS: distinct stream keys pre-generated for that kind.",
+        "K: targets of that kind per push (default 1, at most STREAMS).",
+        "Each push picks one entry uniformly, then K distinct keys of it;",
+        "a push never mixes kinds. For 'clients', K counts users",
+        "(rows written = K x --clients-per-user).",
+        "Example: user:1000x20,team:10",
+        "  user: pool of 1000 keys, 20 per push",
+        "  team: pool of 10 keys, 1 per push"
+      ]
 
 -- | Parsed as 'Integer' first so huge inputs cannot wrap around 'Int'.
 bounded :: Integer -> Integer -> String -> ReadM Int

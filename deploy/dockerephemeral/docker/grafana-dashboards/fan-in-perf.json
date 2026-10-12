@@ -8,60 +8,60 @@
   "templating": { "list": [] },
   "panels": [
     {
-      "id": 1, "type": "timeseries", "title": "Push rate (pushes/s)", "datasource": null,
+      "id": 1, "type": "timeseries", "title": "Push rate (pushes/s)", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (experiment) (rate(fanin_perf_pushes_total[15s]))", "legendFormat": "rate() {{experiment}}" },
-        { "refId": "B", "expr": "fanin_perf_push_rate_current", "legendFormat": "current {{experiment}}" },
-        { "refId": "C", "expr": "fanin_perf_push_rate_max", "legendFormat": "max {{experiment}}" }
+        { "refId": "A", "expr": "sum by (experiment) (rate(fanin_perf_pushes_total[5s]))", "legendFormat": "pushes/s (5s avg)" },
+        { "refId": "B", "expr": "fanin_perf_push_rate_current", "legendFormat": "pushes/s (last tick)" },
+        { "refId": "C", "expr": "fanin_perf_push_rate_max", "legendFormat": "peak pushes/s (after warmup)" }
       ]
     },
     {
-      "id": 2, "type": "timeseries", "title": "Push rate by kind", "datasource": null,
+      "id": 2, "type": "timeseries", "title": "Push rate by kind", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_pushes_total[15s]))", "legendFormat": "{{kind}}" }
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_pushes_total[5s]))", "legendFormat": "{{kind}}" }
       ]
     },
     {
-      "id": 3, "type": "timeseries", "title": "Error rate (errors/s)", "datasource": null,
+      "id": 3, "type": "timeseries", "title": "Error rate (errors/s)", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_errors_total[15s]))", "legendFormat": "{{kind}}" },
-        { "refId": "B", "expr": "fanin_perf_error_rate_current", "legendFormat": "current {{experiment}}" }
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_errors_total[5s]))", "legendFormat": "errors/s ({{kind}}, 5s avg)" },
+        { "refId": "B", "expr": "fanin_perf_error_rate_current", "legendFormat": "errors/s (last tick)" }
       ]
     },
     {
-      "id": 4, "type": "timeseries", "title": "Error ratio", "datasource": null,
+      "id": 4, "type": "timeseries", "title": "Error ratio", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "fanin_perf_error_ratio_current", "legendFormat": "{{experiment}}" }
+        { "refId": "A", "expr": "fanin_perf_error_ratio_current", "legendFormat": "errors / (pushes + errors), last tick" }
       ]
     },
     {
-      "id": 5, "type": "timeseries", "title": "Push latency", "datasource": null,
+      "id": 5, "type": "timeseries", "title": "Push latency", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[30s])))", "legendFormat": "p50" },
-        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[30s])))", "legendFormat": "p99" }
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[30s])))", "legendFormat": "p50 push latency (30s window)" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[30s])))", "legendFormat": "p99 push latency (30s window)" }
       ]
     },
     {
-      "id": 6, "type": "timeseries", "title": "Targets rate (targets/s)", "datasource": null,
+      "id": 6, "type": "timeseries", "title": "Targets rate (targets/s)", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_targets_total[15s]))", "legendFormat": "{{kind}}" }
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_targets_total[5s]))", "legendFormat": "{{kind}}" }
       ]
     },
     {
-      "id": 7, "type": "timeseries", "title": "Connection pool", "datasource": null,
+      "id": 7, "type": "timeseries", "title": "Connection pool", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "wire_hasql_pool_in_use{job=\"fan-in-perf\"}", "legendFormat": "in use" },
-        { "refId": "B", "expr": "wire_hasql_pool_ready_for_use{job=\"fan-in-perf\"}", "legendFormat": "ready" },
-        { "refId": "C", "expr": "fanin_perf_writers", "legendFormat": "writers" }
+        { "refId": "A", "expr": "wire_hasql_pool_in_use{job=\"fan-in-perf\"}", "legendFormat": "pool: connections in use" },
+        { "refId": "B", "expr": "wire_hasql_pool_ready_for_use{job=\"fan-in-perf\"}", "legendFormat": "pool: connections idle" },
+        { "refId": "C", "expr": "fanin_perf_writers", "legendFormat": "writer threads (--writers)" }
       ]
     }
   ]
