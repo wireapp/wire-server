@@ -718,7 +718,12 @@ getMeetingConversationOrFail meetingId convId = do
 
 -- | Pure meeting-record construction given the code-lookup result. Meetings
 -- without a live join code omit the link field entirely.
-mkApiMeeting :: Maybe HttpsUrl -> Domain -> Maybe Code -> Store.StoredMeeting -> API.Meeting
+mkApiMeeting ::
+  Maybe HttpsUrl ->
+  Domain ->
+  Maybe (Code, Maybe Password) ->
+  Store.StoredMeeting ->
+  API.Meeting
 mkApiMeeting mBase domain mCode sm =
   API.Meeting
     { API.id = Qualified sm.id domain,
@@ -734,8 +739,9 @@ mkApiMeeting mBase domain mCode sm =
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt,
       API.link = case (mBase, mCode) of
-        (Just base, Just code) -> Just (API.mkMeetingLink base domain code.codeKey code.codeValue)
-        _ -> Nothing
+        (Just base, Just (code, _)) -> Just (API.mkMeetingLink base domain code.codeKey code.codeValue)
+        _ -> Nothing,
+      API.hasPassword = maybe False (isJust . snd) mCode
     }
 
 -- | Convert a 'Store.StoredMeeting' to an 'API.Meeting'; performs exactly
@@ -747,7 +753,7 @@ storedMeetingToMeeting ::
   Store.StoredMeeting ->
   Sem r API.Meeting
 storedMeetingToMeeting mBase domain sm =
-  (\mCode -> mkApiMeeting mBase domain (fst <$> mCode) sm) <$> CodeStore.getMeetingCode sm.id
+  mkApiMeeting mBase domain <$> CodeStore.getMeetingCode sm.id <*> pure sm
 
 -- | One 'CodeStore.getMeetingCodes' query for the whole batch instead of
 -- one 'getMeetingCode' per meeting.

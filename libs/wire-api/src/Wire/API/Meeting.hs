@@ -158,7 +158,9 @@ data Meeting = Meeting
     -- | https join link containing the meeting's live join code as query
     -- parameters; 'Nothing' when the meeting has no live join code (legacy
     -- meetings, or code-store modes that cannot hold meeting codes)
-    link :: Maybe HttpsUrl
+    link :: Maybe HttpsUrl,
+    -- | Whether the live join link is protected by a password.
+    hasPassword :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
@@ -220,6 +222,7 @@ meetingObject =
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
     <*> (.link) .= maybe_ (optField "link" schema)
+    <*> (.hasPassword) .= field "has_password" schema
 
 instance ToSchema Meeting where
   schema = objectWithDocModifier (description ?~ "A meeting (immediate or scheduled)") meetingObject

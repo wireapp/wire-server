@@ -1253,6 +1253,7 @@ testMeetingCreatePassword = do
   case mLink of
     Nothing -> pure () -- cassandra code store or no join-link URI; link unusable
     Just link -> do
+      meeting %. "has_password" `shouldMatch` True
       let (key, code) = linkKeyAndCode link
       -- POST join without / wrong password is rejected; correct password joins.
       postMeetingJoin bob domain key code Nothing >>= assertLabel 403 "invalid-meeting-password"

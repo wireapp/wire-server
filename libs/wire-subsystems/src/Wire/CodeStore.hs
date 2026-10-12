@@ -62,7 +62,7 @@ data CodeStore m a where
   -- | Look up join codes for many meetings in a single query. Meetings
   -- without a code (legacy, expired, or a backing store that cannot hold
   -- meeting codes) are absent from the result map.
-  GetMeetingCodes :: [MeetingId] -> CodeStore m (Map MeetingId Code)
+  GetMeetingCodes :: [MeetingId] -> CodeStore m (Map MeetingId (Code, Maybe Password))
   MakeKey :: CodeReferent -> CodeStore m Key
   GenerateCode :: CodeReferent -> Timeout -> CodeStore m Code
   GetConversationCodeURI :: Maybe Domain -> CodeStore m (Maybe HttpsUrl)

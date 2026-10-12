@@ -44,7 +44,8 @@ testObject_Meeting_manual_1 =
       invitedEmails = [unsafeEmailAddress "someone" "example.com"],
       createdAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
       updatedAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
-      link = Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://account.wire.com/meeting-join/?key=AAAAAAAAAAAAAAAAAAAA&code=BBBBBBBBBBBBBBBBBBBB&domain=example.com")))
+      link = Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://account.wire.com/meeting-join/?key=AAAAAAAAAAAAAAAAAAAA&code=BBBBBBBBBBBBBBBBBBBB&domain=example.com"))),
+      hasPassword = False
     }
 
 testObject_Meeting_manual_2 :: Meeting
@@ -62,7 +63,8 @@ testObject_Meeting_manual_2 =
       invitedEmails = [],
       createdAt = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
       updatedAt = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      link = Nothing
+      link = Nothing,
+      hasPassword = False
     }
 
 testObject_MeetingV18_manual_1 :: MeetingV18
