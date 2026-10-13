@@ -48,6 +48,7 @@ mkDerivation {
     bytestring
     containers
     extended
+    hasql
     hasql-resource-pool
     hasql-transaction
     http-types

@@ -4,6 +4,8 @@ module FanInPerf.Terminal
     formatStatus,
     formatSummary,
     formatConsumeStatus,
+    WriterPhase (..),
+    Drain (..),
     formatConsumeSummary,
     formatCoverage,
     renderStatusLine,
@@ -74,14 +76,29 @@ formatConsumeStatus r c =
       "err/s push=" <> rateText r.errorRate <> " fetch=" <> rateText c.fetchErrorRate
     ]
 
--- | @formatConsumeSummary expectedDeliveries drained pushReport consumeReport@.
-formatConsumeSummary :: Int -> Bool -> TickReport -> ConsumeReport -> [Text]
-formatConsumeSummary expected drained r c =
+-- | Seconds from start until the writers stopped, and the notifications
+-- delivered by then.
+data WriterPhase = WriterPhase {duration :: Double, delivered :: Int}
+
+-- | How the drain after the writer phase ended, with its duration in seconds.
+data Drain = DrainComplete Double | DrainTimedOut Double | DrainInterrupted
+
+-- | @formatConsumeSummary expectedDeliveries writerPhase drain pushReport
+-- consumeReport@. Duration and averages cover the writer phase only (not the
+-- drain); totals, maxima and percentiles cover the whole run.
+formatConsumeSummary :: Int -> WriterPhase -> Drain -> TickReport -> ConsumeReport -> [Text]
+formatConsumeSummary expected phase drain r c =
   let delivered = totalDelivered c.readerTotal
       fetches = totalFetches c.readerTotal
       emptyRatio = if fetches > 0 then fromIntegral (totalEmptyFetches c.readerTotal) / fromIntegral fetches else 0
-      avgRate = if r.elapsed > 0 then fromIntegral delivered / r.elapsed else 0
-   in formatSummary r
+      avgRate = if phase.duration > 0 then fromIntegral phase.delivered / phase.duration else 0
+      seconds :: Double -> Text
+      seconds = T.pack . printf "%.1fs"
+      drainText = case drain of
+        DrainComplete t -> "complete after " <> seconds t
+        DrainTimedOut t -> "timed out after " <> seconds t
+        DrainInterrupted -> "interrupted"
+   in formatSummary r {elapsed = phase.duration}
         <> [ "consume: delivered="
                <> groupThousands delivered
                <> " expected="
@@ -93,7 +110,7 @@ formatConsumeSummary expected drained r c =
              "  cons/s avg=" <> rateText avgRate <> " max=" <> rateText c.maxConsumeRate,
              "  lag (cumulative) p50=" <> formatLatency c.lagP50 <> " p99=" <> formatLatency c.lagP99,
              "  fetch (cumulative) p50=" <> formatLatency c.fetchP50 <> " p99=" <> formatLatency c.fetchP99 <> " empty=" <> percent emptyRatio,
-             "  drain: " <> if drained then "complete" else "timed out"
+             "  drain: " <> drainText
            ]
 
 formatCoverage :: [(TargetKind, Double)] -> [Text]

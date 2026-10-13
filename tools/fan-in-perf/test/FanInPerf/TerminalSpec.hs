@@ -47,6 +47,16 @@ deliveredSnapshot = do
   recordFetch rs KindUser 1000 []
   readReaderSnapshot rs
 
+pushSnapshot :: Int -> IO Snapshot
+pushSnapshot n = do
+  ws <- newWriterStats
+  replicateM_ n (recordSuccess ws KindUser 1 1000)
+  readSnapshot ws
+
+-- 30s of writing (the report's 42.2s include the drain), 600 delivered by then
+phase :: WriterPhase
+phase = WriterPhase {duration = 30, delivered = 600}
+
 spec :: Spec
 spec = do
   describe "groupThousands" $
@@ -90,16 +100,25 @@ spec = do
   describe "formatConsumeSummary" $ do
     it "reports missing notifications and a timed-out drain" $ do
       s <- deliveredSnapshot
-      let out = formatConsumeSummary 5 False report creport {readerTotal = s}
+      let out = formatConsumeSummary 5 phase (DrainTimedOut 10) report creport {readerTotal = s}
       out `shouldSatisfy` any (T.isInfixOf "delivered=3 expected=5 missing=2 duplicates=0")
-      out `shouldSatisfy` any (T.isInfixOf "drain: timed out")
+      out `shouldSatisfy` any (T.isInfixOf "drain: timed out after 10.0s")
     it "reports duplicates and a complete drain" $ do
       s <- deliveredSnapshot
-      let out = formatConsumeSummary 2 True report creport {readerTotal = s}
+      let out = formatConsumeSummary 2 phase (DrainComplete 1.23) report creport {readerTotal = s}
       out `shouldSatisfy` any (T.isInfixOf "missing=0 duplicates=1")
-      out `shouldSatisfy` any (T.isInfixOf "drain: complete")
+      out `shouldSatisfy` any (T.isInfixOf "drain: complete after 1.2s")
+    it "reports an interrupted drain" $
+      formatConsumeSummary 0 phase DrainInterrupted report creport
+        `shouldSatisfy` any (T.isInfixOf "drain: interrupted")
+    it "takes duration and averages from the writer phase, not the drain" $ do
+      s <- pushSnapshot 300
+      let out = formatConsumeSummary 0 phase (DrainTimedOut 10) report {total = s} creport
+      out `shouldSatisfy` any (T.isInfixOf "duration=30.0s")
+      out `shouldSatisfy` any (T.isInfixOf "push/s avg=10 ")
+      out `shouldSatisfy` any (T.isInfixOf "cons/s avg=20 ")
     it "survives an empty run" $
-      formatConsumeSummary 0 True report {elapsed = 0} creport {lagP50 = Nothing, lagP99 = Nothing}
+      formatConsumeSummary 0 WriterPhase {duration = 0, delivered = 0} (DrainComplete 0) report {elapsed = 0} creport {lagP50 = Nothing, lagP99 = Nothing}
         `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
 
   describe "formatCoverage" $

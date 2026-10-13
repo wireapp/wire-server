@@ -5,12 +5,15 @@ module FanInPerf.Consume
   ( Sub (..),
     loadCursors,
     readerPass,
+    readerRound,
+    describeUsageError,
     lagNs,
     runConsume,
   )
 where
 
 import Control.Concurrent.Async
+import Control.Exception (AsyncException (UserInterrupt), handleJust)
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.UUID.Types (UUID)
@@ -25,7 +28,8 @@ import FanInPerf.Store
 import FanInPerf.Targets
 import FanInPerf.Terminal
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
-import Hasql.Pool (UsageError)
+import Hasql.Errors (ConnectionError (..), ServerError (..), SessionError (..), StatementError (..))
+import Hasql.Pool (UsageError (..))
 import Imports
 import Polysemy
 import Polysemy.Error qualified as PE
@@ -48,15 +52,17 @@ loadCursors c =
 
 -- | Fetches every stream of one client once. Returns the advanced cursors,
 -- whether some stream returned a full page (more is waiting) and the messages
--- of failed fetches. A failed fetch leaves its cursor unchanged.
+-- of failed fetches (rendered by @render@). A failed fetch leaves its cursor
+-- unchanged.
 readerPass ::
   forall e r.
-  (Show e, Members '[FanInNotificationsStore, PE.Error e, Embed IO] r) =>
+  (Members '[FanInNotificationsStore, PE.Error e, Embed IO] r) =>
+  (e -> Text) ->
   Int ->
   ReaderStats ->
   [Sub] ->
   Sem r ([Sub], Bool, [Text])
-readerPass limit stats subs = do
+readerPass render limit stats subs = do
   results <- for subs $ \sub -> do
     t0 <- embed getMonotonicTimeNSec
     fetched <- PE.try @e (fetchNotifications sub.stream sub.cursor limit)
@@ -64,7 +70,7 @@ readerPass limit stats subs = do
     case fetched of
       Left err -> do
         embed (recordFetchError stats sub.kind)
-        pure (sub, False, [kindName sub.kind <> ": fetch failed: " <> T.pack (show err)])
+        pure (sub, False, [kindName sub.kind <> ": fetch failed: " <> render err])
       Right page -> do
         nowMs <- embed currentMillis
         embed (recordFetch stats sub.kind (t1 - t0) (map (lagNs nowMs . fst) page))
@@ -84,23 +90,69 @@ lagNs nowMs notifId =
   let created = notificationIdMillis notifId
    in if nowMs > created then (nowMs - created) * 1_000_000 else 0
 
+-- | Describes a store error without SQL text, parameters or server messages
+-- (they can contain stream ids and cursors): constructor names and the
+-- SQLSTATE only.
+describeUsageError :: UsageError -> Text
+describeUsageError = \case
+  AcquisitionTimeoutUsageError -> "AcquisitionTimeoutUsageError"
+  ConnectionError e -> "ConnectionError " <> connectionError e
+  SessionError e -> "SessionError " <> sessionError e
+  where
+    connectionError = \case
+      NetworkingConnectionError _ -> "NetworkingConnectionError"
+      AuthenticationConnectionError _ -> "AuthenticationConnectionError"
+      CompatibilityConnectionError _ -> "CompatibilityConnectionError"
+      OtherConnectionError _ -> "OtherConnectionError"
+    sessionError = \case
+      StatementSessionError _ _ _ _ _ e -> "StatementSessionError " <> statementError e
+      ScriptSessionError _ e -> "ScriptSessionError " <> serverError e
+      ConnectionSessionError _ -> "ConnectionSessionError"
+      MissingTypesSessionError _ -> "MissingTypesSessionError"
+      DriverSessionError _ -> "DriverSessionError"
+    statementError = \case
+      ServerStatementError e -> "ServerStatementError " <> serverError e
+      UnexpectedRowCountStatementError {} -> "UnexpectedRowCountStatementError"
+      UnexpectedColumnCountStatementError {} -> "UnexpectedColumnCountStatementError"
+      UnexpectedColumnTypeStatementError {} -> "UnexpectedColumnTypeStatementError"
+      RowStatementError {} -> "RowStatementError"
+      UnexpectedResultStatementError {} -> "UnexpectedResultStatementError"
+    serverError (ServerError code _ _ _ _) = "SQLSTATE " <> code
+
+-- | One pass over the streams of a client, each fetched in isolation by
+-- @fetchOne@ (a 'readerPass' over that stream alone): an exception or error
+-- only keeps the cursor of its own stream (counted as fetch error), so cursors
+-- advanced by earlier fetches survive. Synchronous exceptions are caught like
+-- in 'writerStep'; async ones (cancel) propagate.
+readerRound ::
+  (e -> Text) ->
+  ReaderStats ->
+  (Sub -> IO (Either e ([Sub], Bool, [Text]))) ->
+  [Sub] ->
+  IO ([Sub], Bool, [Text])
+readerRound render stats fetchOne subs = do
+  results <- for subs $ \sub ->
+    tryAny (fetchOne sub) >>= \case
+      Left e -> failed sub (T.pack (displayException e))
+      Right (Left e) -> failed sub (render e)
+      Right (Right r) -> pure r
+  pure (concat [s | (s, _, _) <- results], or [full | (_, full, _) <- results], concat [errs | (_, _, errs) <- results])
+  where
+    failed sub msg = do
+      recordFetchError stats sub.kind
+      pure ([sub], False, ["reader: " <> kindName sub.kind <> ": " <> msg])
+
 -- | One reader client: fetch all streams, then sleep unless a full page says
 -- more is waiting. Failures are reported and slow the loop down, never stop it.
 readerLoop :: Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Sub] -> IO ()
 readerLoop env opts stats reportError = go
   where
-    pause = threadDelay (opts.pollIntervalMs * 1000)
-    failed msg subs = reportError ("reader: " <> msg) >> pause >> go subs
-    go subs =
-      -- synchronous exceptions are caught like in 'writerStep'; async ones
-      -- (cancel) propagate
-      tryAny (runStore env (readerPass @UsageError opts.fetchLimit stats subs)) >>= \case
-        Left e -> failed (T.pack (displayException e)) subs
-        Right (Left e) -> failed (T.pack (show e)) subs
-        Right (Right (subs', more, errs)) -> do
-          traverse_ reportError errs
-          unless more pause
-          go subs'
+    fetchOne sub = runStore env (readerPass @UsageError describeUsageError opts.fetchLimit stats [sub])
+    go subs = do
+      (subs', more, errs) <- readerRound describeUsageError stats fetchOne subs
+      traverse_ reportError errs
+      unless more (threadDelay (opts.pollIntervalMs * 1000))
+      go subs'
 
 -- | @runConsume console writerEnv readerEnv options@. The environments differ
 -- only in their connection pool.
@@ -126,7 +178,7 @@ runConsume console writerEnv readerEnv opts = do
   -- between could otherwise sit below a cursor and show up as a false `missing`.
   printLine console "consume: loading start positions"
   loaded <- forConcurrently population.simClients (runStore readerEnv . loadCursors)
-  clientSubs <- either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
+  clientSubs <- either (\e -> die ("loading start positions failed: " <> T.unpack (describeUsageError e))) pure (sequence loaded)
 
   metrics <- newMetrics "consume" p.writers
   consumeMetrics <- newConsumeMetrics "consume" opts.clients
@@ -156,22 +208,28 @@ runConsume console writerEnv readerEnv opts = do
         expected <- totalExpected . sumSnapshots <$> traverse readSnapshot writerStats
         delivered <- totalDelivered . sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
         pure (expected, delivered)
-      -- True when readers caught up before the timeout
+      -- waits until readers caught up or the timeout passed
       drain = do
-        deadline <- (+ fromIntegral opts.drainTimeout) <$> getMonotonicTime
-        let go = do
+        started <- getMonotonicTime
+        let deadline = started + fromIntegral opts.drainTimeout
+            go = do
               (expected, delivered) <- totals
               now <- getMonotonicTime
               if delivered >= expected
-                then pure True
+                then pure (DrainComplete (now - started))
                 else
                   if now >= deadline
-                    then pure False
+                    then pure (DrainTimedOut (now - started))
                     else threadDelay 100_000 >> go
         go
   start <- getMonotonicTime
   stateRef <- newIORef (initialTickState start, initialConsumeTickState start)
   let warmup = fromIntegral p.warmup
+      -- the writer phase ends when the writers stopped (or at Ctrl-C)
+      writerPhaseEnd = do
+        now <- getMonotonicTime
+        (_, delivered) <- totals
+        pure WriterPhase {duration = now - start, delivered}
       doTick = do
         now <- getMonotonicTime
         writerTotal <- sumSnapshots <$> traverse readSnapshot writerStats
@@ -186,7 +244,7 @@ runConsume console writerEnv readerEnv opts = do
         drawStatus console (formatConsumeStatus writerReport readerReport)
         pure (writerReport, readerReport)
   printLine console "consume: running"
-  drained <-
+  (writerPhase, drainResult) <-
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
       withAsync (mapConcurrently_ readerClient (zip readerStats clientSubs)) $ \readersA -> do
@@ -195,12 +253,23 @@ runConsume console writerEnv readerEnv opts = do
           link writersA
           waitForStop p.duration
           atomicWriteIORef stopWriters True
-          wait writersA
-          printLine console "consume: writers stopped, draining"
-          drain
-  -- ticker and readers are cancelled now; the final tick and summary run here only
+          -- Ctrl-C while waiting for writers or draining still prints the
+          -- summary; 'UserInterrupt' is async, so UnliftIO's handlers miss it
+          phaseRef <- newIORef Nothing
+          let interrupted = do
+                phase <- maybe writerPhaseEnd pure =<< readIORef phaseRef
+                pure (phase, DrainInterrupted)
+          handleJust isInterrupt (const interrupted) $ do
+            wait writersA
+            phase <- writerPhaseEnd
+            writeIORef phaseRef (Just phase)
+            printLine console "consume: writers stopped, draining"
+            (phase,) <$> drain
+  -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
-  traverse_ (printLine console) (formatConsumeSummary (totalExpected writerReport.total) drained writerReport readerReport)
+  traverse_ (printLine console) (formatConsumeSummary (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)
   where
     tshow :: (Show a) => a -> Text
     tshow = T.pack . show
+    isInterrupt UserInterrupt = Just ()
+    isInterrupt _ = Nothing

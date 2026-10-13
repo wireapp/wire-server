@@ -1,5 +1,6 @@
 module FanInPerf.ConsumeSpec (spec) where
 
+import Control.Exception (ErrorCall (..), throwIO)
 import Data.Aeson qualified as A
 import Data.Id
 import Data.Text qualified as T
@@ -10,6 +11,8 @@ import FanInPerf.Consume
 import FanInPerf.ConsumeStats
 import FanInPerf.Population (Client (..))
 import FanInPerf.Targets (TargetKind (..))
+import Hasql.Errors (ServerError (..), SessionError (..), StatementError (..))
+import Hasql.Pool (UsageError (..))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -42,6 +45,9 @@ newIds n = sort <$> replicateM n ((\i -> (i.toUUID, A.Null)) <$> genNotification
 team :: Stream
 team = StreamTeam (Id (UUID.fromWords 1 2 3 4))
 
+user :: Stream
+user = StreamUser (Id (UUID.fromWords 5 6 7 8))
+
 setup :: [(UUID, A.Value)] -> IO (Rows, IORef Bool)
 setup rs = (,) <$> newIORef [(team, rs)] <*> newIORef False
 
@@ -49,7 +55,7 @@ sub0 :: Sub
 sub0 = Sub {kind = KindTeam, stream = team, cursor = UUID.nil}
 
 pass :: Rows -> IORef Bool -> Int -> ReaderStats -> [Sub] -> IO ([Sub], Bool, [Text])
-pass rows failing limit stats subs = runFake rows failing (readerPass @Text limit stats subs)
+pass rows failing limit stats subs = runFake rows failing (readerPass @Text id limit stats subs)
 
 spec :: Spec
 spec = do
@@ -138,3 +144,40 @@ spec = do
       _ <- pass rows failing 10 stats s1
       s <- readReaderSnapshot stats
       totalDelivered s `shouldBe` 1 -- 'a' is lost; the run reports it as `missing`
+  describe "readerRound" $ do
+    it "keeps cursors advanced before another stream's fetch threw" $ do
+      rs <- newIds 3
+      (rows, failing) <- setup rs
+      stats <- newReaderStats
+      let userSub = Sub {kind = KindUser, stream = user, cursor = UUID.nil}
+          fetchOne sub
+            | sub.stream == team = Right <$> pass rows failing 10 stats [sub]
+            | otherwise = throwIO (ErrorCall "boom")
+      (subs, more, errs) <- readerRound @Text id stats fetchOne [sub0, userSub]
+      map (.cursor) subs `shouldBe` [fst (last rs), UUID.nil]
+      (more, length errs) `shouldBe` (False, 1)
+      s <- readReaderSnapshot stats
+      (totalDelivered s, totalFetchErrors s) `shouldBe` (3, 1)
+      -- the next pass delivers nothing twice
+      _ <- readerRound @Text id stats fetchOne subs
+      s' <- readReaderSnapshot stats
+      totalDelivered s' `shouldBe` 3
+
+    it "counts an error result as fetch error and keeps the cursor" $ do
+      stats <- newReaderStats
+      (subs, more, errs) <- readerRound @Text id stats (\_ -> pure (Left "down")) [sub0]
+      (map (.cursor) subs, more, errs) `shouldBe` ([UUID.nil], False, ["reader: team: down"])
+      s <- readReaderSnapshot stats
+      totalFetchErrors s `shouldBe` 1
+
+  describe "describeUsageError" $
+    it "shows the SQLSTATE but neither SQL, parameters nor the server message" $ do
+      let err =
+            SessionError
+              ( StatementSessionError 1 0 "SELECT secret_sql" ["param-uuid"] True $
+                  ServerStatementError (ServerError "40001" "message-with-value" (Just "detail-value") (Just "hint-value") Nothing)
+              )
+          out = describeUsageError err
+      out `shouldBe` "SessionError StatementSessionError ServerStatementError SQLSTATE 40001"
+      for_ ["secret_sql", "param-uuid", "message-with-value", "detail-value", "hint-value"] $ \needle ->
+        out `shouldNotSatisfy` T.isInfixOf needle
