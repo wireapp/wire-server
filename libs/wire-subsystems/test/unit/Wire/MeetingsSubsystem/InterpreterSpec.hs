@@ -65,7 +65,7 @@ import Wire.CodeStore.Code (Code (..), CodeReferent (..))
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.HashPassword (HashPassword, verifyPassword)
+import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore qualified as Store
@@ -270,6 +270,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       Right (meeting, _mid, mCode) -> do
         meeting.meeting.link
           `shouldBe` (expectedLink testCodeURIBase (Domain "wire.com") . fst <$> mCode)
+        meeting.meeting.hasPassword `shouldBe` False
         mCode `shouldSatisfy` isJust
 
   it "uses the multi-ingress URI mapped for the user's domain" $ do
@@ -471,22 +472,30 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
         midWithCode = Id $ read "00000000-0000-0000-0000-00000000000e"
         midWithoutCode = Id $ read "00000000-0000-0000-0000-00000000000f"
+        password = plainTextPassword8Unsafe "join secret pw"
 
     result <-
       runTestStack now gen Map.empty def $ do
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
-        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600) Nothing
+        void $ do
+          hashedPw <- hashPassword8 (RateLimitUser uid) password
+          CodeStore.createMeetingCode midWithCode (Timeout 3600) (Just hashedPw)
         key <- CodeStore.makeKey (CodeReferentMeeting midWithCode)
         mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
         meetings <- listMeetings zUser
         let expectedLink' = expectedLink testCodeURIBase (Domain "wire.com") . fst <$> mCode
-        pure ([(qUnqualified m.id, m.link) | m <- meetings], expectedLink')
+        pure
+          ( [(qUnqualified m.id, m.link) | m <- meetings],
+            [(qUnqualified m.id, m.hasPassword) | m <- meetings],
+            expectedLink'
+          )
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right (links, expectedLink') ->
+      Right (links, passwordFlags, expectedLink') -> do
         links `shouldBe` [(midWithCode, expectedLink'), (midWithoutCode, Nothing)]
+        passwordFlags `shouldBe` [(midWithCode, True), (midWithoutCode, False)]
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -1388,6 +1397,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (meeting, code, JoinMeetingOk mwc, members) -> do
           mwc.meeting.title `shouldBe` meeting.title
           mwc.meeting.link `shouldBe` Just (expectedLink testCodeURIBase (Domain "wire.com") code)
+          mwc.meeting.hasPassword `shouldBe` False
           members `shouldSatisfy` maybe False (Set.member uid2)
         Right (_, _, r, _) -> fail $ "expected JoinMeetingOk, got: " <> show r
 
@@ -1396,12 +1406,12 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") pwMeeting
         hashed <- join <$> meetingPasswordFor (qUnqualified meeting.meeting.id)
         case hashed of
-          Nothing -> pure (False, False)
+          Nothing -> pure (False, False, False)
           Just h -> do
             good <- verifyPassword (RateLimitUser uid1) pw h
             bad <- verifyPassword (RateLimitUser uid1) (plainTextPassword8Unsafe "wrong secret") h
-            pure (good, bad)
-      result `shouldBe` Right (True, False)
+            pure (meeting.meeting.hasPassword, good, bad)
+      result `shouldBe` Right (True, True, False)
 
     it "enforces the create-time password on join" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do

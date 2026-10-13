@@ -71,9 +71,9 @@ interpretCodeStorePure = interpret $ \case
     ks <- embed (traverse (\mid -> (mid,) <$> Code.mkKey (CodeReferentMeeting mid)) mids)
     gets $ \m ->
       Map.fromList
-        [ (mid, c)
+        [ (mid, (c, mPw))
         | (mid, k) <- ks,
-          Just (c, _) <- [Map.lookup k m]
+          Just (c, mPw) <- [Map.lookup k m]
         ]
   MakeKey ref -> embed (Code.mkKey ref)
   GenerateCode ref t -> embed (Code.generate ref t)

@@ -144,7 +144,10 @@ lookupCode k = do
 -- key/value/target/password fails to decode is dropped silently (absent
 -- link) rather than failing the whole list request — rows are only ever
 -- written through 'insertCode', so a decode failure indicates schema drift.
-lookupMeetingCodes :: (PGConstraints r) => [MeetingId] -> Sem r (Map MeetingId Code)
+lookupMeetingCodes ::
+  (PGConstraints r) =>
+  [MeetingId] ->
+  Sem r (Map MeetingId (Code, Maybe Password))
 lookupMeetingCodes mids
   | null mids = pure Map.empty
   | otherwise = do
@@ -158,7 +161,7 @@ lookupMeetingCodes mids
             selectMeetingCodes
       pure $
         Map.fromList
-          [ (mid, fst (toCode k (val', ttl, codeReferentFromTarget target' targetId, mPw')))
+          [ (mid, toCode k (val', ttl, codeReferentFromTarget target' targetId, mPw'))
           | (key, val, ttl, targetId, mPw, target) <- rows,
             Right k <- [postgresUnmarshall key],
             mid <- maybeToList (Map.lookup k keys),
