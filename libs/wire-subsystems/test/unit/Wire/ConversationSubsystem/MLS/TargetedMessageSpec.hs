@@ -263,7 +263,7 @@ interpretExternalAccess = interpret $ \case
 
 interpretBackendNotificationQueueAccess :: Sem (BackendNotificationQueueAccess ': r) a -> Sem r a
 interpretBackendNotificationQueueAccess = interpret $ \case
-  EnqueueNotification _ _ _ ->
+  EnqueueNotification {} ->
     -- The queued action's result is ignored by this test interpreter.
     pure (Right (error "queued action result is not evaluated in this test"))
   EnqueueNotificationsConcurrently {} -> error "unexpected federation notification in local delivery test"
