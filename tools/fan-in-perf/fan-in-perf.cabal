@@ -74,6 +74,7 @@ library
   import:          common-all
   hs-source-dirs:  src
   exposed-modules:
+    FanInPerf.ConsumeStats
     FanInPerf.Metrics
     FanInPerf.Options
     FanInPerf.Population
@@ -130,6 +131,7 @@ test-suite fan-in-perf-tests
   hs-source-dirs: test
   ghc-options:    -threaded
   other-modules:
+    FanInPerf.ConsumeStatsSpec
     FanInPerf.MetricsSpec
     FanInPerf.OptionsSpec
     FanInPerf.PoolSpec
