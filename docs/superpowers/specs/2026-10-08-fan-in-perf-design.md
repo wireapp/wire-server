@@ -12,7 +12,7 @@ maximal rates against a real database, through the production access layer
 Experiments (ticket):
 
 - **A** max rate of adding notifications — *this spec, built end-to-end first*
-- **B** max rate of adding + consuming by ~2,000 clients — later
+- **B** max rate of adding + consuming by ~2,000 clients — `consume`, see below
 - **C** like B, clients acknowledge everything — later
 - **D** impact of TTL garbage collection on C — later
 
@@ -53,7 +53,7 @@ Global options:
 | Flag | Default | Meaning |
 |---|---|---|
 | `--db CONNSTR` | required | PostgreSQL connection string (never logged) |
-| `--pool-size N` | `--writers` (produce) / 1 (reset) | hasql pool size |
+| `--pool-size N` | `--writers` (produce, consume) / 1 (reset) | hasql (writer) pool size |
 | `--metrics-port P` | 9400 | `/metrics` HTTP port, bound to `0.0.0.0` |
 | `--isolation read-committed\|repeatable-read\|serializable` | `read-committed` (RFC intent) | isolation level for push transactions |
 
@@ -73,7 +73,7 @@ Sub-commands:
 | `--warmup SECS` | 5 | ignored for max-rate tracking |
 | `--seed N` | unset = random, printed at start | RNG seed |
 
-Later: `consume` (B), `consume-ack` (C), TTL variant (D).
+`consume` (B) exists (see the B spec); later: `consume-ack` (C), TTL variant (D).
 
 ### `--targets` grammar
 

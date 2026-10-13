@@ -24,14 +24,20 @@ streams); startup prints how many pool streams have a reader. `connections`
 targets are not supported. Readers keep their cursors in memory and start at
 the latest notification of each stream (`GetLastNotificationId`), taken before
 the writers start. After the writers stop, readers get `--drain-timeout`
-seconds to catch up; the summary reports `missing`/`duplicates`. A non-zero
+seconds to catch up; the summary reports `missing`/`duplicates`. These are net
+counts (one duplicate cancels one missing); real duplicates mainly come from
+pushes that committed but returned an error (not counted as expected). A non-zero
 `missing` means a notification committed after a reader's cursor had already
 passed its (smaller, pre-transaction generated) UUIDv7 - a finding about the
 RFC's `> lastId` model, not a tool bug. Delivery lag is measured from the
 millisecond timestamp inside the UUIDv7 (writers and readers share a clock).
-Fetch latency includes the wait for a connection from the reader pool.
-Ctrl-C during writer shutdown/drain skips the final summary; use `--duration`
-to get a summary.
+Fetch latency includes the wait for a connection from the reader pool. The
+reader pool shares the `wire_hasql_pool_*` counters and histograms with the
+writer pool, but the pool gauges (connections in use/idle) show the writer pool
+only. Summary duration and push/s and cons/s averages cover the writer phase
+(until the writers stopped); the drain time is printed separately. Ctrl-C
+during writer shutdown/drain ends the drain early (`drain: interrupted`) and
+still prints the summary.
 
 Global flags go before the sub-command. `--targets` entries are `KIND:STREAMS[xK]`
 (`KIND` in `user|clients|team|epoch|connections`): `STREAMS` distinct stream keys,
