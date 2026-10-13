@@ -144,7 +144,12 @@ delivers it. B measures this.
   `missing` after drain is a finding about the RFC's cursor model.
 - A push that errors after commit is not counted; accepted (rare, and it
   produces `duplicates`/noise rather than silent loss).
-- No safety window by default.
+- Optional safety window `--safety-window MS` (default 0 = plain `> cursor`):
+  readers fetch from the ms timestamp of the highest delivered id minus MS
+  (never below the start position), skip ids already delivered within the
+  window (per-stream set, pruned below the bound) and continue a scan after a
+  full page so a window larger than `--fetch-limit` cannot stall the reader.
+  Late commits beyond MS are still lost.
 
 ## Stats
 

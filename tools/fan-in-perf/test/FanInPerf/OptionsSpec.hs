@@ -76,8 +76,8 @@ spec = do
     o <- parseOk ["--db", "postgresql://u:p@localhost/db", "consume", "--targets", "user:100,team:1"]
     case o.command of
       Consume c -> do
-        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout)
-          `shouldBe` (2000, 3, 100, 100, 32, 10)
+        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
+          `shouldBe` (2000, 3, 100, 100, 32, 10, 0)
         c.writerOptions.writers `shouldBe` 16
         c.writerOptions.targets `shouldBe` (TargetConfig KindUser 100 1 :| [TargetConfig KindTeam 1 1])
       _ -> expectationFailure "not a consume command"
@@ -102,6 +102,8 @@ spec = do
           "4",
           "--drain-timeout",
           "0",
+          "--safety-window",
+          "60000",
           "--writers",
           "3",
           "--duration",
@@ -109,8 +111,8 @@ spec = do
         ]
     case o.command of
       Consume c -> do
-        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout)
-          `shouldBe` (10, 2, 0, 5, 4, 0)
+        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
+          `shouldBe` (10, 2, 0, 5, 4, 0, 60000)
         (c.writerOptions.writers, c.writerOptions.duration) `shouldBe` (3, Just 9)
       _ -> expectationFailure "not a consume command"
 
@@ -120,6 +122,8 @@ spec = do
     isNothing (parse (consume ["--fetch-limit", "0"])) `shouldBe` True
     isNothing (parse (consume ["--poll-interval", "-1"])) `shouldBe` True
     isNothing (parse (consume ["--reader-pool-size", "0"])) `shouldBe` True
+    isNothing (parse (consume ["--safety-window", "-1"])) `shouldBe` True
+    isNothing (parse (consume ["--safety-window", "60001"])) `shouldBe` True
     isNothing (parse ["--db", "x", "consume", "--targets", "connections:5"]) `shouldBe` True
     isNothing (parse ["--db", "x", "consume", "--targets", "user:10,connections:5"]) `shouldBe` True
     -- `produce` still accepts connections

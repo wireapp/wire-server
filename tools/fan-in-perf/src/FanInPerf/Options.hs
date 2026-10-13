@@ -44,7 +44,8 @@ data ConsumeOptions = ConsumeOptions
     pollIntervalMs :: Int,
     fetchLimit :: Int,
     readerPoolSize :: Int,
-    drainTimeout :: Int
+    drainTimeout :: Int,
+    safetyWindowMs :: Int
   }
   deriving (Eq, Show)
 
@@ -105,6 +106,7 @@ consumeParser =
     <*> option (positive maxFetchLimit) (long "fetch-limit" <> metavar "L" <> value 100 <> showDefault <> help "Notifications per fetch")
     <*> option (positive maxPoolSize) (long "reader-pool-size" <> metavar "P" <> value 32 <> showDefault <> help "Connection pool size of the readers (writers: --pool-size)")
     <*> option (nonNegative maxDuration) (long "drain-timeout" <> metavar "SECS" <> value 10 <> showDefault <> help "Seconds to wait for readers to catch up after the writers stopped")
+    <*> option (nonNegative maxSafetyWindowMs) (long "safety-window" <> metavar "MS" <> value 0 <> showDefault <> help "Readers re-fetch the last MS milliseconds (by UUIDv7 timestamp) of each stream to catch late commits; 0: plain > cursor")
 
 -- | Readers have no 'connections' streams (see the design spec's follow-ups).
 consumeTargetsReader :: ReadM (NonEmpty TargetConfig)
@@ -137,11 +139,12 @@ bounded lo hi what = eitherReader $ \s -> case readMaybe @Integer s of
   Just n | n >= lo && n <= hi -> Right (fromInteger n)
   _ -> Left ("expected " <> what <> " between " <> show lo <> " and " <> show hi)
 
-maxClients, maxEpochsPerClient, maxPollIntervalMs, maxFetchLimit :: Integer
+maxClients, maxEpochsPerClient, maxPollIntervalMs, maxFetchLimit, maxSafetyWindowMs :: Integer
 maxClients = 100_000
 maxEpochsPerClient = 10_000
 maxPollIntervalMs = 3_600_000
 maxFetchLimit = 10_000
+maxSafetyWindowMs = 60_000
 
 maxPoolSize, maxWriters, maxClientsPerUser, maxPayloadBytes, maxDuration :: Integer
 maxPoolSize = 10_000

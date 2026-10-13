@@ -3,6 +3,8 @@
 -- memory (no acknowledgements).
 module FanInPerf.Consume
   ( Sub (..),
+    newSub,
+    millisLowerBound,
     loadCursors,
     readerPass,
     readerRound,
@@ -15,6 +17,8 @@ where
 import Control.Concurrent.Async
 import Control.Concurrent.QSem (QSem, newQSem, signalQSem, waitQSem)
 import Control.Exception (AsyncException (UserInterrupt), handleJust)
+import Data.Bits (shiftL, shiftR, (.&.))
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.UUID.Types (UUID)
@@ -40,8 +44,21 @@ import UnliftIO.Exception (bracket_, tryAny)
 import Wire.FanInNotificationsStore
 import Wire.FanInNotificationsStore.Postgres (notificationIdMillis)
 
--- | A stream a client reads and its cursor: the id of the last notification seen.
-data Sub = Sub {kind :: !TargetKind, stream :: !Stream, cursor :: !UUID}
+-- | A stream a client reads. @cursor@ is the highest id delivered (or the
+-- start position). With a safety window, @start@ (the start position) is the
+-- lowest possible fetch bound, @seen@ holds the delivered ids inside the
+-- window and @scan@ is where an unfinished scan of the window continues.
+data Sub = Sub
+  { kind :: !TargetKind,
+    stream :: !Stream,
+    cursor :: !UUID,
+    start :: !UUID,
+    seen :: !(Set UUID),
+    scan :: !(Maybe UUID)
+  }
+
+newSub :: TargetKind -> Stream -> UUID -> Sub
+newSub k s c = Sub {kind = k, stream = s, cursor = c, start = c, seen = mempty, scan = Nothing}
 
 -- | Start position of every stream of a client: the latest notification id
 -- ("start at latest"), the nil UUID for an empty stream.
@@ -49,34 +66,70 @@ loadCursors :: (Member FanInNotificationsStore r) => Client -> Sem r [Sub]
 loadCursors c =
   for c.streams $ \s -> do
     lastId <- getLastNotificationId s
-    pure Sub {kind = streamKind s, stream = s, cursor = fromMaybe UUID.nil lastId}
+    pure (newSub (streamKind s) s (fromMaybe UUID.nil lastId))
+
+-- | The smallest UUID with the given UUIDv7 ms timestamp (all other bits
+-- zero): every UUIDv7 of that ms or later is greater (its version bits are
+-- set), every one of an earlier ms is smaller.
+millisLowerBound :: Word64 -> UUID
+millisLowerBound ms =
+  UUID.fromWords (fromIntegral (ms `shiftR` 16)) (fromIntegral ((ms .&. 0xFFFF) `shiftL` 16)) 0 0
+
+-- | Ids up to the bound are never fetched again. Window 0: the cursor itself
+-- (the plain @> lastId@ reader). Otherwise the ms of the cursor minus the
+-- window, never below the start position. Monotone, as the cursor only grows.
+lowerBound :: Word64 -> Sub -> UUID
+lowerBound 0 sub = sub.cursor
+lowerBound windowMs sub =
+  let ms = notificationIdMillis sub.cursor
+   in max sub.start (millisLowerBound (if ms > windowMs then ms - windowMs else 0))
 
 -- | Fetches every stream of one client once. Returns the advanced cursors,
 -- whether some stream returned a full page (more is waiting) and the messages
 -- of failed fetches (rendered by @render@). A failed fetch leaves its cursor
 -- unchanged.
+--
+-- With a safety window (@windowMs@ > 0) a fetch starts at 'lowerBound', so
+-- notifications committed late (lower id than the cursor) within the window
+-- are still delivered; ids in @seen@ are not delivered again. Termination: the
+-- window can hold more already-seen rows than the fetch limit. A full raw page
+-- sets @scan@ to its last id and the next pass continues after it (each such
+-- pass advances strictly, rows are finite); a non-full page ends the scan
+-- (@scan = Nothing@), so the next pass restarts at the bound and picks up late
+-- commits. @more@ is "the raw page was full", so a reader never spins on the
+-- same page. With window 0 all this reduces to the plain @> cursor@ reader.
 readerPass ::
   forall e r.
   (Members '[FanInNotificationsStore, PE.Error e, Embed IO] r) =>
   (e -> Text) ->
   Int ->
+  Word64 ->
   ReaderStats ->
   [Sub] ->
   Sem r ([Sub], Bool, [Text])
-readerPass render limit stats subs = do
+readerPass render limit windowMs stats subs = do
   results <- for subs $ \sub -> do
+    let bound = lowerBound windowMs sub
+        from = maybe bound (max bound) sub.scan
     t0 <- embed getMonotonicTimeNSec
-    fetched <- PE.try @e (fetchNotifications sub.stream sub.cursor limit)
+    fetched <- PE.try @e (fetchNotifications sub.stream from limit)
     t1 <- embed getMonotonicTimeNSec
     case fetched of
       Left err -> do
         embed (recordFetchError stats sub.kind)
         pure (sub, False, [kindName sub.kind <> ": fetch failed: " <> render err])
       Right page -> do
+        let new = filter (`Set.notMember` sub.seen) (map fst page)
+            full = length page >= limit
+            cursor' = foldl' max sub.cursor new
+            sub' = sub {cursor = cursor', scan = if full then fst <$> listToMaybe (reverse page) else Nothing}
+            bound' = lowerBound windowMs sub'
+            seen'
+              | windowMs == 0 = mempty
+              | otherwise = Set.filter (> bound') (foldl' (flip Set.insert) sub.seen new)
         nowMs <- embed currentMillis
-        embed (recordFetch stats sub.kind (t1 - t0) (map (lagNs nowMs . fst) page))
-        let cursor' = maybe sub.cursor fst (listToMaybe (reverse page))
-        pure (sub {cursor = cursor'}, length page >= limit, [])
+        embed (recordFetch stats sub.kind (t1 - t0) (map (lagNs nowMs) new))
+        pure (sub' {seen = seen'}, full, [])
   pure ([s | (s, _, _) <- results], or [full | (_, full, _) <- results], concat [errs | (_, _, errs) <- results])
 
 currentMillis :: IO Word64
@@ -155,7 +208,7 @@ throughGate gate = bracket_ (waitQSem gate) (signalQSem gate)
 readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Sub] -> IO ()
 readerLoop gate env opts stats reportError = go
   where
-    fetchOne sub = throughGate gate (runStore env (readerPass @UsageError describeUsageError opts.fetchLimit stats [sub]))
+    fetchOne sub = throughGate gate (runStore env (readerPass @UsageError describeUsageError opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub]))
     go subs = do
       (subs', more, errs) <- readerRound describeUsageError stats fetchOne subs
       traverse_ reportError errs
