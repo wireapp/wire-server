@@ -171,6 +171,10 @@ let
         chmod -R u+w $out
         mkdir -p $out/test/unit/generated
         cp ${../charts/nginz/values.yaml} $out/test/unit/generated/nginz-values.yaml
+        # Frozen OpenAPI baselines for Test.Wire.API.Routes.SwaggerRegression;
+        # part of 'src' so baseline changes invalidate the build (and get reviewed).
+        mkdir -p $out/test/unit/generated/baselines
+        cp ${../services/brig/docs}/swagger-v*.json $out/test/unit/generated/baselines/
       '';
     });
   };

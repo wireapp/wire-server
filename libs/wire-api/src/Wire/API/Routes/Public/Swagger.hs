@@ -22,11 +22,13 @@ module Wire.API.Routes.Public.Swagger
   ( allServicesSwagger,
     devVersion,
     devVersionSwagger,
+    versionedSwagger,
   )
 where
 
 import Control.Lens ((.~))
 import Data.OpenApi qualified as S
+import Data.Proxy (Proxy (..))
 import Imports
 import Servant.API (toUrlPiece)
 import Servant.OpenApi (HasOpenApi)
@@ -85,4 +87,28 @@ devVersionSwagger =
   (allServicesSwagger @'V19)
     & S.info . S.title .~ "Wire-Server API"
     & S.servers .~ [S.Server ("/" <> toUrlPiece devVersion) Nothing mempty]
+    & cleanupSwagger
+
+-- | Live-rendered OpenAPI of all public services restricted to version @v@,
+-- adjusted like brig's frozen snapshots used to be: server URL set to @/vN@,
+-- title set, and servant's default responses cleaned up.  This is the shared
+-- core of brig's @liveSwagger@ and the frozen-baseline regression test in
+-- @Test.Wire.API.Routes.SwaggerRegression@.
+versionedSwagger ::
+  forall v.
+  ( HasOpenApi (SpecialisedAPIRoutes v BrigAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GalleyAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v SparAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CargoholdAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CannonAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GundeckAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v OAuthAPITag)
+  ) =>
+  Proxy v ->
+  VersionNumber ->
+  S.OpenApi
+versionedSwagger _ vn =
+  allServicesSwagger @v
+    & S.info . S.title .~ "Wire-Server API"
+    & S.servers .~ [S.Server ("/" <> toUrlPiece vn) Nothing mempty]
     & cleanupSwagger

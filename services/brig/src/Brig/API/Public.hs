@@ -55,7 +55,7 @@ import Brig.User.Client qualified as API
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens ((.~), (?~))
+import Control.Lens ((?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.ByteString (fromStrict)
@@ -259,10 +259,7 @@ liveSwagger ::
   Servant.Server SwaggerDocsAPIBase
 liveSwagger _ vn =
   swaggerSchemaUIServer $
-    allServicesSwagger @v
-      & S.info . S.title .~ "Wire-Server API"
-      & S.servers .~ [S.Server ("/" <> toUrlPiece vn) Nothing mempty]
-      & cleanupSwagger
+    versionedSwagger (Proxy @v) vn
 
 -- | Serves Swagger docs for public endpoints
 --
