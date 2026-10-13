@@ -76,6 +76,7 @@ library
   exposed-modules:
     FanInPerf.Metrics
     FanInPerf.Options
+    FanInPerf.Population
     FanInPerf.Produce
     FanInPerf.Run
     FanInPerf.Stats
@@ -132,6 +133,7 @@ test-suite fan-in-perf-tests
     FanInPerf.MetricsSpec
     FanInPerf.OptionsSpec
     FanInPerf.PoolSpec
+    FanInPerf.PopulationSpec
     FanInPerf.ProduceSpec
     FanInPerf.StatsSpec
     FanInPerf.TargetSpecParserSpec
