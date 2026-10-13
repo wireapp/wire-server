@@ -151,7 +151,7 @@ delivers it. B measures this.
   sums): per-kind `delivered`, `fetches`, `emptyFetches`, `fetchErrors`;
   histograms for fetch latency and delivery lag, reusing `bucketIndex`,
   `quantileSeconds`, `diffSnapshot` style.
-- Writer snapshot gains `expected` (per kind).
+- Writer snapshot gains a total `expected` counter (per-kind not needed).
 - `tick` produces a consume report: consume rate current/max (max ignores
   warmup), lag p50/p99, backlog = expected − delivered.
 - Lag per notification = reader's wall-clock now − ms timestamp of the UUIDv7.
@@ -194,7 +194,7 @@ delivered, missing, duplicates, drain result (drained / timed out).
   coverage (pure).
 - `FanInPerf.Stats`, `Metrics`, `Terminal`, `Options`, `Run`, `Store`: extended.
   `Run`/`Store` create the reader pool and a reader `Env`.
-- `Produce` unchanged apart from `expected` recording (open `REVIEW:` comments
+- `Produce` only exports `storePush`, `waitForStop`, `printQueuedErrors` (open `REVIEW:` comments
   stay out of scope).
 
 ## Spec A drift (fix in the A spec alongside B)
