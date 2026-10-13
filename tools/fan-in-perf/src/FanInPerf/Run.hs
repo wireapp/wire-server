@@ -5,13 +5,14 @@ import Data.Misc (Duration (..))
 import Data.Qualified (toLocalUnsafe)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import FanInPerf.Consume (runConsume)
 import FanInPerf.Metrics (runMetricsServer)
 import FanInPerf.Options
 import FanInPerf.Produce (runProduce)
 import FanInPerf.Store
 import FanInPerf.Targets (localDomain)
 import FanInPerf.Terminal
-import Hasql.Pool.Extended (PoolConfig (..), initPostgresPoolFromConnString)
+import Hasql.Pool.Extended (PoolConfig (..), initPostgresPoolFromConnString, initPostgresPoolSharingMetrics)
 import Imports
 import PostgresqlConnectionString qualified
 import System.Exit (ExitCode (..), exitWith)
@@ -47,7 +48,13 @@ run console opts = do
         -- e.g. port already in use: fail loudly instead of running unobserved
         link server
         runProduce console env p
-    Consume _ -> abort "consume: not implemented yet"
+    Consume c ->
+      withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
+        link server
+        -- readers get their own pool so they cannot starve the writers
+        readerPool <- initPostgresPoolSharingMetrics pool (poolConfig c.readerPoolSize) connStr Nothing
+        let readerEnv = Env {pool = readerPool, local = env.local, isolation = env.isolation}
+        runConsume console env readerEnv c
 
 checkDatabase :: Env -> IO ()
 checkDatabase env =

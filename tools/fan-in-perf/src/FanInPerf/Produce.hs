@@ -1,6 +1,9 @@
 module FanInPerf.Produce
   ( PushOutcome (..),
     writerStep,
+    storePush,
+    waitForStop,
+    printQueuedErrors,
     runProduce,
   )
 where
@@ -103,15 +106,21 @@ tickOnce console metrics warmup stats errors ref = do
   st <- readIORef ref
   let (report, st') = tick warmup now total st
   writeIORef ref st'
+  printQueuedErrors console errors
+  publish metrics report
+  drawStatus console (formatStatus report)
+  pure report
+
+-- | Prints queued error messages (at most 'maxErrorLines' per call).
+printQueuedErrors :: Console -> TBQueue Text -> IO ()
+printQueuedErrors console errors = do
   msgs <- atomically (flushTBQueue errors)
   traverse_ (printLine console) (take maxErrorLines msgs)
   when (length msgs > maxErrorLines) $
     printLine console ("... " <> T.pack (show (length msgs - maxErrorLines)) <> " more errors suppressed")
-  publish metrics report
-  drawStatus console (formatStatus report)
-  pure report
-  where
-    maxErrorLines = 10
+
+maxErrorLines :: Int
+maxErrorLines = 10
 
 -- | Returns after @duration@ seconds or on Ctrl-C (GHC delivers SIGINT as
 -- 'UserInterrupt' to the main thread).
