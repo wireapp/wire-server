@@ -178,8 +178,8 @@ getUserByHandle domain handle = do
           pure Nothing
         Just ownerId -> do
           localOwnerId <- qualifyLocal ownerId
-          mProfile <- liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfile localOwnerId
-          pure $ mProfile >>= \profile -> if profileSearchable profile then Just profile else Nothing
+          mProfile <- liftSem $ UserSubsystem.getLocalUserProfile localOwnerId
+          pure $ fmap (V.Versioned @V.V18) $ mProfile >>= \profile -> if profileSearchable profile then Just profile else Nothing
 
 getUsersByIds ::
   (Member UserSubsystem r) =>

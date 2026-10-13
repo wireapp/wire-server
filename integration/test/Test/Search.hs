@@ -521,12 +521,16 @@ testUserSearchable = do
   -- Handle for POST /handles still works for non-searchable users
   u2handle <- API.randomHandle
   BrigP.putHandle u2 u2handle `bindResponse` assertSuccess
+  BrigP.getUserByHandleQualified u1 OwnDomain u2handle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
   BrigP.checkHandles u1 [u3handle, u2handle] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     freeHandles <- resp.json & asList
     assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
 
   -- Regular user can't find non-searchable team member by exact handle.
+  BrigP.getUserByHandleQualified u1 OwnDomain u3handle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
   withFoundDocs u1 u3handle $ \docs -> do
     foundUids <- for docs objId
     assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
