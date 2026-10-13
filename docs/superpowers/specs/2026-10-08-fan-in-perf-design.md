@@ -19,6 +19,8 @@ Experiments (ticket):
 Design must leave room for B–D (sub-commands, consume metrics, store ops) but
 implements only A plus shared infrastructure.
 
+Experiment B: see 2026-10-12-fan-in-perf-consume-design.md.
+
 ## Non-goals
 
 - Simulating websockets/cannon/gundeck. Writers model backend server threads
@@ -53,11 +55,11 @@ Global options:
 | `--db CONNSTR` | required | PostgreSQL connection string (never logged) |
 | `--pool-size N` | `--writers` (produce) / 1 (reset) | hasql pool size |
 | `--metrics-port P` | 9400 | `/metrics` HTTP port, bound to `0.0.0.0` |
-| `--domain D` | `example.com` | local domain (`Input (Local ())` for the store) |
-| `--isolation read-committed\|serializable` | `read-committed` (RFC intent) | isolation level for push transactions |
+| `--isolation read-committed\|repeatable-read\|serializable` | `read-committed` (RFC intent) | isolation level for push transactions |
 
 Sub-commands:
 
+- `migrate` — create the fan-in tables (idempotent) via FanInNotificationsAdmin.Migrate.
 - `reset` — truncate all fan-in tables via `FanInNotificationsAdmin`.
 - `produce` — experiment A:
 
@@ -69,6 +71,7 @@ Sub-commands:
 | `--payload-bytes B` | 512 | approx. JSON payload size |
 | `--duration SECS` | unset = until Ctrl-C | run length |
 | `--warmup SECS` | 5 | ignored for max-rate tracking |
+| `--seed N` | unset = random, printed at start | RNG seed |
 
 Later: `consume` (B), `consume-ack` (C), TTL variant (D).
 
@@ -150,13 +153,11 @@ Each writer runs the Polysemy stack per push:
 
 Requirement: metric updates and terminal output never slow writers down.
 
-- Each writer owns a `MutablePrimArray RealWorld Int` (package `primitive`).
-  Layout: `[pushes, targets, errors_by_kind…, latency_bucket_0 .. latency_bucket_N]`,
-  padded to a multiple of 64 bytes so writers don't false-share cache lines.
-- Owner increments with `fetchAddIntArray` (uncontended atomic, no allocation).
-- Ticker reads with `atomicReadIntArray`. Cells are independent; a snapshot may
-  be off by one push across fields — acceptable at 1 s granularity.
-- Latency buckets: log2 of nanoseconds (bit ops), covering ~1 µs .. ~60 s.
+- Each writer owns an `IORef Snapshot` (per-kind `Map` counters + sparse
+  `IntMap` latency histogram, buckets `[2^b, 2^(b+1))` ns, 1 ns .. ~18 min)
+  that it alone updates with `atomicModifyIORef'`.
+- The ticker reads with an identity `atomicModifyIORef'` (memory barrier) and
+  sums.
 - Only the ticker thread touches prometheus-client and stdout. A slow terminal
   delays the ticker, never writers.
 - `/metrics` scrapes read ticker-published state only.
@@ -174,6 +175,8 @@ Sums all writer arrays, diffs against the previous snapshot, computes:
 - p50 / p99 latency from merged buckets (cumulative over the run)
 
 Publishes to prometheus metrics and redraws the status line.
+
+p50/p99 are cumulative over the run including warmup.
 
 ## Metrics
 

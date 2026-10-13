@@ -63,6 +63,46 @@
         { "refId": "B", "expr": "wire_hasql_pool_ready_for_use{job=\"fan-in-perf\"}", "legendFormat": "pool: connections idle" },
         { "refId": "C", "expr": "fanin_perf_writers", "legendFormat": "writer threads (--writers)" }
       ]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Consume rate (notifications/s)", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(fanin_perf_consumed_total[5s]))", "legendFormat": "delivered/s (5s avg)" },
+        { "refId": "B", "expr": "fanin_perf_consume_rate_current", "legendFormat": "delivered/s (last tick)" },
+        { "refId": "C", "expr": "fanin_perf_consume_rate_max", "legendFormat": "peak delivered/s (after warmup)" }
+      ]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Delivery lag", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[30s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[30s])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Backlog (expected - delivered)", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_backlog", "legendFormat": "backlog" }
+      ]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Fetch latency", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[30s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[30s])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Empty fetch ratio / fetch errors", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 48, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(fanin_perf_empty_fetches_total[5s])) / sum(rate(fanin_perf_fetches_total[5s]))", "legendFormat": "empty fetch ratio" },
+        { "refId": "B", "expr": "sum(rate(fanin_perf_fetch_errors_total[5s]))", "legendFormat": "fetch errors/s" }
+      ]
     }
   ]
 }
