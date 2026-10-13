@@ -131,6 +131,7 @@ test-suite fan-in-perf-tests
   other-modules:
     FanInPerf.MetricsSpec
     FanInPerf.OptionsSpec
+    FanInPerf.PoolSpec
     FanInPerf.ProduceSpec
     FanInPerf.StatsSpec
     FanInPerf.TargetSpecParserSpec
@@ -143,6 +144,7 @@ test-suite fan-in-perf-tests
     , base
     , bytestring
     , containers
+    , extended
     , fan-in-perf
     , hasql
     , hasql-resource-pool
@@ -151,6 +153,7 @@ test-suite fan-in-perf-tests
     , http-types
     , imports
     , optparse-applicative
+    , postgresql-connection-string
     , prometheus-client
     , QuickCheck
     , random
