@@ -274,6 +274,12 @@ listUsersByHandles usr domain handles = do
     "POST"
     (req & addJSONObject ["qualified_handles" .= map (\handle -> object ["handle" .= handle, "domain" .= d]) handles])
 
+getUserByHandleQualified :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> String -> App Response
+getUserByHandleQualified usr domain handle = do
+  d <- objDomain domain
+  req <- baseRequest usr Brig (ExplicitVersion 1) $ joinHttpPath ["users", "by-handle", d, handle]
+  submit "GET" req
+
 listUsersWithContactStatus :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
 listUsersWithContactStatus usr qualifiedUserIds = do
   qUsers <- mapM objQidObject qualifiedUserIds

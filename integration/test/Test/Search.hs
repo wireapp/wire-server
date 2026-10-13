@@ -605,12 +605,16 @@ testStealthUsersWithFederation = do
   BrigP.putHandle searchee searcheeHandle >>= assertSuccess
 
   assertCanFind searcher searchee searchTerm OtherDomain
+  BrigP.getUserByHandleQualified searcher OtherDomain searcheeHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
 
   BrigP.setUserSearchable owner searcheeId False >>= assertSuccess
   BrigI.refreshIndex OtherDomain
 
   assertCannotFind searcher searchee searchTerm OtherDomain
   assertCannotFind searcher searchee searcheeHandle OtherDomain
+  BrigP.getUserByHandleQualified searcher OtherDomain searcheeHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
 
 testSuspendedUserSearch :: (HasCallStack) => App ()
 testSuspendedUserSearch = do

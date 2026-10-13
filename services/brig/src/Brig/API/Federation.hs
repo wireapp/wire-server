@@ -61,7 +61,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Version qualified as V
 import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
-import Wire.API.User (UserProfile)
+import Wire.API.User (UserProfile, profileSearchable)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
@@ -178,7 +178,8 @@ getUserByHandle domain handle = do
           pure Nothing
         Just ownerId -> do
           localOwnerId <- qualifyLocal ownerId
-          liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfile localOwnerId
+          mProfile <- liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfile localOwnerId
+          pure $ mProfile >>= \profile -> if profileSearchable profile then Just profile else Nothing
 
 getUsersByIds ::
   (Member UserSubsystem r) =>
