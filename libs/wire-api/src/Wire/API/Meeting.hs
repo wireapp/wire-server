@@ -159,7 +159,9 @@ data Meeting = Meeting
     -- parameters; 'Nothing' when the meeting has no live join code (legacy
     -- meetings, or code-store modes that cannot hold meeting codes)
     link :: Maybe HttpsUrl,
-    -- | Whether the live join link is protected by a password.
+    -- | Whether the live join code is protected by a password. Note this
+    -- does not imply 'link' is present: deployments without a configured
+    -- code URI omit the link even when the meeting's code has a password.
     hasPassword :: Bool
   }
   deriving stock (Eq, Show, Generic)

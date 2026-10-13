@@ -45,7 +45,7 @@ testObject_Meeting_manual_1 =
       createdAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
       updatedAt = UTCTime {utctDay = ModifiedJulianDay 58118, utctDayTime = 0},
       link = Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://account.wire.com/meeting-join/?key=AAAAAAAAAAAAAAAAAAAA&code=BBBBBBBBBBBBBBBBBBBB&domain=example.com"))),
-      hasPassword = False
+      hasPassword = True
     }
 
 testObject_Meeting_manual_2 :: Meeting
