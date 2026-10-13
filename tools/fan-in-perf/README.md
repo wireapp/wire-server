@@ -43,7 +43,7 @@ a window holding more rows than `--fetch-limit` is paged through, not
 re-fetched forever. Trade-offs: more fetched rows (each idle pass re-reads the
 window; pages of only known ids count as empty fetches) and memory for the
 remembered ids. A notification committed more than MS after a higher one was
-delivered is still lost. The effect on `missing` is still to be measured.
+delivered is still lost. Measured (16 writers, `--clients 2000 --targets user:2000,epoch:200 --duration 10`, two runs each): `--safety-window 0` → missing 4 and 5 of ~1.5–1.9M; `200` and `1000` → missing 0 (cons/s avg −3% and −14%, empty fetches 88% → 6–13%).
 
 Delivery lag is measured from the
 millisecond timestamp inside the UUIDv7 (writers and readers share a clock).
