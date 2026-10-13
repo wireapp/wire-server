@@ -530,7 +530,8 @@ fromLegacy tz m =
       invitedEmails = m.invitedEmails,
       createdAt = m.createdAt,
       updatedAt = m.updatedAt,
-      link = Nothing
+      link = Nothing,
+      hasPassword = False
     }
 
 -- | Join link for a meeting: the configured code URI rewritten to the

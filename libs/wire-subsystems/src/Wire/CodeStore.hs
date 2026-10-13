@@ -59,9 +59,10 @@ data CodeStore m a where
   -- hold meeting codes (Cassandra-only mode); note a found row may belong
   -- to a conversation code, so callers must check the code's referent.
   GetMeetingCodeByKey :: Key -> CodeStore m (Maybe (Code, Maybe Password))
-  -- | Look up join codes for many meetings in a single query. Meetings
-  -- without a code (legacy, expired, or a backing store that cannot hold
-  -- meeting codes) are absent from the result map.
+  -- | Look up join codes for many meetings in a single query, together with
+  -- each code's (hashed) password if one is set. Meetings without a code
+  -- (legacy, expired, or a backing store that cannot hold meeting codes)
+  -- are absent from the result map.
   GetMeetingCodes :: [MeetingId] -> CodeStore m (Map MeetingId (Code, Maybe Password))
   MakeKey :: CodeReferent -> CodeStore m Key
   GenerateCode :: CodeReferent -> Timeout -> CodeStore m Code

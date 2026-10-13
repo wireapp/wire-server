@@ -65,7 +65,7 @@ import Wire.CodeStore.Code (Code (..), CodeReferent (..))
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.HashPassword (HashPassword, verifyPassword)
+import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore qualified as Store
@@ -478,7 +478,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       runTestStack now gen Map.empty def $ do
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
-        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600) (Just password)
+        void $ do
+          hashedPw <- hashPassword8 (RateLimitUser uid) password
+          CodeStore.createMeetingCode midWithCode (Timeout 3600) (Just hashedPw)
         key <- CodeStore.makeKey (CodeReferentMeeting midWithCode)
         mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
         meetings <- listMeetings zUser
