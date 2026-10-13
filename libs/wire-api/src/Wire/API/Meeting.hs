@@ -46,7 +46,6 @@ module Wire.API.Meeting
 
     -- * Conversions
     toLegacy,
-    fromLegacy,
     mkMeetingLink,
     toLegacyWithConv,
     fromLegacyNewMeeting,
@@ -155,13 +154,9 @@ data Meeting = Meeting
     invitedEmails :: [EmailAddress],
     createdAt :: UTCTime,
     updatedAt :: UTCTime,
-    -- | https join link containing the meeting's live join code as query
-    -- parameters; 'Nothing' when the meeting has no live join code (legacy
-    -- meetings, or code-store modes that cannot hold meeting codes)
-    link :: Maybe HttpsUrl,
-    -- | Whether the live join code is protected by a password. Note this
-    -- does not imply 'link' is present: deployments without a configured
-    -- code URI omit the link even when the meeting's code has a password.
+    -- | The meeting's canonical join link, derived from its live join code
+    link :: HttpsUrl,
+    -- | Whether the live join code is protected by a password.
     hasPassword :: Bool
   }
   deriving stock (Eq, Show, Generic)
@@ -223,7 +218,7 @@ meetingObject =
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
-    <*> (.link) .= maybe_ (optField "link" schema)
+    <*> (.link) .= field "link" schema
     <*> (.hasPassword) .= field "has_password" schema
 
 instance ToSchema Meeting where
@@ -513,28 +508,6 @@ toLegacy m =
       updatedAt = m.updatedAt
     }
 
--- | Convert a legacy 'MeetingV16' to the V19 'Meeting' shape, injecting the
--- given 'TimeZone' as @tzid@ and defaulting @mtype@ to 'Scheduled'. All other
--- fields (including @end_time@) are preserved. Legacy meetings carry no join
--- @link@.
-fromLegacy :: TimeZone -> MeetingV16 -> Meeting
-fromLegacy tz m =
-  Meeting
-    { id = m.id,
-      title = m.title,
-      creator = m.creator,
-      startTime = m.startTime,
-      endTime = m.endTime,
-      tzid = tz,
-      mtype = Scheduled,
-      recurrence = m.recurrence,
-      conversationId = m.conversationId,
-      invitedEmails = m.invitedEmails,
-      createdAt = m.createdAt,
-      updatedAt = m.updatedAt,
-      link = Nothing,
-      hasPassword = False
-    }
 
 -- | Join link for a meeting: the configured code URI rewritten to the
 -- @meeting-join@ path, with the meeting's stable code key, its live

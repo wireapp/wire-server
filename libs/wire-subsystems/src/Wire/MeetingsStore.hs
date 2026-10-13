@@ -219,5 +219,16 @@ data MeetingsStore m a where
     UTCTime ->
     Int ->
     MeetingsStore m [StoredMeeting]
+  -- | Keyset-paged scan of meeting ids (with their conversation ids) whose
+  -- id is strictly greater than the given cursor; used by the join-code
+  -- backfill worker, which checks code existence through the code store.
+  -- Start with the zero id and pass the last returned id (or the cursor
+  -- itself when the page is empty) to page through all meetings.
+  GetMeetingIdsWithoutCode ::
+    -- | Exclusive cursor.
+    MeetingId ->
+    -- | Page size.
+    Int ->
+    MeetingsStore m [(MeetingId, ConvId)]
 
 makeSem ''MeetingsStore

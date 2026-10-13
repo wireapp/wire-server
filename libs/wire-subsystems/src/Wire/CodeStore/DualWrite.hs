@@ -67,8 +67,8 @@ interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   -- Cross-store atomicity is impossible; revoking first is fail-safe: a
   -- failure leaves the old meeting link valid rather than a live bypass.
   RotateMeetingCode mid cid t mPw -> do
-    -- The Cassandra half only revokes; its False (unsupported) must not
-    -- shadow the Postgres result that callers use for link omission.
+    -- The Cassandra half only revokes; its Nothing (unsupported) must not
+    -- shadow the Postgres result that callers use for the new link.
     _ <- Cassandra.interpretCodeStoreToCassandra $ CodeStore.rotateMeetingCode mid cid t mPw
     Postgres.interpretCodeStoreToPostgres $ CodeStore.rotateMeetingCode mid cid t mPw
   -- Meeting codes are Postgres-only: GetCode reads Cassandra, which cannot
