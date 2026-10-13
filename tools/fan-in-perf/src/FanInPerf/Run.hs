@@ -47,6 +47,7 @@ run console opts = do
         -- e.g. port already in use: fail loudly instead of running unobserved
         link server
         runProduce console env p
+    Consume _ -> abort "consume: not implemented yet"
 
 checkDatabase :: Env -> IO ()
 checkDatabase env =
@@ -60,6 +61,7 @@ defaultPoolSize = \case
   Migrate -> 1
   Reset -> 1
   Produce p -> p.writers
+  Consume c -> c.writerOptions.writers
 
 poolConfig :: Int -> PoolConfig
 poolConfig size =

@@ -1,6 +1,7 @@
 module FanInPerf.Options
   ( GlobalOptions (..),
     ProduceOptions (..),
+    ConsumeOptions (..),
     Command (..),
     Options (..),
     optionsInfo,
@@ -36,7 +37,18 @@ data ProduceOptions = ProduceOptions
   }
   deriving (Eq, Show)
 
-data Command = Migrate | Reset | Produce ProduceOptions
+data ConsumeOptions = ConsumeOptions
+  { writerOptions :: ProduceOptions,
+    clients :: Int,
+    epochsPerClient :: Int,
+    pollIntervalMs :: Int,
+    fetchLimit :: Int,
+    readerPoolSize :: Int,
+    drainTimeout :: Int
+  }
+  deriving (Eq, Show)
+
+data Command = Migrate | Reset | Produce ProduceOptions | Consume ConsumeOptions
   deriving (Eq, Show)
 
 data Options = Options
@@ -58,6 +70,7 @@ optionsParser =
       ( O.command "migrate" (info (pure Migrate) (progDesc "Create the fan-in notification tables (idempotent)"))
           <> O.command "reset" (info (pure Reset) (progDesc "Truncate all fan-in notification tables"))
           <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
+          <> O.command "consume" (info (Consume <$> consumeParser) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
       )
 
 globalParser :: Parser GlobalOptions
@@ -69,15 +82,37 @@ globalParser =
     <*> option isolationReader (long "isolation" <> metavar "read-committed|repeatable-read|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
 
 produceParser :: Parser ProduceOptions
-produceParser =
+produceParser = produceParserWith targetsReader
+
+produceParserWith :: ReadM (NonEmpty TargetConfig) -> Parser ProduceOptions
+produceParserWith targetsRdr =
   ProduceOptions
     <$> option (positive maxWriters) (long "writers" <> metavar "W" <> value 16 <> showDefault <> help "Concurrent writer threads")
-    <*> option targetsReader (long "targets" <> metavar "SPEC" <> helpDoc (Just targetsHelp))
+    <*> option targetsRdr (long "targets" <> metavar "SPEC" <> helpDoc (Just targetsHelp))
     <*> option (positive maxClientsPerUser) (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids per 'clients' target")
     <*> option (positive maxPayloadBytes) (long "payload-bytes" <> metavar "B" <> value 512 <> showDefault <> help "Approximate JSON payload size")
     <*> optional (option (positive maxDuration) (long "duration" <> metavar "SECS" <> help "Run length (default: until Ctrl-C)"))
     <*> option (nonNegative maxDuration) (long "warmup" <> metavar "SECS" <> value 5 <> showDefault <> help "Seconds ignored for max-rate tracking")
     <*> optional (option anyInt (long "seed" <> metavar "INT" <> help "RNG seed (default: random, printed at start)"))
+
+consumeParser :: Parser ConsumeOptions
+consumeParser =
+  ConsumeOptions
+    <$> produceParserWith consumeTargetsReader
+    <*> option (positive maxClients) (long "clients" <> metavar "N" <> value 2000 <> showDefault <> help "Simulated reader clients")
+    <*> option (positive maxEpochsPerClient) (long "epochs-per-client" <> metavar "E" <> value 3 <> showDefault <> help "Epoch streams per client (needs an 'epoch' entry in --targets)")
+    <*> option (nonNegative maxPollIntervalMs) (long "poll-interval" <> metavar "MS" <> value 100 <> showDefault <> help "Sleep in milliseconds after a fetch pass without a full page")
+    <*> option (positive maxFetchLimit) (long "fetch-limit" <> metavar "L" <> value 100 <> showDefault <> help "Notifications per fetch")
+    <*> option (positive maxPoolSize) (long "reader-pool-size" <> metavar "P" <> value 32 <> showDefault <> help "Connection pool size of the readers (writers: --pool-size)")
+    <*> option (nonNegative maxDuration) (long "drain-timeout" <> metavar "SECS" <> value 10 <> showDefault <> help "Seconds to wait for readers to catch up after the writers stopped")
+
+-- | Readers have no 'connections' streams (see the design spec's follow-ups).
+consumeTargetsReader :: ReadM (NonEmpty TargetConfig)
+consumeTargetsReader = do
+  ts <- targetsReader
+  when (any ((== KindConnections) . (.kind)) ts) $
+    readerError "the 'connections' kind is not supported by 'consume'"
+  pure ts
 
 targetsHelp :: Doc
 targetsHelp =
@@ -101,6 +136,12 @@ bounded :: Integer -> Integer -> String -> ReadM Int
 bounded lo hi what = eitherReader $ \s -> case readMaybe @Integer s of
   Just n | n >= lo && n <= hi -> Right (fromInteger n)
   _ -> Left ("expected " <> what <> " between " <> show lo <> " and " <> show hi)
+
+maxClients, maxEpochsPerClient, maxPollIntervalMs, maxFetchLimit :: Integer
+maxClients = 100_000
+maxEpochsPerClient = 10_000
+maxPollIntervalMs = 3_600_000
+maxFetchLimit = 10_000
 
 maxPoolSize, maxWriters, maxClientsPerUser, maxPayloadBytes, maxDuration :: Integer
 maxPoolSize = 10_000
