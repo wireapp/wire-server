@@ -76,6 +76,7 @@ library
       aeson
     , base
     , bilge
+    , binary
     , bytestring
     , bytestring-conversion
     , containers
@@ -244,6 +245,7 @@ executable stern-integration
       aeson
     , base
     , bilge
+    , bytestring
     , bytestring-conversion
     , containers
     , cookie

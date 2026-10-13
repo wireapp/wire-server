@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Teams.Export (getTeamMembersCSV) where
+module Galley.API.Teams.Export (getTeamMembersCSV, getTeamMembersCSVUnchecked) where
 
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
@@ -29,6 +29,7 @@ import Data.IORef (atomicModifyIORef, newIORef)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (Local, tUnqualified)
+import Debug.Trace
 import Imports hiding (atomicModifyIORef, newEmptyMVar, newIORef, putMVar, readMVar, takeMVar, threadDelay, tryPutMVar)
 import Polysemy
 import Polysemy.Async
@@ -132,15 +133,33 @@ getTeamMembersCSV lusr tid = do
   TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= \case
     Nothing -> throwS @'AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
+  getTeamMembersCSVUnchecked tid
 
+-- | Export team info as a CSV, and stream it to the client.
+--
+-- We paginate through the team member list, then spawn a thread for each user
+-- (out of a thread pool) in order to fetch information for that user from brig
+-- and spar.
+--
+-- Note that this implementation does not require authorisation,
+-- use `getTeamMembersCSV` for authorised endpoints.
+getTeamMembersCSVUnchecked ::
+  forall r.
+  ( Member BrigAPIAccess r,
+    Member (TeamMemberStore InternalPaging) r,
+    Member (Final IO) r,
+    Member Spar.SparAPIAccess r
+  ) =>
+  TeamId ->
+  Sem r LowLevelStreamingBody
+getTeamMembersCSVUnchecked tid = do
   chan <- embedFinal newChan
   cache <- embedFinal $ newIORef mempty
-
   let encodeRow r = encodeDefaultOrderedByNameWith customEncodeOptions [r]
   let produceTeamExportUsers = do
         embedFinal $ writeChan chan (Just headerLine)
         E.withChunks (\mps -> listTeamMembers @InternalPaging tid mps maxBound) $
-          \members -> unsafePooledForConcurrentlyN_ 8 members $ \member -> do
+          \members -> unsafePooledForConcurrentlyN_ 8 (traceShowId $ members) $ \member -> do
             mRecord <-
               runErrorS @TeamMemberNotFound $
                 getUserRecord cache member
