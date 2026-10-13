@@ -53,6 +53,12 @@ import Wire.API.User
 
 tests :: Manager -> Brig -> Opts.Opts -> FilePath -> FilePath -> IO TestTree
 tests m b opts turn turnV2 = do
+  -- The v2/v3 cases below rewrite the shared 'turnV2' file (see 'withTurnFile'
+  -- and 'setTurn'); tasty runs test cases in parallel, so serialize the
+  -- backup/write/assert/restore cycle with a lock to avoid interleaving.
+  turnFileLock <- newMVar ()
+  let locked act =
+        liftIO $ withMVar turnFileLock $ \_ -> runHttpT m (withTurnFile turnV2 act)
   pure $
     testGroup "calling" $
       [ testGroup "turn" $
@@ -60,9 +66,9 @@ tests m b opts turn turnV2 = do
             -- FIXME: requires tests to run on same host as brig
             test m "multiple servers using files /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
             test m "multiple servers using SRV /calls/config - 200" $ testCallsConfigSRV b opts,
-            test m "multiple servers using files /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b,
+            test m "multiple servers using files /calls/config/v2 - 200" $ locked (testCallsConfigMultipleV2 b),
             test m "multiple servers using SRV records /calls/config/v2 - 200" $ testCallsConfigV2SRV b opts,
-            test m "multiple servers using files /calls/config/v3 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV3 b opts
+            test m "multiple servers using files /calls/config/v3 - 200" $ locked (testCallsConfigMultipleV3 b opts)
           ],
         testGroup
           "sft"
