@@ -1,7 +1,9 @@
 module FanInPerf.TerminalSpec (spec) where
 
 import Data.Text qualified as T
+import FanInPerf.ConsumeStats
 import FanInPerf.Stats
+import FanInPerf.Targets (TargetKind (..))
 import FanInPerf.Terminal
 import Imports
 import Test.Hspec
@@ -20,6 +22,30 @@ report =
       delta = emptySnapshot,
       total = emptySnapshot
     }
+
+creport :: ConsumeReport
+creport =
+  ConsumeReport
+    { consumeRate = 8000.2,
+      maxConsumeRate = 9000,
+      fetchRate = 20000,
+      emptyFetchRatio = 0.5,
+      fetchErrorRate = 1,
+      lagP50 = Just 0.004,
+      lagP99 = Just 0.05,
+      fetchP50 = Just 0.001,
+      fetchP99 = Just 0.01,
+      backlog = 1234,
+      readerDelta = emptyReaderSnapshot,
+      readerTotal = emptyReaderSnapshot
+    }
+
+deliveredSnapshot :: IO ReaderSnapshot
+deliveredSnapshot = do
+  rs <- newReaderStats
+  recordFetch rs KindUser 1000 [1000, 1000, 1000]
+  recordFetch rs KindUser 1000 []
+  readReaderSnapshot rs
 
 spec :: Spec
 spec = do
@@ -55,3 +81,30 @@ spec = do
     it "survives an empty run" $
       formatSummary report {elapsed = 0, p50 = Nothing, p99 = Nothing}
         `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
+
+  describe "formatConsumeStatus" $
+    it "renders the consume status line" $
+      formatConsumeStatus report creport
+        `shouldBe` "t=42s push/s cur=8,312 max=9,105 | cons/s cur=8,000 max=9,000 | lag(cum.) p50=4.0ms p99=50.0ms | backlog=1,234 | err/s push=3 fetch=1"
+
+  describe "formatConsumeSummary" $ do
+    it "reports missing notifications and a timed-out drain" $ do
+      s <- deliveredSnapshot
+      let out = formatConsumeSummary 5 False report creport {readerTotal = s}
+      out `shouldSatisfy` any (T.isInfixOf "delivered=3 expected=5 missing=2 duplicates=0")
+      out `shouldSatisfy` any (T.isInfixOf "drain: timed out")
+    it "reports duplicates and a complete drain" $ do
+      s <- deliveredSnapshot
+      let out = formatConsumeSummary 2 True report creport {readerTotal = s}
+      out `shouldSatisfy` any (T.isInfixOf "missing=0 duplicates=1")
+      out `shouldSatisfy` any (T.isInfixOf "drain: complete")
+    it "survives an empty run" $
+      formatConsumeSummary 0 True report {elapsed = 0} creport {lagP50 = Nothing, lagP99 = Nothing}
+        `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
+
+  describe "formatCoverage" $
+    it "warns below 100%" $
+      formatCoverage [(KindUser, 0.02), (KindTeam, 1)]
+        `shouldBe` [ "coverage user: 2.00% of streams have a reader (warning: consumed/s will stay below targets/s)",
+                     "coverage team: 100.00% of streams have a reader"
+                   ]

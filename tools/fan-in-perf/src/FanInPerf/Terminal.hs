@@ -3,6 +3,9 @@ module FanInPerf.Terminal
     formatLatency,
     formatStatus,
     formatSummary,
+    formatConsumeStatus,
+    formatConsumeSummary,
+    formatCoverage,
     renderStatusLine,
     renderLogLine,
     Console (..),
@@ -14,7 +17,9 @@ where
 
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import FanInPerf.ConsumeStats
 import FanInPerf.Stats
+import FanInPerf.Targets (TargetKind, kindName)
 import Imports
 import Text.Printf (printf)
 
@@ -57,6 +62,50 @@ formatSummary r =
         "  push/s avg=" <> rateText avgRate <> " max=" <> rateText r.maxPushRate,
         "  latency (cumulative, incl. warmup) p50=" <> formatLatency r.p50 <> " p99=" <> formatLatency r.p99
       ]
+
+formatConsumeStatus :: TickReport -> ConsumeReport -> Text
+formatConsumeStatus r c =
+  T.intercalate
+    " | "
+    [ "t=" <> T.pack (show (round r.elapsed :: Int)) <> "s push/s cur=" <> rateText r.pushRate <> " max=" <> rateText r.maxPushRate,
+      "cons/s cur=" <> rateText c.consumeRate <> " max=" <> rateText c.maxConsumeRate,
+      "lag(cum.) p50=" <> formatLatency c.lagP50 <> " p99=" <> formatLatency c.lagP99,
+      "backlog=" <> groupThousands c.backlog,
+      "err/s push=" <> rateText r.errorRate <> " fetch=" <> rateText c.fetchErrorRate
+    ]
+
+-- | @formatConsumeSummary expectedDeliveries drained pushReport consumeReport@.
+formatConsumeSummary :: Int -> Bool -> TickReport -> ConsumeReport -> [Text]
+formatConsumeSummary expected drained r c =
+  let delivered = totalDelivered c.readerTotal
+      fetches = totalFetches c.readerTotal
+      emptyRatio = if fetches > 0 then fromIntegral (totalEmptyFetches c.readerTotal) / fromIntegral fetches else 0
+      avgRate = if r.elapsed > 0 then fromIntegral delivered / r.elapsed else 0
+   in formatSummary r
+        <> [ "consume: delivered="
+               <> groupThousands delivered
+               <> " expected="
+               <> groupThousands expected
+               <> " missing="
+               <> groupThousands (max 0 (expected - delivered))
+               <> " duplicates="
+               <> groupThousands (max 0 (delivered - expected)),
+             "  cons/s avg=" <> rateText avgRate <> " max=" <> rateText c.maxConsumeRate,
+             "  lag (cumulative) p50=" <> formatLatency c.lagP50 <> " p99=" <> formatLatency c.lagP99,
+             "  fetch (cumulative) p50=" <> formatLatency c.fetchP50 <> " p99=" <> formatLatency c.fetchP99 <> " empty=" <> percent emptyRatio,
+             "  drain: " <> if drained then "complete" else "timed out"
+           ]
+
+formatCoverage :: [(TargetKind, Double)] -> [Text]
+formatCoverage = map line
+  where
+    line (k, c) =
+      "coverage "
+        <> kindName k
+        <> ": "
+        <> percent c
+        <> " of streams have a reader"
+        <> if c < 1 then " (warning: consumed/s will stay below targets/s)" else ""
 
 clearLine :: Text
 clearLine = "\r\ESC[2K"
