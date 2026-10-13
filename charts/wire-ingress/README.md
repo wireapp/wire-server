@@ -203,7 +203,8 @@ namespace; it must allow ListenerSet attachment.
 Gateway API requires a Gateway-owned listener. Its placeholder denies all routes
 and uses `gateway.listeners.placeholder.port` (default `65535`). Set it to an unused
 port on this Gateway, distinct from its application listener ports, to avoid
-plaintext client-policy conflicts.
+plaintext client-policy conflicts. Its hostname, `<hash>.placeholder.invalid`, is
+unique per Gateway, so Gateways merged by `mergeGateways` can share the port.
 ListenerSets sharing a Gateway also need distinct HTTP ports when using separate
 client policies. See [External Gateways](#external-gateways) for FIPS requirements.
 

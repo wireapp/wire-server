@@ -74,6 +74,16 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{- end -}}
 {{- end -}}
 
+{{/*
+Hostname of the Gateway's placeholder listener. Unique per Gateway: merged
+Gateways conflict on equal port/protocol/hostname, which marks all but the
+first Gateway not Accepted. Hashed to fit the 63-character DNS label limit.
+*/}}
+{{- define "wire-ingress.placeholderHostname" -}}
+{{- printf "%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) | sha256sum | trunc 32 -}}
+.placeholder.invalid
+{{- end -}}
+
 {{- define "wire-ingress.httpsSectionName" -}}
 {{- .Values.gateway.listeners.https.sectionName | default "https" -}}
 {{- end -}}
