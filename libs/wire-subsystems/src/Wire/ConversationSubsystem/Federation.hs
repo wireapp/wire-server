@@ -1008,7 +1008,7 @@ onMLSMessageSent ::
   Sem r EmptyResponse
 onMLSMessageSent domain rmm =
   (EmptyResponse <$)
-    . (logError =<<)
+    . (logError domain rmm.conversation =<<)
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
@@ -1039,68 +1039,70 @@ onMLSMessageSent domain rmm =
 
       runMessagePush loc (Just (tUntagged rcnv)) $
         newMessagePush mempty Nothing rmm.metadata recipients e
-  where
-    logError :: (Member P.TinyLog r) => Either (Tagged 'MLSNotEnabled ()) () -> Sem r ()
-    logError (Left _) =
-      P.warn $
-        Log.field "conversation" (toByteString' rmm.conversation)
-          Log.~~ Log.field "domain" (toByteString' domain)
-          Log.~~ Log.msg
-            ("Cannot process remote MLS message because MLS is disabled on this backend" :: ByteString)
-    logError _ = pure ()
 
 onMLSTargetedMessageSent ::
   ( Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member E.ConversationStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
   ) =>
   Domain ->
   RemoteMLSTargetedMessage ->
   Sem r EmptyResponse
 onMLSTargetedMessageSent domain targeted = do
-  loc <- qualifyLocal ()
-  let rconv = toRemoteUnsafe domain targeted.conversation
-  (members, allMembers) <- E.selectRemoteMembers [targeted.recipient] rconv
-  senderIsMember <-
-    if qDomain targeted.sender == domain
-      then pure True
-      else
-        if qDomain targeted.sender == tDomain loc
-          then E.checkLocalMemberRemoteConv (qUnqualified targeted.sender) rconv
-          else do
-            (senderMembers, _) <- E.selectRemoteMembers [qUnqualified targeted.sender] rconv
-            pure (qUnqualified targeted.sender `elem` senderMembers)
-  unless senderIsMember $
-    P.warn $
-      Log.field "sender" (toByteString' (qUnqualified targeted.sender))
-        Log.~~ Log.field "conversation" (toByteString' targeted.conversation)
-        Log.~~ Log.msg
-          ("Federated targeted MLS message sender is not a conversation member" :: ByteString)
-  unless allMembers $
-    P.warn $
-      Log.field "conversation" (toByteString' targeted.conversation)
-        Log.~~ Log.field "domain" (toByteString' domain)
-        Log.~~ Log.field "recipient" (toByteString' targeted.recipient)
-        Log.~~ Log.msg
-          ("Federated targeted MLS message recipient is not a conversation member" :: ByteString)
-  when (senderIsMember && targeted.recipient `elem` members) $ do
-    let event =
-          Event
-            (tUntagged rconv)
-            targeted.subConversation
-            (EventFromUser targeted.sender)
-            targeted.time
-            Nothing
-            (EdMLSTargetedMessage (fromBase64ByteString targeted.message))
-        recipient =
-          Recipient
-            targeted.recipient
-            (RecipientClientsSome (targeted.recipientClient :| []))
-    runMessagePush loc (Just (tUntagged rconv)) $
-      newMessagePush mempty Nothing defMessageMetadata [recipient] event
-  pure EmptyResponse
+  (EmptyResponse <$) . (logError domain targeted.conversation =<<) . runError @(Tagged 'MLSNotEnabled ()) $ do
+    assertMLSEnabled
+    loc <- qualifyLocal ()
+    let rconv = toRemoteUnsafe domain targeted.conversation
+    (members, allMembers) <- E.selectRemoteMembers [targeted.recipient] rconv
+    senderIsMember <-
+      if qDomain targeted.sender == domain
+        then pure True
+        else
+          if qDomain targeted.sender == tDomain loc
+            then E.checkLocalMemberRemoteConv (qUnqualified targeted.sender) rconv
+            else do
+              (senderMembers, _) <- E.selectRemoteMembers [qUnqualified targeted.sender] rconv
+              pure (qUnqualified targeted.sender `elem` senderMembers)
+    unless senderIsMember $
+      P.warn $
+        Log.field "sender" (toByteString' (qUnqualified targeted.sender))
+          Log.~~ Log.field "conversation" (toByteString' targeted.conversation)
+          Log.~~ Log.msg
+            ("Federated targeted MLS message sender is not a conversation member" :: ByteString)
+    unless allMembers $
+      P.warn $
+        Log.field "conversation" (toByteString' targeted.conversation)
+          Log.~~ Log.field "domain" (toByteString' domain)
+          Log.~~ Log.field "recipient" (toByteString' targeted.recipient)
+          Log.~~ Log.msg
+            ("Federated targeted MLS message recipient is not a conversation member" :: ByteString)
+    when (senderIsMember && targeted.recipient `elem` members) $ do
+      let event =
+            Event
+              (tUntagged rconv)
+              targeted.subConversation
+              (EventFromUser targeted.sender)
+              targeted.time
+              Nothing
+              (EdMLSTargetedMessage (fromBase64ByteString targeted.message))
+          recipient =
+            Recipient
+              targeted.recipient
+              (RecipientClientsSome (targeted.recipientClient :| []))
+      runMessagePush loc (Just (tUntagged rconv)) $
+        newMessagePush mempty Nothing defMessageMetadata [recipient] event
+
+logError :: (Member P.TinyLog r) => Domain -> ConvId -> Either (Tagged 'MLSNotEnabled ()) () -> Sem r ()
+logError domain conv (Left _) =
+  P.warn $
+    Log.field "conversation" (toByteString' conv)
+      Log.~~ Log.field "domain" (toByteString' domain)
+      Log.~~ Log.msg
+        ("Cannot process remote MLS message because MLS is disabled on this backend" :: ByteString)
+logError _ _ _ = pure ()
 
 mlsSendWelcome ::
   ( Member (Error InternalError) r,
