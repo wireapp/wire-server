@@ -4,11 +4,13 @@ module Wire.FanInNotificationsStore.Postgres where
 
 import Data.Aeson (Value)
 import Data.Aeson qualified as Aeson
+import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Domain (domainText)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified
 import Data.UUID (UUID)
+import Data.UUID qualified as UUID
 import Data.UUID.V7 qualified as UUIDv7
 import Data.Vector qualified as V
 import Hasql.Statement
@@ -29,6 +31,8 @@ interpretFanInNotificationsStoreToPostgres ::
   InterpreterFor FanInNotificationsStore r
 interpretFanInNotificationsStoreToPostgres isolationLevel = interpret $ \case
   PushViaFanIn push -> pushViaFanInImpl isolationLevel push
+  FetchNotifications stream cursor n -> fetchNotificationsImpl stream cursor n
+  GetLastNotificationId stream -> getLastNotificationIdImpl stream
 
 pushViaFanInImpl ::
   (PGConstraints r, Member (Input (Local ())) r) =>
@@ -60,6 +64,105 @@ pushViaFanInImpl isolationLevel push = do
 -- | Time-ordered (UUIDv7) notification id.
 genNotificationId :: IO (Id a)
 genNotificationId = Id <$> UUIDv7.genUUID
+
+-- | Milliseconds since the Unix epoch encoded in the first 48 bits of a UUIDv7.
+notificationIdMillis :: UUID -> Word64
+notificationIdMillis u =
+  let (w1, w2, _, _) = UUID.toWords u
+   in (fromIntegral w1 `shiftL` 16) .|. (fromIntegral w2 `shiftR` 16)
+
+fetchNotificationsImpl ::
+  (PGConstraints r) =>
+  Stream ->
+  UUID ->
+  Int ->
+  Sem r [(UUID, Value)]
+fetchNotificationsImpl stream cursor n =
+  V.toList <$> case stream of
+    StreamUser uid -> runStatement (uid.toUUID, cursor, limit') fetchUserStatement
+    StreamClient uid cid ->
+      runStatement (uid.toUUID, fromIntegral cid.clientToWord64, cursor, limit') fetchClientStatement
+    StreamTeam tid -> runStatement (tid.toUUID, cursor, limit') fetchTeamStatement
+    StreamEpoch gid epoch ->
+      runStatement (gid.unGroupId, fromIntegral epoch.epochNumber, cursor, limit') fetchEpochStatement
+  where
+    limit' = fromIntegral n :: Int64
+
+fetchUserStatement :: Statement (UUID, UUID, Int64) (V.Vector (UUID, Value))
+fetchUserStatement =
+  [vectorStatement|
+    select notification_id :: uuid, payload :: jsonb
+    from user_notifications
+    where user_id = ($1 :: uuid) and notification_id > ($2 :: uuid)
+    order by notification_id
+    limit ($3 :: int8)
+  |]
+
+fetchClientStatement :: Statement (UUID, Int64, UUID, Int64) (V.Vector (UUID, Value))
+fetchClientStatement =
+  [vectorStatement|
+    select notification_id :: uuid, payload :: jsonb
+    from client_notifications
+    where user_id = ($1 :: uuid) and client_id = ($2 :: int8) and notification_id > ($3 :: uuid)
+    order by notification_id
+    limit ($4 :: int8)
+  |]
+
+fetchTeamStatement :: Statement (UUID, UUID, Int64) (V.Vector (UUID, Value))
+fetchTeamStatement =
+  [vectorStatement|
+    select notification_id :: uuid, payload :: jsonb
+    from team_notifications
+    where team_id = ($1 :: uuid) and notification_id > ($2 :: uuid)
+    order by notification_id
+    limit ($3 :: int8)
+  |]
+
+fetchEpochStatement :: Statement (ByteString, Int64, UUID, Int64) (V.Vector (UUID, Value))
+fetchEpochStatement =
+  [vectorStatement|
+    select notification_id :: uuid, payload :: jsonb
+    from epoch_notifications
+    where group_id = ($1 :: bytea) and epoch = ($2 :: int8) and notification_id > ($3 :: uuid)
+    order by notification_id
+    limit ($4 :: int8)
+  |]
+
+getLastNotificationIdImpl ::
+  (PGConstraints r) =>
+  Stream ->
+  Sem r (Maybe UUID)
+getLastNotificationIdImpl = \case
+  StreamUser uid -> runStatement uid.toUUID lastUserStatement
+  StreamClient uid cid -> runStatement (uid.toUUID, fromIntegral cid.clientToWord64) lastClientStatement
+  StreamTeam tid -> runStatement tid.toUUID lastTeamStatement
+  StreamEpoch gid epoch -> runStatement (gid.unGroupId, fromIntegral epoch.epochNumber) lastEpochStatement
+
+lastUserStatement :: Statement UUID (Maybe UUID)
+lastUserStatement =
+  [maybeStatement|
+    select notification_id :: uuid from last_user_notifications where user_id = ($1 :: uuid)
+  |]
+
+lastClientStatement :: Statement (UUID, Int64) (Maybe UUID)
+lastClientStatement =
+  [maybeStatement|
+    select notification_id :: uuid from last_client_notifications
+    where user_id = ($1 :: uuid) and client_id = ($2 :: int8)
+  |]
+
+lastTeamStatement :: Statement UUID (Maybe UUID)
+lastTeamStatement =
+  [maybeStatement|
+    select notification_id :: uuid from last_team_notifications where team_id = ($1 :: uuid)
+  |]
+
+lastEpochStatement :: Statement (ByteString, Int64) (Maybe UUID)
+lastEpochStatement =
+  [maybeStatement|
+    select notification_id :: uuid from last_epoch_notifications
+    where group_id = ($1 :: bytea) and epoch = ($2 :: int8)
+  |]
 
 pushUserNotification ::
   UUID ->
