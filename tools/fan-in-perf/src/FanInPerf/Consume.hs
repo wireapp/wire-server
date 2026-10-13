@@ -253,8 +253,10 @@ runConsume console writerEnv readerEnv opts = do
           link writersA
           waitForStop p.duration
           atomicWriteIORef stopWriters True
-          -- Ctrl-C while waiting for writers or draining still prints the
-          -- summary; 'UserInterrupt' is async, so UnliftIO's handlers miss it
+          -- The first Ctrl-C while waiting for writers or draining still
+          -- prints the summary (a second one kills the process: GHC resets
+          -- the SIGINT handler). 'UserInterrupt' is async, so UnliftIO's
+          -- handlers miss it.
           phaseRef <- newIORef Nothing
           let interrupted = do
                 phase <- maybe writerPhaseEnd pure =<< readIORef phaseRef

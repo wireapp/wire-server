@@ -35,9 +35,11 @@ Fetch latency includes the wait for a connection from the reader pool. The
 reader pool shares the `wire_hasql_pool_*` counters and histograms with the
 writer pool, but the pool gauges (connections in use/idle) show the writer pool
 only. Summary duration and push/s and cons/s averages cover the writer phase
-(until the writers stopped); the drain time is printed separately. Ctrl-C
-during writer shutdown/drain ends the drain early (`drain: interrupted`) and
-still prints the summary.
+(until the writers stopped); the drain time is printed separately. With
+`--duration`, Ctrl-C during writer shutdown/drain ends the drain early
+(`drain: interrupted`) and still prints the summary. Without it, the first
+Ctrl-C stops the writers and a second one exits immediately (GHC resets the
+SIGINT handler), so no summary.
 
 Global flags go before the sub-command. `--targets` entries are `KIND:STREAMS[xK]`
 (`KIND` in `user|clients|team|epoch|connections`): `STREAMS` distinct stream keys,
