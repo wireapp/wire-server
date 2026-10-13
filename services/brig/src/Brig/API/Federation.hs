@@ -61,7 +61,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Version qualified as V
 import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
-import Wire.API.User (UserProfile)
+import Wire.API.User (UserProfile, profileSearchable)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
@@ -178,7 +178,8 @@ getUserByHandle domain handle = do
           pure Nothing
         Just ownerId -> do
           localOwnerId <- qualifyLocal ownerId
-          liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfile localOwnerId
+          mProfile <- liftSem $ UserSubsystem.getLocalUserProfile localOwnerId
+          pure $ fmap (V.Versioned @V.V18) $ mProfile >>= \profile -> if profileSearchable profile then Just profile else Nothing
 
 getUsersByIds ::
   (Member UserSubsystem r) =>
@@ -275,7 +276,9 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
               mFoundUserTeamId <- lift $ liftSem $ UserStore.getUserTeam foundUser
               localFoundUser <- qualifyLocal foundUser
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
-                then lift . liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser
+                then do
+                  mFoundUser <- lift . liftSem $ UserSubsystem.getLocalUserProfile localFoundUser
+                  fmap contactFromProfile <$> filterHandleResults localFoundUser (maybeToList mFoundUser)
                 else pure []
           let filterTypes = case mbUserTypeFilter of
                 Just [] -> id

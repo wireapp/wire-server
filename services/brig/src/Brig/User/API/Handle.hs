@@ -103,13 +103,14 @@ getLocalHandleInfo self handle = do
 filterHandleResults :: (Member UserStore r) => Local UserId -> [Public.UserProfile] -> Handler r [Public.UserProfile]
 filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> asks (.settings.searchSameTeamOnly)
+  let searchable = filter Public.profileSearchable us
   if sameTeamSearchOnly
     then do
       fromTeam <- lift . liftSem $ UserStore.getUserTeam (tUnqualified searchingUser)
       pure $ case fromTeam of
-        Just team -> filter (\x -> Public.profileTeam x == Just team) us
-        Nothing -> us
-    else pure us
+        Just team -> filter (\x -> Public.profileTeam x == Just team) searchable
+        Nothing -> searchable
+    else pure searchable
 
 contactFromProfile :: Public.UserProfile -> Public.Contact
 contactFromProfile profile =
