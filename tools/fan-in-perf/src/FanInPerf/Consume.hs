@@ -13,6 +13,7 @@ module FanInPerf.Consume
 where
 
 import Control.Concurrent.Async
+import Control.Concurrent.QSem (QSem, newQSem, signalQSem, waitQSem)
 import Control.Exception (AsyncException (UserInterrupt), handleJust)
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -35,7 +36,7 @@ import Polysemy
 import Polysemy.Error qualified as PE
 import System.Exit (die)
 import System.Random
-import UnliftIO.Exception (tryAny)
+import UnliftIO.Exception (bracket_, tryAny)
 import Wire.FanInNotificationsStore
 import Wire.FanInNotificationsStore.Postgres (notificationIdMillis)
 
@@ -142,12 +143,19 @@ readerRound render stats fetchOne subs = do
       recordFetchError stats sub.kind
       pure ([sub], False, ["reader: " <> kindName sub.kind <> ": " <> msg])
 
+-- | Lets at most as many readers as the pool has connections wait for it.
+-- Thousands of readers blocked in the pool's STM retry are all woken on every
+-- connection release; that thundering herd saturated the CPU and delayed the
+-- ticker and drain by tens of seconds. A 'QSem' wakes one waiter at a time.
+throughGate :: QSem -> IO a -> IO a
+throughGate gate = bracket_ (waitQSem gate) (signalQSem gate)
+
 -- | One reader client: fetch all streams, then sleep unless a full page says
 -- more is waiting. Failures are reported and slow the loop down, never stop it.
-readerLoop :: Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Sub] -> IO ()
-readerLoop env opts stats reportError = go
+readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Sub] -> IO ()
+readerLoop gate env opts stats reportError = go
   where
-    fetchOne sub = runStore env (readerPass @UsageError describeUsageError opts.fetchLimit stats [sub])
+    fetchOne sub = throughGate gate (runStore env (readerPass @UsageError describeUsageError opts.fetchLimit stats [sub]))
     go subs = do
       (subs', more, errs) <- readerRound describeUsageError stats fetchOne subs
       traverse_ reportError errs
@@ -158,6 +166,7 @@ readerLoop env opts stats reportError = go
 -- only in their connection pool.
 runConsume :: Console -> Env -> Env -> ConsumeOptions -> IO ()
 runConsume console writerEnv readerEnv opts = do
+  gate <- newQSem opts.readerPoolSize
   let p = opts.writerOptions
   seed <- maybe randomIO pure p.seed
   let (entries, gen') = mkEntries p.clientsPerUser p.targets (mkStdGen seed)
@@ -177,7 +186,7 @@ runConsume console writerEnv readerEnv opts = do
   -- Start positions are read before any writer runs: a push committed in
   -- between could otherwise sit below a cursor and show up as a false `missing`.
   printLine console "consume: loading start positions"
-  loaded <- forConcurrently population.simClients (runStore readerEnv . loadCursors)
+  loaded <- forConcurrently population.simClients (throughGate gate . runStore readerEnv . loadCursors)
   clientSubs <- either (\e -> die ("loading start positions failed: " <> T.unpack (describeUsageError e))) pure (sequence loaded)
 
   metrics <- newMetrics "consume" p.writers
@@ -203,7 +212,7 @@ runConsume console writerEnv readerEnv opts = do
               stop <- readIORef stopWriters
               unless stop (writerStep doPush payload entries ws reportError g >>= loop)
          in loop g0
-      readerClient (stats, subs) = readerLoop readerEnv opts stats reportError subs
+      readerClient (stats, subs) = readerLoop gate readerEnv opts stats reportError subs
       totals = do
         expected <- totalExpected . sumSnapshots <$> traverse readSnapshot writerStats
         delivered <- totalDelivered . sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
