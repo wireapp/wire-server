@@ -92,13 +92,17 @@ gateway:
     minEndpointsThreshold: 3
   # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
   # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
-  # ClientTrafficPolicy targeting the Gateway.
+  # ClientTrafficPolicy targeting the ListenerSet.
   proxyProtocol:
     enabled: false
     # If true, connections without a PROXY protocol header are also accepted.
     # Use this only if some traffic bypasses the load balancer (e.g. direct node access).
     optional: false
   listeners:
+    # Gateway API requires a Gateway-owned listener; it denies all routes.
+    # Use a port distinct from all application listeners on this Gateway.
+    placeholder:
+      port: 65535
     https:
       port: 443
       # Required. Hostname restriction for the HTTPS listener.
@@ -107,20 +111,15 @@ gateway:
       # listener (which uses the federation domain on the same port) — without an
       # explicit hostname both listeners are catch-all and Envoy degrades ALPN to
       # HTTP/1.1-only.
-      # If your domains in config.dns span multiple subdomains, you need a custom
-      # Gateway object with multiple listeners. See the Gateway API docs.
+      # Use config.domains or gateway.extraHttpsListeners when your domains
+      # require multiple listeners.
       hostname: ""
-      # Listener section name. Only change this when create: false and the
-      # externally created Gateway names its HTTPS listener something else;
-      # HTTPRoutes attach by section name, so it must match exactly.
+      # ListenerSet section for companion HTTPRoutes.
       sectionName: https
-    # The federation listener shares listeners.https.port and is created only
-    # when federator.enabled. Its section name is overridable for the same
-    # reason as listeners.https.sectionName.
+    # Uses the HTTPS port when federator.enabled.
     federator:
       sectionName: federator
-    # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
-    # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
+    # Enable the HTTP listener for cert-manager gatewayHTTPRoute HTTP01 challenges.
     # See the README for configuration details.
     http:
       enabled: false
@@ -161,7 +160,7 @@ gateway:
   patchPolicies:
     enabled: true
     # Must match the controller's XDSNameSchemeV2 runtime flag, which renames
-    # xDS listeners from "<ns>/<gateway>/<section>" to "<protocol>-<port>".
+    # xDS listeners from "<ns>/<gateway>/<ns>/<listenerset>/<section>" to "<protocol>-<port>".
     # Envoy Gateway enables it by default from 1.10; earlier versions default to
     # the legacy scheme unless you added it to runtimeFlags.enabled.
     # Left unset deliberately: FIPS_202205_tls_profile fails until you state a
@@ -171,7 +170,7 @@ gateway:
     xdsNameSchemeV2: null
     # Legacy scheme only. Overrides the xDS listener name the FIPS patch targets.
     # The legacy name comes from the FIRST listener on the HTTPS port, which for
-    # a Gateway created by this chart is listeners.https.sectionName. Set this
+    # this chart's ListenerSet is listeners.https.sectionName. Set this
     # when an externally created Gateway declares a different listener first.
     xdsListenerName: ""
     # Set to true when the GatewayClass uses mergeGateways: true.
@@ -198,7 +197,7 @@ gateway:
 # To serve the same backend on several domains, set config.domains INSTEAD of
 # config.dns. It is a list; the FIRST entry is the primary (its resources keep
 # the un-suffixed names, and its frontend apps set their own CSP). Every
-# additional entry gets its own Gateway HTTPS listener (`https-<name>`), its own
+# additional entry gets its own ListenerSet HTTPS listener (`https-<name>`), its own
 # certificate/secret, and — being an "additional ingress" — a per-domain
 # Content-Security-Policy header injected on the team-settings route (mirrors
 # the legacy nginx-ingress-services behaviour). The webapp and account-pages
