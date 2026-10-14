@@ -1031,6 +1031,46 @@ createTargetedMessage convId sender recipient messageContent = do
         appMessage = Nothing
       }
 
+createTransientTargetedMessage ::
+  (HasCallStack) =>
+  ConvId ->
+  ClientIdentity ->
+  ClientIdentity ->
+  String ->
+  App MessagePackage
+createTransientTargetedMessage convId sender recipient messageContent = do
+  conv <- getMLSConv convId
+  senderState <- getClientGroupState sender
+  groupState <- assertJust "Sender has no MLS group state" (Map.lookup convId senderState.groups)
+  groupMembers <- readGroupState groupState
+  recipientLeaf <-
+    assertJust
+      "Recipient is not an MLS group member"
+      (lookup (RegularClient recipient) groupMembers)
+  message <-
+    mlscli
+      (Just convId)
+      conv.ciphersuite
+      sender
+      [ "transient-targeted-message",
+        "--group-in",
+        "<group-in>",
+        "--recipient",
+        show recipientLeaf,
+        messageContent
+      ]
+      Nothing
+
+  pure
+    MessagePackage
+      { sender = sender,
+        convId = convId,
+        message = message,
+        welcome = Nothing,
+        groupInfo = Nothing,
+        appMessage = Nothing
+      }
+
 leaveConv ::
   (HasCallStack) =>
   ConvId ->

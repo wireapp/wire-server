@@ -241,6 +241,30 @@ testTargetedMessageNotificationSync = do
   event %. "from" `shouldMatch` targeted.sender.user
   event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
 
+testTransientTargetedMessage :: (HasCallStack) => App ()
+testTransientTargetedMessage = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
+  convId <- createNewGroup def alice1
+
+  void $ withWebSockets [alice, bob, charlie] $ \[aliceWs, bobWs, charlieWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif bobWs
+    void $ awaitMatch isMemberJoinNotif charlieWs
+
+    targeted <- createTransientTargetedMessage convId alice1 bob1 "transient targeted hello"
+    postMLSTransientTargetedMessage targeted.sender targeted.message >>= assertStatus 201
+
+    notification <- awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
+    event <- notification %. "payload.0"
+    event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    event %. "from" `shouldMatch` targeted.sender.user
+    event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
+
 testTargetedMessageBatch :: (HasCallStack) => App ()
 testTargetedMessageBatch = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
