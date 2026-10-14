@@ -16,9 +16,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.TargetedMessage
-  ( PersistentTargetedMessage (..),
-    TransientTargetedMessage,
+  ( TargetedMessage (..),
+    PersistentTargetedMessage (..),
+    TransientTargetedMessage (..),
     TargetedMessageBatch (..),
+    TransientTargetedMessageBatch (..),
   )
 where
 
@@ -39,7 +41,7 @@ persistentTargetedMessageWireFormat = 0xf001
 transientTargetedMessageWireFormat :: Word16
 transientTargetedMessageWireFormat = 0xf002
 
-data PersistentTargetedMessage = PersistentTargetedMessage
+data TargetedMessage = TargetedMessage
   { protocolVersion :: ProtocolVersion,
     counter :: Word32,
     sender :: LeafIndex,
@@ -53,35 +55,42 @@ data PersistentTargetedMessage = PersistentTargetedMessage
   }
   deriving stock (Eq, Show, Generic)
 
+newtype PersistentTargetedMessage = PersistentTargetedMessage
+  { persistentTargetedMessageData :: TargetedMessage
+  }
+  deriving stock (Eq, Show, Generic)
+
 instance ParseMLS PersistentTargetedMessage where
-  parseMLS = parseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat
+  parseMLS = PersistentTargetedMessage <$> parseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat
 
 instance SerialiseMLS PersistentTargetedMessage where
-  serialiseMLS = serialiseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat
+  serialiseMLS = serialiseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat . (.persistentTargetedMessageData)
 
 instance S.ToSchema PersistentTargetedMessage where
   declareNamedSchema _ = pure (mlsSwagger "PersistentTargetedMessage")
 
-newtype TransientTargetedMessage = TransientTargetedMessage PersistentTargetedMessage
+newtype TransientTargetedMessage = TransientTargetedMessage
+  { transientTargetedMessageData :: TargetedMessage
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ParseMLS TransientTargetedMessage where
   parseMLS = TransientTargetedMessage <$> parseTargetedMessageWithWireFormat transientTargetedMessageWireFormat
 
 instance SerialiseMLS TransientTargetedMessage where
-  serialiseMLS (TransientTargetedMessage message) = serialiseTargetedMessageWithWireFormat transientTargetedMessageWireFormat message
+  serialiseMLS = serialiseTargetedMessageWithWireFormat transientTargetedMessageWireFormat . (.transientTargetedMessageData)
 
 instance S.ToSchema TransientTargetedMessage where
   declareNamedSchema _ = pure (mlsSwagger "TransientTargetedMessage")
 
-parseTargetedMessageWithWireFormat :: Word16 -> Get PersistentTargetedMessage
+parseTargetedMessageWithWireFormat :: Word16 -> Get TargetedMessage
 parseTargetedMessageWithWireFormat expectedWireFormat = do
   protocolVersion <- parseMLS
   wireFormat <- getWord16be
   unless (wireFormat == expectedWireFormat) $
     fail $
       "unexpected targeted message wire format: " <> show wireFormat
-  PersistentTargetedMessage protocolVersion
+  TargetedMessage protocolVersion
     <$> parseMLS
     <*> parseMLS
     <*> parseMLS
@@ -91,7 +100,7 @@ parseTargetedMessageWithWireFormat expectedWireFormat = do
     <*> parseMLS
     <*> parseMLSBytes @VarInt
 
-serialiseTargetedMessageWithWireFormat :: Word16 -> PersistentTargetedMessage -> Put
+serialiseTargetedMessageWithWireFormat :: Word16 -> TargetedMessage -> Put
 serialiseTargetedMessageWithWireFormat wireFormat msg = do
   serialiseMLS msg.protocolVersion
   putWord16be wireFormat
@@ -117,3 +126,17 @@ instance SerialiseMLS TargetedMessageBatch where
 
 instance S.ToSchema TargetedMessageBatch where
   declareNamedSchema _ = pure (mlsSwagger "TargetedMessageBatch")
+
+newtype TransientTargetedMessageBatch = TransientTargetedMessageBatch
+  { transientMessages :: [RawMLS TransientTargetedMessage]
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance ParseMLS TransientTargetedMessageBatch where
+  parseMLS = TransientTargetedMessageBatch <$> parseMLSStream parseMLS
+
+instance SerialiseMLS TransientTargetedMessageBatch where
+  serialiseMLS = traverse_ serialiseMLS . (.transientMessages)
+
+instance S.ToSchema TransientTargetedMessageBatch where
+  declareNamedSchema _ = pure (mlsSwagger "TransientTargetedMessageBatch")

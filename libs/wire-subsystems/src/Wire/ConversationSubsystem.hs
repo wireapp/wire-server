@@ -226,7 +226,7 @@ data ConversationSubsystem m a where
   PostMLSTransientTargetedMessageFromLocalUser ::
     Local UserId ->
     ClientId ->
-    RawMLS TransientTargetedMessage ->
+    TransientTargetedMessageBatch ->
     ConversationSubsystem m MLSMessageSendingStatus
   IsMLSEnabled :: ConversationSubsystem m Bool
   GetConversationsInternal ::

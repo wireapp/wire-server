@@ -78,7 +78,7 @@ import Wire.API.MLS.ProtocolVersion (defaultProtocolVersion)
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.TargetedMessage
-import Wire.API.Message (defMessageMetadata)
+import Wire.API.Message (MessageMetadata (mmTransient), defMessageMetadata)
 import Wire.API.Routes.Version
 import Wire.API.Team.LegalHold
 import Wire.BackendNotificationQueueAccess
@@ -199,7 +199,7 @@ postMLSTargetedMessagesFromLocalUser ::
 postMLSTargetedMessagesFromLocalUser lusr client batch = do
   assertMLSEnabled
   firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
-  (ctype, qualifiedConvOrSubId) <- getConvFromGroupId firstMessage.value.groupId
+  (ctype, qualifiedConvOrSubId) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
   foldQualified
     lusr
     (\convOrSubId -> validateAndPropagateTargetedMessages (tUntagged lusr) client ctype convOrSubId batch.messages)
@@ -209,14 +209,123 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
   pure $ MLSMessageSendingStatus [] t
 
 postMLSTransientTargetedMessageFromLocalUser ::
-  (Member Now r) =>
+  ( Members MLSMessageStaticErrors r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
   Local UserId ->
   ClientId ->
-  RawMLS TransientTargetedMessage ->
+  TransientTargetedMessageBatch ->
   Sem r MLSMessageSendingStatus
-postMLSTransientTargetedMessageFromLocalUser _lusr _client _message = do
+postMLSTransientTargetedMessageFromLocalUser lusr client batch = do
+  assertMLSEnabled
+  firstMessage <- note (mlsProtocolError "transient targeted message batch is empty") (listToMaybe batch.transientMessages)
+  let message = transientTargetedMessageData firstMessage.value
+  (ctype, qualifiedConvOrSubId) <- getConvFromGroupId message.groupId
+  foldQualified
+    lusr
+    (validateAndPropagateTransientTargetedMessages (tUntagged lusr) client ctype message.groupId batch.transientMessages)
+    (const $ throw (mlsProtocolError "transient targeted messages to remote conversations are not supported"))
+    qualifiedConvOrSubId
   t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus [] t
+
+validateAndPropagateTransientTargetedMessages ::
+  ( Members MLSMessageStaticErrors r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
+  Qualified UserId ->
+  ClientId ->
+  ConvType ->
+  GroupId ->
+  [RawMLS TransientTargetedMessage] ->
+  Local ConvOrSubConvId ->
+  Sem r ()
+validateAndPropagateTransientTargetedMessages _sender _client _ctype _groupId [] _lconv =
+  throw $ mlsProtocolError "transient targeted message batch is empty"
+validateAndPropagateTransientTargetedMessages sender client ctype groupId messages@(_ : _) lconv = do
+  lconvOrSub <- fetchConvOrSub sender groupId ctype lconv
+  let convOrSub = tUnqualified lconvOrSub
+      recipients = map ((.recipient) . transientTargetedMessageData . (.value)) messages
+  unless (all ((== groupId) . (.groupId) . transientTargetedMessageData . (.value)) messages) $
+    throw $
+      mlsProtocolError "transient targeted messages must belong to one group"
+  when (length recipients /= Set.size (Set.fromList recipients)) $
+    throw $
+      mlsProtocolError "transient targeted message recipients must be unique"
+  validated <- for messages $ \raw -> do
+    let message = transientTargetedMessageData raw.value
+    recipientClient <- validateTargetedMessage sender client convOrSub message
+    unless (recipientClient.ciDomain == tDomain lconvOrSub) $
+      throwS @'ConvMemberNotFound
+    pure (raw, recipientClient)
+  let qualifiedConv =
+        tUntagged lconvOrSub <&> \case
+          Conv conv -> (conv.mcId, Nothing)
+          SubConv conv subConv -> (conv.mcId, Just subConv.scSubConvId)
+      qcnv = fst <$> qualifiedConv
+      subConvId = snd (qUnqualified qualifiedConv)
+  for_ validated $ \(raw, recipientClient) -> do
+    now <- Now.get
+    let event =
+          Event
+            { evtConv = qcnv,
+              evtSubConv = subConvId,
+              evtFrom = EventFromUser sender,
+              evtTime = now,
+              evtTeam = Nothing,
+              evtData = EdMLSTransientTargetedMessage raw.raw
+            }
+        metadata = defMessageMetadata {mmTransient = True}
+    runMessagePush lconvOrSub (Just qcnv) $
+      newMessagePush mempty Nothing metadata [(recipientClient.ciUser, recipientClient.ciClient)] event
+
+validateTargetedMessage ::
+  ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (Error MLSProtocolError) r
+  ) =>
+  Qualified UserId ->
+  ClientId ->
+  ConvOrSubConv ->
+  TargetedMessage ->
+  Sem r ClientIdentity
+validateTargetedMessage sender client convOrSub message = do
+  let expectedClient = mkClientIdentity sender client
+      currentEpoch = (.epoch) <$> convOrSub.mlsMeta.cnvmlsActiveData
+  unless (message.protocolVersion == defaultProtocolVersion) $
+    throwS @'MLSUnsupportedMessage
+  case currentEpoch of
+    Nothing -> throw $ mlsProtocolError "targeted message group has no active epoch"
+    Just epoch ->
+      unless (isAtMost3EpochsPast epoch message.epoch) $
+        throwS @'MLSStaleMessage
+  case imLookup convOrSub.indexMap message.sender of
+    Just (RegularClient senderClient)
+      | senderClient == expectedClient -> pure ()
+      | otherwise -> throwS @'MLSClientSenderUserMismatch
+    _ -> throwS @'MLSInvalidLeafNodeIndex
+  recipientClient <- case imLookup convOrSub.indexMap message.recipient of
+    Just (RegularClient recipient) -> pure recipient
+    _ -> throwS @'MLSInvalidLeafNodeIndex
+  unless (message.recipientId == encodeMLS' recipientClient) $
+    throw $
+      mlsProtocolError "targeted message recipient identity does not match its leaf index"
+  pure recipientClient
 
 postMLSTargetedMessagesToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -278,35 +387,15 @@ validateAndPropagateTargetedMessages _sender _client _ctype _lconv [] =
 validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMessage : _) = do
   lconvOrSub <- fetchConvOrSub sender firstGroupId ctype lconv
   let convOrSub = tUnqualified lconvOrSub
-      expectedClient = mkClientIdentity sender client
-      currentEpoch = (.epoch) <$> convOrSub.mlsMeta.cnvmlsActiveData
-      recipients = map ((.recipient) . (.value)) messages
-  unless (all ((== firstGroupId) . (.groupId) . (.value)) messages) $
+      recipients = map ((.recipient) . persistentTargetedMessageData . (.value)) messages
+  unless (all ((== firstGroupId) . (.groupId) . persistentTargetedMessageData . (.value)) messages) $
     throw $
       mlsProtocolError "targeted messages must belong to one group"
   when (length recipients /= Set.size (Set.fromList recipients)) $
     throw $
       mlsProtocolError "targeted message recipients must be unique"
   validated <- for messages $ \raw -> do
-    let msg = raw.value
-    unless (msg.protocolVersion == defaultProtocolVersion) $
-      throwS @'MLSUnsupportedMessage
-    case currentEpoch of
-      Nothing -> throw $ mlsProtocolError "targeted message group has no active epoch"
-      Just epoch -> do
-        unless (isAtMost3EpochsPast epoch msg.epoch) $
-          throwS @'MLSStaleMessage
-    case imLookup convOrSub.indexMap msg.sender of
-      Just (RegularClient senderClient)
-        | senderClient == expectedClient -> pure ()
-        | otherwise -> throwS @'MLSClientSenderUserMismatch
-      _ -> throwS @'MLSInvalidLeafNodeIndex
-    recipientClient <- case imLookup convOrSub.indexMap msg.recipient of
-      Just (RegularClient recipient) -> pure recipient
-      _ -> throwS @'MLSInvalidLeafNodeIndex
-    unless (msg.recipientId == encodeMLS' recipientClient) $
-      throw $
-        mlsProtocolError "targeted message recipient identity does not match its leaf index"
+    recipientClient <- validateTargetedMessage sender client convOrSub (persistentTargetedMessageData raw.value)
     pure (raw, recipientClient)
   let qt =
         tUntagged lconvOrSub <&> \case
@@ -345,7 +434,7 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
                   message = Base64ByteString raw.raw
                 }
   where
-    firstGroupId = firstMessage.value.groupId
+    firstGroupId = (persistentTargetedMessageData firstMessage.value).groupId
 
 postMLSCommitBundle ::
   ( Member MeetingNotifier r,

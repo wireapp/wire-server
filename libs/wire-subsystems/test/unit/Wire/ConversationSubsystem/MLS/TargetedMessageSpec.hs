@@ -173,21 +173,22 @@ targetedMessage counter = targetedMessageAt counter 5
 targetedMessageAt :: Word32 -> Word64 -> RawMLS PersistentTargetedMessage
 targetedMessageAt counter epoch =
   let msg =
-        PersistentTargetedMessage
-          { protocolVersion = defaultProtocolVersion,
-            counter = counter,
-            sender = fixture.senderLeaf,
-            recipient = fixture.recipientLeaf,
-            recipientId = encodeMLS' (mkClientIdentity (Qualified fixture.recipientUser fixture.recipientDomain) fixture.recipientClient),
-            epoch = Epoch epoch,
-            groupId = fixture.groupId,
-            payload = HPKECiphertext "kem" "ciphertext",
-            signature = "signature"
-          }
+        PersistentTargetedMessage $
+          TargetedMessage
+            { protocolVersion = defaultProtocolVersion,
+              counter = counter,
+              sender = fixture.senderLeaf,
+              recipient = fixture.recipientLeaf,
+              recipientId = encodeMLS' (mkClientIdentity (Qualified fixture.recipientUser fixture.recipientDomain) fixture.recipientClient),
+              epoch = Epoch epoch,
+              groupId = fixture.groupId,
+              payload = HPKECiphertext "kem" "ciphertext",
+              signature = "signature"
+            }
    in RawMLS "raw-targeted-message" msg
 
-mapTargetedMessage :: RawMLS PersistentTargetedMessage -> (PersistentTargetedMessage -> PersistentTargetedMessage) -> RawMLS PersistentTargetedMessage
-mapTargetedMessage raw f = raw {value = f raw.value}
+mapTargetedMessage :: RawMLS PersistentTargetedMessage -> (TargetedMessage -> TargetedMessage) -> RawMLS PersistentTargetedMessage
+mapTargetedMessage raw f = raw {value = PersistentTargetedMessage (f (persistentTargetedMessageData raw.value))}
 
 expectAccepted :: Fixture -> Word64 -> Expectation
 expectAccepted fx epoch =

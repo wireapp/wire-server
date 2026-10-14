@@ -67,7 +67,11 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.MLS.TargetedMessage (PersistentTargetedMessage (..), TargetedMessageBatch (..))
+import Wire.API.MLS.TargetedMessage
+  ( PersistentTargetedMessage (persistentTargetedMessageData),
+    TargetedMessage (groupId),
+    TargetedMessageBatch (..),
+  )
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.API.Routes.Public.Galley.MLS
@@ -834,7 +838,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors $ do
   let sender = toRemoteUnsafe remoteDomain req.sender
   batch <- either (throw . mlsProtocolError) pure $ decodeMLS' @TargetedMessageBatch (fromBase64ByteString req.rawMessage)
   firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
-  (ctype, qConvOrSub) <- getConvFromGroupId firstMessage.value.groupId
+  (ctype, qConvOrSub) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
   when (qUnqualified qConvOrSub /= req.convOrSubId) $ throwS @'MLSGroupConversationMismatch
   foldQualified
     loc
