@@ -74,6 +74,7 @@ library
   import:          common-all
   hs-source-dirs:  src
   exposed-modules:
+    FanInPerf.Acks
     FanInPerf.Consume
     FanInPerf.ConsumeStats
     FanInPerf.Metrics
@@ -136,6 +137,7 @@ test-suite fan-in-perf-tests
   hs-source-dirs: test
   ghc-options:    -threaded
   other-modules:
+    FanInPerf.AcksSpec
     FanInPerf.ConsumeSpec
     FanInPerf.ConsumeStatsSpec
     FanInPerf.MetricsSpec
