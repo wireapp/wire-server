@@ -40,6 +40,17 @@ spec = do
             && xs == sort xs
             && all (\x -> x >= 0 && x < n) xs
 
+  describe "mkEntries" $
+    prop "user and clients pools are prefixes of one distinct uid vector" $ \seed ->
+      let specs = TargetConfig KindUser 30 1 :| [TargetConfig KindClients 50 1, TargetConfig KindTeam 5 1]
+          (entries, _) = mkEntries 2 specs (mkStdGen seed)
+          userIds = [u | e <- V.toList entries, UserPool v <- [e.pool], u <- V.toList v]
+          clientUids = [u | e <- V.toList entries, ClientsPool v <- [e.pool], (u, _) <- V.toList v]
+       in length userIds == 30
+            && length clientUids == 50
+            && userIds == take 30 clientUids
+            && length (nubOrd clientUids) == 50
+
   describe "genTargets" $ do
     let specs =
           TargetConfig KindUser 50 5

@@ -7,6 +7,7 @@ module FanInPerf.Targets
     StreamPool (..),
     Entry (..),
     mkEntries,
+    genId,
     sampleDistinct,
     localDomain,
     targetAt,
@@ -80,20 +81,26 @@ data Entry = Entry
     pool :: StreamPool
   }
 
+-- | The user and clients pools are prefixes of one uid vector, so a reader
+-- client (user, client id) can read both the user's and its own client stream
+-- (see "FanInPerf.Population"). Different tables, so no extra contention.
 mkEntries :: (RandomGen g) => Int -> NonEmpty TargetConfig -> g -> (V.Vector Entry, g)
 mkEntries clientsPerUser specs g0 =
-  let step g s =
-        let (p, g') = mkPool clientsPerUser s g
+  let (gUsers, g1) = split g0
+      sharedUsers = maximum (0 : [s.streams | s <- NE.toList specs, s.kind `elem` [KindUser, KindClients]])
+      users = V.unfoldrExactN sharedUsers genId gUsers
+      step g s =
+        let (p, g') = mkPool clientsPerUser users s g
          in (g', Entry s p)
-      (g1, entries) = mapAccumL step g0 (NE.toList specs)
-   in (V.fromList entries, g1)
+      (g2, entries) = mapAccumL step g1 (NE.toList specs)
+   in (V.fromList entries, g2)
 
-mkPool :: (RandomGen g) => Int -> TargetConfig -> g -> (StreamPool, g)
-mkPool clientsPerUser s g0 =
+mkPool :: (RandomGen g) => Int -> V.Vector UserId -> TargetConfig -> g -> (StreamPool, g)
+mkPool clientsPerUser users s g0 =
   let (g1, g2) = split g0
    in ( case s.kind of
-          KindUser -> UserPool (V.unfoldrExactN s.streams genId g1)
-          KindClients -> ClientsPool (V.unfoldrExactN s.streams genUserClients g1)
+          KindUser -> UserPool (V.take s.streams users)
+          KindClients -> ClientsPool (V.map (,clientIds) (V.take s.streams users))
           KindTeam -> TeamPool (V.unfoldrExactN s.streams genId g1)
           KindEpoch -> EpochPool (V.unfoldrExactN s.streams genGroupEpoch g1)
           KindConnections -> ConnectionsPool (V.unfoldrExactN s.streams genId g1),
@@ -103,7 +110,6 @@ mkPool clientsPerUser s g0 =
     -- Client ids 1..C per user: distinct, so one push never inserts the same
     -- (user, client, notification) row twice.
     clientIds = ClientId 1 :| map ClientId [2 .. fromIntegral clientsPerUser]
-    genUserClients g = let (u, g') = genId g in ((u, clientIds), g')
 
 genId :: (RandomGen g) => g -> (Id a, g)
 genId = first Id . uniform
