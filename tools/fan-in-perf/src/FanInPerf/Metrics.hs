@@ -122,7 +122,8 @@ data ConsumeMetrics = ConsumeMetrics
     consumeRateMax :: P.Vector P.Label1 P.Gauge,
     backlogGauge :: P.Vector P.Label1 P.Gauge,
     fetchLatencyRef :: IORef (VU.Vector Int),
-    lagRef :: IORef (VU.Vector Int)
+    lagRef :: IORef (VU.Vector Int),
+    gateWaitRef :: IORef (VU.Vector Int)
   }
 
 -- | Registers the consume metrics; call once per process.
@@ -139,9 +140,11 @@ newConsumeMetrics experiment clients = do
   P.withLabel clientsGauge experiment (`P.setGauge` fromIntegral clients)
   fetchLatencyRef <- newIORef (VU.replicate numBuckets 0)
   lagRef <- newIORef (VU.replicate numBuckets 0)
+  gateWaitRef <- newIORef (VU.replicate numBuckets 0)
   _ <- P.register (histogramMetric "fanin_perf_fetch_duration_seconds" "Fetch latency in seconds" experiment fetchLatencyRef)
   _ <- P.register (histogramMetric "fanin_perf_delivery_lag_seconds" "Time from a notification's creation to its delivery to a reader" experiment lagRef)
-  pure ConsumeMetrics {experiment, consumed, fetchCount, emptyFetchCount, fetchErrorCount, consumeRateCurrent, consumeRateMax, backlogGauge, fetchLatencyRef, lagRef}
+  _ <- P.register (histogramMetric "fanin_perf_gate_wait_seconds" "Wait for a reader gate slot (--reader-pool-size concurrent store calls) before a fetch or ack, in seconds" experiment gateWaitRef)
+  pure ConsumeMetrics {experiment, consumed, fetchCount, emptyFetchCount, fetchErrorCount, consumeRateCurrent, consumeRateMax, backlogGauge, fetchLatencyRef, lagRef, gateWaitRef}
 
 -- | Only the ticker thread calls this.
 publishConsume :: ConsumeMetrics -> ConsumeReport -> IO ()
@@ -157,6 +160,7 @@ publishConsume m r = do
   setGauge m.experiment m.backlogGauge (fromIntegral r.backlog)
   writeIORef m.fetchLatencyRef (fetchLatencyBuckets r.readerTotal)
   writeIORef m.lagRef (lagBuckets r.readerTotal)
+  writeIORef m.gateWaitRef (gateWaitBuckets r.readerTotal)
 
 data AckMetrics = AckMetrics
   { experiment :: Text,

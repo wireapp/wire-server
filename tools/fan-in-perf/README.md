@@ -47,8 +47,12 @@ delivered is still lost. Measured (16 writers, `--clients 2000 --targets user:20
 
 Delivery lag is measured from the
 millisecond timestamp inside the UUIDv7 (writers and readers share a clock).
-Fetch latency includes the wait for a connection from the reader pool. The
-two pools report separately as `fanin_perf_pool_*{role="writer|reader"}`.
+Fetch (and ack) latency is the store call, including acquiring a connection
+from the reader pool. At most `--reader-pool-size` store calls run at once
+(a gate in front of the pool); the wait for a gate slot is reported
+separately as gate wait (summary line, `fanin_perf_gate_wait_seconds`). A
+client's effective latency is gate wait + latency. The two pools report
+separately as `fanin_perf_pool_*{role="writer|reader"}`.
 Summary duration and push/s and cons/s averages cover the writer phase
 (until the writers stopped); the drain time is printed separately. With
 `--duration`, Ctrl-C during writer shutdown/drain ends the drain early
@@ -80,6 +84,8 @@ Global flags go before the sub-command. `--targets` entries are `KIND:STREAMS[xK
 
 Metrics: `http://localhost:9400/metrics` (`--metrics-port`), scraped by the
 dockerephemeral OTel collector and shown in Grafana dashboard "fan-in-perf".
+`consume` and `consume-ack` add `fanin_perf_gate_wait_seconds` (reader gate
+wait, see above) to the fetch, lag and (C only) ack metrics.
 
 Notes:
 

@@ -9,6 +9,7 @@ module FanInPerf.Consume
     startPositions,
     readerPass,
     readerRound,
+    throughGate,
     isolated,
     ackOne,
     ackPending,
@@ -234,8 +235,24 @@ acknowledge n writeAcks = foldM step
 -- Thousands of readers blocked in the pool's STM retry are all woken on every
 -- connection release; that thundering herd saturated the CPU and delayed the
 -- ticker and drain by tens of seconds. A 'QSem' wakes one waiter at a time.
-throughGate :: QSem -> IO a -> IO a
-throughGate gate = bracket_ (waitQSem gate) (signalQSem gate)
+-- The wait for a slot is recorded separately (gate wait), not as part of the
+-- fetch/ack latency.
+throughGate :: QSem -> ReaderStats -> IO a -> IO a
+throughGate gate stats = gateWith (recordGateWait stats) gate
+
+-- | 'throughGate' without recording (startup calls).
+throughGate_ :: QSem -> IO a -> IO a
+throughGate_ = gateWith (const (pure ()))
+
+-- | Passes the wait for a slot (ns) to @onWait@ once acquired.
+gateWith :: (Word64 -> IO ()) -> QSem -> IO a -> IO a
+gateWith onWait gate = bracket_ acquire (signalQSem gate)
+  where
+    acquire = do
+      t0 <- getMonotonicTimeNSec
+      waitQSem gate
+      t1 <- getMonotonicTimeNSec
+      onWait (t1 - t0)
 
 -- | One reader client: fetch all streams, re-fetch only those whose page was
 -- full (more is waiting) until none is, then sleep. In 'Acks' mode every
@@ -248,7 +265,7 @@ readerLoop gate env opts client stats reportError = go emptyAckState
     render :: UsageError -> Text
     render = tshow
     gated :: Sem StoreEffects a -> IO (Either UsageError a)
-    gated = throughGate gate . runStore env
+    gated = throughGate gate stats . runStore env
     fetchOne sub = gated (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
     writeAcks = ackPending render stats reportError (gated . ackOne stats client)
     received acks delivered = case opts.mode of
@@ -277,7 +294,7 @@ loadSubscriptions :: Console -> QSem -> Env -> ReaderMode -> Population -> IO [[
 loadSubscriptions console gate env mode population = do
   let label = experimentLabel mode
   printLine console (label <> ": loading start positions")
-  loaded <- forConcurrently (readers population) (throughGate gate . runStore env . startPositions mode population.kinds)
+  loaded <- forConcurrently (readers population) (throughGate_ gate . runStore env . startPositions mode population.kinds)
   subs <- either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
   case mode of
     Acks _ -> printLine console (label <> ": acks reset to latest (" <> tshow (length (concat subs)) <> " streams)")

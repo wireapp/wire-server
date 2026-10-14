@@ -7,6 +7,7 @@ module FanInPerf.ConsumeStats
     recordFetchError,
     recordAck,
     recordAckError,
+    recordGateWait,
     ReaderSnapshot,
     emptyReaderSnapshot,
     readReaderSnapshot,
@@ -27,6 +28,7 @@ module FanInPerf.ConsumeStats
     fetchLatencyBuckets,
     lagBuckets,
     ackLatencyBuckets,
+    gateWaitBuckets,
     ConsumeTickState,
     initialConsumeTickState,
     ConsumeReport (..),
@@ -51,7 +53,8 @@ data ReaderSnapshot = ReaderSnapshot
     lag :: !(IntMap Int),
     acks :: !(Map TargetKind Int),
     ackErrors :: !(Map TargetKind Int),
-    ackLatency :: !(IntMap Int)
+    ackLatency :: !(IntMap Int),
+    gateWait :: !(IntMap Int)
   }
   deriving (Eq, Show)
 
@@ -68,7 +71,8 @@ emptyReaderSnapshot =
       lag = mempty,
       acks = mempty,
       ackErrors = mempty,
-      ackLatency = mempty
+      ackLatency = mempty,
+      gateWait = mempty
     }
 
 newReaderStats :: IO ReaderStats
@@ -109,6 +113,11 @@ recordAck stats k latencyNs =
 recordAckError :: ReaderStats -> TargetKind -> IO ()
 recordAckError stats k = modifyReader stats $ \s -> s {ackErrors = bump k 1 s.ackErrors}
 
+-- | One wait (ns) for a slot of the reader gate before a store call.
+recordGateWait :: ReaderStats -> Word64 -> IO ()
+recordGateWait stats waitNs =
+  modifyReader stats $ \s -> s {gateWait = IntMap.insertWith (+) (bucketIndex waitNs) 1 s.gateWait}
+
 readReaderSnapshot :: ReaderStats -> IO ReaderSnapshot
 readReaderSnapshot (ReaderStats r) = atomicModifyIORef' r (\s -> (s, s))
 
@@ -125,7 +134,8 @@ sumReaderSnapshots = foldl' add emptyReaderSnapshot
           lag = IntMap.unionWith (+) x.lag y.lag,
           acks = Map.unionWith (+) x.acks y.acks,
           ackErrors = Map.unionWith (+) x.ackErrors y.ackErrors,
-          ackLatency = IntMap.unionWith (+) x.ackLatency y.ackLatency
+          ackLatency = IntMap.unionWith (+) x.ackLatency y.ackLatency,
+          gateWait = IntMap.unionWith (+) x.gateWait y.gateWait
         }
 
 diffReaderSnapshot :: ReaderSnapshot -> ReaderSnapshot -> ReaderSnapshot
@@ -139,7 +149,8 @@ diffReaderSnapshot new old =
       lag = IntMap.unionWith (+) new.lag (negate <$> old.lag),
       acks = diffMap new.acks old.acks,
       ackErrors = diffMap new.ackErrors old.ackErrors,
-      ackLatency = IntMap.unionWith (+) new.ackLatency (negate <$> old.ackLatency)
+      ackLatency = IntMap.unionWith (+) new.ackLatency (negate <$> old.ackLatency),
+      gateWait = IntMap.unionWith (+) new.gateWait (negate <$> old.gateWait)
     }
   where
     diffMap n o = Map.unionWith (+) n (negate <$> o)
@@ -160,6 +171,9 @@ totalAckErrors s = sum s.ackErrors
 
 ackLatencyBuckets :: ReaderSnapshot -> VU.Vector Int
 ackLatencyBuckets s = toBuckets s.ackLatency
+
+gateWaitBuckets :: ReaderSnapshot -> VU.Vector Int
+gateWaitBuckets s = toBuckets s.gateWait
 
 totalDelivered, totalFetches, totalEmptyFetches, totalFetchErrors :: ReaderSnapshot -> Int
 totalDelivered s = sum s.delivered
@@ -199,6 +213,9 @@ data ConsumeReport = ConsumeReport
     ackErrorRate :: Double,
     ackP50 :: Maybe Double,
     ackP99 :: Maybe Double,
+    -- | waits for a reader gate slot; Nothing without any
+    gateWaitP50 :: Maybe Double,
+    gateWaitP99 :: Maybe Double,
     -- | expected - delivered, clamped at 0: readers may see a push before the
     -- writer has recorded its expected deliveries.
     backlog :: Int,
@@ -237,6 +254,8 @@ consumeTick warmup now expectedTotal total st =
             ackErrorRate = rate (totalAckErrors delta),
             ackP50 = quantileSeconds 0.5 (ackLatencyBuckets total),
             ackP99 = quantileSeconds 0.99 (ackLatencyBuckets total),
+            gateWaitP50 = quantileSeconds 0.5 (gateWaitBuckets total),
+            gateWaitP99 = quantileSeconds 0.99 (gateWaitBuckets total),
             backlog = max 0 (expectedTotal - totalDelivered total),
             readerDelta = delta,
             readerTotal = total

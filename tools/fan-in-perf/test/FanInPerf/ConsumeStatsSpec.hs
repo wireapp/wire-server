@@ -53,7 +53,35 @@ spec = do
       (acksOf KindTeam s1, acksOf KindTeam d, acksOf KindEpoch d, ackErrorsOf KindEpoch d) `shouldBe` (2, 1, 1, 1)
       (totalAcks s1, totalAckErrors s1, VU.sum (ackLatencyBuckets d), totalFetches s1) `shouldBe` (3, 1, 2, 0)
 
+    it "records, sums and diffs gate waits without counting fetches or acks" $ do
+      a <- newReaderStats
+      b <- newReaderStats
+      recordGateWait a 1000
+      s0 <- sumReaderSnapshots <$> traverse readReaderSnapshot [a, b]
+      recordGateWait a 1000
+      recordGateWait b 50_000_000
+      s1 <- sumReaderSnapshots <$> traverse readReaderSnapshot [a, b]
+      let d = diffReaderSnapshot s1 s0
+      (VU.sum (gateWaitBuckets s1), VU.sum (gateWaitBuckets d)) `shouldBe` (3, 2)
+      gateWaitBuckets s1 VU.! bucketIndex 1000 `shouldBe` 2
+      gateWaitBuckets d VU.! bucketIndex 50_000_000 `shouldBe` 1
+      (totalFetches s1, totalAcks s1) `shouldBe` (0, 0)
+
   describe "consumeTick" $ do
+    it "computes cumulative gate wait quantiles, Nothing without waits" $ do
+      rs <- newReaderStats
+      replicateM_ 99 (recordGateWait rs 1000)
+      recordGateWait rs 50_000_000
+      t <- readReaderSnapshot rs
+      let (r, _) = consumeTick 0 1 0 t (initialConsumeTickState 0)
+      map (maybe False (< 0.001)) [r.gateWaitP50, r.gateWaitP99] `shouldBe` [True, True]
+      replicateM_ 10 (recordGateWait rs 50_000_000)
+      t2 <- readReaderSnapshot rs
+      let (r2, _) = consumeTick 0 2 0 t2 (initialConsumeTickState 0)
+      r2.gateWaitP99 `shouldSatisfy` maybe False (> 0.03)
+      let (r0, _) = consumeTick 0 0 0 emptyReaderSnapshot (initialConsumeTickState 0)
+      (r0.gateWaitP50, r0.gateWaitP99) `shouldBe` (Nothing, Nothing)
+
     it "computes rates from the delta and ignores the max during warmup" $ do
       t1 <- snapshotAfter 10 0 -- 30 delivered
       let (r1, st1) = consumeTick 5 1 100 t1 (initialConsumeTickState 0)

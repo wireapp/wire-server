@@ -59,6 +59,7 @@ spec = do
       rs <- newReaderStats
       replicateM_ 3 (recordFetch rs KindTeam 1000 [500])
       recordFetch rs KindTeam 1000 []
+      replicateM_ 5 (recordGateWait rs 1000)
       total <- readReaderSnapshot rs
       let (r, _) = consumeTick 0 1 10 total (initialConsumeTickState 0)
       publishConsume m r
@@ -70,6 +71,7 @@ spec = do
       out `shouldContain` "fanin_perf_clients{experiment=\"specc\"} 7"
       out `shouldContain` "fanin_perf_delivery_lag_seconds_count{experiment=\"specc\"} 3"
       out `shouldContain` "fanin_perf_fetch_duration_seconds_count{experiment=\"specc\"} 4"
+      out `shouldContain` "fanin_perf_gate_wait_seconds_count{experiment=\"specc\"} 5"
 
   describe "publishAcks" $
     it "exports ack counters, gauges and the ack latency histogram" $ do

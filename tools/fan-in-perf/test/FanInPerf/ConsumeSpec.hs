@@ -1,6 +1,8 @@
 module FanInPerf.ConsumeSpec (spec) where
 
-import Control.Exception (ErrorCall (..), throwIO)
+import Control.Concurrent.Async (wait, withAsync)
+import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
+import Control.Exception (ErrorCall (..), bracket_, throwIO)
 import Data.Aeson qualified as A
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Id
@@ -16,6 +18,7 @@ import FanInPerf.ConsumeStats
 import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Population (SimUser (SimUser))
 import FanInPerf.Population qualified as Pop
+import FanInPerf.Stats (bucketIndex)
 import FanInPerf.Targets (TargetKind (..))
 import Imports
 import Polysemy
@@ -307,6 +310,22 @@ spec = do
       -- displayException of a SomeException may append a backtrace: match the message only
       msg <- isolated @Text id pure (throwIO (ErrorCall "boom"))
       msg `shouldSatisfy` T.isInfixOf "boom"
+
+  describe "throughGate" $
+    it "records the wait for a slot another holder kept, not the call itself" $ do
+      gate <- newQSem 1
+      stats <- newReaderStats
+      acquired <- newEmptyMVar
+      let holder = bracket_ (waitQSem gate) (signalQSem gate) (putMVar acquired () >> threadDelay 50_000)
+      withAsync holder $ \h -> do
+        takeMVar acquired
+        throughGate gate stats (pure ())
+        wait h
+      s <- readReaderSnapshot stats
+      let buckets = gateWaitBuckets s
+      VU.sum buckets `shouldBe` 1
+      VU.findIndex (> 0) buckets `shouldSatisfy` maybe False (>= bucketIndex 40_000_000)
+      (totalFetches s, totalAcks s) `shouldBe` (0, 0)
 
   describe "ackOne" $
     it "acks as the reader's (user, client) up to the pending id and records the latency" $ do

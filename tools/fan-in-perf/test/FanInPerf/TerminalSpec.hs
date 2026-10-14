@@ -41,6 +41,8 @@ creport =
       ackErrorRate = 0,
       ackP50 = Nothing,
       ackP99 = Nothing,
+      gateWaitP50 = Nothing,
+      gateWaitP99 = Nothing,
       backlog = 1234,
       readerDelta = emptyReaderSnapshot,
       readerTotal = emptyReaderSnapshot
@@ -126,6 +128,17 @@ spec = do
     it "survives an empty run" $
       formatConsumeSummary NoAcks 0 WriterPhase {duration = 0, delivered = 0, acks = 0} (DrainComplete 0) report {elapsed = 0} creport {lagP50 = Nothing, lagP99 = Nothing}
         `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
+
+  describe "formatConsumeSummary gate wait" $ do
+    let afterFetch ls = drop 1 (dropWhile (not . T.isPrefixOf "  fetch (cumulative)") ls)
+    for_ [NoAcks, Acks 100] $ \mode -> do
+      it ("prints gate wait right after the fetch line (" <> show mode <> ")") $
+        take 1 (afterFetch (formatConsumeSummary mode 0 phase (DrainComplete 1) report creport {gateWaitP50 = Just 0.004, gateWaitP99 = Just 0.25}))
+          `shouldBe` ["  gate wait (cumulative) p50=4.0ms p99=250.0ms"]
+      it ("prints - without gate waits, never NaN (" <> show mode <> ")") $ do
+        let out = formatConsumeSummary mode 0 WriterPhase {duration = 0, delivered = 0, acks = 0} (DrainComplete 0) report {elapsed = 0} creport
+        take 1 (afterFetch out) `shouldBe` ["  gate wait (cumulative) p50=- p99=-"]
+        out `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
 
   describe "formatConsumeStatus with acks" $
     it "adds the ack segment and ack errors" $

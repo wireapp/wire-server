@@ -191,6 +191,14 @@
       "targets": [
         { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_ack_errors_total[5s]))", "legendFormat": "{{kind}}" }
       ]
+    },
+    {
+      "id": 25, "type": "timeseries", "title": "Reader gate wait", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 96, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p99" }
+      ]
     }
   ]
 }

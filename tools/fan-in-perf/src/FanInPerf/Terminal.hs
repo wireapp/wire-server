@@ -119,7 +119,8 @@ formatConsumeSummary mode expected phase drain r c =
                <> groupThousands (max 0 (delivered - expected)),
              "  cons/s avg=" <> rateText avgRate <> " max=" <> rateText c.maxConsumeRate,
              "  lag (cumulative) p50=" <> formatLatency c.lagP50 <> " p99=" <> formatLatency c.lagP99,
-             "  fetch (cumulative) p50=" <> formatLatency c.fetchP50 <> " p99=" <> formatLatency c.fetchP99 <> " empty=" <> percent emptyRatio
+             "  fetch (cumulative) p50=" <> formatLatency c.fetchP50 <> " p99=" <> formatLatency c.fetchP99 <> " empty=" <> percent emptyRatio,
+             "  gate wait (cumulative) p50=" <> formatLatency c.gateWaitP50 <> " p99=" <> formatLatency c.gateWaitP99
            ]
         <> (if mode /= NoAcks then ackLines else [])
         <> ["  drain: " <> drainText]
