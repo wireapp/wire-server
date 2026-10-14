@@ -24,7 +24,7 @@ import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
 import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
-import FanInPerf.Options (ConsumeOptions (..), ProduceOptions (..))
+import FanInPerf.Options (ConsumeOptions (..), ProduceOptions (..), experimentLabel)
 import FanInPerf.Population
 import FanInPerf.Produce
 import FanInPerf.Stats
@@ -205,9 +205,9 @@ readerLoop gate env opts stats reportError = go
 
 -- | Start positions are read before any writer runs: a push committed in
 -- between could otherwise sit below a cursor and show up as a false `missing`.
-loadSubscriptions :: Console -> QSem -> Env -> Population -> IO [[Subscription]]
-loadSubscriptions console gate env population = do
-  printLine console "consume: loading start positions"
+loadSubscriptions :: Text -> Console -> QSem -> Env -> Population -> IO [[Subscription]]
+loadSubscriptions label console gate env population = do
+  printLine console $ label <> ": loading start positions"
   loaded <- forConcurrently (readers population) (throughGate gate . runStore env . loadCursors . readerStreams population.kinds)
   either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
 
@@ -268,8 +268,8 @@ consumeTickOnce console metrics consumeMetrics warmup writerStats readerStats er
 -- idempotent. A Ctrl-C while stopping still waits for the writers' last
 -- pushes: cancelling one after its commit would deliver it without counting it
 -- as expected.
-stopAndDrain :: Console -> Maybe Int -> IO () -> IO WriterPhase -> IO Drain -> IO (WriterPhase, Drain)
-stopAndDrain console duration stopWriters writerPhaseEnd runDrain = do
+stopAndDrain :: Text -> Console -> Maybe Int -> IO () -> IO WriterPhase -> IO Drain -> IO (WriterPhase, Drain)
+stopAndDrain label console duration stopWriters writerPhaseEnd runDrain = do
   waitForStop duration
   phaseRef <- newIORef Nothing
   let interrupted = do
@@ -279,7 +279,7 @@ stopAndDrain console duration stopWriters writerPhaseEnd runDrain = do
     stopWriters
     phase <- writerPhaseEnd
     writeIORef phaseRef (Just phase)
-    printLine console "consume: writers stopped, draining"
+    printLine console $ label <> ": writers stopped, draining"
     (phase,) <$> runDrain
 
 -- | @runConsume console writerEnv readerEnv options@. The environments differ
@@ -288,10 +288,12 @@ runConsume :: Console -> Env -> Env -> ConsumeOptions -> IO ()
 runConsume console writerEnv readerEnv opts = do
   gate <- newQSem opts.readerPoolSize
   let p = opts.writerOptions
+      label = experimentLabel opts.mode
   setup <- prepareWriters p
   population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient p.clientsPerUser setup.entries setup.populationGen)
   printLine console $
-    "consume: writers="
+    label
+      <> ": writers="
       <> tshow p.writers
       <> " clients="
       <> tshow opts.clients
@@ -300,10 +302,10 @@ runConsume console writerEnv readerEnv opts = do
       <> " seed="
       <> tshow setup.seed
   traverse_ (printLine console) (formatCoverage (coverage population.subscribers setup.entries))
-  clientSubs <- loadSubscriptions console gate readerEnv population
+  clientSubs <- loadSubscriptions label console gate readerEnv population
 
-  metrics <- newMetrics "consume" p.writers
-  consumeMetrics <- newConsumeMetrics "consume" opts.clients
+  metrics <- newMetrics label p.writers
+  consumeMetrics <- newConsumeMetrics label opts.clients
   writerStats <- replicateM p.writers newWriterStats
   readerStats <- replicateM opts.clients newReaderStats
   (errors, reportError) <- newErrorReporter
@@ -328,7 +330,7 @@ runConsume console writerEnv readerEnv opts = do
         now <- getMonotonicTime
         (_, delivered) <- readTotals
         pure WriterPhase {duration = now - start, delivered}
-  printLine console "consume: running"
+  printLine console $ label <> ": running"
   (writerPhase, drainResult) <-
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
@@ -337,7 +339,7 @@ runConsume console writerEnv readerEnv opts = do
         withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
           link writersA
           let stop = atomicWriteIORef stopWriters True >> wait writersA
-          stopAndDrain console p.duration stop writerPhaseEnd (drain opts.drainTimeout readTotals)
+          stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout readTotals)
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
   traverse_ (printLine console) (formatConsumeSummary (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)
