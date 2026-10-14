@@ -281,7 +281,6 @@ type ITeamsAPIBase =
              :<|> Named
                     "unchecked-get-team-members-csv"
                     ( "csv"
-                        :> CanThrow 'TeamNotFound
                         :> LowLevelStream
                              'GET
                              200

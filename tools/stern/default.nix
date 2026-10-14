@@ -6,7 +6,6 @@
 , aeson
 , base
 , bilge
-, binary
 , bytestring
 , bytestring-conversion
 , containers
@@ -63,7 +62,6 @@ mkDerivation {
     aeson
     base
     bilge
-    binary
     bytestring
     bytestring-conversion
     containers

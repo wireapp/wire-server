@@ -29,7 +29,6 @@ import Data.IORef (atomicModifyIORef, newIORef)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (Local, tUnqualified)
-import Debug.Trace
 import Imports hiding (atomicModifyIORef, newEmptyMVar, newIORef, putMVar, readMVar, takeMVar, threadDelay, tryPutMVar)
 import Polysemy
 import Polysemy.Async
@@ -159,7 +158,7 @@ getTeamMembersCSVUnchecked tid = do
   let produceTeamExportUsers = do
         embedFinal $ writeChan chan (Just headerLine)
         E.withChunks (\mps -> listTeamMembers @InternalPaging tid mps maxBound) $
-          \members -> unsafePooledForConcurrentlyN_ 8 (traceShowId $ members) $ \member -> do
+          \members -> unsafePooledForConcurrentlyN_ 8 members $ \member -> do
             mRecord <-
               runErrorS @TeamMemberNotFound $
                 getUserRecord cache member
