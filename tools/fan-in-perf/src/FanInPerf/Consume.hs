@@ -5,9 +5,11 @@ module FanInPerf.Consume
   ( Subscription (..),
     newSubscription,
     millisLowerBound,
-    loadCursors,
+    PassResult (..),
+    startPositions,
     readerPass,
     readerRound,
+    isolated,
     lagNs,
     runConsume,
   )
@@ -26,6 +28,7 @@ import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
 import FanInPerf.Options (ConsumeOptions (..), ProduceOptions (..), ReaderMode (..), experimentLabel)
 import FanInPerf.Population
+import FanInPerf.Population qualified as Pop
 import FanInPerf.Produce
 import FanInPerf.Stats
 import FanInPerf.Store
@@ -59,13 +62,32 @@ newSubscription :: TargetKind -> Stream -> UUID -> Subscription
 newSubscription kind stream cursor =
   Subscription {start = cursor, seen = mempty, resumeAfter = Nothing, ..}
 
--- | Start position of every stream of a client: the latest notification id
--- ("start at latest"), the nil UUID for an empty stream.
-loadCursors :: (Member FanInNotificationsStore r) => [Stream] -> Sem r [Subscription]
-loadCursors streams =
-  for streams $ \s -> do
-    lastId <- getLastNotificationId s
-    pure $ newSubscription (streamKind s) s (fromMaybe UUID.nil lastId)
+-- | Start position of every stream of a reader: B reads the latest
+-- notification id ("start at latest"); C resets the reader's acks to it (RFC
+-- "when nothing is acknowledged"). The nil UUID for an empty stream.
+startPositions :: (Member FanInNotificationsStore r) => ReaderMode -> Set TargetKind -> Pop.Reader -> Sem r [Subscription]
+startPositions mode kinds r =
+  for (readerStreams kinds r) $ \s -> do
+    start <- case mode of
+      NoAcks -> getLastNotificationId s
+      Acks _ -> initAcks r.user.uid r.cid s
+    pure (newSubscription (streamKind s) s (fromMaybe UUID.nil start))
+
+-- | Result of fetching some streams of one client once.
+data PassResult = PassResult
+  { subs :: [Subscription],
+    -- | some stream returned a full page: more is waiting
+    more :: Bool,
+    -- | newly delivered ids with their stream, in page order
+    delivered :: [(Stream, UUID)],
+    errors :: [Text]
+  }
+
+instance Semigroup PassResult where
+  a <> b = PassResult (a.subs <> b.subs) (a.more || b.more) (a.delivered <> b.delivered) (a.errors <> b.errors)
+
+instance Monoid PassResult where
+  mempty = PassResult [] False [] []
 
 -- | The smallest UUID with the given UUIDv7 ms timestamp (all other bits
 -- zero): every UUIDv7 of that ms or later is greater (its version bits are
@@ -83,10 +105,10 @@ lowerBound windowMs sub =
   let ms = notificationIdMillis sub.cursor
    in max sub.start (millisLowerBound (if ms > windowMs then ms - windowMs else 0))
 
--- | Fetches every stream of one client once. Returns the advanced cursors,
--- whether some stream returned a full page (more is waiting) and the messages
--- of failed fetches (rendered by @render@). A failed fetch leaves its cursor
--- unchanged.
+-- | Fetches every stream of one client once. Returns a 'PassResult': the
+-- advanced cursors, whether some stream returned a full page (more is
+-- waiting), the newly delivered ids and the messages of failed fetches
+-- (rendered by @render@). A failed fetch leaves its cursor unchanged.
 --
 -- With a safety window (@windowMs@ > 0) a fetch starts at 'lowerBound', so
 -- notifications committed late (lower id than the cursor) within the window
@@ -105,7 +127,7 @@ readerPass ::
   Word64 ->
   ReaderStats ->
   [Subscription] ->
-  Sem r ([Subscription], Bool, [Text])
+  Sem r PassResult
 readerPass render limit windowMs stats subs = do
   results <- for subs $ \sub -> do
     let bound = lowerBound windowMs sub
@@ -116,7 +138,7 @@ readerPass render limit windowMs stats subs = do
     case fetched of
       Left err -> do
         embed (recordFetchError stats sub.kind)
-        pure (sub, False, [kindName sub.kind <> ": fetch failed: " <> render err])
+        pure (PassResult [sub] False [] [kindName sub.kind <> ": fetch failed: " <> render err])
       Right page -> do
         let new = filter (`Set.notMember` sub.seen) (map fst page)
             full = length page >= limit
@@ -128,8 +150,8 @@ readerPass render limit windowMs stats subs = do
               | otherwise = Set.filter (> bound') (foldl' (flip Set.insert) sub.seen new)
         nowMs <- embed currentMillis
         embed (recordFetch stats sub.kind (t1 - t0) (map (lagNs nowMs) new))
-        pure (sub' {seen = seen'}, full, [])
-  pure ([s | (s, _, _) <- results], or [full | (_, full, _) <- results], concat [errs | (_, _, errs) <- results])
+        pure (PassResult [sub' {seen = seen'}] full [(sub.stream, i) | i <- new] [])
+  pure (mconcat results)
 
 currentMillis :: IO Word64
 currentMillis = floor . (* 1000) <$> getPOSIXTime
@@ -145,32 +167,32 @@ lagNs nowMs notifId =
 
 -- REVIEW: Dependency injection is confusing
 
+-- | Runs one store call; a synchronous exception or an error result goes to
+-- @onFailure@ as text, so one failing stream never affects another. Async
+-- exceptions (cancel) propagate.
+isolated :: (e -> Text) -> (Text -> IO b) -> IO (Either e b) -> IO b
+isolated render onFailure act =
+  tryAny act >>= \case
+    Left e -> onFailure (T.pack (displayException e))
+    Right (Left e) -> onFailure (render e)
+    Right (Right b) -> pure b
+
 -- | One pass over the streams of a client, each fetched in isolation by
--- @fetchOne@ (a 'readerPass' over that stream alone): an exception or error
--- only keeps the cursor of its own stream (counted as fetch error), so the
--- cursors of the other streams survive. Synchronous exceptions are caught like
--- in 'writerStep'; async ones (cancel) propagate.
+-- @fetchOne@ (a 'readerPass' over that stream alone): a failure only keeps
+-- the cursor of its own stream (counted as fetch error).
 readerRound ::
   (e -> Text) ->
   ReaderStats ->
-  (Subscription -> IO (Either e ([Subscription], Bool, [Text]))) ->
+  (Subscription -> IO (Either e PassResult)) ->
   [Subscription] ->
-  IO ([Subscription], Bool, [Text])
-readerRound render stats fetchOne subs = do
-  results <- for subs $ \sub ->
-    tryAny (fetchOne sub) >>= \case
-      Left e -> failed sub (T.pack (displayException e))
-      Right (Left e) -> failed sub (render e)
-      Right (Right r) -> pure r
-  pure
-    ( concat [s | (s, _, _) <- results],
-      or [full | (_, full, _) <- results],
-      concat [errs | (_, _, errs) <- results]
-    )
+  IO PassResult
+readerRound render stats fetchOne subs =
+  mconcat <$> for subs (\sub -> isolated render (failed sub) (fetchOne sub))
   where
+    -- constructor, not a record update: 'errors' is also a field of 'Metrics'
     failed sub msg = do
       recordFetchError stats sub.kind
-      pure ([sub], False, ["reader: " <> kindName sub.kind <> ": " <> msg])
+      pure (PassResult [sub] False [] ["reader: " <> kindName sub.kind <> ": " <> msg])
 
 -- | Lets at most as many readers as the pool has connections wait for it.
 -- Thousands of readers blocked in the pool's STM retry are all woken on every
@@ -191,9 +213,9 @@ readerLoop gate env opts stats reportError = go
       throughGate gate $
         runStore env (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
     pollOne sub = do
-      (subs', more, errs) <- readerRound render stats fetchOne [sub]
-      traverse_ reportError errs
-      pure (map (,more) subs')
+      r <- readerRound render stats fetchOne [sub]
+      traverse_ reportError r.errors
+      pure (map (,r.more) r.subs)
     -- @(subscription, poll again)@ pairs
     catchUp pending = do
       polled <- concat <$> for pending (\(sub, again) -> if again then pollOne sub else pure [(sub, False)])
@@ -205,11 +227,16 @@ readerLoop gate env opts stats reportError = go
 
 -- | Start positions are read before any writer runs: a push committed in
 -- between could otherwise sit below a cursor and show up as a false `missing`.
-loadSubscriptions :: Text -> Console -> QSem -> Env -> Population -> IO [[Subscription]]
-loadSubscriptions label console gate env population = do
-  printLine console $ label <> ": loading start positions"
-  loaded <- forConcurrently (readers population) (throughGate gate . runStore env . loadCursors . readerStreams population.kinds)
-  either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
+loadSubscriptions :: Console -> QSem -> Env -> ReaderMode -> Population -> IO [[Subscription]]
+loadSubscriptions console gate env mode population = do
+  let label = experimentLabel mode
+  printLine console (label <> ": loading start positions")
+  loaded <- forConcurrently (readers population) (throughGate gate . runStore env . startPositions mode population.kinds)
+  subs <- either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
+  case mode of
+    Acks _ -> printLine console (label <> ": acks reset to latest (" <> tshow (length (concat subs)) <> " streams)")
+    NoAcks -> pure ()
+  pure subs
 
 -- | (expected, delivered) notifications so far.
 totals :: [WriterStats] -> [ReaderStats] -> IO (Int, Int)
@@ -303,7 +330,7 @@ runConsume console writerEnv readerEnv opts = do
       <> " seed="
       <> tshow setup.seed
   traverse_ (printLine console) (formatCoverage (coverage population.subscribers setup.entries))
-  clientSubs <- loadSubscriptions label console gate readerEnv population
+  clientSubs <- loadSubscriptions console gate readerEnv opts.mode population
 
   metrics <- newMetrics label p.writers
   consumeMetrics <- newConsumeMetrics label opts.clients

@@ -4,12 +4,17 @@ import Control.Exception (ErrorCall (..), throwIO)
 import Data.Aeson qualified as A
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Id
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.Consume
 import FanInPerf.ConsumeStats
+import FanInPerf.Options (ReaderMode (..))
+import FanInPerf.Population (SimUser (SimUser))
+import FanInPerf.Population qualified as Pop
 import FanInPerf.Targets (TargetKind (..))
 import Imports
 import Polysemy
@@ -20,30 +25,49 @@ import Wire.FanInNotificationsStore.Postgres (genNotificationId, notificationIdM
 
 type Rows = IORef [(Stream, [(UUID, A.Value)])]
 
--- | In-memory store; every fetch fails while the flag is set.
-fakeStore :: (Member (Embed IO) r, Member (Error Text) r) => Rows -> IORef Bool -> InterpreterFor FanInNotificationsStore r
-fakeStore rows failing = interpret $ \case
+data Call = InitCall UserId ClientId Stream | AckCall UserId ClientId Stream UUID
+  deriving (Eq, Show)
+
+-- | In-memory store; every fetch fails while the flag is set; ack calls are logged (newest first).
+fakeStore :: (Member (Embed IO) r, Member (Error Text) r) => IORef [Call] -> Rows -> IORef Bool -> InterpreterFor FanInNotificationsStore r
+fakeStore calls rows failing = interpret $ \case
   PushViaFanIn _ -> pure ()
   FetchNotifications s cursor limit -> do
     down <- readIORef failing
     when down (throw (T.pack "store down"))
     rs <- fromMaybe [] . lookup s <$> readIORef rows
     pure (take limit (filter ((> cursor) . fst) rs))
-  GetLastNotificationId s -> do
-    rs <- fromMaybe [] . lookup s <$> readIORef rows
-    pure (fst <$> listToMaybe (reverse rs))
-  InitAcks _ _ s -> fmap fst . listToMaybe . reverse . fromMaybe [] . lookup s <$> readIORef rows
-  AckNotification {} -> pure ()
+  GetLastNotificationId s -> embed (lastId s)
+  InitAcks u c s -> modifyIORef calls (InitCall u c s :) >> embed (lastId s)
+  AckNotification u c s i -> do
+    down <- readIORef failing
+    when down (throw (T.pack "store down"))
+    modifyIORef calls (AckCall u c s i :)
+  where
+    lastId :: Stream -> IO (Maybe UUID)
+    lastId s = fmap fst . listToMaybe . reverse . fromMaybe [] . lookup s <$> readIORef rows
+
+runFakeWith :: IORef [Call] -> Rows -> IORef Bool -> Sem '[FanInNotificationsStore, Error Text, Embed IO] a -> IO a
+runFakeWith calls rows failing = runM . runError . fakeStore calls rows failing >=> either (fail . T.unpack) pure
 
 runFake :: Rows -> IORef Bool -> Sem '[FanInNotificationsStore, Error Text, Embed IO] a -> IO a
-runFake rows failing = runM . runError . fakeStore rows failing >=> either (fail . T.unpack) pure
+runFake rows failing act = newIORef [] >>= \calls -> runFakeWith calls rows failing act
 
 -- | Ascending ids (sorted: UUIDv7 need not be monotonic within one millisecond).
 newIds :: Int -> IO [(UUID, A.Value)]
 newIds n = sort <$> replicateM n ((\i -> (i.toUUID, A.Null)) <$> genNotificationId @())
 
+teamId :: TeamId
+teamId = Id (UUID.fromWords 1 2 3 4)
+
 team :: Stream
-team = StreamTeam (Id (UUID.fromWords 1 2 3 4))
+team = StreamTeam teamId
+
+uid0 :: UserId
+uid0 = Id (UUID.fromWords 9 9 9 9)
+
+reader0 :: Pop.Reader
+reader0 = Pop.Reader (Just teamId) (SimUser uid0 [] (ClientId 7 :| [])) (ClientId 7)
 
 user :: Stream
 user = StreamUser (Id (UUID.fromWords 5 6 7 8))
@@ -59,7 +83,9 @@ pass rows failing limit = passW rows failing limit 0
 
 -- | 'pass' with a safety window in ms.
 passW :: Rows -> IORef Bool -> Int -> Word64 -> ReaderStats -> [Subscription] -> IO ([Subscription], Bool, [Text])
-passW rows failing limit window stats subs = runFake rows failing (readerPass @Text id limit window stats subs)
+passW rows failing limit window stats subs = do
+  r <- runFake rows failing (readerPass @Text id limit window stats subs)
+  pure (r.subs, r.more, r.errors)
 
 -- | Synthetic UUIDv7: ms timestamp, version 7, variant bits and a sequence
 -- number in the low bits (deterministic, unlike the clock).
@@ -75,20 +101,29 @@ untilIdle n first next = first >>= go 1
       | more && i < n = next subs >>= go (i + 1)
       | otherwise = pure (subs, i)
 
-delivered :: ReaderStats -> IO Int
-delivered stats = totalDelivered <$> readReaderSnapshot stats
+deliveredCount :: ReaderStats -> IO Int
+deliveredCount stats = totalDelivered <$> readReaderSnapshot stats
 
 spec :: Spec
 spec = do
-  describe "loadCursors" $ do
-    it "starts at the latest notification of a stream" $ do
+  describe "startPositions" $ do
+    it "NoAcks: starts at the latest notification, without touching acks" $ do
       rs <- newIds 3
       (rows, failing) <- setup rs
-      subs <- runFake rows failing (loadCursors [team])
+      calls <- newIORef []
+      subs <- runFakeWith calls rows failing (startPositions NoAcks (Set.singleton KindTeam) reader0)
       map (.cursor) subs `shouldBe` [fst (last rs)]
+      readIORef calls `shouldReturn` []
+    it "Acks: resets the reader's acks to the latest notification and starts there" $ do
+      rs <- newIds 3
+      (rows, failing) <- setup rs
+      calls <- newIORef []
+      subs <- runFakeWith calls rows failing (startPositions (Acks 10) (Set.singleton KindTeam) reader0)
+      map (.cursor) subs `shouldBe` [fst (last rs)]
+      readIORef calls `shouldReturn` [InitCall uid0 (ClientId 7) team]
     it "starts at the nil UUID for a stream nothing was written to" $ do
       (rows, failing) <- setup []
-      subs <- runFake rows failing (loadCursors [team])
+      subs <- runFake rows failing (startPositions (Acks 10) (Set.singleton KindTeam) reader0)
       map (.cursor) subs `shouldBe` [UUID.nil]
 
   describe "millisLowerBound" $ do
@@ -110,6 +145,12 @@ spec = do
       lagNs 0 i `shouldBe` 0
 
   describe "readerPass" $ do
+    it "reports the delivered ids with their stream in page order" $ do
+      rs <- newIds 3
+      (rows, failing) <- setup rs
+      stats <- newReaderStats
+      r <- runFake rows failing (readerPass @Text id 10 0 stats [sub0])
+      r.delivered `shouldBe` [(team, i) | (i, _) <- rs]
     it "delivers a page, advances the cursor and records lag" $ do
       rs <- newIds 3
       (rows, failing) <- setup rs
@@ -183,12 +224,12 @@ spec = do
       (s1, _, _) <- passW rows failing 10 10 stats [sub0]
       writeIORef rows [(team, [(a, A.Null), (b, A.Null)])]
       (s2, _, _) <- passW rows failing 10 10 stats s1
-      delivered stats `shouldReturn` 2
+      deliveredCount stats `shouldReturn` 2
       map (.cursor) s2 `shouldBe` [b]
       -- further passes deliver nothing twice
       (s3, _, _) <- passW rows failing 10 10 stats s2
       _ <- passW rows failing 10 10 stats s3
-      delivered stats `shouldReturn` 2
+      deliveredCount stats `shouldReturn` 2
 
     it "still loses a notification committed later than the window" $ do
       let a = v7 1000 1
@@ -198,36 +239,36 @@ spec = do
       (s1, _, _) <- passW rows failing 10 10 stats [sub0]
       writeIORef rows [(team, [(a, A.Null), (b, A.Null)])]
       _ <- passW rows failing 10 10 stats s1
-      delivered stats `shouldReturn` 1
+      deliveredCount stats `shouldReturn` 1
 
     it "never re-fetches below the start position" $ do
       let old = v7 1000 1
           new = v7 1001 1
       (rows, failing) <- setup [(old, A.Null)]
       stats <- newReaderStats
-      subs <- runFake rows failing (loadCursors [team])
+      subs <- runFake rows failing (startPositions NoAcks (Set.singleton KindTeam) reader0)
       modifyIORef rows (map (\(k, v) -> (k, v <> [(new, A.Null)])))
       _ <- passW rows failing 10 1000 stats subs
-      delivered stats `shouldReturn` 1
+      deliveredCount stats `shouldReturn` 1
 
     it "pages past more already-seen rows than the fetch limit (no stall, no spin)" $ do
       let backlog = [(v7 (1000 + i) 1, A.Null) | i <- [0 .. 4]]
       (rows, failing) <- setup backlog
       stats <- newReaderStats
       (s1, n1) <- untilIdle 10 (passW rows failing 2 100 stats [sub0]) (passW rows failing 2 100 stats)
-      delivered stats `shouldReturn` 5
+      deliveredCount stats `shouldReturn` 5
       n1 `shouldBe` 3
       -- the window now holds 5 seen rows (> limit 2); new and late rows follow
       let late = (v7 1002 99, A.Null)
           newer = [(v7 (1005 + i) 1, A.Null) | i <- [0 .. 2]]
       writeIORef rows [(team, sort (late : backlog <> newer))]
       (s2, n2) <- untilIdle 10 (passW rows failing 2 100 stats s1) (passW rows failing 2 100 stats)
-      delivered stats `shouldReturn` 9
+      deliveredCount stats `shouldReturn` 9
       n2 `shouldSatisfy` (< 10)
       map (.cursor) s2 `shouldBe` [v7 1007 1]
       -- idle passes over a window of only seen rows deliver nothing and end
       (_, n3) <- untilIdle 10 (passW rows failing 2 100 stats s2) (passW rows failing 2 100 stats)
-      delivered stats `shouldReturn` 9
+      deliveredCount stats `shouldReturn` 9
       n3 `shouldSatisfy` (< 10)
   describe "readerRound" $ do
     it "keeps cursors advanced before another stream's fetch threw" $ do
@@ -236,21 +277,32 @@ spec = do
       stats <- newReaderStats
       let userSub = newSubscription KindUser user UUID.nil
           fetchOne sub
-            | sub.stream == team = Right <$> pass rows failing 10 stats [sub]
+            | sub.stream == team = Right <$> runFake rows failing (readerPass @Text id 10 0 stats [sub])
             | otherwise = throwIO (ErrorCall "boom")
-      (subs, more, errs) <- readerRound @Text id stats fetchOne [sub0, userSub]
+      r <- readerRound @Text id stats fetchOne [sub0, userSub]
+      let (subs, more, errs) = (r.subs, r.more, r.errors)
       map (.cursor) subs `shouldBe` [fst (last rs), UUID.nil]
       (more, length errs) `shouldBe` (False, 1)
       s <- readReaderSnapshot stats
       (totalDelivered s, totalFetchErrors s) `shouldBe` (3, 1)
       -- the next pass delivers nothing twice
-      _ <- readerRound @Text id stats fetchOne subs
+      _ <- readerRound @Text id stats fetchOne r.subs
       s' <- readReaderSnapshot stats
       totalDelivered s' `shouldBe` 3
 
     it "counts an error result as fetch error and keeps the cursor" $ do
       stats <- newReaderStats
-      (subs, more, errs) <- readerRound @Text id stats (\_ -> pure (Left "down")) [sub0]
+      r <- readerRound @Text id stats (\_ -> pure (Left "down")) [sub0]
+      let (subs, more, errs) = (r.subs, r.more, r.errors)
       (map (.cursor) subs, more, errs) `shouldBe` ([UUID.nil], False, ["reader: team: down"])
       s <- readReaderSnapshot stats
       totalFetchErrors s `shouldBe` 1
+
+  describe "isolated" $ do
+    it "passes a result through" $
+      isolated @Text id (\_ -> pure 0) (pure (Right (1 :: Int))) `shouldReturn` 1
+    it "turns an error result and a synchronous exception into the failure branch" $ do
+      isolated @Text id (pure . T.length) (pure (Left "down")) `shouldReturn` 4
+      -- displayException of a SomeException may append a backtrace: match the message only
+      msg <- isolated @Text id pure (throwIO (ErrorCall "boom"))
+      msg `shouldSatisfy` T.isInfixOf "boom"
