@@ -130,6 +130,13 @@ spec = do
       subs <- runFake rows failing (startPositions (Acks 10) (Set.singleton KindTeam) reader0)
       map (.cursor) subs `shouldBe` [UUID.nil]
 
+  describe "acksResetLine" $
+    it "counts all streams and those with notifications (start not nil)" $ do
+      [(i, _)] <- newIds 1
+      let subs = [newSubscription KindTeam team i, newSubscription KindUser user UUID.nil, newSubscription KindUser user i]
+      acksResetLine "consume-ack" subs `shouldBe` "consume-ack: acks reset to latest (3 streams, 2 with notifications)"
+      acksResetLine "consume-ack" [] `shouldBe` "consume-ack: acks reset to latest (0 streams, 0 with notifications)"
+
   describe "millisLowerBound" $ do
     it "has the given ms timestamp and lies below every UUIDv7 of that ms" $ do
       [(i, _)] <- newIds 1

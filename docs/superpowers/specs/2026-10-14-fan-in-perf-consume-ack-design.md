@@ -221,7 +221,8 @@ insert into user_notification_acks (user_id, client_id, last_notification_id)
 - `consume-ack`: `InitAcks` for every reader stream, before writers start, not
   timed or counted (same reason as B's start positions). Result = start
   position; `Nothing` = nil UUID. Prints
-  `consume-ack: acks reset to latest (K streams)`. Leftover acks of earlier
+  `consume-ack: acks reset to latest (K streams, M with notifications)`
+  (M: start position not nil, i.e. InitAcks wrote a row). Leftover acks of earlier
   runs are overwritten (client reset) for non-empty streams; empty streams
   keep stale rows, so run `reset` before a measurement.
 - `consume`: unchanged (`GetLastNotificationId`), `deliver` never called.

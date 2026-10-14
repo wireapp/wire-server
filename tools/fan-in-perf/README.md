@@ -21,8 +21,10 @@ fan-in-perf --db "$DB" consume --targets user:2000,team:1,epoch:200 --duration 3
 
 Readers subscribe to the same stream pools as the writers (client `i` reads
 stream `i mod STREAMS` of each kind, `--epochs-per-client` consecutive epoch
-streams); startup prints how many pool streams have a reader. `connections`
-targets are not supported. Readers keep their cursors in memory and start at
+streams); startup prints how many pool streams have a reader. With `user`
+and `clients` targets of different STREAMS, readers beyond the shorter pool
+poll streams nobody writes (coverage then misleads); use equal sizes unless
+intended. `connections` targets are not supported. Readers keep their cursors in memory and start at
 the latest notification of each stream (`GetLastNotificationId`), taken before
 the writers start. After the writers stop, readers get `--drain-timeout`
 seconds to catch up; the summary reports `missing`/`duplicates`. These are net

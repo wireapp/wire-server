@@ -7,6 +7,7 @@ module FanInPerf.Consume
     millisLowerBound,
     PassResult (..),
     startPositions,
+    acksResetLine,
     readerPass,
     readerRound,
     throughGate,
@@ -77,6 +78,17 @@ startPositions mode kinds r =
       NoAcks -> getLastNotificationId s
       Acks _ -> initAcks r.user.uid r.cid s
     pure (newSubscription (streamKind s) s (fromMaybe UUID.nil start))
+
+-- | Startup line of 'Acks' mode: all reader streams, and those with
+-- notifications (start position not nil; InitAcks writes no row for the others).
+acksResetLine :: Text -> [Subscription] -> Text
+acksResetLine label subs =
+  label
+    <> ": acks reset to latest ("
+    <> tshow (length subs)
+    <> " streams, "
+    <> tshow (length (filter ((/= UUID.nil) . (.start)) subs))
+    <> " with notifications)"
 
 -- | Result of fetching some streams of one client once.
 data PassResult = PassResult
@@ -297,7 +309,7 @@ loadSubscriptions console gate env mode population = do
   loaded <- forConcurrently (readers population) (throughGate_ gate . runStore env . startPositions mode population.kinds)
   subs <- either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
   case mode of
-    Acks _ -> printLine console (label <> ": acks reset to latest (" <> tshow (length (concat subs)) <> " streams)")
+    Acks _ -> printLine console (acksResetLine label (concat subs))
     NoAcks -> pure ()
   pure subs
 
