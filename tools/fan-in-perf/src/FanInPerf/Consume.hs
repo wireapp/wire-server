@@ -179,8 +179,9 @@ readerRound render stats fetchOne subs = do
 throughGate :: QSem -> IO a -> IO a
 throughGate gate = bracket_ (waitQSem gate) (signalQSem gate)
 
--- | One reader client: fetch all streams, then sleep unless a full page says
--- more is waiting. Failures are reported and slow the loop down, never stop it.
+-- | One reader client: fetch all streams, re-fetch only those whose page was
+-- full (more is waiting) until none is, then sleep. Failures are reported and
+-- slow the loop down, never stop it.
 readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Subscription] -> IO ()
 readerLoop gate env opts stats reportError = go
   where
@@ -189,10 +190,17 @@ readerLoop gate env opts stats reportError = go
     fetchOne sub =
       throughGate gate $
         runStore env (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
-    go subs = do
-      (subs', more, errs) <- readerRound render stats fetchOne subs
+    pollOne sub = do
+      (subs', more, errs) <- readerRound render stats fetchOne [sub]
       traverse_ reportError errs
-      unless more (threadDelay (opts.pollIntervalMs * 1000))
+      pure (map (,more) subs')
+    -- @(subscription, poll again)@ pairs
+    catchUp pending = do
+      polled <- concat <$> for pending (\(sub, again) -> if again then pollOne sub else pure [(sub, False)])
+      if any snd polled then catchUp polled else pure (map fst polled)
+    go subs = do
+      subs' <- catchUp (map (,True) subs)
+      threadDelay (opts.pollIntervalMs * 1000)
       go subs'
 
 -- | Start positions are read before any writer runs: a push committed in
