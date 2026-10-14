@@ -262,6 +262,8 @@ testTransientTargetedMessage = do
     event %. "from" `shouldMatch` targeted.sender.user
     event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
 
+    assertNoNotifications bob bob1.client Nothing isNewMLSTransientTargetedMessageNotif
+
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
 
