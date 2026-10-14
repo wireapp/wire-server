@@ -323,7 +323,7 @@ spec = do
       gate <- newQSem 1
       stats <- newReaderStats
       acquired <- newEmptyMVar
-      let holder = bracket_ (waitQSem gate) (signalQSem gate) (putMVar acquired () >> threadDelay 50_000)
+      let holder = bracket_ (waitQSem gate) (signalQSem gate) (putMVar acquired () >> threadDelay 200_000)
       withAsync holder $ \h -> do
         takeMVar acquired
         throughGate gate stats (pure ())

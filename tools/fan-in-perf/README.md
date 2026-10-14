@@ -24,9 +24,9 @@ stream `i mod STREAMS` of each kind, `--epochs-per-client` consecutive epoch
 streams); startup prints how many pool streams have a reader. With `user`
 and `clients` targets of different STREAMS, readers beyond the shorter pool
 poll streams nobody writes (coverage then misleads); use equal sizes unless
-intended. `connections` targets are not supported. Readers keep their cursors in memory and start at
-the latest notification of each stream (`GetLastNotificationId`), taken before
-the writers start. After the writers stop, readers get `--drain-timeout`
+intended. `connections` targets are not supported. Readers keep their
+cursors in memory and start at the latest notification of each stream
+(`GetLastNotificationId`), taken before the writers start. After the writers stop, readers get `--drain-timeout`
 seconds to catch up; the summary reports `missing`/`duplicates`. These are net
 counts (one duplicate cancels one missing); real duplicates mainly come from
 pushes that committed but returned an error (not counted as expected). A non-zero
