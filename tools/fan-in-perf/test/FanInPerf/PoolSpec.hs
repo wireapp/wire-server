@@ -1,19 +1,27 @@
 module FanInPerf.PoolSpec (spec) where
 
 import Data.ByteString.Lazy.Char8 qualified as LBS8
-import Data.Misc (Duration (..))
-import Hasql.Pool.Extended
+import FanInPerf.Pool
+import Hasql.Pool.Extended (HasqlPoolMetrics (..))
 import Imports
-import PostgresqlConnectionString qualified
 import Prometheus qualified as P
 import Test.Hspec
 
 spec :: Spec
-spec = describe "initPostgresPoolSharingMetrics" $
-  it "does not register the pool metrics a second time" $ do
-    connStr <- either (const (fail "connection string")) pure (PostgresqlConnectionString.parse "postgresql://u:p@localhost:1/db")
-    let cfg = PoolConfig {size = 1, acquisitionTimeout = Duration 1, idlenessTimeout = Duration 1}
-    first <- initPostgresPoolFromConnString cfg connStr Nothing
-    _ <- initPostgresPoolSharingMetrics first cfg connStr Nothing
+spec = describe "poolMetrics" $ do
+  -- the registry is global: register the families once
+  fams <- runIO mkPoolFamilies
+  it "labels the roles writer and reader" $ do
+    mapM_ (poolMetrics fams) [WriterPool, ReaderPool]
     out <- LBS8.unpack <$> P.exportMetricsAsText
-    length (filter (isPrefixOf "# TYPE wire_hasql_pool_in_use ") (lines out)) `shouldBe` 1
+    out `shouldContainLine` "fanin_perf_pool_in_use{role=\"writer\"} 0.0"
+    out `shouldContainLine` "fanin_perf_pool_in_use{role=\"reader\"} 0.0"
+  it "gives each role its own handles" $ do
+    w <- poolMetrics fams WriterPool
+    r <- poolMetrics fams ReaderPool
+    _ <- P.addCounter w.sessionCounter 3
+    wCount <- P.getCounter w.sessionCounter
+    rCount <- P.getCounter r.sessionCounter
+    (wCount, rCount) `shouldBe` (3, 0)
+  where
+    shouldContainLine out l = (l `elem` lines out) `shouldBe` True

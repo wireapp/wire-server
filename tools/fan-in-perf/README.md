@@ -48,9 +48,8 @@ delivered is still lost. Measured (16 writers, `--clients 2000 --targets user:20
 Delivery lag is measured from the
 millisecond timestamp inside the UUIDv7 (writers and readers share a clock).
 Fetch latency includes the wait for a connection from the reader pool. The
-reader pool shares the `wire_hasql_pool_*` counters and histograms with the
-writer pool, but the pool gauges (connections in use/idle) show the writer pool
-only. Summary duration and push/s and cons/s averages cover the writer phase
+two pools report separately as `fanin_perf_pool_*{role="writer|reader"}`.
+Summary duration and push/s and cons/s averages cover the writer phase
 (until the writers stopped); the drain time is printed separately. With
 `--duration`, Ctrl-C during writer shutdown/drain ends the drain early
 (`drain: interrupted`) and still prints the summary. Without it, the first

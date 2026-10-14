@@ -56,12 +56,11 @@
       ]
     },
     {
-      "id": 7, "type": "timeseries", "title": "Connection pool (writer pool)", "datasource": null, "interval": "1s",
+      "id": 7, "type": "timeseries", "title": "Pool connections in use", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "wire_hasql_pool_in_use{job=\"fan-in-perf\"}", "legendFormat": "writer pool: connections in use" },
-        { "refId": "B", "expr": "wire_hasql_pool_ready_for_use{job=\"fan-in-perf\"}", "legendFormat": "writer pool: connections idle" },
-        { "refId": "C", "expr": "fanin_perf_writers", "legendFormat": "writer threads (--writers)" }
+        { "refId": "A", "expr": "fanin_perf_pool_in_use{job=\"fan-in-perf\"}", "legendFormat": "{{role}} in use" },
+        { "refId": "B", "expr": "fanin_perf_writers", "legendFormat": "writer threads (--writers)" }
       ]
     },
     {
@@ -103,6 +102,71 @@
       "targets": [
         { "refId": "A", "expr": "sum(rate(fanin_perf_empty_fetches_total[5s])) / sum(rate(fanin_perf_fetches_total[5s]))", "legendFormat": "empty fetch ratio" },
         { "refId": "B", "expr": "sum(rate(fanin_perf_fetch_errors_total[5s]))", "legendFormat": "fetch errors/s" }
+      ]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Pool connections idle", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_pool_ready_for_use{job=\"fan-in-perf\"}", "legendFormat": "{{role}} idle" }
+      ]
+    },
+    {
+      "id": 14, "type": "timeseries", "title": "Pool utilisation (in use / total)", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 56, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_pool_in_use / (fanin_perf_pool_in_use + fanin_perf_pool_ready_for_use)", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 15, "type": "timeseries", "title": "Pool sessions/s", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 56, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_count[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 16, "type": "timeseries", "title": "Pool session failures/s", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 64, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_failure_count[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 17, "type": "timeseries", "title": "Pool acquisition timeouts/s", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 64, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_acquisition_timeout_count[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 18, "type": "timeseries", "title": "Pool connections established/s", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 72, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_established_count[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 19, "type": "timeseries", "title": "Pool connection failures/s", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 72, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_failure_count[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Pool session duration", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 80, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (role, le) (rate(fanin_perf_pool_session_seconds_bucket[5s])))", "legendFormat": "{{role}} p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (role, le) (rate(fanin_perf_pool_session_seconds_bucket[5s])))", "legendFormat": "{{role}} p99" }
+      ]
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Pool connection establishment duration", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 80, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p99" }
       ]
     }
   ]

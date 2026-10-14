@@ -78,6 +78,7 @@ library
     FanInPerf.ConsumeStats
     FanInPerf.Metrics
     FanInPerf.Options
+    FanInPerf.Pool
     FanInPerf.Population
     FanInPerf.Produce
     FanInPerf.Run

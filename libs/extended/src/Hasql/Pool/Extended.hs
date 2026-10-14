@@ -149,12 +149,6 @@ initPostgresPoolFromConnString config connStr mPw = do
   startHasqlPoolStatsReporter pool
   pure pool
 
--- | A further pool that reports into the metrics of an existing pool:
--- registering them again would duplicate the series. Counters and histograms
--- aggregate both pools; the pool gauges keep describing the first pool only.
-initPostgresPoolSharingMetrics :: Pool -> PoolConfig -> PostgresqlConnectionString.ConnectionString -> Maybe Text -> IO Pool
-initPostgresPoolSharingMetrics existing = acquirePool existing.metrics
-
 acquirePool :: HasqlPoolMetrics -> PoolConfig -> PostgresqlConnectionString.ConnectionString -> Maybe Text -> IO Pool
 acquirePool metrics config connStr mPw = do
   let pgSettings =
