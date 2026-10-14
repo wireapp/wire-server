@@ -348,6 +348,107 @@ testTransientTargetedMessageBatchIsAtomic = do
           ]
         <> BS.drop 16 message
 
+testTransientTargetedMessageFederatedRecipients :: (HasCallStack) => App ()
+testTransientTargetedMessageFederatedRecipients = do
+  ownDomain <- make OwnDomain & asString
+  remoteDomain <- make OtherDomain & asString
+  [alice, bob, charlie, david] <- createAndConnectUsers [ownDomain, remoteDomain, remoteDomain, remoteDomain]
+
+  [alice1, bob1, charlie1, david1] <- traverse (createMLSClient def) [alice, bob, charlie, david]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1, david1]
+  convId <- createNewGroup def alice1
+
+  withWebSockets [alice, bob, charlie] $ \[aliceWs, bobWs, charlieWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie, david] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif bobWs
+    void $ awaitMatch isMemberJoinNotif charlieWs
+
+    bobMessage <- createTransientTargetedMessage convId alice1 bob1 "federated transient hello bob"
+    charlieMessage <- createTransientTargetedMessage convId alice1 charlie1 "federated transient hello charlie"
+    postMLSTransientTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "events" `shouldMatch` ([] :: [Value])
+
+    bobNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
+    bobEvent <- bobNotification %. "payload.0"
+    bobEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    bobEvent %. "from" `shouldMatch` alice1.user
+    bobEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode bobMessage.message))
+
+    charlieNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
+    charlieEvent <- charlieNotification %. "payload.0"
+    charlieEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    charlieEvent %. "from" `shouldMatch` alice1.user
+    charlieEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode charlieMessage.message))
+
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
+
+  -- David has no websocket. A transient message forwarded to his backend
+  -- must not become available from that backend's notification sync endpoint.
+  davidMessage <- createTransientTargetedMessage convId alice1 david1 "federated transient offline"
+  postMLSTransientTargetedMessage alice1 davidMessage.message >>= assertStatus 201
+  assertNoNotifications david david1.client Nothing isNewMLSTransientTargetedMessageNotif
+
+testTransientTargetedMessageFederatedSender :: (HasCallStack) => App ()
+testTransientTargetedMessageFederatedSender = do
+  ownDomain <- make OwnDomain & asString
+  remoteDomain <- make OtherDomain & asString
+  [alice, bob, charlie, david] <- createAndConnectUsers [ownDomain, ownDomain, remoteDomain, remoteDomain]
+
+  [alice1, bob1, charlie1, david1] <- traverse (createMLSClient def) [alice, bob, charlie, david]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1, david1]
+  convId <- createNewGroup def alice1
+
+  withWebSockets [alice, bob, charlie, david] $ \[aliceWs, bobWs, charlieWs, davidWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie, david] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs, davidWs]
+
+    transientToLocal <- createTransientTargetedMessage convId charlie1 bob1 "transient from remote to local"
+    postMLSTransientTargetedMessage transientToLocal.sender transientToLocal.message `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "events" `shouldMatch` ([] :: [Value])
+    localNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
+    localEvent <- localNotification %. "payload.0"
+    localEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    localEvent %. "from" `shouldMatch` charlie1.user
+    localEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode transientToLocal.message))
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif davidWs
+
+    transientToRemote <- createTransientTargetedMessage convId charlie1 david1 "transient from remote to remote"
+    postMLSTransientTargetedMessage transientToRemote.sender transientToRemote.message `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "events" `shouldMatch` ([] :: [Value])
+    remoteNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif davidWs
+    remoteEvent <- remoteNotification %. "payload.0"
+    remoteEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    remoteEvent %. "from" `shouldMatch` charlie1.user
+    remoteEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode transientToRemote.message))
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
+
+    validFirst <- createTransientTargetedMessage convId charlie1 bob1 "valid federated batch item"
+    invalidLater <- createTransientTargetedMessage convId charlie1 david1 "invalid federated batch item"
+    let invalidBatchItem = replaceRecipient invalidLater.message 99
+    postMLSTransientTargetedMessage charlie1 (validFirst.message <> invalidBatchItem) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif davidWs
+  where
+    replaceRecipient :: ByteString -> Word32 -> ByteString
+    replaceRecipient message recipient =
+      BS.take 12 message
+        <> BS.pack
+          [ fromIntegral (recipient `shiftR` 24),
+            fromIntegral (recipient `shiftR` 16),
+            fromIntegral (recipient `shiftR` 8),
+            fromIntegral recipient
+          ]
+        <> BS.drop 16 message
+
 testTargetedMessageBatch :: (HasCallStack) => App ()
 testTargetedMessageBatch = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
