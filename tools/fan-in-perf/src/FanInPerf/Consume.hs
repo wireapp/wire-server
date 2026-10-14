@@ -15,7 +15,7 @@ where
 
 import Control.Concurrent.Async
 import Control.Concurrent.QSem (QSem, newQSem, signalQSem, waitQSem)
-import Control.Exception (AsyncException (UserInterrupt), handleJust)
+import Control.Exception (handleJust)
 import Data.Bits (shiftL)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -31,13 +31,13 @@ import FanInPerf.Stats
 import FanInPerf.Store
 import FanInPerf.Targets
 import FanInPerf.Terminal
+import FanInPerf.Worker
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
 import Hasql.Pool (UsageError)
 import Imports
 import Polysemy
 import Polysemy.Error qualified as PE
 import System.Exit (die)
-import System.Random
 import UnliftIO.Exception (bracket_, tryAny)
 import Wire.FanInNotificationsStore
 import Wire.FanInNotificationsStore.Postgres (notificationIdMillis)
@@ -143,6 +143,8 @@ lagNs nowMs notifId =
   let created = notificationIdMillis notifId
    in if nowMs > created then (nowMs - created) * 1_000_000 else 0
 
+-- REVIEW: Dependency injection is confusing
+
 -- | One pass over the streams of a client, each fetched in isolation by
 -- @fetchOne@ (a 'readerPass' over that stream alone): an exception or error
 -- only keeps the cursor of its own stream (counted as fetch error), so the
@@ -183,7 +185,7 @@ readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) ->
 readerLoop gate env opts stats reportError = go
   where
     render :: UsageError -> Text
-    render = T.pack . show
+    render = tshow
     fetchOne sub =
       throughGate gate $
         runStore env (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
@@ -193,17 +195,90 @@ readerLoop gate env opts stats reportError = go
       unless more (threadDelay (opts.pollIntervalMs * 1000))
       go subs'
 
+-- | Start positions are read before any writer runs: a push committed in
+-- between could otherwise sit below a cursor and show up as a false `missing`.
+loadSubscriptions :: Console -> QSem -> Env -> Population -> IO [[Subscription]]
+loadSubscriptions console gate env population = do
+  printLine console "consume: loading start positions"
+  loaded <- forConcurrently population.simClients (throughGate gate . runStore env . loadCursors)
+  either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
+
+-- | (expected, delivered) notifications so far.
+totals :: [WriterStats] -> [ReaderStats] -> IO (Int, Int)
+totals writerStats readerStats = do
+  expected <- totalExpected . sumSnapshots <$> traverse readSnapshot writerStats
+  delivered <- totalDelivered . sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
+  pure (expected, delivered)
+
+-- | Waits until readers caught up or the timeout (seconds) passed.
+drain :: Int -> IO (Int, Int) -> IO Drain
+drain timeout readTotals = do
+  started <- getMonotonicTime
+  let deadline = started + fromIntegral timeout
+      go = do
+        (expected, delivered) <- readTotals
+        now <- getMonotonicTime
+        if delivered >= expected
+          then pure (DrainComplete (now - started))
+          else
+            if now >= deadline
+              then pure (DrainTimedOut (now - started))
+              else threadDelay 100_000 >> go
+  go
+
+-- | Runs on the ticker thread only (plus once after it stopped): aggregates,
+-- prints, publishes.
+consumeTickOnce ::
+  Console ->
+  Metrics ->
+  ConsumeMetrics ->
+  Double ->
+  [WriterStats] ->
+  [ReaderStats] ->
+  TBQueue Text ->
+  IORef TickState ->
+  IORef ConsumeTickState ->
+  IO (TickReport, ConsumeReport)
+consumeTickOnce console metrics consumeMetrics warmup writerStats readerStats errors writerRef readerRef = do
+  now <- getMonotonicTime
+  (writerReport, writerTotal) <- tickWriters warmup now writerStats writerRef
+  readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
+  readerState <- readIORef readerRef
+  let (readerReport, readerState') = consumeTick warmup now (totalExpected writerTotal) readerTotal readerState
+  writeIORef readerRef readerState'
+  printQueuedErrors console errors
+  publish metrics writerReport
+  publishConsume consumeMetrics readerReport
+  drawStatus console (formatConsumeStatus writerReport readerReport)
+  pure (writerReport, readerReport)
+
+-- | Waits for the end of the run, stops the writers and drains. The first
+-- Ctrl-C while waiting for writers or draining still prints the summary (a
+-- second one kills the process: GHC resets the SIGINT handler). 'UserInterrupt'
+-- is async, so UnliftIO's handlers miss it.
+-- @stopWriters@ signals the writers and waits until they finished.
+stopAndDrain :: Console -> Maybe Int -> IO () -> IO WriterPhase -> IO Drain -> IO (WriterPhase, Drain)
+stopAndDrain console duration stopWriters writerPhaseEnd runDrain = do
+  waitForStop duration
+  phaseRef <- newIORef Nothing
+  let interrupted = do
+        phase <- maybe writerPhaseEnd pure =<< readIORef phaseRef
+        pure (phase, DrainInterrupted)
+  handleJust isInterrupt (const interrupted) $ do
+    stopWriters
+    phase <- writerPhaseEnd
+    writeIORef phaseRef (Just phase)
+    printLine console "consume: writers stopped, draining"
+    (phase,) <$> runDrain
+
 -- | @runConsume console writerEnv readerEnv options@. The environments differ
 -- only in their connection pool.
 runConsume :: Console -> Env -> Env -> ConsumeOptions -> IO ()
 runConsume console writerEnv readerEnv opts = do
   gate <- newQSem opts.readerPoolSize
   let p = opts.writerOptions
-  seed <- maybe randomIO pure p.seed
-  let (entries, gen') = mkEntries p.clientsPerUser p.targets (mkStdGen seed)
-      payload = mkPayload p.payloadBytes
-      writerGens = take p.writers (unfoldr (Just . split) gen')
-  population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient entries)
+  setup <- prepareWriters p
+  population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient setup.entries)
   printLine console $
     "consume: writers="
       <> tshow p.writers
@@ -212,106 +287,46 @@ runConsume console writerEnv readerEnv opts = do
       <> " targets="
       <> renderTargetSpec p.targets
       <> " seed="
-      <> tshow seed
-  traverse_ (printLine console) (formatCoverage (coverage population.subscribers entries))
-  -- Start positions are read before any writer runs: a push committed in
-  -- between could otherwise sit below a cursor and show up as a false `missing`.
-  printLine console "consume: loading start positions"
-  loaded <- forConcurrently population.simClients (throughGate gate . runStore readerEnv . loadCursors)
-  clientSubs <- either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
+      <> tshow setup.seed
+  traverse_ (printLine console) (formatCoverage (coverage population.subscribers setup.entries))
+  clientSubs <- loadSubscriptions console gate readerEnv population
 
   metrics <- newMetrics "consume" p.writers
   consumeMetrics <- newConsumeMetrics "consume" opts.clients
   writerStats <- replicateM p.writers newWriterStats
   readerStats <- replicateM opts.clients newReaderStats
-  errors <- newTBQueueIO 1000
+  (errors, reportError) <- newErrorReporter
   stopWriters <- newIORef False
-  let -- error path only; drops messages when the ticker falls behind
-      reportError msg = atomically $ do
-        full <- isFullTBQueue errors
-        unless full (writeTBQueue errors msg)
-      -- A writer stops between pushes, so every committed push has its
+  let -- A writer stops between pushes, so every committed push has its
       -- expected deliveries recorded before the drain starts.
-      writer (ws, g0) =
-        let doPush push = do
-              outcome <- storePush writerEnv push
-              case outcome of
-                PushOk -> recordExpected ws (expectedDeliveries population.subscribers push)
-                PushFailed _ -> pure ()
-              pure outcome
-            loop !g = do
-              stop <- readIORef stopWriters
-              unless stop (writerStep doPush payload entries ws reportError g >>= loop)
-         in loop g0
+      doPush ws push = do
+        outcome <- storePush writerEnv push
+        case outcome of
+          PushOk -> recordExpected ws (expectedDeliveries population.subscribers push)
+          PushFailed _ -> pure ()
+        pure outcome
+      writer (ws, g) = writerLoop (readIORef stopWriters) (doPush ws) setup.payload setup.entries ws reportError g
       readerClient (stats, subs) = readerLoop gate readerEnv opts stats reportError subs
-      totals = do
-        expected <- totalExpected . sumSnapshots <$> traverse readSnapshot writerStats
-        delivered <- totalDelivered . sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
-        pure (expected, delivered)
-      -- waits until readers caught up or the timeout passed
-      drain = do
-        started <- getMonotonicTime
-        let deadline = started + fromIntegral opts.drainTimeout
-            go = do
-              (expected, delivered) <- totals
-              now <- getMonotonicTime
-              if delivered >= expected
-                then pure (DrainComplete (now - started))
-                else
-                  if now >= deadline
-                    then pure (DrainTimedOut (now - started))
-                    else threadDelay 100_000 >> go
-        go
+      readTotals = totals writerStats readerStats
   start <- getMonotonicTime
-  stateRef <- newIORef (initialTickState start, initialConsumeTickState start)
-  let warmup = fromIntegral p.warmup
+  writerRef <- newIORef (initialTickState start)
+  readerRef <- newIORef (initialConsumeTickState start)
+  let doTick = consumeTickOnce console metrics consumeMetrics (fromIntegral p.warmup) writerStats readerStats errors writerRef readerRef
       -- the writer phase ends when the writers stopped (or at Ctrl-C)
       writerPhaseEnd = do
         now <- getMonotonicTime
-        (_, delivered) <- totals
+        (_, delivered) <- readTotals
         pure WriterPhase {duration = now - start, delivered}
-      doTick = do
-        now <- getMonotonicTime
-        writerTotal <- sumSnapshots <$> traverse readSnapshot writerStats
-        readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
-        (writerState, readerState) <- readIORef stateRef
-        let (writerReport, writerState') = tick warmup now writerTotal writerState
-            (readerReport, readerState') = consumeTick warmup now (totalExpected writerTotal) readerTotal readerState
-        writeIORef stateRef (writerState', readerState')
-        printQueuedErrors console errors
-        publish metrics writerReport
-        publishConsume consumeMetrics readerReport
-        drawStatus console (formatConsumeStatus writerReport readerReport)
-        pure (writerReport, readerReport)
   printLine console "consume: running"
   (writerPhase, drainResult) <-
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
       withAsync (mapConcurrently_ readerClient (zip readerStats clientSubs)) $ \readersA -> do
         link readersA
-        withAsync (mapConcurrently_ writer (zip writerStats writerGens)) $ \writersA -> do
+        withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
           link writersA
-          waitForStop p.duration
-          atomicWriteIORef stopWriters True
-          -- The first Ctrl-C while waiting for writers or draining still
-          -- prints the summary (a second one kills the process: GHC resets
-          -- the SIGINT handler). 'UserInterrupt' is async, so UnliftIO's
-          -- handlers miss it.
-          phaseRef <- newIORef Nothing
-          let interrupted = do
-                phase <- maybe writerPhaseEnd pure =<< readIORef phaseRef
-                pure (phase, DrainInterrupted)
-          handleJust isInterrupt (const interrupted) $ do
-            wait writersA
-            phase <- writerPhaseEnd
-            writeIORef phaseRef (Just phase)
-            printLine console "consume: writers stopped, draining"
-            (phase,) <$> drain
+          let stop = atomicWriteIORef stopWriters True >> wait writersA
+          stopAndDrain console p.duration stop writerPhaseEnd (drain opts.drainTimeout readTotals)
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
   traverse_ (printLine console) (formatConsumeSummary (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)
-  where
-    tshow :: (Show a) => a -> Text
-    tshow = T.pack . show
-    isInterrupt UserInterrupt = Just ()
-    isInterrupt _ = Nothing

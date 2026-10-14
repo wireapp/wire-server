@@ -1,15 +1,17 @@
 module FanInPerf.Produce
   ( PushOutcome (..),
+    WriterSetup (..),
     writerStep,
     storePush,
-    waitForStop,
-    printQueuedErrors,
+    prepareWriters,
+    writerLoop,
+    tickWriters,
     runProduce,
   )
 where
 
 import Control.Concurrent.Async
-import Control.Exception (AsyncException (UserInterrupt), evaluate, handleJust)
+import Control.Exception (evaluate)
 import Data.Aeson qualified as A
 import Data.Text qualified as T
 import Data.Vector qualified as V
@@ -19,6 +21,7 @@ import FanInPerf.Stats
 import FanInPerf.Store
 import FanInPerf.Targets
 import FanInPerf.Terminal
+import FanInPerf.Worker
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
 import Imports
 import System.Random
@@ -63,31 +66,56 @@ writerStep doPush payload entries stats reportError g = do
 
 storePush :: Env -> FanInPush -> IO PushOutcome
 storePush env push =
-  either (PushFailed . T.pack . show) (const PushOk)
+  either (PushFailed . tshow) (const PushOk)
     <$> runStore env (pushViaFanIn push)
 
-runProduce :: Console -> Env -> ProduceOptions -> IO ()
-runProduce console env opts = do
+-- | Everything the writers of a run start from.
+data WriterSetup = WriterSetup
+  { seed :: Int,
+    entries :: V.Vector Entry,
+    payload :: A.Object,
+    gens :: [StdGen]
+  }
+
+-- | Seed (random unless given), entries, payload and one generator per writer.
+prepareWriters :: ProduceOptions -> IO WriterSetup
+prepareWriters opts = do
   seed <- maybe randomIO pure opts.seed
   let (entries, gen') = mkEntries opts.clientsPerUser opts.targets (mkStdGen seed)
       payload = mkPayload opts.payloadBytes
-      writerGens = take opts.writers (unfoldr (Just . split) gen')
+      gens = take opts.writers (unfoldr (Just . split) gen')
+  pure WriterSetup {..}
+
+-- | Pushes until @stop@ reports true; checked between pushes, so no push is
+-- cut off.
+writerLoop ::
+  IO Bool ->
+  (FanInPush -> IO PushOutcome) ->
+  A.Object ->
+  V.Vector Entry ->
+  WriterStats ->
+  (Text -> IO ()) ->
+  StdGen ->
+  IO ()
+writerLoop stop doPush payload entries ws reportError = loop
+  where
+    loop !g = do
+      stopped <- stop
+      unless stopped (writerStep doPush payload entries ws reportError g >>= loop)
+
+runProduce :: Console -> Env -> ProduceOptions -> IO ()
+runProduce console env opts = do
+  setup <- prepareWriters opts
   metrics <- newMetrics "produce" opts.writers
   stats <- replicateM opts.writers newWriterStats
-  errors <- newTBQueueIO 1000
-  let -- error path only; drops messages when the ticker falls behind
-      reportError msg = atomically $ do
-        full <- isFullTBQueue errors
-        unless full (writeTBQueue errors msg)
-      writer (ws, g0) =
-        let loop !g = writerStep (storePush env) payload entries ws reportError g >>= loop
-         in loop g0
+  (errors, reportError) <- newErrorReporter
+  let writer (ws, g) = writerLoop (pure False) (storePush env) setup.payload setup.entries ws reportError g
   start <- getMonotonicTime
   stateRef <- newIORef (initialTickState start)
   let doTick = tickOnce console metrics (fromIntegral opts.warmup) stats errors stateRef
   printLine console $
-    "produce: writers=" <> T.pack (show opts.writers) <> " targets=" <> renderTargetSpec opts.targets <> " seed=" <> T.pack (show seed)
-  withAsync (mapConcurrently_ writer (zip stats writerGens)) $ \writersA -> do
+    "produce: writers=" <> tshow opts.writers <> " targets=" <> renderTargetSpec opts.targets <> " seed=" <> tshow setup.seed
+  withAsync (mapConcurrently_ writer (zip stats setup.gens)) $ \writersA -> do
     link writersA
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
@@ -102,31 +130,18 @@ runProduce console env opts = do
 tickOnce :: Console -> Metrics -> Double -> [WriterStats] -> TBQueue Text -> IORef TickState -> IO TickReport
 tickOnce console metrics warmup stats errors ref = do
   now <- getMonotonicTime
-  total <- sumSnapshots <$> traverse readSnapshot stats
-  st <- readIORef ref
-  let (report, st') = tick warmup now total st
-  writeIORef ref st'
+  (report, _) <- tickWriters warmup now stats ref
   printQueuedErrors console errors
   publish metrics report
   drawStatus console (formatStatus report)
   pure report
 
--- | Prints queued error messages (at most 'maxErrorLines' per call).
-printQueuedErrors :: Console -> TBQueue Text -> IO ()
-printQueuedErrors console errors = do
-  msgs <- atomically (flushTBQueue errors)
-  traverse_ (printLine console) (take maxErrorLines msgs)
-  when (length msgs > maxErrorLines) $
-    printLine console ("... " <> T.pack (show (length msgs - maxErrorLines)) <> " more errors suppressed")
-
-maxErrorLines :: Int
-maxErrorLines = 10
-
--- | Returns after @duration@ seconds or on Ctrl-C (GHC delivers SIGINT as
--- 'UserInterrupt' to the main thread).
-waitForStop :: Maybe Int -> IO ()
-waitForStop mDuration = handleJust isInterrupt pure sleepFor
-  where
-    sleepFor = maybe (forever (threadDelay 1_000_000)) (\d -> threadDelay (d * 1_000_000)) mDuration
-    isInterrupt UserInterrupt = Just ()
-    isInterrupt _ = Nothing
+-- | Writer half of a tick: sums the writers' counters, advances the tick
+-- state. Returns the report and the summed counters.
+tickWriters :: Double -> Double -> [WriterStats] -> IORef TickState -> IO (TickReport, Snapshot)
+tickWriters warmup now stats ref = do
+  total <- sumSnapshots <$> traverse readSnapshot stats
+  st <- readIORef ref
+  let (report, st') = tick warmup now total st
+  writeIORef ref st'
+  pure (report, total)

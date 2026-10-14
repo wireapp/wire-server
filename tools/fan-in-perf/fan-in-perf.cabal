@@ -87,6 +87,7 @@ library
     FanInPerf.Targets
     FanInPerf.TargetSpecParser
     FanInPerf.Terminal
+    FanInPerf.Worker
 
   build-depends:
     , aeson
