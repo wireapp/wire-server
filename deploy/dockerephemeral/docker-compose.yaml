@@ -332,7 +332,7 @@ services:
       retries: 12
 
   init_vhosts:
-    image: alpine/curl:8.21.0
+    image: alpine/curl:8.22.0
     environment:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
