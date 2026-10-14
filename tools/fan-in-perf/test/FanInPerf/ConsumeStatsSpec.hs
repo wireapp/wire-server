@@ -40,6 +40,19 @@ spec = do
       let d = diffReaderSnapshot s1 s0
       (deliveredOf KindUser d, deliveredOf KindTeam d, totalFetches d, VU.sum (lagBuckets d)) `shouldBe` (2, 1, 2, 3)
 
+    it "records, sums and diffs acks and ack errors without counting fetches" $ do
+      a <- newReaderStats
+      b <- newReaderStats
+      recordAck a KindTeam 1000
+      s0 <- sumReaderSnapshots <$> traverse readReaderSnapshot [a, b]
+      recordAck a KindTeam 1000
+      recordAck b KindEpoch 2000
+      recordAckError b KindEpoch
+      s1 <- sumReaderSnapshots <$> traverse readReaderSnapshot [a, b]
+      let d = diffReaderSnapshot s1 s0
+      (acksOf KindTeam s1, acksOf KindTeam d, acksOf KindEpoch d, ackErrorsOf KindEpoch d) `shouldBe` (2, 1, 1, 1)
+      (totalAcks s1, totalAckErrors s1, VU.sum (ackLatencyBuckets d), totalFetches s1) `shouldBe` (3, 1, 2, 0)
+
   describe "consumeTick" $ do
     it "computes rates from the delta and ignores the max during warmup" $ do
       t1 <- snapshotAfter 10 0 -- 30 delivered
@@ -56,6 +69,21 @@ spec = do
       let (r0, _) = consumeTick 0 0 0 emptyReaderSnapshot (initialConsumeTickState 0)
       [r0.consumeRate, r0.fetchRate, r0.emptyFetchRatio, r0.fetchErrorRate, r0.maxConsumeRate] `shouldBe` [0, 0, 0, 0, 0]
       (r0.lagP50, r0.lagP99, r0.fetchP50, r0.fetchP99) `shouldBe` (Nothing, Nothing, Nothing, Nothing)
+
+    it "computes the ack rate, its max after warmup and ack latency quantiles" $ do
+      rs <- newReaderStats
+      replicateM_ 20 (recordAck rs KindUser 1000)
+      recordAckError rs KindUser
+      t1 <- readReaderSnapshot rs
+      let (r1, st1) = consumeTick 5 1 0 t1 (initialConsumeTickState 0)
+      (r1.ackRate, r1.maxAckRate, r1.ackErrorRate) `shouldBe` (20, 0, 1)
+      isJust r1.ackP99 `shouldBe` True
+      replicateM_ 60 (recordAck rs KindUser 1000)
+      t2 <- readReaderSnapshot rs
+      let (r2, _) = consumeTick 5 6 0 t2 st1
+      (r2.ackRate, r2.maxAckRate) `shouldBe` (12, 12)
+      let (r0, _) = consumeTick 0 0 0 emptyReaderSnapshot (initialConsumeTickState 0)
+      (r0.ackRate, r0.ackP50, r0.ackP99) `shouldBe` (0, Nothing, Nothing)
 
     it "reports backlog = expected - delivered, never negative" $ do
       t <- snapshotAfter 10 0 -- 30 delivered
