@@ -21,6 +21,7 @@ module Wire.ConversationSubsystem.MLS.Message
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
     postMLSTargetedMessagesFromLocalUser,
+    postMLSTransientTargetedMessageFromLocalUser,
     postMLSMessage,
     validateAndPropagateTargetedMessages,
   )
@@ -207,6 +208,16 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
   t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus [] t
 
+postMLSTransientTargetedMessageFromLocalUser ::
+  (Member Now r) =>
+  Local UserId ->
+  ClientId ->
+  RawMLS TransientTargetedMessage ->
+  Sem r MLSMessageSendingStatus
+postMLSTransientTargetedMessageFromLocalUser _lusr _client _message = do
+  t <- toUTCTimeMillis <$> Now.get
+  pure $ MLSMessageSendingStatus [] t
+
 postMLSTargetedMessagesToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
@@ -278,7 +289,7 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
       mlsProtocolError "targeted message recipients must be unique"
   validated <- for messages $ \raw -> do
     let msg = raw.value
-    unless (msg.protocolVersion == defaultProtocolVersion && msg.wireFormat == TargetedMessageWireFormat) $
+    unless (msg.protocolVersion == defaultProtocolVersion) $
       throwS @'MLSUnsupportedMessage
     case currentEpoch of
       Nothing -> throw $ mlsProtocolError "targeted message group has no active epoch"

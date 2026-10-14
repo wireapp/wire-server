@@ -82,7 +82,6 @@ testParseTargetedMessageBatch = do
         mkRawMLS
           PersistentTargetedMessage
             { protocolVersion = defaultProtocolVersion,
-              wireFormat = TargetedMessageWireFormat,
               counter = n,
               sender = 1,
               recipient = n,

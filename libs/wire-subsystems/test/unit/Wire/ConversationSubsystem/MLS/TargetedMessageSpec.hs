@@ -175,7 +175,6 @@ targetedMessageAt counter epoch =
   let msg =
         PersistentTargetedMessage
           { protocolVersion = defaultProtocolVersion,
-            wireFormat = TargetedMessageWireFormat,
             counter = counter,
             sender = fixture.senderLeaf,
             recipient = fixture.recipientLeaf,

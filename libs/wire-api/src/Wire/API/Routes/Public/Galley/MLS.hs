@@ -113,6 +113,17 @@ type MLSMessagingAPI =
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Targeted messages sent" MLSMessageSendingStatus)
            )
     :<|> Named
+           "mls-transient-targeted-message"
+           ( Summary "Post a transient targeted MLS message to a conversation"
+               :> From 'V19
+               :> "messages"
+               :> "transient-targeted"
+               :> ZLocalUser
+               :> ZClient
+               :> ReqBody '[MLS] (RawMLS TransientTargetedMessage)
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Transient targeted message accepted" MLSMessageSendingStatus)
+           )
+    :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
                :> From V5

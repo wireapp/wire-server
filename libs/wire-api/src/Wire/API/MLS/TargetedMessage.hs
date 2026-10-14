@@ -17,13 +17,13 @@
 
 module Wire.API.MLS.TargetedMessage
   ( PersistentTargetedMessage (..),
+    TransientTargetedMessage,
     TargetedMessageBatch (..),
-    TargetedMessageWireFormat (..),
   )
 where
 
-import Data.Binary.Get (getWord16be)
-import Data.Binary.Put (putWord16be)
+import Data.Binary.Get (Get, getWord16be)
+import Data.Binary.Put (Put, putWord16be)
 import Data.OpenApi qualified as S
 import Imports
 import Wire.API.MLS.Commit (HPKECiphertext)
@@ -33,26 +33,14 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 
--- | The private wire format assigned to persistent targeted messages.
-data TargetedMessageWireFormat = TargetedMessageWireFormat
-  deriving stock (Eq, Show, Generic)
+persistentTargetedMessageWireFormat :: Word16
+persistentTargetedMessageWireFormat = 0xf001
 
-targetedMessagesWireFormatValue :: Word16
-targetedMessagesWireFormatValue = 0xf001
-
-instance ParseMLS TargetedMessageWireFormat where
-  parseMLS = do
-    wireFormat <- getWord16be
-    if wireFormat == targetedMessagesWireFormatValue
-      then pure TargetedMessageWireFormat
-      else fail $ "unsupported targeted message wire format: " <> show wireFormat
-
-instance SerialiseMLS TargetedMessageWireFormat where
-  serialiseMLS _ = putWord16be targetedMessagesWireFormatValue
+transientTargetedMessageWireFormat :: Word16
+transientTargetedMessageWireFormat = 0xf002
 
 data PersistentTargetedMessage = PersistentTargetedMessage
   { protocolVersion :: ProtocolVersion,
-    wireFormat :: TargetedMessageWireFormat,
     counter :: Word32,
     sender :: LeafIndex,
     recipient :: LeafIndex,
@@ -66,34 +54,55 @@ data PersistentTargetedMessage = PersistentTargetedMessage
   deriving stock (Eq, Show, Generic)
 
 instance ParseMLS PersistentTargetedMessage where
-  parseMLS =
-    PersistentTargetedMessage
-      <$> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLSBytes @VarInt
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLSBytes @VarInt
+  parseMLS = parseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat
 
 instance SerialiseMLS PersistentTargetedMessage where
-  serialiseMLS msg = do
-    serialiseMLS msg.protocolVersion
-    serialiseMLS msg.wireFormat
-    serialiseMLS msg.counter
-    serialiseMLS msg.sender
-    serialiseMLS msg.recipient
-    serialiseMLSBytes @VarInt msg.recipientId
-    serialiseMLS msg.epoch
-    serialiseMLS msg.groupId
-    serialiseMLS msg.payload
-    serialiseMLSBytes @VarInt msg.signature
+  serialiseMLS = serialiseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat
 
 instance S.ToSchema PersistentTargetedMessage where
   declareNamedSchema _ = pure (mlsSwagger "PersistentTargetedMessage")
+
+newtype TransientTargetedMessage = TransientTargetedMessage PersistentTargetedMessage
+  deriving stock (Eq, Show, Generic)
+
+instance ParseMLS TransientTargetedMessage where
+  parseMLS = TransientTargetedMessage <$> parseTargetedMessageWithWireFormat transientTargetedMessageWireFormat
+
+instance SerialiseMLS TransientTargetedMessage where
+  serialiseMLS (TransientTargetedMessage message) = serialiseTargetedMessageWithWireFormat transientTargetedMessageWireFormat message
+
+instance S.ToSchema TransientTargetedMessage where
+  declareNamedSchema _ = pure (mlsSwagger "TransientTargetedMessage")
+
+parseTargetedMessageWithWireFormat :: Word16 -> Get PersistentTargetedMessage
+parseTargetedMessageWithWireFormat expectedWireFormat = do
+  protocolVersion <- parseMLS
+  wireFormat <- getWord16be
+  unless (wireFormat == expectedWireFormat) $
+    fail $
+      "unexpected targeted message wire format: " <> show wireFormat
+  PersistentTargetedMessage protocolVersion
+    <$> parseMLS
+    <*> parseMLS
+    <*> parseMLS
+    <*> parseMLSBytes @VarInt
+    <*> parseMLS
+    <*> parseMLS
+    <*> parseMLS
+    <*> parseMLSBytes @VarInt
+
+serialiseTargetedMessageWithWireFormat :: Word16 -> PersistentTargetedMessage -> Put
+serialiseTargetedMessageWithWireFormat wireFormat msg = do
+  serialiseMLS msg.protocolVersion
+  putWord16be wireFormat
+  serialiseMLS msg.counter
+  serialiseMLS msg.sender
+  serialiseMLS msg.recipient
+  serialiseMLSBytes @VarInt msg.recipientId
+  serialiseMLS msg.epoch
+  serialiseMLS msg.groupId
+  serialiseMLS msg.payload
+  serialiseMLSBytes @VarInt msg.signature
 
 newtype TargetedMessageBatch = TargetedMessageBatch
   { messages :: [RawMLS PersistentTargetedMessage]
