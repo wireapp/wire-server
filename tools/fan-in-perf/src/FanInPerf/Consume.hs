@@ -67,14 +67,14 @@ loadCursors :: (Member FanInNotificationsStore r) => Client -> Sem r [Subscripti
 loadCursors c =
   for c.streams $ \s -> do
     lastId <- getLastNotificationId s
-    pure (newSubscription (streamKind s) s (fromMaybe UUID.nil lastId))
+    pure $ newSubscription (streamKind s) s (fromMaybe UUID.nil lastId)
 
 -- | The smallest UUID with the given UUIDv7 ms timestamp (all other bits
 -- zero): every UUIDv7 of that ms or later is greater (its version bits are
 -- set), every one of an earlier ms is smaller.
 millisLowerBound :: Word64 -> UUID
 millisLowerBound ms =
-  UUID.fromWords (fromIntegral (ms `shiftR` 16)) (fromIntegral ((ms .&. 0xFFFF) `shiftL` 16)) 0 0
+  UUID.fromWords64 (ms `shiftL` 16) 0
 
 -- | Ids up to the bound are never fetched again. Window 0: the cursor itself
 -- (the plain @> lastId@ reader). Otherwise the ms of the cursor minus the
