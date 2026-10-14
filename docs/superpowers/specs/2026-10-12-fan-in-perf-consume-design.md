@@ -121,9 +121,8 @@ loop:
 ```
 
 - 2,000 green threads (`async`); per-client state is its stream list and cursors.
-- One shared reader pool. Pool wait shows up in fetch latency and the
-  `wire_hasql_pool_*` counters/histograms (shared with the writer pool); the
-  pool gauges (in use/idle) show the writer pool only.
+- One shared reader pool. Pool wait shows up in fetch latency. Both pools report
+  `fanin_perf_pool_*{role="writer|reader"}` (gauges, counters, histograms).
 - Fetch errors are counted per kind and rate-limited logged, like push errors;
   the reader continues with the unchanged cursor.
 - Streams are served in any order; order within a stream is preserved.
