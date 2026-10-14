@@ -71,6 +71,21 @@ spec = do
       out `shouldContain` "fanin_perf_delivery_lag_seconds_count{experiment=\"specc\"} 3"
       out `shouldContain` "fanin_perf_fetch_duration_seconds_count{experiment=\"specc\"} 4"
 
+  describe "publishAcks" $
+    it "exports ack counters, gauges and the ack latency histogram" $ do
+      m <- newAckMetrics "speca"
+      rs <- newReaderStats
+      replicateM_ 3 (recordAck rs KindTeam 1000)
+      recordAckError rs KindTeam
+      total <- readReaderSnapshot rs
+      let (r, _) = consumeTick 0 1 0 total (initialConsumeTickState 0)
+      publishAcks m r
+      out <- LBS8.unpack <$> P.exportMetricsAsText
+      out `shouldContain` "fanin_perf_acks_total{experiment=\"speca\",kind=\"team\"} 3"
+      out `shouldContain` "fanin_perf_ack_errors_total{experiment=\"speca\",kind=\"team\"} 1"
+      out `shouldContain` "fanin_perf_ack_rate_current{experiment=\"speca\"} 3"
+      out `shouldContain` "fanin_perf_ack_duration_seconds_count{experiment=\"speca\"} 3"
+
   describe "metricsApp" $ do
     it "serves /metrics" $ statusFor ["metrics"] `shouldReturn` Just status200
     it "404s elsewhere" $ statusFor ["other"] `shouldReturn` Just status404

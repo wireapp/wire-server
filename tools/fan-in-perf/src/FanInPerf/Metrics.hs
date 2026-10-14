@@ -7,6 +7,9 @@ module FanInPerf.Metrics
     ConsumeMetrics,
     newConsumeMetrics,
     publishConsume,
+    AckMetrics,
+    newAckMetrics,
+    publishAcks,
     metricsApp,
     runMetricsServer,
   )
@@ -56,17 +59,20 @@ publish :: Metrics -> TickReport -> IO ()
 publish m r = do
   for_ allKinds $ \k -> do
     let lbl = (m.experimentName, kindName k)
-    add m.pushes lbl (pushesOf k r.delta)
-    add m.targets lbl (targetsOf k r.delta)
-    add m.errors lbl (errorsOf k r.delta)
-  set m.pushRateCurrent r.pushRate
-  set m.pushRateMax r.maxPushRate
-  set m.errorRateCurrent r.errorRate
-  set m.errorRatioCurrent r.errorRatio
+    addCounter m.pushes lbl (pushesOf k r.delta)
+    addCounter m.targets lbl (targetsOf k r.delta)
+    addCounter m.errors lbl (errorsOf k r.delta)
+  setGauge m.experimentName m.pushRateCurrent r.pushRate
+  setGauge m.experimentName m.pushRateMax r.maxPushRate
+  setGauge m.experimentName m.errorRateCurrent r.errorRate
+  setGauge m.experimentName m.errorRatioCurrent r.errorRatio
   writeIORef m.latency (latencyBuckets r.total)
-  where
-    add v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fromIntegral n))
-    set g x = P.withLabel g m.experimentName (`P.setGauge` x)
+
+addCounter :: P.Vector P.Label2 P.Counter -> (Text, Text) -> Int -> IO ()
+addCounter v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fromIntegral n))
+
+setGauge :: Text -> P.Vector P.Label1 P.Gauge -> Double -> IO ()
+setGauge experiment g x = P.withLabel g experiment (`P.setGauge` x)
 
 counterVec :: Text -> Text -> IO (P.Vector P.Label2 P.Counter)
 counterVec name help = P.register $ P.vector ("experiment", "kind") $ P.counter (P.Info name help)
@@ -142,18 +148,47 @@ publishConsume :: ConsumeMetrics -> ConsumeReport -> IO ()
 publishConsume m r = do
   for_ allKinds $ \k -> do
     let lbl = (m.experiment, kindName k)
-    add m.consumed lbl (deliveredOf k r.readerDelta)
-    add m.fetchCount lbl (fetchesOf k r.readerDelta)
-    add m.emptyFetchCount lbl (emptyFetchesOf k r.readerDelta)
-    add m.fetchErrorCount lbl (fetchErrorsOf k r.readerDelta)
-  set m.consumeRateCurrent r.consumeRate
-  set m.consumeRateMax r.maxConsumeRate
-  set m.backlogGauge (fromIntegral r.backlog)
+    addCounter m.consumed lbl (deliveredOf k r.readerDelta)
+    addCounter m.fetchCount lbl (fetchesOf k r.readerDelta)
+    addCounter m.emptyFetchCount lbl (emptyFetchesOf k r.readerDelta)
+    addCounter m.fetchErrorCount lbl (fetchErrorsOf k r.readerDelta)
+  setGauge m.experiment m.consumeRateCurrent r.consumeRate
+  setGauge m.experiment m.consumeRateMax r.maxConsumeRate
+  setGauge m.experiment m.backlogGauge (fromIntegral r.backlog)
   writeIORef m.fetchLatencyRef (fetchLatencyBuckets r.readerTotal)
   writeIORef m.lagRef (lagBuckets r.readerTotal)
-  where
-    add v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fromIntegral n))
-    set g x = P.withLabel g m.experiment (`P.setGauge` x)
+
+data AckMetrics = AckMetrics
+  { experiment :: Text,
+    ackCount :: P.Vector P.Label2 P.Counter,
+    ackErrorCount :: P.Vector P.Label2 P.Counter,
+    ackRateCurrent :: P.Vector P.Label1 P.Gauge,
+    ackRateMax :: P.Vector P.Label1 P.Gauge,
+    ackLatencyRef :: IORef (VU.Vector Int)
+  }
+
+-- | Registers the ack metrics; call once per process and only when readers
+-- acknowledge, so B's /metrics stay unchanged.
+newAckMetrics :: Text -> IO AckMetrics
+newAckMetrics experiment = do
+  ackCount <- counterVec "fanin_perf_acks_total" "Ack upserts (one per stream at an ack point)"
+  ackErrorCount <- counterVec "fanin_perf_ack_errors_total" "Failed ack upserts"
+  ackRateCurrent <- gaugeVec "fanin_perf_ack_rate_current" "Ack upserts per second during the last tick"
+  ackRateMax <- gaugeVec "fanin_perf_ack_rate_max" "Maximal ack upserts per second after warmup"
+  ackLatencyRef <- newIORef (VU.replicate numBuckets 0)
+  _ <- P.register (histogramMetric "fanin_perf_ack_duration_seconds" "Ack upsert latency in seconds" experiment ackLatencyRef)
+  pure AckMetrics {..}
+
+-- | Only the ticker thread calls this.
+publishAcks :: AckMetrics -> ConsumeReport -> IO ()
+publishAcks m r = do
+  for_ allKinds $ \k -> do
+    let lbl = (m.experiment, kindName k)
+    addCounter m.ackCount lbl (acksOf k r.readerDelta)
+    addCounter m.ackErrorCount lbl (ackErrorsOf k r.readerDelta)
+  setGauge m.experiment m.ackRateCurrent r.ackRate
+  setGauge m.experiment m.ackRateMax r.maxAckRate
+  writeIORef m.ackLatencyRef (ackLatencyBuckets r.readerTotal)
 
 metricsApp :: Wai.Application
 metricsApp req respond = case Wai.pathInfo req of
