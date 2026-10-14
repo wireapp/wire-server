@@ -235,3 +235,11 @@ serves `fanin_perf_consumed_total`; Grafana shows the new panels.
 No new secrets. `/metrics` exposes counters/histograms only. No payload or id
 contents in logs. Reads go only through the store effect; the admin effect is
 untouched.
+
+## Drift (experiment C)
+
+The reader population is superseded by
+`2026-10-14-fan-in-perf-consume-ack-design.md`: readers are clients of users
+(teams → users → clients), user and clients pools share their uids, team and
+epochs follow the user. Subscriber counts per stream differ from the model
+above when there are more readers than users.

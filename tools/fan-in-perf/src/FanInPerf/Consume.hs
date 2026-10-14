@@ -1,6 +1,6 @@
--- | Experiment B: writers as in "FanInPerf.Produce" plus simulated reader
--- clients that fetch the streams they subscribed to and keep their cursors in
--- memory (no acknowledgements).
+-- | Experiments B and C: writers as in "FanInPerf.Produce" plus simulated
+-- reader clients that fetch the streams they subscribed to and keep their
+-- cursors in memory; in 'Acks' mode they also acknowledge (see 'acknowledge').
 module FanInPerf.Consume
   ( Subscription (..),
     newSubscription,

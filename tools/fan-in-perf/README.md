@@ -56,6 +56,24 @@ Summary duration and push/s and cons/s averages cover the writer phase
 Ctrl-C stops the writers and a second one exits immediately (GHC resets the
 SIGINT handler), so no summary.
 
+Experiment C (acknowledging readers): `consume-ack` runs `consume` and every
+simulated client acknowledges what it received. A client acks after every
+N-th notification (`--ack-every N`, default 100, counted over all its
+streams): one upsert per stream it received something on, up to the highest
+id there (RFC: delivery tags with `multiple = true`; N = 1 is the RFC's live
+path). Start positions come from resetting the client's acks to the latest
+notification (RFC "when nothing is acknowledged"); run `reset` first.
+
+```sh
+fan-in-perf --db "$DB" reset
+fan-in-perf --db "$DB" consume-ack --targets user:1000,clients:1000,team:10,epoch:200 --clients-per-user 2 --clients 2000 --duration 30 --ack-every 1
+```
+
+Readers are clients of users (round-robin, client ids 1..k per user); every
+user is in one team (with `team` in `--targets`) and its clients share the
+user's epoch streams. A reader fetches and acks as its (user, client).
+`consume-ack` therefore needs equal STREAMS for `user` and `clients`.
+
 Global flags go before the sub-command. `--targets` entries are `KIND:STREAMS[xK]`
 (`KIND` in `user|clients|team|epoch|connections`): `STREAMS` distinct stream keys,
 `K` targets of that kind per push. Each push uses exactly one kind.

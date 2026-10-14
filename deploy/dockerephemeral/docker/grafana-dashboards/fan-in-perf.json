@@ -168,6 +168,29 @@
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p99" }
       ]
+    },
+    {
+      "id": 22, "type": "timeseries", "title": "Ack upserts/s vs consumed/s", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 88, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_ack_rate_current", "legendFormat": "acks/s {{experiment}}" },
+        { "refId": "B", "expr": "fanin_perf_consume_rate_current", "legendFormat": "consumed/s {{experiment}}" }
+      ]
+    },
+    {
+      "id": 23, "type": "timeseries", "title": "Ack latency", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 88, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[30s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[30s])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 24, "type": "timeseries", "title": "Ack errors/s", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 96, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_ack_errors_total[5s]))", "legendFormat": "{{kind}}" }
+      ]
     }
   ]
 }
