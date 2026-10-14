@@ -47,18 +47,18 @@ import Wire.FanInNotificationsStore.Postgres (notificationIdMillis)
 -- | A stream a client reads. @cursor@ is the highest id delivered (or the
 -- start position). With a safety window, @start@ (the start position) is the
 -- lowest possible fetch bound, @seen@ holds the delivered ids inside the
--- window and @scan@ is where an unfinished scan of the window continues.
+-- window and @resumeAfter@ is where an unfinished scan of the window continues.
 data Sub = Sub
   { kind :: !TargetKind,
     stream :: !Stream,
     cursor :: !UUID,
     start :: !UUID,
     seen :: !(Set UUID),
-    scan :: !(Maybe UUID)
+    resumeAfter :: !(Maybe UUID)
   }
 
 newSub :: TargetKind -> Stream -> UUID -> Sub
-newSub k s c = Sub {kind = k, stream = s, cursor = c, start = c, seen = mempty, scan = Nothing}
+newSub k s c = Sub {kind = k, stream = s, cursor = c, start = c, seen = mempty, resumeAfter = Nothing}
 
 -- | Start position of every stream of a client: the latest notification id
 -- ("start at latest"), the nil UUID for an empty stream.
@@ -93,9 +93,9 @@ lowerBound windowMs sub =
 -- notifications committed late (lower id than the cursor) within the window
 -- are still delivered; ids in @seen@ are not delivered again. Termination: the
 -- window can hold more already-seen rows than the fetch limit. A full raw page
--- sets @scan@ to its last id and the next pass continues after it (each such
+-- sets @resumeAfter@ to its last id and the next pass continues after it (each such
 -- pass advances strictly, rows are finite); a non-full page ends the scan
--- (@scan = Nothing@), so the next pass restarts at the bound and picks up late
+-- (@resumeAfter = Nothing@), so the next pass restarts at the bound and picks up late
 -- commits. @more@ is "the raw page was full", so a reader never spins on the
 -- same page. With window 0 all this reduces to the plain @> cursor@ reader.
 readerPass ::
@@ -110,7 +110,7 @@ readerPass ::
 readerPass render limit windowMs stats subs = do
   results <- for subs $ \sub -> do
     let bound = lowerBound windowMs sub
-        from = maybe bound (max bound) sub.scan
+        from = maybe bound (max bound) sub.resumeAfter
     t0 <- embed getMonotonicTimeNSec
     fetched <- PE.try @e (fetchNotifications sub.stream from limit)
     t1 <- embed getMonotonicTimeNSec
@@ -122,7 +122,7 @@ readerPass render limit windowMs stats subs = do
         let new = filter (`Set.notMember` sub.seen) (map fst page)
             full = length page >= limit
             cursor' = foldl' max sub.cursor new
-            sub' = sub {cursor = cursor', scan = if full then fst <$> listToMaybe (reverse page) else Nothing}
+            sub' = sub {cursor = cursor', resumeAfter = if full then fst <$> listToMaybe (reverse page) else Nothing}
             bound' = lowerBound windowMs sub'
             seen'
               | windowMs == 0 = mempty
