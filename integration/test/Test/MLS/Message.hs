@@ -220,6 +220,27 @@ testTargetedMessage = do
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
 
+testTargetedMessageNotificationSync :: (HasCallStack) => App ()
+testTargetedMessageNotificationSync = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  bobClient <- bob1 %. "client_id" & asString
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  targeted <- createTargetedMessage convId alice1 bob1 "targeted message notification sync"
+  postMLSTargetedMessage targeted.sender targeted.message >>= assertStatus 201
+
+  -- The recipient has no websocket open while the message is sent. It must be
+  -- available later through the persistent notification sync endpoint.
+  notification <- awaitNotificationClient bob bobClient noValue isNewMLSTargetedMessageNotif
+  event <- notification %. "payload.0"
+  event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+  event %. "from" `shouldMatch` targeted.sender.user
+  event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+
 testTargetedMessageBatch :: (HasCallStack) => App ()
 testTargetedMessageBatch = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
