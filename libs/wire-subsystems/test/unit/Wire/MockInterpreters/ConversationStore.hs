@@ -23,15 +23,38 @@ import Data.Qualified (Qualified)
 import Imports
 import Polysemy
 import Polysemy.State
+import Wire.API.MLS.Group (GroupId)
+import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.ConversationStore (ConversationStore (..))
-import Wire.StoredConversation (StoredConversation)
+import Wire.ConversationStore.MLS.Types (ClientMap, IndexMap)
+import Wire.StoredConversation (LocalMember (..), StoredConversation (..))
 
 inMemoryConversationStoreInterpreter ::
   (Member (State [Qualified UserId]) r) =>
   Map.Map ConvId StoredConversation ->
   InterpreterFor ConversationStore r
 inMemoryConversationStoreInterpreter store =
+  inMemoryConversationStoreInterpreterWithMLS store mempty
+
+inMemoryConversationStoreInterpreterWithMLS ::
+  (Member (State [Qualified UserId]) r) =>
+  Map.Map ConvId StoredConversation ->
+  Map.Map GroupId (ClientMap LeafIndex, IndexMap) ->
+  InterpreterFor ConversationStore r
+inMemoryConversationStoreInterpreterWithMLS store mlsClients =
   interpret $ \case
     GetConversation cid -> pure (Map.lookup cid store)
+    GetLocalMember cid uid ->
+      pure $ do
+        conv <- Map.lookup cid store
+        find ((== uid) . (.id_)) conv.localMembers
+    LookupMLSClientLeafIndices gid ->
+      pure $
+        case Map.lookup gid mlsClients of
+          Just leafIndices -> leafIndices
+          Nothing ->
+            error $
+              "ConversationStore mock: missing MLS client/index state for GroupId in LookupMLSClientLeafIndices: "
+                <> show gid
     SetOtherMember _ target _ -> modify @[(Qualified UserId)] (<> [target])
     _ -> error "ConversationStore: not implemented in mock"

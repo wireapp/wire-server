@@ -32,6 +32,10 @@ makeSystemMemberUpdateBundle :: SystemMemberUpdateNotification -> FedQueueClient
 makeSystemMemberUpdateBundle =
   fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnSystemMemberUpdateTag
 
+makeMLSTargetedMessageBundle :: RemoteMLSTargetedMessage -> FedQueueClient 'Galley (PayloadBundle 'Galley)
+makeMLSTargetedMessageBundle =
+  fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnMLSTargetedMessageSentTag
+
 makeSystemDeleteBundle :: SystemDeleteNotification -> FedQueueClient 'Galley (PayloadBundle 'Galley)
 makeSystemDeleteBundle =
   fmap (\bundle -> bundle {unsupportedVersionPolicy = DropIfUnsupported}) . makeBundle @'OnSystemDeleteTag

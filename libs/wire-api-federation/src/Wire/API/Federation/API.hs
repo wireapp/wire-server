@@ -34,6 +34,7 @@ module Wire.API.Federation.API
     -- * Re-exports
     Component (..),
     makeConversationUpdateBundle,
+    makeMLSTargetedMessageBundle,
     makeSystemMemberUpdateBundle,
     makeSystemDeleteBundle,
     makeSystemAdminlessReminderBundle,

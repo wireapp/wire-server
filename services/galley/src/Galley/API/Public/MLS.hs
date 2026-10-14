@@ -26,6 +26,7 @@ import Wire.ConversationSubsystem
 mlsAPI :: API MLSAPI GalleyEffects
 mlsAPI =
   mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
+    <@> mkNamedAPI @"mls-targeted-message" postMLSTargetedMessagesFromLocalUser
     <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
     <@> mkNamedAPI @"mls-public-keys" (const getMLSPublicKeys)
     <@> mkNamedAPI @"mls-reset-conversation" resetMLSConversation

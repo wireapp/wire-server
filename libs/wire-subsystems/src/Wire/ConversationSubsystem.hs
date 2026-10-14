@@ -59,6 +59,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.OutOfSync (EnableOutOfSyncCheck)
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation (ConvOrSubConvId, PublicSubConversation, SubConvId)
+import Wire.API.MLS.TargetedMessage
 import Wire.API.Message (ClientMismatch, IgnoreMissing, MessageSendingStatus, NewOtrMessage, QualifiedNewOtrMessage, ReportMissing)
 import Wire.API.Pagination (PageSize, SortOrder)
 import Wire.API.Provider.Bot qualified as Public (BotConvView)
@@ -217,6 +218,11 @@ data ConversationSubsystem m a where
     ConnId ->
     RawMLS Message ->
     ConversationSubsystem m MLSMessageSendingStatus
+  PostMLSTargetedMessagesFromLocalUser ::
+    Local UserId ->
+    ClientId ->
+    TargetedMessageBatch ->
+    ConversationSubsystem m MLSMessageSendingStatus
   IsMLSEnabled :: ConversationSubsystem m Bool
   GetConversationsInternal ::
     Local UserId ->
@@ -249,6 +255,10 @@ data ConversationSubsystem m a where
     MLSWelcomeRequest ->
     ConversationSubsystem m MLSWelcomeResponse
   FederationSendMLSMessage ::
+    Domain ->
+    MLSMessageSendRequest ->
+    ConversationSubsystem m MLSMessageResponse
+  FederationSendMLSTargetedMessage ::
     Domain ->
     MLSMessageSendRequest ->
     ConversationSubsystem m MLSMessageResponse
@@ -299,6 +309,10 @@ data ConversationSubsystem m a where
   FederationOnMLSMessageSent ::
     Domain ->
     RemoteMLSMessage ->
+    ConversationSubsystem m EmptyResponse
+  FederationOnMLSTargetedMessageSent ::
+    Domain ->
+    RemoteMLSTargetedMessage ->
     ConversationSubsystem m EmptyResponse
   FederationOnConversationUpdated ::
     Domain ->
