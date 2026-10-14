@@ -32,7 +32,7 @@ import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Password
-import Wire.CodeStore (CodeStore (..))
+import Wire.CodeStore (BackfillCodeResult (..), CodeStore (..))
 import Wire.CodeStore.Cassandra.Queries qualified as Cql
 import Wire.CodeStore.Code as Code
 import Wire.Util (embedClientInput)
@@ -54,6 +54,7 @@ interpretCodeStoreToCassandra = interpret $ \case
   -- Meeting codes never live in Cassandra; report unsupported so callers
   -- fail with LinkUnavailable instead of producing a link.
   CreateMeetingCode {} -> pure Nothing
+  BackfillMeetingCode {} -> pure BackfillCodeStoreUnsupported
   -- Meeting codes never live in Cassandra, but the guest-code revocation
   -- half of the rotation is real here: without it a refreshed meeting link
   -- would leave the old conversation guest link live until TTL expiry.

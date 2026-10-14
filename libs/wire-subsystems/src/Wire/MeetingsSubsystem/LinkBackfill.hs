@@ -19,9 +19,11 @@
 -- (and therefore a join link; WPB-29361).
 --
 -- * The scan is idempotent: only meetings without a live join code are acted
---   on, and code creation upserts on the deterministic (meeting-id-derived)
---   key, so concurrent replicas converge. Existing codes are never touched or
---   rotated, so every previously issued join link keeps working.
+--   on, and code creation is an atomic insert-if-absent on the deterministic
+--   (meeting-id-derived) key, so concurrent replicas converge — the loser
+--   observes the winner's code instead of replacing it. Existing codes are
+--   never touched or rotated, so every previously issued join link keeps
+--   working.
 --
 -- * The full-table keyset scan every pass is accepted for current meetings
 --   table sizes; the existence check runs through the PK-indexed bulk code
@@ -54,7 +56,7 @@ import Polysemy.Input (Input, runInputConst)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
-import UnliftIO (try)
+import UnliftIO (throwIO, try)
 import Wire.API.Error (ErrorS, runErrorS)
 import Wire.API.Error.Galley (GalleyError (CodeStoreNotFound))
 import Wire.CodeStore
@@ -118,10 +120,14 @@ backfillPage pageSize cursor = do
       codes <- CodeStore.getMeetingCodes (map fst batch)
       forM_ batch $ \(mid, _convId) ->
         unless (mid `Map.member` codes) $ do
-          mCode <- CodeStore.createMeetingCode mid meetingCodeTimeout Nothing
-          case mCode of
-            Just _ -> pure ()
-            Nothing ->
+          -- Insert-if-absent, not createMeetingCode: the upsert would let a
+          -- concurrent replica replace the winner's code value and
+          -- invalidate an already-served join link.
+          res <- CodeStore.backfillMeetingCode mid meetingCodeTimeout
+          case res of
+            BackfilledCode _ -> pure ()
+            BackfillCodePresent -> pure ()
+            BackfillCodeStoreUnsupported ->
               TinyLog.err $
                 Log.msg ("cannot backfill meeting join code" :: ByteString)
                   . Log.field "meetingId" (toByteString' mid)
@@ -175,7 +181,12 @@ runMeetingJoinCodeBackfill storeMode cassClient pgPool logger convCodeURI name i
           Log.msg ("code store not found during meeting join code backfill" :: ByteString)
             . Log.field "backfill" name
       Right (Left usageError) -> logFail (show usageError)
-      Left (exc :: SomeException) -> logFail (displayException exc)
+      Left (exc :: SomeException) ->
+        -- Never swallow async exceptions: 'withAsync' delivers cancellation
+        -- at galley shutdown, and resuming the loop would hang shutdown.
+        case fromException exc of
+          Just (ae :: SomeAsyncException) -> throwIO ae
+          Nothing -> logFail (displayException exc)
     threadDelay (floor (realToFrac interval * 1000000 :: Double))
   where
     codeStoreInterpreter ::

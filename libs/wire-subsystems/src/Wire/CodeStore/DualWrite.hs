@@ -61,6 +61,8 @@ interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   -- Meeting codes are Postgres-only (see CreateCode/MakeKey routing).
   CreateMeetingCode mid t mPw ->
     Postgres.interpretCodeStoreToPostgres $ CodeStore.createMeetingCode mid t mPw
+  BackfillMeetingCode mid t ->
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.backfillMeetingCode mid t
   -- The rotation spans both storage classes: meeting codes are Postgres-only,
   -- but conversation codes are still read from Cassandra during migration, so
   -- the guest-code copy must be revoked there too (mirrors DeleteConversationCode).

@@ -64,23 +64,26 @@ testMeetingJoinCodeBackfill = do
 
   -- (3) Poll the list endpoint (which 500s with link-unavailable while B has
   -- no code) until B gains a link; A's link must stay byte-identical.
-  startNow <- liftIO getCurrentTime
-  let deadline = addUTCTime 120 startNow
   let pollLink mid = do
-        nowX <- liftIO getCurrentTime
-        if nowX > deadline
-          then assertFailure ("meeting " <> mid <> " did not gain a link within 120s")
-          else do
-            listResp <- getMeetingsList owner
-            if listResp.status == 500
-              then liftIO (threadDelay 5_000_000) >> pollLink mid
-              else do
-                assertSuccess listResp
-                meetings <- listResp.json & asList
-                ms <- findMeetingById mid meetings
-                case ms of
-                  Nothing -> liftIO (threadDelay 5_000_000) >> pollLink mid
-                  Just m -> m %. "link" >>= asString
+        -- Fresh deadline on every call: the second polling phase (after the
+        -- 65s idempotence wait) must not inherit the first phase's deadline.
+        deadline <- addUTCTime 120 <$> liftIO getCurrentTime
+        let poll = do
+              nowX <- liftIO getCurrentTime
+              if nowX > deadline
+                then assertFailure ("meeting " <> mid <> " did not gain a link within 120s")
+                else do
+                  listResp <- getMeetingsList owner
+                  if listResp.status == 500
+                    then liftIO (threadDelay 5_000_000) >> poll
+                    else do
+                      assertSuccess listResp
+                      meetings <- listResp.json & asList
+                      ms <- findMeetingById mid meetings
+                      case ms of
+                        Nothing -> liftIO (threadDelay 5_000_000) >> poll
+                        Just m -> m %. "link" >>= asString
+        poll
   linkB <- pollLink meetingBId
   let expected = "meeting-join/\\?key=[A-Za-z0-9_-]{20}&code=[A-Za-z0-9_-]{6,20}&domain=" <> domain
   assertBool ("unexpected backfilled meeting link: " <> linkB) (linkB =~ expected)

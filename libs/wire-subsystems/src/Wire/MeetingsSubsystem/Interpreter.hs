@@ -98,7 +98,9 @@ checkMeetingsEnabled ::
 -- instead of a renewal mechanism. Known trade-off: if the meeting-row
 -- insert fails after the code was created, the orphaned code row is
 -- unreachable forever (its key derives from the unpersisted id) and
--- will live out this TTL.
+-- will live out this TTL. The backfill's insert-if-absent
+-- ('BackfillMeetingCode') also relies on this TTL: an expired row would be
+-- conflated with a live one and never repaired.
 meetingCodeTimeout :: Timeout
 meetingCodeTimeout = Timeout (fromIntegral (maxBound @Int32))
 
@@ -263,20 +265,23 @@ createMeetingImpl zUser connId newMeeting = do
             newConvHistory = def
           }
 
-  -- Create and store the conversation via ConversationSubsystem
-  storedConv <- ConversationSubsystem.internalCreateGroupConversation zUser Nothing newConv
-
-  -- Create the join code BEFORE the meeting row: a row without a code would
-  -- serve a dead link, while an unreferenced code is harmless. The URI base
-  -- is checked first: deployments without a configured join-link URI fail
-  -- with 'LinkUnavailable' before any code-store write (so no orphaned code
-  -- row is left behind). Code-store modes that cannot hold meeting codes
-  -- (Cassandra-only) fail the request the same way instead of producing a
-  -- meeting without a link.
+  -- Create the join code BEFORE the conversation and meeting rows: a failed
+  -- create leaves no orphaned meeting or conversation behind (a failure in
+  -- the steps below can strand an unreferenced code row; acceptable — it is
+  -- never served, since no meeting row references it). The URI base is
+  -- checked first:
+  -- deployments without a configured join-link URI fail with
+  -- 'LinkUnavailable' before any side effect. Code-store modes that cannot
+  -- hold meeting codes (Cassandra-only) fail the request the same way
+  -- instead of producing a meeting without a link.
   base <- codeURIBase (tDomain zUser)
   when (isNothing base) $ throw LinkUnavailable
   mJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout mHashedPw
   unless (isJust mJoinCode) $ throw LinkUnavailable
+
+  -- Create and store the conversation via ConversationSubsystem
+  storedConv <- ConversationSubsystem.internalCreateGroupConversation zUser Nothing newConv
+
   -- Store meeting (trial status provided by caller)
   storedMeeting <-
     Store.createMeeting
@@ -341,6 +346,15 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
     let pastEditCutoff = addUTCTime (negate pastEditPeriod) now
     for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
     for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
+
+    -- Render the link capability (URI config + live code) before committing
+    -- any side effect: without this check a 'LinkUnavailable' at render time
+    -- would arrive after the row update and the notification.
+    base <- lift $ codeURIBase (tDomain zUser)
+    mCode <- lift $ CodeStore.getMeetingCode (qUnqualified meetingId)
+    when (isNothing base || isNothing mCode) $ lift $ throw LinkUnavailable
+    -- The render step below re-reads the code: deliberate, it catches a
+    -- concurrent rotation between this check and link rendering.
 
     updatedMeeting <-
       MaybeT $
@@ -782,23 +796,27 @@ storedMeetingsToMeetings ::
   Domain ->
   [Store.StoredMeeting] ->
   Sem r [API.Meeting]
-storedMeetingsToMeetings domain sms = do
-  codes <- CodeStore.getMeetingCodes (map (.id) sms)
-  mBase <- codeURIBase domain
-  case mBase of
-    Nothing -> throw LinkUnavailable
-    Just base ->
-      forM sms $ \sm ->
-        case Map.lookup sm.id codes of
-          Just (code, mPw) ->
-            pure
-              ( mkApiMeeting
-                  domain
-                  (API.mkMeetingLink base domain code.codeKey code.codeValue)
-                  (isJust mPw)
-                  sm
-              )
-          Nothing -> throw LinkUnavailable
+storedMeetingsToMeetings domain sms = case sms of
+  -- Listing zero meetings must succeed even when no join-link URI is
+  -- configured: there is nothing to render.
+  [] -> pure []
+  _ -> do
+    codes <- CodeStore.getMeetingCodes (map (.id) sms)
+    mBase <- codeURIBase domain
+    case mBase of
+      Nothing -> throw LinkUnavailable
+      Just base ->
+        forM sms $ \sm ->
+          case Map.lookup sm.id codes of
+            Just (code, mPw) ->
+              pure
+                ( mkApiMeeting
+                    domain
+                    (API.mkMeetingLink base domain code.codeKey code.codeValue)
+                    (isJust mPw)
+                    sm
+                )
+            Nothing -> throw LinkUnavailable
 
 -- | Like 'storedMeetingToMeeting', but additionally carries the full
 -- 'API.Conversation' associated with the meeting.

@@ -343,13 +343,40 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Map.empty
         def
         ( do
-            meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
-            pure (meeting, qUnqualified meeting.meeting.id)
+            -- Catch inside so the post-state (conversation store) remains
+            -- observable: proves the link precondition runs before any
+            -- committed side effect (no orphaned conversation).
+            r <- catch @MeetingError (Right <$> createMeeting zUser (ConnId "test-conn") newMeeting) (pure . Left)
+            convs <- get @(Map ConvId StoredConversation)
+            pure (r, convs)
         )
 
     case result of
       Left denied -> error $ "unexpected CheckDeleteLocalConversation denial: " <> show denied
-      Right inner -> inner `shouldBe` Left LinkUnavailable
+      Right (Right (r, convs)) -> do
+        convs `shouldSatisfy` Map.null
+        r `shouldBe` Left LinkUnavailable
+      Right (Left e) -> error $ "unexpected MeetingError: " <> show e
+
+  it "listMeetings returns [] for a user with no meetings even without a configured URI" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right Map.empty)
+        Map.empty
+        def
+        (listMeetings zUser)
+
+    case result of
+      Left denied -> error $ "unexpected CheckDeleteLocalConversation denial: " <> show denied
+      Right (Right inner) -> inner `shouldBe` []
+      Right (Left e) -> error $ "unexpected MeetingError: " <> show e
 
   it "removes the join code when the meeting is deleted" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -2638,7 +2665,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       -- the pass: the backfill never touches (rotates) existing codes.
       planted <- Code.generate (CodeReferentMeeting midWithCode) (Timeout 3600)
       plantedKey <- Code.mkKey (CodeReferentMeeting midWithCode)
-      (_logs, creates, codeMap) <-
+      (_, _logs, creates, codeMap) <-
         runBackfillStack False meetingsMap (Map.singleton plantedKey (planted, Nothing)) $
           void (backfillPage 100 firstCursor)
       map fst creates `shouldBe` [midNoCode]
@@ -2654,11 +2681,28 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Nothing -> fail "planted code vanished"
 
     it "logs and continues for an unsupported code store" $ do
-      (logs, creates, _) <-
+      (_, logs, creates, _) <-
         runBackfillStack True meetingsMap Map.empty $
           void (backfillPage 100 firstCursor)
       map fst creates `shouldBe` [midNoCode, midWithCode]
       logs `shouldSatisfy` any ("cannot backfill meeting join code" `BS.isInfixOf`)
+
+    it "backfilling twice yields BackfilledCode then BackfillCodePresent, code byte-identical" $ do
+      (results, _, _, codeMap) <-
+        runBackfillStack False meetingsMap Map.empty $ do
+          r1 <- CodeStore.backfillMeetingCode midNoCode meetingCodeTimeout
+          r2 <- CodeStore.backfillMeetingCode midNoCode meetingCodeTimeout
+          pure [r1, r2]
+      case results of
+        [CodeStore.BackfilledCode c1, CodeStore.BackfillCodePresent] -> do
+          key <- Code.mkKey (CodeReferentMeeting midNoCode)
+          case Map.lookup key codeMap of
+            Just (c, mPw) -> do
+              -- second call must not rotate the winner's code
+              c `shouldBe` c1
+              mPw `shouldSatisfy` isNothing
+            Nothing -> fail "code vanished"
+        _ -> fail $ "unexpected results: " <> show results
 
 -- | Spec-local 'Store.MeetingsStore' fake: keyset paging over the planted
 -- meetings.
@@ -2671,8 +2715,9 @@ interpretBackfillMeetingsStore = interpret $ \case
     pure $ take n [(mid, convId) | (mid, convId) <- Map.toAscList allMeetings, mid > cursor]
   _ -> error "unexpected MeetingsStore op in backfill test"
 
--- | Spec-local 'CodeStore' fake: records every 'CreateMeetingCode' call as
--- (meetingId, password), optionally reporting an unsupported store.
+-- | Spec-local 'CodeStore' fake: implements 'BackfillMeetingCode' with real
+-- insert-if-absent semantics on the in-memory map, optionally reporting an
+-- unsupported store.
 interpretBackfillCodeStore ::
   ( Member (State (Map Key (Code, Maybe Password))) r,
     Member (State [(MeetingId, Maybe Password)]) r,
@@ -2681,16 +2726,20 @@ interpretBackfillCodeStore ::
   ) =>
   InterpreterFor CodeStore r
 interpretBackfillCodeStore = interpret $ \case
-  CodeStore.CreateMeetingCode mid t mPw -> do
-    modify ((mid, mPw) :)
+  CodeStore.BackfillMeetingCode mid t -> do
+    modify ((mid, Nothing) :)
     unsupported <- input @Bool
     if unsupported
-      then pure Nothing
+      then pure CodeStore.BackfillCodeStoreUnsupported
       else do
-        code <- embed (Code.generate (CodeReferentMeeting mid) t)
         k <- embed (Code.mkKey (CodeReferentMeeting mid))
-        modify (Map.insert k (code, mPw))
-        pure (Just code)
+        existing <- gets (Map.lookup k)
+        case existing of
+          Just _ -> pure CodeStore.BackfillCodePresent
+          Nothing -> do
+            code <- embed (Code.generate (CodeReferentMeeting mid) t)
+            modify (Map.insert k (code, Nothing))
+            pure (CodeStore.BackfilledCode code)
   CodeStore.GetMeetingCodes mids -> do
     ks <- embed (traverse (\mid -> (mid,) <$> Code.mkKey (CodeReferentMeeting mid)) mids)
     gets $ \m ->
@@ -2730,9 +2779,9 @@ runBackfillStack ::
        Embed IO
      ]
     a ->
-  IO ([ByteString], [(MeetingId, Maybe Password)], Map Key (Code, Maybe Password))
+  IO (a, [ByteString], [(MeetingId, Maybe Password)], Map Key (Code, Maybe Password))
 runBackfillStack unsupported meetings codes action = do
-  (logs, (creates, (codeMap, (_finalMeetings, _)))) <-
+  (logs, (creates, (codeMap, (_finalMeetings, result)))) <-
     runM
       . runState @[ByteString] []
       . runState @[(MeetingId, Maybe Password)] []
@@ -2743,7 +2792,7 @@ runBackfillStack unsupported meetings codes action = do
       . interpretBackfillCodeStore
       . interpretBackfillMeetingsStore
       $ action
-  pure (reverse logs, reverse creates, codeMap)
+  pure (result, reverse logs, reverse creates, codeMap)
 
 specStoredMeetingUnmarshall :: Spec
 specStoredMeetingUnmarshall =
