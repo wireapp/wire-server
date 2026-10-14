@@ -2,6 +2,7 @@ module FanInPerf.TerminalSpec (spec) where
 
 import Data.Text qualified as T
 import FanInPerf.ConsumeStats
+import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Stats
 import FanInPerf.Targets (TargetKind (..))
 import FanInPerf.Terminal
@@ -60,7 +61,7 @@ pushSnapshot n = do
 
 -- 30s of writing (the report's 42.2s include the drain), 600 delivered by then
 phase :: WriterPhase
-phase = WriterPhase {duration = 30, delivered = 600}
+phase = WriterPhase {duration = 30, delivered = 600, acks = 300}
 
 spec :: Spec
 spec = do
@@ -99,32 +100,53 @@ spec = do
 
   describe "formatConsumeStatus" $
     it "renders the consume status line" $
-      formatConsumeStatus report creport
+      formatConsumeStatus NoAcks report creport
         `shouldBe` "t=42s push/s cur=8,312 max=9,105 | cons/s cur=8,000 max=9,000 | lag(cum.) p50=4.0ms p99=50.0ms | backlog=1,234 | err/s push=3 fetch=1"
 
   describe "formatConsumeSummary" $ do
     it "reports missing notifications and a timed-out drain" $ do
       s <- deliveredSnapshot
-      let out = formatConsumeSummary 5 phase (DrainTimedOut 10) report creport {readerTotal = s}
+      let out = formatConsumeSummary NoAcks 5 phase (DrainTimedOut 10) report creport {readerTotal = s}
       out `shouldSatisfy` any (T.isInfixOf "delivered=3 expected=5 missing=2 duplicates=0")
       out `shouldSatisfy` any (T.isInfixOf "drain: timed out after 10.0s")
     it "reports duplicates and a complete drain" $ do
       s <- deliveredSnapshot
-      let out = formatConsumeSummary 2 phase (DrainComplete 1.23) report creport {readerTotal = s}
+      let out = formatConsumeSummary NoAcks 2 phase (DrainComplete 1.23) report creport {readerTotal = s}
       out `shouldSatisfy` any (T.isInfixOf "missing=0 duplicates=1")
       out `shouldSatisfy` any (T.isInfixOf "drain: complete after 1.2s")
     it "reports an interrupted drain" $
-      formatConsumeSummary 0 phase DrainInterrupted report creport
+      formatConsumeSummary NoAcks 0 phase DrainInterrupted report creport
         `shouldSatisfy` any (T.isInfixOf "drain: interrupted")
     it "takes duration and averages from the writer phase, not the drain" $ do
       s <- pushSnapshot 300
-      let out = formatConsumeSummary 0 phase (DrainTimedOut 10) report {total = s} creport
+      let out = formatConsumeSummary NoAcks 0 phase (DrainTimedOut 10) report {total = s} creport
       out `shouldSatisfy` any (T.isInfixOf "duration=30.0s")
       out `shouldSatisfy` any (T.isInfixOf "push/s avg=10 ")
       out `shouldSatisfy` any (T.isInfixOf "cons/s avg=20 ")
     it "survives an empty run" $
-      formatConsumeSummary 0 WriterPhase {duration = 0, delivered = 0} (DrainComplete 0) report {elapsed = 0} creport {lagP50 = Nothing, lagP99 = Nothing}
+      formatConsumeSummary NoAcks 0 WriterPhase {duration = 0, delivered = 0, acks = 0} (DrainComplete 0) report {elapsed = 0} creport {lagP50 = Nothing, lagP99 = Nothing}
         `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
+
+  describe "formatConsumeStatus with acks" $
+    it "adds the ack segment and ack errors" $
+      formatConsumeStatus (Acks 100) report creport {ackRate = 500.4, maxAckRate = 600, ackP99 = Just 0.002, ackErrorRate = 2}
+        `shouldBe` "t=42s push/s cur=8,312 max=9,105 | cons/s cur=8,000 max=9,000 | ack/s cur=500 max=600 p99(cum.)=2.0ms | lag(cum.) p50=4.0ms p99=50.0ms | backlog=1,234 | err/s push=3 fetch=1 ack=2"
+
+  describe "formatConsumeSummary with acks" $ do
+    it "reports acks, ack errors, ack/s over the writer phase and ack latency" $ do
+      rs <- newReaderStats
+      replicateM_ 4 (recordAck rs KindUser 1000)
+      recordAckError rs KindUser
+      s <- readReaderSnapshot rs
+      let out = formatConsumeSummary (Acks 100) 0 phase (DrainComplete 1) report creport {readerTotal = s, maxAckRate = 50, ackP50 = Just 0.001, ackP99 = Just 0.002}
+      out `shouldSatisfy` any (T.isInfixOf "acks=4 errors=1 ack/s avg=10 max=50")
+      out `shouldSatisfy` any (T.isInfixOf "ack latency (cumulative) p50=1.0ms p99=2.0ms")
+    it "prints no ack line without acks" $
+      formatConsumeSummary NoAcks 0 phase (DrainComplete 1) report creport
+        `shouldSatisfy` (not . any (T.isInfixOf "acks="))
+    it "survives a run without a single ack" $
+      formatConsumeSummary (Acks 10000) 0 WriterPhase {duration = 0, delivered = 0, acks = 0} (DrainComplete 0) report {elapsed = 0} creport
+        `shouldSatisfy` (\ls -> any (T.isInfixOf "acks=0") ls && not (any (T.isInfixOf "NaN") ls))
 
   describe "formatCoverage" $
     it "warns below 100%" $

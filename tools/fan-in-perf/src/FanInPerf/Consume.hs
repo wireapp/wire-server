@@ -24,7 +24,7 @@ import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
 import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
-import FanInPerf.Options (ConsumeOptions (..), ProduceOptions (..), experimentLabel)
+import FanInPerf.Options (ConsumeOptions (..), ProduceOptions (..), ReaderMode (..), experimentLabel)
 import FanInPerf.Population
 import FanInPerf.Produce
 import FanInPerf.Stats
@@ -237,6 +237,7 @@ drain timeout readTotals = do
 -- | Runs on the ticker thread only (plus once after it stopped): aggregates,
 -- prints, publishes.
 consumeTickOnce ::
+  ReaderMode ->
   Console ->
   Metrics ->
   ConsumeMetrics ->
@@ -247,7 +248,7 @@ consumeTickOnce ::
   IORef TickState ->
   IORef ConsumeTickState ->
   IO (TickReport, ConsumeReport)
-consumeTickOnce console metrics consumeMetrics warmup writerStats readerStats errors writerRef readerRef = do
+consumeTickOnce mode console metrics consumeMetrics warmup writerStats readerStats errors writerRef readerRef = do
   now <- getMonotonicTime
   (writerReport, writerTotal) <- tickWriters warmup now writerStats writerRef
   readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
@@ -257,7 +258,7 @@ consumeTickOnce console metrics consumeMetrics warmup writerStats readerStats er
   printQueuedErrors console errors
   publish metrics writerReport
   publishConsume consumeMetrics readerReport
-  drawStatus console (formatConsumeStatus writerReport readerReport)
+  drawStatus console (formatConsumeStatus mode writerReport readerReport)
   pure (writerReport, readerReport)
 
 -- | Waits for the end of the run, stops the writers and drains. The first
@@ -324,12 +325,12 @@ runConsume console writerEnv readerEnv opts = do
   start <- getMonotonicTime
   writerRef <- newIORef (initialTickState start)
   readerRef <- newIORef (initialConsumeTickState start)
-  let doTick = consumeTickOnce console metrics consumeMetrics (fromIntegral p.warmup) writerStats readerStats errors writerRef readerRef
+  let doTick = consumeTickOnce opts.mode console metrics consumeMetrics (fromIntegral p.warmup) writerStats readerStats errors writerRef readerRef
       -- the writer phase ends when the writers stopped (or at Ctrl-C)
       writerPhaseEnd = do
         now <- getMonotonicTime
-        (_, delivered) <- readTotals
-        pure WriterPhase {duration = now - start, delivered}
+        readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
+        pure WriterPhase {duration = now - start, delivered = totalDelivered readerTotal, acks = totalAcks readerTotal}
   printLine console $ label <> ": running"
   (writerPhase, drainResult) <-
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
@@ -342,4 +343,4 @@ runConsume console writerEnv readerEnv opts = do
           stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout readTotals)
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
-  traverse_ (printLine console) (formatConsumeSummary (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)
+  traverse_ (printLine console) (formatConsumeSummary opts.mode (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)

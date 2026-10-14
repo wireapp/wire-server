@@ -20,6 +20,7 @@ where
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import FanInPerf.ConsumeStats
+import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Stats
 import FanInPerf.Targets (TargetKind, kindName)
 import Imports
@@ -65,20 +66,23 @@ formatSummary r =
         "  latency (cumulative, incl. warmup) p50=" <> formatLatency r.p50 <> " p99=" <> formatLatency r.p99
       ]
 
-formatConsumeStatus :: TickReport -> ConsumeReport -> Text
-formatConsumeStatus r c =
-  T.intercalate
-    " | "
+formatConsumeStatus :: ReaderMode -> TickReport -> ConsumeReport -> Text
+formatConsumeStatus mode r c =
+  T.intercalate " | " $
     [ "t=" <> T.pack (show (round r.elapsed :: Int)) <> "s push/s cur=" <> rateText r.pushRate <> " max=" <> rateText r.maxPushRate,
-      "cons/s cur=" <> rateText c.consumeRate <> " max=" <> rateText c.maxConsumeRate,
-      "lag(cum.) p50=" <> formatLatency c.lagP50 <> " p99=" <> formatLatency c.lagP99,
-      "backlog=" <> groupThousands c.backlog,
-      "err/s push=" <> rateText r.errorRate <> " fetch=" <> rateText c.fetchErrorRate
+      "cons/s cur=" <> rateText c.consumeRate <> " max=" <> rateText c.maxConsumeRate
     ]
+      <> ["ack/s cur=" <> rateText c.ackRate <> " max=" <> rateText c.maxAckRate <> " p99(cum.)=" <> formatLatency c.ackP99 | acking]
+      <> [ "lag(cum.) p50=" <> formatLatency c.lagP50 <> " p99=" <> formatLatency c.lagP99,
+           "backlog=" <> groupThousands c.backlog,
+           "err/s push=" <> rateText r.errorRate <> " fetch=" <> rateText c.fetchErrorRate <> (if acking then " ack=" <> rateText c.ackErrorRate else "")
+         ]
+  where
+    acking = mode /= NoAcks
 
 -- | Seconds from start until the writers stopped, and the notifications
--- delivered by then.
-data WriterPhase = WriterPhase {duration :: Double, delivered :: Int}
+-- delivered by then, and the ack upserts by then.
+data WriterPhase = WriterPhase {duration :: Double, delivered :: Int, acks :: Int}
 
 -- | How the drain after the writer phase ended, with its duration in seconds.
 data Drain = DrainComplete Double | DrainTimedOut Double | DrainInterrupted
@@ -86,12 +90,17 @@ data Drain = DrainComplete Double | DrainTimedOut Double | DrainInterrupted
 -- | @formatConsumeSummary expectedDeliveries writerPhase drain pushReport
 -- consumeReport@. Duration and averages cover the writer phase only (not the
 -- drain); totals, maxima and percentiles cover the whole run.
-formatConsumeSummary :: Int -> WriterPhase -> Drain -> TickReport -> ConsumeReport -> [Text]
-formatConsumeSummary expected phase drain r c =
+formatConsumeSummary :: ReaderMode -> Int -> WriterPhase -> Drain -> TickReport -> ConsumeReport -> [Text]
+formatConsumeSummary mode expected phase drain r c =
   let delivered = totalDelivered c.readerTotal
       fetches = totalFetches c.readerTotal
       emptyRatio = if fetches > 0 then fromIntegral (totalEmptyFetches c.readerTotal) / fromIntegral fetches else 0
       avgRate = if phase.duration > 0 then fromIntegral phase.delivered / phase.duration else 0
+      avgAckRate = if phase.duration > 0 then fromIntegral phase.acks / phase.duration else 0
+      ackLines =
+        [ "  acks=" <> groupThousands (totalAcks c.readerTotal) <> " errors=" <> groupThousands (totalAckErrors c.readerTotal) <> " ack/s avg=" <> rateText avgAckRate <> " max=" <> rateText c.maxAckRate,
+          "  ack latency (cumulative) p50=" <> formatLatency c.ackP50 <> " p99=" <> formatLatency c.ackP99
+        ]
       seconds :: Double -> Text
       seconds = T.pack . printf "%.1fs"
       drainText = case drain of
@@ -109,9 +118,10 @@ formatConsumeSummary expected phase drain r c =
                <> groupThousands (max 0 (delivered - expected)),
              "  cons/s avg=" <> rateText avgRate <> " max=" <> rateText c.maxConsumeRate,
              "  lag (cumulative) p50=" <> formatLatency c.lagP50 <> " p99=" <> formatLatency c.lagP99,
-             "  fetch (cumulative) p50=" <> formatLatency c.fetchP50 <> " p99=" <> formatLatency c.fetchP99 <> " empty=" <> percent emptyRatio,
-             "  drain: " <> drainText
+             "  fetch (cumulative) p50=" <> formatLatency c.fetchP50 <> " p99=" <> formatLatency c.fetchP99 <> " empty=" <> percent emptyRatio
            ]
+        <> (if mode /= NoAcks then ackLines else [])
+        <> ["  drain: " <> drainText]
 
 formatCoverage :: [(TargetKind, Double)] -> [Text]
 formatCoverage = map line
