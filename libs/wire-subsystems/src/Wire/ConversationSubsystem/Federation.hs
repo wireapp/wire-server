@@ -71,6 +71,8 @@ import Wire.API.MLS.TargetedMessage
   ( PersistentTargetedMessage (persistentTargetedMessageData),
     TargetedMessage (groupId),
     TargetedMessageBatch (..),
+    TransientTargetedMessage (..),
+    TransientTargetedMessageBatch (..),
   )
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
@@ -818,7 +820,8 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
       msg
 
 sendMLSTargetedMessage ::
-  ( Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+  ( Members MLSMessageStaticErrors r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member E.ConversationStore r,
@@ -836,18 +839,36 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain req.sender
-  batch <- either (throw . mlsProtocolError) pure $ decodeMLS' @TargetedMessageBatch (fromBase64ByteString req.rawMessage)
-  firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
-  (ctype, qConvOrSub) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
-  when (qUnqualified qConvOrSub /= req.convOrSubId) $ throwS @'MLSGroupConversationMismatch
-  foldQualified
-    loc
-    ( \convOrSubId -> do
-        validateAndPropagateTargetedMessages (tUntagged sender) req.senderClient ctype convOrSubId batch.messages
-        pure (MLSMessageResponseUpdates [])
-    )
-    (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
-    qConvOrSub
+  let rawMessage = fromBase64ByteString req.rawMessage
+  case ( decodeMLS' @TransientTargetedMessageBatch rawMessage,
+         decodeMLS' @TargetedMessageBatch rawMessage
+       ) of
+    (Right batch, _) -> do
+      firstMessage <- note (mlsProtocolError "transient targeted message batch is empty") (listToMaybe batch.transientMessages)
+      let groupId = (transientTargetedMessageData firstMessage.value).groupId
+      (ctype, qConvOrSub) <- getConvFromGroupId groupId
+      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+      foldQualified
+        loc
+        ( \convOrSubId -> do
+            validateAndPropagateTransientTargetedMessages (tUntagged sender) req.senderClient ctype groupId batch.transientMessages convOrSubId
+            pure (MLSMessageResponseUpdates [])
+        )
+        (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
+        qConvOrSub
+    (_, Right batch) -> do
+      firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
+      (ctype, qConvOrSub) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
+      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+      foldQualified
+        loc
+        ( \convOrSubId -> do
+            validateAndPropagateTargetedMessages (tUntagged sender) req.senderClient ctype convOrSubId batch.messages
+            pure (MLSMessageResponseUpdates [])
+        )
+        (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
+        qConvOrSub
+    (Left _, Left decodeError) -> throw (mlsProtocolError decodeError)
 
 getSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
@@ -1084,20 +1105,24 @@ onMLSTargetedMessageSent domain targeted = do
           Log.~~ Log.msg
             ("Federated targeted MLS message recipient is not a conversation member" :: ByteString)
     when (senderIsMember && targeted.recipient `elem` members) $ do
-      let event =
+      let messageBytes = fromBase64ByteString targeted.message
+          (eventData, metadata) = case decodeMLS' @TransientTargetedMessage messageBytes of
+            Right _ -> (EdMLSTransientTargetedMessage messageBytes, defMessageMetadata {mmTransient = True})
+            Left _ -> (EdMLSTargetedMessage messageBytes, defMessageMetadata)
+          event =
             Event
               (tUntagged rconv)
               targeted.subConversation
               (EventFromUser targeted.sender)
               targeted.time
               Nothing
-              (EdMLSTargetedMessage (fromBase64ByteString targeted.message))
+              eventData
           recipient =
             Recipient
               targeted.recipient
               (RecipientClientsSome (targeted.recipientClient :| []))
       runMessagePush loc (Just (tUntagged rconv)) $
-        newMessagePush mempty Nothing defMessageMetadata [recipient] event
+        newMessagePush mempty Nothing metadata [recipient] event
 
 logError :: (Member P.TinyLog r) => Domain -> ConvId -> Either (Tagged 'MLSNotEnabled ()) () -> Sem r ()
 logError domain conv (Left _) =

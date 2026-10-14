@@ -24,6 +24,7 @@ module Wire.ConversationSubsystem.MLS.Message
     postMLSTransientTargetedMessageFromLocalUser,
     postMLSMessage,
     validateAndPropagateTargetedMessages,
+    validateAndPropagateTransientTargetedMessages,
   )
 where
 
@@ -212,6 +213,9 @@ postMLSTransientTargetedMessageFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error FederationError) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member BackendNotificationQueueAccess r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member ConversationStore r,
     Member ExternalAccess r,
@@ -231,7 +235,7 @@ postMLSTransientTargetedMessageFromLocalUser lusr client batch = do
   foldQualified
     lusr
     (validateAndPropagateTransientTargetedMessages (tUntagged lusr) client ctype message.groupId batch.transientMessages)
-    (const $ throw (mlsProtocolError "transient targeted messages to remote conversations are not supported"))
+    (postMLSTargetedMessagesToRemoteConv lusr client ctype batch)
     qualifiedConvOrSubId
   t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus [] t
@@ -240,6 +244,8 @@ validateAndPropagateTransientTargetedMessages ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
@@ -268,8 +274,6 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
   validated <- for messages $ \raw -> do
     let message = transientTargetedMessageData raw.value
     recipientClient <- validateTargetedMessage sender client convOrSub message
-    unless (recipientClient.ciDomain == tDomain lconvOrSub) $
-      throwS @'ConvMemberNotFound
     pure (raw, recipientClient)
   let qualifiedConv =
         tUntagged lconvOrSub <&> \case
@@ -289,8 +293,23 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
               evtData = EdMLSTransientTargetedMessage raw.raw
             }
         metadata = defMessageMetadata {mmTransient = True}
-    runMessagePush lconvOrSub (Just qcnv) $
-      newMessagePush mempty Nothing metadata [(recipientClient.ciUser, recipientClient.ciClient)] event
+    if recipientClient.ciDomain == tDomain lconvOrSub
+      then
+        runMessagePush lconvOrSub (Just qcnv) $
+          newMessagePush mempty Nothing metadata [(recipientClient.ciUser, recipientClient.ciClient)] event
+      else
+        enqueueNotification Q.Persistent (toRemoteUnsafe recipientClient.ciDomain ()) $
+          sendBundle
+            =<< makeMLSTargetedMessageBundle
+              RemoteMLSTargetedMessage
+                { time = now,
+                  sender = sender,
+                  conversation = qUnqualified qcnv,
+                  subConversation = subConvId,
+                  recipient = recipientClient.ciUser,
+                  recipientClient = recipientClient.ciClient,
+                  message = Base64ByteString raw.raw
+                }
 
 validateTargetedMessage ::
   ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
@@ -328,7 +347,8 @@ validateTargetedMessage sender client convOrSub message = do
   pure recipientClient
 
 postMLSTargetedMessagesToRemoteConv ::
-  ( Members MLSMessageStaticErrors r,
+  ( SerialiseMLS batch,
+    Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -337,7 +357,7 @@ postMLSTargetedMessagesToRemoteConv ::
   Local UserId ->
   ClientId ->
   ConvType ->
-  TargetedMessageBatch ->
+  batch ->
   Remote ConvOrSubConvId ->
   Sem r ()
 postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
