@@ -10,6 +10,7 @@ import Data.Text qualified as T
 import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
 import Data.Vector.Unboxed qualified as VU
+import FanInPerf.Acks
 import FanInPerf.Consume
 import FanInPerf.ConsumeStats
 import FanInPerf.Options (ReaderMode (..))
@@ -306,3 +307,56 @@ spec = do
       -- displayException of a SomeException may append a backtrace: match the message only
       msg <- isolated @Text id pure (throwIO (ErrorCall "boom"))
       msg `shouldSatisfy` T.isInfixOf "boom"
+
+  describe "ackOne" $
+    it "acks as the reader's (user, client) up to the pending id and records the latency" $ do
+      [(i, _)] <- newIds 1
+      (rows, failing) <- setup []
+      calls <- newIORef []
+      stats <- newReaderStats
+      runFakeWith calls rows failing (ackOne stats reader0 (Pending team i 3))
+      readIORef calls `shouldReturn` [AckCall uid0 (ClientId 7) team i]
+      s <- readReaderSnapshot stats
+      (acksOf KindTeam s, VU.sum (ackLatencyBuckets s)) `shouldBe` (1, 1)
+
+  describe "ackPending" $ do
+    it "returns nothing when every ack succeeds" $ do
+      stats <- newReaderStats
+      [(i, _)] <- newIds 1
+      ackPending @Text id stats (\_ -> pure ()) (\_ -> pure (Right ())) [Pending team i 1] `shouldReturn` []
+
+    it "returns, counts and reports failed acks (error result or exception), and keeps going" $ do
+      stats <- newReaderStats
+      reported <- newIORef []
+      [(i, _), (j, _)] <- newIds 2
+      let failing p
+            | p.stream == team = pure (Left "down")
+            | otherwise = throwIO (ErrorCall "boom")
+      failed <- ackPending @Text id stats (\m -> modifyIORef reported (m :)) failing [Pending team i 1, Pending user j 2]
+      failed `shouldBe` [Pending team i 1, Pending user j 2]
+      s <- readReaderSnapshot stats
+      (ackErrorsOf KindTeam s, ackErrorsOf KindUser s, totalAcks s) `shouldBe` (1, 1, 0)
+      -- displayException of a SomeException may append a backtrace: match the prefix only
+      msgs <- reverse <$> readIORef reported
+      length msgs `shouldBe` 2
+      zipWith T.isPrefixOf ["ack: team: down", "ack: user: boom"] msgs `shouldBe` [True, True]
+
+  describe "acknowledge" $ do
+    it "writes acks every N deliveries over all streams" $ do
+      written <- newIORef []
+      ids <- map fst <$> newIds 5
+      let write ps = modifyIORef written (ps :) >> pure []
+          delivered = zip [team, user, team, user, team] ids
+      st <- acknowledge 2 write emptyAckState delivered
+      batches <- reverse <$> readIORef written
+      -- a batch lists streams in 'Key' order: user before team
+      map (map (\p -> (p.stream, p.count))) batches `shouldBe` [[(user, 1), (team, 1)], [(user, 1), (team, 1)]]
+      unacked st `shouldBe` 1
+
+    it "keeps failed acks pending, so they are retried at the next ack point" $ do
+      ids <- map fst <$> newIds 3
+      st <- acknowledge 1 pure emptyAckState [(team, ids !! 0)] -- write fails: everything comes back
+      unacked st `shouldBe` 1
+      written <- newIORef []
+      _ <- acknowledge 1 (\ps -> modifyIORef written (ps :) >> pure []) st [(team, ids !! 1)]
+      readIORef written `shouldReturn` [[Pending team (ids !! 1) 2]]

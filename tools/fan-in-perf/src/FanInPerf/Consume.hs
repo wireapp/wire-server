@@ -10,6 +10,9 @@ module FanInPerf.Consume
     readerPass,
     readerRound,
     isolated,
+    ackOne,
+    ackPending,
+    acknowledge,
     lagNs,
     runConsume,
   )
@@ -24,6 +27,7 @@ import Data.Text qualified as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
+import FanInPerf.Acks
 import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
 import FanInPerf.Options (ConsumeOptions (..), ProduceOptions (..), ReaderMode (..), experimentLabel)
@@ -194,6 +198,38 @@ readerRound render stats fetchOne subs =
       recordFetchError stats sub.kind
       pure (PassResult [sub] False [] ["reader: " <> kindName sub.kind <> ": " <> msg])
 
+-- | Writes one ack as the reader's (user, client) and records its latency
+-- (pool wait included, like fetches). A failed write records nothing here
+-- ('ackPending' counts it).
+ackOne :: (Members '[FanInNotificationsStore, Embed IO] r) => ReaderStats -> Pop.Reader -> Pending -> Sem r ()
+ackOne stats r p = do
+  t0 <- embed getMonotonicTimeNSec
+  ackNotification r.user.uid r.cid p.stream p.maxId
+  t1 <- embed getMonotonicTimeNSec
+  embed (recordAck stats (streamKind p.stream) (t1 - t0))
+
+-- | Writes due acks one by one through @writeOne@; returns the failed ones
+-- (counted and reported) so they stay pending.
+ackPending :: (e -> Text) -> ReaderStats -> (Text -> IO ()) -> (Pending -> IO (Either e ())) -> [Pending] -> IO [Pending]
+ackPending render stats reportError writeOne due =
+  catMaybes <$> for due (\p -> isolated render (failed p) (fmap (Nothing <$) (writeOne p)))
+  where
+    failed p msg = do
+      let k = streamKind p.stream
+      recordAckError stats k
+      reportError ("ack: " <> kindName k <> ": " <> msg)
+      pure (Just p)
+
+-- | Feeds delivered notifications into the ack state; writes acks when due
+-- (via @writeAcks@, which returns the failed ones) and keeps failed ones
+-- pending.
+acknowledge :: Int -> ([Pending] -> IO [Pending]) -> AckState -> [(Stream, UUID)] -> IO AckState
+acknowledge n writeAcks = foldM step
+  where
+    step st (s, i) = case deliver n s i st of
+      ([], st') -> pure st'
+      (due, st') -> (`restore` st') <$> writeAcks due
+
 -- | Lets at most as many readers as the pool has connections wait for it.
 -- Thousands of readers blocked in the pool's STM retry are all woken on every
 -- connection release; that thundering herd saturated the CPU and delayed the
@@ -202,28 +238,38 @@ throughGate :: QSem -> IO a -> IO a
 throughGate gate = bracket_ (waitQSem gate) (signalQSem gate)
 
 -- | One reader client: fetch all streams, re-fetch only those whose page was
--- full (more is waiting) until none is, then sleep. Failures are reported and
--- slow the loop down, never stop it.
-readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Subscription] -> IO ()
-readerLoop gate env opts stats reportError = go
+-- full (more is waiting) until none is, then sleep. In 'Acks' mode every
+-- delivered notification goes through 'acknowledge'; due acks are written
+-- before the next fetch. Failures are reported and slow the loop down, never
+-- stop it.
+readerLoop :: QSem -> Env -> ConsumeOptions -> Pop.Reader -> ReaderStats -> (Text -> IO ()) -> [Subscription] -> IO ()
+readerLoop gate env opts client stats reportError = go emptyAckState
   where
     render :: UsageError -> Text
     render = tshow
-    fetchOne sub =
-      throughGate gate $
-        runStore env (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
-    pollOne sub = do
-      r <- readerRound render stats fetchOne [sub]
-      traverse_ reportError r.errors
-      pure (map (,r.more) r.subs)
-    -- @(subscription, poll again)@ pairs
-    catchUp pending = do
-      polled <- concat <$> for pending (\(sub, again) -> if again then pollOne sub else pure [(sub, False)])
-      if any snd polled then catchUp polled else pure (map fst polled)
-    go subs = do
-      subs' <- catchUp (map (,True) subs)
+    gated :: Sem StoreEffects a -> IO (Either UsageError a)
+    gated = throughGate gate . runStore env
+    fetchOne sub = gated (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
+    writeAcks = ackPending render stats reportError (gated . ackOne stats client)
+    received acks delivered = case opts.mode of
+      NoAcks -> pure acks
+      Acks n -> acknowledge n writeAcks acks delivered
+    -- @(subscription, poll again)@ pairs, collected in reverse
+    pollOne (done, acks) (sub, again)
+      | not again = pure ((sub, False) : done, acks)
+      | otherwise = do
+          r <- readerRound render stats fetchOne [sub]
+          traverse_ reportError r.errors
+          acks' <- received acks r.delivered
+          pure (reverse (map (,r.more) r.subs) <> done, acks')
+    catchUp acks pending = do
+      (polledRev, acks') <- foldM pollOne ([], acks) pending
+      let polled = reverse polledRev
+      if any snd polled then catchUp acks' polled else pure (map fst polled, acks')
+    go acks subs = do
+      (subs', acks') <- catchUp acks (map (,True) subs)
       threadDelay (opts.pollIntervalMs * 1000)
-      go subs'
+      go acks' subs'
 
 -- | Start positions are read before any writer runs: a push committed in
 -- between could otherwise sit below a cursor and show up as a false `missing`.
@@ -268,6 +314,7 @@ consumeTickOnce ::
   Console ->
   Metrics ->
   ConsumeMetrics ->
+  Maybe AckMetrics ->
   Double ->
   [WriterStats] ->
   [ReaderStats] ->
@@ -275,7 +322,7 @@ consumeTickOnce ::
   IORef TickState ->
   IORef ConsumeTickState ->
   IO (TickReport, ConsumeReport)
-consumeTickOnce mode console metrics consumeMetrics warmup writerStats readerStats errors writerRef readerRef = do
+consumeTickOnce mode console metrics consumeMetrics ackMetrics warmup writerStats readerStats errors writerRef readerRef = do
   now <- getMonotonicTime
   (writerReport, writerTotal) <- tickWriters warmup now writerStats writerRef
   readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
@@ -285,6 +332,7 @@ consumeTickOnce mode console metrics consumeMetrics warmup writerStats readerSta
   printQueuedErrors console errors
   publish metrics writerReport
   publishConsume consumeMetrics readerReport
+  traverse_ (`publishAcks` readerReport) ackMetrics
   drawStatus console (formatConsumeStatus mode writerReport readerReport)
   pure (writerReport, readerReport)
 
@@ -334,6 +382,9 @@ runConsume console writerEnv readerEnv opts = do
 
   metrics <- newMetrics label p.writers
   consumeMetrics <- newConsumeMetrics label opts.clients
+  ackMetrics <- case opts.mode of
+    Acks _ -> Just <$> newAckMetrics label
+    NoAcks -> pure Nothing
   writerStats <- replicateM p.writers newWriterStats
   readerStats <- replicateM opts.clients newReaderStats
   (errors, reportError) <- newErrorReporter
@@ -347,12 +398,12 @@ runConsume console writerEnv readerEnv opts = do
           PushFailed _ -> pure ()
         pure outcome
       writer (ws, g) = writerLoop (readIORef stopWriters) (doPush ws) setup.payload setup.entries ws reportError g
-      readerClient (stats, subs) = readerLoop gate readerEnv opts stats reportError subs
+      readerClient (stats, (client, subs)) = readerLoop gate readerEnv opts client stats reportError subs
       readTotals = totals writerStats readerStats
   start <- getMonotonicTime
   writerRef <- newIORef (initialTickState start)
   readerRef <- newIORef (initialConsumeTickState start)
-  let doTick = consumeTickOnce opts.mode console metrics consumeMetrics (fromIntegral p.warmup) writerStats readerStats errors writerRef readerRef
+  let doTick = consumeTickOnce opts.mode console metrics consumeMetrics ackMetrics (fromIntegral p.warmup) writerStats readerStats errors writerRef readerRef
       -- the writer phase ends when the writers stopped (or at Ctrl-C)
       writerPhaseEnd = do
         now <- getMonotonicTime
@@ -362,7 +413,7 @@ runConsume console writerEnv readerEnv opts = do
   (writerPhase, drainResult) <-
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
-      withAsync (mapConcurrently_ readerClient (zip readerStats clientSubs)) $ \readersA -> do
+      withAsync (mapConcurrently_ readerClient (zip readerStats (zip (readers population) clientSubs))) $ \readersA -> do
         link readersA
         withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
           link writersA
