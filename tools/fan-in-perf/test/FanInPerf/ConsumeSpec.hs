@@ -52,14 +52,14 @@ user = StreamUser (Id (UUID.fromWords 5 6 7 8))
 setup :: [(UUID, A.Value)] -> IO (Rows, IORef Bool)
 setup rs = (,) <$> newIORef [(team, rs)] <*> newIORef False
 
-sub0 :: Sub
-sub0 = newSub KindTeam team UUID.nil
+sub0 :: Subscription
+sub0 = newSubscription KindTeam team UUID.nil
 
-pass :: Rows -> IORef Bool -> Int -> ReaderStats -> [Sub] -> IO ([Sub], Bool, [Text])
+pass :: Rows -> IORef Bool -> Int -> ReaderStats -> [Subscription] -> IO ([Subscription], Bool, [Text])
 pass rows failing limit = passW rows failing limit 0
 
 -- | 'pass' with a safety window in ms.
-passW :: Rows -> IORef Bool -> Int -> Word64 -> ReaderStats -> [Sub] -> IO ([Sub], Bool, [Text])
+passW :: Rows -> IORef Bool -> Int -> Word64 -> ReaderStats -> [Subscription] -> IO ([Subscription], Bool, [Text])
 passW rows failing limit window stats subs = runFake rows failing (readerPass @Text id limit window stats subs)
 
 -- | Synthetic UUIDv7: ms timestamp, version 7, variant bits and a sequence
@@ -69,7 +69,7 @@ v7 ms n = UUID.fromWords (fromIntegral (ms `shiftR` 16)) (fromIntegral ((ms .&. 
 
 -- | Passes until no stream returns a full page (at most @n@); returns the subs
 -- and the number of passes.
-untilIdle :: Int -> IO ([Sub], Bool, [Text]) -> ([Sub] -> IO ([Sub], Bool, [Text])) -> IO ([Sub], Int)
+untilIdle :: Int -> IO ([Subscription], Bool, [Text]) -> ([Subscription] -> IO ([Subscription], Bool, [Text])) -> IO ([Subscription], Int)
 untilIdle n first next = first >>= go 1
   where
     go i (subs, more, _)
@@ -235,7 +235,7 @@ spec = do
       rs <- newIds 3
       (rows, failing) <- setup rs
       stats <- newReaderStats
-      let userSub = newSub KindUser user UUID.nil
+      let userSub = newSubscription KindUser user UUID.nil
           fetchOne sub
             | sub.stream == team = Right <$> pass rows failing 10 stats [sub]
             | otherwise = throwIO (ErrorCall "boom")

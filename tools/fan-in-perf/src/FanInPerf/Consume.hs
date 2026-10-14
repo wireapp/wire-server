@@ -2,8 +2,8 @@
 -- clients that fetch the streams they subscribed to and keep their cursors in
 -- memory (no acknowledgements).
 module FanInPerf.Consume
-  ( Sub (..),
-    newSub,
+  ( Subscription (..),
+    newSubscription,
     millisLowerBound,
     loadCursors,
     readerPass,
@@ -48,7 +48,7 @@ import Wire.FanInNotificationsStore.Postgres (notificationIdMillis)
 -- start position). With a safety window, @start@ (the start position) is the
 -- lowest possible fetch bound, @seen@ holds the delivered ids inside the
 -- window and @resumeAfter@ is where an unfinished scan of the window continues.
-data Sub = Sub
+data Subscription = Subscription
   { kind :: !TargetKind,
     stream :: !Stream,
     cursor :: !UUID,
@@ -57,16 +57,16 @@ data Sub = Sub
     resumeAfter :: !(Maybe UUID)
   }
 
-newSub :: TargetKind -> Stream -> UUID -> Sub
-newSub k s c = Sub {kind = k, stream = s, cursor = c, start = c, seen = mempty, resumeAfter = Nothing}
+newSubscription :: TargetKind -> Stream -> UUID -> Subscription
+newSubscription k s c = Subscription {kind = k, stream = s, cursor = c, start = c, seen = mempty, resumeAfter = Nothing}
 
 -- | Start position of every stream of a client: the latest notification id
 -- ("start at latest"), the nil UUID for an empty stream.
-loadCursors :: (Member FanInNotificationsStore r) => Client -> Sem r [Sub]
+loadCursors :: (Member FanInNotificationsStore r) => Client -> Sem r [Subscription]
 loadCursors c =
   for c.streams $ \s -> do
     lastId <- getLastNotificationId s
-    pure (newSub (streamKind s) s (fromMaybe UUID.nil lastId))
+    pure (newSubscription (streamKind s) s (fromMaybe UUID.nil lastId))
 
 -- | The smallest UUID with the given UUIDv7 ms timestamp (all other bits
 -- zero): every UUIDv7 of that ms or later is greater (its version bits are
@@ -78,7 +78,7 @@ millisLowerBound ms =
 -- | Ids up to the bound are never fetched again. Window 0: the cursor itself
 -- (the plain @> lastId@ reader). Otherwise the ms of the cursor minus the
 -- window, never below the start position. Monotone, as the cursor only grows.
-lowerBound :: Word64 -> Sub -> UUID
+lowerBound :: Word64 -> Subscription -> UUID
 lowerBound 0 sub = sub.cursor
 lowerBound windowMs sub =
   let ms = notificationIdMillis sub.cursor
@@ -105,8 +105,8 @@ readerPass ::
   Int ->
   Word64 ->
   ReaderStats ->
-  [Sub] ->
-  Sem r ([Sub], Bool, [Text])
+  [Subscription] ->
+  Sem r ([Subscription], Bool, [Text])
 readerPass render limit windowMs stats subs = do
   results <- for subs $ \sub -> do
     let bound = lowerBound windowMs sub
@@ -181,9 +181,9 @@ describeUsageError = \case
 readerRound ::
   (e -> Text) ->
   ReaderStats ->
-  (Sub -> IO (Either e ([Sub], Bool, [Text]))) ->
-  [Sub] ->
-  IO ([Sub], Bool, [Text])
+  (Subscription -> IO (Either e ([Subscription], Bool, [Text]))) ->
+  [Subscription] ->
+  IO ([Subscription], Bool, [Text])
 readerRound render stats fetchOne subs = do
   results <- for subs $ \sub ->
     tryAny (fetchOne sub) >>= \case
@@ -205,7 +205,7 @@ throughGate gate = bracket_ (waitQSem gate) (signalQSem gate)
 
 -- | One reader client: fetch all streams, then sleep unless a full page says
 -- more is waiting. Failures are reported and slow the loop down, never stop it.
-readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Sub] -> IO ()
+readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Subscription] -> IO ()
 readerLoop gate env opts stats reportError = go
   where
     fetchOne sub = throughGate gate (runStore env (readerPass @UsageError describeUsageError opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub]))
