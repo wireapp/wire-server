@@ -55,13 +55,12 @@ interpretCodeStoreToCassandra = interpret $ \case
   -- fail with LinkUnavailable instead of producing a link.
   CreateMeetingCode {} -> pure Nothing
   BackfillMeetingCode {} -> pure BackfillCodeStoreUnsupported
-  -- Meeting codes never live in Cassandra, but the guest-code revocation
-  -- half of the rotation is real here: without it a refreshed meeting link
-  -- would leave the old conversation guest link live until TTL expiry.
-  -- Report unsupported afterwards so refresh fails with LinkUnavailable.
-  RotateMeetingCode _ cid _ _ -> do
-    Code.mkKey (CodeReferentConv cid) >>= embedClientInput . deleteCode
-    pure Nothing
+  -- Meeting codes never live in Cassandra and rotation is therefore
+  -- unsupported. Side-effect-free: revoking the conversation guest code here
+  -- would leave a refreshed link revoked even though the refresh fails with
+  -- 'LinkUnavailable'. In dual-write mode the guest-code revocation is
+  -- performed explicitly (see 'Wire.CodeStore.DualWrite').
+  RotateMeetingCode {} -> pure Nothing
   -- Meeting codes never live in Cassandra; short-circuit without a network
   -- round trip; reads yield no code.
   GetMeetingCode _ -> pure Nothing
