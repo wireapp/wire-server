@@ -375,7 +375,25 @@ spec = do
     it "keeps failed acks pending, so they are retried at the next ack point" $ do
       ids <- map fst <$> newIds 3
       st <- acknowledge 1 pure emptyAckState [(team, ids !! 0)] -- write fails: everything comes back
-      unacked st `shouldBe` 1
+      unacked st `shouldBe` 0
       written <- newIORef []
       _ <- acknowledge 1 (\ps -> modifyIORef written (ps :) >> pure []) st [(team, ids !! 1)]
-      readIORef written `shouldReturn` [[Pending team (ids !! 1) 2]]
+      readIORef written `shouldReturn` [[Pending team (ids !! 1) 1]]
+
+    it "retries a failed ack at the regular cadence, not on the next delivery" $ do
+      ids <- map fst <$> newIds 6
+      writes <- newIORef (0 :: Int)
+      written <- newIORef []
+      failing <- newIORef True
+      let write ps = do
+            modifyIORef writes (+ 1)
+            down <- readIORef failing
+            if down then pure ps else modifyIORef written (ps :) >> pure []
+      st <- acknowledge 3 write emptyAckState [(team, i) | i <- take 3 ids]
+      readIORef writes `shouldReturn` 1 -- failed
+      writeIORef failing False
+      st' <- acknowledge 3 write st [(user, ids !! 3)]
+      readIORef writes `shouldReturn` 1 -- no immediate retry
+      _ <- acknowledge 3 write st' [(user, ids !! 4), (team, ids !! 5)]
+      readIORef writes `shouldReturn` 2
+      readIORef written `shouldReturn` [[Pending user (ids !! 4) 2, Pending team (ids !! 5) 1]]

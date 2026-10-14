@@ -223,13 +223,13 @@ ackPending render stats reportError writeOne due =
 
 -- | Feeds delivered notifications into the ack state; writes acks when due
 -- (via @writeAcks@, which returns the failed ones) and keeps failed ones
--- pending.
+-- pending ('restoreFailed': retried at the next regular ack point).
 acknowledge :: Int -> ([Pending] -> IO [Pending]) -> AckState -> [(Stream, UUID)] -> IO AckState
 acknowledge n writeAcks = foldM step
   where
     step st (s, i) = case deliver n s i st of
       ([], st') -> pure st'
-      (due, st') -> (`restore` st') <$> writeAcks due
+      (due, st') -> (`restoreFailed` st') <$> writeAcks due
 
 -- | Lets at most as many readers as the pool has connections wait for it.
 -- Thousands of readers blocked in the pool's STM retry are all woken on every

@@ -175,9 +175,10 @@ deliver :: Int -> Stream -> UUID -> AckState -> ([Pending], AckState)
   and acks on one pool). The client's next fetch waits for them: ack latency
   slows the client as it would in reality.
 - Ack failure: counted per kind, rate-limited logged; the entry is merged
-  back into the state (higher `maxId`, counts added), so its notifications
-  still count as unacked and the next ack point, which comes sooner, retries
-  (idempotent via `GREATEST`). The in-memory cursor advances regardless.
+  back into the state with its `maxId` but count 0 (failed acks stay pending
+  with their id but start counting from zero), so the next regular ack point,
+  after N further deliveries, retries (idempotent via `GREATEST`) instead of
+  every following delivery. The in-memory cursor advances regardless.
 
 ### Store (`Wire.FanInNotificationsStore`)
 

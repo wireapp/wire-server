@@ -43,12 +43,18 @@ spec = do
       byStream due `shouldBe` byStream [Pending user (nid 3) 2, Pending team (nid 5) 2]
       st' `shouldBe` emptyAckState
 
-  describe "restore" $
-    it "keeps the higher id and the count of a failed ack, so the next ack is due earlier" $ do
-      let st = restore [Pending user (nid 9) 3] (deliverAll 10 [(user, 4)] emptyAckState)
-      unacked st `shouldBe` 4
-      fst (deliver 6 user (nid 5) st) `shouldBe` []
-      fst (deliver 5 user (nid 5) st) `shouldBe` [Pending user (nid 9) 5]
+  describe "restoreFailed" $ do
+    it "keeps a failed ack's id pending but starts counting from zero" $ do
+      let st = restoreFailed [Pending user (nid 9) 3] emptyAckState
+      unacked st `shouldBe` 0
+      let (d1, st1) = deliver 2 team (nid 5) st
+      d1 `shouldBe` []
+      byStream (fst (deliver 2 team (nid 6) st1)) `shouldBe` byStream [Pending user (nid 9) 0, Pending team (nid 6) 2]
+    it "merges with new deliveries of the stream: higher id, only the new count" $ do
+      let st = restoreFailed [Pending user (nid 9) 3] (deliverAll 10 [(user, 4)] emptyAckState)
+      unacked st `shouldBe` 1
+      fst (deliver 3 user (nid 5) st) `shouldBe` []
+      fst (deliver 2 user (nid 5) st) `shouldBe` [Pending user (nid 9) 2]
 
   prop "unacked equals the deliveries since the last ack point" $ \(Positive n0) (xs :: [Bool]) ->
     let n = 1 + n0 `mod` 10
