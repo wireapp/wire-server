@@ -37,7 +37,7 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.Password
 import Wire.API.PostgresMarshall
-import Wire.CodeStore (CodeStore (..))
+import Wire.CodeStore (BackfillCodeResult (..), CodeStore (..))
 import Wire.CodeStore.Code as Code
 import Wire.Postgres
 
@@ -65,6 +65,12 @@ interpretCodeStoreToPostgres = interpret $ \case
     code <- Code.generate (CodeReferentMeeting mid) t
     insertCode code mPw
     pure (Just code)
+  BackfillMeetingCode mid t -> do
+    code <- Code.generate (CodeReferentMeeting mid) t
+    inserted <- runStatement (insertTuple code Nothing) insertCodeIfAbsentStatement
+    pure $ case inserted of
+      Just _ -> BackfilledCode code
+      Nothing -> BackfillCodePresent
   RotateMeetingCode mid cid t mPw -> do
     code <- Code.generate (CodeReferentMeeting mid) t
     convKey <- Code.mkKey (CodeReferentConv cid)
@@ -96,6 +102,20 @@ insertTuple c password = (codeKey c, targetId, password, codeValue c, round (cod
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c password =
   runStatement (insertTuple c password) insertCodeStatement
+
+-- | Insert-if-absent on the stable key: unlike 'insertCodeStatement' (an
+-- upsert) this never replaces an existing row, so a concurrent backfill
+-- replica cannot invalidate an already-issued join link.
+insertCodeIfAbsentStatement :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, CodeTarget) (Maybe Bool)
+insertCodeIfAbsentStatement =
+  lmapPG
+    [maybeStatement|INSERT INTO conversation_codes
+                      (key, conversation, password, value, expires_at, target)
+                    VALUES
+                      ($1 :: text, $2 :: uuid, $3 :: bytea?, $4 :: text, now() + make_interval(secs => $5 :: int), $6 :: text)
+                    ON CONFLICT (key) DO NOTHING
+                    RETURNING true :: bool
+    |]
 
 insertCodeStatement :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, CodeTarget) ()
 insertCodeStatement =

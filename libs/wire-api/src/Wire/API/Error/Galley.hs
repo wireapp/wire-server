@@ -436,7 +436,7 @@ meetingErrorToDyn = \case
     DynError
       500
       "link-unavailable"
-      "Cannot produce a meeting join link: the code store must run in postgresql mode and a join-link URI must be configured for the user's domain"
+      "Cannot produce a meeting join link: the code store must run in postgresql or migration-to-postgresql mode and a join-link URI must be configured for the user's domain"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
