@@ -8,7 +8,6 @@ module FanInPerf.Consume
     loadCursors,
     readerPass,
     readerRound,
-    describeUsageError,
     lagNs,
     runConsume,
   )
@@ -17,7 +16,7 @@ where
 import Control.Concurrent.Async
 import Control.Concurrent.QSem (QSem, newQSem, signalQSem, waitQSem)
 import Control.Exception (AsyncException (UserInterrupt), handleJust)
-import Data.Bits (shiftL, shiftR, (.&.))
+import Data.Bits (shiftL)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -33,8 +32,7 @@ import FanInPerf.Store
 import FanInPerf.Targets
 import FanInPerf.Terminal
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
-import Hasql.Errors (ConnectionError (..), ServerError (..), SessionError (..), StatementError (..))
-import Hasql.Pool (UsageError (..))
+import Hasql.Pool (UsageError)
 import Imports
 import Polysemy
 import Polysemy.Error qualified as PE
@@ -145,35 +143,6 @@ lagNs nowMs notifId =
   let created = notificationIdMillis notifId
    in if nowMs > created then (nowMs - created) * 1_000_000 else 0
 
--- | Describes a store error without SQL text, parameters or server messages
--- (they can contain stream ids and cursors): constructor names and the
--- SQLSTATE only.
-describeUsageError :: UsageError -> Text
-describeUsageError = \case
-  AcquisitionTimeoutUsageError -> "AcquisitionTimeoutUsageError"
-  ConnectionError e -> "ConnectionError " <> connectionError e
-  SessionError e -> "SessionError " <> sessionError e
-  where
-    connectionError = \case
-      NetworkingConnectionError _ -> "NetworkingConnectionError"
-      AuthenticationConnectionError _ -> "AuthenticationConnectionError"
-      CompatibilityConnectionError _ -> "CompatibilityConnectionError"
-      OtherConnectionError _ -> "OtherConnectionError"
-    sessionError = \case
-      StatementSessionError _ _ _ _ _ e -> "StatementSessionError " <> statementError e
-      ScriptSessionError _ e -> "ScriptSessionError " <> serverError e
-      ConnectionSessionError _ -> "ConnectionSessionError"
-      MissingTypesSessionError _ -> "MissingTypesSessionError"
-      DriverSessionError _ -> "DriverSessionError"
-    statementError = \case
-      ServerStatementError e -> "ServerStatementError " <> serverError e
-      UnexpectedRowCountStatementError {} -> "UnexpectedRowCountStatementError"
-      UnexpectedColumnCountStatementError {} -> "UnexpectedColumnCountStatementError"
-      UnexpectedColumnTypeStatementError {} -> "UnexpectedColumnTypeStatementError"
-      RowStatementError {} -> "RowStatementError"
-      UnexpectedResultStatementError {} -> "UnexpectedResultStatementError"
-    serverError (ServerError code _ _ _ _) = "SQLSTATE " <> code
-
 -- | One pass over the streams of a client, each fetched in isolation by
 -- @fetchOne@ (a 'readerPass' over that stream alone): an exception or error
 -- only keeps the cursor of its own stream (counted as fetch error), so cursors
@@ -209,9 +178,11 @@ throughGate gate = bracket_ (waitQSem gate) (signalQSem gate)
 readerLoop :: QSem -> Env -> ConsumeOptions -> ReaderStats -> (Text -> IO ()) -> [Subscription] -> IO ()
 readerLoop gate env opts stats reportError = go
   where
-    fetchOne sub = throughGate gate (runStore env (readerPass @UsageError describeUsageError opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub]))
+    render :: UsageError -> Text
+    render = T.pack . show
+    fetchOne sub = throughGate gate (runStore env (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub]))
     go subs = do
-      (subs', more, errs) <- readerRound describeUsageError stats fetchOne subs
+      (subs', more, errs) <- readerRound render stats fetchOne subs
       traverse_ reportError errs
       unless more (threadDelay (opts.pollIntervalMs * 1000))
       go subs'
@@ -241,7 +212,7 @@ runConsume console writerEnv readerEnv opts = do
   -- between could otherwise sit below a cursor and show up as a false `missing`.
   printLine console "consume: loading start positions"
   loaded <- forConcurrently population.simClients (throughGate gate . runStore readerEnv . loadCursors)
-  clientSubs <- either (\e -> die ("loading start positions failed: " <> T.unpack (describeUsageError e))) pure (sequence loaded)
+  clientSubs <- either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
 
   metrics <- newMetrics "consume" p.writers
   consumeMetrics <- newConsumeMetrics "consume" opts.clients

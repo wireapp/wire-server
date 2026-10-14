@@ -12,8 +12,6 @@ import FanInPerf.Consume
 import FanInPerf.ConsumeStats
 import FanInPerf.Population (Client (..))
 import FanInPerf.Targets (TargetKind (..))
-import Hasql.Errors (ServerError (..), SessionError (..), StatementError (..))
-import Hasql.Pool (UsageError (..))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -255,15 +253,3 @@ spec = do
       (map (.cursor) subs, more, errs) `shouldBe` ([UUID.nil], False, ["reader: team: down"])
       s <- readReaderSnapshot stats
       totalFetchErrors s `shouldBe` 1
-
-  describe "describeUsageError" $
-    it "shows the SQLSTATE but neither SQL, parameters nor the server message" $ do
-      let err =
-            SessionError
-              ( StatementSessionError 1 0 "SELECT secret_sql" ["param-uuid"] True $
-                  ServerStatementError (ServerError "40001" "message-with-value" (Just "detail-value") (Just "hint-value") Nothing)
-              )
-          out = describeUsageError err
-      out `shouldBe` "SessionError StatementSessionError ServerStatementError SQLSTATE 40001"
-      for_ ["secret_sql", "param-uuid", "message-with-value", "detail-value", "hint-value"] $ \needle ->
-        out `shouldNotSatisfy` T.isInfixOf needle
