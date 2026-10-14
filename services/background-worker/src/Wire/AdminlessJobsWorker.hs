@@ -23,7 +23,8 @@ module Wire.AdminlessJobsWorker
 where
 
 import Arbiter.Core.Exceptions (throwRetryable)
-import Arbiter.Core.Job.Types (JobRead, notVisibleUntil, payload)
+import Arbiter.Core.Job.Types (JobRead)
+import Arbiter.Core.Job.Types.Internal (JobRecord (..))
 import Data.Qualified (toLocalUnsafe)
 import Imports
 import System.Logger qualified as Log
