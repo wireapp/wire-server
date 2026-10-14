@@ -61,9 +61,9 @@ newSubscription kind stream cursor =
 
 -- | Start position of every stream of a client: the latest notification id
 -- ("start at latest"), the nil UUID for an empty stream.
-loadCursors :: (Member FanInNotificationsStore r) => Client -> Sem r [Subscription]
-loadCursors c =
-  for c.streams $ \s -> do
+loadCursors :: (Member FanInNotificationsStore r) => [Stream] -> Sem r [Subscription]
+loadCursors streams =
+  for streams $ \s -> do
     lastId <- getLastNotificationId s
     pure $ newSubscription (streamKind s) s (fromMaybe UUID.nil lastId)
 
@@ -208,7 +208,7 @@ readerLoop gate env opts stats reportError = go
 loadSubscriptions :: Console -> QSem -> Env -> Population -> IO [[Subscription]]
 loadSubscriptions console gate env population = do
   printLine console "consume: loading start positions"
-  loaded <- forConcurrently population.simClients (throughGate gate . runStore env . loadCursors)
+  loaded <- forConcurrently (readers population) (throughGate gate . runStore env . loadCursors . readerStreams population.kinds)
   either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
 
 -- | (expected, delivered) notifications so far.
@@ -289,7 +289,7 @@ runConsume console writerEnv readerEnv opts = do
   gate <- newQSem opts.readerPoolSize
   let p = opts.writerOptions
   setup <- prepareWriters p
-  population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient setup.entries)
+  population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient p.clientsPerUser setup.entries setup.populationGen)
   printLine console $
     "consume: writers="
       <> tshow p.writers

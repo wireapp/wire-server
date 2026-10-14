@@ -74,7 +74,8 @@ data WriterSetup = WriterSetup
   { seed :: Int,
     entries :: V.Vector Entry,
     payload :: A.Object,
-    gens :: [StdGen]
+    gens :: [StdGen],
+    populationGen :: StdGen
   }
 
 -- | Seed (random unless given), entries, payload and one generator per writer.
@@ -82,8 +83,9 @@ prepareWriters :: ProduceOptions -> IO WriterSetup
 prepareWriters opts = do
   seed <- maybe randomIO pure opts.seed
   let (entries, gen') = mkEntries opts.clientsPerUser opts.targets (mkStdGen seed)
+      (populationGen, gen'') = split gen'
       payload = mkPayload opts.payloadBytes
-      gens = take opts.writers (unfoldr (Just . split) gen')
+      gens = take opts.writers (unfoldr (Just . split) gen'')
   pure WriterSetup {..}
 
 -- | Pushes until @stop@ reports true; checked between pushes, so no push is

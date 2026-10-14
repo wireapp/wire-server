@@ -10,7 +10,6 @@ import Data.UUID.Types qualified as UUID
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.Consume
 import FanInPerf.ConsumeStats
-import FanInPerf.Population (Client (..))
 import FanInPerf.Targets (TargetKind (..))
 import Imports
 import Polysemy
@@ -85,11 +84,11 @@ spec = do
     it "starts at the latest notification of a stream" $ do
       rs <- newIds 3
       (rows, failing) <- setup rs
-      subs <- runFake rows failing (loadCursors (Client [team]))
+      subs <- runFake rows failing (loadCursors [team])
       map (.cursor) subs `shouldBe` [fst (last rs)]
     it "starts at the nil UUID for a stream nothing was written to" $ do
       (rows, failing) <- setup []
-      subs <- runFake rows failing (loadCursors (Client [team]))
+      subs <- runFake rows failing (loadCursors [team])
       map (.cursor) subs `shouldBe` [UUID.nil]
 
   describe "millisLowerBound" $ do
@@ -206,7 +205,7 @@ spec = do
           new = v7 1001 1
       (rows, failing) <- setup [(old, A.Null)]
       stats <- newReaderStats
-      subs <- runFake rows failing (loadCursors (Client [team]))
+      subs <- runFake rows failing (loadCursors [team])
       modifyIORef rows (map (\(k, v) -> (k, v <> [(new, A.Null)])))
       _ <- passW rows failing 10 1000 stats subs
       delivered stats `shouldReturn` 1
