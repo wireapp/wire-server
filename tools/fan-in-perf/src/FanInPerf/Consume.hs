@@ -264,13 +264,16 @@ consumeTickOnce console metrics consumeMetrics warmup writerStats readerStats er
 -- Ctrl-C while waiting for writers or draining still prints the summary (a
 -- second one kills the process: GHC resets the SIGINT handler). 'UserInterrupt'
 -- is async, so UnliftIO's handlers miss it.
--- @stopWriters@ signals the writers and waits until they finished.
+-- @stopWriters@ signals the writers and waits until they finished; it must be
+-- idempotent. A Ctrl-C while stopping still waits for the writers' last
+-- pushes: cancelling one after its commit would deliver it without counting it
+-- as expected.
 stopAndDrain :: Console -> Maybe Int -> IO () -> IO WriterPhase -> IO Drain -> IO (WriterPhase, Drain)
 stopAndDrain console duration stopWriters writerPhaseEnd runDrain = do
   waitForStop duration
   phaseRef <- newIORef Nothing
   let interrupted = do
-        phase <- maybe writerPhaseEnd pure =<< readIORef phaseRef
+        phase <- maybe (stopWriters >> writerPhaseEnd) pure =<< readIORef phaseRef
         pure (phase, DrainInterrupted)
   handleJust isInterrupt (const interrupted) $ do
     stopWriters
