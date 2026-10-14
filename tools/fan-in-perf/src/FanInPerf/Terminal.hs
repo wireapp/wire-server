@@ -20,7 +20,7 @@ where
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import FanInPerf.ConsumeStats
-import FanInPerf.Options (ReaderMode (..))
+import FanInPerf.Options (ReaderMode (..), experimentLabel)
 import FanInPerf.Stats
 import FanInPerf.Targets (TargetKind, kindName)
 import Imports
@@ -108,7 +108,8 @@ formatConsumeSummary mode expected phase drain r c =
         DrainTimedOut t -> "timed out after " <> seconds t
         DrainInterrupted -> "interrupted"
    in formatSummary r {elapsed = phase.duration}
-        <> [ "consume: delivered="
+        <> [ experimentLabel mode
+               <> ": delivered="
                <> groupThousands delivered
                <> " expected="
                <> groupThousands expected

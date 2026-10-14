@@ -141,6 +141,9 @@ spec = do
       let out = formatConsumeSummary (Acks 100) 0 phase (DrainComplete 1) report creport {readerTotal = s, maxAckRate = 50, ackP50 = Just 0.001, ackP99 = Just 0.002}
       out `shouldSatisfy` any (T.isInfixOf "acks=4 errors=1 ack/s avg=10 max=50")
       out `shouldSatisfy` any (T.isInfixOf "ack latency (cumulative) p50=1.0ms p99=2.0ms")
+    it "labels the delivery line consume-ack" $
+      formatConsumeSummary (Acks 100) 0 phase (DrainComplete 1) report creport
+        `shouldSatisfy` any (T.isPrefixOf "consume-ack: delivered=")
     it "prints no ack line without acks" $
       formatConsumeSummary NoAcks 0 phase (DrainComplete 1) report creport
         `shouldSatisfy` (not . any (T.isInfixOf "acks="))
