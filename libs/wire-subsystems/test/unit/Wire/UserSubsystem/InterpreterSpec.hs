@@ -38,7 +38,7 @@ import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
-import Database.Bloodhound.Internal.Client qualified as ES
+import Database.Bloodhound.Types qualified as ES
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -1238,3 +1238,20 @@ spec = describe "UserSubsystem.Interpreter" do
                   runNoFederationStackUserSubsystemErrorEither localBackend teams config $
                     getLocalAppProfiles callerId targetTeamId
              in result === Left UserSubsystemProfileNotFound
+
+  describe "IndexedUserStore (mock)" do
+    prop "overwrites a document on an equal external_gte version" $
+      \(ActiveStoredUser su) newName -> do
+        let doc1 = indexUserToDoc defaultSearchVisibilityInbound Nothing (storedUserToIndexUser su)
+            doc2 = doc1 {udName = Just (Name {fromName = newName})}
+            dId = userIdToDocId su.id
+            ver = ES.ExternalDocVersion (fromJust (ES.mkDocVersion 1))
+            finalIndex =
+              run . execState emptyIndex . inMemoryIndexedUserStoreInterpreter $ do
+                IU.upsert dId doc1 ES.NoVersionControl
+                IU.upsert dId doc2 (ES.ExternalGTE ver)
+        case Map.lookup (fromDocId dId) finalIndex.docs of
+          Just (storedDoc, storedVer) -> do
+            storedDoc `shouldBe` doc2
+            storedVer `shouldBe` fromJust (ES.mkDocVersion 1)
+          Nothing -> fail "document was not inserted"

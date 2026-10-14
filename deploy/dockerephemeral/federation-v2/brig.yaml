@@ -10,7 +10,7 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 elasticsearch:
-  url: https://demo_wire_elasticsearch:9200
+  url: https://opensearch:9200
   index: directory_test_federation_v2
   credentials: /etc/wire/brig/conf/elasticsearch-credentials.yaml
   insecureSkipVerifyTls: true
