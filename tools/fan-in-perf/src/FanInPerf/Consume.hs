@@ -58,7 +58,8 @@ data Subscription = Subscription
   }
 
 newSubscription :: TargetKind -> Stream -> UUID -> Subscription
-newSubscription k s c = Subscription {kind = k, stream = s, cursor = c, start = c, seen = mempty, resumeAfter = Nothing}
+newSubscription kind stream cursor =
+  Subscription {start = cursor, seen = mempty, resumeAfter = Nothing, ..}
 
 -- | Start position of every stream of a client: the latest notification id
 -- ("start at latest"), the nil UUID for an empty stream.
