@@ -145,8 +145,8 @@ lagNs nowMs notifId =
 
 -- | One pass over the streams of a client, each fetched in isolation by
 -- @fetchOne@ (a 'readerPass' over that stream alone): an exception or error
--- only keeps the cursor of its own stream (counted as fetch error), so cursors
--- advanced by earlier fetches survive. Synchronous exceptions are caught like
+-- only keeps the cursor of its own stream (counted as fetch error), so the
+-- cursors of the other streams survive. Synchronous exceptions are caught like
 -- in 'writerStep'; async ones (cancel) propagate.
 readerRound ::
   (e -> Text) ->
@@ -160,7 +160,11 @@ readerRound render stats fetchOne subs = do
       Left e -> failed sub (T.pack (displayException e))
       Right (Left e) -> failed sub (render e)
       Right (Right r) -> pure r
-  pure (concat [s | (s, _, _) <- results], or [full | (_, full, _) <- results], concat [errs | (_, _, errs) <- results])
+  pure
+    ( concat [s | (s, _, _) <- results],
+      or [full | (_, full, _) <- results],
+      concat [errs | (_, _, errs) <- results]
+    )
   where
     failed sub msg = do
       recordFetchError stats sub.kind
@@ -180,7 +184,9 @@ readerLoop gate env opts stats reportError = go
   where
     render :: UsageError -> Text
     render = T.pack . show
-    fetchOne sub = throughGate gate (runStore env (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub]))
+    fetchOne sub =
+      throughGate gate $
+        runStore env (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
     go subs = do
       (subs', more, errs) <- readerRound render stats fetchOne subs
       traverse_ reportError errs
