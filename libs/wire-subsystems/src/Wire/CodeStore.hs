@@ -58,9 +58,11 @@ data CodeStore m a where
   BackfillMeetingCode :: MeetingId -> Timeout -> CodeStore m BackfillCodeResult
   -- | Atomically rotate a meeting's join code (upsert of the stable-key row)
   -- and revoke the meeting conversation's guest code, in a single
-  -- transaction. Splitting these into two writes would let a crash between
-  -- them leave the old guest link usable even though the meeting link has
-  -- already been replaced, so refresh must not compose them externally.
+  -- transaction within one backing store. Splitting these into two writes
+  -- would let a crash between them leave the old guest link usable even
+  -- though the meeting link has already been replaced. Deployments with
+  -- multiple backing stores compose the stores inside the store interpreter
+  -- ('Wire.CodeStore.DualWrite'), with revoke-first ordering as the fail-safe.
   -- Returns 'Nothing' when the backing store cannot hold meeting codes
   -- (Cassandra-only mode); refresh is an explicit user action and fails with
   -- @LinkUnavailable@ in that case.
