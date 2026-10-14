@@ -226,6 +226,21 @@ createMLSClient opts u = do
   void $ initMLSClient opts cid
   pure cid
 
+-- | Simulate the client-side rotation of an x509 credential: discard the
+-- client's key store for the signature scheme of the given ciphersuite, so
+-- that the next mls-test-cli invocation generates a fresh signature key pair
+-- and a new certificate for the same client identity.
+--
+-- This only changes local state. Returns the new signature public key, which
+-- the backend does not know about yet.
+rotateX509Credential :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App ByteString
+rotateX509Credential suite cid = do
+  gs <- getClientGroupState cid
+  unless (gs.credType == X509CredentialType) $
+    assertFailure "rotateX509Credential: client does not use an x509 credential"
+  setClientGroupState cid gs {keystore = Map.delete (csSignatureScheme suite) gs.keystore}
+  mlscli Nothing suite cid ["public-key"] Nothing
+
 -- | create and upload to backend
 uploadNewKeyPackage :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App String
 uploadNewKeyPackage suite cid = do
