@@ -336,17 +336,6 @@ testTransientTargetedMessageBatchIsAtomic = do
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
-  where
-    replaceTargetedRecipient :: ByteString -> Word32 -> ByteString
-    replaceTargetedRecipient message recipient =
-      BS.take 12 message
-        <> BS.pack
-          [ fromIntegral (recipient `shiftR` 24),
-            fromIntegral (recipient `shiftR` 16),
-            fromIntegral (recipient `shiftR` 8),
-            fromIntegral recipient
-          ]
-        <> BS.drop 16 message
 
 testTransientTargetedMessageFederatedRecipients :: (HasCallStack) => App ()
 testTransientTargetedMessageFederatedRecipients = do
@@ -431,23 +420,15 @@ testTransientTargetedMessageFederatedSender = do
 
     validFirst <- createTransientTargetedMessage convId charlie1 bob1 "valid federated batch item"
     invalidLater <- createTransientTargetedMessage convId charlie1 david1 "invalid federated batch item"
-    let invalidBatchItem = replaceRecipient invalidLater.message 99
+    let invalidBatchItem = replaceTargetedRecipient invalidLater.message 99
     postMLSTransientTargetedMessage charlie1 (validFirst.message <> invalidBatchItem) `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
+      -- The conversation owner rejects the invalid leaf index with 400, but
+      -- this request crosses federation, whose remote-error wrapper is 533.
+      resp.status `shouldMatchInt` 533
+      resp.json %. "label" `shouldMatch` "federation-remote-error"
+      resp.json %. "inner.label" `shouldMatch` "mls-invalid-leaf-node-index"
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif davidWs
-  where
-    replaceRecipient :: ByteString -> Word32 -> ByteString
-    replaceRecipient message recipient =
-      BS.take 12 message
-        <> BS.pack
-          [ fromIntegral (recipient `shiftR` 24),
-            fromIntegral (recipient `shiftR` 16),
-            fromIntegral (recipient `shiftR` 8),
-            fromIntegral recipient
-          ]
-        <> BS.drop 16 message
 
 testTargetedMessageBatch :: (HasCallStack) => App ()
 testTargetedMessageBatch = do
@@ -511,20 +492,6 @@ testTargetedMessageRejectsInvalidRecipient = do
       resp.status `shouldMatchInt` 400
       resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif ws
-  where
-    -- Replace the four-byte, big-endian recipient field at offset 12. The
-    -- signature is deliberately left unchanged: this test exercises the
-    -- server's leaf-index validation before any cryptographic verification.
-    replaceTargetedRecipient :: ByteString -> Word32 -> ByteString
-    replaceTargetedRecipient message recipient =
-      BS.take 12 message
-        <> BS.pack
-          [ fromIntegral (recipient `shiftR` 24),
-            fromIntegral (recipient `shiftR` 16),
-            fromIntegral (recipient `shiftR` 8),
-            fromIntegral recipient
-          ]
-        <> BS.drop 16 message
 
 testTargetedMessageRejectsDuplicateRecipient :: (HasCallStack) => App ()
 testTargetedMessageRejectsDuplicateRecipient = do
@@ -563,3 +530,17 @@ testTargetedMessageRejectsCrossGroupBatch = do
       resp.status `shouldMatchInt` 400
       resp.json %. "label" `shouldMatch` "mls-protocol-error"
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif ws
+
+-- Replace the four-byte, big-endian recipient field at offset 12. The
+-- signature is deliberately left unchanged: this test exercises the
+-- server's leaf-index validation before any cryptographic verification.
+replaceTargetedRecipient :: ByteString -> Word32 -> ByteString
+replaceTargetedRecipient message recipient =
+  BS.take 12 message
+    <> BS.pack
+      [ fromIntegral (recipient `shiftR` 24),
+        fromIntegral (recipient `shiftR` 16),
+        fromIntegral (recipient `shiftR` 8),
+        fromIntegral recipient
+      ]
+    <> BS.drop 16 message
