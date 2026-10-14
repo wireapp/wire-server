@@ -33,6 +33,8 @@ interpretFanInNotificationsStoreToPostgres isolationLevel = interpret $ \case
   PushViaFanIn push -> pushViaFanInImpl isolationLevel push
   FetchNotifications stream cursor n -> fetchNotificationsImpl stream cursor n
   GetLastNotificationId stream -> getLastNotificationIdImpl stream
+  InitAcks uid cid stream -> initAcksImpl uid cid stream
+  AckNotification uid cid stream nid -> ackNotificationImpl uid cid stream nid
 
 pushViaFanInImpl ::
   (PGConstraints r, Member (Input (Local ())) r) =>
@@ -162,6 +164,110 @@ lastEpochStatement =
   [maybeStatement|
     select notification_id :: uuid from last_epoch_notifications
     where group_id = ($1 :: bytea) and epoch = ($2 :: int8)
+  |]
+
+clientInt :: ClientId -> Int64
+clientInt c = fromIntegral c.clientToWord64
+
+-- | Ack rows belong to the client (@uid@, @cid@); the stream's own key selects
+-- the latest notification. Conflict targets are the ack tables' primary keys
+-- (the RFC's SQL lacks them).
+initAcksImpl :: (PGConstraints r) => UserId -> ClientId -> Stream -> Sem r (Maybe UUID)
+initAcksImpl uid cid = \case
+  StreamUser u -> runStatement (uid.toUUID, clientInt cid, u.toUUID) initUserAckStatement
+  StreamClient u c -> runStatement (uid.toUUID, clientInt cid, u.toUUID, clientInt c) initClientAckStatement
+  StreamTeam t -> runStatement (uid.toUUID, clientInt cid, t.toUUID) initTeamAckStatement
+  StreamEpoch g e -> runStatement (uid.toUUID, clientInt cid, g.unGroupId, fromIntegral e.epochNumber) initEpochAckStatement
+
+initUserAckStatement :: Statement (UUID, Int64, UUID) (Maybe UUID)
+initUserAckStatement =
+  [maybeStatement|
+    insert into user_notification_acks (user_id, client_id, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), notification_id
+      from last_user_notifications where user_id = ($3 :: uuid)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+initClientAckStatement :: Statement (UUID, Int64, UUID, Int64) (Maybe UUID)
+initClientAckStatement =
+  [maybeStatement|
+    insert into client_notification_acks (user_id, client_id, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), notification_id
+      from last_client_notifications where user_id = ($3 :: uuid) and client_id = ($4 :: int8)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+-- RFC: selected from team_notifications with an invalid GROUP BY; the last_*
+-- table holds exactly the wanted id.
+initTeamAckStatement :: Statement (UUID, Int64, UUID) (Maybe UUID)
+initTeamAckStatement =
+  [maybeStatement|
+    insert into team_notification_acks (user_id, client_id, team_id, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), team_id, notification_id
+      from last_team_notifications where team_id = ($3 :: uuid)
+      on conflict (user_id, client_id, team_id) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+-- RFC: wrote the nonexistent conversation_notification_acks with EXCLUDED.notificationId.
+initEpochAckStatement :: Statement (UUID, Int64, ByteString, Int64) (Maybe UUID)
+initEpochAckStatement =
+  [maybeStatement|
+    insert into epoch_notification_acks (user_id, client_id, group_id, epoch, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), group_id, epoch, notification_id
+      from last_epoch_notifications where group_id = ($3 :: bytea) and epoch = ($4 :: int8)
+      on conflict (user_id, client_id, group_id, epoch) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+-- | @greatest@: a late or repeated ack never moves the ack backwards.
+ackNotificationImpl :: (PGConstraints r) => UserId -> ClientId -> Stream -> UUID -> Sem r ()
+ackNotificationImpl uid cid stream nid = case stream of
+  StreamUser _ -> runStatement (uid.toUUID, clientInt cid, nid) ackUserStatement
+  StreamClient _ _ -> runStatement (uid.toUUID, clientInt cid, nid) ackClientStatement
+  StreamTeam t -> runStatement (uid.toUUID, clientInt cid, t.toUUID, nid) ackTeamStatement
+  StreamEpoch g e -> runStatement (uid.toUUID, clientInt cid, g.unGroupId, fromIntegral e.epochNumber, nid) ackEpochStatement
+
+ackUserStatement :: Statement (UUID, Int64, UUID) ()
+ackUserStatement =
+  [resultlessStatement|
+    insert into user_notification_acks (user_id, client_id, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: uuid)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = greatest(user_notification_acks.last_notification_id, excluded.last_notification_id)
+  |]
+
+ackClientStatement :: Statement (UUID, Int64, UUID) ()
+ackClientStatement =
+  [resultlessStatement|
+    insert into client_notification_acks (user_id, client_id, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: uuid)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = greatest(client_notification_acks.last_notification_id, excluded.last_notification_id)
+  |]
+
+ackTeamStatement :: Statement (UUID, Int64, UUID, UUID) ()
+ackTeamStatement =
+  [resultlessStatement|
+    insert into team_notification_acks (user_id, client_id, team_id, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: uuid, $4 :: uuid)
+      on conflict (user_id, client_id, team_id) do update
+        set last_notification_id = greatest(team_notification_acks.last_notification_id, excluded.last_notification_id)
+  |]
+
+ackEpochStatement :: Statement (UUID, Int64, ByteString, Int64, UUID) ()
+ackEpochStatement =
+  [resultlessStatement|
+    insert into epoch_notification_acks (user_id, client_id, group_id, epoch, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: bytea, $4 :: int8, $5 :: uuid)
+      on conflict (user_id, client_id, group_id, epoch) do update
+        set last_notification_id = greatest(epoch_notification_acks.last_notification_id, excluded.last_notification_id)
   |]
 
 pushUserNotification ::

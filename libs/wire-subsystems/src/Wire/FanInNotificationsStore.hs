@@ -48,5 +48,11 @@ data FanInNotificationsStore m a where
   FetchNotifications :: Stream -> UUID -> Int -> FanInNotificationsStore m [(UUID, Value)]
   -- | Id of the latest notification ever pushed to the stream.
   GetLastNotificationId :: Stream -> FanInNotificationsStore m (Maybe UUID)
+  -- | RFC "when nothing is acknowledged": sets the ack of the client (user id,
+  -- client id) for the stream to the stream's latest notification and returns
+  -- it. 'Nothing': nothing was ever pushed to the stream; no ack row is written.
+  InitAcks :: UserId -> ClientId -> Stream -> FanInNotificationsStore m (Maybe UUID)
+  -- | Raises the client's ack of the stream to the id; never lowers it.
+  AckNotification :: UserId -> ClientId -> Stream -> UUID -> FanInNotificationsStore m ()
 
 makeSem ''FanInNotificationsStore

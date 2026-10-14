@@ -33,6 +33,8 @@ fakeStore rows failing = interpret $ \case
   GetLastNotificationId s -> do
     rs <- fromMaybe [] . lookup s <$> readIORef rows
     pure (fst <$> listToMaybe (reverse rs))
+  InitAcks _ _ s -> fmap fst . listToMaybe . reverse . fromMaybe [] . lookup s <$> readIORef rows
+  AckNotification {} -> pure ()
 
 runFake :: Rows -> IORef Bool -> Sem '[FanInNotificationsStore, Error Text, Embed IO] a -> IO a
 runFake rows failing = runM . runError . fakeStore rows failing >=> either (fail . T.unpack) pure
