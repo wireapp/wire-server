@@ -508,7 +508,6 @@ toLegacy m =
       updatedAt = m.updatedAt
     }
 
-
 -- | Join link for a meeting: the configured code URI rewritten to the
 -- @meeting-join@ path, with the meeting's stable code key, its live
 -- (rotating) code value and its domain as query parameters — mirroring
