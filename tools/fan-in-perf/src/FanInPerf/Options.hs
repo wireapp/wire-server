@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-partial-fields #-}
-
 module FanInPerf.Options
   ( GlobalOptions (..),
     ProduceOptions (..),
@@ -55,8 +53,8 @@ data ConsumeOptions = ConsumeOptions
   deriving (Eq, Show)
 
 -- | Whether reader clients acknowledge what they received (experiment C) or
--- only keep cursors in memory (B).
-data ReaderMode = NoAcks | Acks {ackEvery :: Int}
+-- only keep cursors in memory (B). @Acks n@: ack every n-th notification.
+data ReaderMode = NoAcks | Acks Int
   deriving (Eq, Show)
 
 -- | Value of the @experiment@ metric label and prefix of terminal lines.
