@@ -105,9 +105,6 @@ resetMLSConversation lusr reset = do
 resetRemoteMLSConversation ::
   ( Member (Input (Local ())) r,
     Member P.TinyLog r,
-    Member (ErrorS (ActionDenied LeaveConversation)) r,
-    Member (ErrorS InvalidOperation) r,
-    Member (ErrorS ConvNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,

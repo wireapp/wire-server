@@ -19,6 +19,8 @@
 
 module Wire.ConversationSubsystem.Errors
   ( catchCSE,
+    cseToGalleyError,
+    galleyErrorToCSE,
     mapErrors,
     ConversationSubsystemError (..),
   )
@@ -48,6 +50,57 @@ catchCSE ::
   Sem r a
 catchCSE f act =
   catch @ConversationSubsystemError act (\e -> maybe (throw e) throw (f e))
+
+-- | Map the 'ConversationSubsystemError' constructors that can still arise
+-- from conversation actions to their 'GalleyError' equivalents at the
+-- federation boundary; all other constructors are rethrown unchanged.
+cseToGalleyError :: ConversationSubsystemError -> Maybe GalleyError
+cseToGalleyError = \case
+  ConversationSubsystemErrorConvAccessDenied -> Just ConvAccessDenied
+  ConversationSubsystemErrorNotATeamMember -> Just NotATeamMember
+  ConversationSubsystemErrorInvalidOperation -> Just InvalidOperation
+  ConversationSubsystemErrorConvNotFound -> Just ConvNotFound
+  ConversationSubsystemErrorNotConnected -> Just NotConnected
+  ConversationSubsystemErrorMissingLegalholdConsent -> Just MissingLegalholdConsent
+  ConversationSubsystemErrorGroupIdVersionNotSupported -> Just GroupIdVersionNotSupported
+  ConversationSubsystemErrorConvMemberNotFound -> Just ConvMemberNotFound
+  ConversationSubsystemErrorTooManyMembers -> Just TooManyMembers
+  ConversationSubsystemErrorActionDeniedAddConversationMember -> Just (ActionDenied ConvRole.AddConversationMember)
+  ConversationSubsystemErrorActionDeniedRemoveConversationMember -> Just (ActionDenied ConvRole.RemoveConversationMember)
+  ConversationSubsystemErrorActionDeniedDeleteConversation -> Just (ActionDenied ConvRole.DeleteConversation)
+  ConversationSubsystemErrorActionDeniedLeaveConversation -> Just (ActionDenied ConvRole.LeaveConversation)
+  ConversationSubsystemErrorActionDeniedModifyOtherConversationMember -> Just (ActionDenied ConvRole.ModifyOtherConversationMember)
+  ConversationSubsystemErrorActionDeniedModifyConversationName -> Just (ActionDenied ConvRole.ModifyConversationName)
+  ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer -> Just (ActionDenied ConvRole.ModifyConversationMessageTimer)
+  ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode -> Just (ActionDenied ConvRole.ModifyConversationReceiptMode)
+  ConversationSubsystemErrorActionDeniedModifyConversationAccess -> Just (ActionDenied ConvRole.ModifyConversationAccess)
+  ConversationSubsystemErrorActionDeniedModifyAddPermission -> Just (ActionDenied ConvRole.ModifyAddPermission)
+  _ -> Nothing
+
+-- | Inverse of 'cseToGalleyError' for the conversation-action error set:
+-- rethrows fed Galley errors into the local 'ConversationSubsystemError' row.
+galleyErrorToCSE :: GalleyError -> Maybe ConversationSubsystemError
+galleyErrorToCSE = \case
+  ConvAccessDenied -> Just ConversationSubsystemErrorConvAccessDenied
+  NotATeamMember -> Just ConversationSubsystemErrorNotATeamMember
+  InvalidOperation -> Just ConversationSubsystemErrorInvalidOperation
+  ConvNotFound -> Just ConversationSubsystemErrorConvNotFound
+  NotConnected -> Just ConversationSubsystemErrorNotConnected
+  MissingLegalholdConsent -> Just ConversationSubsystemErrorMissingLegalholdConsent
+  GroupIdVersionNotSupported -> Just ConversationSubsystemErrorGroupIdVersionNotSupported
+  ConvMemberNotFound -> Just ConversationSubsystemErrorConvMemberNotFound
+  TooManyMembers -> Just ConversationSubsystemErrorTooManyMembers
+  ActionDenied ConvRole.AddConversationMember -> Just ConversationSubsystemErrorActionDeniedAddConversationMember
+  ActionDenied ConvRole.RemoveConversationMember -> Just ConversationSubsystemErrorActionDeniedRemoveConversationMember
+  ActionDenied ConvRole.DeleteConversation -> Just ConversationSubsystemErrorActionDeniedDeleteConversation
+  ActionDenied ConvRole.LeaveConversation -> Just ConversationSubsystemErrorActionDeniedLeaveConversation
+  ActionDenied ConvRole.ModifyOtherConversationMember -> Just ConversationSubsystemErrorActionDeniedModifyOtherConversationMember
+  ActionDenied ConvRole.ModifyConversationName -> Just ConversationSubsystemErrorActionDeniedModifyConversationName
+  ActionDenied ConvRole.ModifyConversationMessageTimer -> Just ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer
+  ActionDenied ConvRole.ModifyConversationReceiptMode -> Just ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode
+  ActionDenied ConvRole.ModifyConversationAccess -> Just ConversationSubsystemErrorActionDeniedModifyConversationAccess
+  ActionDenied ConvRole.ModifyAddPermission -> Just ConversationSubsystemErrorActionDeniedModifyAddPermission
+  _ -> Nothing
 
 data ConversationSubsystemError
   = ConversationSubsystemErrorConvAccessDenied

@@ -85,7 +85,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE)
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE, cseToGalleyError)
 import Wire.ConversationSubsystem.MLS.Enabled
 import Wire.ConversationSubsystem.MLS.GroupInfo
 import Wire.ConversationSubsystem.MLS.GroupInfoCheck (GroupInfoCheckEnabled)
@@ -590,7 +590,26 @@ updateConversation ::
     Member E.MLSCommitLockStore r,
     Member TeamStore r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'ConvMemberNotFound) r,
+    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
+    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+    Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
+    Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
+    Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
+    Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
+    Member (ErrorS ('ActionDenied 'ModifyConversationAccess)) r,
+    Member (ErrorS ('ActionDenied 'ModifyAddPermission)) r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -603,46 +622,35 @@ updateConversation origDomain updateRequest = do
   mkResponse $ case updateRequest.action of
     SomeConversationAction tag action -> case tag of
       SConversationJoinTag ->
-        mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationJoin lcnv (tUntagged rusr) Nothing action
       SConversationLeaveTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationLeave lcnv (tUntagged rusr) Nothing
       SConversationRemoveMembersTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationRemoveMembers lcnv (tUntagged rusr) Nothing action
       SConversationMemberUpdateTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationMemberUpdate lcnv (tUntagged rusr) Nothing action
       SConversationDeleteTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationDelete lcnv (tUntagged rusr) Nothing
       SConversationRenameTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationRenameTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationRename lcnv (tUntagged rusr) Nothing action
       SConversationMessageTimerUpdateTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationMessageTimerUpdate lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
-        catchCSE
-          ( \case
-              ConversationSubsystemErrorMLSReadReceiptsNotAllowed -> Just MLSReadReceiptsNotAllowed
-              _ -> Nothing
-          )
-          . mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationReceiptModeUpdate lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
@@ -651,8 +659,7 @@ updateConversation origDomain updateRequest = do
               ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
               _ -> Nothing
           )
-          . mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
+          . catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationAccessData lcnv (tUntagged rusr) Nothing action
       SConversationUpdateProtocolTag ->
@@ -662,8 +669,7 @@ updateConversation origDomain updateRequest = do
               ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> Just MLSMigrationCriteriaNotSatisfied
               _ -> Nothing
           )
-          . mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag)
+          . catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationUpdateProtocol lcnv (tUntagged rusr) Nothing action
       SConversationUpdateAddPermissionTag ->
@@ -672,13 +678,11 @@ updateConversation origDomain updateRequest = do
               ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
               _ -> Nothing
           )
-          . mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag)
+          . catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationUpdateAddPermission lcnv (tUntagged rusr) Nothing action
       SConversationResetTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationResetTag)
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationReset lcnv (tUntagged rusr) Nothing action
       SConversationHistoryUpdateTag ->
@@ -687,8 +691,7 @@ updateConversation origDomain updateRequest = do
               ConversationSubsystemErrorHistoryNotSupported -> Just HistoryNotSupported
               _ -> Nothing
           )
-          . mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag)
+          . catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationHistoryUpdate lcnv (tUntagged rusr) Nothing action
   where

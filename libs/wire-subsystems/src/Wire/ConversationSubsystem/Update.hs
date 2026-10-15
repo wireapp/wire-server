@@ -141,7 +141,7 @@ import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember, kickMemberWith)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE)
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE, galleyErrorToCSE)
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Notify qualified as Notify
 import Wire.ConversationSubsystem.Query qualified as Query
@@ -397,7 +397,7 @@ updateRemoteConversation ::
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member TinyLog r,
-    RethrowErrors (HasConversationActionGalleyErrors tag) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member (Error FederationError) r,
@@ -421,7 +421,11 @@ updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
     Right x -> pure x
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
-    ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
+    ConversationUpdateResponseError err' ->
+      maybe
+        (throw . FederationUnexpectedError . fromString . show $ err')
+        throw
+        (galleyErrorToCSE err')
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
     ConversationUpdateResponseNonFederatingBackends e -> throw e
     ConversationUpdateResponseUnreachableBackends e -> throw e

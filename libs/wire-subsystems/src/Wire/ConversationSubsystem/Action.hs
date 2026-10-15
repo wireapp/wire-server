@@ -20,7 +20,6 @@ module Wire.ConversationSubsystem.Action
     ConversationActionTag (..),
     ConversationJoin (..),
     ConversationMemberUpdate (..),
-    HasConversationActionGalleyErrors,
 
     -- * Performing actions
     updateLocalConversationUncheckedJoin,
@@ -152,7 +151,6 @@ import Wire.Util
 class IsConversationAction (tag :: ConversationActionTag) where
   type HasConversationActionEffects tag (r :: EffectRow) :: Constraint
 
-  type HasConversationActionGalleyErrors tag :: EffectRow
 
   performAction ::
     forall r.
@@ -222,19 +220,6 @@ instance IsConversationAction 'ConversationJoinTag where
         Member (Error NoChanges) r
       )
 
-  type
-    HasConversationActionGalleyErrors 'ConversationJoinTag =
-      '[ ErrorS ('ActionDenied 'AddConversationMember),
-         ErrorS 'GroupIdVersionNotSupported,
-         ErrorS 'NotATeamMember,
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound,
-         ErrorS 'NotConnected,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'TooManyMembers,
-         ErrorS 'MissingLegalholdConsent
-       ]
-
   performAction lconv qusr _conId action = do
     (extraTargets, action') <- performConversationJoin qusr lconv action
     pure
@@ -275,13 +260,6 @@ instance IsConversationAction 'ConversationLeaveTag where
         Member TinyLog r
       )
 
-  type
-    HasConversationActionGalleyErrors 'ConversationLeaveTag =
-      '[ ErrorS ('ActionDenied 'LeaveConversation),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
-
   performAction lconv qusr _conId () = do
     leaveConversation qusr lconv
     pure $ mkPerformActionResult ()
@@ -308,13 +286,6 @@ instance IsConversationAction 'ConversationRemoveMembersTag where
         Member NotificationSubsystem r
       )
 
-  type
-    HasConversationActionGalleyErrors 'ConversationRemoveMembersTag =
-      '[ ErrorS ('ActionDenied 'RemoveConversationMember),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
-
   performAction lconv _qusr _conId action = do
     let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
     when (null presentVictims) noChanges
@@ -337,14 +308,6 @@ instance IsConversationAction 'ConversationMemberUpdateTag where
       ( Member (ErrorS 'ConvMemberNotFound) r,
         Member E.ConversationStore r
       )
-
-  type
-    HasConversationActionGalleyErrors 'ConversationMemberUpdateTag =
-      '[ ErrorS ('ActionDenied 'ModifyOtherConversationMember),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvMemberNotFound
-       ]
 
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
@@ -369,14 +332,6 @@ instance IsConversationAction 'ConversationDeleteTag where
         Member ProposalStore r,
         Member CodeStore r
       )
-
-  type
-    HasConversationActionGalleyErrors 'ConversationDeleteTag =
-      '[ ErrorS ('ActionDenied 'DeleteConversation),
-         ErrorS 'NotATeamMember,
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
 
   performAction lconv _qusr _conId () = do
     removeConversation lconv
@@ -430,13 +385,6 @@ instance IsConversationAction 'ConversationRenameTag where
         Member E.ConversationStore r
       )
 
-  type
-    HasConversationActionGalleyErrors 'ConversationRenameTag =
-      '[ ErrorS ('ActionDenied 'ModifyConversationName),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
-
   performAction lconv qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
@@ -475,14 +423,6 @@ instance IsConversationAction 'ConversationAccessDataTag where
         Member BackendNotificationQueueAccess r,
         Member TeamSubsystem r
       )
-
-  type
-    HasConversationActionGalleyErrors 'ConversationAccessDataTag =
-      '[ ErrorS ('ActionDenied 'RemoveConversationMember),
-         ErrorS ('ActionDenied 'ModifyConversationAccess),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
 
   performAction lconv qusr _conId action = do
     (bm, act) <- performConversationAccessData qusr lconv action
@@ -523,13 +463,6 @@ instance IsConversationAction 'ConversationHistoryUpdateTag where
         Member (Error ConversationSubsystemError) r
       )
 
-  type
-    HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
-      '[ ErrorS (ActionDenied ModifyConversationAccess),
-         ErrorS InvalidOperation,
-         ErrorS ConvNotFound
-       ]
-
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
@@ -550,13 +483,6 @@ instance IsConversationAction 'ConversationMessageTimerUpdateTag where
       ( Member E.ConversationStore r,
         Member (Error NoChanges) r
       )
-
-  type
-    HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag =
-      '[ ErrorS ('ActionDenied 'ModifyConversationMessageTimer),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
 
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
@@ -580,13 +506,6 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
         Member E.ConversationStore r,
         Member (Error NoChanges) r
       )
-
-  type
-    HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag =
-      '[ ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
 
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
@@ -622,13 +541,6 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         Member (E.FederationAPIAccess FederatorClient) r,
         Member (Error FederationError) r
       )
-
-  type
-    HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
-      '[ ErrorS ('ActionDenied 'LeaveConversation),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
 
   performAction lconv qusr _conId action = do
     let lcnv = fmap (.id_) lconv
@@ -670,13 +582,6 @@ instance IsConversationAction 'ConversationUpdateAddPermissionTag where
         Member E.ConversationStore r
       )
 
-  type
-    HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
-      '[ ErrorS ('ActionDenied 'ModifyAddPermission),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound
-       ]
-
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
@@ -711,13 +616,6 @@ instance IsConversationAction 'ConversationResetTag where
         Member Now r,
         Member TinyLog r
       )
-
-  type
-    HasConversationActionGalleyErrors 'ConversationResetTag =
-      '[ ErrorS (ActionDenied LeaveConversation),
-         ErrorS InvalidOperation,
-         ErrorS ConvNotFound
-       ]
 
   performAction lconv qusr _conId action = do
     newGroupId <- resetLocalMLSMainConversation qusr lconv action
