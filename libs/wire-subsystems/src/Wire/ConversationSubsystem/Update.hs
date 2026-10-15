@@ -295,7 +295,7 @@ type UpdateConversationAccessEffects =
      ErrorS ('ActionDenied 'RemoveConversationMember),
      ErrorS 'ConvNotFound,
      ErrorS 'InvalidOperation,
-     ErrorS 'InvalidTargetAccess,
+     Error ConversationSubsystemError,
      E.ExternalAccess,
      E.FederationAPIAccess FederatorClient,
      FireAndForget,
@@ -720,7 +720,7 @@ updateChannelAddPermission ::
     Member (Error UnreachableBackends) r,
     Member BrigAPIAccess r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member (ErrorS 'InvalidTargetAccess) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->

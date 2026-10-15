@@ -225,7 +225,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamMemberNotFound,
      ErrorS 'AccessDenied,
      ErrorS 'TooManyMembers,
-     ErrorS 'InvalidTargetAccess,
      ErrorS ('ActionDenied ConvRole.AddConversationMember),
      ErrorS ('ActionDenied ConvRole.ModifyOtherConversationMember),
      ErrorS ('ActionDenied ConvRole.ModifyConversationName),
@@ -275,7 +274,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationName)
     . mapError (const ConversationSubsystemErrorActionDeniedModifyOtherConversationMember)
     . mapError (const ConversationSubsystemErrorActionDeniedAddConversationMember)
-    . mapError (const ConversationSubsystemErrorInvalidTargetAccess)
     . mapError (const ConversationSubsystemErrorTooManyMembers)
     . mapError (const ConversationSubsystemErrorAccessDenied)
     . mapError (const ConversationSubsystemErrorTeamMemberNotFound)

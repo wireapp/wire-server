@@ -460,7 +460,7 @@ instance IsConversationAction 'ConversationAccessDataTag where
       ( Member E.BrigAPIAccess r,
         Member CodeStore r,
         Member (Error NoChanges) r,
-        Member (ErrorS 'InvalidTargetAccess) r,
+        Member (Error ConversationSubsystemError) r,
         Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
         Member ExternalAccess r,
         Member E.FireAndForget r,
@@ -481,7 +481,6 @@ instance IsConversationAction 'ConversationAccessDataTag where
       '[ ErrorS ('ActionDenied 'RemoveConversationMember),
          ErrorS ('ActionDenied 'ModifyConversationAccess),
          ErrorS 'InvalidOperation,
-         ErrorS 'InvalidTargetAccess,
          ErrorS 'ConvNotFound
        ]
 
@@ -501,7 +500,7 @@ instance IsConversationAction 'ConversationAccessDataTag where
     -- so on; users not supposed to be able to make other conversations
     -- have 'PrivateAccessRole'
     when (PrivateAccess `elem` cupAccess action || Set.null (cupAccessRoles action)) $
-      throwS @'InvalidTargetAccess
+      throw ConversationSubsystemErrorInvalidTargetAccess
     -- Team conversations incur another round of checks
     case convTeam conv of
       Just _ -> do
@@ -512,7 +511,7 @@ instance IsConversationAction 'ConversationAccessDataTag where
       Nothing ->
         -- not a team conv, so one of the other access roles has to allow this.
         when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
-          throwS @'InvalidTargetAccess
+          throw ConversationSubsystemErrorInvalidTargetAccess
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
   allowChannelManagePermission = True
@@ -666,7 +665,7 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
 instance IsConversationAction 'ConversationUpdateAddPermissionTag where
   type
     HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
-      ( Member (ErrorS 'InvalidTargetAccess) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member (Error NoChanges) r,
         Member E.ConversationStore r
       )
@@ -675,8 +674,7 @@ instance IsConversationAction 'ConversationUpdateAddPermissionTag where
     HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
       '[ ErrorS ('ActionDenied 'ModifyAddPermission),
          ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound,
-         ErrorS 'InvalidTargetAccess
+         ErrorS 'ConvNotFound
        ]
 
   performAction lconv _qusr _conId action = do
@@ -689,7 +687,7 @@ instance IsConversationAction 'ConversationUpdateAddPermissionTag where
   ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
     throwS @'ConvNotFound
   ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
-    unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
+    unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throw ConversationSubsystemErrorInvalidTargetAccess
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
   allowChannelManagePermission = True
@@ -1202,7 +1200,7 @@ updateLocalConversationAccessData ::
     Member (Input ConversationSubsystemConfig) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'InvalidTargetAccess) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -1278,7 +1276,7 @@ updateLocalConversationUpdateAddPermission ::
     Member (Error NoChanges) r,
     Member E.ConversationStore r,
     Member TeamSubsystem r,
-    Member (ErrorS 'InvalidTargetAccess) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Qualified UserId ->

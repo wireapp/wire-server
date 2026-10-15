@@ -637,8 +637,13 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversationReceiptModeUpdate lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
+        catchCSE
+          ( \case
+              ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
+              _ -> Nothing
+          )
+          . mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
           . fmap lcuUpdate
           $ updateLocalConversationAccessData lcnv (tUntagged rusr) Nothing action
       SConversationUpdateProtocolTag ->
@@ -653,8 +658,13 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversationUpdateProtocol lcnv (tUntagged rusr) Nothing action
       SConversationUpdateAddPermissionTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag)
+        catchCSE
+          ( \case
+              ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
+              _ -> Nothing
+          )
+          . mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag)
           . fmap lcuUpdate
           $ updateLocalConversationUpdateAddPermission lcnv (tUntagged rusr) Nothing action
       SConversationResetTag ->
