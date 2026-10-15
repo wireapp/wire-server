@@ -30,8 +30,6 @@ import Wire.FanInNotificationsStore
 
 data PushOutcome = PushOk | PushFailed Text
 
--- REVIEW: Dependency injection of doPush and reportError is odd. This is what effects are for!
-
 -- | One push: generate targets, run, record. Synchronous exceptions are
 -- counted as errors so a writer never dies; async ones (cancel) propagate.
 writerStep ::

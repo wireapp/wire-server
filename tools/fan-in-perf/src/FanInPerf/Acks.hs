@@ -28,8 +28,7 @@ data Pending = Pending
   }
   deriving (Eq, Show)
 
--- | Streams with unacknowledged notifications; the single source of truth
--- (no separate counter that could drift).
+-- | Streams with unacknowledged notifications
 newtype AckState = AckState (Map Key Pending)
   deriving (Eq, Show)
 

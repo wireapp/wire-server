@@ -51,16 +51,36 @@ import UnliftIO.Exception (bracket_, tryAny)
 import Wire.FanInNotificationsStore
 import Wire.FanInNotificationsStore.Postgres (notificationIdMillis)
 
--- | A stream a client reads. @cursor@ is the highest id delivered (or the
--- start position). With a safety window, @start@ (the start position) is the
--- lowest possible fetch bound, @seen@ holds the delivered ids inside the
--- window and @resumeAfter@ is where an unfinished scan of the window continues.
+-- | A stream a client reads. Ids ascend with their UUIDv7 time, left to right.
+-- With @--safety-window@ W > 0 the next fetch returns ids greater than
+-- @max bound resumeAfter@, where @bound@ is the cursor minus W ms, never below
+-- @start@ ('lowerBound'):
+--
+-- @
+--  start        bound         resumeAfter           cursor        newest
+--    |            |                |                   |             |
+--  --+--x-x-x-----+--o-x-o-x-x-----+-o-x-x-o-x-x-------+-------------+-->
+--    |            |<------------- window W ----------->|
+--    |            |  seen = ids delivered in here      |
+--    |<- never fetched again                           |<- not yet delivered
+--
+--  x  delivered, in @seen@        o  late commit: below cursor, delivered
+--     (skipped when fetched again)    on the re-read of the window
+-- @
+--
+-- W = 0: @bound = cursor@, @seen@ is empty, plain @> lastId@.
 data Subscription = Subscription
   { kind :: !TargetKind,
     stream :: !Stream,
+    -- | highest id delivered (initially the start position)
     cursor :: !UUID,
+    -- | start position: the lowest possible fetch bound
     start :: !UUID,
+    -- | delivered ids inside the window, not delivered again
     seen :: !(Set UUID),
+    -- | last id of a full page: the next fetch continues after it instead of
+    -- re-reading the page (the window holds more rows than @--fetch-limit@);
+    -- a non-full page resets it
     resumeAfter :: !(Maybe UUID)
   }
 
@@ -71,7 +91,12 @@ newSubscription kind stream cursor =
 -- | Start position of every stream of a reader: B reads the latest
 -- notification id ("start at latest"); C resets the reader's acks to it (RFC
 -- "when nothing is acknowledged"). The nil UUID for an empty stream.
-startPositions :: (Member FanInNotificationsStore r) => ReaderMode -> Set TargetKind -> Pop.Reader -> Sem r [Subscription]
+startPositions ::
+  (Member FanInNotificationsStore r) =>
+  ReaderMode ->
+  Set TargetKind ->
+  Pop.Reader ->
+  Sem r [Subscription]
 startPositions mode kinds r =
   for (readerStreams kinds r) $ \s -> do
     start <- case mode of
@@ -101,7 +126,12 @@ data PassResult = PassResult
   }
 
 instance Semigroup PassResult where
-  a <> b = PassResult (a.subs <> b.subs) (a.more || b.more) (a.delivered <> b.delivered) (a.errors <> b.errors)
+  a <> b =
+    PassResult
+      (a.subs <> b.subs)
+      (a.more || b.more)
+      (a.delivered <> b.delivered)
+      (a.errors <> b.errors)
 
 instance Monoid PassResult where
   mempty = PassResult [] False [] []
@@ -181,8 +211,6 @@ lagNs :: Word64 -> UUID -> Word64
 lagNs nowMs notifId =
   let created = notificationIdMillis notifId
    in if nowMs > created then (nowMs - created) * 1_000_000 else 0
-
--- REVIEW: Dependency injection is confusing
 
 -- | Runs one store call; a synchronous exception or an error result goes to
 -- @onFailure@ as text, so one failing stream never affects another. Async
@@ -274,12 +302,10 @@ gateWith onWait gate = bracket_ acquire (signalQSem gate)
 readerLoop :: QSem -> Env -> ConsumeOptions -> Pop.Reader -> ReaderStats -> (Text -> IO ()) -> [Subscription] -> IO ()
 readerLoop gate env opts client stats reportError = go emptyAckState
   where
-    render :: UsageError -> Text
-    render = tshow
     gated :: Sem StoreEffects a -> IO (Either UsageError a)
     gated = throughGate gate stats . runStore env
-    fetchOne sub = gated (readerPass @UsageError render opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
-    writeAcks = ackPending render stats reportError (gated . ackOne stats client)
+    fetchOne sub = gated (readerPass @UsageError tshow opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
+    writeAcks = ackPending tshow stats reportError (gated . ackOne stats client)
     received acks delivered = case opts.mode of
       NoAcks -> pure acks
       Acks n -> acknowledge n writeAcks acks delivered
@@ -287,7 +313,7 @@ readerLoop gate env opts client stats reportError = go emptyAckState
     pollOne (done, acks) (sub, again)
       | not again = pure ((sub, False) : done, acks)
       | otherwise = do
-          r <- readerRound render stats fetchOne [sub]
+          r <- readerRound tshow stats fetchOne [sub]
           traverse_ reportError r.errors
           acks' <- received acks r.delivered
           pure (reverse (map (,r.more) r.subs) <> done, acks')
