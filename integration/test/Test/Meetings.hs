@@ -21,6 +21,7 @@ module Test.Meetings where
 
 import API.Galley
 import qualified API.GalleyInternal as I
+import qualified API.BrigInternal as BrigI
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader (ask, asks)
 import qualified Data.Text as Text
@@ -34,6 +35,7 @@ import SetupHelpers
 import System.Environment (lookupEnv)
 import System.Process (readProcess)
 import System.Timeout (timeout)
+import Test.OAuth (generateAccessToken)
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
 import Text.Regex.TDFA ((=~))
@@ -161,6 +163,7 @@ defaultMeetingJson title startTime endTime invitedEmails =
       "end_time" .= endTime,
       "tzid" .= ("Europe/Berlin" :: String),
       "type" .= ("scheduled" :: String),
+      "managed_by" .= ("wire" :: String),
       "invited_emails" .= invitedEmails
     ]
 
@@ -275,6 +278,7 @@ testMeetingRecurrence = do
             "end_time" .= endTime,
             "tzid" .= ("Europe/Berlin" :: String),
             "type" .= ("scheduled" :: String),
+            "managed_by" .= ("wire" :: String),
             "recurrence" .= recurrence,
             "invited_emails" .= ["charlie@example.com"]
           ]
@@ -562,6 +566,7 @@ testMeetingDelete = do
             "start_time" .= startTime,
             "end_time" .= endTime,
             "type" .= ("scheduled" :: String),
+            "managed_by" .= ("wire" :: String),
             "tzid" .= ("Europe/Berlin" :: String),
             "invited_emails" .= ([] :: [String]),
             "recurrence" .= recurrence
@@ -779,6 +784,7 @@ testMeetingListRecurringNotExpired = do
           [ "title" .= "Recurring Past Meeting",
             "start_time" .= startTime,
             "type" .= ("scheduled" :: String),
+            "managed_by" .= ("wire" :: String),
             "end_time" .= endTime,
             "tzid" .= ("Europe/Berlin" :: String),
             "recurrence" .= recurrence,
@@ -1262,6 +1268,7 @@ testMeetingCreatePassword = withLicensedBackend $ \dom -> do
             "end_time" .= addUTCTime 7200 now,
             "tzid" .= ("Europe/Berlin" :: String),
             "type" .= ("scheduled" :: String),
+            "managed_by" .= ("wire" :: String),
             "invited_emails" .= ([] :: [String]),
             "password" .= ("supersecret8" :: String)
           ]
@@ -1318,3 +1325,81 @@ testMeetingJoinByLinkPaywalled = do
   -- A format-valid but unknown key hits the gate before resolution too.
   getMeetingCodeCheck bob domain unkKey unkCode Nothing >>= assertLabel 403 "id-feature-error"
   postMeetingJoin bob domain unkKey unkCode Nothing >>= assertLabel 403 "id-feature-error"
+-- | Google-Calendar add-on flows: an OAuth bearer caller (no cookie, hence no
+-- @Z-Connection@ header) creates a @google_calendar@-managed meeting and can
+-- update it, while Wire clients (ZAuth with a connection) get @403
+-- managed-by-calendar@ on every mutation of it. @wire@-managed meetings keep
+-- the previous behavior for both caller kinds.
+testMeetingGoogleCalendarManaged :: (HasCallStack) => App ()
+testMeetingGoogleCalendarManaged = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      uri = "https://example.com"
+
+  -- Register an OAuth client and mint an access token with the meetings scope.
+  cid <- BrigI.createOAuthClient owner "google-calendar" uri >>= getJSON 200 >>= flip (%.) "client_id" >>= asString
+  token <- generateAccessToken owner cid ["write:meetings"] uri >>= flip (%.) "access_token" >>= asString
+
+  -- OAuth bearer caller creates a calendar-managed meeting: 201, field echoed.
+  calendarMeeting <- setField "managed_by" ("google_calendar" :: String) (defaultMeetingJson "Calendar Meeting" startTime endTime [])
+  created <- postMeetingsOAuth owner token calendarMeeting
+  assertSuccess created
+  meeting <- getJSON 201 created
+  meeting %. "managed_by" `shouldMatch` ("google_calendar" :: String)
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- The calendar integration (OAuth bearer, no connection) can update it.
+  putMeetingOAuth owner token domain meetingId (object ["title" .= ("Rescheduled by Calendar" :: String)]) >>= assertSuccess
+
+  -- Wire clients (ZAuth with a connection) may not mutate it.
+  putMeeting owner domain meetingId (object ["title" .= ("Hacked" :: String)]) >>= assertLabel 403 "managed-by-calendar"
+  postMeetingLinkRefresh owner domain meetingId (object []) >>= assertLabel 403 "managed-by-calendar"
+  postMeetingInvitation owner domain meetingId (object ["emails" .= (["someone@example.com" :: String])]) >>= assertLabel 403 "managed-by-calendar"
+  deleteMeeting owner domain meetingId >>= assertLabel 403 "managed-by-calendar"
+
+  -- ... nor create a google_calendar-managed meeting through a Wire session.
+  calendarViaWire <- setField "managed_by" ("google_calendar" :: String) (defaultMeetingJson "Calendar via Wire" startTime endTime [])
+  postMeetings owner calendarViaWire >>= assertLabel 403 "managed-by-calendar"
+
+  -- A wire-managed meeting (default for cookie sessions) keeps the old rules:
+  -- the owner mutates it with a session ...
+  wireCreated <- postMeetings owner (defaultMeetingJson "Wire Meeting" startTime endTime [])
+  assertSuccess wireCreated
+  wireMeeting <- getJSON 201 wireCreated
+  wireMeeting %. "managed_by" `shouldMatch` ("wire" :: String)
+  (wireId, wireDomain) <- getMeetingIdAndDomain wireMeeting
+  putMeeting owner wireDomain wireId (object ["title" .= ("Updated by Wire" :: String)]) >>= assertSuccess
+  deleteMeeting owner wireDomain wireId >>= assertSuccess
+
+  -- ... and an OAuth bearer client can mutate it too (no manager guard).
+  wireCreated2 <- postMeetings owner (defaultMeetingJson "Wire Meeting 2" startTime endTime [])
+  wireMeeting2 <- getJSON 201 wireCreated2
+  (wireId2, wireDomain2) <- getMeetingIdAndDomain wireMeeting2
+  putMeetingOAuth owner token wireDomain2 wireId2 (object ["title" .= ("Updated by Calendar on Wire meeting" :: String)]) >>= assertSuccess
+
+  -- Finally the calendar integration deletes its own meeting.
+  deleteMeetingOAuth owner token domain meetingId >>= assertSuccess
+
+-- | Send a galley meeting request authenticated only by an OAuth bearer token
+-- (no cookie, hence no @Z-Connection@ header) — the calendar integration's
+-- calling pattern through nginz.
+meetingOAuthRequest :: (HasCallStack, MakesValue user) => String -> user -> String -> String -> Maybe Value -> App Response
+meetingOAuthRequest method user token path mBody = do
+  req <- rawBaseRequest user Galley Versioned path
+  let req' = addHeader "Authorization" ("Bearer " <> token) req
+  submit method $ case mBody of
+    Just body -> addJSON body req'
+    Nothing -> req'
+
+postMeetingsOAuth :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+postMeetingsOAuth user token body = meetingOAuthRequest "POST" user token "/meetings" (Just body)
+
+putMeetingOAuth :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> Value -> App Response
+putMeetingOAuth user token domain meetingId body =
+  meetingOAuthRequest "PUT" user token (joinHttpPath ["meetings", domain, meetingId]) (Just body)
+
+deleteMeetingOAuth :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
+deleteMeetingOAuth user token domain meetingId =
+  meetingOAuthRequest "DELETE" user token (joinHttpPath ["meetings", domain, meetingId]) Nothing

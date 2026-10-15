@@ -73,7 +73,7 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
                :> "meetings"
                :> ReqBody '[JSON] NewMeeting
                :> CanThrow MeetingError
@@ -130,7 +130,7 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -150,7 +150,7 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'DeleteOnlyMeetings
                :> From 'V15
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -236,8 +236,10 @@ type MeetingsAPI =
     :<|> Named
            "add-meeting-invitation"
            ( Summary "Add an email to the invited emails"
+               :> DescriptionOAuthScope 'WriteMeetings
                :> From 'V16
                :> ZLocalUser
+               :> ZOptConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -255,8 +257,10 @@ type MeetingsAPI =
     :<|> Named
            "remove-meeting-invitation"
            ( Summary "Remove emails from the invited emails"
+               :> DescriptionOAuthScope 'WriteMeetings
                :> From 'V16
                :> ZLocalUser
+               :> ZOptConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -275,8 +279,10 @@ type MeetingsAPI =
     :<|> Named
            "replace-meeting-invitation"
            ( Summary "Replace the invited emails"
+               :> DescriptionOAuthScope 'WriteMeetings
                :> From 'V17
                :> ZLocalUser
+               :> ZOptConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -297,7 +303,7 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId

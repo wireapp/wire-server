@@ -54,7 +54,7 @@ import Wire.MeetingsSubsystem qualified as Meetings
 createMeeting ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   NewMeeting ->
   Sem r MeetingWithConversation
 createMeeting lUser connId newMeeting = Meetings.createMeeting lUser connId newMeeting
@@ -64,7 +64,7 @@ updateMeeting ::
     Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Domain ->
   MeetingId ->
   UpdateMeeting ->
@@ -78,7 +78,7 @@ deleteMeeting ::
     Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Domain ->
   MeetingId ->
   Sem r ()
@@ -190,13 +190,14 @@ addMeetingInvitation ::
     Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
+  Maybe ConnId ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-addMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+addMeetingInvitation zUser mConn domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.addInvitedEmails zUser qMeetingId emails
+  success <- Meetings.addInvitedEmails zUser mConn qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 removeMeetingInvitation ::
@@ -204,13 +205,14 @@ removeMeetingInvitation ::
     Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
+  Maybe ConnId ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-removeMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+removeMeetingInvitation zUser mConn domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.removeInvitedEmails zUser qMeetingId emails
+  success <- Meetings.removeInvitedEmails zUser mConn qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 replaceMeetingInvitation ::
@@ -218,13 +220,14 @@ replaceMeetingInvitation ::
     Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
+  Maybe ConnId ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+replaceMeetingInvitation zUser mConn domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.replaceInvitedEmails zUser qMeetingId emails
+  success <- Meetings.replaceInvitedEmails zUser mConn qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 refreshMeetingLink ::
@@ -232,7 +235,7 @@ refreshMeetingLink ::
     Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Domain ->
   MeetingId ->
   RefreshMeetingLinkRequest ->

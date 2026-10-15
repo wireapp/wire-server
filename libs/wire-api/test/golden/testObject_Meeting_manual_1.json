@@ -6,6 +6,7 @@
         "someone@example.com"
     ],
     "link": "https://account.wire.com/meeting-join/?key=AAAAAAAAAAAAAAAAAAAA&code=BBBBBBBBBBBBBBBBBBBB&domain=example.com",
+    "managed_by": "wire",
     "qualified_conversation": {
         "domain": "example.com",
         "id": "00000003-0000-0000-0000-000000000003"

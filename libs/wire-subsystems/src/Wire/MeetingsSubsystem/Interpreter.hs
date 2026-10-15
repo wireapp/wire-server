@@ -176,7 +176,7 @@ interpretMeetingsSubsystem cfg = interpret $ \case
   ListMeetings zUser ->
     listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV16 zUser connId newMeeting ->
-    API.toLegacyWithConv <$> createMeetingImpl zUser connId (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting)
+    API.toLegacyWithConv <$> createMeetingImpl zUser (Just connId) (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting)
   UpdateMeetingV16 zUser connId meetingId update ->
     updateMeetingV16Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   GetMeetingV16 zUser meetingId ->
@@ -184,21 +184,39 @@ interpretMeetingsSubsystem cfg = interpret $ \case
   ListMeetingsV16 zUser ->
     map API.toLegacy <$> listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV18 zUser connId nm ->
-    API.toLegacyWithConvV18 <$> createMeetingImpl zUser connId (API.fromLegacyNewMeetingV18 nm)
+    API.toLegacyWithConvV18 <$> createMeetingImpl zUser (Just connId) (API.fromLegacyNewMeetingV18 nm)
   UpdateMeetingV18 zUser connId meetingId update ->
     updateMeetingV18Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   GetMeetingV18 zUser meetingId ->
     fmap API.toLegacyV18 <$> getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetingsV18 zUser ->
     map API.toLegacyV18 <$> listMeetingsImpl zUser cfg.validityPeriod
-  AddInvitedEmails zUser meetingId emails ->
-    addInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
-  RemoveInvitedEmails zUser meetingId emails ->
-    removeInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
-  ReplaceInvitedEmails zUser meetingId emails ->
-    replaceInvitedEmailsImpl zUser meetingId emails cfg.validityPeriod
+  AddInvitedEmails zUser mConn meetingId emails ->
+    addInvitedEmailsImpl zUser mConn meetingId emails cfg.validityPeriod
+  RemoveInvitedEmails zUser mConn meetingId emails ->
+    removeInvitedEmailsImpl zUser mConn meetingId emails cfg.validityPeriod
+  ReplaceInvitedEmails zUser mConn meetingId emails ->
+    replaceInvitedEmailsImpl zUser mConn meetingId emails cfg.validityPeriod
   CleanupOldMeetings cutoffTime batchSize ->
     cleanupOldMeetingsImpl cutoffTime batchSize
+
+-- | @GoogleCalendar@-managed meetings are created and mutated only by the
+-- calendar integration, i.e. by OAuth callers, whom nginz identifies by the
+-- absence of the @Z-Connection@ header. The inference is trustworthy only
+-- behind nginz, which unconditionally overrides client-supplied @Z-*@
+-- headers and omits @Z-Connection@ for OAuth tokens (zauth_module.c);
+-- direct in-cluster callers could set arbitrary headers (existing internal
+-- trust model).
+ensureNotWireClient ::
+  (Member (Error MeetingError) r) =>
+  -- | The caller's connection ('Nothing' for OAuth bearer callers).
+  Maybe ConnId ->
+  -- | The meeting's lifecycle owner.
+  API.Manager ->
+  Sem r ()
+ensureNotWireClient mConn manager =
+  when (manager == API.GoogleCalendar && isJust mConn) $
+    throw ManagedByCalendar
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -215,13 +233,14 @@ createMeetingImpl ::
     Member RateLimit r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   API.NewMeeting ->
   Sem r API.MeetingWithConversation
-createMeetingImpl zUser connId newMeeting = do
+createMeetingImpl zUser mConn newMeeting = do
   -- Look up user's team once and reuse for both checks
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled conversationTeamId
+  ensureNotWireClient mConn newMeeting.managedBy
   -- Validate that the meeting ends after it starts (end_time is the source of
   -- truth; positivity was previously checked on the derived duration).
   when (newMeeting.endTime <= newMeeting.startTime) $
@@ -292,9 +311,10 @@ createMeetingImpl zUser connId newMeeting = do
       storedConv.id_
       newMeeting.invitedEmails
       trial
+      newMeeting.managedBy
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
-  notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
+  notifyMeetingEvent zUser mConn storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
   base <- codeURIBase (tDomain zUser)
   storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting
@@ -311,13 +331,13 @@ updateMeetingImpl ::
     Member CodeStore r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
   NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversation)
-updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = do
+updateMeetingImpl zUser mConn meetingId update validityPeriod pastEditPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   when (update == API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing) $
@@ -331,6 +351,9 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
+    -- Guard placement after the liveness/domain/creator guards keeps the
+    -- pre-existing uniform 404 for non-creators (no existence oracle).
+    lift $ ensureNotWireClient mConn meeting.managedBy
     -- Creation enforces endTime > startTime (createMeetingImpl); re-establish
     -- the invariant on the *effective* times after this update, since either
     -- bound may change independently.
@@ -355,7 +378,7 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
           update.tzid
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
-    lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
+    lift $ notifyMeetingEvent zUser mConn conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     lift $ storedMeetingToMeetingWithConversation base zUser conv updatedMeeting
 
 -- | V16 update path. The request is delegated to the shared update
@@ -380,7 +403,7 @@ updateMeetingV16Impl ::
   Sem r (Maybe API.MeetingWithConversationV16)
 updateMeetingV16Impl zUser connId meetingId update validityPeriod pastEditPeriod =
   fmap API.toLegacyWithConv
-    <$> updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod
+    <$> updateMeetingImpl zUser (Just connId) meetingId update validityPeriod pastEditPeriod
 
 -- | V18 update path. The request is delegated to the shared update
 -- implementation and the result is re-shaped to the legacy form.
@@ -404,7 +427,7 @@ updateMeetingV18Impl ::
   Sem r (Maybe API.MeetingWithConversationV18)
 updateMeetingV18Impl zUser connId meetingId update validityPeriod pastEditPeriod =
   fmap API.toLegacyWithConvV18
-    <$> updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod
+    <$> updateMeetingImpl zUser (Just connId) meetingId update validityPeriod pastEditPeriod
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -418,11 +441,11 @@ deleteMeetingImpl ::
     Member CodeStore r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Qualified MeetingId ->
   NominalDiffTime ->
   Sem r Bool
-deleteMeetingImpl zUser connId meetingId validityPeriod = do
+deleteMeetingImpl zUser mConn meetingId validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -433,6 +456,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       guard $ isAlive cutoff meeting
       guard $ qDomain meetingId == tDomain zUser
       guard $ meeting.creator == tUnqualified zUser
+      lift $ ensureNotWireClient mConn meeting.managedBy
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
       conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
@@ -449,10 +473,10 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
         -- the deletion below, members receive a deletion event for a meeting
         -- that survives; accepted residual race — server state stays consistent
         -- because deleteLocalConversation re-runs all checks.
-        lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
+        lift $ notifyMeetingEvent zUser mConn conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
         lift $
           void $
-            ConversationSubsystem.deleteLocalConversation zUser connId lConvId
+            ConversationSubsystem.deleteLocalConversation zUser mConn lConvId
       lift $ CodeStore.deleteMeetingCode (qUnqualified meetingId)
       lift $ Store.deleteMeeting (qUnqualified meetingId)
   pure $ isJust result
@@ -481,12 +505,12 @@ refreshMeetingLinkImpl ::
     Member RateLimit r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Qualified MeetingId ->
   API.RefreshMeetingLinkRequest ->
   NominalDiffTime ->
   Sem r (Maybe API.MeetingWithConversation)
-refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
+refreshMeetingLinkImpl zUser mConn meetingId req validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   base <- codeURIBase (tDomain zUser)
@@ -497,6 +521,7 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
+    lift $ ensureNotWireClient mConn meeting.managedBy
     conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
     mHashedPw <- lift $ for req.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
     -- Rotation + guest-code revocation are one CodeStore op (see
@@ -510,7 +535,7 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
             . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
     -- The meeting.update event already notifies conversation members, so no
     -- separate conversation event is sent.
-    lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
+    lift $ notifyMeetingEvent zUser mConn conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     lift $ storedMeetingToMeetingWithConversation base zUser conv meeting
 
 -- | Check the code's (hashed) password against the presented attempt.
@@ -748,6 +773,7 @@ mkApiMeeting mBase domain mCode sm =
       API.endTime = sm.endTime,
       API.tzid = sm.tzid,
       API.mtype = sm.meetingType,
+      API.managedBy = sm.managedBy,
       API.recurrence = sm.recurrence,
       API.conversationId = Qualified sm.conversationId domain,
       API.invitedEmails = sm.invitedEmails,
@@ -891,11 +917,12 @@ addInvitedEmailsImpl ::
     Member Now r
   ) =>
   Local UserId ->
+  Maybe ConnId ->
   Qualified MeetingId ->
   [EmailAddress] ->
   NominalDiffTime ->
   Sem r Bool
-addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+addInvitedEmailsImpl zUser mConn meetingId emails validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -906,6 +933,7 @@ addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
+      lift $ ensureNotWireClient mConn storedMeeting.managedBy
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result
@@ -918,11 +946,12 @@ removeInvitedEmailsImpl ::
     Member Now r
   ) =>
   Local UserId ->
+  Maybe ConnId ->
   Qualified MeetingId ->
   [EmailAddress] ->
   NominalDiffTime ->
   Sem r Bool
-removeInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+removeInvitedEmailsImpl zUser mConn meetingId emails validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -933,6 +962,7 @@ removeInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
+      lift $ ensureNotWireClient mConn storedMeeting.managedBy
       lift $ Store.removeInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result
@@ -945,11 +975,12 @@ replaceInvitedEmailsImpl ::
     Member Now r
   ) =>
   Local UserId ->
+  Maybe ConnId ->
   Qualified MeetingId ->
   [EmailAddress] ->
   NominalDiffTime ->
   Sem r Bool
-replaceInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+replaceInvitedEmailsImpl zUser mConn meetingId emails validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -960,6 +991,7 @@ replaceInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
+      lift $ ensureNotWireClient mConn storedMeeting.managedBy
       lift $ Store.replaceInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result

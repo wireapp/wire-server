@@ -28,6 +28,11 @@ module Wire.API.Meeting
     renderMeetingType,
     parseMeetingType,
 
+    -- * Meeting manager
+    Manager (..),
+    renderManager,
+    parseManager,
+
     -- * Meetings (V19)
     Meeting (..),
     MeetingWithConversation (..),
@@ -150,6 +155,9 @@ data Meeting = Meeting
     endTime :: UTCTime,
     tzid :: TimeZone,
     mtype :: MeetingType,
+    -- | Lifecycle owner of the meeting; @GoogleCalendar@ meetings are only
+    -- mutable through the calendar integration (OAuth callers).
+    managedBy :: Manager,
     recurrence :: Maybe Recurrence,
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
@@ -218,6 +226,7 @@ meetingObject =
     <*> (.endTime) .= field "end_time" utcTimeSchema
     <*> (.tzid) .= field "tzid" schema
     <*> (.mtype) .= field "type" schema
+    <*> (.managedBy) .= field "managed_by" schema
     <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
     <*> (.conversationId) .= field "qualified_conversation" schema
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
@@ -349,6 +358,9 @@ data NewMeeting = NewMeeting
     endTime :: UTCTime,
     tzid :: TimeZone,
     mtype :: MeetingType,
+    -- | Lifecycle owner of the meeting; must be @GoogleCalendar@ for
+    -- calendar-integration (OAuth) callers creating meetings.
+    managedBy :: Manager,
     recurrence :: Maybe Recurrence,
     title :: Range 1 256 Text,
     invitedEmails :: [EmailAddress],
@@ -377,6 +389,7 @@ instance ToSchema NewMeeting where
         <*> (.endTime) .= field "end_time" utcTimeSchema
         <*> (.tzid) .= field "tzid" schema
         <*> (.mtype) .= field "type" schema
+        <*> (.managedBy) .= field "managed_by" schema
         <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.title) .= field "title" schema
         <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
@@ -461,6 +474,33 @@ parseMeetingType = \case
   "scheduled" -> Just Scheduled
   _ -> Nothing
 
+-- | Lifecycle owner of a meeting: 'Wire' for meetings created and managed by
+-- Wire clients, 'GoogleCalendar' for meetings created and managed through the
+-- calendar integration (OAuth callers). Set at creation and immutable.
+data Manager = Wire | GoogleCalendar
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Manager)
+  deriving (Arbitrary) via (GenericUniform Manager)
+
+instance ToSchema Manager where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "wire" Wire,
+          element "google_calendar" GoogleCalendar
+        ]
+
+renderManager :: Manager -> Text
+renderManager = \case
+  Wire -> "wire"
+  GoogleCalendar -> "google_calendar"
+
+parseManager :: Text -> Maybe Manager
+parseManager = \case
+  "wire" -> Just Wire
+  "google_calendar" -> Just GoogleCalendar
+  _ -> Nothing
+
 -- | Request to update an existing meeting. @tzid@ is optional: 'Just'
 -- sets the meeting's IANA time zone, while omitting it leaves the stored time
 -- unchanged; @end_time@ is optional. The meeting type is chosen at creation and
@@ -527,6 +567,7 @@ fromLegacy tz m =
       endTime = m.endTime,
       tzid = tz,
       mtype = Scheduled,
+      managedBy = Wire,
       recurrence = m.recurrence,
       conversationId = m.conversationId,
       invitedEmails = m.invitedEmails,
@@ -599,6 +640,7 @@ fromLegacyNewMeeting tz nm =
       endTime = nm.endTime,
       tzid = tz,
       mtype = Scheduled,
+      managedBy = Wire,
       recurrence = nm.recurrence,
       title = nm.title,
       invitedEmails = nm.invitedEmails,
@@ -615,6 +657,7 @@ fromLegacyNewMeetingV18 nm =
       endTime = nm.endTime,
       tzid = nm.tzid,
       mtype = Scheduled,
+      managedBy = Wire,
       recurrence = nm.recurrence,
       title = nm.title,
       invitedEmails = nm.invitedEmails,

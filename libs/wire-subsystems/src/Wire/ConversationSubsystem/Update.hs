@@ -458,12 +458,12 @@ deleteLocalConversation ::
     Member TeamSubsystem r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Local ConvId ->
   Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversationDelete lcnv (tUntagged lusr) (Just con)
+    updateLocalConversationDelete lcnv (tUntagged lusr) con
 
 addCodeUnqualified ::
   forall r.

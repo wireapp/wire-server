@@ -786,6 +786,25 @@ nginx_conf:
       - all
       oauth_scope: meetings  # deprecated, will be ignored if 'oauth_scopes' is present.
       oauth_scopes: ["write-only:meetings"]
+    ## this rule can't be expressed yet: https://wearezeta.atlassian.net/browse/WPB-28193
+    #- path: /meetings/([^/]*)/([^/]*)$
+    #  envs:
+    #  - all
+    #  oauth_scopes: [write:meetings, admin:meetings]
+    ## interim single-scope rule (WPB-28193 tracks the multi-scope form):
+    ## meeting mutations must not be reachable by unscoped OAuth tokens.
+    - path: /meetings/([^/]*)/([^/]*)$
+      envs:
+      - all
+      oauth_scope: meetings
+    - path: /meetings/([^/]*)/([^/]*)/invitations$
+      envs:
+      - all
+      oauth_scope: meetings
+    - path: /meetings/([^/]*)/([^/]*)/invitations/delete$
+      envs:
+      - all
+      oauth_scope: meetings
     - path: /meetings/([^/]*)/([^/]*)/link/refresh$
       envs:
       - all
