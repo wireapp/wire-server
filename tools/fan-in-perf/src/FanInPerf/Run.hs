@@ -76,7 +76,11 @@ poolConfig :: Int -> PoolConfig
 poolConfig size =
   PoolConfig
     { size,
-      acquisitionTimeout = Duration 10,
+      -- 0: wait for a connection without a timeout. hasql-resource-pool forks a
+      -- sleeping thread per acquire that lives for the whole timeout (hundreds
+      -- of thousands of threads, GBs of stacks, a starved ticker at load). Sizes
+      -- keep waits short: writers' pool = writers, readers go through a gate.
+      acquisitionTimeout = Duration 0,
       idlenessTimeout = Duration 600
     }
 
