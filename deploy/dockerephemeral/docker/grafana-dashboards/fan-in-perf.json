@@ -76,6 +76,7 @@
     {
       "id": 9, "type": "timeseries", "title": "Delivery lag", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[30s])))", "legendFormat": "p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[30s])))", "legendFormat": "p99" }
@@ -91,6 +92,7 @@
     {
       "id": 11, "type": "timeseries", "title": "Fetch latency", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[30s])))", "legendFormat": "p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[30s])))", "legendFormat": "p99" }
@@ -156,6 +158,7 @@
     {
       "id": 20, "type": "timeseries", "title": "Pool session duration", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 80, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (role, le) (rate(fanin_perf_pool_session_seconds_bucket[5s])))", "legendFormat": "{{role}} p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (role, le) (rate(fanin_perf_pool_session_seconds_bucket[5s])))", "legendFormat": "{{role}} p99" }
@@ -164,6 +167,7 @@
     {
       "id": 21, "type": "timeseries", "title": "Pool connection establishment duration", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 80, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p99" }
@@ -180,6 +184,7 @@
     {
       "id": 23, "type": "timeseries", "title": "Ack latency", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 88, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[30s])))", "legendFormat": "p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[30s])))", "legendFormat": "p99" }
@@ -195,6 +200,7 @@
     {
       "id": 25, "type": "timeseries", "title": "Reader gate wait", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 96, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p99" }

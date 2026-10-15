@@ -12,12 +12,19 @@ import Test.QuickCheck
 spec :: Spec
 spec = do
   describe "bucketIndex" $ do
-    it "maps edges to log2 buckets" $
-      map bucketIndex [0, 1, 2, 3, 1023, 1024, maxBound]
-        `shouldBe` [0, 0, 1, 1, 9, 10, numBuckets - 1]
-    prop "latency is below its bucket's upper bound" $
-      forAll (choose (1, 2 ^ (numBuckets - 1 :: Int) - 1 :: Word64)) $ \ns ->
-        fromIntegral ns / 1e9 < bucketUpperBoundSeconds (bucketIndex ns)
+    it "maps edges to four buckets per power of two" $
+      map bucketIndex [0, 1, 2, 3, 4, 7, 8, 9, 10, 1023, 1024, maxBound]
+        `shouldBe` [0, 1, 2, 3, 8, 11, 12, 12, 13, 39, 40, numBuckets - 1]
+    prop "latency is within its bucket, and at most 25% below the upper bound" $
+      forAll (choose (4, 2 ^ (numBuckets `div` 4 - 1 :: Int) - 1 :: Word64)) $ \ns ->
+        let up = bucketUpperBoundSeconds (bucketIndex ns)
+            v = fromIntegral ns / 1e9
+         in v < up && up <= v * 1.2500001
+    prop "buckets are contiguous: the upper bound of one is the lower bound of the next" $
+      forAll (choose (8, numBuckets - 2)) $ \b ->
+        bucketUpperBoundSeconds b < bucketUpperBoundSeconds (b + 1)
+    it "estimates a value by the middle of its bucket" $
+      bucketMidSeconds (bucketIndex 1000) `shouldSatisfy` (\m -> abs (m - 1.0e-6) < 0.07e-6)
 
   describe "quantileSeconds" $ do
     it "is Nothing without samples" $

@@ -61,7 +61,7 @@ spec = do
       recordFetch rs KindTeam 1000 []
       replicateM_ 5 (recordGateWait rs 1000)
       total <- readReaderSnapshot rs
-      let (r, _) = consumeTick 0 1 10 total (initialConsumeTickState 0)
+      let (r, _) = consumeTick 0 True 1 10 total (initialConsumeTickState 0)
       publishConsume m r
       out <- LBS8.unpack <$> P.exportMetricsAsText
       out `shouldContain` "fanin_perf_consumed_total{experiment=\"specc\",kind=\"team\"} 3"
@@ -80,7 +80,7 @@ spec = do
       replicateM_ 3 (recordAck rs KindTeam 1000)
       recordAckError rs KindTeam
       total <- readReaderSnapshot rs
-      let (r, _) = consumeTick 0 1 0 total (initialConsumeTickState 0)
+      let (r, _) = consumeTick 0 True 1 0 total (initialConsumeTickState 0)
       publishAcks m r
       out <- LBS8.unpack <$> P.exportMetricsAsText
       out `shouldContain` "fanin_perf_acks_total{experiment=\"speca\",kind=\"team\"} 3"

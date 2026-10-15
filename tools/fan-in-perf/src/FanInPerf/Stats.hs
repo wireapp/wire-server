@@ -30,6 +30,7 @@ module FanInPerf.Stats
     numBuckets,
     bucketIndex,
     bucketUpperBoundSeconds,
+    bucketMidSeconds,
     quantileSeconds,
     TickState (..),
     initialTickState,
@@ -39,7 +40,7 @@ module FanInPerf.Stats
   )
 where
 
-import Data.Bits (countLeadingZeros)
+import Data.Bits (countLeadingZeros, shiftR)
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict qualified as Map
@@ -47,9 +48,12 @@ import Data.Vector.Unboxed qualified as VU
 import FanInPerf.Targets (TargetKind)
 import Imports
 
--- | Bucket @b@ holds latencies in @[2^b, 2^(b+1))@ ns: 1 ns .. ~18 min.
+-- | Four buckets per power of two: bucket @4 * o + s@ (@o >= 2@, @s@ in 0..3)
+-- holds @[(4 + s) * 2^(o-2), (5 + s) * 2^(o-2))@ ns, so an upper bound is at
+-- most 25% above the true value (a plain power-of-two scheme: up to 100%).
+-- Below 4 ns every value has its own bucket. Range: 1 ns .. ~18 min.
 numBuckets :: Int
-numBuckets = 40
+numBuckets = 160
 
 -- | Counters per target kind (absent = 0) and a sparse latency histogram
 -- (bucket index -> count, absent = 0).
@@ -146,10 +150,27 @@ toBuckets :: IntMap Int -> VU.Vector Int
 toBuckets m = VU.accum (+) (VU.replicate numBuckets 0) (IntMap.toList m)
 
 bucketIndex :: Word64 -> Int
-bucketIndex ns = min (numBuckets - 1) (63 - countLeadingZeros (max 1 ns))
+bucketIndex ns
+  | ns < 4 = fromIntegral ns
+  | otherwise = min (numBuckets - 1) (4 * o + fromIntegral (n `shiftR` (o - 2)) - 4)
+  where
+    n = max 1 ns
+    o = 63 - countLeadingZeros n
+
+-- | Lower (inclusive) and upper (exclusive) bound of bucket @b@ in ns.
+bucketBoundsNs :: Int -> (Double, Double)
+bucketBoundsNs b
+  | b < 8 = (fromIntegral b, fromIntegral b + 1)
+  | otherwise = (fromIntegral (4 + s) * 2 ^^ (o - 2), fromIntegral (5 + s) * 2 ^^ (o - 2))
+  where
+    (o, s) = b `divMod` 4
 
 bucketUpperBoundSeconds :: Int -> Double
-bucketUpperBoundSeconds b = 2 ^^ (b + 1) / 1e9
+bucketUpperBoundSeconds b = snd (bucketBoundsNs b) / 1e9
+
+-- | Middle of the bucket; the estimate of a value in it.
+bucketMidSeconds :: Int -> Double
+bucketMidSeconds b = let (lo, hi) = bucketBoundsNs b in (lo + hi) / 2e9
 
 -- | Upper bound of the bucket containing quantile @q@.
 quantileSeconds :: Double -> VU.Vector Int -> Maybe Double
@@ -178,6 +199,7 @@ data TickReport = TickReport
     targetRate :: Double,
     errorRate :: Double,
     errorRatio :: Double,
+    -- | latency percentiles of the pushes of the last tick ('Nothing' without any)
     p50 :: Maybe Double,
     p99 :: Maybe Double,
     delta :: Snapshot,
@@ -202,7 +224,7 @@ tick warmup now total st =
       elapsed = now - st.startTime
       maxPushRate = if elapsed > warmup && dt >= minTickInterval then max st.maxRateSoFar pushRate else st.maxRateSoFar
       errorRatio = if pushes + errors > 0 then fromIntegral errors / fromIntegral (pushes + errors) else 0
-      latency = latencyBuckets total
+      latency = latencyBuckets delta
       report =
         TickReport
           { elapsed,

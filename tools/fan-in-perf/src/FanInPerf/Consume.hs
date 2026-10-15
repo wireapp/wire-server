@@ -320,21 +320,26 @@ totals writerStats readerStats = do
   delivered <- totalDelivered . sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
   pure (expected, delivered)
 
--- | Waits until readers caught up or the timeout (seconds) passed.
+-- | Waits until readers caught up, stopped receiving anything for
+-- 'drainStallSeconds' (what is still missing is not coming: lost, not in
+-- flight) or the timeout (seconds) passed.
 drain :: Int -> IO (Int, Int) -> IO Drain
 drain timeout readTotals = do
   started <- getMonotonicTime
   let deadline = started + fromIntegral timeout
-      go = do
+      go lastDelivered lastProgress = do
         (expected, delivered) <- readTotals
         now <- getMonotonicTime
-        if delivered >= expected
-          then pure (DrainComplete (now - started))
-          else
-            if now >= deadline
-              then pure (DrainTimedOut (now - started))
-              else threadDelay 100_000 >> go
-  go
+        let progressAt = if delivered /= lastDelivered then now else lastProgress
+        if
+          | delivered >= expected -> pure (DrainComplete (now - started))
+          | now >= deadline -> pure (DrainTimedOut (now - started))
+          | now - progressAt >= drainStallSeconds -> pure (DrainStalled (now - started))
+          | otherwise -> threadDelay 100_000 >> go delivered progressAt
+  go (-1) started
+
+drainStallSeconds :: Double
+drainStallSeconds = 2
 
 -- | Runs on the ticker thread only (plus once after it stopped): aggregates,
 -- prints, publishes.
@@ -345,18 +350,21 @@ consumeTickOnce ::
   ConsumeMetrics ->
   Maybe AckMetrics ->
   Double ->
+  -- | whether the writers still run (peaks ignore the drain)
+  IO Bool ->
   [WriterStats] ->
   [ReaderStats] ->
   TBQueue Text ->
   IORef TickState ->
   IORef ConsumeTickState ->
   IO (TickReport, ConsumeReport)
-consumeTickOnce mode console metrics consumeMetrics ackMetrics warmup writerStats readerStats errors writerRef readerRef = do
+consumeTickOnce mode console metrics consumeMetrics ackMetrics warmup writing writerStats readerStats errors writerRef readerRef = do
   now <- getMonotonicTime
   (writerReport, writerTotal) <- tickWriters warmup now writerStats writerRef
   readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
   readerState <- readIORef readerRef
-  let (readerReport, readerState') = consumeTick warmup now (totalExpected writerTotal) readerTotal readerState
+  isWriting <- writing
+  let (readerReport, readerState') = consumeTick warmup isWriting now (totalExpected writerTotal) readerTotal readerState
   writeIORef readerRef readerState'
   printQueuedErrors console errors
   publish metrics writerReport
@@ -432,7 +440,7 @@ runConsume console writerEnv readerEnv opts = do
   start <- getMonotonicTime
   writerRef <- newIORef (initialTickState start)
   readerRef <- newIORef (initialConsumeTickState start)
-  let doTick = consumeTickOnce opts.mode console metrics consumeMetrics ackMetrics (fromIntegral p.warmup) writerStats readerStats errors writerRef readerRef
+  let doTick = consumeTickOnce opts.mode console metrics consumeMetrics ackMetrics (fromIntegral p.warmup) (not <$> readIORef stopWriters) writerStats readerStats errors writerRef readerRef
       -- the writer phase ends when the writers stopped (or at Ctrl-C)
       writerPhaseEnd = do
         now <- getMonotonicTime

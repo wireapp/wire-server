@@ -88,8 +88,7 @@ histogramMetric name help experiment ref =
 latencySampleGroup :: Text -> VU.Vector Int -> P.SampleGroup
 latencySampleGroup = histogramSampleGroup "fanin_perf_push_duration_seconds" "Push latency in seconds"
 
--- | Bucket bounds are powers of two in nanoseconds; '_sum' is approximated by
--- bucket midpoints.
+-- | Bucket bounds are those of 'bucketIndex' (four per power of two).
 histogramSampleGroup :: Text -> Text -> Text -> VU.Vector Int -> P.SampleGroup
 histogramSampleGroup name help experiment buckets =
   P.SampleGroup info P.HistogramType (bucketSamples <> [sumSample, countSample])
@@ -103,10 +102,12 @@ histogramSampleGroup name help experiment buckets =
       | (b, c) <- zip [0 ..] cumulative
       ]
         <> [P.Sample (name <> "_bucket") [lbl, ("le", "+Inf")] (bshow count)]
-    -- REVIEW: This needs a better explanation!
-    -- midpoint of [2^b, 2^(b+1)) is 0.75 * upper bound
+    -- The tool keeps only bucket counts, not the observed values, so '_sum'
+    -- is an estimate: every value is taken to lie in the middle of its bucket
+    -- (at most 12.5% off for a single value). sum / count in Grafana is
+    -- therefore an approximate mean.
     approxSum :: Double
-    approxSum = sum [fromIntegral c * 0.75 * bucketUpperBoundSeconds b | (b, c) <- zip [0 ..] (VU.toList buckets)]
+    approxSum = sum [fromIntegral c * bucketMidSeconds b | (b, c) <- zip [0 ..] (VU.toList buckets)]
     sumSample = P.Sample (name <> "_sum") [lbl] (bshow approxSum)
     countSample = P.Sample (name <> "_count") [lbl] (bshow count)
     bshow :: (Show a) => a -> ByteString

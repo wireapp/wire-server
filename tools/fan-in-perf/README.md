@@ -27,7 +27,8 @@ poll streams nobody writes (coverage then misleads); use equal sizes unless
 intended. `connections` targets are not supported. Readers keep their
 cursors in memory and start at the latest notification of each stream
 (`GetLastNotificationId`), taken before the writers start. After the writers stop, readers get `--drain-timeout`
-seconds to catch up; the summary reports `missing`/`duplicates`. These are net
+seconds to catch up (the drain ends early, as `stalled`, when nothing was
+delivered for 2 s: what is missing is then lost, not in flight); the summary reports `missing`/`duplicates`. These are net
 counts (one duplicate cancels one missing); real duplicates mainly come from
 pushes that committed but returned an error (not counted as expected). A non-zero
 `missing` means a notification committed after a reader's cursor had already
@@ -52,8 +53,9 @@ millisecond timestamp inside the UUIDv7 (writers and readers share a clock).
 Fetch (and ack) latency is the store call, including acquiring a connection
 from the reader pool. At most `--reader-pool-size` store calls run at once
 (a gate in front of the pool); the wait for a gate slot is reported
-separately as gate wait (summary line, `fanin_perf_gate_wait_seconds`). A
-client's effective latency is gate wait + latency. The two pools report
+separately as gate wait (summary line, `fanin_perf_gate_wait_seconds`). Both
+are per store call; a client's poll round makes one call per stream, so its
+effective delay is the sum over its streams of gate wait + latency. The two pools report
 separately as `fanin_perf_pool_*{role="writer|reader"}`.
 Summary duration and push/s and cons/s averages cover the writer phase
 (until the writers stopped); the drain time is printed separately. With
@@ -94,6 +96,25 @@ Notes:
 - Targets within a push are sorted to avoid lock-order deadlocks; the store
   itself does not sort (RFC finding). Unsorted overlapping pushes would
   deadlock (40P01) and be retried silently, inflating latency.
-- p50/p99 are cumulative over the whole run, including warmup.
+- Reading the numbers:
+  - Percentiles are histogram bucket upper bounds, printed `p99<=1.2ms` (four
+    buckets per power of two: the value is at most 25% below the bound). Status
+    lines show the last tick, summary lines the whole run including warmup and
+    drain. Grafana interpolates inside the same buckets, so its values lie
+    slightly below the terminal's.
+  - `max` rates only count while the writers run and after warmup (`-`
+    before); the drain has the readers to itself and would inflate them.
+  - cons/s counts deliveries, push/s pushes: they differ by the fan-out
+    (printed in the summary).
+  - Fetch latency is the client's view of the store call (it includes decoding
+    the jsonb payload and waking the thread), not database time. Lag includes
+    the tool's own queueing and half the poll interval on average, so under
+    saturation it measures the backlog, not the store.
+  - `missing` depends on how far the readers lag: a reader far behind the head
+    has not passed late commits yet and does not lose them. Compare `missing`
+    only at similar backlog; the summary prints the backlog at writer stop and
+    warns when it exceeds a second of delivery.
+  - Throughput varies a lot between runs (WAL flush waits of the database,
+    the tool shares the host with it): use at least 3 runs and the median.
 - `fanin_perf_targets_total{kind="clients"}` counts users (K), not rows written
   (K x `--clients-per-user`).

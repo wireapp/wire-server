@@ -203,6 +203,7 @@ data ConsumeReport = ConsumeReport
     -- | empty fetches / fetches during the last tick
     emptyFetchRatio :: Double,
     fetchErrorRate :: Double,
+    -- | percentiles of the last tick (the summary uses the totals instead)
     lagP50 :: Maybe Double,
     lagP99 :: Maybe Double,
     fetchP50 :: Maybe Double,
@@ -224,16 +225,18 @@ data ConsumeReport = ConsumeReport
   }
   deriving (Eq, Show)
 
--- | @consumeTick warmup now expectedTotal readerTotal state@.
-consumeTick :: Double -> Double -> Int -> ReaderSnapshot -> ConsumeTickState -> (ConsumeReport, ConsumeTickState)
-consumeTick warmup now expectedTotal total st =
+-- | @consumeTick warmup writing now expectedTotal readerTotal state@. Peaks
+-- only count while the writers run (@writing@): the drain afterwards has the
+-- readers to itself and would inflate them.
+consumeTick :: Double -> Bool -> Double -> Int -> ReaderSnapshot -> ConsumeTickState -> (ConsumeReport, ConsumeTickState)
+consumeTick warmup writing now expectedTotal total st =
   let dt = now - st.lastTickAt
       delta = diffReaderSnapshot total st.previousSnapshot
       rate :: Int -> Double
       rate n = if dt > 0 then fromIntegral n / dt else 0
       elapsed = now - st.startedAt
       consumeRate = rate (totalDelivered delta)
-      afterWarmup = elapsed > warmup && dt >= minTickInterval
+      afterWarmup = writing && elapsed > warmup && dt >= minTickInterval
       peak = if afterWarmup then max st.peakRate consumeRate else st.peakRate
       ackRate = rate (totalAcks delta)
       peakAck = if afterWarmup then max st.peakAckRate ackRate else st.peakAckRate
@@ -245,17 +248,17 @@ consumeTick warmup now expectedTotal total st =
             fetchRate = rate fetchesInTick,
             emptyFetchRatio = if fetchesInTick > 0 then fromIntegral (totalEmptyFetches delta) / fromIntegral fetchesInTick else 0,
             fetchErrorRate = rate (totalFetchErrors delta),
-            lagP50 = quantileSeconds 0.5 (lagBuckets total),
-            lagP99 = quantileSeconds 0.99 (lagBuckets total),
-            fetchP50 = quantileSeconds 0.5 (fetchLatencyBuckets total),
-            fetchP99 = quantileSeconds 0.99 (fetchLatencyBuckets total),
+            lagP50 = quantileSeconds 0.5 (lagBuckets delta),
+            lagP99 = quantileSeconds 0.99 (lagBuckets delta),
+            fetchP50 = quantileSeconds 0.5 (fetchLatencyBuckets delta),
+            fetchP99 = quantileSeconds 0.99 (fetchLatencyBuckets delta),
             ackRate,
             maxAckRate = peakAck,
             ackErrorRate = rate (totalAckErrors delta),
-            ackP50 = quantileSeconds 0.5 (ackLatencyBuckets total),
-            ackP99 = quantileSeconds 0.99 (ackLatencyBuckets total),
-            gateWaitP50 = quantileSeconds 0.5 (gateWaitBuckets total),
-            gateWaitP99 = quantileSeconds 0.99 (gateWaitBuckets total),
+            ackP50 = quantileSeconds 0.5 (ackLatencyBuckets delta),
+            ackP99 = quantileSeconds 0.99 (ackLatencyBuckets delta),
+            gateWaitP50 = quantileSeconds 0.5 (gateWaitBuckets delta),
+            gateWaitP99 = quantileSeconds 0.99 (gateWaitBuckets delta),
             backlog = max 0 (expectedTotal - totalDelivered total),
             readerDelta = delta,
             readerTotal = total
