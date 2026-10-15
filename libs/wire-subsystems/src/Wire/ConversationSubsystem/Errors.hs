@@ -226,7 +226,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'MLSSubConvUnsupportedConvType,
      ErrorS 'TeamMemberNotFound,
      ErrorS 'AccessDenied,
-     ErrorS 'MLSMissingGroupInfo,
      ErrorS 'CodeNotFound,
      ErrorS 'GuestLinksDisabled,
      ErrorS 'TooManyMembers,
@@ -290,7 +289,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorTooManyMembers)
     . mapError (const ConversationSubsystemErrorGuestLinksDisabled)
     . mapError (const ConversationSubsystemErrorCodeNotFound)
-    . mapError (const ConversationSubsystemErrorMLSMissingGroupInfo)
     . mapError (const ConversationSubsystemErrorAccessDenied)
     . mapError (const ConversationSubsystemErrorTeamMemberNotFound)
     . mapError (const ConversationSubsystemErrorMLSSubConvUnsupportedConvType)

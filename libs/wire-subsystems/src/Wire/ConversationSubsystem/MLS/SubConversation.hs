@@ -60,6 +60,7 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore qualified as Conversation
 import Wire.ConversationStore.MLS.Types as Conversation
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Conversation (mkMLSConversation)
 import Wire.ConversationSubsystem.MLS.Enabled (assertMLSEnabled)
 import Wire.ConversationSubsystem.MLS.GroupInfo (getGroupInfoFromRemoteConv)
@@ -168,11 +169,11 @@ getSubConversationGroupInfo ::
   ( Members
       '[ Conversation.ConversationStore,
          Error FederationError,
+         Error ConversationSubsystemError,
          FederationAPIAccess FederatorClient,
          Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
          ErrorS 'MLSNotEnabled,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSMissingGroupInfo
+         ErrorS 'ConvNotFound
        ]
       r
   ) =>
@@ -191,7 +192,7 @@ getSubConversationGroupInfo lusr qcnvId subconv = do
 getSubConversationGroupInfoFromLocalConv ::
   ( Member Conversation.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSMissingGroupInfo) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Qualified UserId ->
   SubConvId ->
@@ -200,7 +201,7 @@ getSubConversationGroupInfoFromLocalConv ::
 getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
   Conversation.getSubConversationGroupInfo (tUnqualified lcnvId) subConvId
-    >>= noteS @'MLSMissingGroupInfo
+    >>= note ConversationSubsystemErrorMLSMissingGroupInfo
 
 type MLSDeleteSubConvStaticErrors =
   '[ ErrorS 'ConvAccessDenied,

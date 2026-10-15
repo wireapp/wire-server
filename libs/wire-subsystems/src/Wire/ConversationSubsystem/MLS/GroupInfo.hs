@@ -40,6 +40,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Enabled
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.Util
@@ -47,7 +48,6 @@ import Wire.FederationAPIAccess qualified as E
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
-     ErrorS 'MLSMissingGroupInfo,
      ErrorS 'MLSNotEnabled
    ]
 
@@ -55,6 +55,7 @@ getGroupInfo ::
   ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member E.ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Members MLSGroupInfoStaticErrors r
   ) =>
@@ -72,16 +73,18 @@ getGroupInfo lusr qcnvId = do
 getGroupInfoFromLocalConv ::
   (Member E.ConversationStore r) =>
   (Members MLSGroupInfoStaticErrors r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r GroupInfoData
 getGroupInfoFromLocalConv qusr lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
   E.getGroupInfo (tUnqualified lcnvId)
-    >>= noteS @'MLSMissingGroupInfo
+    >>= note ConversationSubsystemErrorMLSMissingGroupInfo
 
 getGroupInfoFromRemoteConv ::
   ( Member (Error FederationError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
@@ -96,7 +99,9 @@ getGroupInfoFromRemoteConv lusr rcnv = do
           }
   response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
   case response of
-    GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
+    GetGroupInfoResponseError e
+      | e == MLSMissingGroupInfo -> throw ConversationSubsystemErrorMLSMissingGroupInfo
+      | otherwise -> rethrowErrors @MLSGroupInfoStaticErrors e
     GetGroupInfoResponseState s ->
       pure
         . GroupInfoData

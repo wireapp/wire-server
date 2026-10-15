@@ -1161,7 +1161,8 @@ mlsSendWelcome origDomain req = do
 queryGroupInfo ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   GetGroupInfoRequest ->
@@ -1169,6 +1170,11 @@ queryGroupInfo ::
 queryGroupInfo origDomain req =
   fmap (either GetGroupInfoResponseError GetGroupInfoResponseState)
     . runError @GalleyError
+    . catchCSE
+      ( \case
+          ConversationSubsystemErrorMLSMissingGroupInfo -> Just MLSMissingGroupInfo
+          _ -> Nothing
+      )
     . mapToGalleyError @MLSGroupInfoStaticErrors
     $ do
       assertMLSEnabled
