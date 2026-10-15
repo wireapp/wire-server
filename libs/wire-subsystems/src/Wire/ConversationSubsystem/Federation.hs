@@ -632,31 +632,15 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversationReceiptModeUpdate lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
-        catchCSE
-          ( \case
-              ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
-              _ -> Nothing
-          )
-          . catchCSE cseToGalleyError
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationAccessData lcnv (tUntagged rusr) Nothing action
       SConversationUpdateProtocolTag ->
-        catchCSE
-          ( \case
-              ConversationSubsystemErrorConvInvalidProtocolTransition -> Just ConvInvalidProtocolTransition
-              ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> Just MLSMigrationCriteriaNotSatisfied
-              _ -> Nothing
-          )
-          . catchCSE cseToGalleyError
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationUpdateProtocol lcnv (tUntagged rusr) Nothing action
       SConversationUpdateAddPermissionTag ->
-        catchCSE
-          ( \case
-              ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
-              _ -> Nothing
-          )
-          . catchCSE cseToGalleyError
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationUpdateAddPermission lcnv (tUntagged rusr) Nothing action
       SConversationResetTag ->
@@ -664,12 +648,7 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversationReset lcnv (tUntagged rusr) Nothing action
       SConversationHistoryUpdateTag ->
-        catchCSE
-          ( \case
-              ConversationSubsystemErrorHistoryNotSupported -> Just HistoryNotSupported
-              _ -> Nothing
-          )
-          . catchCSE cseToGalleyError
+        catchCSE cseToGalleyError
           . fmap lcuUpdate
           $ updateLocalConversationHistoryUpdate lcnv (tUntagged rusr) Nothing action
   where
@@ -684,14 +663,10 @@ updateConversation origDomain updateRequest = do
         . runError @UnreachableBackends
         . fmap ConversationUpdateResponseUpdate
 
-type MLSBundleStaticErrors =
-  Append
-    MLSMessageStaticErrors
-    '[ ErrorS 'GroupIdVersionNotSupported ]
+type MLSBundleStaticErrors = MLSMessageStaticErrors
 
 handleMLSMessageErrors ::
-  ( Member (Error ConversationSubsystemError) r,
-    r1
+  ( r1
       ~ Append
           MLSBundleStaticErrors
           ( Error MLSOutOfSyncError
@@ -721,23 +696,6 @@ handleMLSMessageErrors =
     . runError @GroupInfoDiagnostics
     . fmap (either MLSMessageResponseOutOfSyncError Imports.id)
     . runError @MLSOutOfSyncError
-    . catchCSE
-      ( \case
-          ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> Just MLSInvalidLeafNodeIndex
-          ConversationSubsystemErrorMLSUnsupportedMessage -> Just MLSUnsupportedMessage
-          ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
-          ConversationSubsystemErrorMLSProposalNotFound -> Just MLSProposalNotFound
-          ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
-          ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
-          ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
-          ConversationSubsystemErrorMLSSubConvClientNotInParent -> Just MLSSubConvClientNotInParent
-          ConversationSubsystemErrorMLSHistoryClientConflict -> Just MLSHistoryClientConflict
-          ConversationSubsystemErrorMLSHistoryClientDuplication -> Just MLSHistoryClientDuplication
-          ConversationSubsystemErrorMLSIdentityMismatch -> Just MLSIdentityMismatch
-          ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> Just MLSInvalidLeafNodeSignature
-          ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
-          _ -> Nothing
-      )
     . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::
@@ -748,7 +706,6 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -817,7 +774,6 @@ sendMLSMessage ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
@@ -1164,51 +1120,51 @@ onMLSTargetedMessageSent ::
 onMLSTargetedMessageSent domain targeted = do
   res <-
     runError @ConversationSubsystemError $ do
-    assertMLSEnabled
-    loc <- qualifyLocal ()
-    let rconv = toRemoteUnsafe domain targeted.conversation
-    (members, allMembers) <- E.selectRemoteMembers [targeted.recipient] rconv
-    senderIsMember <-
-      if qDomain targeted.sender == domain
-        then pure True
-        else
-          if qDomain targeted.sender == tDomain loc
-            then E.checkLocalMemberRemoteConv (qUnqualified targeted.sender) rconv
-            else do
-              (senderMembers, _) <- E.selectRemoteMembers [qUnqualified targeted.sender] rconv
-              pure (qUnqualified targeted.sender `elem` senderMembers)
-    unless senderIsMember $
-      P.warn $
-        Log.field "sender" (toByteString' (qUnqualified targeted.sender))
-          Log.~~ Log.field "conversation" (toByteString' targeted.conversation)
-          Log.~~ Log.msg
-            ("Federated targeted MLS message sender is not a conversation member" :: ByteString)
-    unless allMembers $
-      P.warn $
-        Log.field "conversation" (toByteString' targeted.conversation)
-          Log.~~ Log.field "domain" (toByteString' domain)
-          Log.~~ Log.field "recipient" (toByteString' targeted.recipient)
-          Log.~~ Log.msg
-            ("Federated targeted MLS message recipient is not a conversation member" :: ByteString)
-    when (senderIsMember && targeted.recipient `elem` members) $ do
-      let messageBytes = fromBase64ByteString targeted.message
-          (eventData, metadata) = case decodeMLS' @TransientTargetedMessage messageBytes of
-            Right _ -> (EdMLSTransientTargetedMessage messageBytes, defMessageMetadata {mmTransient = True})
-            Left _ -> (EdMLSTargetedMessage messageBytes, defMessageMetadata)
-          event =
-            Event
-              (tUntagged rconv)
-              targeted.subConversation
-              (EventFromUser targeted.sender)
-              targeted.time
-              Nothing
-              eventData
-          recipient =
-            Recipient
-              targeted.recipient
-              (RecipientClientsSome (targeted.recipientClient :| []))
-      runMessagePush loc (Just (tUntagged rconv)) $
-        newMessagePush mempty Nothing metadata [recipient] event
+      assertMLSEnabled
+      loc <- qualifyLocal ()
+      let rconv = toRemoteUnsafe domain targeted.conversation
+      (members, allMembers) <- E.selectRemoteMembers [targeted.recipient] rconv
+      senderIsMember <-
+        if qDomain targeted.sender == domain
+          then pure True
+          else
+            if qDomain targeted.sender == tDomain loc
+              then E.checkLocalMemberRemoteConv (qUnqualified targeted.sender) rconv
+              else do
+                (senderMembers, _) <- E.selectRemoteMembers [qUnqualified targeted.sender] rconv
+                pure (qUnqualified targeted.sender `elem` senderMembers)
+      unless senderIsMember $
+        P.warn $
+          Log.field "sender" (toByteString' (qUnqualified targeted.sender))
+            Log.~~ Log.field "conversation" (toByteString' targeted.conversation)
+            Log.~~ Log.msg
+              ("Federated targeted MLS message sender is not a conversation member" :: ByteString)
+      unless allMembers $
+        P.warn $
+          Log.field "conversation" (toByteString' targeted.conversation)
+            Log.~~ Log.field "domain" (toByteString' domain)
+            Log.~~ Log.field "recipient" (toByteString' targeted.recipient)
+            Log.~~ Log.msg
+              ("Federated targeted MLS message recipient is not a conversation member" :: ByteString)
+      when (senderIsMember && targeted.recipient `elem` members) $ do
+        let messageBytes = fromBase64ByteString targeted.message
+            (eventData, metadata) = case decodeMLS' @TransientTargetedMessage messageBytes of
+              Right _ -> (EdMLSTransientTargetedMessage messageBytes, defMessageMetadata {mmTransient = True})
+              Left _ -> (EdMLSTargetedMessage messageBytes, defMessageMetadata)
+            event =
+              Event
+                (tUntagged rconv)
+                targeted.subConversation
+                (EventFromUser targeted.sender)
+                targeted.time
+                Nothing
+                eventData
+            recipient =
+              Recipient
+                targeted.recipient
+                (RecipientClientsSome (targeted.recipientClient :| []))
+        runMessagePush loc (Just (tUntagged rconv)) $
+          newMessagePush mempty Nothing metadata [recipient] event
   case res of
     Right () -> pure EmptyResponse
     Left e@ConversationSubsystemErrorMLSNotEnabled -> logError domain targeted.conversation (Just e) $> EmptyResponse

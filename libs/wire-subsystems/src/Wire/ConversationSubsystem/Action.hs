@@ -151,7 +151,6 @@ import Wire.Util
 class IsConversationAction (tag :: ConversationActionTag) where
   type HasConversationActionEffects tag (r :: EffectRow) :: Constraint
 
-
   performAction ::
     forall r.
     ( HasConversationActionEffects tag r,
@@ -197,14 +196,6 @@ instance IsConversationAction 'ConversationJoinTag where
         Member (Input ConversationSubsystemConfig) r,
         Member E.BrigAPIAccess r,
         Member (Error FederationError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
         Member (Error ConversationSubsystemError) r,
         Member (Error UnreachableBackends) r,
         Member ExternalAccess r,
@@ -408,8 +399,6 @@ instance IsConversationAction 'ConversationAccessDataTag where
       ( Member E.BrigAPIAccess r,
         Member CodeStore r,
         Member (Error NoChanges) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
         Member ExternalAccess r,
         Member E.FireAndForget r,
         Member NotificationSubsystem r,
@@ -536,8 +525,8 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         Member Now r,
         Member Random r,
         Member (Input ConversationSubsystemConfig) r,
-        Member ProposalStore r,
         Member (Error ConversationSubsystemError) r,
+        Member ProposalStore r,
         Member (E.FederationAPIAccess FederatorClient) r,
         Member (Error FederationError) r
       )
@@ -609,12 +598,10 @@ instance IsConversationAction 'ConversationResetTag where
         Member E.MLSCommitLockStore r,
         Member Resource r,
         Member (Input ConversationSubsystemConfig) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
-        Member (Error ConversationSubsystemError) r,
         Member Random r,
         Member Now r,
-        Member TinyLog r
+        Member TinyLog r,
+        Member (Error ConversationSubsystemError) r
       )
 
   performAction lconv qusr _conId action = do

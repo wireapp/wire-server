@@ -58,23 +58,64 @@ cseToGalleyError :: ConversationSubsystemError -> Maybe GalleyError
 cseToGalleyError = \case
   ConversationSubsystemErrorConvAccessDenied -> Just ConvAccessDenied
   ConversationSubsystemErrorNotATeamMember -> Just NotATeamMember
+  ConversationSubsystemErrorperationDenied -> Just (MissingPermission Nothing)
+  ConversationSubsystemErrorNotConnected -> Just NotConnected
+  ConversationSubsystemErrorMLSNotEnabled -> Just MLSNotEnabled
+  ConversationSubsystemErrorMLSNonEmptyMemberList -> Just MLSNonEmptyMemberList
+  ConversationSubsystemErrorMissingLegalholdConsent -> Just MissingLegalholdConsent
+  ConversationSubsystemErrorNonBindingTeam -> Just NonBindingTeam
+  ConversationSubsystemErrorNoBindingTeamMembers -> Just NoBindingTeamMembers
+  ConversationSubsystemErrorTeamNotFound -> Just TeamNotFound
   ConversationSubsystemErrorInvalidOperation -> Just InvalidOperation
   ConversationSubsystemErrorConvNotFound -> Just ConvNotFound
-  ConversationSubsystemErrorNotConnected -> Just NotConnected
-  ConversationSubsystemErrorMissingLegalholdConsent -> Just MissingLegalholdConsent
+  ConversationSubsystemErrorChannelsNotEnabled -> Just ChannelsNotEnabled
+  ConversationSubsystemErrorNotAnMlsConversation -> Just NotAnMlsConversation
+  ConversationSubsystemErrorMLSLegalholdIncompatible -> Just MLSLegalholdIncompatible
+  ConversationSubsystemErrorMLSIdentityMismatch -> Just MLSIdentityMismatch
+  ConversationSubsystemErrorMLSUnsupportedMessage -> Just MLSUnsupportedMessage
+  ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
+  ConversationSubsystemErrorMLSProposalNotFound -> Just MLSProposalNotFound
+  ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
+  ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
+  ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
+  ConversationSubsystemErrorMLSSubConvClientNotInParent -> Just MLSSubConvClientNotInParent
+  ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> Just MLSInvalidLeafNodeSignature
+  ConversationSubsystemErrorMLSClientMismatch -> Just MLSClientMismatch
+  ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> Just MLSInvalidLeafNodeIndex
+  ConversationSubsystemErrorMLSUnsupportedProposal -> Just MLSUnsupportedProposal
   ConversationSubsystemErrorGroupIdVersionNotSupported -> Just GroupIdVersionNotSupported
   ConversationSubsystemErrorConvMemberNotFound -> Just ConvMemberNotFound
-  ConversationSubsystemErrorTooManyMembers -> Just TooManyMembers
-  ConversationSubsystemErrorActionDeniedAddConversationMember -> Just (ActionDenied ConvRole.AddConversationMember)
+  ConversationSubsystemErrorHistoryNotSupported -> Just HistoryNotSupported
+  ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
+  ConversationSubsystemErrorActionDeniedLeaveConversation -> Just (ActionDenied ConvRole.LeaveConversation)
   ConversationSubsystemErrorActionDeniedRemoveConversationMember -> Just (ActionDenied ConvRole.RemoveConversationMember)
   ConversationSubsystemErrorActionDeniedDeleteConversation -> Just (ActionDenied ConvRole.DeleteConversation)
-  ConversationSubsystemErrorActionDeniedLeaveConversation -> Just (ActionDenied ConvRole.LeaveConversation)
+  ConversationSubsystemErrorBroadcastLimitExceeded -> Just BroadcastLimitExceeded
+  ConversationSubsystemErrorMLSFederatedResetNotSupported -> Just MLSFederatedResetNotSupported
+  ConversationSubsystemErrorMLSSubConvUnsupportedConvType -> Just MLSSubConvUnsupportedConvType
+  ConversationSubsystemErrorTeamMemberNotFound -> Just TeamMemberNotFound
+  ConversationSubsystemErrorAccessDenied -> Just AccessDenied
+  ConversationSubsystemErrorMLSMissingGroupInfo -> Just MLSMissingGroupInfo
+  ConversationSubsystemErrorCodeNotFound -> Just CodeNotFound
+  ConversationSubsystemErrorInvalidConversationPassword -> Just InvalidConversationPassword
+  ConversationSubsystemErrorGuestLinksDisabled -> Just GuestLinksDisabled
+  ConversationSubsystemErrorMLSFederatedOne2OneNotSupported -> Just MLSFederatedOne2OneNotSupported
+  ConversationSubsystemErrorTooManyMembers -> Just TooManyMembers
+  ConversationSubsystemErrorCreateConversationCodeConflict -> Just CreateConversationCodeConflict
+  ConversationSubsystemErrorInvalidTarget -> Just InvalidTarget
+  ConversationSubsystemErrorMLSReadReceiptsNotAllowed -> Just MLSReadReceiptsNotAllowed
+  ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
+  ConversationSubsystemErrorConvInvalidProtocolTransition -> Just ConvInvalidProtocolTransition
+  ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> Just MLSMigrationCriteriaNotSatisfied
+  ConversationSubsystemErrorActionDeniedAddConversationMember -> Just (ActionDenied ConvRole.AddConversationMember)
   ConversationSubsystemErrorActionDeniedModifyOtherConversationMember -> Just (ActionDenied ConvRole.ModifyOtherConversationMember)
   ConversationSubsystemErrorActionDeniedModifyConversationName -> Just (ActionDenied ConvRole.ModifyConversationName)
   ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer -> Just (ActionDenied ConvRole.ModifyConversationMessageTimer)
   ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode -> Just (ActionDenied ConvRole.ModifyConversationReceiptMode)
   ConversationSubsystemErrorActionDeniedModifyConversationAccess -> Just (ActionDenied ConvRole.ModifyConversationAccess)
   ConversationSubsystemErrorActionDeniedModifyAddPermission -> Just (ActionDenied ConvRole.ModifyAddPermission)
+  ConversationSubsystemErrorMLSHistoryClientConflict -> Just MLSHistoryClientConflict
+  ConversationSubsystemErrorMLSHistoryClientDuplication -> Just MLSHistoryClientDuplication
   _ -> Nothing
 
 -- | Inverse of 'cseToGalleyError' for the conversation-action error set:
@@ -82,25 +123,65 @@ cseToGalleyError = \case
 galleyErrorToCSE :: GalleyError -> Maybe ConversationSubsystemError
 galleyErrorToCSE = \case
   ConvAccessDenied -> Just ConversationSubsystemErrorConvAccessDenied
-  ConvNotFound -> Just ConversationSubsystemErrorConvNotFound
-  MLSSubConvUnsupportedConvType -> Just ConversationSubsystemErrorMLSSubConvUnsupportedConvType
   NotATeamMember -> Just ConversationSubsystemErrorNotATeamMember
-  InvalidOperation -> Just ConversationSubsystemErrorInvalidOperation
+  MissingPermission Nothing -> Just ConversationSubsystemErrorperationDenied
   NotConnected -> Just ConversationSubsystemErrorNotConnected
+  MLSNotEnabled -> Just ConversationSubsystemErrorMLSNotEnabled
+  MLSNonEmptyMemberList -> Just ConversationSubsystemErrorMLSNonEmptyMemberList
   MissingLegalholdConsent -> Just ConversationSubsystemErrorMissingLegalholdConsent
+  NonBindingTeam -> Just ConversationSubsystemErrorNonBindingTeam
+  NoBindingTeamMembers -> Just ConversationSubsystemErrorNoBindingTeamMembers
+  TeamNotFound -> Just ConversationSubsystemErrorTeamNotFound
+  InvalidOperation -> Just ConversationSubsystemErrorInvalidOperation
+  ConvNotFound -> Just ConversationSubsystemErrorConvNotFound
+  ChannelsNotEnabled -> Just ConversationSubsystemErrorChannelsNotEnabled
+  NotAnMlsConversation -> Just ConversationSubsystemErrorNotAnMlsConversation
+  MLSLegalholdIncompatible -> Just ConversationSubsystemErrorMLSLegalholdIncompatible
+  MLSIdentityMismatch -> Just ConversationSubsystemErrorMLSIdentityMismatch
+  MLSUnsupportedMessage -> Just ConversationSubsystemErrorMLSUnsupportedMessage
+  MLSStaleMessage -> Just ConversationSubsystemErrorMLSStaleMessage
+  MLSProposalNotFound -> Just ConversationSubsystemErrorMLSProposalNotFound
+  MLSCommitMissingReferences -> Just ConversationSubsystemErrorMLSCommitMissingReferences
+  MLSSelfRemovalNotAllowed -> Just ConversationSubsystemErrorMLSSelfRemovalNotAllowed
+  MLSClientSenderUserMismatch -> Just ConversationSubsystemErrorMLSClientSenderUserMismatch
+  MLSSubConvClientNotInParent -> Just ConversationSubsystemErrorMLSSubConvClientNotInParent
+  MLSInvalidLeafNodeSignature -> Just ConversationSubsystemErrorMLSInvalidLeafNodeSignature
+  MLSClientMismatch -> Just ConversationSubsystemErrorMLSClientMismatch
+  MLSInvalidLeafNodeIndex -> Just ConversationSubsystemErrorMLSInvalidLeafNodeIndex
+  MLSUnsupportedProposal -> Just ConversationSubsystemErrorMLSUnsupportedProposal
   GroupIdVersionNotSupported -> Just ConversationSubsystemErrorGroupIdVersionNotSupported
   ConvMemberNotFound -> Just ConversationSubsystemErrorConvMemberNotFound
-  TooManyMembers -> Just ConversationSubsystemErrorTooManyMembers
-  ActionDenied ConvRole.AddConversationMember -> Just ConversationSubsystemErrorActionDeniedAddConversationMember
+  HistoryNotSupported -> Just ConversationSubsystemErrorHistoryNotSupported
+  MLSGroupConversationMismatch -> Just ConversationSubsystemErrorLSGroupConversationMismatch
+  ActionDenied ConvRole.LeaveConversation -> Just ConversationSubsystemErrorActionDeniedLeaveConversation
   ActionDenied ConvRole.RemoveConversationMember -> Just ConversationSubsystemErrorActionDeniedRemoveConversationMember
   ActionDenied ConvRole.DeleteConversation -> Just ConversationSubsystemErrorActionDeniedDeleteConversation
-  ActionDenied ConvRole.LeaveConversation -> Just ConversationSubsystemErrorActionDeniedLeaveConversation
+  BroadcastLimitExceeded -> Just ConversationSubsystemErrorBroadcastLimitExceeded
+  MLSFederatedResetNotSupported -> Just ConversationSubsystemErrorMLSFederatedResetNotSupported
+  MLSSubConvUnsupportedConvType -> Just ConversationSubsystemErrorMLSSubConvUnsupportedConvType
+  TeamMemberNotFound -> Just ConversationSubsystemErrorTeamMemberNotFound
+  AccessDenied -> Just ConversationSubsystemErrorAccessDenied
+  MLSMissingGroupInfo -> Just ConversationSubsystemErrorMLSMissingGroupInfo
+  CodeNotFound -> Just ConversationSubsystemErrorCodeNotFound
+  InvalidConversationPassword -> Just ConversationSubsystemErrorInvalidConversationPassword
+  GuestLinksDisabled -> Just ConversationSubsystemErrorGuestLinksDisabled
+  MLSFederatedOne2OneNotSupported -> Just ConversationSubsystemErrorMLSFederatedOne2OneNotSupported
+  TooManyMembers -> Just ConversationSubsystemErrorTooManyMembers
+  CreateConversationCodeConflict -> Just ConversationSubsystemErrorCreateConversationCodeConflict
+  InvalidTarget -> Just ConversationSubsystemErrorInvalidTarget
+  MLSReadReceiptsNotAllowed -> Just ConversationSubsystemErrorMLSReadReceiptsNotAllowed
+  InvalidTargetAccess -> Just ConversationSubsystemErrorInvalidTargetAccess
+  ConvInvalidProtocolTransition -> Just ConversationSubsystemErrorConvInvalidProtocolTransition
+  MLSMigrationCriteriaNotSatisfied -> Just ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
+  ActionDenied ConvRole.AddConversationMember -> Just ConversationSubsystemErrorActionDeniedAddConversationMember
   ActionDenied ConvRole.ModifyOtherConversationMember -> Just ConversationSubsystemErrorActionDeniedModifyOtherConversationMember
   ActionDenied ConvRole.ModifyConversationName -> Just ConversationSubsystemErrorActionDeniedModifyConversationName
   ActionDenied ConvRole.ModifyConversationMessageTimer -> Just ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer
   ActionDenied ConvRole.ModifyConversationReceiptMode -> Just ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode
   ActionDenied ConvRole.ModifyConversationAccess -> Just ConversationSubsystemErrorActionDeniedModifyConversationAccess
   ActionDenied ConvRole.ModifyAddPermission -> Just ConversationSubsystemErrorActionDeniedModifyAddPermission
+  MLSHistoryClientConflict -> Just ConversationSubsystemErrorMLSHistoryClientConflict
+  MLSHistoryClientDuplication -> Just ConversationSubsystemErrorMLSHistoryClientDuplication
   _ -> Nothing
 
 data ConversationSubsystemError
@@ -258,7 +339,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
-     ErrorS 'GroupIdVersionNotSupported,
      ErrorS 'ConvMemberNotFound,
      ErrorS ('ActionDenied ConvRole.LeaveConversation),
      ErrorS ('ActionDenied ConvRole.RemoveConversationMember),
@@ -266,7 +346,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'MLSSubConvUnsupportedConvType,
      ErrorS 'TeamMemberNotFound,
      ErrorS 'AccessDenied,
-     ErrorS 'TooManyMembers,
      ErrorS ('ActionDenied ConvRole.AddConversationMember),
      ErrorS ('ActionDenied ConvRole.ModifyOtherConversationMember),
      ErrorS ('ActionDenied ConvRole.ModifyConversationName),
@@ -312,7 +391,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationName)
     . mapError (const ConversationSubsystemErrorActionDeniedModifyOtherConversationMember)
     . mapError (const ConversationSubsystemErrorActionDeniedAddConversationMember)
-    . mapError (const ConversationSubsystemErrorTooManyMembers)
     . mapError (const ConversationSubsystemErrorAccessDenied)
     . mapError (const ConversationSubsystemErrorTeamMemberNotFound)
     . mapError (const ConversationSubsystemErrorMLSSubConvUnsupportedConvType)
@@ -320,7 +398,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
     . mapError (const ConversationSubsystemErrorActionDeniedLeaveConversation)
     . mapError (const ConversationSubsystemErrorConvMemberNotFound)
-    . mapError (const ConversationSubsystemErrorGroupIdVersionNotSupported)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
     . mapError (const ConversationSubsystemErrorTeamNotFound)

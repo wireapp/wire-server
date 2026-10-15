@@ -1,6 +1,6 @@
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -753,7 +753,6 @@ joinConversationByReusableCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
@@ -785,7 +784,6 @@ joinConversationById ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member (Error FederationError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member BackendNotificationQueueAccess r,
@@ -817,7 +815,6 @@ joinMeetingConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member (Error FederationError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member BackendNotificationQueueAccess r,
@@ -841,7 +838,6 @@ joinConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member (Error FederationError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member BackendNotificationQueueAccess r,
@@ -897,9 +893,7 @@ addMembers ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member E.ExternalAccess r,
@@ -949,9 +943,7 @@ addQualifiedMembersUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error UnreachableBackends) r,
     Member E.ExternalAccess r,
     Member (E.FederationAPIAccess FederatorClient) r,
@@ -994,9 +986,7 @@ replaceMembers ::
     Member (ErrorS 'InvalidOperation) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
@@ -2154,7 +2144,6 @@ addBot ::
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'TooManyMembers) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input ConversationSubsystemConfig) r,

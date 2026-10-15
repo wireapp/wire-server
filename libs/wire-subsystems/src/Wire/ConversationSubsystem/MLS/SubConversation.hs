@@ -79,7 +79,6 @@ import Wire.TeamSubsystem (TeamSubsystem)
 
 type MLSGetSubConvStaticErrors =
   '[ Error ConversationSubsystemError,
-     Error ConversationSubsystemError,
      ErrorS 'MLSSubConvUnsupportedConvType
    ]
 
@@ -201,9 +200,7 @@ getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
     >>= note ConversationSubsystemErrorMLSMissingGroupInfo
 
 type MLSDeleteSubConvStaticErrors =
-  '[ Error ConversationSubsystemError,
-     Error ConversationSubsystemError,
-     Error ConversationSubsystemError
+  '[ Error ConversationSubsystemError
    ]
 
 deleteSubConversation ::
@@ -271,9 +268,7 @@ type HasLeaveSubConversationEffects r =
   )
 
 type LeaveSubConversationStaticErrors =
-  '[ Error ConversationSubsystemError,
-     Error ConversationSubsystemError,
-     Error ConversationSubsystemError
+  '[ Error ConversationSubsystemError
    ]
 
 leaveSubConversation ::
@@ -371,7 +366,7 @@ leaveRemoteSubConversation cid rcnv sub = do
           }
   case res of
     LeaveSubConversationResponseError e ->
-      rethrowErrors @'[Error ConversationSubsystemError, Error ConversationSubsystemError] e
+      rethrowErrors @LeaveSubConversationStaticErrors e
     LeaveSubConversationResponseProtocolError e ->
       throw (mlsProtocolError e)
     LeaveSubConversationResponseOk -> pure ()

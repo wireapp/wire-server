@@ -9,3 +9,4 @@ directly instead of relying on `mapErrors` for a set of standalone exceptions
 `ErrorS`/`Error` entries and `mapError` lines are removed from
 `Wire.ConversationSubsystem.Errors`. No API, schema, or config change; the
 mapped error responses are observationally identical.
+Galley conversation subsystem: complete the ErrorS → ConversationSubsystemError migration. All remaining internal throws (conversation actions, MLS message path, OTR messages, codes/guest links, sub-conversations, NotConnected/MLSNotEnabled) now throw `ConversationSubsystemError` constructors directly; federation boundaries map via total `cseToGalleyError`/`galleyErrorToCSE`. Dead `ErrorS` chains (`TooManyMembers`, `GroupIdVersionNotSupported`), the per-tag `HasConversationActionGalleyErrors` family, and a stray generated `libs/wire-subsystems/config` are removed. No API, schema, or config change.
