@@ -206,7 +206,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
-     ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
      ErrorS 'MLSProposalNotFound,
      ErrorS 'MLSCommitMissingReferences,
@@ -286,7 +285,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorMLSCommitMissingReferences)
     . mapError (const ConversationSubsystemErrorMLSProposalNotFound)
     . mapError (const ConversationSubsystemErrorMLSStaleMessage)
-    . mapError (const ConversationSubsystemErrorMLSUnsupportedMessage)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
     . mapError (const ConversationSubsystemErrorTeamNotFound)

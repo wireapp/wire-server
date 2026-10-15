@@ -743,6 +743,7 @@ handleMLSMessageErrors =
     . catchCSE
       ( \case
           ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> Just MLSInvalidLeafNodeIndex
+          ConversationSubsystemErrorMLSUnsupportedMessage -> Just MLSUnsupportedMessage
           ConversationSubsystemErrorMLSIdentityMismatch -> Just MLSIdentityMismatch
           ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> Just MLSInvalidLeafNodeSignature
           ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
@@ -790,7 +791,7 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
     either (throw . mlsProtocolError) pure $
       decodeMLS' (fromBase64ByteString msr.rawMessage)
 
-  ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+  ibundle <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
 
@@ -846,7 +847,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
   raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString msr.rawMessage)
-  msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
+  msg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
   MLSMessageResponseUpdates . map lcuUpdate

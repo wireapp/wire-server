@@ -126,7 +126,6 @@ type MLSMessageStaticErrors =
      ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
      ErrorS 'MLSNotEnabled,
-     ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
      ErrorS 'MLSProposalNotFound,
      ErrorS 'MissingLegalholdConsent,
@@ -156,7 +155,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -171,7 +169,7 @@ postMLSMessageFromLocalUser ::
   Sem r MLSMessageSendingStatus
 postMLSMessageFromLocalUser v lusr c conn smsg = do
   assertMLSEnabled
-  imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
+  imsg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage smsg
   (ctype, cnvOrSub) <- getConvFromGroupId imsg.groupId
   events <-
     map lcuEvent
@@ -315,7 +313,6 @@ validateTargetedMessage ::
   ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSProtocolError) r
   ) =>
   Qualified UserId ->
@@ -327,7 +324,7 @@ validateTargetedMessage sender client convOrSub message = do
   let expectedClient = mkClientIdentity sender client
       currentEpoch = (.epoch) <$> convOrSub.mlsMeta.cnvmlsActiveData
   unless (message.protocolVersion == defaultProtocolVersion) $
-    throwS @'MLSUnsupportedMessage
+    throw ConversationSubsystemErrorMLSUnsupportedMessage
   case currentEpoch of
     Nothing -> throw $ mlsProtocolError "targeted message group has no active epoch"
     Just epoch ->
@@ -385,7 +382,6 @@ validateAndPropagateTargetedMessages ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
@@ -516,7 +512,7 @@ postMLSCommitBundleFromLocalUser ::
   Sem r MLSMessageSendingStatus
 postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
   assertMLSEnabled
-  ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+  ibundle <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
 
   events <-
@@ -838,7 +834,6 @@ postMLSMessage ::
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -888,7 +883,6 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r
@@ -912,7 +906,6 @@ validateMessage ::
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS MLSClientSenderUserMismatch) r,
     Member (ErrorS MLSStaleMessage) r,
-    Member (ErrorS MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r
@@ -931,8 +924,8 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
   -- validate message
   case msg.content of
     IncomingMessageContentPublic pub -> case pub.content of
-      FramedContentCommit _commit -> throwS @'MLSUnsupportedMessage
-      FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
+      FramedContentCommit _commit -> throw ConversationSubsystemErrorMLSUnsupportedMessage
+      FramedContentApplicationData _ -> throw ConversationSubsystemErrorMLSUnsupportedMessage
       -- proposal message
       FramedContentProposal prop ->
         processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop
@@ -941,7 +934,7 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
 
       -- reject all application messages if the conv is in mixed state
       when (convOrSub.migrationState == MLSMigrationMixed) $
-        throwS @'MLSUnsupportedMessage
+        throw ConversationSubsystemErrorMLSUnsupportedMessage
 
       -- reject message if the conversation is out of sync
       for_ convOrSub.ciphersuite $ \ciphersuite -> do

@@ -234,7 +234,6 @@ applyProposal _activeData _ = pure mempty
 
 processProposal ::
   ( HasProposalEffects r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r
   ) =>
@@ -255,7 +254,7 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
   -- of a commit bundle, where the committer's conversation role can be
   -- checked. External proposals are retained for the join flow and are
   -- restricted by 'checkExternalProposalUser' below.
-  unless (isExternal pub.sender) $ throwS @'MLSUnsupportedMessage
+  unless (isExternal pub.sender) $ throw ConversationSubsystemErrorMLSUnsupportedMessage
 
   case cnvmlsActiveData mlsMeta of
     Nothing -> throw $ mlsProtocolError "Bare proposals at epoch 0 are not supported"
