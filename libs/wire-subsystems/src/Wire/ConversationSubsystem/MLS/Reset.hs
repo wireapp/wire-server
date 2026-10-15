@@ -20,7 +20,6 @@ module Wire.ConversationSubsystem.MLS.Reset (resetMLSConversation) where
 import Data.Id
 import Data.Qualified
 import Galley.Types.Error
-import Wire.API.Error.Galley
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -28,6 +27,7 @@ import Polysemy.Input
 import Polysemy.Resource
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
+import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)

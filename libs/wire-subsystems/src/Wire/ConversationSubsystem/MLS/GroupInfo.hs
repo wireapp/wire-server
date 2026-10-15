@@ -27,10 +27,10 @@ import Data.Id as Id
 import Data.Json.Util
 import Data.Qualified
 import Imports
-import Wire.API.Error.Galley
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)

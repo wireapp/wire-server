@@ -104,8 +104,7 @@ type HasProposalActionEffects r =
   )
 
 getCommitData ::
-  ( HasProposalEffects r
-  ) =>
+  (HasProposalEffects r) =>
   SenderIdentity ->
   Local ConvOrSubConv ->
   Epoch ->

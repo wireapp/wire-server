@@ -231,8 +231,7 @@ applyProposal _ciphersuite (RemoveProposal idx) = do
 applyProposal _activeData _ = pure mempty
 
 processProposal ::
-  ( HasProposalEffects r
-  ) =>
+  (HasProposalEffects r) =>
   Qualified UserId ->
   Local ConvOrSubConv ->
   GroupId ->

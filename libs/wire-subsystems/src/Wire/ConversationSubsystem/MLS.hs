@@ -24,11 +24,11 @@ where
 import Data.Default
 import Galley.Types.Error
 import Imports
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.MLS.Keys
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Enabled (getMLSPrivateKeys)
 
 getMLSPublicKeys ::
