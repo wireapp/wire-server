@@ -628,7 +628,12 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversationMessageTimerUpdate lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
-        mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
+        catchCSE
+          ( \case
+              ConversationSubsystemErrorMLSReadReceiptsNotAllowed -> Just MLSReadReceiptsNotAllowed
+              _ -> Nothing
+          )
+          . mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
           . fmap lcuUpdate
           $ updateLocalConversationReceiptModeUpdate lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->

@@ -123,7 +123,7 @@ import Wire.ConversationSubsystem.Action.Kick
 import Wire.ConversationSubsystem.Action.Leave
 import Wire.ConversationSubsystem.Action.Notify
 import Wire.ConversationSubsystem.Action.Reset
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError)
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Conversation
 import Wire.ConversationSubsystem.MLS.Migration
 import Wire.ConversationSubsystem.MLS.Removal
@@ -578,7 +578,7 @@ instance IsConversationAction 'ConversationMessageTimerUpdateTag where
 instance IsConversationAction 'ConversationReceiptModeUpdateTag where
   type
     HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
-      ( Member (ErrorS MLSReadReceiptsNotAllowed) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member E.ConversationStore r,
         Member (Error NoChanges) r
       )
@@ -587,7 +587,6 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
     HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag =
       '[ ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
          ErrorS 'InvalidOperation,
-         ErrorS 'MLSReadReceiptsNotAllowed,
          ErrorS 'ConvNotFound
        ]
 
@@ -603,7 +602,7 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
   ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
     -- cannot update receipt mode of MLS conversations
     when (convProtocolTag conv == ProtocolMLSTag) $
-      throwS @MLSReadReceiptsNotAllowed
+      throw ConversationSubsystemErrorMLSReadReceiptsNotAllowed
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationUpdateProtocolTag where
@@ -1177,7 +1176,7 @@ updateLocalConversationReceiptModeUpdate ::
     Member TeamSubsystem r,
     Member E.ConversationStore r,
     Member (Error NoChanges) r,
-    Member (ErrorS MLSReadReceiptsNotAllowed) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Qualified UserId ->

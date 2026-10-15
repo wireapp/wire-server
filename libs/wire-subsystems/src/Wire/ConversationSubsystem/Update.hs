@@ -357,7 +357,7 @@ updateConversationReceiptMode ::
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
+    Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
     Member Now r,

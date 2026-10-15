@@ -226,7 +226,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamMemberNotFound,
      ErrorS 'AccessDenied,
      ErrorS 'TooManyMembers,
-     ErrorS 'MLSReadReceiptsNotAllowed,
      ErrorS 'InvalidTargetAccess,
      ErrorS 'ConvInvalidProtocolTransition,
      ErrorS 'MLSMigrationCriteriaNotSatisfied,
@@ -282,7 +281,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied)
     . mapError (const ConversationSubsystemErrorConvInvalidProtocolTransition)
     . mapError (const ConversationSubsystemErrorInvalidTargetAccess)
-    . mapError (const ConversationSubsystemErrorMLSReadReceiptsNotAllowed)
     . mapError (const ConversationSubsystemErrorTooManyMembers)
     . mapError (const ConversationSubsystemErrorAccessDenied)
     . mapError (const ConversationSubsystemErrorTeamMemberNotFound)
