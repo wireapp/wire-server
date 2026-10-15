@@ -808,6 +808,9 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
 
 sendMLSTargetedMessage ::
   ( Members MLSMessageStaticErrors r,
+    -- See 'escapeLeafIndexError': this error must escape the in-band
+    -- 'MLSMessageResponseError' channel to preserve the sender-side 533.
+    Member (Error DynError) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member E.ConversationStore r,
@@ -821,7 +824,7 @@ sendMLSTargetedMessage ::
   Domain ->
   MLSMessageSendRequest ->
   Sem r MLSMessageResponse
-sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors $ do
+sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE escapeLeafIndexError $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain req.sender
@@ -855,6 +858,16 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors $ do
         (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
         qConvOrSub
     (Left _, Left decodeError) -> throw (mlsProtocolError decodeError)
+  where
+    -- An invalid leaf node index must escape 'handleMLSMessageErrors': on
+    -- develop it was thrown as @ErrorS 'MLSInvalidLeafNodeIndex@ outside the
+    -- in-band 'MLSMessageResponseError' channel, so the remote backend
+    -- answered with an HTTP error status and the sender's federator client
+    -- wrapped it as 533 federation-remote-error. Rethrowing it as a 'DynError'
+    -- keeps that wire behavior while the rest of the subsystem throws CSE.
+    escapeLeafIndexError ConversationSubsystemErrorMLSInvalidLeafNodeIndex =
+      Just (dynError @(MapError 'MLSInvalidLeafNodeIndex))
+    escapeLeafIndexError _ = Nothing
 
 getSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
