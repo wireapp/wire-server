@@ -273,7 +273,8 @@ testSFTFederation = do
 
 -- | Backs up @cfgDest@, runs the action with an updater that replaces the file
 -- content (via copy so brig's filewatch notices), and restores the backup. The
--- 1s sleep after each write must exceed brig's 0.5s watcher interval.
+-- 1s sleep gives brig's file watcher time to reload the file before the next
+-- assertion.
 withModifiedTurnFile :: FilePath -> ((String -> App ()) -> App ()) -> App ()
 withModifiedTurnFile cfgDest action =
   withSystemTempDirectory "wire.temp" $ \tmpDir -> do
@@ -305,10 +306,12 @@ assertCoturnCredentials secretPath cfg = do
     urls <- ice %. "urls" & asList >>= traverse asString
     when (null urls) $ assertFailure "ice server urls missing"
     uname <- ice %. "username" & asString
-    let (expiryStr, ':' : uid') = break (== ':') uname
-    assertBool "coturn username expiry should be numeric" (all isDigit expiryStr)
-    assertBool "coturn username expiry should be in the future" (realToFrac (read expiryStr :: Integer) > (now :: POSIXTime))
-    assertBool "coturn username uid should be non-empty [a-z0-9]" (all (\c -> isAsciiLower c || isDigit c) uid' && not (null uid'))
+    case break (== ':') uname of
+      (expiryStr, ':' : uid') -> do
+        assertBool "coturn username expiry should be numeric" (all isDigit expiryStr && not (null expiryStr))
+        assertBool "coturn username expiry should be in the future" (realToFrac (read expiryStr :: Integer) > (now :: POSIXTime))
+        assertBool "coturn username uid should be non-empty [a-z0-9]" (all (\c -> isAsciiLower c || isDigit c) uid' && not (null uid'))
+      _ -> assertFailure ("malformed coturn username: " <> uname)
     cred <- ice %. "credential" & asString
     let expected = cs (B64.encode (hmacBS sha1 secret (cs uname :: ByteString))) :: String
     cred `shouldMatch` expected
