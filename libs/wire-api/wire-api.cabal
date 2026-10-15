@@ -730,6 +730,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.PostgresMarshall
     Test.Wire.API.Routes
     Test.Wire.API.Routes.OAuthScopes
+    Test.Wire.API.Routes.SwaggerRegression
     Test.Wire.API.Routes.Version
     Test.Wire.API.Routes.Version.Wai
     Test.Wire.API.Run
@@ -743,16 +744,16 @@ test-suite wire-api-tests
 
   hs-source-dirs:   test/unit
   build-depends:
-    , aeson                  >=2.0.1.0
+    , aeson                    >=2.0.1.0
     , aeson-qq
     , async
     , base
     , binary
     , bytestring
-    , bytestring-arbitrary   >=0.1.3
+    , bytestring-arbitrary     >=0.1.3
     , bytestring-conversion
     , cassava
-    , containers             >=0.5
+    , containers               >=0.5
     , crypton
     , data-default
     , file-embed
@@ -763,6 +764,7 @@ test-suite wire-api-tests
     , http-types
     , imports
     , lens
+    , lint-openapi-regression
     , metrics-wai
     , openapi3
     , process
@@ -772,6 +774,7 @@ test-suite wire-api-tests
     , regex-tdfa
     , schema-profunctor
     , servant
+    , servant-openapi3
     , servant-server
     , string-conversions
     , tasty
@@ -781,7 +784,7 @@ test-suite wire-api-tests
     , template-haskell
     , text
     , time
-    , types-common           >=0.16
+    , types-common             >=0.16
     , unliftio
     , uuid
     , vector
