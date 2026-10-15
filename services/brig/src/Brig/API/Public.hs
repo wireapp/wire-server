@@ -602,6 +602,7 @@ servantSitemap =
     callingAPI =
       Named @"get-calls-config" Calling.getCallsConfig
         :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
+        :<|> Named @"get-calls-config-v3" Calling.getCallsConfigV3
 
     systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
     systemSettingsAPI =

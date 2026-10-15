@@ -1,0 +1,11 @@
+## API changes
+
+- Added `GET /calls/config/v3` serving TURN credentials in coturn's native
+  long-term credential format instead of zauth: `username` is `<unix-expiry>:<uid>`
+  and `credential` is the base64-encoded HMAC-SHA1 of the username keyed with the
+  coturn `static-auth-secret`. The endpoint is enabled by the new optional brig
+  option `turn.coturnSecret` (path to the file containing the coturn
+  static-auth-secret); while unset, `/calls/config/v3` responds with `500`.
+  Enabling `turn.coturnSecret` requires the entire advertised TURN fleet to
+  validate coturn native long-term credentials; `turn.secret` (zauth) remains
+  authoritative for `/calls/config` and `/calls/config/v2`.

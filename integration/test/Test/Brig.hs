@@ -25,17 +25,27 @@ import qualified API.BrigInternal as BrigI
 import API.Common
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
+import Control.Monad.Reader (asks)
 import Control.Retry
 import Data.Aeson.Types hiding ((.=))
+import qualified Data.ByteString.Base64 as B64
 import Data.List.Split
 import Data.String.Conversions
+import qualified Data.Text as Text
+import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import GHC.Stack
+import OpenSSL (withOpenSSL)
+import OpenSSL.EVP.Digest (getDigestByName, hmacBS)
 import SetupHelpers
-import System.IO.Extra
+import System.Directory (copyFile)
+import System.FilePath ((</>))
+import System.IO.Extra hiding (putStrLn)
 import Testlib.Assertions
 import Testlib.Prelude
+import UnliftIO.Concurrent (threadDelay)
+import UnliftIO.Exception (finally)
 import UnliftIO.Temporary
 
 testCrudFederationRemotes :: (HasCallStack) => App ()
@@ -260,6 +270,98 @@ testSFTFederation = do
           maybe (assertFailure "is_federating missing") asBool
             =<< lookupField resp.json "is_federating"
         when isFederating $ assertFailure "is_federating should be false"
+
+-- | Backs up @cfgDest@, runs the action with an updater that replaces the file
+-- content (via copy so brig's filewatch notices), and restores the backup. The
+-- 1s sleep gives brig's file watcher time to reload the file before the next
+-- assertion.
+withModifiedTurnFile :: FilePath -> ((String -> App ()) -> App ()) -> App ()
+withModifiedTurnFile cfgDest action =
+  withSystemTempDirectory "wire.temp" $ \tmpDir -> do
+    let backup = tmpDir </> "turn.bak"
+    liftIO $ copyFile cfgDest backup
+    action (\s -> setTurn tmpDir cfgDest s) `finally` liftIO (copyFile backup cfgDest)
+
+-- | This essentially writes 'newConf' to @cfgDest@, but in a portable way that
+-- makes sure brig's filewatch notices that the file has changed.
+setTurn :: FilePath -> FilePath -> String -> App ()
+setTurn tmpDir cfgDest newConf = do
+  let tmpFile = tmpDir </> "turn.txt"
+  liftIO $ writeFile tmpFile newConf
+  liftIO $ copyFile tmpFile cfgDest
+  threadDelay 1000000
+
+-- | Asserts coturn native long-term credentials on a @/calls/config/v3@
+-- response: @username = "<unix-expiry>:<uid>"@ with future expiry and non-empty
+-- [a-z0-9] uid, and @credential = base64(HMAC-SHA1(secret, username))@.
+assertCoturnCredentials :: (HasCallStack) => FilePath -> Value -> App ()
+assertCoturnCredentials secretPath cfg = do
+  raw <- liftIO (readFile secretPath)
+  let secret = cs (Text.strip (cs raw :: Text.Text)) :: ByteString
+  now <- liftIO getPOSIXTime
+  mSha1 <- liftIO . withOpenSSL $ getDigestByName "SHA1"
+  sha1 <- maybe (assertFailure "SHA1 digest not available") pure mSha1
+  iceServers <- cfg %. "ice_servers" & asList
+  for_ iceServers $ \ice -> do
+    urls <- ice %. "urls" & asList >>= traverse asString
+    when (null urls) $ assertFailure "ice server urls missing"
+    uname <- ice %. "username" & asString
+    case break (== ':') uname of
+      (expiryStr, ':' : uid') -> do
+        assertBool "coturn username expiry should be numeric" (all isDigit expiryStr && not (null expiryStr))
+        assertBool "coturn username expiry should be in the future" (realToFrac (read expiryStr :: Integer) > (now :: POSIXTime))
+        assertBool "coturn username uid should be non-empty [a-z0-9]" (all (\c -> isAsciiLower c || isDigit c) uid' && not (null uid'))
+      _ -> assertFailure ("malformed coturn username: " <> uname)
+    cred <- ice %. "credential" & asString
+    let expected = cs (B64.encode (hmacBS sha1 secret (cs uname :: ByteString))) :: String
+    -- Don't use 'shouldMatch' here: on mismatch it would print the real,
+    -- usable coturn credential into test logs.
+    assertBool "coturn credential mismatch" (cred == expected)
+
+-- | multiple servers using files /calls/config/v3 - 200
+--
+-- Rewrites the turn v2 servers file watched by backendA's brig (config keys
+-- 'turn.serversV2' and 'turn.coturnSecret') and verifies that the v3 endpoint
+-- advertises exactly the file's servers with valid coturn native long-term
+-- credentials.
+testCallsConfigV3 :: (HasCallStack) => App ()
+testCallsConfigV3 = do
+  -- Rewriting brig's watched turn-servers file and reading the coturn secret is
+  -- only possible when brig runs locally (see 'servicesCwdBase'); when services
+  -- run in containers their config is unreachable, so skip instead of failing.
+  mServicesCwd <- asks (.servicesCwdBase)
+  case mServicesCwd of
+    Nothing -> do
+      name <- asks (fromMaybe "Test.Brig.testCallsConfigV3" . (.currentTestName))
+      putStrLn ("skipping " <> name <> ": turn file tests require locally running services")
+    Just scwd -> do
+      let brigCwd = scwd </> "brig"
+      cfg <- readServiceConfig Brig
+      serversV2Rel <- cfg %. "turn" %. "serversV2" & asString
+      secretRel <- cfg %. "turn" %. "coturnSecret" & asString
+      let serversV2 = brigCwd </> serversV2Rel
+          secretAbs = brigCwd </> secretRel
+      user <- randomUser OwnDomain def
+      withModifiedTurnFile serversV2 $ \updater -> do
+        -- Ensure we have a clean config
+        updater "turn:localhost:3478"
+        assertV3Phase user secretAbs ["turn:localhost:3478"]
+        -- Change server list
+        updater "turn:localhost:3478\nturn:localhost:3479"
+        assertV3Phase user secretAbs ["turn:localhost:3478", "turn:localhost:3479"]
+        -- Revert the config file back to the original
+        updater "turn:localhost:3478"
+        assertV3Phase user secretAbs ["turn:localhost:3478"]
+
+assertV3Phase :: (HasCallStack) => (MakesValue user) => user -> FilePath -> [String] -> App ()
+assertV3Phase user secretAbs expected = do
+  bindResponse (getCallsConfigV3 user) \resp -> do
+    resp.status `shouldMatchInt` 200
+    iceServers <- resp.json %. "ice_servers" & asList
+    urls <- sort . concat <$> forM iceServers (\e -> e %. "urls" & asList >>= traverse asString)
+    urls `shouldMatch` sort expected
+    body <- maybe (assertFailure "no response body") pure resp.json
+    assertCoturnCredentials secretAbs body
 
 testDeleteEmail :: (HasCallStack) => App ()
 testDeleteEmail = do

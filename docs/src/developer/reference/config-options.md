@@ -997,6 +997,27 @@ sft:
     secret: /path/to/secret
 ```
 
+### coturn native TURN credentials
+
+The optional `turn.coturnSecret` option (path to the file containing the coturn
+`static-auth-secret`) enables the `GET /calls/config/v3` endpoint, which serves
+TURN credentials in coturn's native long-term credential format instead of zauth:
+`username` is `<unix-expiry>:<uid>` and `credential` is the base64-encoded
+HMAC-SHA1 of the username keyed with the coturn static-auth-secret. The expiry is
+driven by `turn.tokenTTL`. The coturn server must be configured with
+`use-auth-secret`, the same `static-auth-secret`, and a `realm`. While
+`turn.coturnSecret` is unset, `/calls/config/v3` responds with `500`. Enabling
+`turn.coturnSecret` requires the entire advertised TURN fleet (i.e. the servers
+listed via `turn.serversSource`) to validate coturn native long-term
+credentials; `turn.secret` (zauth) remains authoritative for `/calls/config`
+and `/calls/config/v2` until those endpoints are decommissioned.
+
+```default
+# [brig.yaml]
+turn:
+  coturnSecret: /path/to/coturn-secret
+```
+
 ### Locale
 
 #### setDefaultLocale (deprecated / ignored)
