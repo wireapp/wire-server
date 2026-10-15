@@ -485,7 +485,8 @@ sendMessage ::
     Member Now r,
     Member ExternalAccess r,
     Member TeamSubsystem r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   ProteusMessageSendRequest ->

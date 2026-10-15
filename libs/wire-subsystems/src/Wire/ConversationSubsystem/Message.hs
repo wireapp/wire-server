@@ -77,7 +77,7 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE)
 import Wire.ConversationSubsystem.Internal qualified as ConvSubsystem
 import Wire.ConversationSubsystem.LegalholdConflicts
 import Wire.ConversationSubsystem.Util
@@ -383,7 +383,8 @@ postQualifiedOtrMessage ::
     Member Now r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -393,8 +394,12 @@ postQualifiedOtrMessage ::
   Sem r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn lcnv msg =
   runError @(MessageNotSent MessageSendingStatus)
-    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
-    . mapToRuntimeError @'InvalidOperation @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
+    . catchCSE
+      ( \case
+          ConversationSubsystemErrorConvNotFound -> Just MessageNotSentConversationNotFound
+          ConversationSubsystemErrorInvalidOperation -> Just MessageNotSentConversationNotFound
+          _ -> Nothing
+      )
     $ do
       let localDomain = tDomain lcnv
       now <- Now.get
@@ -403,9 +408,9 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           senderUser = qUnqualified sender
       let senderClient = qualifiedNewOtrSender msg
 
-      conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+      conv <- getConversation (tUnqualified lcnv) >>= note ConversationSubsystemErrorConvNotFound
       unless (protocolTag conv.protocol `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
-        throwS @'InvalidOperation
+        throw ConversationSubsystemErrorInvalidOperation
 
       let localMemberIds = (.id_) <$> conv.localMembers
           botMap :: BotMap
@@ -422,7 +427,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
 
       -- check if the sender is part of the conversation
       unless (Set.member sender members) $
-        throwS @'ConvNotFound
+        throw ConversationSubsystemErrorConvNotFound
 
       -- get local clients
       localClients <-

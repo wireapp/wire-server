@@ -1898,7 +1898,8 @@ postProteusMessage ::
     Member (Input IntraListing) r,
     Member Now r,
     Member TinyLog r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1978,7 +1979,8 @@ postBotMessageUnqualified ::
     Member (Input IntraListing) r,
     Member TinyLog r,
     Member Now r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   BotId ->
   ConvId ->
@@ -2035,7 +2037,8 @@ postOtrMessageUnqualified ::
     Member (Input IntraListing) r,
     Member Now r,
     Member TinyLog r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   ConnId ->
