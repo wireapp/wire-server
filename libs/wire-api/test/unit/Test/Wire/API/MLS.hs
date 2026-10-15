@@ -51,6 +51,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.TargetedMessage
+import Wire.API.MLS.TransientMessage
 import Wire.API.MLS.Welcome
 
 tests :: TestTree
@@ -65,7 +66,9 @@ tests =
       testCase "create signed remove proposal" testRemoveProposalMessageSignature,
       testCase "parse client identity" testParseClientIdentity,
       testCase "parse targeted message batch" testParseTargetedMessageBatch,
-      testCase "targeted message epoch window" testTargetedMessageEpochWindow
+      testCase "targeted message epoch window" testTargetedMessageEpochWindow,
+      testCase "parse transient message" testParseTransientMessage,
+      testCase "reject wrong transient message wire format" testRejectWrongTransientWireFormat
     ]
 
 testTargetedMessageEpochWindow :: IO ()
@@ -95,6 +98,73 @@ testParseTargetedMessageBatch = do
           )
       batch = TargetedMessageBatch [message 2, message 3]
   decodeMLS' (encodeMLS' batch) @?= Right batch
+
+testParseTransientMessage :: IO ()
+testParseTransientMessage = do
+  let context =
+        GroupContext
+          { protocolVersion = defaultProtocolVersion,
+            cipherSuite = CipherSuite 1,
+            groupId = GroupId "group",
+            epoch = Epoch 4,
+            treeHash = "tree-hash",
+            confirmedTranscriptHash = "transcript-hash",
+            extensions = []
+          }
+      message =
+        TransientMessage
+          { protocolVersion = defaultProtocolVersion,
+            wireFormat = transientMessageWireFormat,
+            inner =
+              TransientMessageTBS
+                { sender = 2,
+                  counter = 17,
+                  groupContext = context,
+                  payload = "ciphertext"
+                },
+            signature = "signature"
+          }
+  let encoded = encodeMLS' message
+      expectedAad =
+        encodeMLS' message.protocolVersion
+          <> "\xf0\x00"
+          <> encodeMLS' message.inner.sender
+          <> encodeMLS' message.inner.counter
+          <> encodeMLS' message.inner.groupContext
+  BS.take 4 encoded @?= "\x00\x01\xf0\x00"
+  encodeMLS' (transientMessageAad message) @?= expectedAad
+  decodeMLS' encoded @?= Right message
+
+testRejectWrongTransientWireFormat :: IO ()
+testRejectWrongTransientWireFormat = do
+  let context =
+        GroupContext
+          { protocolVersion = defaultProtocolVersion,
+            cipherSuite = CipherSuite 1,
+            groupId = GroupId "group",
+            epoch = Epoch 4,
+            treeHash = "tree-hash",
+            confirmedTranscriptHash = "transcript-hash",
+            extensions = []
+          }
+      message =
+        TransientMessage
+          { protocolVersion = defaultProtocolVersion,
+            wireFormat = transientMessageWireFormat,
+            inner =
+              TransientMessageTBS
+                { sender = 2,
+                  counter = 17,
+                  groupContext = context,
+                  payload = "ciphertext"
+                },
+            signature = "signature"
+          }
+  let encoded = encodeMLS' message
+      wrongWireFormat = BS.take 2 encoded <> "\xf0\x01" <> BS.drop 4 encoded
+  case (decodeMLS' wrongWireFormat :: Either Text.Text TransientMessage) of
+    Left _ -> pure ()
+    Right _ -> assertFailure "unexpectedly parsed a message with the targeted wire format"
 
 testParseClientIdentity :: IO ()
 testParseClientIdentity = do

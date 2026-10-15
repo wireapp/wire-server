@@ -34,6 +34,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.TargetedMessage
+import Wire.API.MLS.TransientMessage
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -130,6 +131,25 @@ type MLSMessagingAPI =
                :> ZClient
                :> ReqBody '[MLS] TransientTargetedMessageBatch
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Transient targeted message accepted" MLSMessageSendingStatus)
+           )
+    :<|> Named
+           "mls-transient-message"
+           ( Summary "Post a transient broadcast MLS message to a conversation"
+               :> From 'V19
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow 'MLSClientSenderUserMismatch
+               :> CanThrow 'MLSInvalidLeafNodeIndex
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSUnsupportedMessage
+               :> "messages"
+               :> "transient"
+               :> ZLocalUser
+               :> ZClient
+               :> ReqBody '[MLS] (RawMLS TransientMessage)
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Transient message accepted" MLSMessageSendingStatus)
            )
     :<|> Named
            "mls-commit-bundle"
