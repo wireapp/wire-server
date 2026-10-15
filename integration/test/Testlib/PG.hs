@@ -24,6 +24,7 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
 import System.Process
@@ -31,9 +32,9 @@ import Testlib.Prelude
 
 -- | Execute a SQL statement against galley's Postgres database by spawning
 -- @psql@ with the connection parameters read from galley's configuration.
--- The optional top-level @postgresqlPassword@ secret file (a JSON-encoded
--- string, as consumed by galley itself) takes precedence over the optional
--- inline @postgresql.password@ value — same precedence as galley. Fails if
+-- The optional top-level @postgresqlPassword@ secret file takes precedence
+-- over the optional inline @postgresql.password@ value — same precedence as
+-- galley (see 'lookupPassword' for the accepted file formats). Fails if
 -- @psql@ exits non-zero.
 execSql :: (HasCallStack) => Text -> App ()
 execSql sql = do
@@ -63,8 +64,10 @@ execSql sql = do
         <> T.unpack sql
 
 -- | Resolve the DB password: the @postgresqlPassword@ secret file wins over
--- the inline @postgresql.password@ value. A configured but unreadable or
--- undecodable file is a hard error (mirroring galley's own behavior).
+-- the inline @postgresql.password@ value. The file is expected to hold a
+-- JSON-encoded string (as consumed by galley itself); if it is not valid
+-- JSON, its raw (trimmed) content is used as the password. A configured but
+-- unreadable file is a hard error.
 lookupPassword :: (HasCallStack) => Value -> App (Maybe String)
 lookupPassword cfg =
   lookupField cfg "postgresqlPassword" >>= \case
@@ -73,7 +76,13 @@ lookupPassword cfg =
       contents <- liftIO (try (BS.readFile path)) >>= either (\e -> failApp ("Testlib.PG.execSql: cannot read postgresqlPassword file " <> path <> ": " <> show (e :: IOException))) pure
       case eitherDecode contents of
         Right pw -> pure (Just pw)
-        Left err -> failApp ("Testlib.PG.execSql: postgresqlPassword file " <> path <> " does not contain a JSON string: " <> err)
+        -- Secret files rendered by the helm charts (e.g. from a plain-text
+        -- @secrets.pgPassword@ value) hold the raw password rather than a
+        -- JSON string; accept the raw content as a fallback.
+        Left _ -> do
+          let raw = T.unpack (T.strip (decodeUtf8 (BS.toStrict contents)))
+          when (null raw) $ failApp ("Testlib.PG.execSql: postgresqlPassword file " <> path <> " is empty")
+          pure (Just raw)
     Nothing ->
       lookupField cfg "postgresql.password" >>= \case
         Just (String t) -> pure (Just (T.unpack t))
