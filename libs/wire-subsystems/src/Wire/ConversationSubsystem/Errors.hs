@@ -226,8 +226,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'AccessDenied,
      ErrorS 'TooManyMembers,
      ErrorS 'InvalidTargetAccess,
-     ErrorS 'ConvInvalidProtocolTransition,
-     ErrorS 'MLSMigrationCriteriaNotSatisfied,
      ErrorS ('ActionDenied ConvRole.AddConversationMember),
      ErrorS ('ActionDenied ConvRole.ModifyOtherConversationMember),
      ErrorS ('ActionDenied ConvRole.ModifyConversationName),
@@ -277,8 +275,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationName)
     . mapError (const ConversationSubsystemErrorActionDeniedModifyOtherConversationMember)
     . mapError (const ConversationSubsystemErrorActionDeniedAddConversationMember)
-    . mapError (const ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied)
-    . mapError (const ConversationSubsystemErrorConvInvalidProtocolTransition)
     . mapError (const ConversationSubsystemErrorInvalidTargetAccess)
     . mapError (const ConversationSubsystemErrorTooManyMembers)
     . mapError (const ConversationSubsystemErrorAccessDenied)

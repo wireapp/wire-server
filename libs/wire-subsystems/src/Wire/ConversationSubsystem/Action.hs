@@ -619,9 +619,8 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         Member Random r,
         Member (Input ConversationSubsystemConfig) r,
         Member ProposalStore r,
-        Member (ErrorS ConvInvalidProtocolTransition) r,
+        Member (Error ConversationSubsystemError) r,
         Member (E.FederationAPIAccess FederatorClient) r,
-        Member (ErrorS MLSMigrationCriteriaNotSatisfied) r,
         Member (Error FederationError) r
       )
 
@@ -629,9 +628,7 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
     HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
       '[ ErrorS ('ActionDenied 'LeaveConversation),
          ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvInvalidProtocolTransition,
-         ErrorS 'MLSMigrationCriteriaNotSatisfied
+         ErrorS 'ConvNotFound
        ]
 
   performAction lconv qusr _conId action = do
@@ -646,9 +643,9 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
       (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
         mig <- getFeatureForTeam tid
         now <- Now.get
-        mlsConv <- mkMLSConversation storedConv >>= noteS @'ConvInvalidProtocolTransition
+        mlsConv <- mkMLSConversation storedConv >>= note ConversationSubsystemErrorConvInvalidProtocolTransition
         ok <- checkMigrationCriteria now mlsConv mig
-        unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
+        unless ok $ throw ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
         removeExtraneousClients qusr lconv
         E.updateToMLSProtocol (tUnqualified lcnv)
         pure $ mkPerformActionResult action
@@ -658,7 +655,7 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         noChanges
       (ProtocolMLSTag, ProtocolMLSTag, _) ->
         noChanges
-      (_, _, _) -> throwS @'ConvInvalidProtocolTransition
+      (_, _, _) -> throw ConversationSubsystemErrorConvInvalidProtocolTransition
 
   ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
     throwS @'ConvNotFound
@@ -1259,8 +1256,7 @@ updateLocalConversationUpdateProtocol ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (ErrorS 'ConvInvalidProtocolTransition) r,
-    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Qualified UserId ->

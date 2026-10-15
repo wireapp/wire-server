@@ -662,11 +662,10 @@ checkReusableCode origIp convCode = do
 updateConversationProtocolWithLocalUser ::
   forall r.
   ( Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvInvalidProtocolTransition) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
-    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
     Member (Error InternalError) r,
     Member Now r,
     Member (Input (Local ())) r,

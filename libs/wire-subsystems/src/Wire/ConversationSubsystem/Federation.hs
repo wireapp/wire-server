@@ -642,8 +642,14 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversationAccessData lcnv (tUntagged rusr) Nothing action
       SConversationUpdateProtocolTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag)
+        catchCSE
+          ( \case
+              ConversationSubsystemErrorConvInvalidProtocolTransition -> Just ConvInvalidProtocolTransition
+              ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> Just MLSMigrationCriteriaNotSatisfied
+              _ -> Nothing
+          )
+          . mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag)
           . fmap lcuUpdate
           $ updateLocalConversationUpdateProtocol lcnv (tUntagged rusr) Nothing action
       SConversationUpdateAddPermissionTag ->
