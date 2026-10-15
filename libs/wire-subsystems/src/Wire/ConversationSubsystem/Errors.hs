@@ -226,8 +226,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'MLSSubConvUnsupportedConvType,
      ErrorS 'TeamMemberNotFound,
      ErrorS 'AccessDenied,
-     ErrorS 'CodeNotFound,
-     ErrorS 'GuestLinksDisabled,
      ErrorS 'TooManyMembers,
      ErrorS 'MLSReadReceiptsNotAllowed,
      ErrorS 'InvalidTargetAccess,
@@ -287,8 +285,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorInvalidTargetAccess)
     . mapError (const ConversationSubsystemErrorMLSReadReceiptsNotAllowed)
     . mapError (const ConversationSubsystemErrorTooManyMembers)
-    . mapError (const ConversationSubsystemErrorGuestLinksDisabled)
-    . mapError (const ConversationSubsystemErrorCodeNotFound)
     . mapError (const ConversationSubsystemErrorAccessDenied)
     . mapError (const ConversationSubsystemErrorTeamMemberNotFound)
     . mapError (const ConversationSubsystemErrorMLSSubConvUnsupportedConvType)

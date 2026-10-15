@@ -141,7 +141,7 @@ import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember, kickMemberWith)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE)
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Notify qualified as Notify
 import Wire.ConversationSubsystem.Query qualified as Query
@@ -488,7 +488,6 @@ addCodeUnqualified ::
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'GuestLinksDisabled) r,
     Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
@@ -517,7 +516,6 @@ addCode ::
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'GuestLinksDisabled) r,
     Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member HashPassword r,
@@ -617,10 +615,9 @@ getCode ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
-    Member (ErrorS 'CodeNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'GuestLinksDisabled) r,
     Member FeaturesConfigSubsystem r
   ) =>
   Maybe ZHostValue ->
@@ -634,7 +631,7 @@ getCode mbZHost lusr cnv = do
   ensureAccess conv CodeAccess
   ensureConvMember (conv.localMembers) (tUnqualified lusr)
   key <- E.makeKey (CodeReferentConv cnv)
-  (c, mPw) <- E.getCode key >>= noteS @'CodeNotFound
+  (c, mPw) <- E.getCode key >>= note ConversationSubsystemErrorCodeNotFound
   convUri <- getConversationCodeURI mbZHost
   pure $ mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) convUri
 
@@ -643,7 +640,6 @@ checkReusableCode ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member HashPassword r,
@@ -656,8 +652,12 @@ checkReusableCode origIp convCode = do
   code <- verifyReusableCode (RateLimitIp origIp) False Nothing convCode
   codeCid <- noteS @'ConvNotFound (codeConvId code)
   conv <- E.getConversation codeCid >>= noteS @'ConvNotFound
-  mapErrorS @'GuestLinksDisabled @'CodeNotFound $
-    Query.ensureGuestLinksEnabled (convTeam conv)
+  catchCSE
+    ( \case
+        ConversationSubsystemErrorGuestLinksDisabled -> Just ConversationSubsystemErrorCodeNotFound
+        _ -> Nothing
+    )
+    $ Query.ensureGuestLinksEnabled (convTeam conv)
 
 updateConversationProtocolWithLocalUser ::
   forall r.
@@ -749,11 +749,9 @@ joinConversationByReusableCode ::
   ( Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore r,
-    Member (ErrorS 'CodeNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,

@@ -651,7 +651,6 @@ newConversationEventPush st e users =
 
 verifyReusableCode ::
   ( Member CodeStore r,
-    Member (ErrorS 'CodeNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member HashPassword r,
     Member RateLimit r
@@ -664,9 +663,9 @@ verifyReusableCode ::
 verifyReusableCode rateLimitKey checkPw mPtpw convCode = do
   (c, mPw) <-
     getCode (conversationKey convCode)
-      >>= noteS @'CodeNotFound
+      >>= note ConversationSubsystemErrorCodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    throwS @'CodeNotFound
+    throw ConversationSubsystemErrorCodeNotFound
   case (checkPw, mPtpw, mPw) of
     (True, Just ptpw, Just pw) -> do
       unlessM (HashPassword.verifyPassword rateLimitKey ptpw pw) $ throw ConversationSubsystemErrorInvalidConversationPassword

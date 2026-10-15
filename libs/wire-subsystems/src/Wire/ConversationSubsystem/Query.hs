@@ -676,11 +676,9 @@ getConversationByReusableCode ::
   ( Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'CodeNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
     Member FeaturesConfigSubsystem r,
     Member HashPassword r,
@@ -709,7 +707,7 @@ getConversationByReusableCode lusr key value = do
 
 ensureGuestLinksEnabled ::
   forall r.
-  ( Member (ErrorS 'GuestLinksDisabled) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member FeaturesConfigSubsystem r
   ) =>
   Maybe TeamId ->
@@ -717,7 +715,7 @@ ensureGuestLinksEnabled ::
 ensureGuestLinksEnabled mbTid =
   getConversationGuestLinksFeatureStatus mbTid >>= \ws -> case ws.status of
     FeatureStatusEnabled -> pure ()
-    FeatureStatusDisabled -> throwS @'GuestLinksDisabled
+    FeatureStatusDisabled -> throw ConversationSubsystemErrorGuestLinksDisabled
 
 getConversationGuestLinksStatus ::
   forall r.
