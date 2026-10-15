@@ -819,6 +819,12 @@ getCallsConfigV2 user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_calls_config_v3
+getCallsConfigV3 :: (HasCallStack, MakesValue user) => user -> App Response
+getCallsConfigV3 user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v3"]
+  submit "GET" req
+
 addBot :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
 addBot user providerId serviceId convId = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["bot", "conversations", convId]
