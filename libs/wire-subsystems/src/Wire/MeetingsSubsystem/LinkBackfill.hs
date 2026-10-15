@@ -30,8 +30,9 @@
 --   query, so no new SQL access leaves the existing indices (and no DDL is
 --   added).
 --
--- * In Cassandra-only mode no meeting code can be created: every pass logs
---   the un-backfillable meetings and continues.
+-- * In Cassandra-only mode the worker is not started: meeting codes cannot
+--   be stored in Cassandra, so galley logs a single configuration error
+--   instead of scanning in vain.
 module Wire.MeetingsSubsystem.LinkBackfill
   ( backfillMeetingJoinCodes,
     backfillPage,
@@ -75,8 +76,8 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 -- paging keyset-wise through the meetings table. @interval@ is the pause
 -- between full passes, @pageSize@ the scan page size. Codes are created with
 -- no password and the standard 'meetingCodeTimeout'; existing codes are
--- never touched, so existing links keep working. Unsupported stores
--- (Cassandra-only) are logged per meeting and re-picked on the next pass.
+-- never touched, so existing links keep working. Cassandra-only deployments
+-- never start this worker (see 'runMeetingJoinCodeBackfill').
 backfillMeetingJoinCodes ::
   ( Member Store.MeetingsStore r,
     Member CodeStore r,
@@ -151,43 +152,52 @@ runMeetingJoinCodeBackfill ::
   Int ->
   IO ()
 runMeetingJoinCodeBackfill storeMode cassClient pgPool logger convCodeURI name interval pageSize =
-  forever $ do
-    result <-
-      try
-        $ runFinal
-          . embedToFinal
-          . loggerToTinyLog logger
-          . mapLogger (Log.field "backfill" (Log.val name) .)
-          . runError @UsageError
-          . runErrorS @'CodeStoreNotFound
-          . runInputConst @(Either HttpsUrl (Map Domain HttpsUrl)) convCodeURI
-          . runInputConst @HasqlPoolExt.Pool pgPool
-          . runInputConst @ClientState cassClient
-          . interpretMeetingsStoreToPostgres
-          . codeStoreInterpreter
-        $ backfillMeetingJoinCodes interval pageSize
-    let logFail e =
+  case storeMode of
+    CassandraStorage ->
+      -- Meeting codes cannot be stored in Cassandra: the worker could never
+      -- make progress (every pass would scan the whole table and log one
+      -- error per meeting). Fail loudly once instead of looping in vain.
+      Log.err logger $
+        Log.msg ("meeting join code backfill disabled" :: ByteString)
+          . Log.field "backfill" name
+          . Log.field "reason" ("postgresMigration.conversationCodes=cassandra: meeting codes cannot be stored in Cassandra; use migration-to-postgresql or postgresql" :: ByteString)
+    _ -> forever $ do
+      result <-
+        try
+          $ runFinal
+            . embedToFinal
+            . loggerToTinyLog logger
+            . mapLogger (Log.field "backfill" (Log.val name) .)
+            . runError @UsageError
+            . runErrorS @'CodeStoreNotFound
+            . runInputConst @(Either HttpsUrl (Map Domain HttpsUrl)) convCodeURI
+            . runInputConst @HasqlPoolExt.Pool pgPool
+            . runInputConst @ClientState cassClient
+            . interpretMeetingsStoreToPostgres
+            . codeStoreInterpreter
+          $ backfillMeetingJoinCodes interval pageSize
+      let logFail e =
+            Log.err logger $
+              Log.msg ("meeting join code backfill pass failed" :: ByteString)
+                . Log.field "backfill" name
+                . Log.field "error" e
+      case result of
+        -- impossible: the loop never returns
+        Right (Right (Just ())) -> pure ()
+        -- 'CodeStoreNotFound' is never produced by this worker's code-store
+        -- ops, but the interpreter chain must handle it.
+        Right (Right Nothing) ->
           Log.err logger $
-            Log.msg ("meeting join code backfill pass failed" :: ByteString)
+            Log.msg ("code store not found during meeting join code backfill" :: ByteString)
               . Log.field "backfill" name
-              . Log.field "error" e
-    case result of
-      -- impossible: the loop never returns
-      Right (Right (Just ())) -> pure ()
-      -- 'CodeStoreNotFound' is never produced by this worker's code-store
-      -- ops, but the interpreter chain must handle it.
-      Right (Right Nothing) ->
-        Log.err logger $
-          Log.msg ("code store not found during meeting join code backfill" :: ByteString)
-            . Log.field "backfill" name
-      Right (Left usageError) -> logFail (show usageError)
-      Left (exc :: SomeException) ->
-        -- Never swallow async exceptions: 'withAsync' delivers cancellation
-        -- at galley shutdown, and resuming the loop would hang shutdown.
-        case fromException exc of
-          Just (ae :: SomeAsyncException) -> throwIO ae
-          Nothing -> logFail (displayException exc)
-    threadDelay (floor (realToFrac interval * 1000000 :: Double))
+        Right (Left usageError) -> logFail (show usageError)
+        Left (exc :: SomeException) ->
+          -- Never swallow async exceptions: 'withAsync' delivers cancellation
+          -- at galley shutdown, and resuming the loop would hang shutdown.
+          case fromException exc of
+            Just (ae :: SomeAsyncException) -> throwIO ae
+            Nothing -> logFail (displayException exc)
+      threadDelay (floor (realToFrac interval * 1000000 :: Double))
   where
     codeStoreInterpreter ::
       ( Member (Input ClientState) r,
@@ -199,6 +209,9 @@ runMeetingJoinCodeBackfill storeMode cassClient pgPool logger convCodeURI name i
       ) =>
       InterpreterFor CodeStore r
     codeStoreInterpreter = case storeMode of
+      -- unreachable from the runner (the gate above rejects CassandraStorage
+      -- before the loop) but kept for exhaustiveness: 'StorageLocation' has
+      -- no 'Eq'.
       CassandraStorage -> interpretCodeStoreToCassandra
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
