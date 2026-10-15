@@ -86,6 +86,75 @@ testAppMessageSomeReachable = do
   mp <- createApplicationMessage convId alice1 "hi, bob!"
   void $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
+testTransientMessageFederatedBroadcast :: (HasCallStack) => App ()
+testTransientMessageFederatedBroadcast = do
+  ownDomain <- make OwnDomain & asString
+  remoteDomain <- make OtherDomain & asString
+  [alice, bob, charlie] <- createAndConnectUsers [ownDomain, remoteDomain, ownDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
+  convId <- createNewGroup def alice1
+  withWebSockets [alice, bob, charlie] $ \[aliceWs, bobWs, charlieWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs]
+    transient <- createTransientMessage convId alice1 "transient broadcast"
+    postMLSTransientMessage transient.sender transient.message >>= assertStatus 201
+    for_ [bobWs, charlieWs] $ \ws -> do
+      notification <- awaitMatch isNewMLSTransientMessageNotif ws
+      event <- notification %. "payload.0"
+      event %. "from" `shouldMatch` transient.sender.user
+      event %. "data" `shouldMatch` (B8.unpack (Base64.encode transient.message))
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientMessageNotif aliceWs
+
+testTransientMessageFederatedSender :: (HasCallStack) => App ()
+testTransientMessageFederatedSender = do
+  ownDomain <- make OwnDomain & asString
+  remoteDomain <- make OtherDomain & asString
+  [alice, bob, charlie, david] <- createAndConnectUsers [ownDomain, remoteDomain, ownDomain, remoteDomain]
+  [alice1, bob1, charlie1, david1] <- traverse (createMLSClient def) [alice, bob, charlie, david]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1, david1]
+  convId <- createNewGroup def alice1
+  withWebSockets [alice, bob, charlie, david] $ \[aliceWs, bobWs, charlieWs, davidWs] -> do
+    void $ createAddCommit alice1 convId [bob, charlie, david] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs, davidWs]
+    transient <- createTransientMessage convId bob1 "federated transient sender"
+    postMLSTransientMessage transient.sender transient.message >>= assertStatus 201
+    traverse_ (awaitMatch isNewMLSTransientMessageNotif) [aliceWs, charlieWs, davidWs]
+    expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientMessageNotif bobWs
+
+testTransientMessageOfflineIsNotSynced :: (HasCallStack) => App ()
+testTransientMessageOfflineIsNotSynced = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  before <- getNotifications bob def >>= getJSON 200
+  transient <- createTransientMessage convId alice1 "transient while offline"
+  postMLSTransientMessage transient.sender transient.message >>= assertStatus 201
+  after <- getNotifications bob def >>= getJSON 200
+  beforeCount <- length <$> (before %. "notifications" & asList)
+  afterCount <- length <$> (after %. "notifications" & asList)
+  afterCount `shouldMatchInt` beforeCount
+
+testTransientMessageRejectsUnauthorizedSender :: (HasCallStack) => App ()
+testTransientMessageRejectsUnauthorizedSender = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  transient <- createTransientMessage convId alice1 "unauthorized transient sender"
+  postMLSTransientMessage bob1 transient.message `bindResponse` \response -> do
+    response.status `shouldMatchInt` 400
+    response.json %. "label" `shouldMatch` "mls-client-sender-user-mismatch"
+
+testTransientMessageRejectsMalformedPayload :: (HasCallStack) => App ()
+testTransientMessageRejectsMalformedPayload = do
+  [alice] <- createUsers [OwnDomain]
+  [alice1] <- traverse (createMLSClient def) [alice]
+  postMLSTransientMessage alice1 (B8.pack "not-an-MLS-message") >>= assertStatus 400
+
 testTargetedMessageFederatedRecipient :: (HasCallStack) => App ()
 testTargetedMessageFederatedRecipient = do
   ownDomain <- make OwnDomain & asString

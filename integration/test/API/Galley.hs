@@ -341,6 +341,11 @@ postMLSTransientTargetedMessage cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/messages/transient-targeted"
   submit "POST" (addMLS msg req)
 
+postMLSTransientMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
+postMLSTransientMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages/transient"
+  submit "POST" (addMLS msg req)
+
 postMLSCommitBundle :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
 postMLSCommitBundle cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
