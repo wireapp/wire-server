@@ -206,7 +206,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
-     ErrorS 'MLSSubConvClientNotInParent,
      ErrorS 'GroupIdVersionNotSupported,
      ErrorS 'ConvMemberNotFound,
      ErrorS ('ActionDenied ConvRole.LeaveConversation),
@@ -233,9 +232,7 @@ type ConversationSubsystemErrorEffects =
      Error MLSOutOfSyncError,
      Error MLSProposalFailure,
      Error NonFederatingBackends,
-     Error UnreachableBackendsLegacy,
-     ErrorS 'MLSHistoryClientConflict,
-     ErrorS 'MLSHistoryClientDuplication
+     Error UnreachableBackendsLegacy
    ]
 
 mapErrors ::
@@ -245,9 +242,7 @@ mapErrors ::
   ) =>
   InterpretersFor ConversationSubsystemErrorEffects r
 mapErrors =
-  mapError (const ConversationSubsystemErrorMLSHistoryClientDuplication)
-    . mapError (const ConversationSubsystemErrorMLSHistoryClientConflict)
-    . mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
+  mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
     . mapError (ConversationSubsystemErrorNonFederatingBackends)
     . interpretServerEffect
     . mapError (ConversationSubsystemErrorMLSOutOfSyncError)
@@ -274,7 +269,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorActionDeniedLeaveConversation)
     . mapError (const ConversationSubsystemErrorConvMemberNotFound)
     . mapError (const ConversationSubsystemErrorGroupIdVersionNotSupported)
-    . mapError (const ConversationSubsystemErrorMLSSubConvClientNotInParent)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
     . mapError (const ConversationSubsystemErrorTeamNotFound)

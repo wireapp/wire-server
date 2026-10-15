@@ -126,10 +126,7 @@ type MLSMessageStaticErrors =
      ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
      ErrorS 'MLSNotEnabled,
-     ErrorS 'MissingLegalholdConsent,
-     ErrorS 'MLSSubConvClientNotInParent,
-     ErrorS 'MLSHistoryClientConflict,
-     ErrorS 'MLSHistoryClientDuplication
+     ErrorS 'MissingLegalholdConsent
    ]
 
 enableOutOfSyncCheckFromVersion :: Version -> EnableOutOfSyncCheck
@@ -145,11 +142,8 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Error GroupInfoDiagnostics) r,
-    Member (ErrorS MLSHistoryClientConflict) r,
-    Member (ErrorS MLSHistoryClientDuplication) r
+    Member (Error GroupInfoDiagnostics) r
   ) =>
   Version ->
   Local UserId ->
@@ -368,7 +362,6 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
 
 validateAndPropagateTargetedMessages ::
   ( Member (ErrorS 'ConvNotFound) r,
-    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
@@ -376,7 +369,8 @@ validateAndPropagateTargetedMessages ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -601,10 +595,10 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
               let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
               let historyClients = filter isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
               case historyClients of
-                (_ : _ : _) -> throwS @'MLSHistoryClientDuplication
+                (_ : _ : _) -> throw ConversationSubsystemErrorMLSHistoryClientDuplication
                 _ -> pure ()
               let historyClientExists = not (null historyClients)
-              when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+              when (sharedHistoryEnabled /= historyClientExists) $ throw ConversationSubsystemErrorMLSHistoryClientConflict
             SubConv _ _ -> pure ()
 
           -- reject message if the conversation is out of sync
@@ -815,11 +809,8 @@ postMLSMessage ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Error GroupInfoDiagnostics) r,
-    Member (ErrorS MLSHistoryClientConflict) r,
-    Member (ErrorS MLSHistoryClientDuplication) r
+    Member (Error GroupInfoDiagnostics) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -863,8 +854,7 @@ postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Input EnableOutOfSyncCheck) r,
-    Member (ErrorS MLSHistoryClientConflict) r
+    Member (Input EnableOutOfSyncCheck) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -884,8 +874,7 @@ validateMessage ::
   ( HasProposalEffects r,
     Member (ErrorS ConvNotFound) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Input EnableOutOfSyncCheck) r,
-    Member (ErrorS MLSHistoryClientConflict) r
+    Member (Input EnableOutOfSyncCheck) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -941,7 +930,7 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
           -- until a commit that adds or removes the history client is processed.
           let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
           let historyClientExists = any isHistoryClient (IntMap.elems convOrSub.indexMap.unIndexMap)
-          when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+          when (sharedHistoryEnabled /= historyClientExists) $ throw ConversationSubsystemErrorMLSHistoryClientConflict
         SubConv _ _ -> pure ()
 
 postMLSMessageToRemoteConv ::

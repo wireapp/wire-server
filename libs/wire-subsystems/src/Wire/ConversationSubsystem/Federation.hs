@@ -749,6 +749,9 @@ handleMLSMessageErrors =
           ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
           ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
           ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
+          ConversationSubsystemErrorMLSSubConvClientNotInParent -> Just MLSSubConvClientNotInParent
+          ConversationSubsystemErrorMLSHistoryClientConflict -> Just MLSHistoryClientConflict
+          ConversationSubsystemErrorMLSHistoryClientDuplication -> Just MLSHistoryClientDuplication
           ConversationSubsystemErrorMLSIdentityMismatch -> Just MLSIdentityMismatch
           ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> Just MLSInvalidLeafNodeSignature
           ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
@@ -962,6 +965,9 @@ leaveSubConversation domain lscr = do
           ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
           ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
           ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
+          ConversationSubsystemErrorMLSSubConvClientNotInParent -> Just MLSSubConvClientNotInParent
+          ConversationSubsystemErrorMLSHistoryClientConflict -> Just MLSHistoryClientConflict
+          ConversationSubsystemErrorMLSHistoryClientDuplication -> Just MLSHistoryClientDuplication
           _ -> Nothing
       )
     . mapToGalleyError @LeaveSubConversationStaticErrors
@@ -994,6 +1000,9 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
           ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
           ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
           ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
+          ConversationSubsystemErrorMLSSubConvClientNotInParent -> Just MLSSubConvClientNotInParent
+          ConversationSubsystemErrorMLSHistoryClientConflict -> Just MLSHistoryClientConflict
+          ConversationSubsystemErrorMLSHistoryClientDuplication -> Just MLSHistoryClientDuplication
           _ -> Nothing
       )
     . mapToGalleyError @MLSDeleteSubConvStaticErrors

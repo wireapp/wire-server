@@ -34,7 +34,6 @@ import Polysemy.Error
 import Polysemy.Resource (Resource)
 import Polysemy.State
 import Wire.API.Conversation.Protocol
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
@@ -131,7 +130,6 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 processExternalCommit ::
   forall r.
   ( Member (Error FederationError) r,
-    Member (ErrorS MLSSubConvClientNotInParent) r,
     Member Resource r,
     HasProposalActionEffects r,
     Member MLSCommitLockStore r
@@ -152,7 +150,7 @@ processExternalCommit senderIdentity lConvOrSub ciphersuite ciphersuiteUpdate ep
   forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
     unless (isClientMember senderIdentity.client (mcMembers mlsConv)) $
       lift $
-        throwS @'MLSSubConvClientNotInParent
+        throw ConversationSubsystemErrorMLSSubConvClientNotInParent
 
   -- extract update path
   updatePath <-
