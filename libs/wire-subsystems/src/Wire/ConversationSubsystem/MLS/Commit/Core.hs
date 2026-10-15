@@ -83,15 +83,13 @@ type HasProposalActionEffects r =
     Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error MLSProposalFailure) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member (Input ConversationSubsystemConfig) r,
@@ -137,20 +135,20 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
 
 incrementEpoch ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   ConvOrSubConv ->
   Sem r ConvOrSubConv
 incrementEpoch (Conv c) = do
   let epoch' = succ (cnvmlsEpoch (mcMLSData c))
   setConversationEpoch (mcId c) epoch'
-  conv <- getConversation (mcId c) >>= noteS @'ConvNotFound
-  fmap Conv (mkMLSConversation conv >>= noteS @'ConvNotFound)
+  conv <- getConversation (mcId c) >>= note ConversationSubsystemErrorConvNotFound
+  fmap Conv (mkMLSConversation conv >>= note ConversationSubsystemErrorConvNotFound)
 incrementEpoch (SubConv c s) = do
   let epoch' = succ (cnvmlsEpoch (scMLSData s))
   setSubConversationEpoch (scParentConvId s) (scSubConvId s) epoch'
   subconv <-
-    getSubConversation (mcId c) (scSubConvId s) >>= noteS @'ConvNotFound
+    getSubConversation (mcId c) (scSubConvId s) >>= note ConversationSubsystemErrorConvNotFound
   pure (SubConv c subconv)
 
 -- | Bump the MLS epoch without re-reading the conversation afterwards.

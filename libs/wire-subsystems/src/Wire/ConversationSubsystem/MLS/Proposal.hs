@@ -47,7 +47,6 @@ import Polysemy.State
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -232,8 +231,7 @@ applyProposal _ciphersuite (RemoveProposal idx) = do
 applyProposal _activeData _ = pure mempty
 
 processProposal ::
-  ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r
+  ( HasProposalEffects r
   ) =>
   Qualified UserId ->
   Local ConvOrSubConv ->
@@ -245,7 +243,7 @@ processProposal ::
 processProposal qusr lConvOrSub groupId epoch pub prop = do
   let mlsMeta = (tUnqualified lConvOrSub).mlsMeta
   -- Check if the group ID matches that of a conversation
-  unless (groupId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
+  unless (groupId == cnvmlsGroupId mlsMeta) $ throw ConversationSubsystemErrorConvNotFound
 
   -- Proposals from existing members are not authorized independently of the
   -- commit that applies them. They must therefore only be submitted as part

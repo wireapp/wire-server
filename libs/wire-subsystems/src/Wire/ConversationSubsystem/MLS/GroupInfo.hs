@@ -27,11 +27,10 @@ import Data.Id as Id
 import Data.Json.Util
 import Data.Qualified
 import Imports
+import Wire.API.Error.Galley
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
@@ -47,8 +46,7 @@ import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess qualified as E
 
 type MLSGroupInfoStaticErrors =
-  '[ ErrorS 'ConvNotFound,
-     Error ConversationSubsystemError
+  '[ Error ConversationSubsystemError
    ]
 
 getGroupInfo ::
@@ -86,7 +84,6 @@ getGroupInfoFromRemoteConv ::
     Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r
   ) =>
-  (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->
   Remote ConvOrSubConvId ->
   Sem r GroupInfoData
@@ -101,7 +98,7 @@ getGroupInfoFromRemoteConv lusr rcnv = do
     GetGroupInfoResponseError e
       | e == MLSMissingGroupInfo -> throw ConversationSubsystemErrorMLSMissingGroupInfo
       | e == MLSNotEnabled -> throw ConversationSubsystemErrorMLSNotEnabled
-      | otherwise -> rethrowErrors @'[ErrorS 'ConvNotFound] e
+      | otherwise -> rethrowErrors @'[Error ConversationSubsystemError] e
     GetGroupInfoResponseState s ->
       pure
         . GroupInfoData

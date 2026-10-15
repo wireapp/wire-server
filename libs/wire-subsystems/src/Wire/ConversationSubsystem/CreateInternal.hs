@@ -89,12 +89,10 @@ createGroupConversationGeneric ::
   forall r.
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS OperationDenied) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -136,11 +134,10 @@ createOne2OneConversationLogic ::
     Member (Error UnreachableBackends) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
@@ -157,7 +154,7 @@ createOne2OneConversationLogic lusr zcon j = do
   let allUsers = newOne2OneConvMembers lusr j
   other <- ensureOne (ulAll lusr allUsers)
   when (tUntagged lusr == other) $
-    throwS @'InvalidOperation
+    throw ConversationSubsystemErrorInvalidOperation
   mtid <- case j.team of
     Just ti -> do
       foldQualified
@@ -207,8 +204,7 @@ createConnectConversationLogic ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (Error UnreachableBackends) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
     Member Now r,
@@ -283,7 +279,7 @@ createConnectConversationLogic lusr conn j = do
       | otherwise = pure conv
 
 ensureNoLegalholdConflicts ::
-  ( Member (ErrorS 'MissingLegalholdConsent) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -295,14 +291,13 @@ ensureNoLegalholdConflicts (UserList locals remotes) = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
-      throwS @'MissingLegalholdConsent
+      throw ConversationSubsystemErrorMissingLegalholdConsent
 
 checkCreateConvPermissions ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (Error ConversationSubsystemError) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
@@ -347,8 +342,8 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     ensureCreateChannelPermissions ::
       forall r.
       ( Member (ErrorS OperationDenied) r,
-        Member FeaturesConfigSubsystem r,
         Member (ErrorS 'NotATeamMember) r,
+        Member FeaturesConfigSubsystem r,
         Member (Error ConversationSubsystemError) r
       ) =>
       TeamId ->
@@ -363,7 +358,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
         Conf.TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
         Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
     ensureCreateChannelPermissions _ Nothing = do
-      throwS @'NotATeamMember
+      throw ConversationSubsystemErrorNotATeamMember
 
 getTeamMember :: (Member TeamStore r, Member TeamSubsystem r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
 getTeamMember uid (Just tid) = TeamSubsystem.internalGetTeamMember uid tid
@@ -615,9 +610,9 @@ throwErr :: (Member (Error InvalidInput) r) => String -> Sem r a
 throwErr = throw . InvalidRange . fromString
 
 checkBindingTeamPermissions ::
-  ( Member (Error ConversationSubsystemError) r,
+  ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'NotATeamMember) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamCollaboratorsSubsystem r,

@@ -338,7 +338,7 @@ postMLSTargetedMessagesToRemoteConv ::
 postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
   -- The conversation-owning backend is authoritative for the MLS membership
   -- map and epoch, so it performs recipient and message validation.
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+  flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
   response <-
     runFederated rConvOrSubId $
       fedClient @'Galley @"send-mls-targeted-message" $
@@ -357,8 +357,7 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
     _ -> throw $ mlsProtocolError "unexpected federation response for targeted messages"
 
 validateAndPropagateTargetedMessages ::
-  ( Member (ErrorS 'ConvNotFound) r,
-    Member (Error MLSProtocolError) r,
+  ( Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
@@ -432,7 +431,6 @@ postMLSCommitBundle ::
   ( Member MeetingNotifier r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
     Member Resource r,
@@ -466,7 +464,6 @@ postMLSCommitBundleFromLocalUser ::
   ( Member MeetingNotifier r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Random r,
@@ -501,7 +498,6 @@ postMLSCommitBundleToLocalConv ::
   ( Member MeetingNotifier r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
@@ -767,11 +763,11 @@ postMLSCommitBundleToRemoteConv ::
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
   -- only local users can send messages to remote conversations
-  lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
+  lusr <- foldQualified loc pure (\_ -> throw ConversationSubsystemErrorConvAccessDenied) qusr
 
   unless (bundle.epoch == Epoch 0 && ctype == One2OneConv) $
     -- only members may send commit bundles to a remote conversation
-    flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+    flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   enableOutOfSyncCheck <- Just <$> input
   resp <-
@@ -847,7 +843,6 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r
   ) =>
@@ -867,7 +862,6 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
 
 validateMessage ::
   ( HasProposalEffects r,
-    Member (ErrorS ConvNotFound) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r
   ) =>
@@ -944,9 +938,9 @@ postMLSMessageToRemoteConv ::
   Sem r [LocalConversationUpdate]
 postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
-  lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
+  lusr <- foldQualified loc pure (\_ -> throw ConversationSubsystemErrorConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+  flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   enableOutOfSyncCheck <- Just <$> input
   resp <-
@@ -991,7 +985,7 @@ storeGroupInfo convOrSub ginfo = case convOrSub of
 fetchConvOrSub ::
   forall r.
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r
   ) =>
   Qualified UserId ->
@@ -1014,7 +1008,7 @@ fetchConvOrSub qusr groupId ctype convOrSubId = for convOrSubId $ \case
     pure (SubConv c subconv)
 
 getMLSConv ::
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member ConversationStore r
   ) =>
@@ -1028,14 +1022,14 @@ getMLSConv u mGroupId ctype lcnv = do
     One2OneConv -> do
       mconv <- getConversation (tUnqualified lcnv)
       case mconv of
-        Just conv -> mkMLSConversation conv >>= noteS @'ConvNotFound
+        Just conv -> mkMLSConversation conv >>= note ConversationSubsystemErrorConvNotFound
         Nothing ->
           let (meta, mlsData) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
            in pure (newMLSConversation lcnv meta mlsData)
     _ ->
       getLocalConvForUser u lcnv
         >>= mkMLSConversation
-        >>= noteS @'ConvNotFound
+        >>= note ConversationSubsystemErrorConvNotFound
   -- check that the group ID in the message matches that of the conversation
   for_ mGroupId $ \groupId ->
     when (groupId /= mlsConv.mcMLSData.cnvmlsGroupId) $

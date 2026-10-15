@@ -20,6 +20,7 @@ module Wire.ConversationSubsystem.MLS.Reset (resetMLSConversation) where
 import Data.Id
 import Data.Qualified
 import Galley.Types.Error
+import Wire.API.Error.Galley
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -27,9 +28,6 @@ import Polysemy.Input
 import Polysemy.Resource
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
-import Wire.API.Conversation.Role
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
@@ -54,13 +52,10 @@ import Wire.TeamSubsystem (TeamSubsystem)
 resetMLSConversation ::
   ( Member Now r,
     Member (Input (Local ())) r,
-    Member (ErrorS (ActionDenied LeaveConversation)) r,
-    Member (ErrorS ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error InternalError) r,
-    Member (ErrorS InvalidOperation) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member (Error ConversationSubsystemError) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -85,7 +80,7 @@ resetMLSConversation lusr reset = do
 
   cnv <- case qUnqualified qcnvOrSub of
     Conv c -> pure c
-    SubConv _ _ -> throwS @InvalidOperation
+    SubConv _ _ -> throw ConversationSubsystemErrorInvalidOperation
   let qcnv = qcnvOrSub $> cnv
 
   foldQualified

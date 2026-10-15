@@ -82,9 +82,10 @@ cseToGalleyError = \case
 galleyErrorToCSE :: GalleyError -> Maybe ConversationSubsystemError
 galleyErrorToCSE = \case
   ConvAccessDenied -> Just ConversationSubsystemErrorConvAccessDenied
+  ConvNotFound -> Just ConversationSubsystemErrorConvNotFound
+  MLSSubConvUnsupportedConvType -> Just ConversationSubsystemErrorMLSSubConvUnsupportedConvType
   NotATeamMember -> Just ConversationSubsystemErrorNotATeamMember
   InvalidOperation -> Just ConversationSubsystemErrorInvalidOperation
-  ConvNotFound -> Just ConversationSubsystemErrorConvNotFound
   NotConnected -> Just ConversationSubsystemErrorNotConnected
   MissingLegalholdConsent -> Just ConversationSubsystemErrorMissingLegalholdConsent
   GroupIdVersionNotSupported -> Just ConversationSubsystemErrorGroupIdVersionNotSupported

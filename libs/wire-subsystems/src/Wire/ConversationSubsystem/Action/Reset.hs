@@ -32,8 +32,6 @@ import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -60,8 +58,6 @@ import Wire.StoredConversation as Data
 resetLocalMLSMainConversation ::
   ( Member Now r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS ConvNotFound) r,
-    Member (ErrorS InvalidOperation) r,
     Member BackendNotificationQueueAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member ExternalAccess r,
@@ -86,16 +82,16 @@ resetLocalMLSMainConversation qusr lcnv reset = do
   mlsData <- case cnv.protocol of
     ProtocolMLS md -> pure md
     ProtocolMixed md -> pure md
-    ProtocolProteus -> throwS @'InvalidOperation
+    ProtocolProteus -> throw ConversationSubsystemErrorInvalidOperation
   epoch <- case mlsData.cnvmlsActiveData of
-    Nothing -> throwS @'InvalidOperation
+    Nothing -> throw ConversationSubsystemErrorInvalidOperation
     Just ad -> pure ad.epoch
   let gid = mlsData.cnvmlsGroupId
 
   lowerCodensity $ do
     withCommitLock lcnvOrSub reset.groupId reset.epoch
     lift $ do
-      unless (reset.groupId == gid) $ throwS @'ConvNotFound
+      unless (reset.groupId == gid) $ throw ConversationSubsystemErrorConvNotFound
       unless (reset.epoch == epoch) $ throw ConversationSubsystemErrorMLSStaleMessage
       removeAllMLSClients gid
 

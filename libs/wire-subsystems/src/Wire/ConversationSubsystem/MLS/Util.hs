@@ -33,7 +33,6 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group.Serialisation
@@ -66,14 +65,14 @@ logMLSClientMismatch proposalType target proposedClients heldClients gid epoch =
       . Log.field "epoch" (epochNumber epoch)
 
 getLocalConvForUser ::
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member ConversationStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r StoredConversation
 getLocalConvForUser qusr lcnv = do
-  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  conv <- getConversation (tUnqualified lcnv) >>= note ConversationSubsystemErrorConvNotFound
 
   -- check that sender is part of conversation
   isMember' <-
@@ -85,7 +84,7 @@ getLocalConvForUser qusr lcnv = do
       )
       (fmap isJust . getRemoteMember conv.id_)
       qusr
-  unless isMember' $ throwS @'ConvNotFound
+  unless isMember' $ throw ConversationSubsystemErrorConvNotFound
 
   pure conv
 

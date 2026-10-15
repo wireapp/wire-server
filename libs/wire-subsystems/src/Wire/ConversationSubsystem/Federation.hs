@@ -54,7 +54,6 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
-import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -364,10 +363,7 @@ leaveConversation ::
     Member TinyLog r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS ('ActionDenied 'LeaveConversation)) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -590,25 +586,8 @@ updateConversation ::
     Member TeamStore r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'TooManyMembers) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
-    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationAccess)) r,
-    Member (ErrorS ('ActionDenied 'ModifyAddPermission)) r
+    Member (ErrorS 'NotATeamMember) r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -1309,7 +1288,8 @@ updateTypingIndicator ::
     Member E.ConversationStore r,
     Member Now r,
     Member (Input (Local ())) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   TypingDataUpdateRequest ->
@@ -1318,13 +1298,13 @@ updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   let qusr = Qualified userId origDomain
   lcnv <- qualifyLocal convId
 
-  ret <- runError
-    . mapToRuntimeError @'ConvNotFound ConvNotFound
-    $ do
-      conv <- maskConvAccessDenied $ getConversationAsMember qusr lcnv
-      notifyTypingIndicator conv qusr Nothing typingStatus
-
-  pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)
+  ret <- runError @ConversationSubsystemError $ do
+    conv <- maskConvAccessDenied $ getConversationAsMember qusr lcnv
+    notifyTypingIndicator conv qusr Nothing typingStatus
+  case ret of
+    Right x -> pure (TypingDataUpdateSuccess x)
+    Left ConversationSubsystemErrorConvNotFound -> pure (TypingDataUpdateError ConvNotFound)
+    Left e -> throw e
 
 onTypingIndicatorUpdated ::
   (Member NotificationSubsystem r) =>

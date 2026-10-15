@@ -42,7 +42,6 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
 import Wire.API.MLS.CipherSuite
@@ -73,9 +72,6 @@ import Wire.TeamSubsystem (TeamSubsystem)
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member Resource r,
     Member Async r,
     Member Random r,

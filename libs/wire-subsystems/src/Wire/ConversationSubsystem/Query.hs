@@ -130,7 +130,7 @@ import Wire.Util
 
 getBotConversation ::
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Input (Local ())) r,
     Member TeamSubsystem r
   ) =>
@@ -155,8 +155,7 @@ getBotConversation zbot cnv = do
 getUnqualifiedOwnConversation ::
   forall r.
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
     Member TeamSubsystem r
@@ -171,8 +170,7 @@ getUnqualifiedOwnConversation lusr cnv = do
 getUnqualifiedConversation ::
   forall r.
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -185,8 +183,7 @@ getUnqualifiedConversation lusr cnv =
 getConversation ::
   forall r.
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
@@ -207,8 +204,7 @@ getConversation lusr cnv =
 getOwnConversation ::
   forall r.
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
@@ -229,7 +225,7 @@ getOwnConversation lusr cnv = do
 
 getRemoteConversation ::
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member TinyLog r,
     Member (E.FederationAPIAccess FederatorClient) r,
@@ -242,14 +238,14 @@ getRemoteConversation ::
 getRemoteConversation lusr remoteConvId = do
   conversations <- getRemoteConversations lusr [remoteConvId]
   case conversations of
-    [] -> throwS @'ConvNotFound
+    [] -> throw ConversationSubsystemErrorConvNotFound
     [conv] -> pure conv
     _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
   ( Member ConversationStore.ConversationStore r,
     Member (Error FederationError) r,
-    Member (ErrorS 'ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
     Member Now r,
@@ -266,7 +262,7 @@ getRemoteConversations lusr remoteConvs =
 
 getLocalConversationInternal ::
   ( Member (Input (Local ())) r,
-    Member (ErrorS ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member ConversationStore.ConversationStore r
   ) =>
   ConvId ->
@@ -281,12 +277,12 @@ data FailedGetConversationReason
   | FailedGetConversationRemotely FederationError
 
 throwFgcrError ::
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r
   ) =>
   FailedGetConversationReason ->
   Sem r a
-throwFgcrError FailedGetConversationLocally = throwS @'ConvNotFound
+throwFgcrError FailedGetConversationLocally = throw ConversationSubsystemErrorConvNotFound
 throwFgcrError (FailedGetConversationRemotely e) = throw e
 
 data FailedGetConversation
@@ -295,7 +291,7 @@ data FailedGetConversation
       FailedGetConversationReason
 
 throwFgcError ::
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r
   ) =>
   FailedGetConversation ->
@@ -397,8 +393,7 @@ getRemoteConversationsWithFailures lusr convs = do
 
 getConversationRoles ::
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -623,7 +618,7 @@ internalGetMember qcnv usr = do
 getSelfMember ::
   forall r.
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member TinyLog r,
     Member (E.FederationAPIAccess FederatorClient) r,
@@ -661,15 +656,15 @@ getLocalSelf lusr cnv = do
 
 getConversationMeta ::
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   ConvId ->
   Sem r (ConversationMetadata GroupConvType)
 getConversationMeta cnv =
   ifM
     (ConversationStore.isConversationAlive cnv)
-    (ConversationStore.getConversationMetadata cnv >>= noteS @'ConvNotFound)
-    (ConversationStore.deleteConversation cnv >> throwS @'ConvNotFound)
+    (ConversationStore.getConversationMetadata cnv >>= note ConversationSubsystemErrorConvNotFound)
+    (ConversationStore.deleteConversation cnv >> throw ConversationSubsystemErrorConvNotFound)
 
 getConversationByReusableCode ::
   forall r.
@@ -677,9 +672,6 @@ getConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore.ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
@@ -691,8 +683,8 @@ getConversationByReusableCode ::
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) False Nothing (ConversationCode key value)
-  codeCid <- noteS @'ConvNotFound (codeConvId c)
-  conv <- ConversationStore.getConversation codeCid >>= noteS @'ConvNotFound
+  codeCid <- note ConversationSubsystemErrorConvNotFound (codeConvId c)
+  conv <- ConversationStore.getConversation codeCid >>= note ConversationSubsystemErrorConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView c conv
@@ -720,8 +712,7 @@ ensureGuestLinksEnabled mbTid =
 getConversationGuestLinksStatus ::
   forall r.
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member FeaturesConfigSubsystem r,
     Member TeamSubsystem r
   ) =>
@@ -729,7 +720,7 @@ getConversationGuestLinksStatus ::
   ConvId ->
   Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
-  conv <- ConversationStore.getConversation convId >>= noteS @'ConvNotFound
+  conv <- ConversationStore.getConversation convId >>= note ConversationSubsystemErrorConvNotFound
   mTeamMember <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember uid) conv.metadata.cnvmTeam
   ensureConvAdmin conv uid mTeamMember
   getConversationGuestLinksFeatureStatus (Data.convTeam conv)
@@ -1026,8 +1017,8 @@ isRemoteMLSOne2OneEstablished lself qother rconv = do
 
 searchChannels ::
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -1062,9 +1053,7 @@ searchChannels lusr tid searchString sortOrder pageSize lastName lastId discover
 -- Helpers
 
 ensureConvAdmin ::
-  ( Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r
-  ) =>
+  (Member (Error ConversationSubsystemError) r) =>
   StoredConversation ->
   UserId ->
   Maybe TeamMember ->
@@ -1072,5 +1061,5 @@ ensureConvAdmin ::
 ensureConvAdmin conv uid mTeamMember = do
   unless (maybe False (hasManageChannelsPermission conv) mTeamMember) $
     case find (\m -> m.id_ == uid) conv.localMembers of
-      Nothing -> throwS @'ConvNotFound
-      Just lm -> unless (lm.convRoleName == roleNameWireAdmin) $ throwS @'ConvAccessDenied
+      Nothing -> throw ConversationSubsystemErrorConvNotFound
+      Just lm -> unless (lm.convRoleName == roleNameWireAdmin) $ throw ConversationSubsystemErrorConvAccessDenied
