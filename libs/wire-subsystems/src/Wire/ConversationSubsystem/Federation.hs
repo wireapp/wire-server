@@ -657,8 +657,13 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversationReset lcnv (tUntagged rusr) Nothing action
       SConversationHistoryUpdateTag ->
-        mapToGalleyError
-          @(HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag)
+        catchCSE
+          ( \case
+              ConversationSubsystemErrorHistoryNotSupported -> Just HistoryNotSupported
+              _ -> Nothing
+          )
+          . mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag)
           . fmap lcuUpdate
           $ updateLocalConversationHistoryUpdate lcnv (tUntagged rusr) Nothing action
   where

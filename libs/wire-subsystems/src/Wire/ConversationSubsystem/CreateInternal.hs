@@ -97,7 +97,6 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -121,7 +120,7 @@ createGroupConversationGeneric lusr conn newConv = do
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
   when (newConv.newConvHistory /= HistoryPrivate && newConv.newConvGroupConvType /= Channel) $
-    throwS @HistoryNotSupported
+    throw ConversationSubsystemErrorHistoryNotSupported
 
   when (Public.newConvProtocol newConv == BaseProtocolMLSTag) $ do
     assertMLSEnabled

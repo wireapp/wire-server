@@ -521,13 +521,12 @@ instance IsConversationAction 'ConversationHistoryUpdateTag where
   type
     HasConversationActionEffects 'ConversationHistoryUpdateTag r =
       ( Member E.ConversationStore r,
-        Member (ErrorS HistoryNotSupported) r
+        Member (Error ConversationSubsystemError) r
       )
 
   type
     HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
       '[ ErrorS (ActionDenied ModifyConversationAccess),
-         ErrorS HistoryNotSupported,
          ErrorS InvalidOperation,
          ErrorS ConvNotFound
        ]
@@ -536,7 +535,7 @@ instance IsConversationAction 'ConversationHistoryUpdateTag where
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
     when (storedConv.metadata.cnvmGroupConvType /= Just Channel) $ do
-      throwS @HistoryNotSupported
+      throw ConversationSubsystemErrorHistoryNotSupported
     E.setConversationHistory (tUnqualified lcnv) action
     pure $ mkPerformActionResult action
 
@@ -1332,7 +1331,7 @@ updateLocalConversationHistoryUpdate ::
     Member BackendNotificationQueueAccess r,
     Member E.ConversationStore r,
     Member TeamSubsystem r,
-    Member (ErrorS HistoryNotSupported) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Qualified UserId ->

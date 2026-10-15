@@ -217,7 +217,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'MLSInvalidLeafNodeSignature,
      ErrorS 'GroupIdVersionNotSupported,
      ErrorS 'ConvMemberNotFound,
-     ErrorS 'HistoryNotSupported,
      ErrorS MLSGroupConversationMismatch,
      ErrorS ('ActionDenied ConvRole.LeaveConversation),
      ErrorS ('ActionDenied ConvRole.RemoveConversationMember),
@@ -289,7 +288,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
     . mapError (const ConversationSubsystemErrorActionDeniedLeaveConversation)
     . mapError (const ConversationSubsystemErrorLSGroupConversationMismatch)
-    . mapError (const ConversationSubsystemErrorHistoryNotSupported)
     . mapError (const ConversationSubsystemErrorConvMemberNotFound)
     . mapError (const ConversationSubsystemErrorGroupIdVersionNotSupported)
     . mapError (const ConversationSubsystemErrorMLSInvalidLeafNodeSignature)

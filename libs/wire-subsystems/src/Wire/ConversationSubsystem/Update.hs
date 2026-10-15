@@ -327,7 +327,7 @@ updateConversationHistory ::
     Member (ErrorS (ActionDenied ModifyConversationAccess)) r,
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS ConvNotFound) r,
-    Member (ErrorS HistoryNotSupported) r,
+    Member (Error ConversationSubsystemError) r,
     Member ConversationStore r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
