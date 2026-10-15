@@ -61,7 +61,6 @@ data ExternalCommitAction = ExternalCommitAction
 getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (Error ConversationSubsystemError) r
   ) =>
   ClientIdentity ->
@@ -75,7 +74,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
     note (mlsProtocolError "The first commit in a group cannot be external") $
       cnvmlsActiveData convOrSub.mlsMeta
   let curEpoch = activeData.epoch
-  when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
+  when (epoch /= curEpoch) $ throw ConversationSubsystemErrorMLSStaleMessage
   when (epoch == Epoch 0) $
     throw $
       mlsProtocolError "The first commit in a group cannot be external"
@@ -132,7 +131,6 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 processExternalCommit ::
   forall r.
   ( Member (Error FederationError) r,
-    Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS MLSSubConvClientNotInParent) r,
     Member Resource r,
     HasProposalActionEffects r,

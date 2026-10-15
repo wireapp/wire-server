@@ -744,6 +744,7 @@ handleMLSMessageErrors =
       ( \case
           ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> Just MLSInvalidLeafNodeIndex
           ConversationSubsystemErrorMLSUnsupportedMessage -> Just MLSUnsupportedMessage
+          ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
           ConversationSubsystemErrorMLSIdentityMismatch -> Just MLSIdentityMismatch
           ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> Just MLSInvalidLeafNodeSignature
           ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
@@ -936,7 +937,8 @@ leaveSubConversation ::
     Member Resource r,
     Member TeamSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
@@ -949,6 +951,11 @@ leaveSubConversation domain lscr = do
     . runError @MLSProtocolError
     . fmap (either LeaveSubConversationResponseError Imports.id)
     . runError @GalleyError
+    . catchCSE
+      ( \case
+          ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
+          _ -> Nothing
+      )
     . mapToGalleyError @LeaveSubConversationStaticErrors
     $ leaveLocalSubConversation cid lcnv (lscrSubConv lscr)
       $> LeaveSubConversationResponseOk
@@ -959,7 +966,8 @@ deleteSubConversationForRemoteUser ::
     Member Resource r,
     Member TeamSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   DeleteSubConversationFedRequest ->
@@ -971,6 +979,11 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
         (\() -> DeleteSubConversationResponseSuccess)
     )
     . runError @GalleyError
+    . catchCSE
+      ( \case
+          ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
+          _ -> Nothing
+      )
     . mapToGalleyError @MLSDeleteSubConvStaticErrors
     $ do
       let qusr = Qualified dscreqUser domain

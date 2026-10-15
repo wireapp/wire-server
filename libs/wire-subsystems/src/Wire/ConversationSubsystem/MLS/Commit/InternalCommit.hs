@@ -76,7 +76,6 @@ processInternalCommit ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member Resource r,

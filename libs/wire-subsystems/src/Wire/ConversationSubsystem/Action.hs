@@ -704,7 +704,7 @@ instance IsConversationAction 'ConversationResetTag where
         Member E.MLSCommitLockStore r,
         Member Resource r,
         Member (Input ConversationSubsystemConfig) r,
-        Member (ErrorS MLSStaleMessage) r,
+        Member (Error ConversationSubsystemError) r,
         Member (ErrorS ConvNotFound) r,
         Member (ErrorS InvalidOperation) r,
         Member Random r,
@@ -715,7 +715,6 @@ instance IsConversationAction 'ConversationResetTag where
   type
     HasConversationActionGalleyErrors 'ConversationResetTag =
       '[ ErrorS (ActionDenied LeaveConversation),
-         ErrorS MLSStaleMessage,
          ErrorS InvalidOperation,
          ErrorS ConvNotFound
        ]
@@ -1304,7 +1303,7 @@ updateLocalConversationReset ::
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (ErrorS MLSStaleMessage) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Qualified UserId ->

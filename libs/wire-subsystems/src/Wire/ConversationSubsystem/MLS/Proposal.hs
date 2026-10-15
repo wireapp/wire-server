@@ -234,8 +234,7 @@ applyProposal _activeData _ = pure mempty
 
 processProposal ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSStaleMessage) r
+    Member (ErrorS 'ConvNotFound) r
   ) =>
   Qualified UserId ->
   Local ConvOrSubConv ->
@@ -260,7 +259,7 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
     Nothing -> throw $ mlsProtocolError "Bare proposals at epoch 0 are not supported"
     Just activeData -> do
       -- Check if the epoch number matches that of a conversation
-      unless (epoch == activeData.epoch) $ throwS @'MLSStaleMessage
+      unless (epoch == activeData.epoch) $ throw ConversationSubsystemErrorMLSStaleMessage
 
       -- FUTUREWORK: validate the member's conversation role
       checkProposal activeData.ciphersuite (tUnqualified lConvOrSub).indexMap prop.value

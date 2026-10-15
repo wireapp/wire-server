@@ -126,7 +126,6 @@ type MLSMessageStaticErrors =
      ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
      ErrorS 'MLSNotEnabled,
-     ErrorS 'MLSStaleMessage,
      ErrorS 'MLSProposalNotFound,
      ErrorS 'MissingLegalholdConsent,
      ErrorS 'MLSCommitMissingReferences,
@@ -154,7 +153,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -312,7 +310,6 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
 validateTargetedMessage ::
   ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (Error MLSProtocolError) r
   ) =>
   Qualified UserId ->
@@ -329,7 +326,7 @@ validateTargetedMessage sender client convOrSub message = do
     Nothing -> throw $ mlsProtocolError "targeted message group has no active epoch"
     Just epoch ->
       unless (isAtMost3EpochsPast epoch message.epoch) $
-        throwS @'MLSStaleMessage
+        throw ConversationSubsystemErrorMLSStaleMessage
   case imLookup convOrSub.indexMap message.sender of
     Just (RegularClient senderClient)
       | senderClient == expectedClient -> pure ()
@@ -381,7 +378,6 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
 validateAndPropagateTargetedMessages ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
@@ -596,7 +592,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           activeData.epoch
           bundle.groupInfo
           activeData.ciphersuite
-        throwS @'MLSStaleMessage
+        throw ConversationSubsystemErrorMLSStaleMessage
       pure False
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
@@ -833,7 +829,6 @@ postMLSMessage ::
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -882,7 +877,6 @@ postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r
@@ -905,7 +899,6 @@ validateMessage ::
   ( HasProposalEffects r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS MLSClientSenderUserMismatch) r,
-    Member (ErrorS MLSStaleMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r
@@ -956,7 +949,7 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
             ( epochInt msg.epoch < epochInt epoch - 2
                 || epochInt msg.epoch > epochInt epoch
             )
-            $ throwS @'MLSStaleMessage
+            $ throw ConversationSubsystemErrorMLSStaleMessage
 
       case convOrSub of
         Conv _ -> do

@@ -42,6 +42,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ProposalStore
 import Wire.StoredConversation
 
@@ -121,7 +122,7 @@ withCommitLock ::
   forall r.
   ( Member Resource r,
     Member ConversationStore r,
-    Member (ErrorS 'MLSStaleMessage) r,
+    Member (Error ConversationSubsystemError) r,
     Member MLSCommitLockStore r,
     Member TinyLog r
   ) =>
@@ -140,7 +141,7 @@ withCommitLock lConvOrSubId gid epoch =
               gid
               epoch
               Nothing
-            throwS @'MLSStaleMessage
+            throw ConversationSubsystemErrorMLSStaleMessage
       )
       ( const $ do
           releaseCommitLock gid epoch
@@ -159,7 +160,7 @@ withCommitLock lConvOrSubId gid epoch =
                   gid
                   epoch
                   (Just actualEpoch)
-                throwS @'MLSStaleMessage
+                throw ConversationSubsystemErrorMLSStaleMessage
               k ()
           )
             `onException` logCommitLockFailure "operation" lConvOrSubId gid epoch
