@@ -127,6 +127,12 @@ gateway:
       # Optional hostname restriction for the HTTP listener. Set alongside
       # listeners.https.hostname when using mergeGateways.
       hostname: ""
+  # Namespaces besides the release namespace whose ListenerSets may attach to
+  # the Gateway this chart creates, e.g. [smallstep] for step-certificates.
+  # The release namespace is always admitted. Attached listeners share the
+  # Envoy proxy, its Service and, with FIPS_202205_tls_profile, its TLS
+  # profile; admit only namespaces trusted to serve hostnames on this Gateway.
+  allowedListenerNamespaces: []
   # Extra HTTPS hosts (e.g. a differently named admin domain). An empty
   # certificateSecretName reuses the main certificate; add the SAN explicitly.
   extraHttpsListeners: []
@@ -162,16 +168,18 @@ gateway:
     # Must match the controller's XDSNameSchemeV2 runtime flag, which renames
     # xDS listeners from "<ns>/<gateway>/<ns>/<listenerset>/<section>" to "<protocol>-<port>".
     # Envoy Gateway enables it by default from 1.10; earlier versions default to
-    # the legacy scheme unless you added it to runtimeFlags.enabled.
+    # the legacy scheme unless you added it to runtimeFlags.enabled. Prefer V2
+    # (flag on, true here): legacy names depend on ListenerSet creation order.
     # Left unset deliberately: FIPS_202205_tls_profile fails until you state a
     # value, because a stale setting silently voids the FIPS patch. Route
     # configs for TLS listeners are unaffected, so the federation patch does not
     # need this. Verify with: egctl config envoy-proxy listener
     xdsNameSchemeV2: null
     # Legacy scheme only. Overrides the xDS listener name the FIPS patch targets.
-    # The legacy name comes from the FIRST listener on the HTTPS port, which for
-    # this chart's ListenerSet is listeners.https.sectionName. Set this
-    # when an externally created Gateway declares a different listener first.
+    # The legacy name comes from the FIRST listener on the HTTPS port: Gateway
+    # listeners, then ListenerSets oldest first. Alone on its Gateway, this
+    # chart's ListenerSet supplies listeners.https.sectionName. Set this when
+    # an externally created Gateway declares a different listener first.
     xdsListenerName: ""
     # Set to true when the GatewayClass uses mergeGateways: true.
     # With mergeGateways, EnvoyPatchPolicy must target the GatewayClass
