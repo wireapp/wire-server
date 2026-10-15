@@ -41,7 +41,7 @@ import OpenSSL.EVP.Digest (getDigestByName, hmacBS)
 import SetupHelpers
 import System.Directory (copyFile)
 import System.FilePath ((</>))
-import System.IO.Extra
+import System.IO.Extra hiding (putStrLn)
 import Testlib.Assertions
 import Testlib.Prelude
 import UnliftIO.Concurrent (threadDelay)
@@ -314,7 +314,9 @@ assertCoturnCredentials secretPath cfg = do
       _ -> assertFailure ("malformed coturn username: " <> uname)
     cred <- ice %. "credential" & asString
     let expected = cs (B64.encode (hmacBS sha1 secret (cs uname :: ByteString))) :: String
-    cred `shouldMatch` expected
+    -- Don't use 'shouldMatch' here: on mismatch it would print the real,
+    -- usable coturn credential into test logs.
+    assertBool "coturn credential mismatch" (cred == expected)
 
 -- | multiple servers using files /calls/config/v3 - 200
 --
@@ -324,26 +326,32 @@ assertCoturnCredentials secretPath cfg = do
 -- credentials.
 testCallsConfigV3 :: (HasCallStack) => App ()
 testCallsConfigV3 = do
+  -- Rewriting brig's watched turn-servers file and reading the coturn secret is
+  -- only possible when brig runs locally (see 'servicesCwdBase'); when services
+  -- run in containers their config is unreachable, so skip instead of failing.
   mServicesCwd <- asks (.servicesCwdBase)
-  brigCwd <- case mServicesCwd of
-    Nothing -> failApp "turn file tests require locally running services"
-    Just scwd -> pure (scwd </> "brig")
-  cfg <- readServiceConfig Brig
-  serversV2Rel <- cfg %. "turn" %. "serversV2" & asString
-  secretRel <- cfg %. "turn" %. "coturnSecret" & asString
-  let serversV2 = brigCwd </> serversV2Rel
-      secretAbs = brigCwd </> secretRel
-  user <- randomUser OwnDomain def
-  withModifiedTurnFile serversV2 $ \updater -> do
-    -- Ensure we have a clean config
-    updater "turn:localhost:3478"
-    assertV3Phase user secretAbs ["turn:localhost:3478"]
-    -- Change server list
-    updater "turn:localhost:3478\nturn:localhost:3479"
-    assertV3Phase user secretAbs ["turn:localhost:3478", "turn:localhost:3479"]
-    -- Revert the config file back to the original
-    updater "turn:localhost:3478"
-    assertV3Phase user secretAbs ["turn:localhost:3478"]
+  case mServicesCwd of
+    Nothing -> do
+      name <- asks (fromMaybe "Test.Brig.testCallsConfigV3" . (.currentTestName))
+      putStrLn ("skipping " <> name <> ": turn file tests require locally running services")
+    Just scwd -> do
+      let brigCwd = scwd </> "brig"
+      cfg <- readServiceConfig Brig
+      serversV2Rel <- cfg %. "turn" %. "serversV2" & asString
+      secretRel <- cfg %. "turn" %. "coturnSecret" & asString
+      let serversV2 = brigCwd </> serversV2Rel
+          secretAbs = brigCwd </> secretRel
+      user <- randomUser OwnDomain def
+      withModifiedTurnFile serversV2 $ \updater -> do
+        -- Ensure we have a clean config
+        updater "turn:localhost:3478"
+        assertV3Phase user secretAbs ["turn:localhost:3478"]
+        -- Change server list
+        updater "turn:localhost:3478\nturn:localhost:3479"
+        assertV3Phase user secretAbs ["turn:localhost:3478", "turn:localhost:3479"]
+        -- Revert the config file back to the original
+        updater "turn:localhost:3478"
+        assertV3Phase user secretAbs ["turn:localhost:3478"]
 
 assertV3Phase :: (HasCallStack) => (MakesValue user) => user -> FilePath -> [String] -> App ()
 assertV3Phase user secretAbs expected = do
