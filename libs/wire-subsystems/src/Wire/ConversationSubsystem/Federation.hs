@@ -763,8 +763,12 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
   -- this cannot throw the error since we always pass the sender which is qualified to be remote
   MLSMessageResponseUpdates
     . fmap lcuUpdate
-    <$> mapToRuntimeError @MLSLegalholdIncompatible
-      (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
+    <$> catchCSE
+      ( \case
+          ConversationSubsystemErrorMLSLegalholdIncompatible ->
+            Just (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
+          _ -> Nothing
+      )
       ( postMLSCommitBundle
           loc
           -- Type application to prevent future changes from introducing errors.

@@ -206,7 +206,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
-     ErrorS 'MLSLegalholdIncompatible,
      ErrorS 'MLSIdentityMismatch,
      ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
@@ -304,7 +303,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorMLSStaleMessage)
     . mapError (const ConversationSubsystemErrorMLSUnsupportedMessage)
     . mapError (const ConversationSubsystemErrorMLSIdentityMismatch)
-    . mapError (const ConversationSubsystemErrorMLSLegalholdIncompatible)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
     . mapError (const ConversationSubsystemErrorTeamNotFound)

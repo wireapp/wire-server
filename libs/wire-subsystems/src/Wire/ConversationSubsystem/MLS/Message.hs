@@ -459,7 +459,6 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
 
 postMLSCommitBundle ::
   ( Member MeetingNotifier r,
-    Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
@@ -496,7 +495,6 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle =
 
 postMLSCommitBundleFromLocalUser ::
   ( Member MeetingNotifier r,
-    Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
@@ -534,7 +532,6 @@ postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
 
 postMLSCommitBundleToLocalConv ::
   ( Member MeetingNotifier r,
-    Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
@@ -585,8 +582,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           case resp of
             Left _ -> throw $ InternalErrorWithDescription "Server error. Team member must have vanished with the legal hold check"
             Right r -> case r.ulhsrStatus of
-              UserLegalHoldPending -> throwS @MLSLegalholdIncompatible
-              UserLegalHoldEnabled -> throwS @MLSLegalholdIncompatible
+              UserLegalHoldPending -> throw ConversationSubsystemErrorMLSLegalholdIncompatible
+              UserLegalHoldEnabled -> throw ConversationSubsystemErrorMLSLegalholdIncompatible
               UserLegalHoldDisabled -> pure ()
               UserLegalHoldNoConsent -> pure ()
 
