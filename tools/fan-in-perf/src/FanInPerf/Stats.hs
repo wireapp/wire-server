@@ -12,7 +12,6 @@ module FanInPerf.Stats
     newWriterStats,
     recordSuccess,
     recordError,
-    recordExpected,
     Snapshot,
     emptySnapshot,
     readSnapshot,
@@ -32,6 +31,7 @@ module FanInPerf.Stats
     bucketUpperBoundSeconds,
     bucketMidSeconds,
     quantileSeconds,
+    ratio,
     TickState (..),
     initialTickState,
     TickReport (..),
@@ -82,22 +82,21 @@ modifyStats (WriterStats r) f = atomicModifyIORef' r (\s -> (f s, ()))
 bump :: TargetKind -> Int -> Map TargetKind Int -> Map TargetKind Int
 bump k n = Map.insertWith (+) k n
 
-recordSuccess :: WriterStats -> TargetKind -> Int -> Word64 -> IO ()
-recordSuccess stats k n latencyNs =
+-- | @recordSuccess stats kind targets expected latencyNs@: one push with its
+-- target count and the notification deliveries readers should see because of
+-- it (consume mode, experiments B/C; 0 in produce).
+recordSuccess :: WriterStats -> TargetKind -> Int -> Int -> Word64 -> IO ()
+recordSuccess stats k n expected latencyNs =
   modifyStats stats $ \s ->
     s
       { pushes = bump k 1 s.pushes,
         targets = bump k n s.targets,
-        latency = IntMap.insertWith (+) (bucketIndex latencyNs) 1 s.latency
+        latency = IntMap.insertWith (+) (bucketIndex latencyNs) 1 s.latency,
+        expected = s.expected + expected
       }
 
 recordError :: WriterStats -> TargetKind -> IO ()
 recordError stats k = modifyStats stats $ \s -> s {errors = bump k 1 s.errors}
-
--- | Notification deliveries readers should see because of the pushes recorded
--- so far (only used by experiment B).
-recordExpected :: WriterStats -> Int -> IO ()
-recordExpected stats n = modifyStats stats $ \s -> s {expected = s.expected + n}
 
 -- | An identity atomic read-modify-write rather than 'readIORef': it is a full
 -- barrier, so the ticker never observes a stale snapshot from another core.
@@ -182,6 +181,10 @@ quantileSeconds q buckets
     total = VU.sum buckets
     threshold = max 1 (ceiling (q * fromIntegral total))
 
+-- | @n / d@, 0 when @d@ is not positive (nothing measured yet).
+ratio :: (Real a, Real b) => a -> b -> Double
+ratio n d = if d > 0 then realToFrac n / realToFrac d else 0
+
 data TickState = TickState
   { startTime :: Double,
     lastTime :: Double,
@@ -217,13 +220,13 @@ tick warmup now total st =
   let dt = now - st.lastTime
       delta = diffSnapshot total st.previous
       rate :: Int -> Double
-      rate n = if dt > 0 then fromIntegral n / dt else 0
+      rate n = ratio n dt
       pushes = totalPushes delta
       errors = totalErrors delta
       pushRate = rate pushes
       elapsed = now - st.startTime
       maxPushRate = if elapsed > warmup && dt >= minTickInterval then max st.maxRateSoFar pushRate else st.maxRateSoFar
-      errorRatio = if pushes + errors > 0 then fromIntegral errors / fromIntegral (pushes + errors) else 0
+      errorRatio = ratio errors (pushes + errors)
       latency = latencyBuckets delta
       report =
         TickReport

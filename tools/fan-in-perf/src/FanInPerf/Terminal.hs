@@ -56,11 +56,22 @@ percent x = T.pack (printf "%.2f%%" (x * 100))
 rateText :: Double -> Text
 rateText = groupThousands . round
 
+seconds :: Double -> Text
+seconds = T.pack . printf "%.1fs"
+
+-- | p50 and p99 of a histogram.
+pcts :: VU.Vector Int -> Text
+pcts buckets = pct "p50" (quantileSeconds 0.5 buckets) <> " " <> pct "p99" (quantileSeconds 0.99 buckets)
+
+-- | Status line segment shared by produce and consume.
+pushSegment :: TickReport -> Text
+pushSegment r = "t=" <> T.pack (show (round r.elapsed :: Int)) <> "s push/s cur=" <> rateText r.pushRate <> " max=" <> maxText r.maxPushRate
+
 formatStatus :: TickReport -> Text
 formatStatus r =
   T.intercalate
     " | "
-    [ "t=" <> T.pack (show (round r.elapsed :: Int)) <> "s push/s cur=" <> rateText r.pushRate <> " max=" <> maxText r.maxPushRate,
+    [ pushSegment r,
       "err/s cur=" <> rateText r.errorRate <> " (" <> percent r.errorRatio <> ")",
       "targets/s cur=" <> rateText r.targetRate,
       pct "push p50" r.p50 <> " " <> pct "p99" r.p99
@@ -70,22 +81,17 @@ formatSummary :: TickReport -> [Text]
 formatSummary r =
   let pushes = totalPushes r.total
       errors = totalErrors r.total
-      ratio = if pushes + errors > 0 then fromIntegral errors / fromIntegral (pushes + errors) else 0
-      avgRate = if r.elapsed > 0 then fromIntegral pushes / r.elapsed else 0
-   in [ "summary: duration=" <> T.pack (printf "%.1fs" r.elapsed),
-        "  pushes=" <> groupThousands pushes <> " targets=" <> groupThousands (totalTargets r.total) <> " errors=" <> groupThousands errors <> " (" <> percent ratio <> ")",
+      avgRate = ratio pushes r.elapsed
+   in [ "summary: duration=" <> seconds r.elapsed,
+        "  pushes=" <> groupThousands pushes <> " targets=" <> groupThousands (totalTargets r.total) <> " errors=" <> groupThousands errors <> " (" <> percent (ratio errors (pushes + errors)) <> ")",
         "  push/s avg=" <> rateText avgRate <> " max=" <> maxText r.maxPushRate <> " (avg incl. warmup, max after warmup)",
-        "  latency (cumulative, incl. warmup) " <> pct "p50" (cumulative 0.5 latencyBuckets r.total) <> " " <> pct "p99" (cumulative 0.99 latencyBuckets r.total)
+        "  latency (cumulative, incl. warmup) " <> pcts (latencyBuckets r.total)
       ]
-
--- | Percentile over everything counted so far.
-cumulative :: Double -> (a -> VU.Vector Int) -> a -> Maybe Double
-cumulative q buckets = quantileSeconds q . buckets
 
 formatConsumeStatus :: ReaderMode -> TickReport -> ConsumeReport -> Text
 formatConsumeStatus mode r c =
   T.intercalate " | " $
-    [ "t=" <> T.pack (show (round r.elapsed :: Int)) <> "s push/s cur=" <> rateText r.pushRate <> " max=" <> maxText r.maxPushRate,
+    [ pushSegment r,
       "cons/s cur=" <> rateText c.consumeRate <> " max=" <> maxText c.maxConsumeRate
     ]
       <> ["ack/s cur=" <> rateText c.ackRate <> " max=" <> maxText c.maxAckRate <> " " <> pct "p99" c.ackP99 | acking]
@@ -111,20 +117,16 @@ formatConsumeSummary :: ReaderMode -> Int -> WriterPhase -> Drain -> TickReport 
 formatConsumeSummary mode expected phase drain r c =
   let delivered = totalDelivered c.readerTotal
       fetches = totalFetches c.readerTotal
-      emptyRatio = if fetches > 0 then fromIntegral (totalEmptyFetches c.readerTotal) / fromIntegral fetches else 0
-      avgRate = if phase.duration > 0 then fromIntegral phase.delivered / phase.duration else 0
-      avgAckRate = if phase.duration > 0 then fromIntegral phase.acks / phase.duration else 0
+      emptyRatio = ratio (totalEmptyFetches c.readerTotal) fetches
+      avgRate = ratio phase.delivered phase.duration
+      avgAckRate = ratio phase.acks phase.duration
       ackLines =
         [ "  acks=" <> groupThousands (totalAcks c.readerTotal) <> " errors=" <> groupThousands (totalAckErrors c.readerTotal) <> " ack/s avg=" <> rateText avgAckRate <> " max=" <> maxText c.maxAckRate,
-          "  ack latency (cumulative) " <> cum 0.5 ackLatencyBuckets <> " " <> cum 0.99 ackLatencyBuckets
+          "  ack latency (cumulative) " <> pcts (ackLatencyBuckets c.readerTotal)
         ]
-      cum :: Double -> (ReaderSnapshot -> VU.Vector Int) -> Text
-      cum q buckets = pct (if q < 0.9 then "p50" else "p99") (cumulative q buckets c.readerTotal)
       pushes = totalPushes r.total
       backlogAtStop = max 0 (expected - phase.delivered)
       behind = avgRate > 0 && fromIntegral backlogAtStop > avgRate
-      seconds :: Double -> Text
-      seconds = T.pack . printf "%.1fs"
       drainText = case drain of
         DrainComplete t -> "complete after " <> seconds t
         DrainStalled t -> "stalled after " <> seconds t <> " (no delivery for 2s: the rest is lost, not in flight)"
@@ -141,11 +143,11 @@ formatConsumeSummary mode expected phase drain r c =
                <> " duplicates="
                <> groupThousands (max 0 (delivered - expected)),
              "  cons/s avg=" <> rateText avgRate <> " max=" <> maxText c.maxConsumeRate <> " (avg incl. warmup, max after warmup, both writer phase)",
-             "  fan-out: " <> T.pack (printf "%.1f" (if pushes > 0 then fromIntegral expected / fromIntegral pushes else 0 :: Double)) <> " deliveries per push (cons/s and push/s differ by this factor)",
-             "  backlog at writer stop: " <> groupThousands backlogAtStop <> (if avgRate > 0 then " (" <> T.pack (printf "%.1fs" (fromIntegral backlogAtStop / avgRate :: Double)) <> " of delivery)" else ""),
-             "  lag (cumulative) " <> cum 0.5 lagBuckets <> " " <> cum 0.99 lagBuckets,
-             "  fetch (cumulative) " <> cum 0.5 fetchLatencyBuckets <> " " <> cum 0.99 fetchLatencyBuckets <> " empty=" <> percent emptyRatio,
-             "  gate wait (cumulative) " <> cum 0.5 gateWaitBuckets <> " " <> cum 0.99 gateWaitBuckets
+             "  fan-out: " <> T.pack (printf "%.1f" (ratio expected pushes)) <> " deliveries per push (cons/s and push/s differ by this factor)",
+             "  backlog at writer stop: " <> groupThousands backlogAtStop <> (if avgRate > 0 then " (" <> seconds (ratio backlogAtStop avgRate) <> " of delivery)" else ""),
+             "  lag (cumulative) " <> pcts (lagBuckets c.readerTotal),
+             "  fetch (cumulative) " <> pcts (fetchLatencyBuckets c.readerTotal) <> " empty=" <> percent emptyRatio,
+             "  gate wait (cumulative) " <> pcts (gateWaitBuckets c.readerTotal)
            ]
         <> [ "  warning: readers fell behind the writers (backlog above 1s of delivery at writer stop); missing then understates the cursor race, as readers stay below the head"
            | behind

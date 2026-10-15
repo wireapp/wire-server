@@ -7,6 +7,7 @@ module FanInPerf.Targets
     StreamPool (..),
     Entry (..),
     mkEntries,
+    clientIdsUpTo,
     genId,
     sampleDistinct,
     localDomain,
@@ -28,6 +29,7 @@ import Data.Id
 import Data.IntSet qualified as IntSet
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NE
+import Data.Misc (showT)
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Vector qualified as V
@@ -65,7 +67,7 @@ data TargetConfig = TargetConfig
 renderTargetSpec :: NonEmpty TargetConfig -> Text
 renderTargetSpec =
   T.intercalate ","
-    . map (\e -> kindName e.kind <> ":" <> T.pack (show e.streams) <> "x" <> T.pack (show e.perPush))
+    . map (\e -> kindName e.kind <> ":" <> showT e.streams <> "x" <> showT e.perPush)
     . NE.toList
 
 -- | Pre-generated stream keys of one '--targets' entry.
@@ -107,9 +109,13 @@ mkPool clientsPerUser users s g0 =
         g2
       )
   where
-    -- Client ids 1..C per user: distinct, so one push never inserts the same
-    -- (user, client, notification) row twice.
-    clientIds = ClientId 1 :| map ClientId [2 .. fromIntegral clientsPerUser]
+    -- distinct, so one push never inserts the same (user, client,
+    -- notification) row twice
+    clientIds = clientIdsUpTo clientsPerUser
+
+-- | Client ids 1..k (at least 1).
+clientIdsUpTo :: Int -> NonEmpty ClientId
+clientIdsUpTo k = ClientId 1 :| map ClientId [2 .. fromIntegral k]
 
 genId :: (RandomGen g) => g -> (Id a, g)
 genId = first Id . uniform
@@ -189,7 +195,7 @@ targetKey = \case
   TargetUser uid -> idToText uid
   TargetUserClients (uid, cids) -> idToText uid <> ":" <> T.intercalate "," (map clientToText (NE.toList cids))
   TargetTeam tid -> idToText tid
-  TargetEpoch (gid, epoch) -> T.pack (show gid.unGroupId) <> "/" <> T.pack (show epoch.epochNumber)
+  TargetEpoch (gid, epoch) -> showT gid.unGroupId <> "/" <> showT epoch.epochNumber
   TargetConnections q -> idToText (qUnqualified q) <> "@" <> domainText (qDomain q)
 
 -- | JSON payload of roughly @n@ bytes.

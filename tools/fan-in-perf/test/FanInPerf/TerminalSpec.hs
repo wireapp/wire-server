@@ -58,7 +58,7 @@ deliveredSnapshot = do
 pushSnapshot :: Int -> IO Snapshot
 pushSnapshot n = do
   ws <- newWriterStats
-  replicateM_ n (recordSuccess ws KindUser 1 1000)
+  replicateM_ n (recordSuccess ws KindUser 1 0 1000)
   readSnapshot ws
 
 -- 30s of writing (the report's 42.2s include the drain), 600 delivered by then

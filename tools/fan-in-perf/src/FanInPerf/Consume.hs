@@ -43,6 +43,7 @@ import FanInPerf.Terminal
 import FanInPerf.Worker
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
 import Hasql.Pool (UsageError)
+import Data.Misc (showT)
 import Imports
 import Polysemy
 import Polysemy.Error qualified as PE
@@ -110,9 +111,9 @@ acksResetLine :: Text -> [Subscription] -> Text
 acksResetLine label subs =
   label
     <> ": acks reset to latest ("
-    <> tshow (length subs)
+    <> showT (length subs)
     <> " streams, "
-    <> tshow (length (filter ((/= UUID.nil) . (.start)) subs))
+    <> showT (length (filter ((/= UUID.nil) . (.start)) subs))
     <> " with notifications)"
 
 -- | Result of fetching some streams of one client once.
@@ -194,7 +195,7 @@ readerPass render limit windowMs stats subs = do
             bound' = lowerBound windowMs sub'
             seen'
               | windowMs == 0 = mempty
-              | otherwise = Set.filter (> bound') (foldl' (flip Set.insert) sub.seen new)
+              | otherwise = Set.dropWhileAntitone (<= bound') (foldl' (flip Set.insert) sub.seen new)
         nowMs <- embed currentMillis
         embed (recordFetch stats sub.kind (t1 - t0) (map (lagNs nowMs) new))
         pure (PassResult [sub' {seen = seen'}] full [(sub.stream, i) | i <- new] [])
@@ -280,10 +281,6 @@ acknowledge n writeAcks = foldM step
 throughGate :: QSem -> ReaderStats -> IO a -> IO a
 throughGate gate stats = gateWith (recordGateWait stats) gate
 
--- | 'throughGate' without recording (startup calls).
-throughGate_ :: QSem -> IO a -> IO a
-throughGate_ = gateWith (const (pure ()))
-
 -- | Passes the wait for a slot (ns) to @onWait@ once acquired.
 gateWith :: (Word64 -> IO ()) -> QSem -> IO a -> IO a
 gateWith onWait gate = bracket_ acquire (signalQSem gate)
@@ -304,8 +301,8 @@ readerLoop gate env opts client stats reportError = go emptyAckState
   where
     gated :: Sem StoreEffects a -> IO (Either UsageError a)
     gated = throughGate gate stats . runStore env
-    fetchOne sub = gated (readerPass @UsageError tshow opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
-    writeAcks = ackPending tshow stats reportError (gated . ackOne stats client)
+    fetchOne sub = gated (readerPass @UsageError showT opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
+    writeAcks = ackPending showT stats reportError (gated . ackOne stats client)
     received acks delivered = case opts.mode of
       NoAcks -> pure acks
       Acks n -> acknowledge n writeAcks acks delivered
@@ -313,7 +310,7 @@ readerLoop gate env opts client stats reportError = go emptyAckState
     pollOne (done, acks) (sub, again)
       | not again = pure ((sub, False) : done, acks)
       | otherwise = do
-          r <- readerRound tshow stats fetchOne [sub]
+          r <- readerRound showT stats fetchOne [sub]
           traverse_ reportError r.errors
           acks' <- received acks r.delivered
           pure (reverse (map (,r.more) r.subs) <> done, acks')
@@ -332,7 +329,7 @@ loadSubscriptions :: Console -> QSem -> Env -> ReaderMode -> Population -> IO [[
 loadSubscriptions console gate env mode population = do
   let label = experimentLabel mode
   printLine console (label <> ": loading start positions")
-  loaded <- forConcurrently (readers population) (throughGate_ gate . runStore env . startPositions mode population.kinds)
+  loaded <- forConcurrently (readers population) (gateWith (const (pure ())) gate . runStore env . startPositions mode population.kinds)
   subs <- either (\e -> die ("loading start positions failed: " <> show e)) pure (sequence loaded)
   case mode of
     Acks _ -> printLine console (acksResetLine label (concat subs))
@@ -342,8 +339,8 @@ loadSubscriptions console gate env mode population = do
 -- | (expected, delivered) notifications so far.
 totals :: [WriterStats] -> [ReaderStats] -> IO (Int, Int)
 totals writerStats readerStats = do
-  expected <- totalExpected . sumSnapshots <$> traverse readSnapshot writerStats
-  delivered <- totalDelivered . sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
+  expected <- sum <$> traverse (fmap totalExpected . readSnapshot) writerStats
+  delivered <- sum <$> traverse (fmap totalDelivered . readReaderSnapshot) readerStats
   pure (expected, delivered)
 
 -- | Waits until readers caught up, stopped receiving anything for
@@ -386,11 +383,11 @@ consumeTickOnce ::
   IO (TickReport, ConsumeReport)
 consumeTickOnce mode console metrics consumeMetrics ackMetrics warmup writing writerStats readerStats errors writerRef readerRef = do
   now <- getMonotonicTime
-  (writerReport, writerTotal) <- tickWriters warmup now writerStats writerRef
+  writerReport <- tickWriters warmup now writerStats writerRef
   readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
   readerState <- readIORef readerRef
   isWriting <- writing
-  let (readerReport, readerState') = consumeTick warmup isWriting now (totalExpected writerTotal) readerTotal readerState
+  let (readerReport, readerState') = consumeTick warmup isWriting now (totalExpected writerReport.total) readerTotal readerState
   writeIORef readerRef readerState'
   printQueuedErrors console errors
   publish metrics writerReport
@@ -433,13 +430,13 @@ runConsume console writerEnv readerEnv opts = do
   printLine console $
     label
       <> ": writers="
-      <> tshow p.writers
+      <> showT p.writers
       <> " clients="
-      <> tshow opts.clients
+      <> showT opts.clients
       <> " targets="
       <> renderTargetSpec p.targets
       <> " seed="
-      <> tshow setup.seed
+      <> showT setup.seed
   traverse_ (printLine console) (formatCoverage (coverage population.subscribers setup.entries))
   clientSubs <- loadSubscriptions console gate readerEnv opts.mode population
 
@@ -454,13 +451,7 @@ runConsume console writerEnv readerEnv opts = do
   stopWriters <- newIORef False
   let -- A writer stops between pushes, so every committed push has its
       -- expected deliveries recorded before the drain starts.
-      doPush ws push = do
-        outcome <- storePush writerEnv push
-        case outcome of
-          PushOk -> recordExpected ws (expectedDeliveries population.subscribers push)
-          PushFailed _ -> pure ()
-        pure outcome
-      writer (ws, g) = writerLoop (readIORef stopWriters) (doPush ws) setup.payload setup.entries ws reportError g
+      writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (storePush writerEnv) setup.payload setup.entries ws reportError g
       readerClient (stats, (client, subs)) = readerLoop gate readerEnv opts client stats reportError subs
       readTotals = totals writerStats readerStats
   start <- getMonotonicTime

@@ -23,8 +23,8 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
+import Data.Misc (showT)
 import Data.Set qualified as Set
-import Data.Text qualified as T
 import Data.Vector qualified as V
 import FanInPerf.Targets
 import Imports hiding (Reader)
@@ -102,7 +102,7 @@ mkPopulation n epochs clientsPerUser entries gen = do
   when (KindClients `Set.member` kinds && n > s * clientsPerUser) $
     Left ("clients: " <> showT n <> " clients need at least that many (user, client id) pairs, the pool has " <> showT (s * clientsPerUser))
   epochsOf <- userEpochs epochs es
-  let users = [(u, SimUser (uids V.! u) (epochsOf u) (clientIds (ceilDiv (n - u) s))) | u <- [0 .. min n s - 1]]
+  let users = [(u, SimUser (uids V.! u) (epochsOf u) (clientIdsUpTo (ceilDiv (n - u) s))) | u <- [0 .. min n s - 1]]
       (teams, personalUsers) = case [v | Entry _ (TeamPool v) <- es] of
         v : _ -> (groupTeams v users, [])
         [] -> ([], map snd users)
@@ -111,8 +111,6 @@ mkPopulation n epochs clientsPerUser entries gen = do
   where
     es = V.toList entries
     ceilDiv a b = (a + b - 1) `div` b
-    clientIds k = ClientId 1 :| map ClientId [2 .. fromIntegral k]
-    showT = T.pack . show
 
 -- | The longer of the user and clients pools holds all shared uids (both are
 -- prefixes of one vector, see 'mkEntries').
@@ -126,7 +124,7 @@ userEpochs :: Int -> [Entry] -> Either Text (Int -> [(GroupId, Epoch)])
 userEpochs e es = case [v | Entry _ (EpochPool v) <- es] of
   [] -> Right (const [])
   v : _
-    | e > V.length v -> Left ("epoch: --epochs-per-client " <> T.pack (show e) <> " exceeds the " <> T.pack (show (V.length v)) <> " epoch streams")
+    | e > V.length v -> Left ("epoch: --epochs-per-client " <> showT e <> " exceeds the " <> showT (V.length v) <> " epoch streams")
     | otherwise -> Right (\u -> [v V.! ((u * e + j) `mod` V.length v) | j <- [0 .. e - 1]])
 
 -- | User @u@ joins team @u mod S_t@; teams without members are left out.

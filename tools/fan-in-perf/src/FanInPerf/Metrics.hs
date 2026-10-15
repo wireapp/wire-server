@@ -3,7 +3,6 @@ module FanInPerf.Metrics
     newMetrics,
     publish,
     latencySampleGroup,
-    histogramSampleGroup,
     ConsumeMetrics,
     newConsumeMetrics,
     publishConsume,

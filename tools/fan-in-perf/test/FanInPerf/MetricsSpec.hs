@@ -43,7 +43,7 @@ spec = do
     it "exports counters and gauges with experiment and kind labels" $ do
       m <- newMetrics "spec" 4
       ws <- newWriterStats
-      replicateM_ 3 (recordSuccess ws KindTeam 1 1000)
+      replicateM_ 3 (recordSuccess ws KindTeam 1 0 1000)
       total <- readSnapshot ws
       let (r, _) = tick 0 1 total (initialTickState 0)
       publish m r

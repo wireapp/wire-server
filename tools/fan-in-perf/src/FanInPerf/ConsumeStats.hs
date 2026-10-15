@@ -40,7 +40,7 @@ import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict qualified as Map
 import Data.Vector.Unboxed qualified as VU
-import FanInPerf.Stats (bucketIndex, minTickInterval, quantileSeconds, toBuckets)
+import FanInPerf.Stats (bucketIndex, minTickInterval, quantileSeconds, ratio, toBuckets)
 import FanInPerf.Targets (TargetKind)
 import Imports
 
@@ -233,7 +233,7 @@ consumeTick warmup writing now expectedTotal total st =
   let dt = now - st.lastTickAt
       delta = diffReaderSnapshot total st.previousSnapshot
       rate :: Int -> Double
-      rate n = if dt > 0 then fromIntegral n / dt else 0
+      rate n = ratio n dt
       elapsed = now - st.startedAt
       consumeRate = rate (totalDelivered delta)
       afterWarmup = writing && elapsed > warmup && dt >= minTickInterval
@@ -246,7 +246,7 @@ consumeTick warmup writing now expectedTotal total st =
           { consumeRate,
             maxConsumeRate = peak,
             fetchRate = rate fetchesInTick,
-            emptyFetchRatio = if fetchesInTick > 0 then fromIntegral (totalEmptyFetches delta) / fromIntegral fetchesInTick else 0,
+            emptyFetchRatio = ratio (totalEmptyFetches delta) fetchesInTick,
             fetchErrorRate = rate (totalFetchErrors delta),
             lagP50 = quantileSeconds 0.5 (lagBuckets delta),
             lagP99 = quantileSeconds 0.99 (lagBuckets delta),

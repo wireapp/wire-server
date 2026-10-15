@@ -1,10 +1,9 @@
 module FanInPerf.Run (run) where
 
 import Control.Concurrent.Async (link, withAsync)
-import Data.Misc (Duration (..))
+import Data.Misc (Duration (..), showT)
 import Data.Qualified (toLocalUnsafe)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
 import FanInPerf.Consume (runConsume)
 import FanInPerf.Metrics (runMetricsServer)
 import FanInPerf.Options
@@ -16,7 +15,7 @@ import FanInPerf.Terminal
 import Hasql.Pool.Extended (PoolConfig (..))
 import Imports
 import PostgresqlConnectionString qualified
-import System.Exit (ExitCode (..), exitWith)
+import System.Exit (die)
 import UnliftIO.Exception (tryAny)
 import Wire.FanInNotificationsAdmin (MigrateResult (..), migrate, ping, truncateAll)
 
@@ -37,32 +36,31 @@ run console opts = do
   case opts.command of
     Migrate ->
       runStore env migrate >>= \case
-        Left e -> abort ("migrate failed: " <> T.pack (show e))
+        Left e -> abort ("migrate failed: " <> showT e)
         Right Migrated -> printLine console "created fan-in notification tables"
         Right AlreadyMigrated -> printLine console "fan-in notification tables already exist"
     Reset ->
       runStore env truncateAll
         >>= either
-          (\e -> abort ("reset failed: " <> T.pack (show e)))
+          (\e -> abort ("reset failed: " <> showT e))
           (const (printLine console "truncated all fan-in notification tables"))
-    Produce p ->
+    Produce p -> withMetricsServer (runProduce console env p)
+    Consume c -> withMetricsServer $ do
+      -- readers get their own pool so they cannot starve the writers
+      readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
+      runConsume console env env {pool = readerPool} c
+  where
+    withMetricsServer act =
       withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
         -- e.g. port already in use: fail loudly instead of running unobserved
         link server
-        runProduce console env p
-    Consume c ->
-      withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
-        link server
-        -- readers get their own pool so they cannot starve the writers
-        readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
-        let readerEnv = Env {pool = readerPool, local = env.local, isolation = env.isolation}
-        runConsume console env readerEnv c
+        act
 
 checkDatabase :: Env -> IO ()
 checkDatabase env =
   tryAny (runStore env ping) >>= \case
     Right (Right ()) -> pure ()
-    Right (Left e) -> abort ("cannot reach database: " <> T.pack (show e))
+    Right (Left e) -> abort ("cannot reach database: " <> showT e)
     Left _ -> abort "cannot reach database"
 
 defaultPoolSize :: Command -> Int
@@ -85,4 +83,4 @@ poolConfig size =
     }
 
 abort :: Text -> IO a
-abort msg = T.hPutStrLn stderr msg >> exitWith (ExitFailure 1)
+abort = die . T.unpack
