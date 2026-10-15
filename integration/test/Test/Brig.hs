@@ -30,17 +30,17 @@ import Control.Retry
 import Data.Aeson.Types hiding ((.=))
 import qualified Data.ByteString.Base64 as B64
 import Data.List.Split
+import Data.String.Conversions
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
-import OpenSSL (withOpenSSL)
-import OpenSSL.EVP.Digest (getDigestByName, hmacBS)
-import System.Directory (copyFile)
-import System.FilePath ((</>))
-import Data.String.Conversions
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import GHC.Stack
+import OpenSSL (withOpenSSL)
+import OpenSSL.EVP.Digest (getDigestByName, hmacBS)
 import SetupHelpers
+import System.Directory (copyFile)
+import System.FilePath ((</>))
 import System.IO.Extra
 import Testlib.Assertions
 import Testlib.Prelude
@@ -345,7 +345,7 @@ testCallsConfigV3 = do
     updater "turn:localhost:3478"
     assertV3Phase user secretAbs ["turn:localhost:3478"]
 
-assertV3Phase :: (HasCallStack) => MakesValue user => user -> FilePath -> [String] -> App ()
+assertV3Phase :: (HasCallStack) => (MakesValue user) => user -> FilePath -> [String] -> App ()
 assertV3Phase user secretAbs expected = do
   bindResponse (getCallsConfigV3 user) \resp -> do
     resp.status `shouldMatchInt` 200
