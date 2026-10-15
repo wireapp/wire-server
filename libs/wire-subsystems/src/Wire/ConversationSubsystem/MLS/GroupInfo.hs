@@ -48,7 +48,7 @@ import Wire.FederationAPIAccess qualified as E
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
-     ErrorS 'MLSNotEnabled
+     Error ConversationSubsystemError
    ]
 
 getGroupInfo ::
@@ -73,7 +73,6 @@ getGroupInfo lusr qcnvId = do
 getGroupInfoFromLocalConv ::
   (Member E.ConversationStore r) =>
   (Members MLSGroupInfoStaticErrors r) =>
-  (Member (Error ConversationSubsystemError) r) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r GroupInfoData
@@ -101,7 +100,8 @@ getGroupInfoFromRemoteConv lusr rcnv = do
   case response of
     GetGroupInfoResponseError e
       | e == MLSMissingGroupInfo -> throw ConversationSubsystemErrorMLSMissingGroupInfo
-      | otherwise -> rethrowErrors @MLSGroupInfoStaticErrors e
+      | e == MLSNotEnabled -> throw ConversationSubsystemErrorMLSNotEnabled
+      | otherwise -> rethrowErrors @'[ErrorS 'ConvNotFound] e
     GetGroupInfoResponseState s ->
       pure
         . GroupInfoData

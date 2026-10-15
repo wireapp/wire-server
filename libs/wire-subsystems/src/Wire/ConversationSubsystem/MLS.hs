@@ -24,17 +24,16 @@ where
 import Data.Default
 import Galley.Types.Error
 import Imports
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Wire.API.Error (ErrorS)
-import Wire.API.Error.Galley
 import Wire.API.MLS.Keys
 import Wire.ConversationSubsystem.MLS.Enabled (getMLSPrivateKeys)
 
 getMLSPublicKeys ::
   ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member (ErrorS 'MLSNotEnabled) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InternalError) r
   ) =>
   Maybe MLSPublicKeyFormat ->

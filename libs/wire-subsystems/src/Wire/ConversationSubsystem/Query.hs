@@ -749,7 +749,7 @@ getMLSSelfConversationWithError ::
   forall r.
   ( Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member (ErrorS MLSNotEnabled) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
@@ -810,8 +810,6 @@ getMLSOne2OneOwnConversation ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'NotConnected) r,
     Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
@@ -834,8 +832,7 @@ getMLSOne2OneConversationInternal ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -855,8 +852,7 @@ getMLSOne2OneMLSConversation ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -882,8 +878,7 @@ getMLSOne2OneConversation ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -902,7 +897,7 @@ getMLSOne2OneConversation lself qother fmt = do
 getLocalMLSOne2OneConversation ::
   ( Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member (ErrorS MLSNotEnabled) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
@@ -924,9 +919,8 @@ getLocalMLSOne2OneConversation lself lconv = do
 getRemoteMLSOne2OneConversation ::
   ( Member (Error InternalError) r,
     Member (Error FederationError) r,
-    Member (ErrorS 'NotConnected) r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member (ErrorS MLSNotEnabled) r,
+    Member (Error ConversationSubsystemError) r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -955,7 +949,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       pure (remoteMLSOne2OneConversation lself rother rc)
     Right GetOne2OneConversationV2BackendMismatch ->
       throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
-    Right GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
+    Right GetOne2OneConversationV2NotConnected -> throw ConversationSubsystemErrorNotConnected
     Right GetOne2OneConversationV2MLSNotEnabled -> do
       -- This is confusing to clients because we do not tell them which backend
       -- doesn't have MLS enabled, which would nice information for fixing
@@ -965,7 +959,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
         Logger.field "domain" (toByteString' (tDomain rother))
           . Logger.msg
             ("Cannot get remote MLSOne2OneConversation because MLS is not enabled on remote" :: ByteString)
-      throwS @'MLSNotEnabled
+      throw ConversationSubsystemErrorMLSNotEnabled
     Left e -> throw e
 
 -- | Check if an MLS 1-1 conversation has been established, namely if its epoch
@@ -981,8 +975,7 @@ isMLSOne2OneEstablished ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member TinyLog r
   ) =>
@@ -1011,11 +1004,10 @@ isLocalMLSOne2OneEstablished lconv = do
       maybe False ((> 0) . epochNumber . cnvmlsEpoch) meta
 
 isRemoteMLSOne2OneEstablished ::
-  ( Member (ErrorS 'NotConnected) r,
-    Member (Error FederationError) r,
+  ( Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member (ErrorS MLSNotEnabled) r,
+    Member (Error ConversationSubsystemError) r,
     Member TinyLog r
   ) =>
   Local UserId ->

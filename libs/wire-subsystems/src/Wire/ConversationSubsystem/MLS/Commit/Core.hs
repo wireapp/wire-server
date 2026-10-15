@@ -305,7 +305,7 @@ type ProposalErrors =
      ErrorS 'ConvAccessDenied,
      ErrorS 'InvalidOperation,
      ErrorS 'NotATeamMember,
-     ErrorS 'NotConnected,
+     Error ConversationSubsystemError,
      ErrorS 'TooManyMembers
    ]
 

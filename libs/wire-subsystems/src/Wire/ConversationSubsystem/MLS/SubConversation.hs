@@ -172,7 +172,7 @@ getSubConversationGroupInfo ::
          Error ConversationSubsystemError,
          FederationAPIAccess FederatorClient,
          Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
-         ErrorS 'MLSNotEnabled,
+         Error ConversationSubsystemError,
          ErrorS 'ConvNotFound
        ]
       r
@@ -206,14 +206,13 @@ getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
 type MLSDeleteSubConvStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
      ErrorS 'ConvNotFound,
-     ErrorS 'MLSNotEnabled
+     Error ConversationSubsystemError
    ]
 
 deleteSubConversation ::
   ( Member Conversation.ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -239,7 +238,7 @@ deleteSubConversation lusr qconv sconv reset = do
 resetRemoteSubConversation ::
   ( Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSNotEnabled) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
@@ -281,7 +280,7 @@ type HasLeaveSubConversationEffects r =
 type LeaveSubConversationStaticErrors =
   '[ ErrorS 'ConvNotFound,
      ErrorS 'ConvAccessDenied,
-     ErrorS 'MLSNotEnabled
+     Error ConversationSubsystemError
    ]
 
 leaveSubConversation ::
@@ -289,7 +288,6 @@ leaveSubConversation ::
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
     Member Conversation.MLSCommitLockStore r,
@@ -315,7 +313,6 @@ leaveLocalSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member (Error FederationError) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,

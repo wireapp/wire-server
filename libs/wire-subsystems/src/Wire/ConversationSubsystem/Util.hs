@@ -81,7 +81,7 @@ import Wire.BrigAPIAccess
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), galleyErrorToCSE)
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.FederationSubsystem (ensureNoUnreachableBackends)
@@ -134,7 +134,7 @@ ensureAccessRole roles users = do
 -- users OR that there is a connection.
 ensureConnectedOrSameTeam ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
@@ -155,7 +155,7 @@ ensureConnectedOrSameTeam lusr others = do
 -- permissions, or that `v` is collaborating in `u`s team.
 ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
@@ -198,7 +198,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
 -- that they are connected).
 ensureConnected ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   UserList UserId ->
@@ -209,7 +209,7 @@ ensureConnected self others = do
 
 ensureConnectedToRemotes ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   [Remote UserId] ->
@@ -218,7 +218,7 @@ ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map tUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
-    throwS @'NotConnected
+    throw ConversationSubsystemErrorNotConnected
 
 ensureManageChannelsPermission :: (Member (ErrorS 'ConvNotFound) r) => StoredConversation -> TeamMember -> Sem r ()
 ensureManageChannelsPermission conv tm = do
@@ -990,6 +990,18 @@ getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 class RethrowErrors (effs :: EffectRow) r where
   rethrowErrors :: GalleyError -> Sem r a
+
+-- | Typed-list entry for errors that are already 'ConversationSubsystemError'
+-- on the local side but can arrive as 'GalleyError' over federation.
+instance
+  ( Member (Error ConversationSubsystemError) r,
+    RethrowErrors effs r
+  ) =>
+  RethrowErrors (Error ConversationSubsystemError ': effs) r
+  where
+  rethrowErrors :: GalleyError -> Sem r a
+  rethrowErrors err' =
+    maybe (rethrowErrors @effs @r err') throw (galleyErrorToCSE err')
 
 instance (Member (Error FederationError) r) => RethrowErrors '[] r where
   rethrowErrors :: GalleyError -> Sem r a

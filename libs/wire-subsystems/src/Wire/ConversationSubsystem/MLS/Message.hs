@@ -125,7 +125,7 @@ type MLSMessageStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
      ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
-     ErrorS 'MLSNotEnabled,
+     Error ConversationSubsystemError,
      ErrorS 'MissingLegalholdConsent
    ]
 
@@ -141,7 +141,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
@@ -172,8 +171,7 @@ postMLSTargetedMessagesFromLocalUser ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TinyLog r,
-    Member (Error ConversationSubsystemError) r
+    Member TinyLog r
   ) =>
   Local UserId ->
   ClientId ->
@@ -194,7 +192,6 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
 postMLSTransientTargetedMessageFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -225,7 +222,6 @@ postMLSTransientTargetedMessageFromLocalUser lusr client batch = do
 validateAndPropagateTransientTargetedMessages ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
@@ -807,7 +803,6 @@ postMLSMessage ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r

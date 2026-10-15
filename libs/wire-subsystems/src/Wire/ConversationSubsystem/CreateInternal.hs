@@ -93,8 +93,6 @@ createGroupConversationGeneric ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Input ConversationSubsystemConfig) r,
@@ -143,7 +141,6 @@ createOne2OneConversationLogic ::
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
@@ -305,7 +302,6 @@ checkCreateConvPermissions ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotConnected) r,
     Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r,
@@ -582,10 +578,10 @@ ensureOne :: (Member (Error InvalidInput) r) => [a] -> Sem r a
 ensureOne [x] = pure x
 ensureOne _ = throw (InvalidRange "One-to-one conversations can only have a single invited member")
 
-assertMLSEnabled :: (Member (Input ConversationSubsystemConfig) r, Member (ErrorS 'MLSNotEnabled) r) => Sem r ()
+assertMLSEnabled :: (Member (Input ConversationSubsystemConfig) r, Member (Error ConversationSubsystemError) r) => Sem r ()
 assertMLSEnabled = do
   cfg <- input
-  when (null cfg.mlsKeys) $ throwS @'MLSNotEnabled
+  when (null cfg.mlsKeys) $ throw ConversationSubsystemErrorMLSNotEnabled
 
 newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
   deriving (Functor, Foldable, Traversable)

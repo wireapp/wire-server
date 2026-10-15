@@ -252,8 +252,6 @@ type ConversationSubsystemErrorEffects =
   '[ ErrorS 'ConvAccessDenied,
      ErrorS 'NotATeamMember,
      ErrorS OperationDenied,
-     ErrorS 'NotConnected,
-     ErrorS 'MLSNotEnabled,
      ErrorS 'MissingLegalholdConsent,
      ErrorS 'NonBindingTeam,
      ErrorS 'TeamNotFound,
@@ -327,8 +325,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorTeamNotFound)
     . mapError (const ConversationSubsystemErrorNonBindingTeam)
     . mapError (const ConversationSubsystemErrorMissingLegalholdConsent)
-    . mapError (const ConversationSubsystemErrorMLSNotEnabled)
-    . mapError (const ConversationSubsystemErrorNotConnected)
     . mapError (const ConversationSubsystemErrorperationDenied)
     . mapError (const ConversationSubsystemErrorNotATeamMember)
     . mapError (const ConversationSubsystemErrorConvAccessDenied)
