@@ -363,7 +363,11 @@ leaveConversation ::
     Member Random r,
     Member TinyLog r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -374,9 +378,13 @@ leaveConversation requestingDomain lc = do
 
   res <-
     runError
-      . mapToRuntimeError @'ConvNotFound RemoveFromConversationErrorNotFound
-      . mapToRuntimeError @('ActionDenied 'LeaveConversation) RemoveFromConversationErrorRemovalNotAllowed
-      . mapToRuntimeError @'InvalidOperation RemoveFromConversationErrorRemovalNotAllowed
+      . catchCSE
+        ( \case
+            ConversationSubsystemErrorConvNotFound -> Just RemoveFromConversationErrorNotFound
+            ConversationSubsystemErrorActionDeniedLeaveConversation -> Just RemoveFromConversationErrorRemovalNotAllowed
+            ConversationSubsystemErrorInvalidOperation -> Just RemoveFromConversationErrorRemovalNotAllowed
+            _ -> Nothing
+        )
       . mapError @NoChanges (const RemoveFromConversationErrorUnchanged)
       $ do
         conv <- maskConvAccessDenied $ getConversationAsMember leaver lcnv
