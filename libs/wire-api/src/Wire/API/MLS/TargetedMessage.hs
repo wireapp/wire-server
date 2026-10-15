@@ -16,14 +16,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.TargetedMessage
-  ( PersistentTargetedMessage (..),
+  ( TargetedMessage (..),
+    PersistentTargetedMessage (..),
+    TransientTargetedMessage (..),
     TargetedMessageBatch (..),
-    TargetedMessageWireFormat (..),
+    TransientTargetedMessageBatch (..),
   )
 where
 
-import Data.Binary.Get (getWord16be)
-import Data.Binary.Put (putWord16be)
+import Data.Binary.Get (Get, getWord16be)
+import Data.Binary.Put (Put, putWord16be)
 import Data.OpenApi qualified as S
 import Imports
 import Wire.API.MLS.Commit (HPKECiphertext)
@@ -33,26 +35,14 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 
--- | The private wire format assigned to persistent targeted messages.
-data TargetedMessageWireFormat = TargetedMessageWireFormat
-  deriving stock (Eq, Show, Generic)
+persistentTargetedMessageWireFormat :: Word16
+persistentTargetedMessageWireFormat = 0xf001
 
-targetedMessagesWireFormatValue :: Word16
-targetedMessagesWireFormatValue = 0xf001
+transientTargetedMessageWireFormat :: Word16
+transientTargetedMessageWireFormat = 0xf002
 
-instance ParseMLS TargetedMessageWireFormat where
-  parseMLS = do
-    wireFormat <- getWord16be
-    if wireFormat == targetedMessagesWireFormatValue
-      then pure TargetedMessageWireFormat
-      else fail $ "unsupported targeted message wire format: " <> show wireFormat
-
-instance SerialiseMLS TargetedMessageWireFormat where
-  serialiseMLS _ = putWord16be targetedMessagesWireFormatValue
-
-data PersistentTargetedMessage = PersistentTargetedMessage
+data TargetedMessage = TargetedMessage
   { protocolVersion :: ProtocolVersion,
-    wireFormat :: TargetedMessageWireFormat,
     counter :: Word32,
     sender :: LeafIndex,
     recipient :: LeafIndex,
@@ -65,35 +55,63 @@ data PersistentTargetedMessage = PersistentTargetedMessage
   }
   deriving stock (Eq, Show, Generic)
 
+newtype PersistentTargetedMessage = PersistentTargetedMessage
+  { persistentTargetedMessageData :: TargetedMessage
+  }
+  deriving stock (Eq, Show, Generic)
+
 instance ParseMLS PersistentTargetedMessage where
-  parseMLS =
-    PersistentTargetedMessage
-      <$> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLSBytes @VarInt
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLSBytes @VarInt
+  parseMLS = PersistentTargetedMessage <$> parseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat
 
 instance SerialiseMLS PersistentTargetedMessage where
-  serialiseMLS msg = do
-    serialiseMLS msg.protocolVersion
-    serialiseMLS msg.wireFormat
-    serialiseMLS msg.counter
-    serialiseMLS msg.sender
-    serialiseMLS msg.recipient
-    serialiseMLSBytes @VarInt msg.recipientId
-    serialiseMLS msg.epoch
-    serialiseMLS msg.groupId
-    serialiseMLS msg.payload
-    serialiseMLSBytes @VarInt msg.signature
+  serialiseMLS = serialiseTargetedMessageWithWireFormat persistentTargetedMessageWireFormat . (.persistentTargetedMessageData)
 
 instance S.ToSchema PersistentTargetedMessage where
   declareNamedSchema _ = pure (mlsSwagger "PersistentTargetedMessage")
+
+newtype TransientTargetedMessage = TransientTargetedMessage
+  { transientTargetedMessageData :: TargetedMessage
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance ParseMLS TransientTargetedMessage where
+  parseMLS = TransientTargetedMessage <$> parseTargetedMessageWithWireFormat transientTargetedMessageWireFormat
+
+instance SerialiseMLS TransientTargetedMessage where
+  serialiseMLS = serialiseTargetedMessageWithWireFormat transientTargetedMessageWireFormat . (.transientTargetedMessageData)
+
+instance S.ToSchema TransientTargetedMessage where
+  declareNamedSchema _ = pure (mlsSwagger "TransientTargetedMessage")
+
+parseTargetedMessageWithWireFormat :: Word16 -> Get TargetedMessage
+parseTargetedMessageWithWireFormat expectedWireFormat = do
+  protocolVersion <- parseMLS
+  wireFormat <- getWord16be
+  unless (wireFormat == expectedWireFormat) $
+    fail $
+      "unexpected targeted message wire format: " <> show wireFormat
+  TargetedMessage protocolVersion
+    <$> parseMLS
+    <*> parseMLS
+    <*> parseMLS
+    <*> parseMLSBytes @VarInt
+    <*> parseMLS
+    <*> parseMLS
+    <*> parseMLS
+    <*> parseMLSBytes @VarInt
+
+serialiseTargetedMessageWithWireFormat :: Word16 -> TargetedMessage -> Put
+serialiseTargetedMessageWithWireFormat wireFormat msg = do
+  serialiseMLS msg.protocolVersion
+  putWord16be wireFormat
+  serialiseMLS msg.counter
+  serialiseMLS msg.sender
+  serialiseMLS msg.recipient
+  serialiseMLSBytes @VarInt msg.recipientId
+  serialiseMLS msg.epoch
+  serialiseMLS msg.groupId
+  serialiseMLS msg.payload
+  serialiseMLSBytes @VarInt msg.signature
 
 newtype TargetedMessageBatch = TargetedMessageBatch
   { messages :: [RawMLS PersistentTargetedMessage]
@@ -108,3 +126,17 @@ instance SerialiseMLS TargetedMessageBatch where
 
 instance S.ToSchema TargetedMessageBatch where
   declareNamedSchema _ = pure (mlsSwagger "TargetedMessageBatch")
+
+newtype TransientTargetedMessageBatch = TransientTargetedMessageBatch
+  { transientMessages :: [RawMLS TransientTargetedMessage]
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance ParseMLS TransientTargetedMessageBatch where
+  parseMLS = TransientTargetedMessageBatch <$> parseMLSStream parseMLS
+
+instance SerialiseMLS TransientTargetedMessageBatch where
+  serialiseMLS = traverse_ serialiseMLS . (.transientMessages)
+
+instance S.ToSchema TransientTargetedMessageBatch where
+  declareNamedSchema _ = pure (mlsSwagger "TransientTargetedMessageBatch")

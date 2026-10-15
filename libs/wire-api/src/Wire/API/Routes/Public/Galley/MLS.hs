@@ -113,6 +113,25 @@ type MLSMessagingAPI =
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Targeted messages sent" MLSMessageSendingStatus)
            )
     :<|> Named
+           "mls-transient-targeted-message"
+           ( Summary "Post a transient targeted MLS message to a conversation"
+               :> From 'V19
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow 'MLSClientSenderUserMismatch
+               :> CanThrow 'MLSInvalidLeafNodeIndex
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSUnsupportedMessage
+               :> "messages"
+               :> "transient-targeted"
+               :> ZLocalUser
+               :> ZClient
+               :> ReqBody '[MLS] TransientTargetedMessageBatch
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Transient targeted message accepted" MLSMessageSendingStatus)
+           )
+    :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
                :> From V5

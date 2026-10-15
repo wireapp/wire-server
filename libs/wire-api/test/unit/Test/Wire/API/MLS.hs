@@ -80,18 +80,19 @@ testParseTargetedMessageBatch :: IO ()
 testParseTargetedMessageBatch = do
   let message n =
         mkRawMLS
-          PersistentTargetedMessage
-            { protocolVersion = defaultProtocolVersion,
-              wireFormat = TargetedMessageWireFormat,
-              counter = n,
-              sender = 1,
-              recipient = n,
-              recipientId = "2",
-              epoch = Epoch 4,
-              groupId = GroupId "group",
-              payload = HPKECiphertext "kem-output" "ciphertext",
-              signature = "signature"
-            }
+          ( PersistentTargetedMessage $
+              TargetedMessage
+                { protocolVersion = defaultProtocolVersion,
+                  counter = n,
+                  sender = 1,
+                  recipient = n,
+                  recipientId = "2",
+                  epoch = Epoch 4,
+                  groupId = GroupId "group",
+                  payload = HPKECiphertext "kem-output" "ciphertext",
+                  signature = "signature"
+                }
+          )
       batch = TargetedMessageBatch [message 2, message 3]
   decodeMLS' (encodeMLS' batch) @?= Right batch
 

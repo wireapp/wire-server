@@ -84,6 +84,7 @@ testIsCellsConversationEvent =
         MemberStateUpdate -> isCellsConversationEvent e === True
         MLSMessageAdd -> isCellsConversationEvent e === False
         MLSTargetedMessage -> isCellsConversationEvent e === False
+        MLSTransientTargetedMessage -> isCellsConversationEvent e === False
         MLSWelcome -> isCellsConversationEvent e === False
         OtrMessageAdd -> isCellsConversationEvent e === False
         ProtocolUpdate -> isCellsConversationEvent e === False
