@@ -126,11 +126,7 @@ type MLSMessageStaticErrors =
      ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
      ErrorS 'MLSNotEnabled,
-     ErrorS 'MLSProposalNotFound,
      ErrorS 'MissingLegalholdConsent,
-     ErrorS 'MLSCommitMissingReferences,
-     ErrorS 'MLSSelfRemovalNotAllowed,
-     ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSSubConvClientNotInParent,
      ErrorS 'MLSHistoryClientConflict,
      ErrorS 'MLSHistoryClientDuplication
@@ -148,11 +144,7 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -308,8 +300,7 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
                 }
 
 validateTargetedMessage ::
-  ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (Error ConversationSubsystemError) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r
   ) =>
   Qualified UserId ->
@@ -330,7 +321,7 @@ validateTargetedMessage sender client convOrSub message = do
   case imLookup convOrSub.indexMap message.sender of
     Just (RegularClient senderClient)
       | senderClient == expectedClient -> pure ()
-      | otherwise -> throwS @'MLSClientSenderUserMismatch
+      | otherwise -> throw ConversationSubsystemErrorMLSClientSenderUserMismatch
     _ -> throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
   recipientClient <- case imLookup convOrSub.indexMap message.recipient of
     Just (RegularClient recipient) -> pure recipient
@@ -377,7 +368,6 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
 
 validateAndPropagateTargetedMessages ::
   ( Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
@@ -825,10 +815,6 @@ postMLSMessage ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
@@ -853,7 +839,7 @@ postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg = do
       qconvOrSub
 
 getSenderIdentity ::
-  ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r
   ) =>
   Qualified UserId ->
@@ -868,7 +854,7 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
     SenderMember idx -> do
       when (epoch > 0) $ do
         cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
-        unless (cid' == RegularClient cid) $ throwS @'MLSClientSenderUserMismatch
+        unless (cid' == RegularClient cid) $ throw ConversationSubsystemErrorMLSClientSenderUserMismatch
       pure (Just idx)
     _ -> pure Nothing
   pure SenderIdentity {client = cid, index}
@@ -876,7 +862,6 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r
@@ -898,7 +883,6 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
 validateMessage ::
   ( HasProposalEffects r,
     Member (ErrorS ConvNotFound) r,
-    Member (ErrorS MLSClientSenderUserMismatch) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r

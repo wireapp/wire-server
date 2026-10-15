@@ -149,15 +149,14 @@ type HasProposalEffects r =
 derefOrCheckProposalFrom ::
   ( Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r,
-    Member (State IndexMap) r,
-    Member (ErrorS 'MLSProposalNotFound) r
+    Member (State IndexMap) r
   ) =>
   [StoredProposal] ->
   CipherSuiteTag ->
   ProposalOrRef ->
   Sem r Proposal
 derefOrCheckProposalFrom stored _ciphersuite (Ref ref) =
-  noteS @'MLSProposalNotFound $
+  note ConversationSubsystemErrorMLSProposalNotFound $
     (.proposal.value) <$> find ((== ref) . (.ref)) stored
 derefOrCheckProposalFrom _stored ciphersuite (Inline p) = do
   im <- get

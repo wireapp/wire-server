@@ -74,8 +74,6 @@ processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member Resource r,
@@ -143,7 +141,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
                 -- return error if the user is trying to remove themself
                 when (cidQualifiedUser senderIdentity.client == qtarget) $
-                  throwS @'MLSSelfRemovalNotAllowed
+                  throw ConversationSubsystemErrorMLSSelfRemovalNotAllowed
 
                 -- FUTUREWORK: add tests against this situation for conv v subconv
                 when (removedClients /= clientsInConv) $ do
@@ -352,7 +350,7 @@ existingMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
 
 checkReferences ::
-  (Member (ErrorS MLSCommitMissingReferences) r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   [StoredProposal] -> Commit -> Sem r ()
 checkReferences allPendingProposals commit = do
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview _Ref x) commit.proposals
@@ -372,4 +370,4 @@ checkReferences allPendingProposals commit = do
     for_ missingProposals $ \prop -> do
       case getDeletedIndex prop of
         Just i | Set.member i deletedIndices -> pure ()
-        _ -> throwS @'MLSCommitMissingReferences
+        _ -> throw ConversationSubsystemErrorMLSCommitMissingReferences

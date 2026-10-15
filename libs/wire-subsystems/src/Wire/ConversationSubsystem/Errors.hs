@@ -206,10 +206,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
-     ErrorS 'MLSProposalNotFound,
-     ErrorS 'MLSCommitMissingReferences,
-     ErrorS 'MLSSelfRemovalNotAllowed,
-     ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSSubConvClientNotInParent,
      ErrorS 'GroupIdVersionNotSupported,
      ErrorS 'ConvMemberNotFound,
@@ -279,10 +275,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorConvMemberNotFound)
     . mapError (const ConversationSubsystemErrorGroupIdVersionNotSupported)
     . mapError (const ConversationSubsystemErrorMLSSubConvClientNotInParent)
-    . mapError (const ConversationSubsystemErrorMLSClientSenderUserMismatch)
-    . mapError (const ConversationSubsystemErrorMLSSelfRemovalNotAllowed)
-    . mapError (const ConversationSubsystemErrorMLSCommitMissingReferences)
-    . mapError (const ConversationSubsystemErrorMLSProposalNotFound)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
     . mapError (const ConversationSubsystemErrorTeamNotFound)

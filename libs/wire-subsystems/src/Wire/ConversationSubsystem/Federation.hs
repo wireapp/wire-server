@@ -745,6 +745,10 @@ handleMLSMessageErrors =
           ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> Just MLSInvalidLeafNodeIndex
           ConversationSubsystemErrorMLSUnsupportedMessage -> Just MLSUnsupportedMessage
           ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
+          ConversationSubsystemErrorMLSProposalNotFound -> Just MLSProposalNotFound
+          ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
+          ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
+          ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
           ConversationSubsystemErrorMLSIdentityMismatch -> Just MLSIdentityMismatch
           ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> Just MLSInvalidLeafNodeSignature
           ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
@@ -954,6 +958,10 @@ leaveSubConversation domain lscr = do
     . catchCSE
       ( \case
           ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
+          ConversationSubsystemErrorMLSProposalNotFound -> Just MLSProposalNotFound
+          ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
+          ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
+          ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
           _ -> Nothing
       )
     . mapToGalleyError @LeaveSubConversationStaticErrors
@@ -982,6 +990,10 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
     . catchCSE
       ( \case
           ConversationSubsystemErrorMLSStaleMessage -> Just MLSStaleMessage
+          ConversationSubsystemErrorMLSProposalNotFound -> Just MLSProposalNotFound
+          ConversationSubsystemErrorMLSCommitMissingReferences -> Just MLSCommitMissingReferences
+          ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> Just MLSSelfRemovalNotAllowed
+          ConversationSubsystemErrorMLSClientSenderUserMismatch -> Just MLSClientSenderUserMismatch
           _ -> Nothing
       )
     . mapToGalleyError @MLSDeleteSubConvStaticErrors

@@ -90,7 +90,7 @@ type HasProposalActionEffects r =
     Member (Error MLSProtocolError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -106,8 +106,7 @@ type HasProposalActionEffects r =
   )
 
 getCommitData ::
-  ( HasProposalEffects r,
-    Member (ErrorS 'MLSProposalNotFound) r
+  ( HasProposalEffects r
   ) =>
   SenderIdentity ->
   Local ConvOrSubConv ->
