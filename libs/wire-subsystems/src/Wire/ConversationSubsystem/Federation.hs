@@ -706,11 +706,7 @@ updateConversation origDomain updateRequest = do
 type MLSBundleStaticErrors =
   Append
     MLSMessageStaticErrors
-    '[ ErrorS 'MLSIdentityMismatch,
-       ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'MLSInvalidLeafNodeSignature,
-       ErrorS 'MLSGroupConversationMismatch
-     ]
+    '[ ErrorS 'GroupIdVersionNotSupported ]
 
 handleMLSMessageErrors ::
   ( Member (Error ConversationSubsystemError) r,
@@ -747,6 +743,9 @@ handleMLSMessageErrors =
     . catchCSE
       ( \case
           ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> Just MLSInvalidLeafNodeIndex
+          ConversationSubsystemErrorMLSIdentityMismatch -> Just MLSIdentityMismatch
+          ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> Just MLSInvalidLeafNodeSignature
+          ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
           _ -> Nothing
       )
     . mapToGalleyError @MLSBundleStaticErrors
@@ -793,7 +792,7 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
 
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
-  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
 
   -- this cannot throw the error since we always pass the sender which is qualified to be remote
   MLSMessageResponseUpdates
@@ -849,7 +848,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString msr.rawMessage)
   msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
-  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
   MLSMessageResponseUpdates . map lcuUpdate
     <$> postMLSMessage
       loc
@@ -889,7 +888,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors $ do
       firstMessage <- note (mlsProtocolError "transient targeted message batch is empty") (listToMaybe batch.transientMessages)
       let groupId = (transientTargetedMessageData firstMessage.value).groupId
       (ctype, qConvOrSub) <- getConvFromGroupId groupId
-      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
       foldQualified
         loc
         ( \convOrSubId -> do
@@ -901,7 +900,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors $ do
     (_, Right batch) -> do
       firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
       (ctype, qConvOrSub) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
-      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
       foldQualified
         loc
         ( \convOrSubId -> do

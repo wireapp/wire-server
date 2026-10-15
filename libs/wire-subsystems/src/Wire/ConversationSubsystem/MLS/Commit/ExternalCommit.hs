@@ -62,8 +62,7 @@ getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   ClientIdentity ->
   Local ConvOrSubConv ->
@@ -134,11 +133,9 @@ processExternalCommit ::
   forall r.
   ( Member (Error FederationError) r,
     Member (ErrorS MLSStaleMessage) r,
-    Member (ErrorS MLSIdentityMismatch) r,
     Member (ErrorS MLSSubConvClientNotInParent) r,
     Member Resource r,
     HasProposalActionEffects r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r
   ) =>
   SenderIdentity ->

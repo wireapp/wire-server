@@ -206,7 +206,6 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'TeamNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
-     ErrorS 'MLSIdentityMismatch,
      ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
      ErrorS 'MLSProposalNotFound,
@@ -214,10 +213,8 @@ type ConversationSubsystemErrorEffects =
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSSubConvClientNotInParent,
-     ErrorS 'MLSInvalidLeafNodeSignature,
      ErrorS 'GroupIdVersionNotSupported,
      ErrorS 'ConvMemberNotFound,
-     ErrorS MLSGroupConversationMismatch,
      ErrorS ('ActionDenied ConvRole.LeaveConversation),
      ErrorS ('ActionDenied ConvRole.RemoveConversationMember),
      ErrorS ('ActionDenied ConvRole.DeleteConversation),
@@ -281,10 +278,8 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorActionDeniedDeleteConversation)
     . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
     . mapError (const ConversationSubsystemErrorActionDeniedLeaveConversation)
-    . mapError (const ConversationSubsystemErrorLSGroupConversationMismatch)
     . mapError (const ConversationSubsystemErrorConvMemberNotFound)
     . mapError (const ConversationSubsystemErrorGroupIdVersionNotSupported)
-    . mapError (const ConversationSubsystemErrorMLSInvalidLeafNodeSignature)
     . mapError (const ConversationSubsystemErrorMLSSubConvClientNotInParent)
     . mapError (const ConversationSubsystemErrorMLSClientSenderUserMismatch)
     . mapError (const ConversationSubsystemErrorMLSSelfRemovalNotAllowed)
@@ -292,7 +287,6 @@ mapErrors =
     . mapError (const ConversationSubsystemErrorMLSProposalNotFound)
     . mapError (const ConversationSubsystemErrorMLSStaleMessage)
     . mapError (const ConversationSubsystemErrorMLSUnsupportedMessage)
-    . mapError (const ConversationSubsystemErrorMLSIdentityMismatch)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
     . mapError (const ConversationSubsystemErrorTeamNotFound)

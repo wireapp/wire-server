@@ -158,7 +158,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (ErrorS MLSHistoryClientConflict) r,
@@ -183,7 +182,6 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
 postMLSTargetedMessagesFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -192,7 +190,8 @@ postMLSTargetedMessagesFromLocalUser ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -385,9 +384,9 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
 validateAndPropagateTargetedMessages ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
@@ -459,7 +458,6 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
 
 postMLSCommitBundle ::
   ( Member MeetingNotifier r,
-    Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
@@ -467,7 +465,6 @@ postMLSCommitBundle ::
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
@@ -495,7 +492,6 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle =
 
 postMLSCommitBundleFromLocalUser ::
   ( Member MeetingNotifier r,
-    Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
@@ -504,7 +500,6 @@ postMLSCommitBundleFromLocalUser ::
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
@@ -532,7 +527,6 @@ postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
 
 postMLSCommitBundleToLocalConv ::
   ( Member MeetingNotifier r,
-    Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
@@ -541,7 +535,6 @@ postMLSCommitBundleToLocalConv ::
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
@@ -847,7 +840,6 @@ postMLSMessage ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (ErrorS MLSHistoryClientConflict) r,
@@ -898,7 +890,6 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r
   ) =>
@@ -923,7 +914,6 @@ validateMessage ::
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (ErrorS MLSHistoryClientConflict) r
   ) =>

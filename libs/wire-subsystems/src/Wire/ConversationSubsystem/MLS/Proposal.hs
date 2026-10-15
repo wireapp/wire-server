@@ -150,8 +150,7 @@ derefOrCheckProposalFrom ::
   ( Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r,
     Member (State IndexMap) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
+    Member (ErrorS 'MLSProposalNotFound) r
   ) =>
   [StoredProposal] ->
   CipherSuiteTag ->
@@ -167,8 +166,7 @@ derefOrCheckProposalFrom _stored ciphersuite (Inline p) = do
 
 checkProposal ::
   ( Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   CipherSuiteTag ->
   IndexMap ->
@@ -196,8 +194,7 @@ addProposedClient cidOrKp = do
 applyProposals ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   CipherSuiteTag ->
   [Proposal] ->
@@ -210,8 +207,7 @@ applyProposals ciphersuite =
 applyProposal ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   CipherSuiteTag ->
   Proposal ->
@@ -220,7 +216,7 @@ applyProposal ciphersuite (AddProposal kp) = do
   (cs, _lifetime) <-
     either
       ( \case
-          InvalidLeafNodeSignature -> throwS @'MLSInvalidLeafNodeSignature
+          InvalidLeafNodeSignature -> throw ConversationSubsystemErrorMLSInvalidLeafNodeSignature
           validationError -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> (toText validationError)))
       )
       pure
@@ -240,8 +236,7 @@ processProposal ::
   ( HasProposalEffects r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
+    Member (ErrorS 'MLSStaleMessage) r
   ) =>
   Qualified UserId ->
   Local ConvOrSubConv ->
