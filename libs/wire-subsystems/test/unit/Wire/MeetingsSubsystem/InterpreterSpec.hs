@@ -1293,11 +1293,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         hashed2 <- maybe (error "no password stored after refresh") pure . join =<< meetingPasswordFor mid
         verified2 <- verifyPassword (RateLimitUser uid1) pw2 hashed2
         stale1 <- verifyPassword (RateLimitUser uid1) pw1 hashed2
-        pure (isJust ok1, isJust ok2, verified1, verified2, stale1)
+        pure (fmap (.meeting.hasPassword) ok1, fmap (.meeting.hasPassword) ok2, verified1, verified2, stale1)
 
       case result of
         Left err -> fail $ "Error: " <> show err
-        Right res -> res `shouldBe` (True, True, True, True, False)
+        Right res -> res `shouldBe` (Just True, Just True, True, True, False)
 
     it "refresh without a password clears password protection" $ do
       let pw1 = plainTextPassword8Unsafe "temporary password"
@@ -1305,17 +1305,19 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         let qmid = meeting.meeting.id
             mid = qUnqualified qmid
-        _ok1 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest (Just pw1))
+        ok1 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest (Just pw1))
         pwAfterSet <- meetingPasswordFor mid
-        _ok2 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest Nothing)
+        ok2 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest Nothing)
         pwAfterClear <- meetingPasswordFor mid
-        pure (pwAfterSet, pwAfterClear)
+        pure (pwAfterSet, pwAfterClear, fmap (.meeting.hasPassword) ok1, fmap (.meeting.hasPassword) ok2)
 
       case result of
         Left err -> fail $ "Error: " <> show err
-        Right (pwAfterSet, pwAfterClear) -> do
+        Right (pwAfterSet, pwAfterClear, hasPwSet, hasPwCleared) -> do
           pwAfterSet `shouldSatisfy` (isJust . join)
           pwAfterClear `shouldSatisfy` (isNothing . join)
+          hasPwSet `shouldBe` Just True
+          hasPwCleared `shouldBe` Just False
 
     it "emits a meeting.update event on success" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do

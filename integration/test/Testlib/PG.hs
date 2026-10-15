@@ -19,6 +19,8 @@
 -- integration tests (via the @psql@ binary).
 module Testlib.PG (execSql) where
 
+import Control.Exception (try)
+import qualified Data.ByteString.Lazy as BS
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -29,7 +31,10 @@ import Testlib.Prelude
 
 -- | Execute a SQL statement against galley's Postgres database by spawning
 -- @psql@ with the connection parameters read from galley's configuration.
--- Fails if @psql@ exits non-zero.
+-- The optional top-level @postgresqlPassword@ secret file (a JSON-encoded
+-- string, as consumed by galley itself) takes precedence over the optional
+-- inline @postgresql.password@ value — same precedence as galley. Fails if
+-- @psql@ exits non-zero.
 execSql :: (HasCallStack) => Text -> App ()
 execSql sql = do
   cfg <- readServiceConfig Galley
@@ -37,14 +42,14 @@ execSql sql = do
   port <- cfgStr cfg "postgresql.port"
   dbname <- cfgStr cfg "postgresql.dbname"
   user <- cfgStr cfg "postgresql.user"
-  password <- cfgStr cfg "postgresql.password"
+  mPassword <- lookupPassword cfg
   baseEnv <- liftIO getEnvironment
   let cp =
         ( proc
             "psql"
             ["-w", "-h", host, "-p", port, "-d", dbname, "-U", user, "-v", "ON_ERROR_STOP=1", "-c", T.unpack sql]
         )
-          { env = Just (("PGPASSWORD", password) : filter ((/= "PGPASSWORD") . fst) baseEnv)
+          { env = Just (maybe baseEnv (\pw -> ("PGPASSWORD", pw) : filter ((/= "PGPASSWORD") . fst) baseEnv) mPassword)
           }
   (_, _, _, ph) <- liftIO $ createProcess cp
   exitCode <- liftIO $ waitForProcess ph
@@ -56,6 +61,28 @@ execSql sql = do
         <> show code
         <> ") running: "
         <> T.unpack sql
+
+-- | Resolve the DB password: the @postgresqlPassword@ secret file wins over
+-- the inline @postgresql.password@ value. A configured but unreadable or
+-- undecodable file is a hard error (mirroring galley's own behavior).
+lookupPassword :: (HasCallStack) => Value -> App (Maybe String)
+lookupPassword cfg =
+  lookupField cfg "postgresqlPassword" >>= \case
+    Just pathVal -> do
+      path <- requireScalar "postgresqlPassword" pathVal
+      contents <- liftIO (try (BS.readFile path)) >>= either (\e -> failApp ("Testlib.PG.execSql: cannot read postgresqlPassword file " <> path <> ": " <> show (e :: IOException))) pure
+      case eitherDecode contents of
+        Right pw -> pure (Just pw)
+        Left err -> failApp ("Testlib.PG.execSql: postgresqlPassword file " <> path <> " does not contain a JSON string: " <> err)
+    Nothing ->
+      lookupField cfg "postgresql.password" >>= \case
+        Just (String t) -> pure (Just (T.unpack t))
+        Nothing -> pure Nothing
+        Just v -> Just <$> requireScalar "postgresql.password" v
+  where
+    requireScalar k v = case v of
+      String t -> pure (T.unpack t)
+      _ -> failApp ("Testlib.PG.execSql: config key " <> show k <> " of galley is missing or not a scalar")
 
 -- | Read a scalar (string or integer) config value.
 cfgStr :: (HasCallStack) => Value -> String -> App String

@@ -528,7 +528,7 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     pure $
       API.MeetingWithConversation
-        { API.meeting = mkApiMeeting (tDomain zUser) newLink (maybe False (.codeHasPassword) mCode) meeting,
+        { API.meeting = mkApiMeeting (tDomain zUser) newLink (isJust mHashedPw) meeting,
           API.conversation = conversationView zUser (Just zUser) conv
         }
 
