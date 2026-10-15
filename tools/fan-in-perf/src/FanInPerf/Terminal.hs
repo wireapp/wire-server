@@ -74,7 +74,7 @@ formatSummary r =
       avgRate = if r.elapsed > 0 then fromIntegral pushes / r.elapsed else 0
    in [ "summary: duration=" <> T.pack (printf "%.1fs" r.elapsed),
         "  pushes=" <> groupThousands pushes <> " targets=" <> groupThousands (totalTargets r.total) <> " errors=" <> groupThousands errors <> " (" <> percent ratio <> ")",
-        "  push/s avg=" <> rateText avgRate <> " max=" <> maxText r.maxPushRate,
+        "  push/s avg=" <> rateText avgRate <> " max=" <> maxText r.maxPushRate <> " (avg incl. warmup, max after warmup)",
         "  latency (cumulative, incl. warmup) " <> pct "p50" (cumulative 0.5 latencyBuckets r.total) <> " " <> pct "p99" (cumulative 0.99 latencyBuckets r.total)
       ]
 
@@ -140,7 +140,7 @@ formatConsumeSummary mode expected phase drain r c =
                <> groupThousands (max 0 (expected - delivered))
                <> " duplicates="
                <> groupThousands (max 0 (delivered - expected)),
-             "  cons/s avg=" <> rateText avgRate <> " max=" <> maxText c.maxConsumeRate <> " (writer phase)",
+             "  cons/s avg=" <> rateText avgRate <> " max=" <> maxText c.maxConsumeRate <> " (avg incl. warmup, max after warmup, both writer phase)",
              "  fan-out: " <> T.pack (printf "%.1f" (if pushes > 0 then fromIntegral expected / fromIntegral pushes else 0 :: Double)) <> " deliveries per push (cons/s and push/s differ by this factor)",
              "  backlog at writer stop: " <> groupThousands backlogAtStop <> (if avgRate > 0 then " (" <> T.pack (printf "%.1fs" (fromIntegral backlogAtStop / avgRate :: Double)) <> " of delivery)" else ""),
              "  lag (cumulative) " <> cum 0.5 lagBuckets <> " " <> cum 0.99 lagBuckets,
