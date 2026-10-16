@@ -72,7 +72,7 @@ module Wire.ConversationSubsystem.Update
     -- * External Services
     addBot,
     rmBot,
-    postBotMessageUnqualified
+    postBotMessageUnqualified,
   )
 where
 
@@ -871,18 +871,19 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
 
-  when (null conv.metadata.cnvmParent) $
-    catchCSE
+  when (null conv.metadata.cnvmParent)
+    $ catchCSE
       ( \case
           ConversationSubsystemErrorperationDenied ->
             Just ConversationSubsystemErrorActionDeniedAddConversationMember
           _ -> Nothing
       )
-      $ forM_ conv.metadata.cnvmTeam $ \tid -> do
-        forM_ users $ \u -> do
-          mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
-          forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
-            permissionCheckCSE JoinRegularConversations . Just
+    $ forM_ conv.metadata.cnvmTeam
+    $ \tid -> do
+      forM_ users $ \u -> do
+        mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
+        forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
+          permissionCheckCSE JoinRegularConversations . Just
 
   let joinType = mkJoinType conv
       action = ConversationJoin {..}
@@ -960,18 +961,19 @@ replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) =
   conv <- getConversationWithError lcnv
 
   -- Check team permissions for desired members
-  when (null conv.metadata.cnvmParent) $
-    catchCSE
+  when (null conv.metadata.cnvmParent)
+    $ catchCSE
       ( \case
           ConversationSubsystemErrorperationDenied ->
             Just ConversationSubsystemErrorActionDeniedAddConversationMember
           _ -> Nothing
       )
-      $ forM_ conv.metadata.cnvmTeam $ \tid -> do
-        forM_ invitedUsers $ \u -> do
-          mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
-          forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
-            permissionCheckCSE JoinRegularConversations . Just
+    $ forM_ conv.metadata.cnvmTeam
+    $ \tid -> do
+      forM_ invitedUsers $ \u -> do
+        mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
+        forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
+          permissionCheckCSE JoinRegularConversations . Just
 
   ugs <- getUserGroupsForConv conv.id_
   -- Removals apply only to local members. Additions must account for remote
