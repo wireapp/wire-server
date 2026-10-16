@@ -1,6 +1,7 @@
 module FanInPerf.MetricsSpec (spec) where
 
 import Data.ByteString.Lazy.Char8 qualified as LBS8
+import Data.Text qualified as T
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
@@ -36,6 +37,8 @@ spec = do
       take 3 (map snd leValues) `shouldBe` ["2", "2", "5"]
       last leValues `shouldBe` (Just "+Inf", "5")
       length leValues `shouldBe` numBuckets + 1
+      let les = [read (T.unpack le) :: Double | (Just le, _) <- init leValues]
+      and (zipWith (<) les (drop 1 les)) `shouldBe` True
       values "fanin_perf_push_duration_seconds_count" `shouldBe` ["5"]
       length (values "fanin_perf_push_duration_seconds_sum") `shouldBe` 1
 

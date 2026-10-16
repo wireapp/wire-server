@@ -48,12 +48,31 @@ import Data.Vector.Unboxed qualified as VU
 import FanInPerf.Targets (TargetKind)
 import Imports
 
--- | Four buckets per power of two: bucket @4 * o + s@ (@o >= 2@, @s@ in 0..3)
--- holds @[(4 + s) * 2^(o-2), (5 + s) * 2^(o-2))@ ns, so an upper bound is at
--- most 25% above the true value (a plain power-of-two scheme: up to 100%).
--- Below 4 ns every value has its own bucket. Range: 1 ns .. ~18 min.
+-- | Log-linear histogram: bucket 0 holds everything below 4 ns (not measurable
+-- anyways). From 4 ns on, every power-of-two range @[2^o, 2^(o+1))@ (@o >= 2@)
+-- is split into 4 equally wide buckets:
+--
+-- * @o@ = floor (log2 ns), i.e. the range the value is in.
+-- * @s@ = 0..3, the sub-bucket within that range. Each is @2^(o-2)@ ns wide, so
+--   @s = (ns `shiftR` (o - 2)) - 4@ (the two bits below the leading one).
+--
+-- Bucket @4 * o + s - 7@ holds @[(4 + s) * 2^(o-2), (5 + s) * 2^(o-2))@ ns. The
+-- @- 7@ makes the indices dense: the first range (@o = 2@, @s = 0@) is bucket 1.
+-- Within a bucket the upper bound is at most 25% above the value (a plain
+-- power-of-two scheme: up to 100%).
+--
+-- Examples:
+--
+-- * 3 ns    -> bucket 0, @[0, 4)@
+-- * 4 ns    -> @o = 2, s = 0@, bucket 1, @[4, 5)@
+-- * 7 ns    -> @o = 2, s = 3@, bucket 4, @[7, 8)@
+-- * 8 ns    -> @o = 3, s = 0@ (width 2), bucket 5, @[8, 10)@
+-- * 11 ns   -> @o = 3, s = 1@, bucket 6, @[10, 12)@
+-- * 1000 ns -> @o = 9, s = 3@ (width 128), bucket 32, @[896, 1024)@
+--
+-- Range: 4 ns .. ~18 min (2^40 ns); larger values go to the last bucket.
 numBuckets :: Int
-numBuckets = 160
+numBuckets = 153
 
 -- | Counters per target kind (absent = 0) and a sparse latency histogram
 -- (bucket index -> count, absent = 0).
@@ -150,19 +169,18 @@ toBuckets m = VU.accum (+) (VU.replicate numBuckets 0) (IntMap.toList m)
 
 bucketIndex :: Word64 -> Int
 bucketIndex ns
-  | ns < 4 = fromIntegral ns
-  | otherwise = min (numBuckets - 1) (4 * o + fromIntegral (n `shiftR` (o - 2)) - 4)
+  | ns < 4 = 0
+  | otherwise = min (numBuckets - 1) (4 * o + fromIntegral (ns `shiftR` (o - 2)) - 11)
   where
-    n = max 1 ns
-    o = 63 - countLeadingZeros n
+    o = 63 - countLeadingZeros ns
 
 -- | Lower (inclusive) and upper (exclusive) bound of bucket @b@ in ns.
 bucketBoundsNs :: Int -> (Double, Double)
 bucketBoundsNs b
-  | b < 8 = (fromIntegral b, fromIntegral b + 1)
+  | b == 0 = (0, 4)
   | otherwise = (fromIntegral (4 + s) * 2 ^^ (o - 2), fromIntegral (5 + s) * 2 ^^ (o - 2))
   where
-    (o, s) = b `divMod` 4
+    (o, s) = (b + 7) `divMod` 4
 
 bucketUpperBoundSeconds :: Int -> Double
 bucketUpperBoundSeconds b = snd (bucketBoundsNs b) / 1e9

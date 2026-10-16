@@ -12,16 +12,18 @@ import Test.QuickCheck
 spec :: Spec
 spec = do
   describe "bucketIndex" $ do
-    it "maps edges to four buckets per power of two" $
+    it "maps edges to one bucket below 4 ns, then four buckets per power of two" $
       map bucketIndex [0, 1, 2, 3, 4, 7, 8, 9, 10, 1023, 1024, maxBound]
-        `shouldBe` [0, 1, 2, 3, 8, 11, 12, 12, 13, 39, 40, numBuckets - 1]
+        `shouldBe` [0, 0, 0, 0, 1, 4, 5, 5, 6, 32, 33, numBuckets - 1]
+    it "uses every bucket: indices are dense up to the last" $
+      map bucketIndex [4, 5, 6, 7, 8, 10, 12, 14, 16] `shouldBe` [1 .. 9]
     prop "latency is within its bucket, and at most 25% below the upper bound" $
-      forAll (choose (4, 2 ^ (numBuckets `div` 4 - 1 :: Int) - 1 :: Word64)) $ \ns ->
+      forAll (choose (4, 2 ^ (40 :: Int) - 1 :: Word64)) $ \ns ->
         let up = bucketUpperBoundSeconds (bucketIndex ns)
             v = fromIntegral ns / 1e9
          in v < up && up <= v * 1.2500001
-    prop "buckets are contiguous: the upper bound of one is the lower bound of the next" $
-      forAll (choose (8, numBuckets - 2)) $ \b ->
+    prop "bucket upper bounds are strictly increasing (no duplicate bounds)" $
+      forAll (choose (0, numBuckets - 2)) $ \b ->
         bucketUpperBoundSeconds b < bucketUpperBoundSeconds (b + 1)
     it "estimates a value by the middle of its bucket" $
       bucketMidSeconds (bucketIndex 1000) `shouldSatisfy` (\m -> abs (m - 1.0e-6) < 0.07e-6)
