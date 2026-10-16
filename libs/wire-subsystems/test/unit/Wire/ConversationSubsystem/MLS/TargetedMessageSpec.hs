@@ -33,6 +33,7 @@ import Wire.API.MLS.TargetedMessage qualified as Targeted
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsSome))
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Message
 import Wire.ExternalAccess
 import Wire.MockInterpreters.ConversationStore (inMemoryConversationStoreInterpreterWithMLS)
@@ -227,7 +228,7 @@ runTargetedWithPushes fx messages =
         . runErrorAsTestFailure @FederationError
         . runErrorAsTestFailure @(Tagged 'MLSStaleMessage ())
         . runErrorAsTestFailure @(Tagged 'MLSUnsupportedMessage ())
-        . runErrorAsTestFailure @(Tagged 'MLSInvalidLeafNodeIndex ())
+        . runErrorAsTestFailure @ConversationSubsystemError
         . runErrorAsTestFailure @(Tagged 'MLSClientSenderUserMismatch ())
         . runErrorAsTestFailure @(Tagged 'ConvNotFound ())
         . runInputConst (Just (MLSKeysByPurpose (error "test MLS keys are not used")))

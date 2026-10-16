@@ -262,7 +262,6 @@ type GalleyEffects =
      ErrorS 'HistoryNotSupported,
      ErrorS 'NotATeamMember,
      ErrorS 'ConvAccessDenied,
-     ErrorS 'NotConnected,
      ErrorS 'MLSNotEnabled,
      ErrorS 'MLSNonEmptyMemberList,
      ErrorS 'MissingLegalholdConsent,
@@ -516,7 +515,6 @@ evalGalley e =
         . mapError toResponse -- ErrorS 'MissingLegalholdConsent
         . mapError toResponse -- ErrorS 'MLSNonEmptyMemberList
         . mapError toResponse -- ErrorS 'MLSNotEnabled
-        . mapError toResponse -- ErrorS 'NotConnected
         . mapError toResponse -- ErrorS 'ConvAccessDenied
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'HistoryNotSupported

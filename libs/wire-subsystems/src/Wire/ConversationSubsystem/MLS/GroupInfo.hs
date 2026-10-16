@@ -30,7 +30,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -40,21 +39,21 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Enabled
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess qualified as E
 
 type MLSGroupInfoStaticErrors =
-  '[ ErrorS 'ConvNotFound,
-     ErrorS 'MLSMissingGroupInfo,
-     ErrorS 'MLSNotEnabled
+  '[ Error ConversationSubsystemError
    ]
 
 getGroupInfo ::
   ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member E.ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Members MLSGroupInfoStaticErrors r
   ) =>
@@ -78,13 +77,13 @@ getGroupInfoFromLocalConv ::
 getGroupInfoFromLocalConv qusr lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
   E.getGroupInfo (tUnqualified lcnvId)
-    >>= noteS @'MLSMissingGroupInfo
+    >>= note ConversationSubsystemErrorMLSMissingGroupInfo
 
 getGroupInfoFromRemoteConv ::
   ( Member (Error FederationError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r
   ) =>
-  (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->
   Remote ConvOrSubConvId ->
   Sem r GroupInfoData
@@ -96,7 +95,10 @@ getGroupInfoFromRemoteConv lusr rcnv = do
           }
   response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
   case response of
-    GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
+    GetGroupInfoResponseError e
+      | e == MLSMissingGroupInfo -> throw ConversationSubsystemErrorMLSMissingGroupInfo
+      | e == MLSNotEnabled -> throw ConversationSubsystemErrorMLSNotEnabled
+      | otherwise -> rethrowErrors @'[Error ConversationSubsystemError] e
     GetGroupInfoResponseState s ->
       pure
         . GroupInfoData

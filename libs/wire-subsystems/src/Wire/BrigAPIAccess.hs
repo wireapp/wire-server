@@ -35,7 +35,6 @@ import SAML2.WebSSO qualified as SAML
 import Web.Cookie (SetCookie)
 import Web.Scim.Filter qualified as Scim
 import Wire.API.Connection
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
@@ -54,6 +53,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 
 data DeleteGroupManagedError = DeleteGroupManagedManagedByMismatch
   deriving (Eq, Show)
@@ -187,7 +187,7 @@ getConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 = do
   pure (res1, res2)
 
 ensureConnectedToLocals ::
-  ( Member (ErrorS 'NotConnected) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member BrigAPIAccess r
   ) =>
   UserId ->
@@ -198,4 +198,4 @@ ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
     getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwS @'NotConnected
+    throw ConversationSubsystemErrorNotConnected

@@ -48,6 +48,7 @@ import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.ConversationStore (ConversationStore (..))
 import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Update (guardPreventAdminlessGroupsFor, removeMemberQualified)
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem (..))
@@ -82,7 +83,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   Set.empty
         pure $
           case result of
-            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Left _ -> counterexample "unexpected adminless error" False
             Right _ ->
               conjoin
                 [ updatedTargets === [expectedTarget],
@@ -114,7 +115,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   Set.empty
         pure $
           case result of
-            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Left _ -> counterexample "unexpected adminless error" False
             Right _ ->
               conjoin
                 [ Set.fromList updatedTargets === Set.fromList expectedTargets,
@@ -138,13 +139,14 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   Set.empty
         pure $
           case result of
-            Left err ->
+            Left (ConversationSubsystemErrorAdminlessConversation ac) ->
               conjoin
-                [ err === AdminlessConversation {eligibleMembers = expectedEligible},
+                [ ac === AdminlessConversation {eligibleMembers = expectedEligible},
                   updatedTargets === [],
                   scheduledJobs === [],
                   length pushes === 0
                 ]
+            Left _ -> counterexample "expected adminless-conversation, got different error" False
             Right _ -> counterexample "expected adminless-conversation error" False
 
   prop "guardPreventAdminlessGroupsFor includes newly added eligible members in the V17 response" $
@@ -168,13 +170,14 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   (Set.singleton newlyAdded)
         pure $
           case result of
-            Left err ->
+            Left (ConversationSubsystemErrorAdminlessConversation ac) ->
               conjoin
-                [ err === AdminlessConversation {eligibleMembers = [newlyAdded]},
+                [ ac === AdminlessConversation {eligibleMembers = [newlyAdded]},
                   updatedTargets === [],
                   scheduledJobs === [],
                   length pushes === 0
                 ]
+            Left _ -> counterexample "expected adminless-conversation, got different error" False
             Right _ -> counterexample "expected adminless-conversation error" False
 
   prop "guardPreventAdminlessGroupsFor schedules deletion when no eligible members exist" $
@@ -204,7 +207,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   Set.empty
         pure $
           case result of
-            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Left _ -> counterexample "unexpected adminless error" False
             Right _ ->
               conjoin
                 [ updatedTargets === [],
@@ -313,7 +316,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   Set.empty
         pure $
           case result of
-            Left err -> counterexample ("unexpected adminless error: " <> show err) False
+            Left _ -> counterexample "unexpected adminless error" False
             Right _ ->
               conjoin
                 [ updatedTargets === [head fx.fixtureEligibleMembers],
@@ -395,7 +398,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
               result =
                 run
                   . runState @[ScheduledAdminlessJob] []
-                  . runError @AdminlessConversation
+                  . runError @ConversationSubsystemError
                   . runError @(Tagged ('ActionDenied 'RemoveConversationMember) ())
                   . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
                   . runError @(Tagged 'ConvMemberNotFound ())
@@ -426,17 +429,17 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   $ removeMemberQualified RemoveMemberEligibleMembersResponse lusr connId qcnv qvictim
           pure $
             case snd result of
-              Left err ->
-                err === AdminlessConversation {eligibleMembers = expectedEligible}
-              Right _ ->
-                counterexample ("expected adminless-conversation, got " <> show result) False
+              Right _ -> counterexample "expected adminless-conversation, got success" False
+              Left (ConversationSubsystemErrorAdminlessConversation ac) ->
+                ac === AdminlessConversation {eligibleMembers = expectedEligible}
+              Left _ -> counterexample "expected adminless-conversation, got different error" False
   where
     runAdminlessGroupsTest users features conversations testCode =
       run
         . runState @[Push] []
         . runState @[Qualified UserId] []
         . runState @[ScheduledAdminlessJob] []
-        . runError @AdminlessConversation
+        . runError @ConversationSubsystemError
         . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
         . runError @(Tagged 'ConvMemberNotFound ())
         . runError @(Tagged 'ConvNotFound ())
@@ -551,11 +554,11 @@ assertNoAdminlessAction ::
   [Push] ->
   [Qualified UserId] ->
   [ScheduledAdminlessJob] ->
-  Either AdminlessConversation a ->
+  Either ConversationSubsystemError a ->
   Property
 assertNoAdminlessAction pushes updatedTargets scheduledJobs result =
   case result of
-    Left err -> counterexample ("unexpected adminless error: " <> show err) False
+    Left _ -> counterexample "unexpected adminless error" False
     Right _ ->
       conjoin
         [ updatedTargets === [],

@@ -36,7 +36,7 @@ import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Singletons
+import Data.Singletons (Sing, fromSing, sing)
 import Data.Text qualified as T
 import Data.Time
 import Galley.Types.Conversations.Roles
@@ -57,7 +57,7 @@ import Wire.API.Conversation.CellsState (HasCellsState)
 import Wire.API.Conversation.Config
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import Wire.API.Error
+import Wire.API.Conversation.Role qualified as ConvRole
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -68,6 +68,7 @@ import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Util
+import Wire.API.Team
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
 import Wire.API.Team.FeatureFlags
@@ -81,6 +82,7 @@ import Wire.BrigAPIAccess
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), galleyErrorToCSE)
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.FederationSubsystem (ensureNoUnreachableBackends)
@@ -111,29 +113,28 @@ data NoChanges = NoChanges
 
 ensureAccessRole ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'ConvAccessDenied) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Set Public.AccessRole ->
   [(UserId, Maybe TeamMember {- isJust iff user and conv are in the same team -})] ->
   Sem r ()
 ensureAccessRole roles users = do
-  when (Set.null roles) $ throwS @'ConvAccessDenied
+  when (Set.null roles) $ throw ConversationSubsystemErrorConvAccessDenied
   unless (NonTeamMemberAccessRole `Set.member` roles) $
     when (any (isNothing . snd) users) $
-      throwS @'NotATeamMember
+      throw ConversationSubsystemErrorNotATeamMember
   unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
     activated <- lookupActivatedUsers (fst <$> users)
     let guestsExist = length activated /= length users
-    unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
+    unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throw ConversationSubsystemErrorConvAccessDenied
     let botsExist = any (isJust . userService) activated
-    unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
+    unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throw ConversationSubsystemErrorConvAccessDenied
 
 -- | Check that the given user is either part of the same team as the other
 -- users OR that there is a connection.
 ensureConnectedOrSameTeam ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
@@ -154,7 +155,7 @@ ensureConnectedOrSameTeam lusr others = do
 -- permissions, or that `v` is collaborating in `u`s team.
 ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
@@ -197,7 +198,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
 -- that they are connected).
 ensureConnected ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   UserList UserId ->
@@ -208,7 +209,7 @@ ensureConnected self others = do
 
 ensureConnectedToRemotes ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'NotConnected) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   [Remote UserId] ->
@@ -217,11 +218,11 @@ ensureConnectedToRemotes _ [] = pure ()
 ensureConnectedToRemotes u remotes = do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map tUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
-    throwS @'NotConnected
+    throw ConversationSubsystemErrorNotConnected
 
-ensureManageChannelsPermission :: (Member (ErrorS 'ConvNotFound) r) => StoredConversation -> TeamMember -> Sem r ()
+ensureManageChannelsPermission :: (Member (Error ConversationSubsystemError) r) => StoredConversation -> TeamMember -> Sem r ()
 ensureManageChannelsPermission conv tm = do
-  unless (hasManageChannelsPermission conv tm) $ throwS @'ConvNotFound
+  unless (hasManageChannelsPermission conv tm) $ throw ConversationSubsystemErrorConvNotFound
 
 hasManageChannelsPermission :: StoredConversation -> TeamMember -> Bool
 hasManageChannelsPermission conv tm =
@@ -232,26 +233,40 @@ hasManageChannelsPermission conv tm =
 -- custom role, throw 'ActionDenied'.
 ensureActionAllowed ::
   forall (action :: Action) mem r.
-  (IsConvMember mem, Member (ErrorS ('ActionDenied action)) r) =>
+  (IsConvMember mem, Member (Error ConversationSubsystemError) r) =>
   Sing action ->
   mem ->
   Sem r ()
 ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMemberRole self) of
   Just True -> pure ()
-  Just False -> throwS @('ActionDenied action)
+  Just False -> throw (actionDeniedCSE (fromSing action))
   -- Actually, this will "never" happen due to the
   -- fact that there can be no custom roles at the moment
-  Nothing -> throwS @('ActionDenied action)
+  Nothing -> throw (actionDeniedCSE (fromSing action))
+
+-- | Term-level counterpart of the @'ActionDenied@ singleton family.
+actionDeniedCSE :: Action -> ConversationSubsystemError
+actionDeniedCSE = \case
+  ConvRole.AddConversationMember -> ConversationSubsystemErrorActionDeniedAddConversationMember
+  ConvRole.RemoveConversationMember -> ConversationSubsystemErrorActionDeniedRemoveConversationMember
+  ConvRole.ModifyConversationName -> ConversationSubsystemErrorActionDeniedModifyConversationName
+  ConvRole.ModifyConversationMessageTimer -> ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer
+  ConvRole.ModifyConversationReceiptMode -> ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode
+  ConvRole.ModifyConversationAccess -> ConversationSubsystemErrorActionDeniedModifyConversationAccess
+  ConvRole.ModifyOtherConversationMember -> ConversationSubsystemErrorActionDeniedModifyOtherConversationMember
+  ConvRole.LeaveConversation -> ConversationSubsystemErrorActionDeniedLeaveConversation
+  ConvRole.DeleteConversation -> ConversationSubsystemErrorActionDeniedDeleteConversation
+  ConvRole.ModifyAddPermission -> ConversationSubsystemErrorActionDeniedModifyAddPermission
 
 -- | Ensure that the conversation is a group conversation which includes channels
-ensureGroupConversation :: (Member (ErrorS 'InvalidOperation) r) => StoredConversation -> Sem r ()
+ensureGroupConversation :: (Member (Error ConversationSubsystemError) r) => StoredConversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
-  when (ty /= RegularConv) $ throwS @'InvalidOperation
+  when (ty /= RegularConv) $ throw ConversationSubsystemErrorInvalidOperation
 
 -- | Ensure that the conversation is of the right type for the action
 checkConversationType ::
-  (Member (ErrorS 'InvalidOperation) r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   ConversationActionTag ->
   StoredConversation ->
   Sem r ()
@@ -259,14 +274,14 @@ checkConversationType ConversationRenameTag _conv = pure ()
 checkConversationType ConversationResetTag _conv = pure ()
 checkConversationType _ conv = do
   let ty = Data.convType conv
-  when (ty /= RegularConv) $ throwS @'InvalidOperation
+  when (ty /= RegularConv) $ throw ConversationSubsystemErrorInvalidOperation
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
 ensureConvRoleNotElevated ::
-  (IsConvMember mem, Member (ErrorS 'InvalidAction) r) =>
+  (IsConvMember mem, Member (Error ConversationSubsystemError) r) =>
   mem ->
   RoleName ->
   Sem r ()
@@ -274,13 +289,13 @@ ensureConvRoleNotElevated origMember targetRole = do
   case (roleNameToActions targetRole, roleNameToActions (convMemberRole origMember)) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
-        throwS @'InvalidAction
+        throw ConversationSubsystemErrorActionDeniedAddConversationMember
     (_, _) ->
       -- custom roles not supported
-      throwS @'InvalidAction
+      throw ConversationSubsystemErrorActionDeniedAddConversationMember
 
 checkGroupIdSupport ::
-  ( Member (ErrorS GroupIdVersionNotSupported) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local x ->
@@ -293,7 +308,7 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
 
   -- if the group ID version is not 1
   (v, _) <-
-    either (\_ -> lift (throwS @GroupIdVersionNotSupported)) pure $
+    either (\_ -> lift (throw ConversationSubsystemErrorGroupIdVersionNotSupported)) pure $
       groupIdToConv
         d.cnvmlsGroupId
   guard $ v /= Just GroupIdVersion1
@@ -305,15 +320,14 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
     $ \_ -> do
       guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
   where
-    failOnFirstError :: (Member (ErrorS GroupIdVersionNotSupported) r) => [Either e x] -> Sem r ()
-    failOnFirstError = traverse_ $ either (\_ -> throwS @GroupIdVersionNotSupported) pure
+    failOnFirstError :: (Member (Error ConversationSubsystemError) r) => [Either e x] -> Sem r ()
+    failOnFirstError = traverse_ $ either (\_ -> throw ConversationSubsystemErrorGroupIdVersionNotSupported) pure
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member Now r,
     Member NotificationSubsystem r
   ) =>
@@ -332,7 +346,7 @@ acceptOne2One lusr conv conn = do
           pure conv {localMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | tUnqualified lusr `isMember` mems -> promote
-      [_, _] -> throwS @'ConvNotFound
+      [_, _] -> throw ConversationSubsystemErrorConvNotFound
       _ -> do
         when (length mems > 2) $
           throw . BadConvState $
@@ -350,7 +364,7 @@ acceptOne2One lusr conv conn = do
                 }
         pushNotifications [p {conn, route = PushV2.RouteDirect}]
         pure conv' {localMembers = mems'}
-    _ -> throwS @'InvalidOperation
+    _ -> throw ConversationSubsystemErrorInvalidOperation
   where
     cid = conv.id_
     mems = conv.localMembers
@@ -513,45 +527,34 @@ convBotsAndMembers :: StoredConversation -> BotsAndMembers
 convBotsAndMembers conv = bmFromMembers (conv.localMembers) (conv.remoteMembers)
 
 getSelfMemberFromLocals ::
-  (Foldable t, Member (ErrorS 'ConvNotFound) r) =>
+  (Foldable t, Member (Error ConversationSubsystemError) r) =>
   UserId ->
   t LocalMember ->
   Sem r LocalMember
-getSelfMemberFromLocals = getMember @'ConvNotFound (.id_)
+getSelfMemberFromLocals uid locals =
+  maybe (throw ConversationSubsystemErrorConvNotFound) pure $
+    foldr (\m acc -> if m.id_ == uid then Just m else acc) Nothing locals
 
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
 ensureOtherMember ::
-  (Member (ErrorS 'ConvMemberNotFound) r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   Local a ->
   Qualified UserId ->
   StoredConversation ->
   Sem r (Either LocalMember RemoteMember)
 ensureOtherMember loc quid conv =
-  noteS @'ConvMemberNotFound $
+  note ConversationSubsystemErrorConvMemberNotFound $
     Left
       <$> find (\m -> tUntagged (qualifyAs loc m.id_) == quid) (conv.localMembers)
         <|> Right
       <$> find (\m -> tUntagged m.id_ == quid) (conv.remoteMembers)
 
-getMember ::
-  forall e mem t userId r.
-  (Foldable t, Eq userId, Member (ErrorS e) r) =>
-  -- | A projection from a member type to its user ID
-  (mem -> userId) ->
-  -- | The member to be found by its user ID
-  userId ->
-  -- | A list of members to search
-  t mem ->
-  Sem r mem
-getMember p u = noteS @e . find ((u ==) . p)
-
 data ConvView = ConvView {viewingAsMember :: Bool, conv :: StoredConversation}
 
 getConversationAsMember ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -560,14 +563,13 @@ getConversationAsMember ::
 getConversationAsMember quid lcnv = do
   convView <- getConversationAsViewer quid lcnv
   unless convView.viewingAsMember $
-    foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) quid
+    foldQualified lcnv (const $ throw ConversationSubsystemErrorConvAccessDenied) (const $ throw ConversationSubsystemErrorConvNotFound) quid
   pure convView.conv
 
 getConversationAsViewer ::
   forall r.
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -576,7 +578,7 @@ getConversationAsViewer ::
 getConversationAsViewer qusr lcnv = do
   c <- getConversationWithError lcnv
   let mMember = getConvMember lcnv c qusr
-      throwAccessDenied = foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) qusr
+      throwAccessDenied = foldQualified lcnv (const $ throw ConversationSubsystemErrorConvAccessDenied) (const $ throw ConversationSubsystemErrorConvNotFound) qusr
   case (mMember, c.metadata.cnvmTeam) of
     (Just _, _) -> pure ()
     (Nothing, Just tid) ->
@@ -590,17 +592,20 @@ getConversationAsViewer qusr lcnv = do
     (Nothing, Nothing) -> throwAccessDenied
   pure $ ConvView (isJust mMember) c
 
-maskConvAccessDenied :: (Member (ErrorS 'ConvNotFound) r) => InterpreterFor (ErrorS 'ConvAccessDenied) r
-maskConvAccessDenied = mapErrorS @'ConvAccessDenied @'ConvNotFound
+maskConvAccessDenied :: (Member (Error ConversationSubsystemError) r) => InterpreterFor (Error ConversationSubsystemError) r
+maskConvAccessDenied =
+  mapError $ \case
+    ConversationSubsystemErrorConvAccessDenied -> ConversationSubsystemErrorConvNotFound
+    e -> e
 
 getConversationWithError ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Sem r StoredConversation
 getConversationWithError lcnv =
-  getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  getConversation (tUnqualified lcnv) >>= note ConversationSubsystemErrorConvNotFound
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).
@@ -650,8 +655,7 @@ newConversationEventPush st e users =
 
 verifyReusableCode ::
   ( Member CodeStore r,
-    Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
+    Member (Error ConversationSubsystemError) r,
     Member HashPassword r,
     Member RateLimit r
   ) =>
@@ -663,21 +667,20 @@ verifyReusableCode ::
 verifyReusableCode rateLimitKey checkPw mPtpw convCode = do
   (c, mPw) <-
     getCode (conversationKey convCode)
-      >>= noteS @'CodeNotFound
+      >>= note ConversationSubsystemErrorCodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    throwS @'CodeNotFound
+    throw ConversationSubsystemErrorCodeNotFound
   case (checkPw, mPtpw, mPw) of
     (True, Just ptpw, Just pw) -> do
-      unlessM (HashPassword.verifyPassword rateLimitKey ptpw pw) $ throwS @'InvalidConversationPassword
+      unlessM (HashPassword.verifyPassword rateLimitKey ptpw pw) $ throw ConversationSubsystemErrorInvalidConversationPassword
     (True, Nothing, Just _) ->
-      throwS @'InvalidConversationPassword
+      throw ConversationSubsystemErrorInvalidConversationPassword
     (_, _, _) -> pure ()
   pure c
 
 ensureConversationAccess ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -690,13 +693,13 @@ ensureConversationAccess zusr conv access = do
   ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
 
 ensureAccess ::
-  (Member (ErrorS 'ConvAccessDenied) r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   StoredConversation ->
   Access ->
   Sem r ()
 ensureAccess conv access =
   unless (access `elem` Data.convAccess conv) $
-    throwS @'ConvAccessDenied
+    throw ConversationSubsystemErrorConvAccessDenied
 
 ensureLocal :: (Member (Error FederationError) r) => Local x -> Qualified a -> Sem r (Local a)
 ensureLocal loc = foldQualified loc pure (\_ -> throw FederationNotImplemented)
@@ -964,7 +967,7 @@ allLegalholdConsentGiven uids = do
 
 ensureMemberLimit ::
   ( Foldable f,
-    ( Member (ErrorS 'TooManyMembers) r,
+    ( Member (Error ConversationSubsystemError) r,
       Member (Input ConversationSubsystemConfig) r
     )
   ) =>
@@ -977,7 +980,7 @@ ensureMemberLimit _ old new = do
   cfg <- input
   let maxSize = fromIntegral (cfg.maxConvSize)
   when (length old + length new > maxSize) $
-    throwS @'TooManyMembers
+    throw ConversationSubsystemErrorTooManyMembers
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
@@ -986,27 +989,60 @@ getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 --------------------------------------------------------------------------------
+-- ConversationSubsystem-local CSE wrappers for TeamSubsystem/TeamStore
+-- boundary functions (those still throw ErrorS; see WPB-25033).
+
+-- | Like "Wire.TeamSubsystem".'Wire.TeamSubsystem.permissionCheck', but throws
+-- 'ConversationSubsystemError' instead of 'ErrorS'.
+permissionCheckCSE ::
+  ( IsPerm teamAssociation perm,
+    Member (Error ConversationSubsystemError) r
+  ) =>
+  perm ->
+  Maybe teamAssociation ->
+  Sem r teamAssociation
+permissionCheckCSE p = \case
+  Just m
+    | m `hasPermission` p -> pure m
+    | otherwise -> throw ConversationSubsystemErrorperationDenied
+  Nothing -> throw ConversationSubsystemErrorNotATeamMember
+
+-- | Like "Wire.TeamStore".'Wire.TeamStore.lookupBindingTeam', but throws
+-- 'ConversationSubsystemError' instead of 'ErrorS'.
+lookupBindingTeamCSE ::
+  ( Member TeamStore r,
+    Member (Error ConversationSubsystemError) r
+  ) =>
+  UserId ->
+  Sem r TeamId
+lookupBindingTeamCSE zusr = do
+  tid <- getOneUserTeam zusr >>= note ConversationSubsystemErrorTeamNotFound
+  binding <- getTeamBinding tid >>= note ConversationSubsystemErrorTeamNotFound
+  case binding of
+    Binding -> pure tid
+    NonBinding -> throw ConversationSubsystemErrorNonBindingTeam
+
+--------------------------------------------------------------------------------
 -- Handling remote errors
 
 class RethrowErrors (effs :: EffectRow) r where
   rethrowErrors :: GalleyError -> Sem r a
 
-instance (Member (Error FederationError) r) => RethrowErrors '[] r where
-  rethrowErrors :: GalleyError -> Sem r a
-  rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
-
+-- | Typed-list entry for errors that are already 'ConversationSubsystemError'
+-- on the local side but can arrive as 'GalleyError' over federation.
 instance
-  ( SingI (e :: GalleyError),
-    Member (ErrorS e) r,
+  ( Member (Error ConversationSubsystemError) r,
     RethrowErrors effs r
   ) =>
-  RethrowErrors (ErrorS e ': effs) r
+  RethrowErrors (Error ConversationSubsystemError ': effs) r
   where
   rethrowErrors :: GalleyError -> Sem r a
   rethrowErrors err' =
-    if err' == demote @e
-      then throwS @e
-      else rethrowErrors @effs @r err'
+    maybe (rethrowErrors @effs @r err') throw (galleyErrorToCSE err')
+
+instance (Member (Error FederationError) r) => RethrowErrors '[] r where
+  rethrowErrors :: GalleyError -> Sem r a
+  rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
 
 ----------------------------------------------------------------------------
 -- Notifications

@@ -42,7 +42,6 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
 import Wire.API.MLS.CipherSuite
@@ -55,6 +54,7 @@ import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.CheckClients
 import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.ConversationSubsystem.MLS.Conversation
@@ -72,17 +72,9 @@ import Wire.TeamSubsystem (TeamSubsystem)
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSIdentityMismatch) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member Resource r,
     Member Async r,
     Member Random r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
@@ -145,7 +137,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
                 -- return error if the user is trying to remove themself
                 when (cidQualifiedUser senderIdentity.client == qtarget) $
-                  throwS @'MLSSelfRemovalNotAllowed
+                  throw ConversationSubsystemErrorMLSSelfRemovalNotAllowed
 
                 -- FUTUREWORK: add tests against this situation for conv v subconv
                 when (removedClients /= clientsInConv) $ do
@@ -156,7 +148,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                     clientsInConv
                     (cnvmlsGroupId convOrSub.mlsMeta)
                     epoch
-                  throwS @'MLSClientMismatch
+                  throw ConversationSubsystemErrorMLSClientMismatch
 
                 pure qtarget
 
@@ -354,7 +346,7 @@ existingMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
 
 checkReferences ::
-  (Member (ErrorS MLSCommitMissingReferences) r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   [StoredProposal] -> Commit -> Sem r ()
 checkReferences allPendingProposals commit = do
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview _Ref x) commit.proposals
@@ -374,4 +366,4 @@ checkReferences allPendingProposals commit = do
     for_ missingProposals $ \prop -> do
       case getDeletedIndex prop of
         Just i | Set.member i deletedIndices -> pure ()
-        _ -> throwS @'MLSCommitMissingReferences
+        _ -> throw ConversationSubsystemErrorMLSCommitMissingReferences
