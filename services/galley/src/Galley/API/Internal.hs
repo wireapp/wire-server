@@ -424,7 +424,19 @@ rmUser lusr conn = do
       now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
-        One2OneConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        One2OneConv -> do
+          -- A 1:1 conversation can be an MLS one, and then the remaining party
+          -- has to be told that the deleted user's leaf is gone, just like in
+          -- the 'RegularConv' branch below: deleting the member row alone
+          -- leaves the MLS group with a stale leaf for a user that does not
+          -- exist any more. 'leaveTeams' above does not cover these, because an
+          -- MLS 1:1 conversation never carries a team id (see
+          -- 'Wire.ConversationSubsystem.Update.deleteUserFromTeamOne2OneConversations'),
+          -- so it is only reliably reached from here.
+          runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
+            Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+            Right _ -> pure ()
+          ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         ConnectConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` c.localMembers -> do

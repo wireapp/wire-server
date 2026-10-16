@@ -95,7 +95,6 @@ import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingSt
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import Wire.API.Team qualified as Public
-import Wire.API.Team.Collaborator qualified as Collaborator
 import Wire.API.Team.Collaborator qualified as TeamCollaborator
 import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
@@ -1220,14 +1219,22 @@ checkAdminLimit adminCount =
   when (adminCount > 2000) $
     throwS @'TooManyTeamAdmins
 
--- | Updating a team collaborator permissions eventually cleaning their conversations
+-- | Update a team collaborator's permissions.
+--
+-- Permissions do not affect which conversations a collaborator is a member of.
+-- They say what the collaborator may do (create team conversations, reach out
+-- to team members without a connection); losing them does not end the
+-- collaboration, and a team member can always talk to a collaborator of their
+-- team whatever the collaborator's permissions are (see
+-- 'Wire.ConversationSubsystem.Util.ensureConnectedToLocalsOrSameTeam').  So
+-- nothing is cleaned up here; that happens in 'removeTeamCollaborator', where
+-- the collaboration actually ends.
 updateTeamCollaborator ::
   forall r.
   ( Member P.TinyLog r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamCollaboratorsSubsystem r,
-    Member ConversationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -1241,8 +1248,6 @@ updateTeamCollaborator lusr tid rusr perms = do
       . Log.field "action" (Log.val "Teams.updateTeamCollaborator")
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   void $ TeamSubsystem.permissionCheck UpdateTeamCollaborator zusrMember
-  when (Set.null $ Set.intersection (Set.fromList [Collaborator.CreateTeamConversation, Collaborator.ImplicitConnection]) perms) $
-    deleteUserFromTeamConversations lusr Nothing tid rusr
   internalUpdateTeamCollaborator rusr tid perms
 
 -- | Removing a team collaborator and clean their conversations
