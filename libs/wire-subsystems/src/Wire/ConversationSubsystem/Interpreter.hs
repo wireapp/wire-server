@@ -39,7 +39,6 @@ import Polysemy.Resource (Resource)
 import Polysemy.TinyLog (TinyLog, logErrors)
 import Wire.API.Conversation.Config
 import Wire.API.Error
-import Wire.API.Federation.API.Galley (RemoteMLSTransientMessage (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
