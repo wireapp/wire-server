@@ -918,8 +918,13 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
   conv <- getConversationWithError lcnv
 
   when (null conv.metadata.cnvmParent) $
-    mapErrorS @OperationDenied @('ActionDenied 'AddConversationMember) $
-      forM_ conv.metadata.cnvmTeam $ \tid -> do
+    catchCSE
+      ( \case
+          ConversationSubsystemErrorperationDenied ->
+            Just ConversationSubsystemErrorActionDeniedAddConversationMember
+          _ -> Nothing
+      )
+      $ forM_ conv.metadata.cnvmTeam $ \tid -> do
         forM_ users $ \u -> do
           mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
@@ -1017,8 +1022,13 @@ replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) =
 
   -- Check team permissions for desired members
   when (null conv.metadata.cnvmParent) $
-    mapErrorS @OperationDenied @('ActionDenied 'AddConversationMember) $
-      forM_ conv.metadata.cnvmTeam $ \tid -> do
+    catchCSE
+      ( \case
+          ConversationSubsystemErrorperationDenied ->
+            Just ConversationSubsystemErrorActionDeniedAddConversationMember
+          _ -> Nothing
+      )
+      $ forM_ conv.metadata.cnvmTeam $ \tid -> do
         forM_ invitedUsers $ \u -> do
           mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
@@ -1205,8 +1215,13 @@ removeMemberQualified ::
   Qualified UserId ->
   Sem r (Maybe Event)
 removeMemberQualified responseMode lusr con qcnv victim =
-  mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember) $
-    foldQualified
+  catchCSE
+    ( \case
+        ConversationSubsystemErrorActionDeniedLeaveConversation ->
+          Just ConversationSubsystemErrorActionDeniedRemoveConversationMember
+        _ -> Nothing
+    )
+    $ foldQualified
       lusr
       (\lcnv -> removeMemberFromLocalConv responseMode lcnv lusr con)
       (\rcnv -> removeMemberFromRemoteConv rcnv lusr)
@@ -1797,7 +1812,6 @@ removeMemberFromLocalConv ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
