@@ -41,7 +41,22 @@ spec:
   {{- end }}
   allowedListeners:
     namespaces:
+      {{- with .Values.gateway.allowedListenerNamespaces }}
+      {{- if not (kindIs "slice" .) }}
+      {{- fail "gateway.allowedListenerNamespaces must be a list of namespace names" }}
+      {{- end }}
+      # The release namespace is always admitted, so this chart's own
+      # ListenerSet cannot be detached by this list.
+      from: Selector
+      selector:
+        matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values:
+              {{- toYaml (prepend . $.Release.Namespace | uniq) | nindent 14 }}
+      {{- else }}
       from: Same
+      {{- end }}
   listeners:
     # Required placeholder; a separate port avoids plaintext policy conflicts.
     - name: placeholder
