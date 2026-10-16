@@ -1,1 +1,1 @@
-Remove exposure of internal federator endpoints and only leave pathes with /federation prefixes exposed.
+Remove exposure of internal federator endpoints and only leave paths with /federation prefixes exposed.
