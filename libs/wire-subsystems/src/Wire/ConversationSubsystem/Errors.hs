@@ -331,28 +331,10 @@ instance APIError ConversationSubsystemError where
       ConversationSubsystemErrorMLSHistoryClientDuplication -> toResponse $ Tagged @'MLSHistoryClientDuplication ()
 
 type ConversationSubsystemErrorEffects =
-  '[ ErrorS 'ConvAccessDenied,
-     ErrorS 'NotATeamMember,
-     ErrorS OperationDenied,
-     ErrorS 'MissingLegalholdConsent,
-     ErrorS 'NonBindingTeam,
-     ErrorS 'TeamNotFound,
-     ErrorS 'InvalidOperation,
-     ErrorS 'ConvNotFound,
-     ErrorS 'ConvMemberNotFound,
-     ErrorS ('ActionDenied ConvRole.LeaveConversation),
+  '[ ErrorS ('ActionDenied ConvRole.ModifyConversationAccess),
      ErrorS ('ActionDenied ConvRole.RemoveConversationMember),
-     ErrorS ('ActionDenied ConvRole.DeleteConversation),
-     ErrorS 'MLSSubConvUnsupportedConvType,
-     ErrorS 'TeamMemberNotFound,
-     ErrorS 'AccessDenied,
-     ErrorS ('ActionDenied ConvRole.AddConversationMember),
-     ErrorS ('ActionDenied ConvRole.ModifyOtherConversationMember),
-     ErrorS ('ActionDenied ConvRole.ModifyConversationName),
-     ErrorS ('ActionDenied ConvRole.ModifyConversationMessageTimer),
-     ErrorS ('ActionDenied ConvRole.ModifyConversationReceiptMode),
-     ErrorS ('ActionDenied ConvRole.ModifyConversationAccess),
-     ErrorS ('ActionDenied ConvRole.ModifyAddPermission),
+     ErrorS 'ConvNotFound,
+     ErrorS 'InvalidOperation,
      Error FederationError,
      Error UnreachableBackends,
      Error InternalError,
@@ -384,25 +366,7 @@ mapErrors =
     . mapError (ConversationSubsystemErrorInternalError)
     . mapError (ConversationSubsystemErrorUnreachableBackends)
     . mapError (ConversationSubsystemErrorFederationError)
-    . mapError (const ConversationSubsystemErrorActionDeniedModifyAddPermission)
-    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationAccess)
-    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode)
-    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer)
-    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationName)
-    . mapError (const ConversationSubsystemErrorActionDeniedModifyOtherConversationMember)
-    . mapError (const ConversationSubsystemErrorActionDeniedAddConversationMember)
-    . mapError (const ConversationSubsystemErrorAccessDenied)
-    . mapError (const ConversationSubsystemErrorTeamMemberNotFound)
-    . mapError (const ConversationSubsystemErrorMLSSubConvUnsupportedConvType)
-    . mapError (const ConversationSubsystemErrorActionDeniedDeleteConversation)
-    . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
-    . mapError (const ConversationSubsystemErrorActionDeniedLeaveConversation)
-    . mapError (const ConversationSubsystemErrorConvMemberNotFound)
     . mapError (const ConversationSubsystemErrorConvNotFound)
     . mapError (const ConversationSubsystemErrorInvalidOperation)
-    . mapError (const ConversationSubsystemErrorTeamNotFound)
-    . mapError (const ConversationSubsystemErrorNonBindingTeam)
-    . mapError (const ConversationSubsystemErrorMissingLegalholdConsent)
-    . mapError (const ConversationSubsystemErrorperationDenied)
-    . mapError (const ConversationSubsystemErrorNotATeamMember)
-    . mapError (const ConversationSubsystemErrorConvAccessDenied)
+    . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
+    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationAccess)

@@ -36,7 +36,7 @@ import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Singletons
+import Data.Singletons (Sing, fromSing, sing)
 import Data.Text qualified as T
 import Data.Time
 import Galley.Types.Conversations.Roles
@@ -58,7 +58,6 @@ import Wire.API.Conversation.Config
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Role qualified as ConvRole
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -550,18 +549,6 @@ ensureOtherMember loc quid conv =
       <$> find (\m -> tUntagged (qualifyAs loc m.id_) == quid) (conv.localMembers)
         <|> Right
       <$> find (\m -> tUntagged m.id_ == quid) (conv.remoteMembers)
-
-getMember ::
-  forall e mem t userId r.
-  (Foldable t, Eq userId, Member (ErrorS e) r) =>
-  -- | A projection from a member type to its user ID
-  (mem -> userId) ->
-  -- | The member to be found by its user ID
-  userId ->
-  -- | A list of members to search
-  t mem ->
-  Sem r mem
-getMember p u = noteS @e . find ((u ==) . p)
 
 data ConvView = ConvView {viewingAsMember :: Bool, conv :: StoredConversation}
 
@@ -1056,19 +1043,6 @@ instance
 instance (Member (Error FederationError) r) => RethrowErrors '[] r where
   rethrowErrors :: GalleyError -> Sem r a
   rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
-
-instance
-  ( SingI (e :: GalleyError),
-    Member (ErrorS e) r,
-    RethrowErrors effs r
-  ) =>
-  RethrowErrors (ErrorS e ': effs) r
-  where
-  rethrowErrors :: GalleyError -> Sem r a
-  rethrowErrors err' =
-    if err' == demote @e
-      then throwS @e
-      else rethrowErrors @effs @r err'
 
 ----------------------------------------------------------------------------
 -- Notifications

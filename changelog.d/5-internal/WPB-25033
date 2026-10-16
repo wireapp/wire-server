@@ -10,3 +10,14 @@ directly instead of relying on `mapErrors` for a set of standalone exceptions
 `Wire.ConversationSubsystem.Errors`. No API, schema, or config change; the
 mapped error responses are observationally identical.
 Galley conversation subsystem: complete the ErrorS → ConversationSubsystemError migration. All remaining internal throws (conversation actions, MLS message path, OTR messages, codes/guest links, sub-conversations, NotConnected/MLSNotEnabled) now throw `ConversationSubsystemError` constructors directly; federation boundaries map via total `cseToGalleyError`/`galleyErrorToCSE`. Dead `ErrorS` chains (`TooManyMembers`, `GroupIdVersionNotSupported`), the per-tag `HasConversationActionGalleyErrors` family, and a stray generated `libs/wire-subsystems/config` are removed. No API, schema, or config change.
+Remaining `ErrorS` throws in `Wire.ConversationSubsystem` are migrated to
+`ConversationSubsystemError` (MLSSubConvUnsupportedConvType, MLS message path,
+conversation delete, cells state, conversation-code URI, conversation creation,
+MLS proposal failures). TeamSubsystem/TeamStore boundary functions
+(`permissionCheck`, `lookupBindingTeam`) are wrapped by local CSE variants
+(`permissionCheckCSE`, `lookupBindingTeamCSE`). The `ErrorS` machinery
+(`ConversationSubsystemErrorEffects` entries, `mapError` lines,
+`RethrowErrors`/`ToGalleyRuntimeError` instances, dead `getMember`, and
+`Update.hs`'s `-Wno-redundant-constraints`) is removed, except four
+still-live `ErrorS` rows demanded by the conversation-access update machinery.
+No API, schema, or config change.

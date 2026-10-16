@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -73,7 +72,7 @@ module Wire.ConversationSubsystem.Update
     -- * External Services
     addBot,
     rmBot,
-    postBotMessageUnqualified,
+    postBotMessageUnqualified
   )
 where
 
@@ -177,8 +176,6 @@ acceptConv ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member TinyLog r
@@ -322,9 +319,6 @@ updateConversationAccess lusr con qcnv update = do
 
 updateConversationHistory ::
   ( Member (Error FederationError) r,
-    Member (ErrorS (ActionDenied ModifyConversationAccess)) r,
-    Member (ErrorS InvalidOperation) r,
-    Member (ErrorS ConvNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member ConversationStore r,
     Member NotificationSubsystem r,
@@ -352,9 +346,6 @@ updateConversationReceiptMode ::
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
@@ -432,9 +423,6 @@ updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
 updateConversationMessageTimer ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
@@ -486,8 +474,6 @@ addCodeUnqualified ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
@@ -514,8 +500,6 @@ addCode ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r,
     Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member HashPassword r,
@@ -614,8 +598,6 @@ getCode ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member FeaturesConfigSubsystem r
   ) =>
   Maybe ZHostValue ->
@@ -638,7 +620,6 @@ checkReusableCode ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member HashPassword r,
     Member RateLimit r
@@ -659,10 +640,7 @@ checkReusableCode origIp convCode = do
 
 updateConversationProtocolWithLocalUser ::
   forall r.
-  ( Member (ErrorS 'ConvNotFound) r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
-    Member (ErrorS 'InvalidOperation) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member Now r,
@@ -704,9 +682,6 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
 
 updateChannelAddPermission ::
   ( Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'ModifyAddPermission)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member E.ExternalAccess r,
     Member Now r,
@@ -747,10 +722,6 @@ joinConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
@@ -778,10 +749,6 @@ joinConversationById ::
   ( Member BrigAPIAccess r,
     Member (Error ConversationSubsystemError) r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error FederationError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member BackendNotificationQueueAccess r,
@@ -809,10 +776,6 @@ joinMeetingConversation ::
   ( Member BrigAPIAccess r,
     Member (Error ConversationSubsystemError) r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error FederationError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member BackendNotificationQueueAccess r,
@@ -833,9 +796,6 @@ joinConversation ::
   forall r.
   ( Member BrigAPIAccess r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error FederationError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member BackendNotificationQueueAccess r,
@@ -885,13 +845,7 @@ addMembers ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member E.ExternalAccess r,
@@ -940,13 +894,7 @@ addQualifiedMembersUnqualified ::
     Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error UnreachableBackends) r,
     Member E.ExternalAccess r,
     Member (E.FederationAPIAccess FederatorClient) r,
@@ -981,16 +929,7 @@ replaceMembers ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member E.ExternalAccess r,
@@ -1080,7 +1019,6 @@ replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) =
 
 updateSelfMember ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -1128,11 +1066,7 @@ updateSelfMember lusr zcon qcnv update = do
 updateOtherMemberLocalConv ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
     Member E.ExternalAccess r,
@@ -1154,11 +1088,7 @@ updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult
 updateOtherMember ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
     Member E.ExternalAccess r,
@@ -1191,11 +1121,6 @@ removeMemberQualified ::
     Member BrigAPIAccess r,
     Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
     Member E.ExternalAccess r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
@@ -1262,7 +1187,6 @@ logSkippedSystemAdminlessDeletion action conv =
 
 setupAdminlessGroupsCleanup ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member Random r,
@@ -1312,10 +1236,6 @@ setupAdminlessGroupsCleanup mUsr tid = do
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member Random r,
@@ -1338,10 +1258,6 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim =
 guardPreventAdminlessGroupsFor ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member Random r,
@@ -1433,7 +1349,6 @@ scheduleDeletion lcnv mlusr tid feature = do
 adminlessTryAutopromote ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member Random r,
@@ -1511,7 +1426,6 @@ adminlessTryAutopromote mlusr lcnv altAction = do
 adminlessAutopromoteOrDelete ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member Random r,
@@ -1569,7 +1483,6 @@ adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orA
 adminlessAutopromoteOrSendReminder ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member Random r,
@@ -1693,10 +1606,6 @@ deleteUserFromTeamConversationsImpl ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
     Member (Error FederationError) r,
     Member E.ConversationStore r,
     Member FeaturesConfigSubsystem r,
@@ -1774,8 +1683,6 @@ pattern EdMembersLeaveRemoved l = EdMembersLeave EdReasonRemoved l
 removeMemberFromRemoteConv ::
   ( Member (E.FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member Now r,
     Member (Error ConversationSubsystemError) r
   ) =>
@@ -1812,9 +1719,6 @@ removeMemberFromLocalConv ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -1823,8 +1727,6 @@ removeMemberFromLocalConv ::
     Member TinyLog r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (ErrorS (ActionDenied ModifyOtherConversationMember)) r,
-    Member (ErrorS ConvMemberNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member FeaturesConfigSubsystem r,
     Member BrigAPIAccess r,
@@ -1921,8 +1823,6 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
 
 postProteusBroadcast ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
     Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
@@ -2006,8 +1906,6 @@ postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
 
 postOtrBroadcastUnqualified ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
     Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
@@ -2064,9 +1962,6 @@ updateConversationName ::
     Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member E.ExternalAccess r,
     Member Now r,
     Member BackendNotificationQueueAccess r,
@@ -2091,8 +1986,6 @@ updateLocalConversationName ::
     Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member E.ExternalAccess r,
     Member Now r,
     Member BackendNotificationQueueAccess r,
@@ -2111,7 +2004,6 @@ updateLocalConversationName lusr zcon lcnv rename =
 memberTyping ::
   ( Member NotificationSubsystem r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member Now r,
     Member ConversationStore r,
@@ -2153,9 +2045,6 @@ addBot ::
   ( Member E.UserClientIndexStore r,
     Member (Error ConversationSubsystemError) r,
     Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
@@ -2220,11 +2109,9 @@ rmBot ::
   ( Member E.UserClientIndexStore r,
     Member (Error ConversationSubsystemError) r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
-    Member Now r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r
+    Member Now r
   ) =>
   Local UserId ->
   Maybe ConnId ->

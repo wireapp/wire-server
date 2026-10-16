@@ -34,7 +34,7 @@ import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range (Range (fromRange))
 import Data.Set qualified as Set
-import Data.Singletons (SingI (..), demote, sing)
+import Data.Singletons (SingI (..), sing)
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Galley.Types.Conversations.One2One
@@ -1054,20 +1054,6 @@ instance
             throw
             (cseToGalleyError e)
         Right x -> pure x
-
-instance
-  forall (err :: GalleyError) effs r.
-  ( ToGalleyRuntimeError effs r,
-    SingI err,
-    Member (Error GalleyError) (Append effs r)
-  ) =>
-  ToGalleyRuntimeError (ErrorS err ': effs) r
-  where
-  mapToGalleyError act =
-    mapToGalleyError @effs @r $
-      runError act >>= \case
-        Left _ -> throw (demote @err)
-        Right res -> pure res
 
 onMLSMessageSent ::
   ( Member ExternalAccess r,
