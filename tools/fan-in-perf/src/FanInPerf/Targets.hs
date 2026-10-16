@@ -109,8 +109,6 @@ mkPool clientsPerUser users s g0 =
         g2
       )
   where
-    -- distinct, so one push never inserts the same (user, client,
-    -- notification) row twice
     clientIds = clientIdsUpTo clientsPerUser
 
 -- | Client ids 1..k (at least 1).
@@ -152,13 +150,9 @@ targetAt pool i = case pool of
   EpochPool v -> TargetEpoch (v V.! i)
   ConnectionsPool v -> TargetConnections (Qualified (v V.! i) localDomain)
 
--- REVIEW: This looks overly complicated!
-
 -- | Picks an entry uniformly, then 'perPush' distinct stream keys of it. All
--- targets of one push therefore share one constructor. Targets are sorted by
--- pool index (pools are fixed, so this is one global order, and client ids per
--- user are ascending): the store upserts rows in target order and does not
--- sort itself, so unsorted overlapping pushes would deadlock (40P01).
+-- targets of one push therefore share one constructor. Distinctness keeps the
+-- fan-in exactly 'perPush' (the store dedupes and sorts on its own).
 genTargets :: (RandomGen g) => V.Vector Entry -> g -> (NonEmpty Target, g)
 genTargets entries g0 =
   let (ei, g1) = uniformR (0, V.length entries - 1) g0

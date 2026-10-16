@@ -32,6 +32,7 @@ data Target
   | TargetTeam !TeamId -- All users of a team
   | TargetEpoch !(GroupId, Epoch) -- All users in an epoch
   | TargetConnections !(Qualified UserId) -- All users connected to this user
+  deriving (Eq)
 
 -- | One notification stream, i.e. one key of a notification table.
 data Stream

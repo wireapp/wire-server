@@ -5,7 +5,7 @@ module Wire.FanInNotificationsStore.Postgres where
 import Data.Aeson (Value)
 import Data.Aeson qualified as Aeson
 import Data.Bits (shiftL, shiftR, (.|.))
-import Data.Domain (domainText)
+import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified
@@ -46,7 +46,7 @@ pushViaFanInImpl isolationLevel push = do
   loc <- inputQualifyLocal ()
   let payload = Aeson.toJSON push.json
   runTransactionWithRetry isolationLevel TxSessions.Write do
-    forM_ push.targets \target -> do
+    forM_ (normalizeTargets push.targets) \target -> do
       case target of
         TargetUser uid ->
           pushUserNotification uid.toUUID notifId payload push.origin
@@ -62,6 +62,27 @@ pushViaFanInImpl isolationLevel push = do
           if locDomain == domain
             then pushLocalConnectionNotification uid.toUUID notifId payload push.origin
             else pushRemoteConnectionNotification (domainText domain) uid.toUUID notifId payload push.origin
+
+-- | Dedupe and sort targets. Duplicates would violate primary keys (and make
+-- the @last_*@ upserts affect a row twice); a stable order avoids deadlocks
+-- between concurrent pushes locking the same rows in opposite order.
+normalizeTargets :: [Target] -> [Target]
+normalizeTargets = mergeClients . map NE.head . NE.group . sortOn targetKey
+  where
+    mergeClients = \case
+      TargetUserClients (u, cs) : TargetUserClients (u', cs') : rest
+        | u == u' -> mergeClients (TargetUserClients (u, NE.nub (cs <> cs')) : rest)
+      TargetUserClients (u, cs) : rest -> TargetUserClients (u, NE.nub cs) : mergeClients rest
+      t : rest -> t : mergeClients rest
+      [] -> []
+
+targetKey :: Target -> (Int, UUID, Maybe Domain, Word64, ByteString)
+targetKey = \case
+  TargetUser u -> (0, u.toUUID, Nothing, 0, mempty)
+  TargetUserClients (u, _) -> (1, u.toUUID, Nothing, 0, mempty)
+  TargetTeam t -> (2, t.toUUID, Nothing, 0, mempty)
+  TargetEpoch (g, e) -> (3, UUID.nil, Nothing, fromIntegral e.epochNumber, g.unGroupId)
+  TargetConnections (Qualified u d) -> (4, u.toUUID, Just d, 0, mempty)
 
 -- | Time-ordered (UUIDv7) notification id.
 genNotificationId :: IO (Id a)
