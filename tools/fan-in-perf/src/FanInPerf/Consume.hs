@@ -344,12 +344,13 @@ totals writerStats readerStats = do
   pure (expected, delivered)
 
 -- | Waits until readers caught up, stopped receiving anything for
--- 'drainStallSeconds' (what is still missing is not coming: lost, not in
--- flight) or the timeout (seconds) passed.
-drain :: Int -> IO (Int, Int) -> IO Drain
-drain timeout readTotals = do
+-- 'drainStallSeconds' of the poll interval (what is still missing is not
+-- coming: lost, not in flight) or the timeout (seconds) passed.
+drain :: Int -> Int -> IO (Int, Int) -> IO Drain
+drain timeout pollIntervalMs readTotals = do
   started <- getMonotonicTime
   let deadline = started + fromIntegral timeout
+      stallSeconds = drainStallSeconds pollIntervalMs
       go lastDelivered lastProgress = do
         (expected, delivered) <- readTotals
         now <- getMonotonicTime
@@ -357,12 +358,14 @@ drain timeout readTotals = do
         if
           | delivered >= expected -> pure (DrainComplete (now - started))
           | now >= deadline -> pure (DrainTimedOut (now - started))
-          | now - progressAt >= drainStallSeconds -> pure (DrainStalled (now - started))
+          | now - progressAt >= stallSeconds -> pure (DrainStalled (now - started))
           | otherwise -> threadDelay 100_000 >> go delivered progressAt
   go (-1) started
 
-drainStallSeconds :: Double
-drainStallSeconds = 2
+-- | Idle readers sleep one poll interval between fetches, so the quiet period
+-- that counts as stalled must outlast it: a fixed margin plus two intervals.
+drainStallSeconds :: Int -> Double
+drainStallSeconds pollIntervalMs = 2 + 2 * fromIntegral pollIntervalMs / 1000
 
 -- | Runs on the ticker thread only (plus once after it stopped): aggregates,
 -- prints, publishes.
@@ -472,7 +475,7 @@ runConsume console writerEnv readerEnv opts = do
         withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
           link writersA
           let stop = atomicWriteIORef stopWriters True >> wait writersA
-          stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout readTotals)
+          stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout opts.pollIntervalMs readTotals)
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
   traverse_ (printLine console) (formatConsumeSummary opts.mode (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)

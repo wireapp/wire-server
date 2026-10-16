@@ -129,7 +129,7 @@ formatConsumeSummary mode expected phase drain r c =
       behind = avgRate > 0 && fromIntegral backlogAtStop > avgRate
       drainText = case drain of
         DrainComplete t -> "complete after " <> seconds t
-        DrainStalled t -> "stalled after " <> seconds t <> " (no delivery for 2s: the rest is lost, not in flight)"
+        DrainStalled t -> "stalled after " <> seconds t <> " (no delivery for several poll intervals: the rest is lost, not in flight)"
         DrainTimedOut t -> "timed out after " <> seconds t
         DrainInterrupted -> "interrupted"
    in formatSummary r {elapsed = phase.duration}
