@@ -7,7 +7,7 @@ Mes gavome užklausą ištrinti jūsų ${brand} paskyrą. Norėdami ištrinti vi
 pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite žemiau esantį
 mygtuką.
 
-Ištrinti paskyrą [${url}]If you can’t select the button, copy and paste this
+Ištrinti paskyrą [${url}] If you can’t select the button, copy and paste this
 link to your browser:
 
 ${url}

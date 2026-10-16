@@ -7,7 +7,7 @@ Nós recebemos uma solicitação para excluir sua conta ${brand}. Clique no bot�
 abaixo em até 10 minutos para excluir todas as suas conversas, conteúdo e
 conexões.
 
-Excluir conta [${url}]Se você não conseguir selecionar o botão, copie e cole
+Excluir conta [${url}] Se você não conseguir selecionar o botão, copie e cole
 este link no seu navegador:
 
 ${url}

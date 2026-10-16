@@ -10,7 +10,7 @@ Team-Konto umgewandelt.
 
 Wählen Sie die folgende Schaltfläche, um mit der Einladung fortzufahren.
 
-Team beitreten [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
+Team beitreten [${url}] Wenn Sie die Schaltfläche nicht auswählen können,
 kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
