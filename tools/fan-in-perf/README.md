@@ -1,9 +1,11 @@
-# fan-in-perf
+# fan-in-perf (WPB-26288)
 
-Load generator for the notification fan-in store proposed in the RFC
-"Notification fan-in" (WPB-26288). It drives `Wire.FanInNotificationsStore`
-(`libs/wire-subsystems`) against PostgreSQL and measures write throughput,
-read throughput, delivery lag, ack cost and notification loss.
+Load generator for the notification fan-in store proposed in the RFC [RFC:
+Notification
+fan-in](https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/2774597689/2026-04-14+RFC+Notification+fan-in).
+It drives `Wire.FanInNotificationsStore` (`libs/wire-subsystems`) against
+PostgreSQL and measures write throughput, read throughput, delivery lag, ack
+cost and notification loss.
 
 Design specs (background, rationale):
 
@@ -111,7 +113,7 @@ All `produce` flags, plus:
 | `--drain-timeout SECS` | 10 | ≥ 0 | Time readers get to catch up after the writers stopped. |
 | `--safety-window MS` | 0 | 0–60000 | Re-read the last `MS` ms of each stream to catch late commits. 0: plain `> lastId`. |
 
-`connections` is rejected.
+Reading `connections` is currently rejected, because they have special semantics compared to the other notifications.
 
 ### `consume-ack`
 
@@ -530,9 +532,25 @@ Safety window (16 writers, `--clients 2000 --targets user:2000,epoch:200
 
 ### RFC gaps found while mapping existing code
 
-- `notifyContacts` mixes user, connection and team recipients: needs up to
-  three pushes, or mixed-kind pushes.
-- MLS `propagateMessage` excludes the sender's client; `TargetEpoch` cannot
-  express that.
-- `removeIfLargeFanout` counts users; there is no equivalent for team or
-  connection targets.
+These do not affect the tool, but an implementation has to decide them.
+
+- **Mixed recipients.** `notifyContacts` (`services/brig/src/Brig/IO/Intra.hs`)
+  notifies the user, their connections and their team (only if the team
+  member list is complete) in one push. In the RFC model this is either one
+  push with mixed targets (`TargetUser`, `TargetConnections`, `TargetTeam`)
+  or up to three pushes. Mixed: the same notification id lands in several
+  streams of one client, so clients must dedupe. Split: three ids, no order
+  between them. The RFC does not say which is intended.
+- **Sender exclusion.** MLS `propagateMessage`
+  (`libs/wire-subsystems/src/Wire/ConversationSubsystem/MLS/Propagate.hs`)
+  removes the sender's client from the recipients. `TargetEpoch` addresses
+  every member of the epoch and cannot exclude one. Options: the client
+  drops its own messages (needs the sender client in the payload), the server
+  filters on read, or `TargetEpoch` gets an exclusion field.
+- **Fan-out limit.** `removeIfLargeFanout`
+  (`libs/wire-subsystems/src/Wire/NotificationSubsystem/Interpreter.hs`)
+  drops pushes with more than `fanoutLimit` recipients, counted as list
+  length. A `TargetTeam` or `TargetConnections` push has one target
+  regardless of reach, so the guard never fires. The RFC must either drop
+  the limit for fan-in (its goal is large teams) or measure real reach
+  (team size, contact count) at push time.
