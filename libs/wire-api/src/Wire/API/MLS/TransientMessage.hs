@@ -58,13 +58,13 @@ instance SerialiseMLS TransientMessageWireFormat where
 
 -- | Authenticated data used to encrypt a transient message. This is not a
 -- nested field in the transmitted message; Core Crypto serializes it directly
--- as protocol version, wire format, sender, counter, and group context.
+-- as protocol version, wire format, group context, sender, and counter.
 data TransientMessageAad = TransientMessageAad
   { protocolVersion :: ProtocolVersion,
     wireFormat :: TransientMessageWireFormat,
+    groupContext :: GroupContext,
     sender :: LeafIndex,
-    counter :: Word32,
-    groupContext :: GroupContext
+    counter :: Word32
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TransientMessageAad)
@@ -73,25 +73,25 @@ instance ParseMLS TransientMessageAad where
   parseMLS = do
     protocolVersion <- parseMLS
     wireFormat <- parseMLS
+    groupContext <- parseMLS
     sender <- parseMLS
     counter <- parseMLS
-    groupContext <- parseMLS
-    pure $ TransientMessageAad protocolVersion wireFormat sender counter groupContext
+    pure $ TransientMessageAad protocolVersion wireFormat groupContext sender counter
 
 instance SerialiseMLS TransientMessageAad where
   serialiseMLS aad = do
     serialiseMLS aad.protocolVersion
     serialiseMLS aad.wireFormat
+    serialiseMLS aad.groupContext
     serialiseMLS aad.sender
     serialiseMLS aad.counter
-    serialiseMLS aad.groupContext
 
 -- | The transient-message body, serialized after the protocol version and
 -- 0xf000 wire-format discriminator.
 data TransientMessageTBS = TransientMessageTBS
-  { sender :: LeafIndex,
+  { groupContext :: GroupContext,
+    sender :: LeafIndex,
     counter :: Word32,
-    groupContext :: GroupContext,
     payload :: ByteString
   }
   deriving (Eq, Show, Generic)
@@ -102,9 +102,9 @@ instance ParseMLS TransientMessageTBS where
 
 instance SerialiseMLS TransientMessageTBS where
   serialiseMLS tbs = do
+    serialiseMLS tbs.groupContext
     serialiseMLS tbs.sender
     serialiseMLS tbs.counter
-    serialiseMLS tbs.groupContext
     serialiseMLSBytes @VarInt tbs.payload
 
 data TransientMessage = TransientMessage
@@ -136,9 +136,9 @@ transientMessageAad message =
   TransientMessageAad
     { protocolVersion = message.protocolVersion,
       wireFormat = message.wireFormat,
+      groupContext = message.inner.groupContext,
       sender = message.inner.sender,
-      counter = message.inner.counter,
-      groupContext = message.inner.groupContext
+      counter = message.inner.counter
     }
 
 instance S.ToSchema TransientMessage where
