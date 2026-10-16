@@ -1100,6 +1100,27 @@ onMLSMessageSent domain rmm =
       runMessagePush loc (Just (tUntagged rcnv)) $
         newMessagePush mempty Nothing metadata recipients e
 
+onMLSTransientMessageSent ::
+  ( Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+    Member E.ConversationStore r,
+    Member P.TinyLog r
+  ) =>
+  Domain ->
+  RemoteMLSTransientMessage ->
+  Sem r EmptyResponse
+onMLSTransientMessageSent domain (RemoteMLSTransientMessage rmm) =
+  case decodeMLS' @TransientMessage (fromBase64ByteString rmm.message) of
+    Left _ -> do
+      P.warn $
+        Log.field "conversation" (toByteString' rmm.conversation)
+          Log.~~ Log.field "domain" (toByteString' domain)
+          Log.~~ Log.msg ("Dropping malformed federated transient MLS message" :: ByteString)
+      pure EmptyResponse
+    Right _ -> onMLSMessageSent domain rmm
+
 onMLSTargetedMessageSent ::
   ( Member ExternalAccess r,
     Member NotificationSubsystem r,
