@@ -71,6 +71,7 @@ import Wire.API.Routes.Version.Wai
 import Wire.AWS (awsEnv)
 import Wire.BoundedQueue.STM qualified as Q
 import Wire.JobSubsystem.Migrations (mkArbiterConnectionString, runJobMigrations)
+import Wire.MeetingsSubsystem.LinkBackfill (runMeetingJoinCodeBackfill)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.Options.Galley
 import Wire.PostgresMigrations (runAllMigrations)
@@ -98,6 +99,22 @@ run opts = lowerCodensity do
 
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
+  -- Application-level data migration (WPB-29361): give every meeting without
+  -- a live join code one; existing codes and links are never touched. Uses
+  -- the same code-store interpreter galley selects for
+  -- @postgresMigration.conversationCodes@.
+  void $
+    Codensity $
+      Async.withAsync $
+        runMeetingJoinCodeBackfill
+          ((opts ^. postgresMigration).conversationCodes)
+          (env ^. cstate)
+          (env ^. hasqlPool)
+          (env ^. App.applog)
+          (env ^. convCodeURI)
+          "meeting join code backfill"
+          60
+          100
   lift $ inSpan tracer "galley" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown settings' app Nothing) `finally` closeApp env
 
 mkApp :: Opts -> Codensity IO (Application, Env)

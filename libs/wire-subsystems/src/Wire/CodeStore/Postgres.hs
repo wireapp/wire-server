@@ -37,7 +37,7 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.Password
 import Wire.API.PostgresMarshall
-import Wire.CodeStore (CodeStore (..))
+import Wire.CodeStore (BackfillCodeResult (..), CodeStore (..))
 import Wire.CodeStore.Code as Code
 import Wire.Postgres
 
@@ -64,7 +64,13 @@ interpretCodeStoreToPostgres = interpret $ \case
   CreateMeetingCode mid t mPw -> do
     code <- Code.generate (CodeReferentMeeting mid) t
     insertCode code mPw
-    pure True
+    pure (Just code)
+  BackfillMeetingCode mid t -> do
+    code <- Code.generate (CodeReferentMeeting mid) t
+    inserted <- runStatement (insertTuple code Nothing) insertCodeIfAbsentStatement
+    pure $ case inserted of
+      Just _ -> BackfilledCode code
+      Nothing -> BackfillCodePresent
   RotateMeetingCode mid cid t mPw -> do
     code <- Code.generate (CodeReferentMeeting mid) t
     convKey <- Code.mkKey (CodeReferentConv cid)
@@ -73,7 +79,7 @@ interpretCodeStoreToPostgres = interpret $ \case
     runTransactionWithRetry ReadCommitted Write $ do
       Transaction.statement (insertTuple code mPw) insertCodeStatement
       Transaction.statement convKey deleteCodeStatement
-    pure True
+    pure (Just code)
   MakeKey ref -> do
     Code.mkKey ref
   GenerateCode ref t -> do
@@ -96,6 +102,29 @@ insertTuple c password = (codeKey c, targetId, password, codeValue c, round (cod
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c password =
   runStatement (insertTuple c password) insertCodeStatement
+
+-- | Insert-if-absent on the stable key. Unlike 'insertCodeStatement' (an
+-- upsert) this never replaces a *live* row, so a concurrent backfill
+-- replica cannot invalidate an already-issued join link. An *expired* row
+-- (expires_at <= now()) is replaced, otherwise the meeting would be
+-- permanently reported as 'BackfillCodePresent' while lookups keep
+-- filtering it out (yielding 'LinkUnavailable').
+insertCodeIfAbsentStatement :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, CodeTarget) (Maybe Bool)
+insertCodeIfAbsentStatement =
+  lmapPG
+    [maybeStatement|INSERT INTO conversation_codes
+                      (key, conversation, password, value, expires_at, target)
+                    VALUES
+                      ($1 :: text, $2 :: uuid, $3 :: bytea?, $4 :: text, now() + make_interval(secs => $5 :: int), $6 :: text)
+                    ON CONFLICT (key) DO UPDATE
+                      SET conversation = ($2 :: uuid),
+                          password = ($3 :: bytea?),
+                          value = ($4 :: text),
+                          expires_at = now() + make_interval(secs => $5 :: int),
+                          target = ($6 :: text)
+                    WHERE conversation_codes.expires_at <= now()
+                    RETURNING true :: bool
+    |]
 
 insertCodeStatement :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, CodeTarget) ()
 insertCodeStatement =

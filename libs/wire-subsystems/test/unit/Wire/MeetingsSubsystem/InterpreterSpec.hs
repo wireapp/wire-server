@@ -18,7 +18,9 @@
 module Wire.MeetingsSubsystem.InterpreterSpec (spec) where
 
 import Data.Aeson (Result (..), Value (Object), fromJSON)
+import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C
+import Data.ByteString.Lazy qualified as LBS
 import Data.Code (Key, Timeout (..))
 import Data.Default (def)
 import Data.Domain (Domain (..))
@@ -40,7 +42,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
-import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog (Logger (..), TinyLog)
+import System.Logger qualified as Log
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
@@ -62,15 +65,17 @@ import Wire.API.Team.Permission (fullPermissions)
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as CodeStore
 import Wire.CodeStore.Code (Code (..), CodeReferent (..))
+import Wire.CodeStore.Code qualified as Code
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
+import Wire.HashPassword (HashPassword, verifyPassword)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
+import Wire.MeetingsSubsystem.LinkBackfill (backfillPage)
 import Wire.MockInterpreters
 import Wire.NotificationSubsystem (NotificationSubsystem, Push (..), Recipient (recipientUserId))
 import Wire.RateLimit (RateLimit, RateLimitExceeded, RateLimitKey (RateLimitUser))
@@ -268,10 +273,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     case result of
       Left err -> fail $ "Error: " <> show err
       Right (meeting, _mid, mCode) -> do
-        meeting.meeting.link
-          `shouldBe` (expectedLink testCodeURIBase (Domain "wire.com") . fst <$> mCode)
+        code <- maybe (fail "expected join code") (pure . fst) mCode
+        meeting.meeting.link `shouldBe` expectedLink testCodeURIBase (Domain "wire.com") code
         meeting.meeting.hasPassword `shouldBe` False
-        mCode `shouldSatisfy` isJust
 
   it "uses the multi-ingress URI mapped for the user's domain" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -309,11 +313,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right (meeting, _mid, mCode) ->
-        meeting.meeting.link
-          `shouldBe` (expectedLink multiBase (Domain "wire.com") . fst <$> mCode)
+      Right (meeting, _mid, mCode) -> do
+        code <- maybe (fail "expected join code") (pure . fst) mCode
+        meeting.meeting.link `shouldBe` expectedLink multiBase (Domain "wire.com") code
 
-  it "omits the link when the user's domain has no configured URI" $ do
+  it "fails with LinkUnavailable when the user's domain has no configured URI" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -339,14 +343,40 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Map.empty
         def
         ( do
-            meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
-            pure (meeting, qUnqualified meeting.meeting.id)
+            -- Catch inside so the post-state (conversation store) remains
+            -- observable: proves the link precondition runs before any
+            -- committed side effect (no orphaned conversation).
+            r <- catch @MeetingError (Right <$> createMeeting zUser (ConnId "test-conn") newMeeting) (pure . Left)
+            convs <- get @(Map ConvId StoredConversation)
+            pure (r, convs)
         )
-        >>= either (error . show) pure
 
     case result of
-      Left err -> fail $ "Error: " <> show err
-      Right (meeting, _mid) -> meeting.meeting.link `shouldBe` Nothing
+      Left denied -> error $ "unexpected CheckDeleteLocalConversation denial: " <> show denied
+      Right (Right (r, convs)) -> do
+        convs `shouldSatisfy` Map.null
+        r `shouldBe` Left LinkUnavailable
+      Right (Left e) -> error $ "unexpected MeetingError: " <> show e
+
+  it "listMeetings returns [] for a user with no meetings even without a configured URI" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+
+    result <-
+      runTestStackWithURI
+        now
+        gen
+        (Right Map.empty)
+        Map.empty
+        def
+        (listMeetings zUser)
+
+    case result of
+      Left denied -> error $ "unexpected CheckDeleteLocalConversation denial: " <> show denied
+      Right (Right inner) -> inner `shouldBe` []
+      Right (Left e) -> error $ "unexpected MeetingError: " <> show e
 
   it "removes the join code when the meeting is deleted" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -379,7 +409,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         deleted `shouldBe` True
         isNothing mCode `shouldBe` True
 
-  it "omits the link field for meetings without a join code" $ do
+  it "fails with LinkUnavailable when reading a meeting without a join code" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -406,11 +436,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
       getMeeting zUser (Qualified mid (Domain "wire.com"))
 
-    case result of
-      Left err -> fail $ "Error: " <> show err
-      Right fetched -> do
-        fetched `shouldSatisfy` isJust
-        (fetched >>= (.link)) `shouldBe` Nothing
+    result `shouldBe` Left LinkUnavailable
 
   it "cleanup removes expired meetings together with their join codes" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -449,7 +475,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         n `shouldBe` 1
         isNothing mCode `shouldBe` True
 
-  it "listMeetings gives only meetings with a live code a link" $ do
+  it "listMeetings fails with LinkUnavailable when a listed meeting has no live code" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -472,30 +498,15 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
         midWithCode = Id $ read "00000000-0000-0000-0000-00000000000e"
         midWithoutCode = Id $ read "00000000-0000-0000-0000-00000000000f"
-        password = plainTextPassword8Unsafe "join secret pw"
 
     result <-
       runTestStack now gen Map.empty def $ do
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
         modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
-        void $ do
-          hashedPw <- hashPassword8 (RateLimitUser uid) password
-          CodeStore.createMeetingCode midWithCode (Timeout 3600) (Just hashedPw)
-        key <- CodeStore.makeKey (CodeReferentMeeting midWithCode)
-        mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
-        meetings <- listMeetings zUser
-        let expectedLink' = expectedLink testCodeURIBase (Domain "wire.com") . fst <$> mCode
-        pure
-          ( [(qUnqualified m.id, m.link) | m <- meetings],
-            [(qUnqualified m.id, m.hasPassword) | m <- meetings],
-            expectedLink'
-          )
+        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600) Nothing
+        listMeetings zUser
 
-    case result of
-      Left err -> fail $ "Error: " <> show err
-      Right (links, passwordFlags, expectedLink') -> do
-        links `shouldBe` [(midWithCode, expectedLink'), (midWithoutCode, Nothing)]
-        passwordFlags `shouldBe` [(midWithCode, True), (midWithoutCode, False)]
+    result `shouldBe` Left LinkUnavailable
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -1254,7 +1265,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           fmap (.meeting) refreshed
             `shouldBe` Just
               ( meeting.meeting
-                  { API.link = expectedLink testCodeURIBase (Domain "wire.com") <$> newCode
+                  { API.link = maybe (error "expected refreshed code") (expectedLink testCodeURIBase (Domain "wire.com")) newCode
                   }
               )
           oldCode `shouldSatisfy` isJust
@@ -1282,11 +1293,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         hashed2 <- maybe (error "no password stored after refresh") pure . join =<< meetingPasswordFor mid
         verified2 <- verifyPassword (RateLimitUser uid1) pw2 hashed2
         stale1 <- verifyPassword (RateLimitUser uid1) pw1 hashed2
-        pure (isJust ok1, isJust ok2, verified1, verified2, stale1)
+        pure (fmap (.meeting.hasPassword) ok1, fmap (.meeting.hasPassword) ok2, verified1, verified2, stale1)
 
       case result of
         Left err -> fail $ "Error: " <> show err
-        Right res -> res `shouldBe` (True, True, True, True, False)
+        Right res -> res `shouldBe` (Just True, Just True, True, True, False)
 
     it "refresh without a password clears password protection" $ do
       let pw1 = plainTextPassword8Unsafe "temporary password"
@@ -1294,17 +1305,19 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
         let qmid = meeting.meeting.id
             mid = qUnqualified qmid
-        _ok1 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest (Just pw1))
+        ok1 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest (Just pw1))
         pwAfterSet <- meetingPasswordFor mid
-        _ok2 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest Nothing)
+        ok2 <- refreshMeetingLink zUser1 (ConnId "test-conn") qmid (API.RefreshMeetingLinkRequest Nothing)
         pwAfterClear <- meetingPasswordFor mid
-        pure (pwAfterSet, pwAfterClear)
+        pure (pwAfterSet, pwAfterClear, fmap (.meeting.hasPassword) ok1, fmap (.meeting.hasPassword) ok2)
 
       case result of
         Left err -> fail $ "Error: " <> show err
-        Right (pwAfterSet, pwAfterClear) -> do
+        Right (pwAfterSet, pwAfterClear, hasPwSet, hasPwCleared) -> do
           pwAfterSet `shouldSatisfy` (isJust . join)
           pwAfterClear `shouldSatisfy` (isNothing . join)
+          hasPwSet `shouldBe` Just True
+          hasPwCleared `shouldBe` Just False
 
     it "emits a meeting.update event on success" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -1396,7 +1409,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Left err -> fail $ "Error: " <> show err
         Right (meeting, code, JoinMeetingOk mwc, members) -> do
           mwc.meeting.title `shouldBe` meeting.title
-          mwc.meeting.link `shouldBe` Just (expectedLink testCodeURIBase (Domain "wire.com") code)
+          mwc.meeting.link `shouldBe` expectedLink testCodeURIBase (Domain "wire.com") code
           mwc.meeting.hasPassword `shouldBe` False
           members `shouldSatisfy` maybe False (Set.member uid2)
         Right (_, _, r, _) -> fail $ "expected JoinMeetingOk, got: " <> show r
@@ -2635,6 +2648,156 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           m.title `shouldBe` fromJust (checked "Renamed")
         Right Nothing -> fail "expected the meeting to be retrievable"
 
+  specStoredMeetingUnmarshall
+
+  describe "backfillPage (backfillMeetingJoinCodes)" $ do
+    let midNoCode = Id $ read "00000000-0000-0000-0000-0000000000a1"
+        midWithCode = Id $ read "00000000-0000-0000-0000-0000000000a2"
+        convNoCode = Id $ read "00000000-0000-0000-0000-0000000000b1"
+        convWithCode = Id $ read "00000000-0000-0000-0000-0000000000b2"
+        meetingsMap =
+          Map.fromList
+            [ (midNoCode, convNoCode),
+              (midWithCode, convWithCode)
+            ]
+        firstCursor = Id nil
+
+    it "creates a code only for the meeting without one, leaving existing codes untouched" $ do
+      -- Plant a live code for midWithCode; its value must be identical after
+      -- the pass: the backfill never touches (rotates) existing codes.
+      planted <- Code.generate (CodeReferentMeeting midWithCode) (Timeout 3600)
+      plantedKey <- Code.mkKey (CodeReferentMeeting midWithCode)
+      (_, _logs, creates, codeMap) <-
+        runBackfillStack False meetingsMap (Map.singleton plantedKey (planted, Nothing)) $
+          void (backfillPage 100 firstCursor)
+      map fst creates `shouldBe` [midNoCode]
+      snd (head creates) `shouldSatisfy` isNothing
+      -- the code-less meeting got a code...
+      newKey <- Code.mkKey (CodeReferentMeeting midNoCode)
+      Map.lookup newKey codeMap `shouldSatisfy` isJust
+      -- ...and the planted code is byte-identical.
+      case Map.lookup plantedKey codeMap of
+        Just (c, mPw) -> do
+          c `shouldBe` planted
+          mPw `shouldSatisfy` isNothing
+        Nothing -> fail "planted code vanished"
+
+    it "logs and continues for an unsupported code store" $ do
+      (_, logs, creates, _) <-
+        runBackfillStack True meetingsMap Map.empty $
+          void (backfillPage 100 firstCursor)
+      map fst creates `shouldBe` [midNoCode, midWithCode]
+      logs `shouldSatisfy` any ("cannot backfill meeting join code" `BS.isInfixOf`)
+
+    it "backfilling twice yields BackfilledCode then BackfillCodePresent, code byte-identical" $ do
+      (results, _, _, codeMap) <-
+        runBackfillStack False meetingsMap Map.empty $ do
+          r1 <- CodeStore.backfillMeetingCode midNoCode meetingCodeTimeout
+          r2 <- CodeStore.backfillMeetingCode midNoCode meetingCodeTimeout
+          pure [r1, r2]
+      case results of
+        [CodeStore.BackfilledCode c1, CodeStore.BackfillCodePresent] -> do
+          key <- Code.mkKey (CodeReferentMeeting midNoCode)
+          case Map.lookup key codeMap of
+            Just (c, mPw) -> do
+              -- second call must not rotate the winner's code
+              c `shouldBe` c1
+              mPw `shouldSatisfy` isNothing
+            Nothing -> fail "code vanished"
+        _ -> fail $ "unexpected results: " <> show results
+
+-- | Spec-local 'Store.MeetingsStore' fake: keyset paging over the planted
+-- meetings.
+interpretBackfillMeetingsStore ::
+  (Member (State (Map MeetingId ConvId)) r) =>
+  InterpreterFor Store.MeetingsStore r
+interpretBackfillMeetingsStore = interpret $ \case
+  Store.GetMeetingIdsWithoutCode cursor n -> do
+    allMeetings <- get @(Map MeetingId ConvId)
+    pure $ take n [(mid, convId) | (mid, convId) <- Map.toAscList allMeetings, mid > cursor]
+  _ -> error "unexpected MeetingsStore op in backfill test"
+
+-- | Spec-local 'CodeStore' fake: implements 'BackfillMeetingCode' with real
+-- insert-if-absent semantics on the in-memory map, optionally reporting an
+-- unsupported store.
+interpretBackfillCodeStore ::
+  ( Member (State (Map Key (Code, Maybe Password))) r,
+    Member (State [(MeetingId, Maybe Password)]) r,
+    Member (Input Bool) r,
+    Member (Embed IO) r
+  ) =>
+  InterpreterFor CodeStore r
+interpretBackfillCodeStore = interpret $ \case
+  CodeStore.BackfillMeetingCode mid t -> do
+    modify ((mid, Nothing) :)
+    unsupported <- input @Bool
+    if unsupported
+      then pure CodeStore.BackfillCodeStoreUnsupported
+      else do
+        k <- embed (Code.mkKey (CodeReferentMeeting mid))
+        existing <- gets (Map.lookup k)
+        case existing of
+          Just _ -> pure CodeStore.BackfillCodePresent
+          Nothing -> do
+            code <- embed (Code.generate (CodeReferentMeeting mid) t)
+            modify (Map.insert k (code, Nothing))
+            pure (CodeStore.BackfilledCode code)
+  CodeStore.GetMeetingCodes mids -> do
+    ks <- embed (traverse (\mid -> (mid,) <$> Code.mkKey (CodeReferentMeeting mid)) mids)
+    gets $ \m ->
+      Map.fromList
+        [ (mid, cp)
+        | (mid, k) <- ks,
+          Just cp <- [Map.lookup k m]
+        ]
+  _ -> error "unexpected CodeStore op in backfill test"
+
+-- | Recording 'TinyLog' for the backfill tests: stores fully rendered log
+-- lines.
+interpretRecordingTinyLog ::
+  (Member (State [ByteString]) r) =>
+  InterpreterFor TinyLog r
+interpretRecordingTinyLog = interpret $ \case
+  Log lvl msg ->
+    modify (LBS.toStrict (Log.render (Log.renderDefault ",") (Log.field "level" (show lvl) . msg)) :)
+
+-- | Harness for the backfill tests: planted meetings, planted codes, and a
+-- flag switching the code store between supported and unsupported. Returns
+-- the recorded log lines, the recorded code-creation calls, and the final
+-- code map.
+runBackfillStack ::
+  Bool ->
+  Map MeetingId ConvId ->
+  Map Key (Code, Maybe Password) ->
+  Sem
+    '[ Store.MeetingsStore,
+       CodeStore,
+       TinyLog,
+       Input Bool,
+       State (Map MeetingId ConvId),
+       State (Map Key (Code, Maybe Password)),
+       State [(MeetingId, Maybe Password)],
+       State [ByteString],
+       Embed IO
+     ]
+    a ->
+  IO (a, [ByteString], [(MeetingId, Maybe Password)], Map Key (Code, Maybe Password))
+runBackfillStack unsupported meetings codes action = do
+  (logs, (creates, (codeMap, (_finalMeetings, result)))) <-
+    runM
+      . runState @[ByteString] []
+      . runState @[(MeetingId, Maybe Password)] []
+      . runState @(Map Key (Code, Maybe Password)) codes
+      . runState @(Map MeetingId ConvId) meetings
+      . runInputConst unsupported
+      . interpretRecordingTinyLog
+      . interpretBackfillCodeStore
+      . interpretBackfillMeetingsStore
+      $ action
+  pure (result, reverse logs, reverse creates, codeMap)
+
+specStoredMeetingUnmarshall :: Spec
+specStoredMeetingUnmarshall =
   describe "StoredMeeting postgres unmarshall" $ do
     -- A backfilled row (tzid NOT NULL, end_time set): end_time is the truth
     -- and tzid is read straight off the column.

@@ -28,25 +28,45 @@ import Polysemy
 import Wire.API.Password
 import Wire.CodeStore.Code
 
+-- | Result of 'BackfillMeetingCode'.
+data BackfillCodeResult
+  = -- | No code existed; a fresh one was inserted.
+    BackfilledCode Code
+  | -- | A live code row already exists (another replica won the race or
+    -- the meeting was already backfilled); it was left untouched.
+    BackfillCodePresent
+  | -- | The backing store cannot hold meeting codes (Cassandra-only mode).
+    BackfillCodeStoreUnsupported
+  deriving (Eq, Show)
+
 data CodeStore m a where
   CreateCode :: Code -> Maybe Password -> CodeStore m ()
   GetCode :: Key -> CodeStore m (Maybe (Code, Maybe Password))
   DeleteConversationCode :: ConvId -> CodeStore m ()
   DeleteMeetingCode :: MeetingId -> CodeStore m ()
   -- | Generate and insert a join code for a meeting, storing the (hashed)
-  -- password if given. Returns 'False' when the backing store cannot hold
-  -- meeting codes (Cassandra-only mode); callers degrade to a meeting without
-  -- a link instead of failing the request.
-  CreateMeetingCode :: MeetingId -> Timeout -> Maybe Password -> CodeStore m Bool
+  -- password if given. Returns 'Nothing' when the backing store cannot hold
+  -- meeting codes (Cassandra-only mode); API callers fail with
+  -- @LinkUnavailable@.
+  CreateMeetingCode :: MeetingId -> Timeout -> Maybe Password -> CodeStore m (Maybe Code)
+  -- | Atomic insert-if-absent of a meeting's join code on the
+  -- meeting-id-derived key, with no password. Concurrent galley replicas
+  -- race on this op during backfill: the loser observes the winner's code
+  -- ('BackfillCodePresent') instead of replacing it, so an already-served
+  -- link is never invalidated. 'BackfillCodeStoreUnsupported' when the
+  -- backing store cannot hold meeting codes (Cassandra-only mode).
+  BackfillMeetingCode :: MeetingId -> Timeout -> CodeStore m BackfillCodeResult
   -- | Atomically rotate a meeting's join code (upsert of the stable-key row)
   -- and revoke the meeting conversation's guest code, in a single
-  -- transaction. Splitting these into two writes would let a crash between
-  -- them leave the old guest link usable even though the meeting link has
-  -- already been replaced, so refresh must not compose them externally.
-  -- Returns 'False' when the backing store cannot hold meeting codes
-  -- (Cassandra-only mode); callers degrade to a meeting without a link
-  -- instead of failing the request.
-  RotateMeetingCode :: MeetingId -> ConvId -> Timeout -> Maybe Password -> CodeStore m Bool
+  -- transaction within one backing store. Splitting these into two writes
+  -- would let a crash between them leave the old guest link usable even
+  -- though the meeting link has already been replaced. Deployments with
+  -- multiple backing stores compose the stores inside the store interpreter
+  -- ('Wire.CodeStore.DualWrite'), with revoke-first ordering as the fail-safe.
+  -- Returns 'Nothing' when the backing store cannot hold meeting codes
+  -- (Cassandra-only mode); refresh is an explicit user action and fails with
+  -- @LinkUnavailable@ in that case.
+  RotateMeetingCode :: MeetingId -> ConvId -> Timeout -> Maybe Password -> CodeStore m (Maybe Code)
   -- | Look up a meeting's join code by meeting id, together with its (hashed)
   -- password if one is set, so a future join endpoint can enforce it.
   -- 'Nothing' when no code

@@ -25,6 +25,7 @@ import Data.Default (def)
 import Data.Id (ConvId)
 import Data.Misc
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
+import Data.Text qualified as ST
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
@@ -503,11 +504,11 @@ meetingLinkVersioningTests =
     [ testProperty "V18 response omits link" $
         \(m :: Meeting.MeetingV18) ->
           linkField (toJSON m) === Nothing,
-      testProperty "V19 response renders link iff meeting has one" $
+      testProperty "V19 response always renders link" $
         \(m :: Meeting.Meeting) ->
           case linkField (toJSON m) of
-            Just t -> isJust m.link && t /= mempty
-            Nothing -> isNothing m.link
+            Just t -> not (ST.null t)
+            Nothing -> False
     ]
 
 -- | Extract the @link@ string from a 'Meeting' JSON object, if present.

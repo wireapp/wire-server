@@ -3,6 +3,7 @@
     "end_time": "2018-01-02T01:30:00Z",
     "has_password": false,
     "invited_emails": [],
+    "link": "https://account.wire.com/meeting-join/",
     "qualified_conversation": {
         "domain": "example.com",
         "id": "00000006-0000-0000-0000-000000000006"
