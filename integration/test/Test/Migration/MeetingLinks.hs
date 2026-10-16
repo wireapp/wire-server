@@ -21,7 +21,14 @@
 module Test.Migration.MeetingLinks where
 
 import API.Galley
+import qualified Crypto.Hash as Crypto
+import Crypto.Hash.Algorithms (SHA256 (SHA256))
+import qualified Data.ByteArray as BA
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64.URL as B64URL
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
@@ -62,6 +69,34 @@ testMeetingJoinCodeBackfill = do
     <> convAId
     <> "', '{}', false, now(), now())"
 
+  -- (2b) Plant a legacy meeting C that already has an *expired*
+  -- conversation_codes row under its (deterministic) key. Lookups filter
+  -- expired rows, so C has no live link; the backfill must REPLACE the
+  -- stale row (ON CONFLICT ... WHERE expires_at <= now()) instead of
+  -- treating the key as occupied forever.
+  meetingCId <- T.unpack . UUID.toText <$> liftIO UUIDV4.nextRandom
+  execSql
+    . T.pack
+    $ "INSERT INTO meetings (id, title, creator, start_time, end_time, tzid, mtype,"
+    <> " conversation_id, invited_emails, trial, created_at, updated_at)"
+    <> " VALUES ('"
+    <> meetingCId
+    <> "', 'Expired Backfill Meeting', '"
+    <> creatorId
+    <> "',"
+    <> " now() + interval '1 hour', now() + interval '2 hours', 'Europe/Berlin', 'scheduled',"
+    <> " '"
+    <> convAId
+    <> "', '{}', false, now(), now())"
+  execSql
+    . T.pack
+    $ "INSERT INTO conversation_codes (key, conversation, password, value, expires_at, target)"
+    <> " VALUES ('"
+    <> meetingJoinCodeKey meetingCId
+    <> "', '"
+    <> convAId
+    <> "', NULL, 'stale-expired-value', now() - interval '1 hour', 'meeting')"
+
   -- (3) Poll the list endpoint (which 500s with link-unavailable while B has
   -- no code) until B gains a link; A's link must stay byte-identical.
   let pollLink mid = do
@@ -97,6 +132,16 @@ testMeetingJoinCodeBackfill = do
   getMeetingCodeCheck bob domain keyB codeB Nothing >>= assertStatus 200
   postMeetingJoin bob domain keyB codeB Nothing >>= assertStatus 200
 
+  -- (4b) C's expired code row was replaced: C gained a link whose key is the
+  -- same deterministic key, but whose code is a fresh value.
+  linkC <- pollLink meetingCId
+  assertBool ("unexpected backfilled meeting link: " <> linkC) (linkC =~ expected)
+  let (keyC, codeC) = linkKeyAndCode linkC
+  assertBool "backfill must reuse the meeting's stable key" (keyC == meetingJoinCodeKey meetingCId)
+  assertBool "backfill must replace the expired code value" (codeC /= "stale-expired-value")
+  getMeetingCodeCheck bob domain keyC codeC Nothing >>= assertStatus 200
+  postMeetingJoin bob domain keyC codeC Nothing >>= assertStatus 200
+
   -- (5) Idempotence: after another backfill pass, B's link (its code was
   -- created in the previous pass) is byte-identical, and A's is untouched.
   liftIO $ threadDelay 65_000_000
@@ -110,3 +155,15 @@ findMeetingById :: (HasCallStack) => String -> [Value] -> App (Maybe Value)
 findMeetingById mid meetings = do
   ids <- mapM (\m -> m %. "qualified_id" %. "id" >>= asString) meetings
   pure (fmap fst (find ((== mid) . snd) (zip meetings ids)))
+
+-- | The deterministic meeting join-code key, mirroring
+-- 'Wire.CodeStore.Code.mkKeyId' (base64url of the first 15 bytes of
+-- SHA256("meeting:" <> meetingId)).
+meetingJoinCodeKey :: (HasCallStack) => String -> String
+meetingJoinCodeKey mid =
+  T.unpack
+    . decodeUtf8
+    . B64URL.encode
+    . BS.take 15
+    . BA.convert
+    $ Crypto.hashWith SHA256 (BSC.append (BSC.pack "meeting:") (encodeUtf8 (T.pack mid)))
