@@ -75,8 +75,7 @@ instance ParseMLS TransientMessageAad where
     wireFormat <- parseMLS
     groupContext <- parseMLS
     sender <- parseMLS
-    counter <- parseMLS
-    pure $ TransientMessageAad protocolVersion wireFormat groupContext sender counter
+    TransientMessageAad protocolVersion wireFormat groupContext sender <$> parseMLS
 
 instance SerialiseMLS TransientMessageAad where
   serialiseMLS aad = do
