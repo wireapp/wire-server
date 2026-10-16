@@ -466,8 +466,6 @@ deleteLocalConversation ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
     Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,

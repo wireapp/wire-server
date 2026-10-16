@@ -586,8 +586,7 @@ updateConversation ::
     Member TeamStore r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'NotATeamMember) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   ConversationUpdateRequest ->

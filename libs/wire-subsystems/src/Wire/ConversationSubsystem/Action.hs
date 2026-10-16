@@ -93,7 +93,6 @@ import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -318,7 +317,7 @@ instance IsConversationAction 'ConversationMemberUpdateTag where
 instance IsConversationAction 'ConversationDeleteTag where
   type
     HasConversationActionEffects 'ConversationDeleteTag r =
-      ( Member (ErrorS 'NotATeamMember) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member E.ConversationStore r,
         Member ProposalStore r,
         Member CodeStore r
@@ -945,8 +944,7 @@ updateLocalConversationMemberUpdate =
   updateLocalConversation @'ConversationMemberUpdateTag
 
 updateLocalConversationDelete ::
-  ( Member (ErrorS 'NotATeamMember) r,
-    Member (Error ConversationSubsystemError) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member ExternalAccess r,
@@ -965,8 +963,7 @@ updateLocalConversationDelete lcnvId uid connId =
   updateLocalConversation @'ConversationDeleteTag lcnvId uid connId ()
 
 updateLocalConversationDeleteUnchecked ::
-  ( Member (ErrorS 'NotATeamMember) r,
-    Member (Error ConversationSubsystemError) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member CodeStore r,
     Member E.ConversationStore r,
     Member ProposalStore r
@@ -1341,7 +1338,6 @@ getTeamMembership conv luid = maybe (pure Nothing) (TeamSubsystem.internalGetTea
 checkLocalConversationDelete ::
   ( HasConversationActionEffects 'ConversationDeleteTag r,
     Member (Error FederationError) r,
-    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Local ConvId ->
