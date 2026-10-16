@@ -65,6 +65,45 @@ propagateMessage ::
   ClientMap a ->
   Sem r ()
 propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
+  propagateMLSData qusr mSenderClient lConvOrSub con (EdMLSMessage msg.raw) defMessageMetadata msg.raw cm
+
+-- | Propagate a transient MLS message to connected clients without storing it.
+propagateTransientMessage ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member ExternalAccess r,
+    Member Now r,
+    Member TinyLog r,
+    Member NotificationSubsystem r
+  ) =>
+  Qualified UserId ->
+  Maybe ClientId ->
+  Local ConvOrSubConv ->
+  Maybe ConnId ->
+  ByteString ->
+  ClientMap a ->
+  Sem r ()
+propagateTransientMessage qusr mSenderClient lConvOrSub con bytes cm =
+  propagateMLSData qusr mSenderClient lConvOrSub con (EdMLSTransientMessage bytes) (defMessageMetadata {mmTransient = True}) bytes cm
+
+propagateMLSData ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member ExternalAccess r,
+    Member Now r,
+    Member TinyLog r,
+    Member NotificationSubsystem r
+  ) =>
+  Qualified UserId ->
+  Maybe ClientId ->
+  Local ConvOrSubConv ->
+  Maybe ConnId ->
+  EventData ->
+  MessageMetadata ->
+  ByteString ->
+  ClientMap a ->
+  Sem r ()
+propagateMLSData qusr mSenderClient lConvOrSub con eventData metadata rawMessage cm = do
   now <- Now.get
   let mlsConv = (.conv) <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
@@ -73,7 +112,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
         m <- lmems
         b <- maybeToList $ newBotMember m
         pure (m.id_, b)
-      mm = defMessageMetadata
+      mm = metadata
   let qt =
         tUntagged lConvOrSub <&> \case
           Conv c -> (mcId c, Nothing)
@@ -87,7 +126,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
             evtFrom = EventFromUser qusr,
             evtTime = now,
             evtTeam = Nothing,
-            evtData = EdMLSMessage msg.raw
+            evtData = eventData
           }
 
   runMessagePush lConvOrSub (Just qcnv) $
@@ -96,21 +135,23 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   -- send to remotes
   void $
     enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems) $
-      \rs ->
-        fedQueueClient
-          @'OnMLSMessageSentTag
-          RemoteMLSMessage
-            { time = now,
-              sender = qusr,
-              metadata = mm,
-              conversation = qUnqualified qcnv,
-              subConversation = sconv,
-              recipients =
-                Map.fromList $
-                  tUnqualified rs
-                    >>= toList . remoteMemberMLSClients,
-              message = Base64ByteString msg.raw
-            }
+      \rs -> do
+        let remoteMessage =
+              RemoteMLSMessage
+                { time = now,
+                  sender = qusr,
+                  metadata = mm,
+                  conversation = qUnqualified qcnv,
+                  subConversation = sconv,
+                  recipients =
+                    Map.fromList $
+                      tUnqualified rs
+                        >>= toList . remoteMemberMLSClients,
+                  message = Base64ByteString rawMessage
+                }
+        if mm.mmTransient
+          then fedQueueClient @'OnMLSTransientMessageSentTag (RemoteMLSTransientMessage remoteMessage)
+          else fedQueueClient @'OnMLSMessageSentTag remoteMessage
   where
     cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
 

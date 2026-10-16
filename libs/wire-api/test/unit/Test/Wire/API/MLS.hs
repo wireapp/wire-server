@@ -128,11 +128,12 @@ testParseTransientMessage = do
       expectedAad =
         encodeMLS' message.protocolVersion
           <> "\xf0\x00"
+          <> encodeMLS' message.inner.groupContext
           <> encodeMLS' message.inner.sender
           <> encodeMLS' message.inner.counter
-          <> encodeMLS' message.inner.groupContext
   BS.take 4 encoded @?= "\x00\x01\xf0\x00"
   encodeMLS' (transientMessageAad message) @?= expectedAad
+  BS.take (BS.length expectedAad) encoded @?= expectedAad
   decodeMLS' encoded @?= Right message
 
 testRejectWrongTransientWireFormat :: IO ()
