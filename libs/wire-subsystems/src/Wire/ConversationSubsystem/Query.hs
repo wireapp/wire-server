@@ -1031,7 +1031,13 @@ searchChannels lusr tid searchString sortOrder pageSize lastName lastId discover
     mem <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
     void $ permissionCheckCSE SearchChannels mem
   case r of
-    Left e | not discoverable -> throw e
+    -- A non-team-member is always rejected; a member lacking the
+    -- SearchChannels permission is only rejected when the search is not
+    -- discoverable.
+    Left ConversationSubsystemErrorNotATeamMember ->
+      throw ConversationSubsystemErrorNotATeamMember
+    Left ConversationSubsystemErrorperationDenied
+      | not discoverable -> throw ConversationSubsystemErrorperationDenied
     _ -> pure ()
   ConversationPage
     <$> ConversationStore.searchConversations

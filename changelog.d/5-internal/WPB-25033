@@ -18,6 +18,10 @@ MLS proposal failures). TeamSubsystem/TeamStore boundary functions
 (`permissionCheckCSE`, `lookupBindingTeamCSE`). The `ErrorS` machinery
 (`ConversationSubsystemErrorEffects` entries, `mapError` lines,
 `RethrowErrors`/`ToGalleyRuntimeError` instances, dead `getMember`, and
-`Update.hs`'s `-Wno-redundant-constraints`) is removed, except four
-still-live `ErrorS` rows demanded by the conversation-access update machinery.
+`Update.hs`'s `-Wno-redundant-constraints`) is removed. Four `ErrorS` rows
+(`ConvNotFound`, `InvalidOperation`,
+`ActionDenied 'ModifyConversationAccess`, `ActionDenied
+'RemoveConversationMember`) remain in `ConversationSubsystemErrorEffects`
+because the conversation-access update machinery still demands them; nothing
+throws them anymore.
 No API, schema, or config change.

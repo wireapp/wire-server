@@ -132,7 +132,6 @@ getRemoteSubConversation ::
   forall r.
   ( Members
       '[ Error ConversationSubsystemError,
-         Error ConversationSubsystemError,
          Error FederationError,
          FederationAPIAccess FederatorClient
        ]
