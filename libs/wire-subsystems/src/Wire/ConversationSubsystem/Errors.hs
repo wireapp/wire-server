@@ -331,11 +331,7 @@ instance APIError ConversationSubsystemError where
       ConversationSubsystemErrorMLSHistoryClientDuplication -> toResponse $ Tagged @'MLSHistoryClientDuplication ()
 
 type ConversationSubsystemErrorEffects =
-  '[ ErrorS ('ActionDenied ConvRole.ModifyConversationAccess),
-     ErrorS ('ActionDenied ConvRole.RemoveConversationMember),
-     ErrorS 'ConvNotFound,
-     ErrorS 'InvalidOperation,
-     Error FederationError,
+  '[ Error FederationError,
      Error UnreachableBackends,
      Error InternalError,
      Error InvalidInput,
@@ -366,7 +362,3 @@ mapErrors =
     . mapError (ConversationSubsystemErrorInternalError)
     . mapError (ConversationSubsystemErrorUnreachableBackends)
     . mapError (ConversationSubsystemErrorFederationError)
-    . mapError (const ConversationSubsystemErrorConvNotFound)
-    . mapError (const ConversationSubsystemErrorInvalidOperation)
-    . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
-    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationAccess)

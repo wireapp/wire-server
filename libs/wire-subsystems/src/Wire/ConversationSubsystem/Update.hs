@@ -110,7 +110,6 @@ import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
@@ -286,10 +285,6 @@ type UpdateConversationAccessEffects =
      Error FederationError,
      Error InternalError,
      Error InvalidInput,
-     ErrorS ('ActionDenied 'ModifyConversationAccess),
-     ErrorS ('ActionDenied 'RemoveConversationMember),
-     ErrorS 'ConvNotFound,
-     ErrorS 'InvalidOperation,
      Error ConversationSubsystemError,
      E.ExternalAccess,
      E.FederationAPIAccess FederatorClient,
