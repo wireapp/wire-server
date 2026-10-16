@@ -42,7 +42,6 @@ import Polysemy.State
 import Polysemy.TinyLog
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
@@ -296,14 +295,7 @@ checkUpdatePath lConvOrSub senderIdentity ciphersuite path = for_ senderIdentity
 type ProposalErrors =
   '[ Error FederationError,
      Error InvalidInput,
-     ErrorS ('ActionDenied 'AddConversationMember),
-     ErrorS ('ActionDenied 'LeaveConversation),
-     ErrorS ('ActionDenied 'RemoveConversationMember),
-     ErrorS 'ConvAccessDenied,
-     ErrorS 'InvalidOperation,
-     ErrorS 'NotATeamMember,
-     Error ConversationSubsystemError,
-     ErrorS 'TooManyMembers
+     Error ConversationSubsystemError
    ]
 
 class HandleMLSProposalFailures effs r where
