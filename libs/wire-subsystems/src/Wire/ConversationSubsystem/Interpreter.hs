@@ -230,9 +230,7 @@ interpretConversationSubsystem = interpret $ \case
   FederationOnMLSMessageSent domain rmm ->
     mapErrors $ Federation.onMLSMessageSent domain rmm
   FederationOnMLSTransientMessageSent domain rmm ->
-    case rmm of
-      RemoteMLSTransientMessage remoteMLSMessage ->
-        mapErrors $ Federation.onMLSMessageSent domain remoteMLSMessage
+    mapErrors $ Federation.onMLSTransientMessageSent domain rmm
   FederationOnMLSTargetedMessageSent domain rmm ->
     mapErrors $ Federation.onMLSTargetedMessageSent domain rmm
   FederationOnConversationUpdated domain cu ->
