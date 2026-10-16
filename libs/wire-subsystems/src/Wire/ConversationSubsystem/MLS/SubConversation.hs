@@ -44,7 +44,6 @@ import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -78,14 +77,12 @@ import Wire.StoredConversation qualified as Data
 import Wire.TeamSubsystem (TeamSubsystem)
 
 type MLSGetSubConvStaticErrors =
-  '[ Error ConversationSubsystemError,
-     ErrorS 'MLSSubConvUnsupportedConvType
+  '[ Error ConversationSubsystemError
    ]
 
 getSubConversation ::
   ( Member Conversation.ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member TeamSubsystem r
@@ -104,7 +101,6 @@ getSubConversation lusr qconv sconv = do
 getLocalSubConversation ::
   ( Member Conversation.ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -115,7 +111,7 @@ getLocalSubConversation qusr lconv sconv = do
   c <- getConversationAsMember qusr lconv
 
   unless (Data.convType c == RegularConv || Data.convType c == One2OneConv) $
-    throwS @'MLSSubConvUnsupportedConvType
+    throw ConversationSubsystemErrorMLSSubConvUnsupportedConvType
 
   msub <- Conversation.getSubConversation (tUnqualified lconv) sconv
   sub <- case msub of
@@ -123,7 +119,7 @@ getLocalSubConversation qusr lconv sconv = do
       (_mlsMeta, mlsProtocol) <- note ConversationSubsystemErrorConvNotFound (mlsMetadata c)
 
       case mlsProtocol of
-        MLSMigrationMixed -> throwS @'MLSSubConvUnsupportedConvType
+        MLSMigrationMixed -> throw ConversationSubsystemErrorMLSSubConvUnsupportedConvType
         MLSMigrationMLS -> pure ()
 
       -- deriving this deterministically to prevent race conditions with
@@ -137,7 +133,6 @@ getRemoteSubConversation ::
   ( Members
       '[ Error ConversationSubsystemError,
          Error ConversationSubsystemError,
-         ErrorS 'MLSSubConvUnsupportedConvType,
          Error FederationError,
          FederationAPIAccess FederatorClient
        ]
