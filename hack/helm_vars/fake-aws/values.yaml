@@ -2,15 +2,6 @@ fake-aws-ses:
   enabled: true
   sesSender: "backend-integrationk8s@wire.com"
 
-fake-aws-s3:
-  minio:
-    image:
-      repository: quay.io/wire/mirror-images/minio/minio
-      tag: RELEASE.2023-07-07T07-13-57Z
-    mcImage:
-      repository: quay.io/wire/mirror-images/minio/mc
-      tag: RELEASE.2023-06-28T21-54-17Z
-
 fake-aws-sqs:
   queueNames:
   - "integration-brig-events"

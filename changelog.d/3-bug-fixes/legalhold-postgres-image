@@ -1,0 +1,3 @@
+legalhold chart: postgresql subchart now pulls
+`bitnamilegacy/postgresql:11.10.0` (`docker.io/bitnami` was deprovisioned).
+Fixes image pull failures.
