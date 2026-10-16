@@ -18,11 +18,13 @@ import FanInPerf.ConsumeStats
 import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Population (SimUser (SimUser))
 import FanInPerf.Population qualified as Pop
-import FanInPerf.Stats (bucketIndex)
-import FanInPerf.Targets (TargetKind (..))
+import FanInPerf.Produce (PushOutcome (..), writerStep)
+import FanInPerf.Stats (bucketIndex, newWriterStats, readSnapshot, totalExpected)
+import FanInPerf.Targets (TargetConfig (..), TargetKind (..), mkEntries, mkPayload)
 import Imports
 import Polysemy
 import Polysemy.Error
+import System.Random (mkStdGen)
 import Test.Hspec
 import Wire.FanInNotificationsStore
 import Wire.FanInNotificationsStore.Postgres (genNotificationId, notificationIdMillis)
@@ -404,3 +406,47 @@ spec = do
       _ <- acknowledge 3 write st' [(user, ids !! 4), (team, ids !! 5)]
       readIORef writes `shouldReturn` 2
       readIORef written `shouldReturn` [[Pending user (ids !! 4) 2, Pending team (ids !! 5) 1]]
+
+  describe "run accounting (writers, store, readers)" $ do
+    let (entries, _) = mkEntries 1 (TargetConfig KindTeam 1 1 :| []) (mkStdGen 1)
+        -- what the fake store does with a push the writer reports as successful or failed
+        runPushes :: Int -> [FakePush] -> IO (Int, Int)
+        runPushes readerCount pushes = do
+          ids <- map fst <$> newIds (length pushes)
+          (rows, failing) <- setup []
+          ws <- newWriterStats
+          let store (i, fp) _ = case fp of
+                Stored -> append rows i >> pure PushOk
+                Dropped -> pure PushOk
+                StoredButFailed -> append rows i >> pure (PushFailed "timeout")
+              push g (p, i) = writerStep (const readerCount) (store (i, p)) (mkPayload 0) entries ws (\_ -> pure ()) g
+          foldM_ push (mkStdGen 2) (zip pushes ids)
+          delivered <- for [1 .. readerCount] $ \_ -> do
+            stats <- newReaderStats
+            _ <- untilIdle 20 (pass rows failing 10 stats [sub0]) (pass rows failing 10 stats)
+            deliveredCount stats
+          expected <- totalExpected <$> readSnapshot ws
+          pure (expected, sum delivered)
+        append rows i = modifyIORef rows (map (\(s', rs) -> (s', rs <> [(i, A.Null)])))
+    it "delivers every pushed notification to every reader: delivered == expected" $
+      runPushes 3 [Stored, Stored, Stored] `shouldReturn` (9, 9)
+    it "a push the store acknowledged but lost shows up as missing" $
+      runPushes 3 [Stored, Dropped, Stored] `shouldReturn` (9, 6)
+    it "a push stored but reported failed shows up as duplicates (committed, not expected)" $
+      runPushes 2 [Stored, StoredButFailed] `shouldReturn` (2, 4)
+
+    it "acks written to the store are the highest delivered ids, every N deliveries" $ do
+      rs <- newIds 5
+      (rows, failing) <- setup rs
+      calls <- newIORef []
+      stats <- newReaderStats
+      r <- runFake rows failing (readerPass @Text id 10 0 stats [sub0])
+      let write = ackPending @Text id stats (\_ -> pure ()) (\p -> Right <$> runFakeWith calls rows failing (ackOne stats reader0 p))
+      st <- acknowledge 2 write emptyAckState r.delivered
+      let ids = map fst rs
+      readIORef calls `shouldReturn` [AckCall uid0 (ClientId 7) team (ids !! 3), AckCall uid0 (ClientId 7) team (ids !! 1)]
+      unacked st `shouldBe` 1
+      s <- readReaderSnapshot stats
+      totalAcks s `shouldBe` 2
+
+data FakePush = Stored | Dropped | StoredButFailed
