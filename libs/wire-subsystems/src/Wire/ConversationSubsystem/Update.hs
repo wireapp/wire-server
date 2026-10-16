@@ -2255,8 +2255,6 @@ rmBot lusr zcon b = do
 updateCellsState ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS ConvNotFound) r,
-    Member (ErrorS InvalidOperation) r,
     Member FeaturesConfigSubsystem r
   ) =>
   ConvId ->
@@ -2264,10 +2262,10 @@ updateCellsState ::
   Sem r ()
 updateCellsState cnv state = do
   when (state /= CellsDisabled) $ do
-    conv <- E.getConversation cnv >>= noteS @ConvNotFound
-    tid <- noteS @InvalidOperation conv.metadata.cnvmTeam
+    conv <- E.getConversation cnv >>= note ConversationSubsystemErrorConvNotFound
+    tid <- note ConversationSubsystemErrorInvalidOperation conv.metadata.cnvmTeam
     (feat :: LockableFeature CellsConfig) <- getFeatureForTeam tid
-    noteS @InvalidOperation $ guard (feat.status == FeatureStatusEnabled)
+    note ConversationSubsystemErrorInvalidOperation $ guard (feat.status == FeatureStatusEnabled)
   E.setConversationCellsState cnv state
 
 -------------------------------------------------------------------------------
@@ -2278,8 +2276,7 @@ ensureConvMember users usr =
   unless (usr `isMember` users) $ throw ConversationSubsystemErrorConvNotFound
 
 getConversationCodeURI ::
-  ( Member (ErrorS 'ConvAccessDenied) r,
-    Member (Error ConversationSubsystemError) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member CodeStore r
   ) =>
   Maybe ZHostValue ->
