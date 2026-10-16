@@ -199,6 +199,7 @@ common common-all
     , transformers
     , types-common
     , types-common-journal
+    , tz
     , unliftio
     , unordered-containers
     , uri-bytestring
@@ -339,6 +340,7 @@ library
     Wire.EmailSubsystem
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
+    Wire.EmailSubsystem.Templates.Meeting
     Wire.EmailSubsystem.Templates.Team
     Wire.EmailSubsystem.Templates.User
     Wire.EnterpriseLoginSubsystem

@@ -52,6 +52,7 @@ module Brig.App
     userTemplatesLens,
     providerTemplatesLens,
     teamTemplatesLens,
+    meetingTemplatesLens,
     templateBrandingLens,
     templateBrandingAsMapLens,
     httpManagerLens,
@@ -173,7 +174,8 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.Options qualified as EmailOpt
 import Wire.EmailSending.SMTP qualified as SMTP
-import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
+import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale, loadMeetingTemplates)
+import Wire.EmailSubsystem.Templates.Meeting
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
 import Wire.PostgresMigrationOpts
@@ -207,6 +209,7 @@ data Env = Env
     userTemplates :: Localised UserTemplates,
     providerTemplates :: Localised ProviderTemplates,
     teamTemplates :: Localised TeamTemplates,
+    meetingTemplates :: Localised MeetingTemplates,
     templateBranding :: TemplateBranding,
     templateBrandingAsMap :: Map Text Text,
     httpManager :: Manager,
@@ -266,6 +269,11 @@ newEnv opts = do
   utp <- loadUserTemplates opts
   ptp <- loadProviderTemplates opts
   ttp <- loadTeamTemplatesWithBrigOpts opts
+  mtp <-
+    loadMeetingTemplates
+      opts.emailSMS.general.templateDir
+      (Opt.defaultTemplateLocale opts.settings)
+      (Opt.checkedEmailSender opts.emailSMS.general)
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
       brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
   (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
@@ -329,6 +337,7 @@ newEnv opts = do
         userTemplates = utp,
         providerTemplates = ptp,
         teamTemplates = ttp,
+        meetingTemplates = mtp,
         templateBranding = branding,
         templateBrandingAsMap = brandingAsMap,
         httpManager = mgr,
