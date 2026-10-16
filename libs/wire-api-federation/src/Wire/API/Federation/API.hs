@@ -35,6 +35,7 @@ module Wire.API.Federation.API
     Component (..),
     makeConversationUpdateBundle,
     makeMLSTargetedMessageBundle,
+    makeMLSTransientMessageBundle,
     makeSystemMemberUpdateBundle,
     makeSystemDeleteBundle,
     makeSystemAdminlessReminderBundle,

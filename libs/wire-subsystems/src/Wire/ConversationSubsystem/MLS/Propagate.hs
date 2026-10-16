@@ -150,7 +150,7 @@ propagateMLSData qusr mSenderClient lConvOrSub con eventData metadata rawMessage
                   message = Base64ByteString rawMessage
                 }
         if mm.mmTransient
-          then fedQueueClient @'OnMLSTransientMessageSentTag (RemoteMLSTransientMessage remoteMessage)
+          then sendBundle =<< makeMLSTransientMessageBundle (RemoteMLSTransientMessage remoteMessage)
           else fedQueueClient @'OnMLSMessageSentTag remoteMessage
   where
     cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
