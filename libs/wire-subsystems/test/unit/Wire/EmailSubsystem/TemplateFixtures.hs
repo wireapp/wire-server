@@ -26,6 +26,7 @@ import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
 import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Templates.Meeting
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
@@ -77,3 +78,7 @@ loadTestTeamTemplates = loadTeamTemplates teamOpts "templates" defLocale emailSe
 -- | Load the on-disk user templates. See 'loadTestTeamTemplates'.
 loadTestUserTemplates :: IO (Localised UserTemplates)
 loadTestUserTemplates = loadUserTemplates userTemplateOpts "templates" defLocale emailSender
+
+-- | Load the on-disk meeting templates. See 'loadTestTeamTemplates'.
+loadTestMeetingTemplates :: IO (Localised MeetingTemplates)
+loadTestMeetingTemplates = loadMeetingTemplates "templates" defLocale emailSender

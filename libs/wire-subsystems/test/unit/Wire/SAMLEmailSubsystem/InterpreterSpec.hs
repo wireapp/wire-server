@@ -365,7 +365,7 @@ runInterpreters users teamMap teamTemplates action = do
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
       . inMemoryUserStoreInterpreter
-      . emailSubsystemInterpreter undefined teamTemplates branding
+      . emailSubsystemInterpreter undefined teamTemplates undefined branding
       . interpretTeamSubsystemToGalleyAPI
       . samlEmailSubsystemInterpreter
       $ action

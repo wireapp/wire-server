@@ -133,6 +133,7 @@
 , transformers
 , types-common
 , types-common-journal
+, tz
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -274,6 +275,7 @@ mkDerivation {
     transformers
     types-common
     types-common-journal
+    tz
     unliftio
     unordered-containers
     uri-bytestring
@@ -412,6 +414,7 @@ mkDerivation {
     transformers
     types-common
     types-common-journal
+    tz
     unliftio
     unordered-containers
     uri-bytestring

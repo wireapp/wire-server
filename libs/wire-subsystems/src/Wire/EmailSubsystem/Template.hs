@@ -38,6 +38,7 @@ import System.IO.Error (isDoesNotExistError)
 import System.Logger (field, msg, val)
 import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
+import Wire.EmailSubsystem.Templates.Meeting
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
@@ -253,6 +254,34 @@ loadTeamTemplates tOptions templatesDir defLocale sender = readLocalesDir defLoc
     tExistingUrl = template tOptions.tExistingUserInvitationUrl
     readTemplate' = readTemplateWithDefault templatesDir defLocale "team"
     readText' = readTextWithDefault templatesDir defLocale "team"
+
+loadMeetingTemplates :: FilePath -> Locale -> EmailAddress -> IO (Localised MeetingTemplates)
+loadMeetingTemplates templatesDir defLocale sender = readLocalesDir defLocale templatesDir "meeting" $ \fp ->
+  MeetingTemplates
+    <$> ( MeetingEmailTemplate
+            <$> readTemplate' fp "email/invitation-subject.txt"
+            <*> readTemplate' fp "email/invitation.txt"
+            <*> readTemplate' fp "email/invitation.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( MeetingEmailTemplate
+            <$> readTemplate' fp "email/update-subject.txt"
+            <*> readTemplate' fp "email/update.txt"
+            <*> readTemplate' fp "email/update.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( MeetingEmailTemplate
+            <$> readTemplate' fp "email/cancel-subject.txt"
+            <*> readTemplate' fp "email/cancel.txt"
+            <*> readTemplate' fp "email/cancel.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+  where
+    readTemplate' = readTemplateWithDefault templatesDir defLocale "meeting"
+    readText' = readTextWithDefault templatesDir defLocale "meeting"
 
 -- | URL templates needed to render the user email templates. These are plain
 -- 'Text' 'Data.Text.Template.template' strings, mirroring the corresponding
