@@ -506,7 +506,7 @@ testListUsersContactStatus :: (HasCallStack) => App ()
 testListUsersContactStatus = do
   (owner, tid, proteusUser : mlsUser : _) <- createTeam OwnDomain 3
   noClientUser <- randomUser OwnDomain def
-  addClient proteusUser def >>= assertStatus 201
+  proteusClient <- addClient proteusUser def >>= getJSON 201
   mlsClient <- createMLSClient def mlsUser
   void $ uploadNewKeyPackage def mlsClient
   putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
@@ -543,6 +543,15 @@ testListUsersContactStatus = do
     assertContactStatus profiles noClientUser "non-contactable"
     assertContactStatus profiles proteusUser "contactable"
     assertContactStatus profiles mlsUser "contactable"
+
+  deleteClient proteusUser proteusClient >>= assertSuccess
+  deleteClient mlsUser mlsClient.client >>= assertSuccess
+
+  listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    assertContactStatus profiles proteusUser "non-contactable"
+    assertContactStatus profiles mlsUser "non-contactable"
   where
     assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
     assertContactStatus profiles user expected = do
