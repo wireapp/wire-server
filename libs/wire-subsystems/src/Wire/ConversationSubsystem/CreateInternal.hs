@@ -136,8 +136,6 @@ createOne2OneConversationLogic ::
     Member (ErrorS 'NotATeamMember) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
@@ -309,9 +307,9 @@ checkCreateConvPermissions ::
   UserList UserId ->
   Sem r ()
 checkCreateConvPermissions lusr newConv Nothing allUsers = do
-  when (newConv.newConvGroupConvType == Channel) $ throwS @OperationDenied
+  when (newConv.newConvGroupConvType == Channel) $ throw ConversationSubsystemErrorperationDenied
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
-  void $ noteS @OperationDenied activated
+  void $ note ConversationSubsystemErrorperationDenied activated
   tm <- getTeamMember (tUnqualified lusr) Nothing
   for_ tm $
     permissionCheck AddRemoveConvMember . Just
@@ -356,7 +354,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       case channelsConf.config.allowedToCreateChannels of
         Conf.Everyone -> pure ()
         Conf.TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
-        Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
+        Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throw ConversationSubsystemErrorperationDenied
     ensureCreateChannelPermissions _ Nothing = do
       throw ConversationSubsystemErrorNotATeamMember
 
@@ -478,7 +476,6 @@ createOne2OneConversationRemotely _ _ _ _name _mtid _ =
 
 newRegularConversation ::
   ( Member (Error ConversationSubsystemError) r,
-    Member (ErrorS OperationDenied) r,
     Member (Error InvalidInput) r,
     Member (Input ConversationSubsystemConfig) r,
     Member ConversationStore r
@@ -492,7 +489,7 @@ newRegularConversation lusr newConv = do
   forM_ newConv.newConvParent $ \parent -> do
     mMembership <- ConvStore.getLocalMember parent (tUnqualified lusr)
     when (isNothing mMembership) $
-      throwS @OperationDenied
+      throw ConversationSubsystemErrorperationDenied
   users <- case Public.newConvProtocol newConv of
     BaseProtocolProteusTag -> checkedConvSize cfg uncheckedUsers
     BaseProtocolMLSTag -> do
@@ -611,10 +608,8 @@ throwErr = throw . InvalidRange . fromString
 
 checkBindingTeamPermissions ::
   ( Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'NonBindingTeam) r,
     Member (Error ConversationSubsystemError) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'TeamNotFound) r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamStore r,
     Member TeamSubsystem r
@@ -631,7 +626,7 @@ checkBindingTeamPermissions lusr lother tid = do
     (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
     (Just collaborator, Just member) ->
       unless (hasPermission collaborator CollaboratorPermission.ImplicitConnection || hasPermission member CreateConversation) $
-        throwS @OperationDenied
+        throw ConversationSubsystemErrorperationDenied
   TeamStore.getTeamBinding tid >>= \case
     Just Binding -> do
       when (isJust zusrMembership) $
@@ -640,13 +635,13 @@ checkBindingTeamPermissions lusr lother tid = do
       unless (isJust mOtherTeamCollaborator) $
         verifyMembership tid (tUnqualified lother)
       pure (Just tid)
-    Just _ -> throwS @'NonBindingTeam
-    Nothing -> throwS @'TeamNotFound
+    Just _ -> throw ConversationSubsystemErrorNonBindingTeam
+    Nothing -> throw ConversationSubsystemErrorTeamNotFound
   where
     guardPerm p m =
       if m `hasPermission` p
         then pure ()
-        else throwS @OperationDenied
+        else throw ConversationSubsystemErrorperationDenied
 
 verifyMembership ::
   ( Member (Error ConversationSubsystemError) r,

@@ -189,8 +189,6 @@ createOne2OneConversation ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'TeamNotFound) r,
     Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
