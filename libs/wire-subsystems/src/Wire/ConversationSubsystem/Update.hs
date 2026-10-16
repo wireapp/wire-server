@@ -166,7 +166,7 @@ import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
-import Wire.TeamSubsystem (TeamSubsystem, permissionCheck)
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore qualified as E
 import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
@@ -923,7 +923,7 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
         forM_ users $ \u -> do
           mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
-            permissionCheck JoinRegularConversations . Just
+            permissionCheckCSE JoinRegularConversations . Just
 
   let joinType = mkJoinType conv
       action = ConversationJoin {..}
@@ -1022,7 +1022,7 @@ replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) =
         forM_ invitedUsers $ \u -> do
           mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
-            permissionCheck JoinRegularConversations . Just
+            permissionCheckCSE JoinRegularConversations . Just
 
   ugs <- getUserGroupsForConv conv.id_
   -- Removals apply only to local members. Additions must account for remote

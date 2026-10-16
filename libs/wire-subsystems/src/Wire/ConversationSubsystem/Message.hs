@@ -59,8 +59,6 @@ import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -261,8 +259,6 @@ postRemoteOtrMessage sender conv rawMsg = do
 
 postBroadcast ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
     Member (Error ConversationSubsystemError) r,
     Member ExternalAccess r,
     Member (Input FeatureFlags) r,
@@ -291,7 +287,7 @@ postBroadcast lusr con msg = runError $ do
           $ msg
   now <- Now.get
 
-  tid <- lookupBindingTeam senderUser
+  tid <- lookupBindingTeamCSE senderUser
   limit <- fromIntegral . fromRange <$> input @FanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $

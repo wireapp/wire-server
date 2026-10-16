@@ -69,6 +69,7 @@ import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Util
+import Wire.API.Team
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
 import Wire.API.Team.FeatureFlags
@@ -999,6 +1000,40 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
+
+--------------------------------------------------------------------------------
+-- ConversationSubsystem-local CSE wrappers for TeamSubsystem/TeamStore
+-- boundary functions (those still throw ErrorS; see WPB-25033).
+
+-- | Like "Wire.TeamSubsystem".'Wire.TeamSubsystem.permissionCheck', but throws
+-- 'ConversationSubsystemError' instead of 'ErrorS'.
+permissionCheckCSE ::
+  ( IsPerm teamAssociation perm,
+    Member (Error ConversationSubsystemError) r
+  ) =>
+  perm ->
+  Maybe teamAssociation ->
+  Sem r teamAssociation
+permissionCheckCSE p = \case
+  Just m
+    | m `hasPermission` p -> pure m
+    | otherwise -> throw ConversationSubsystemErrorperationDenied
+  Nothing -> throw ConversationSubsystemErrorNotATeamMember
+
+-- | Like "Wire.TeamStore".'Wire.TeamStore.lookupBindingTeam', but throws
+-- 'ConversationSubsystemError' instead of 'ErrorS'.
+lookupBindingTeamCSE ::
+  ( Member TeamStore r,
+    Member (Error ConversationSubsystemError) r
+  ) =>
+  UserId ->
+  Sem r TeamId
+lookupBindingTeamCSE zusr = do
+  tid <- getOneUserTeam zusr >>= note ConversationSubsystemErrorTeamNotFound
+  binding <- getTeamBinding tid >>= note ConversationSubsystemErrorTeamNotFound
+  case binding of
+    Binding -> pure tid
+    NonBinding -> throw ConversationSubsystemErrorNonBindingTeam
 
 --------------------------------------------------------------------------------
 -- Handling remote errors

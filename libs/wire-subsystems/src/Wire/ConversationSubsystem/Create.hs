@@ -32,7 +32,6 @@ import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Config
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Client (FederatorClient)
@@ -66,9 +65,7 @@ createLegacyGroupConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS OperationDenied) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -97,9 +94,7 @@ createGroupOwnConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS OperationDenied) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -133,9 +128,7 @@ createGroupConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS OperationDenied) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -187,8 +180,6 @@ createOne2OneConversation ::
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,

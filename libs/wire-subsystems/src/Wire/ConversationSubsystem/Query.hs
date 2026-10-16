@@ -66,7 +66,6 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
-import Data.Tagged
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -82,8 +81,6 @@ import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Role qualified as Public
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Event.Conversation (SystemEvent (..), SystemEventData (EdSystemConvDelete))
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -123,7 +120,7 @@ import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
-import Wire.TeamSubsystem (TeamSubsystem, permissionCheck)
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 import Wire.Util
@@ -1017,8 +1014,7 @@ isRemoteMLSOne2OneEstablished lself qother rconv = do
 
 searchChannels ::
   ( Member ConversationStore.ConversationStore r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -1031,9 +1027,9 @@ searchChannels ::
   Bool ->
   Sem r ConversationPage
 searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
-  r <- runError @(Tagged OperationDenied ()) $ do
+  r <- runError $ do
     mem <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
-    void $ permissionCheck SearchChannels mem
+    void $ permissionCheckCSE SearchChannels mem
   case r of
     Left e | not discoverable -> throw e
     _ -> pure ()

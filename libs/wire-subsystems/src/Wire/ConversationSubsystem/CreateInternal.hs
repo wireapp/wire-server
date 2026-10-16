@@ -44,7 +44,6 @@ import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Config
 import Wire.API.Conversation.Role
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Client (FederatorClient)
@@ -81,7 +80,7 @@ import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as TeamStore
-import Wire.TeamSubsystem (TeamSubsystem, permissionCheck)
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList (UserList (UserList), toUserList, ulAddLocal, ulAll, ulFromLocals, ulLocals, ulRemotes)
 
@@ -90,9 +89,7 @@ createGroupConversationGeneric ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error InvalidInput) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS OperationDenied) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -133,9 +130,7 @@ createOne2OneConversationLogic ::
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS OperationDenied) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
@@ -294,8 +289,6 @@ ensureNoLegalholdConflicts (UserList locals remotes) = do
 checkCreateConvPermissions ::
   ( Member BrigAPIAccess r,
     Member (Error ConversationSubsystemError) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
@@ -312,7 +305,7 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
   void $ note ConversationSubsystemErrorperationDenied activated
   tm <- getTeamMember (tUnqualified lusr) Nothing
   for_ tm $
-    permissionCheck AddRemoveConvMember . Just
+    permissionCheckCSE AddRemoveConvMember . Just
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
@@ -323,9 +316,9 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       Left <$$> internalGetTeamCollaborator convTeam (tUnqualified lusr)
 
   let checkGroup = do
-        void $ permissionCheck CreateConversation teamAssociation
+        void $ permissionCheckCSE CreateConversation teamAssociation
         when (length allUsers > 1 || Public.newConvProtocol newConv == BaseProtocolMLSTag) $ do
-          void $ permissionCheck AddRemoveConvMember teamAssociation
+          void $ permissionCheckCSE AddRemoveConvMember teamAssociation
   case newConv.newConvGroupConvType of
     Channel -> do
       ensureCreateChannelPermissions tinfo.cnvTeamId mTeamMember
@@ -339,9 +332,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   where
     ensureCreateChannelPermissions ::
       forall r.
-      ( Member (ErrorS OperationDenied) r,
-        Member (ErrorS 'NotATeamMember) r,
-        Member FeaturesConfigSubsystem r,
+      ( Member FeaturesConfigSubsystem r,
         Member (Error ConversationSubsystemError) r
       ) =>
       TeamId ->
@@ -353,7 +344,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       when (Public.newConvProtocol newConv /= BaseProtocolMLSTag) $ throw ConversationSubsystemErrorNotAnMlsConversation
       case channelsConf.config.allowedToCreateChannels of
         Conf.Everyone -> pure ()
-        Conf.TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
+        Conf.TeamMembers -> void $ permissionCheckCSE AddRemoveConvMember $ Just tm
         Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throw ConversationSubsystemErrorperationDenied
     ensureCreateChannelPermissions _ Nothing = do
       throw ConversationSubsystemErrorNotATeamMember
@@ -607,9 +598,7 @@ throwErr :: (Member (Error InvalidInput) r) => String -> Sem r a
 throwErr = throw . InvalidRange . fromString
 
 checkBindingTeamPermissions ::
-  ( Member (ErrorS 'NotATeamMember) r,
-    Member (Error ConversationSubsystemError) r,
-    Member (ErrorS OperationDenied) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamStore r,
     Member TeamSubsystem r
@@ -623,7 +612,7 @@ checkBindingTeamPermissions lusr lother tid = do
   zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   case (mTeamCollaborator, zusrMembership) of
     (Just collaborator, Nothing) -> guardPerm CollaboratorPermission.ImplicitConnection collaborator
-    (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
+    (Nothing, mbMember) -> void $ permissionCheckCSE CreateConversation mbMember
     (Just collaborator, Just member) ->
       unless (hasPermission collaborator CollaboratorPermission.ImplicitConnection || hasPermission member CreateConversation) $
         throw ConversationSubsystemErrorperationDenied
