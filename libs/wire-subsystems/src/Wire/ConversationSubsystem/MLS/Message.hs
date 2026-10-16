@@ -58,7 +58,6 @@ import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation (Event (..), EventData (..), EventFrom (..))
 import Wire.API.Federation.API
@@ -122,11 +121,7 @@ import Wire.TeamSubsystem (TeamSubsystem, getUserStatus)
 -- - Verify message signature, this also requires the group context. (see above)
 
 type MLSMessageStaticErrors =
-  '[ ErrorS 'ConvAccessDenied,
-     ErrorS 'ConvMemberNotFound,
-     ErrorS 'ConvNotFound,
-     Error ConversationSubsystemError,
-     ErrorS 'MissingLegalholdConsent
+  '[ Error ConversationSubsystemError
    ]
 
 enableOutOfSyncCheckFromVersion :: Version -> EnableOutOfSyncCheck
@@ -137,10 +132,6 @@ enableOutOfSyncCheckFromVersion v
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
@@ -796,10 +787,6 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
 
 postMLSMessage ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
