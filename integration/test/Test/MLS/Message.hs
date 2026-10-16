@@ -149,6 +149,68 @@ testTransientMessageRejectsUnauthorizedSender = do
     response.status `shouldMatchInt` 400
     response.json %. "label" `shouldMatch` "mls-client-sender-user-mismatch"
 
+testTransientMessageRejectsStaleEpoch :: (HasCallStack) => App ()
+testTransientMessageRejectsStaleEpoch = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  staleMessage <- createTransientMessage convId alice1 "message from an old epoch"
+  for_ [1 .. 4 :: Int] $ \_ ->
+    createPendingProposalCommit convId alice1 >>= sendCommitBundle
+
+  postMLSTransientMessage staleMessage.sender staleMessage.message `bindResponse` \response -> do
+    response.status `shouldMatchInt` 409
+    response.json %. "label" `shouldMatch` "mls-stale-message"
+
+testTransientMessageRejectsNonMemberSenderForRemoteConversation :: (HasCallStack) => App ()
+testTransientMessageRejectsNonMemberSenderForRemoteConversation = do
+  ownDomain <- make OwnDomain & asString
+  remoteDomain <- make OtherDomain & asString
+  [alice, bob, mallory] <- createAndConnectUsers [remoteDomain, ownDomain, ownDomain]
+  [alice1, bob1, mallory1] <- traverse (createMLSClient def) [alice, bob, mallory]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, mallory1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  transient <- createTransientMessage convId alice1 "message from a non-member"
+  postMLSTransientMessage mallory1 transient.message `bindResponse` \response -> do
+    response.status `shouldMatchInt` 404
+    response.json %. "label" `shouldMatch` "no-conversation-member"
+
+testTransientMessageSubConversationBroadcast :: (HasCallStack) => App ()
+testTransientMessageSubConversationBroadcast = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  withWebSockets [alice, bob] $ \[aliceWs, bobWs] -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif bobWs
+
+    createSubConv def convId alice1 "conference"
+    subConvId <- getSubConvId alice convId "conference"
+    void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isWelcomeNotif bobWs
+
+    -- The creator must also join the subconversation before sending to it.
+    void $ createExternalCommit subConvId alice1 Nothing >>= sendAndConsumeCommitBundle
+    void $ awaitMatch isMemberJoinNotif aliceWs
+    traverse_ (awaitMatch isNewMLSMessageNotif) [aliceWs, bobWs]
+
+    transient <- createTransientMessage subConvId alice1 "transient subconversation broadcast"
+    postMLSTransientMessage transient.sender transient.message >>= assertStatus 201
+
+    notification <- awaitMatch isNewMLSTransientMessageNotif bobWs
+    event <- notification %. "payload.0"
+    event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+    lookupField event "subconv" `shouldMatch` subConvId.subconvId
+    event %. "from" `shouldMatch` alice1.user
+    event %. "data" `shouldMatch` (B8.unpack (Base64.encode transient.message))
+
 testTransientMessageRejectsMalformedPayload :: (HasCallStack) => App ()
 testTransientMessageRejectsMalformedPayload = do
   [alice] <- createUsers [OwnDomain]

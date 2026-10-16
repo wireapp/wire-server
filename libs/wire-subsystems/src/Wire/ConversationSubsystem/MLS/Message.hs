@@ -281,8 +281,11 @@ validateAndPropagateTransientMessage sender client ctype groupId raw lconv = do
   unless (aad.groupContext.groupId == groupId) $
     throw $
       mlsProtocolError "transient message group context does not match conversation"
-  unless (maybe False (`isAtMost3EpochsPast` aad.groupContext.epoch) currentEpoch) $
-    throwS @'MLSStaleMessage
+  case currentEpoch of
+    Nothing -> throw $ mlsProtocolError "transient message group has no active epoch"
+    Just epoch ->
+      unless (isAtMost3EpochsPast epoch aad.groupContext.epoch) $
+        throwS @'MLSStaleMessage
   case imLookup convOrSub.indexMap aad.sender of
     Just (RegularClient senderClient)
       | senderClient == expectedClient -> pure ()
