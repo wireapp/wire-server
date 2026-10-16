@@ -244,6 +244,7 @@ executable stern-integration
       aeson
     , base
     , bilge
+    , bytestring
     , bytestring-conversion
     , containers
     , cookie

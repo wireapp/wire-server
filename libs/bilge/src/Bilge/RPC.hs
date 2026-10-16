@@ -23,7 +23,10 @@ module Bilge.RPC
     RPCException (..),
     rpc,
     rpc',
+    rpcStream,
     parseResponse,
+    parseResponseLBS,
+    checkResponseBody,
     rpcExceptionMsg,
   )
 where
@@ -32,13 +35,17 @@ import Bilge.IO
 import Bilge.Request
 import Bilge.Response
 import Control.Error hiding (err)
-import Control.Monad.Catch (MonadCatch, MonadThrow (..), try)
+import Control.Monad.Catch (MonadCatch, MonadThrow (..), finally, try)
+import Control.Monad.Codensity
 import Data.Aeson (FromJSON, eitherDecode')
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder
 import Data.CaseInsensitive (original)
 import Data.Text.Lazy (pack)
 import Data.Text.Lazy qualified as T
 import Imports hiding (log)
 import Network.HTTP.Client qualified as HTTP
+import Network.Wai (StreamingBody)
 import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import System.Logger.Class
 import Wire.OpenTelemetry (withClientInstrumentation)
@@ -99,6 +106,34 @@ rpc' sys r f = do
     Left x -> throwM $ RPCException sys rq x
     Right x -> pure x
 
+-- | Perform a streamed HTTP request similarly to rpc' and return the response.
+-- Streams the output of a LowLevelStreamingBody endpoint,
+-- without consuming the whole stream at once.
+rpcStream ::
+  (MonadUnliftIO m, HasRequestId m) =>
+  LText ->
+  HTTP.Manager ->
+  Request ->
+  (Request -> Request) ->
+  m (Codensity IO StreamingBody)
+rpcStream sys mgr r f = do
+  rId <- getRequestId
+  let rq = f $ requestId rId r
+  pure $ Codensity $ \k -> do
+    resp <-
+      withClientInstrumentation ("intra-call-to-" <> T.toStrict sys) \k' ->
+        k' rq \r' -> liftIO (HTTP.responseOpen r' mgr)
+    k (streamBody resp) `finally` HTTP.responseClose resp
+  where
+    streamBody resp write flushResp = do
+      chunk <- HTTP.responseBody resp
+      if BS.null chunk
+        then
+          pure ()
+        else do
+          _ <- write (byteString chunk) >> flushResp
+          streamBody resp write flushResp
+
 rpcExceptionMsg :: RPCException -> Msg -> Msg
 rpcExceptionMsg (RPCException sys req ex) =
   "remote" .= sys ~~ "path" .= HTTP.path req ~~ headers ~~ msg (displayExceptionNoBacktrace ex)
@@ -112,5 +147,21 @@ parseResponse ::
   Response (Maybe LByteString) ->
   m a
 parseResponse f r = either throwM pure $ do
-  b <- note (f "no response body") (responseBody r)
+  b <- checkResponseBody f r
   fmapL (f . pack) (eitherDecode' b)
+
+parseResponseLBS ::
+  (Exception e, MonadThrow m) =>
+  (LText -> e) ->
+  Response (Maybe LByteString) ->
+  m LByteString
+parseResponseLBS f =
+  either throwM pure
+    . checkResponseBody f
+
+checkResponseBody ::
+  (LText -> e) ->
+  Response (Maybe a) ->
+  Either e a
+checkResponseBody f r =
+  note (f "no response body") (responseBody r)

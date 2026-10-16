@@ -14,6 +14,7 @@
 , http-client
 , http-types
 , imports
+, kan-extensions
 , lens
 , lib
 , monad-control
@@ -44,6 +45,7 @@ mkDerivation {
     http-client
     http-types
     imports
+    kan-extensions
     lens
     monad-control
     mtl
