@@ -204,6 +204,7 @@ data EventType
   | MLSMessageAdd
   | MLSTargetedMessage
   | MLSTransientTargetedMessage
+  | MLSTransientMessage
   | MLSWelcome
   | Typing
   | ProtocolUpdate
@@ -238,6 +239,7 @@ instance ToSchema EventType where
           element "conversation.mls-message-add" MLSMessageAdd,
           element "conversation.mls-message-targeted" MLSTargetedMessage,
           element "conversation.mls-message-transient-targeted" MLSTransientTargetedMessage,
+          element "conversation.mls-message-transient" MLSTransientMessage,
           element "conversation.mls-welcome" MLSWelcome,
           element "conversation.protocol-update" ProtocolUpdate,
           element "conversation.add-permission-update" AddPermissionUpdate,
@@ -266,6 +268,7 @@ data EventData
   | EdMLSMessage ByteString
   | EdMLSTargetedMessage ByteString
   | EdMLSTransientTargetedMessage ByteString
+  | EdMLSTransientMessage ByteString
   | EdMLSWelcome ByteString
   | EdProtocolUpdate P.ProtocolTag
   | EdAddPermissionUpdate Conv.AddPermissionUpdate
@@ -292,6 +295,7 @@ genEventData = \case
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
   MLSTargetedMessage -> EdMLSTargetedMessage <$> arbitrary
   MLSTransientTargetedMessage -> EdMLSTransientTargetedMessage <$> arbitrary
+  MLSTransientMessage -> EdMLSTransientMessage <$> arbitrary
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
   ConvDeleteMeeting -> pure EdConvDeleteMeeting
@@ -319,6 +323,7 @@ eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSTargetedMessage _) = MLSTargetedMessage
 eventDataType (EdMLSTransientTargetedMessage _) = MLSTransientTargetedMessage
+eventDataType (EdMLSTransientMessage _) = MLSTransientMessage
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 eventDataType EdConvDeleteMeeting = ConvDeleteMeeting
@@ -357,6 +362,7 @@ isCellsConversationEvent eventType =
     MLSMessageAdd -> False
     MLSTargetedMessage -> False
     MLSTransientTargetedMessage -> False
+    MLSTransientMessage -> False
     MLSWelcome -> False
     ProtocolUpdate -> False
     AddPermissionUpdate -> False
@@ -664,6 +670,7 @@ taggedEventDataSchema =
       MLSMessageAdd -> tag _EdMLSMessage base64Schema
       MLSTargetedMessage -> tag _EdMLSTargetedMessage base64Schema
       MLSTransientTargetedMessage -> tag _EdMLSTransientTargetedMessage base64Schema
+      MLSTransientMessage -> tag _EdMLSTransientMessage base64Schema
       MLSWelcome -> tag _EdMLSWelcome base64Schema
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_

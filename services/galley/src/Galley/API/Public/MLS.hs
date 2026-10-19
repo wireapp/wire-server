@@ -28,6 +28,7 @@ mlsAPI =
   mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
     <@> mkNamedAPI @"mls-targeted-message" postMLSTargetedMessagesFromLocalUser
     <@> mkNamedAPI @"mls-transient-targeted-message" postMLSTransientTargetedMessageFromLocalUser
+    <@> mkNamedAPI @"mls-transient-message" postMLSTransientMessageFromLocalUser
     <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
     <@> mkNamedAPI @"mls-public-keys" (const getMLSPublicKeys)
     <@> mkNamedAPI @"mls-reset-conversation" resetMLSConversation

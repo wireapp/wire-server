@@ -180,6 +180,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ MLSMessage.postMLSTargetedMessagesFromLocalUser lusr c batch
   PostMLSTransientTargetedMessageFromLocalUser lusr c message ->
     mapErrors $ MLSMessage.postMLSTransientTargetedMessageFromLocalUser lusr c message
+  PostMLSTransientMessageFromLocalUser lusr c message ->
+    mapErrors $ MLSMessage.postMLSTransientMessageFromLocalUser lusr c message
   IsMLSEnabled ->
     mapErrors $ MLSEnabled.isMLSEnabled
   GetConversationsInternal luser mids mstart msize ->
@@ -200,6 +202,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.sendMLSMessage domain msr
   FederationSendMLSTargetedMessage domain msr ->
     mapErrors $ Federation.sendMLSTargetedMessage domain msr
+  FederationSendMLSTransientMessage domain msr ->
+    mapErrors $ Federation.sendMLSTransientMessage domain msr
   FederationSendMLSCommitBundle domain msr ->
     mapErrors $ Federation.sendMLSCommitBundle domain msr
   FederationQueryGroupInfo domain req ->
@@ -224,6 +228,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.onMessageSent domain rm
   FederationOnMLSMessageSent domain rmm ->
     mapErrors $ Federation.onMLSMessageSent domain rmm
+  FederationOnMLSTransientMessageSent domain rmm ->
+    mapErrors $ Federation.onMLSTransientMessageSent domain rmm
   FederationOnMLSTargetedMessageSent domain rmm ->
     mapErrors $ Federation.onMLSTargetedMessageSent domain rmm
   FederationOnConversationUpdated domain cu ->

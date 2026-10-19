@@ -64,15 +64,11 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Keys
+import Wire.API.MLS.ProtocolVersion (defaultProtocolVersion)
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.TargetedMessage
-  ( PersistentTargetedMessage (persistentTargetedMessageData),
-    TargetedMessage (groupId),
-    TargetedMessageBatch (..),
-    TransientTargetedMessage (..),
-    TransientTargetedMessageBatch (..),
-  )
+import Wire.API.MLS.TransientMessage
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.API.Routes.Public.Galley.MLS
@@ -738,7 +734,7 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
 
   ibundle <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
-  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
+  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
 
   -- this cannot throw the error since we always pass the sender which is qualified to be remote
   MLSMessageResponseUpdates
@@ -793,7 +789,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString msr.rawMessage)
   msg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
-  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
+  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
   MLSMessageResponseUpdates . map lcuUpdate
     <$> postMLSMessage
       loc
@@ -835,7 +831,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE esca
       firstMessage <- note (mlsProtocolError "transient targeted message batch is empty") (listToMaybe batch.transientMessages)
       let groupId = (transientTargetedMessageData firstMessage.value).groupId
       (ctype, qConvOrSub) <- getConvFromGroupId groupId
-      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
+      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
       foldQualified
         loc
         ( \convOrSubId -> do
@@ -847,7 +843,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE esca
     (_, Right batch) -> do
       firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
       (ctype, qConvOrSub) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
-      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
+      when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
       foldQualified
         loc
         ( \convOrSubId -> do
@@ -867,6 +863,41 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE esca
     escapeLeafIndexError ConversationSubsystemErrorMLSInvalidLeafNodeIndex =
       Just (dynError @(MapError 'MLSInvalidLeafNodeIndex))
     escapeLeafIndexError _ = Nothing
+
+sendMLSTransientMessage ::
+  ( Members MLSMessageStaticErrors r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    Member E.ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member P.TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
+  ) =>
+  Domain ->
+  MLSMessageSendRequest ->
+  Sem r MLSMessageResponse
+sendMLSTransientMessage remoteDomain req = handleMLSMessageErrors $ do
+  assertMLSEnabled
+  loc <- qualifyLocal ()
+  let sender = toRemoteUnsafe remoteDomain req.sender
+      messageBytes = fromBase64ByteString req.rawMessage
+  transient <- either (throw . mlsProtocolError) pure $ decodeMLS' messageBytes
+  let aad = transientMessageAad transient
+  unless (aad.wireFormat == transientMessageWireFormat) $ throw ConversationSubsystemErrorMLSUnsupportedMessage
+  unless (aad.protocolVersion == defaultProtocolVersion) $ throw ConversationSubsystemErrorMLSUnsupportedMessage
+  (ctype, qConvOrSub) <- getConvFromGroupId aad.groupContext.groupId
+  when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
+  foldQualified
+    loc
+    ( \localConv -> do
+        validateAndPropagateTransientMessage (tUntagged sender) req.senderClient ctype aad.groupContext.groupId (RawMLS messageBytes transient) localConv
+        pure (MLSMessageResponseUpdates [])
+    )
+    (\_ -> throw $ mlsProtocolError "federated transient message was not sent to its conversation backend")
+    qConvOrSub
 
 getSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
@@ -1092,16 +1123,41 @@ onMLSMessageSent domain rmm = do
               . Map.assocs
               $ rmm.recipients
       -- FUTUREWORK: support local bots
-      let e =
-            Event (tUntagged rcnv) rmm.subConversation (EventFromUser rmm.sender) rmm.time Nothing $
-              EdMLSMessage (fromBase64ByteString rmm.message)
+      let messageBytes = fromBase64ByteString rmm.message
+          (eventData, metadata) =
+            case decodeMLS' @TransientMessage messageBytes of
+              Right _ -> (EdMLSTransientMessage messageBytes, defMessageMetadata {mmTransient = True})
+              Left _ -> (EdMLSMessage messageBytes, rmm.metadata)
+          e = Event (tUntagged rcnv) rmm.subConversation (EventFromUser rmm.sender) rmm.time Nothing eventData
 
       runMessagePush loc (Just (tUntagged rcnv)) $
-        newMessagePush mempty Nothing rmm.metadata recipients e
+        newMessagePush mempty Nothing metadata recipients e
   case res of
     Right () -> pure EmptyResponse
     Left e@ConversationSubsystemErrorMLSNotEnabled -> logError domain rmm.conversation (Just e) $> EmptyResponse
     Left e -> throw e
+
+onMLSTransientMessageSent ::
+  ( Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+    Member E.ConversationStore r,
+    Member P.TinyLog r,
+    Member (Error ConversationSubsystemError) r
+  ) =>
+  Domain ->
+  RemoteMLSTransientMessage ->
+  Sem r EmptyResponse
+onMLSTransientMessageSent domain (RemoteMLSTransientMessage rmm) =
+  case decodeMLS' @TransientMessage (fromBase64ByteString rmm.message) of
+    Left _ -> do
+      P.warn $
+        Log.field "conversation" (toByteString' rmm.conversation)
+          Log.~~ Log.field "domain" (toByteString' domain)
+          Log.~~ Log.msg ("Dropping malformed federated transient MLS message" :: ByteString)
+      pure EmptyResponse
+    Right _ -> onMLSMessageSent domain rmm
 
 onMLSTargetedMessageSent ::
   ( Member (Error ConversationSubsystemError) r,

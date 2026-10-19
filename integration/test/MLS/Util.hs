@@ -991,6 +991,31 @@ createApplicationMessage convId cid messageContent = do
         appMessage = Nothing
       }
 
+createTransientMessage ::
+  (HasCallStack) =>
+  ConvId ->
+  ClientIdentity ->
+  String ->
+  App MessagePackage
+createTransientMessage convId cid messageContent = do
+  conv <- getMLSConv convId
+  message <-
+    mlscli
+      (Just convId)
+      conv.ciphersuite
+      cid
+      ["transient-message", "--group-in", "<group-in>", messageContent]
+      Nothing
+  pure
+    MessagePackage
+      { sender = cid,
+        convId = convId,
+        message = message,
+        welcome = Nothing,
+        groupInfo = Nothing,
+        appMessage = Nothing
+      }
+
 createTargetedMessage ::
   (HasCallStack) =>
   ConvId ->
