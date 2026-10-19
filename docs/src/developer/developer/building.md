@@ -20,6 +20,9 @@
      use wire-server
    ```
 
+If you develop on macOS (in particular on Apple Silicon), see
+[mac-local-setup.md](mac-local-setup.md) for known pitfalls and workarounds.
+
 ### direnv
 
 1. Install [`direnv`](https://direnv.net/). See the [installation documentation](https://direnv.net/docs/installation.html)

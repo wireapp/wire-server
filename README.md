@@ -88,6 +88,9 @@ See the `Makefile`s and `Dockerfile`s, as well as [build/ubuntu/README.md](build
 
 This is suitable only for local development and testing. See [build instructions](https://docs.wire.com/developer/developer/building.html) in the developer documentation.
 
+For macOS-specific considerations (in particular on Apple Silicon), see
+[local development setup on macOS](docs/src/developer/developer/mac-local-setup.md).
+
 ## How to install and run `wire-server`
 
 You have two options:
