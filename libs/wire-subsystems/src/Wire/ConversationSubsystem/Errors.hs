@@ -86,7 +86,7 @@ cseToGalleyError = \case
   ConversationSubsystemErrorGroupIdVersionNotSupported -> Just GroupIdVersionNotSupported
   ConversationSubsystemErrorConvMemberNotFound -> Just ConvMemberNotFound
   ConversationSubsystemErrorHistoryNotSupported -> Just HistoryNotSupported
-  ConversationSubsystemErrorLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
+  ConversationSubsystemErrorMLSGroupConversationMismatch -> Just MLSGroupConversationMismatch
   ConversationSubsystemErrorActionDeniedLeaveConversation -> Just (ActionDenied ConvRole.LeaveConversation)
   ConversationSubsystemErrorActionDeniedRemoveConversationMember -> Just (ActionDenied ConvRole.RemoveConversationMember)
   ConversationSubsystemErrorActionDeniedDeleteConversation -> Just (ActionDenied ConvRole.DeleteConversation)
@@ -152,7 +152,7 @@ galleyErrorToCSE = \case
   GroupIdVersionNotSupported -> Just ConversationSubsystemErrorGroupIdVersionNotSupported
   ConvMemberNotFound -> Just ConversationSubsystemErrorConvMemberNotFound
   HistoryNotSupported -> Just ConversationSubsystemErrorHistoryNotSupported
-  MLSGroupConversationMismatch -> Just ConversationSubsystemErrorLSGroupConversationMismatch
+  MLSGroupConversationMismatch -> Just ConversationSubsystemErrorMLSGroupConversationMismatch
   ActionDenied ConvRole.LeaveConversation -> Just ConversationSubsystemErrorActionDeniedLeaveConversation
   ActionDenied ConvRole.RemoveConversationMember -> Just ConversationSubsystemErrorActionDeniedRemoveConversationMember
   ActionDenied ConvRole.DeleteConversation -> Just ConversationSubsystemErrorActionDeniedDeleteConversation
@@ -215,7 +215,7 @@ data ConversationSubsystemError
   | ConversationSubsystemErrorGroupIdVersionNotSupported
   | ConversationSubsystemErrorConvMemberNotFound
   | ConversationSubsystemErrorHistoryNotSupported
-  | ConversationSubsystemErrorLSGroupConversationMismatch
+  | ConversationSubsystemErrorMLSGroupConversationMismatch
   | ConversationSubsystemErrorActionDeniedLeaveConversation
   | ConversationSubsystemErrorActionDeniedRemoveConversationMember
   | ConversationSubsystemErrorActionDeniedDeleteConversation
@@ -289,7 +289,7 @@ instance APIError ConversationSubsystemError where
       ConversationSubsystemErrorGroupIdVersionNotSupported -> toResponse $ Tagged @'GroupIdVersionNotSupported ()
       ConversationSubsystemErrorConvMemberNotFound -> toResponse $ Tagged @'ConvMemberNotFound ()
       ConversationSubsystemErrorHistoryNotSupported -> toResponse $ Tagged @'HistoryNotSupported ()
-      ConversationSubsystemErrorLSGroupConversationMismatch -> toResponse $ Tagged @MLSGroupConversationMismatch ()
+      ConversationSubsystemErrorMLSGroupConversationMismatch -> toResponse $ Tagged @MLSGroupConversationMismatch ()
       ConversationSubsystemErrorActionDeniedLeaveConversation -> toResponse $ Tagged @('ActionDenied ConvRole.LeaveConversation) ()
       ConversationSubsystemErrorActionDeniedRemoveConversationMember -> toResponse $ Tagged @('ActionDenied ConvRole.RemoveConversationMember) ()
       ConversationSubsystemErrorActionDeniedDeleteConversation -> toResponse $ Tagged @('ActionDenied ConvRole.DeleteConversation) ()

@@ -216,7 +216,6 @@ postMLSTransientTargetedMessageFromLocalUser lusr client batch = do
 postMLSTransientMessageFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -237,9 +236,9 @@ postMLSTransientMessageFromLocalUser lusr client raw = do
       aad = transientMessageAad transient
       groupContext = aad.groupContext
   unless (aad.wireFormat == transientMessageWireFormat) $
-    throwS @'MLSUnsupportedMessage
+    throw ConversationSubsystemErrorMLSUnsupportedMessage
   unless (aad.protocolVersion == defaultProtocolVersion) $
-    throwS @'MLSUnsupportedMessage
+    throw ConversationSubsystemErrorMLSUnsupportedMessage
   (ctype, qConvOrSub) <- getConvFromGroupId groupContext.groupId
   foldQualified
     lusr
@@ -252,7 +251,6 @@ postMLSTransientMessageFromLocalUser lusr client raw = do
 validateAndPropagateTransientMessage ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
@@ -275,9 +273,9 @@ validateAndPropagateTransientMessage sender client ctype groupId raw lconv = do
       expectedClient = mkClientIdentity sender client
       currentEpoch = (.epoch) <$> convOrSub.mlsMeta.cnvmlsActiveData
   unless (aad.protocolVersion == defaultProtocolVersion && aad.groupContext.protocolVersion == defaultProtocolVersion) $
-    throwS @'MLSUnsupportedMessage
+    throw ConversationSubsystemErrorMLSUnsupportedMessage
   unless (aad.wireFormat == transientMessageWireFormat) $
-    throwS @'MLSUnsupportedMessage
+    throw ConversationSubsystemErrorMLSUnsupportedMessage
   unless (aad.groupContext.groupId == groupId) $
     throw $
       mlsProtocolError "transient message group context does not match conversation"
@@ -285,12 +283,12 @@ validateAndPropagateTransientMessage sender client ctype groupId raw lconv = do
     Nothing -> throw $ mlsProtocolError "transient message group has no active epoch"
     Just epoch ->
       unless (isAtMost3EpochsPast epoch aad.groupContext.epoch) $
-        throwS @'MLSStaleMessage
+        throw ConversationSubsystemErrorMLSStaleMessage
   case imLookup convOrSub.indexMap aad.sender of
     Just (RegularClient senderClient)
       | senderClient == expectedClient -> pure ()
-      | otherwise -> throwS @'MLSClientSenderUserMismatch
-    _ -> throwS @'MLSInvalidLeafNodeIndex
+      | otherwise -> throw ConversationSubsystemErrorMLSClientSenderUserMismatch
+    _ -> throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
   let message = raw.raw
   propagateTransientMessage sender (Just client) lconvOrSub Nothing message convOrSub.members
 
@@ -307,7 +305,7 @@ postTransientMessageToRemoteConv ::
   Remote ConvOrSubConvId ->
   Sem r ()
 postTransientMessageToRemoteConv lusr client raw rConvOrSubId = do
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+  flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
   response <-
     runFederated rConvOrSubId $
       fedClient @'Galley @"send-mls-transient-message" $
