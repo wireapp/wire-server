@@ -275,9 +275,14 @@ settings:
 
 The optional `settings.meetings.email` block enables emailing meeting
 invitations to external addresses. `from` is required; `replyTo` is optional.
-`transport` is an AWS SES or SMTP value (the same shape Brig uses for its
-email transport). When the block is absent, no meeting invitation emails are
-sent.
+`templateDir` is the directory of the wire-subsystems email templates (the
+same tree Brig points `emailSMS.general.templateDir` at; only the `en/` locale
+tree exists upstream). `branding` is an optional map of substitutions
+(`${brand_*}`, `${support}`, `${legal}`, ...) applied to meeting emails;
+unreplaced placeholders render literally, so mirror Brig's
+`templateBranding` values here. `transport` is an AWS SES or SMTP value (the
+same shape Brig uses for its email transport). When the block is absent, no
+meeting invitation emails are sent.
 
 ```yaml
 # galley.yaml
@@ -286,6 +291,10 @@ settings:
     email:
       from: meetings@example.com
       replyTo: noreply@example.com
+      templateDir: /www/emails
+      branding:
+        brand: Wire
+        legal: https://wire.com/legal/
       transport:               # SES:
         sesQueue: wire-meetings-email-feedback
         sesEndpoint: https://email.us-east-1.amazonaws.com
