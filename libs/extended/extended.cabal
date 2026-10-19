@@ -131,7 +131,6 @@ library
     , unliftio
     , wai
 
-  -- TODO: This is temporary, use pqi-ffi
   default-language:   GHC2021
 
 test-suite extended-tests
