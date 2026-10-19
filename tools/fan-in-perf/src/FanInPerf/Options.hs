@@ -83,7 +83,7 @@ optionsParser =
   Options
     <$> globalParser
     <*> hsubparser
-      ( O.command "migrate" (info (Migrate <$> shapeParser) (progDesc "Create the experiment database if missing, configure pg_partman and create the fan-in notification tables (idempotent)"))
+      ( O.command "migrate" (info (Migrate <$> shapeParser) (progDesc "Create the experiment database if missing, with --partitioned configure pg_partman, and create the fan-in notification tables (idempotent)"))
           <> O.command "drop-db" (info (pure DropDb) (progDesc "Drop the experiment database"))
           <> O.command "reset" (info (pure Reset) (progDesc "Truncate all fan-in notification tables"))
           <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))

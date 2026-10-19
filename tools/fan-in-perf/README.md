@@ -138,8 +138,11 @@ six `*_notifications` tables are range-partitioned by UUIDv7 with retention
 `partman_maintainer`, not a superuser) every 60 s. The tool contains no SQL;
 partitioning lives in `FanInNotificationsAdmin` (`libs/wire-subsystems`).
 
-Retention timing: the first drop happens about 6-7 minutes into a run, the
-oldest remaining child is then 6-8 minutes old. Use `--duration` of at least
+Retention timing: `create_parent` premakes 10 past partitions (start = now
+- 10 min), so the first bgw tick after `migrate --partitioned` drops about 5
+empty past partitions and "Partitions per parent" steps down before any load.
+The first drop that holds data comes about 6-7 minutes into a run, the oldest
+remaining child is then 6-8 minutes old. Use `--duration` of at least
 600 so several drops happen. A reader that lags more than 5 minutes behind
 loses rows to the drop; they show up as `missing`.
 
@@ -149,13 +152,13 @@ Procedure:
    `postgresql-17-partman` 5.5.0, `deploy/dockerephemeral/docker/postgres/Dockerfile`).
    The image declares an anonymous volume that `docker compose` keeps when
    recreating a container, and the Alpine to Debian switch changes the
-   collation, so the old data directory is unsafe. Recreate:
-   `docker compose rm -sfv postgres`, then bring it up again.
+   collation, so the old data directory is unsafe. Recreate, from `deploy/dockerephemeral`:
+   `cd deploy/dockerephemeral && docker compose build postgres && docker compose rm -sfv postgres && docker compose up -d postgres`.
    **This DELETES all local dev DB data in that postgres.** `run.sh` does not
-   pass `--build`: build the image yourself (`docker compose build postgres`).
+   pass `--build`, hence the explicit build.
 2. `fan-in-perf --db "$DB" migrate --partitioned` (creates `fan_in_perf`).
 3. `fan-in-perf --db "$DB" consume-ack ... --duration 600` (or more), any
-   parameters.
+   parameters (the constraints of [C](#consume-ack) apply).
 4. Baseline: `fan-in-perf --db "$DB" drop-db`, plain `fan-in-perf --db "$DB"
    migrate`, identical `consume-ack` parameters and duration.
 5. Compare the `summary:` blocks (rates, latency percentiles) and the
@@ -178,10 +181,15 @@ Notes:
   still works.
 - The bgw settings (`pg_partman_bgw.dbname`, `.interval`, `.role`) are set by
   `migrate` with `ALTER SYSTEM` plus `pg_reload_conf()`; compose only
-  preloads `pg_partman_bgw`. Whether the worker picks the changed dbname up
-  after a reload without a postgres restart is NOT yet confirmed; check it on
-  the first run (see below). If not, restart the postgres container once
-  after the first `migrate --partitioned`.
+  preloads `pg_partman_bgw`. A reload is enough: all `pg_partman_bgw` GUCs
+  are PGC_SIGHUP, the master worker wakes on SIGHUP and re-reads `dbname`
+  each loop (`pg_partman_bgw.c`, v5.5.0).
+- Plain `migrate` does not touch pg_partman; only `migrate --partitioned`
+  does. Server `ALTER SYSTEM` settings from an earlier D run persist, which
+  keeps the baseline server config identical.
+- After `drop-db`, `pg_partman_bgw.dbname` still points at the dropped DB; the
+  bgw logs a connection error every 60 s until the next `migrate
+  --partitioned` (harmless).
 
 ### Verifying the setup
 
@@ -193,13 +201,19 @@ Checklist for the first run (`DB=postgresql://wire-server:posty-the-gres@localho
 2. `psql "$DB" -c "SELECT parent_table, retention, partition_interval FROM
    partman.part_config"` shows six rows, `5 minutes`, `00:01:00`.
 3. `psql "$DB" -c "SHOW pg_partman_bgw.dbname"` shows `fan_in_perf`. If the
-   worker does not maintain after the reload (partitions never get dropped,
-   `fan_in_partman_seconds_since_maintenance` keeps growing), restart
-   postgres and record it here.
+   worker does not maintain (partitions never get dropped), note that a
+   failed maintenance run sets `maintenance_last_run` to NULL, so
+   `fan_in_partman_seconds_since_maintenance` goes missing/NaN rather than
+   growing.
+   Also check that all children are owned by `partman_maintainer` (expect only
+   that row): `SELECT DISTINCT pg_get_userbyid(c.relowner) FROM pg_inherits i
+   JOIN pg_class c ON c.oid = i.inhrelid;`, and that the postgres log has no
+   `pg_partman maintenance skipped partition set` WARNING.
 4. `fan-in-perf --db "$DB" produce --targets user:1000,team:10,epoch:100
    --duration 480`; meanwhile `psql "$DB" -c "SELECT count(*) FROM
    pg_inherits WHERE inhparent='user_notifications'::regclass"` grows, then
-   stays flat. The first drop comes after about 6-7 minutes. Postgres logs
+   stays flat. The first drop with data comes after about 6-7 minutes (about 5
+   empty premade partitions go right after migrate). Postgres logs
    show no bgw errors; Grafana shows a sawtooth in "Partitions per parent".
 5. Plain `fan-in-perf --db "$DB" migrate` on the partitioned DB aborts with
    `... exist with other shape (partitioned); run drop-db first`.

@@ -48,7 +48,7 @@ run console opts = do
         printLine console ("created database " <> unDbName name)
       checkDatabase env
       -- partman first: the partitioned migration needs it
-      runOrAbort "setup partman" env (setupPartman name)
+      when (shape == Partitioned) $ runOrAbort "setup partman" env (setupPartman name)
       runOrAbort "migrate" env (migrate shape) >>= \case
         Migrated -> printLine console ("created fan-in notification tables (" <> shapeName shape <> ")")
         AlreadyMigrated -> printLine console "fan-in notification tables already exist"

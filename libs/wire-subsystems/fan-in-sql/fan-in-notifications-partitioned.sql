@@ -70,6 +70,13 @@ ALTER TABLE epoch_notifications OWNER TO partman_maintainer;
 ALTER TABLE local_connection_notifications OWNER TO partman_maintainer;
 ALTER TABLE remote_connection_notifications OWNER TO partman_maintainer;
 
+-- create_parent creates the initial children and the default partition as the
+-- session user, and inherit_privileges is off. The bgw runs as
+-- partman_maintainer and could not DROP children it does not own ("must be
+-- owner"), which rolls back the whole maintenance tick. So create them as
+-- partman_maintainer. Plain SET (not LOCAL); reset after the last statement.
+SET ROLE partman_maintainer;
+
 SELECT partman.create_parent(p_parent_table := 'public.user_notifications', p_control := 'notification_id', p_interval := '1 minute', p_premake := 10, p_time_encoder := 'partman.uuid7_time_encoder', p_time_decoder := 'partman.uuid7_time_decoder');
 SELECT partman.create_parent(p_parent_table := 'public.client_notifications', p_control := 'notification_id', p_interval := '1 minute', p_premake := 10, p_time_encoder := 'partman.uuid7_time_encoder', p_time_decoder := 'partman.uuid7_time_decoder');
 SELECT partman.create_parent(p_parent_table := 'public.team_notifications', p_control := 'notification_id', p_interval := '1 minute', p_premake := 10, p_time_encoder := 'partman.uuid7_time_encoder', p_time_decoder := 'partman.uuid7_time_decoder');
@@ -87,3 +94,5 @@ WHERE parent_table IN (
   'public.local_connection_notifications',
   'public.remote_connection_notifications'
 );
+
+RESET ROLE;
