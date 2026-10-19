@@ -205,6 +205,27 @@
         { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p50" },
         { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p99" }
       ]
+    },
+    {
+      "id": 26, "type": "row", "title": "pg_partman", "collapsed": false,
+      "gridPos": { "x": 0, "y": 104, "w": 24, "h": 1 },
+      "panels": []
+    },
+    {
+      "id": 27, "type": "timeseries", "title": "Partitions per parent", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 0, "y": 105, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fan_in_partman_partitions", "legendFormat": "{{parent}}" }
+      ]
+    },
+    {
+      "id": 28, "type": "timeseries", "title": "Oldest partition age per parent", "datasource": null, "interval": "1s",
+      "gridPos": { "x": 12, "y": 105, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "fan_in_partman_oldest_partition_age_seconds", "legendFormat": "{{parent}}" },
+        { "refId": "B", "expr": "fan_in_partman_seconds_since_maintenance", "legendFormat": "since maintenance ({{parent}})" }
+      ]
     }
   ]
 }

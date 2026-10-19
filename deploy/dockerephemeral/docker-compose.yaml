@@ -282,7 +282,7 @@ services:
 
   postgres:
     container_name: postgres
-    image: 'postgres:17-alpine'
+    build: ./docker/postgres
     ports:
       - 5432:5432
     networks:
@@ -293,13 +293,26 @@ services:
       POSTGRES_PASSWORD: "posty-the-gres"
       POSTGRES_USER: "wire-server"
       POSTGRES_DB: "backendA"
-    command: postgres -c max_connections=1000 -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all
+    command: postgres -c max_connections=1000 -c shared_preload_libraries=pg_stat_statements,pg_partman_bgw -c pg_stat_statements.track=all
 
   postgres-exporter:
     container_name: demo_wire_postgres_exporter
     image: prometheuscommunity/postgres-exporter:latest
     environment:
       DATA_SOURCE_NAME: "postgresql://wire-server:posty-the-gres@postgres:5432/backendA?sslmode=disable"
+    depends_on:
+      - postgres
+    networks:
+      - demo_wire
+
+  postgres-exporter-fan-in-perf:
+    container_name: demo_wire_postgres_exporter_fan_in_perf
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    command: ["--extend.query-path=/etc/postgres-exporter/queries.yaml"]
+    environment:
+      DATA_SOURCE_NAME: "postgresql://wire-server:posty-the-gres@postgres:5432/fan_in_perf?sslmode=disable"
+    volumes:
+      - ./docker/postgres-exporter-fan-in-perf/queries.yaml:/etc/postgres-exporter/queries.yaml:ro
     depends_on:
       - postgres
     networks:
@@ -458,6 +471,7 @@ services:
     depends_on:
       - postgres
       - postgres-exporter
+      - postgres-exporter-fan-in-perf
       - grafana-lgtm
     networks:
       - demo_wire
