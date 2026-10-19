@@ -51,6 +51,7 @@ import Wire.API.User.Client (Client (..))
 import Wire.API.User.Password
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Ics
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.Templates.Meeting
 import Wire.EmailSubsystem.Templates.Team
@@ -757,8 +758,8 @@ sendMeetingCancelMailImpl meetingTemplates branding email hostName hostEmail mee
 
 -- | Replacement map shared by all meeting emails. Branding keys
 -- (brand_*/support/legal/misuse/copyright) come from the branding map itself;
--- @join_url@ and @ics_url@ are quiet empty strings when unavailable
--- (wire-server generates no ICS attachments).
+-- @join_url@ is a quiet empty string when unavailable. @ics_url@ is a @cid:@
+-- reference to the @text/calendar@ part attached to the same mail.
 meetingEmailReplace :: Meeting -> Text -> Text -> Text -> Map Text Text
 meetingEmailReplace meeting hostName hostEmail changeSummary =
   brandingPlaceholders
@@ -767,7 +768,7 @@ meetingEmailReplace meeting hostName hostEmail changeSummary =
     & Map.insert "host_email" hostEmail
     & Map.insert "change_summary" changeSummary
     & Map.insert "join_url" (maybe "" httpsUrlToText meeting.link)
-    & Map.insert "ics_url" ""
+    & Map.insert "ics_url" icsCidUrl
   where
     zone t = timeZoneForUTCTime (timeZoneTZ meeting.tzid) t
     zonedStart = utcToZonedTime (zone meeting.startTime) meeting.startTime
@@ -795,10 +796,12 @@ renderMeetingEmail ::
   Text ->
   -- | X-Zeta-Purpose header value
   Text ->
+  -- | ICS method for the attached calendar part
+  IcsMethod ->
   MeetingEmailTemplate ->
   Branding ->
   Sem r Mail
-renderMeetingEmail email hostName hostEmail meeting changeSummary purpose MeetingEmailTemplate {..} branding = do
+renderMeetingEmail email hostName hostEmail meeting changeSummary purpose icsMethod MeetingEmailTemplate {..} branding = do
   let replace = meetingEmailReplace meeting hostName (fromEmail hostEmail) changeSummary `Map.union` branding
   txt <- renderTextWithBrandingSem meetingEmailBodyText replace
   html <- renderHtmlWithBrandingSem meetingEmailBodyHtml replace
@@ -810,7 +813,7 @@ renderMeetingEmail email hostName hostEmail meeting changeSummary purpose Meetin
           [ ("Subject", toStrict subj),
             ("X-Zeta-Purpose", purpose)
           ],
-        mailParts = [[plainPart txt, htmlPart html]]
+        mailParts = [[plainPart txt, htmlPart html], [icsAttachment icsMethod meeting hostName hostEmail email]]
       }
   where
     from = Address (Just meetingEmailSenderName) (fromEmail meetingEmailSender)
@@ -829,7 +832,7 @@ renderMeetingInvitationEmail ::
   Branding ->
   Sem r Mail
 renderMeetingInvitationEmail email hostName hostEmail meeting tpl branding =
-  renderMeetingEmail email hostName hostEmail meeting "" "MeetingInvitation" tpl branding
+  renderMeetingEmail email hostName hostEmail meeting "" "MeetingInvitation" IcsRequest tpl branding
 
 renderMeetingUpdateEmail ::
   (Member (Output Text) r) =>
@@ -846,7 +849,7 @@ renderMeetingUpdateEmail ::
   Branding ->
   Sem r Mail
 renderMeetingUpdateEmail email hostName hostEmail meeting changeSummary tpl branding =
-  renderMeetingEmail email hostName hostEmail meeting changeSummary "MeetingUpdate" tpl branding
+  renderMeetingEmail email hostName hostEmail meeting changeSummary "MeetingUpdate" IcsRequest tpl branding
 
 renderMeetingCancelEmail ::
   (Member (Output Text) r) =>
@@ -861,7 +864,7 @@ renderMeetingCancelEmail ::
   Branding ->
   Sem r Mail
 renderMeetingCancelEmail email hostName hostEmail meeting tpl branding =
-  renderMeetingEmail email hostName hostEmail meeting "" "MeetingCancellation" tpl branding
+  renderMeetingEmail email hostName hostEmail meeting "" "MeetingCancellation" IcsCancel tpl branding
 
 -------------------------------------------------------------------------------
 -- MIME Conversions
