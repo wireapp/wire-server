@@ -125,6 +125,3 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
         . List.sortOn effectiveEndTime
         . filter (\sm -> maybe False (< cutoffTime) (effectiveEndTime sm))
         . Map.elems
-  -- The in-memory model has no code-existence notion; the backfill worker is
-  -- unit-tested with a spec-local fake instead.
-  GetMeetingIdsWithoutCode _ _ -> pure []

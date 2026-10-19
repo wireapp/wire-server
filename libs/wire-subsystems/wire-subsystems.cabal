@@ -404,7 +404,6 @@ library
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem
     Wire.MeetingsSubsystem.Interpreter
-    Wire.MeetingsSubsystem.LinkBackfill
     Wire.MeetingsSubsystem.Notification
     Wire.Migration
     Wire.MigrationLock

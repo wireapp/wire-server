@@ -28,17 +28,6 @@ import Polysemy
 import Wire.API.Password
 import Wire.CodeStore.Code
 
--- | Result of 'BackfillMeetingCode'.
-data BackfillCodeResult
-  = -- | No code existed; a fresh one was inserted.
-    BackfilledCode Code
-  | -- | A live code row already exists (another replica won the race or
-    -- the meeting was already backfilled); it was left untouched.
-    BackfillCodePresent
-  | -- | The backing store cannot hold meeting codes (Cassandra-only mode).
-    BackfillCodeStoreUnsupported
-  deriving (Eq, Show)
-
 data CodeStore m a where
   CreateCode :: Code -> Maybe Password -> CodeStore m ()
   GetCode :: Key -> CodeStore m (Maybe (Code, Maybe Password))
@@ -49,13 +38,6 @@ data CodeStore m a where
   -- meeting codes (Cassandra-only mode); API callers fail with
   -- @LinkUnavailable@.
   CreateMeetingCode :: MeetingId -> Timeout -> Maybe Password -> CodeStore m (Maybe Code)
-  -- | Atomic insert-if-absent of a meeting's join code on the
-  -- meeting-id-derived key, with no password. Concurrent galley replicas
-  -- race on this op during backfill: the loser observes the winner's code
-  -- ('BackfillCodePresent') instead of replacing it, so an already-served
-  -- link is never invalidated. 'BackfillCodeStoreUnsupported' when the
-  -- backing store cannot hold meeting codes (Cassandra-only mode).
-  BackfillMeetingCode :: MeetingId -> Timeout -> CodeStore m BackfillCodeResult
   -- | Atomically rotate a meeting's join code (upsert of the stable-key row)
   -- and revoke the meeting conversation's guest code, in a single
   -- transaction within one backing store. Splitting these into two writes

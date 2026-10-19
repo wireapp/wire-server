@@ -67,25 +67,6 @@ interpretMeetingsStoreToPostgres =
       replaceInvitedEmailsImpl meetingId emails
     GetOldMeetings cutoffTime batchSize ->
       getOldMeetingsImpl cutoffTime batchSize
-    GetMeetingIdsWithoutCode cursor batchSize ->
-      getMeetingIdsWithoutCodeImpl cursor batchSize
-
--- * Meetings without a live code (keyset-paged scan for the backfill worker)
-
-getMeetingIdsWithoutCodeImpl :: (PGConstraints r) => MeetingId -> Int -> Sem r [(MeetingId, ConvId)]
-getMeetingIdsWithoutCodeImpl cursor batchSize = do
-  rows <- runStatement (toUUID cursor, fromIntegral batchSize) meetingIdsWithoutCodeStatement
-  pure [(Id u1, Id u2) | (u1, u2) <- V.toList rows]
-
-meetingIdsWithoutCodeStatement :: Statement (UUID, Int32) (V.Vector (UUID, UUID))
-meetingIdsWithoutCodeStatement =
-  [vectorStatement|
-    SELECT m.id :: uuid, m.conversation_id :: uuid
-    FROM meetings m
-    WHERE m.id > ($1 :: uuid)
-    ORDER BY m.id
-    LIMIT ($2 :: int)
-  |]
 
 -- * Create
 
