@@ -295,15 +295,15 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
 getUserClients :: (Member ClientSubsystem r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = lift (liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientErrorToHttpError
 
-getMLSClients :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
+getMLSClients :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
   Internal.getMLSClientsH mcr.userId mcr.cipherSuite
 
-getMLSClient :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientRequest -> Handler r ClientInfo
+getMLSClient :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientRequest -> Handler r ClientInfo
 getMLSClient _domain mcr =
   Internal.getMLSClientH mcr.userId mcr.clientId mcr.cipherSuite
 
-getMLSClientsV0 :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
+getMLSClientsV0 :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
 getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0)
 
 onUserDeleted ::
