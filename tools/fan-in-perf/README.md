@@ -138,8 +138,8 @@ six `*_notifications` tables are range-partitioned by UUIDv7 with retention
 `partman_maintainer`, not a superuser) every 60 s. The tool contains no SQL;
 partitioning lives in `FanInNotificationsAdmin` (`libs/wire-subsystems`).
 
-Retention timing: `create_parent` premakes 10 past partitions (start = now
-- 10 min), so the first bgw tick after `migrate --partitioned` drops about 5
+Retention timing: `create_parent` premakes 10 past partitions (starting
+10 min ago), so the first bgw tick after `migrate --partitioned` drops about 5
 empty past partitions and "Partitions per parent" steps down before any load.
 The first drop that holds data comes about 6-7 minutes into a run, the oldest
 remaining child is then 6-8 minutes old. Use `--duration` of at least
