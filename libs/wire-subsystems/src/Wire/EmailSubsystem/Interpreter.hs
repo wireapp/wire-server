@@ -58,13 +58,10 @@ import Wire.EmailSubsystem.Templates.User
 
 emailSubsystemInterpreter ::
   (Member EmailSending r, Member TinyLog r) =>
-  Localised UserTemplates ->
-  Localised TeamTemplates ->
-  Localised MeetingTemplates ->
-  Map Text Text ->
+  EmailTemplates ->
+  Branding ->
   InterpreterFor EmailSubsystem r
-emailSubsystemInterpreter userTpls teamTpls meetingTpls branding = interpret \case
-  -- USER EMAILS
+emailSubsystemInterpreter EmailTemplates {userTemplates = userTpls, teamTemplates = teamTpls, meetingTemplates = meetingTpls} branding = interpret \case
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
@@ -75,14 +72,12 @@ emailSubsystemInterpreter userTpls teamTpls meetingTpls branding = interpret \ca
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl userTpls branding email name client locale
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
-  -- TEAM EMAILS
   SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls branding email tid from code loc
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
   SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls branding email tid teamName loc
   SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls branding email tid teamName loc name
   SendSAMLIdPChanged email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale ->
     sendSAMLIdPChangedImpl teamTpls branding email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale
-  -- MEETING EMAILS
   SendMeetingInvitationEmail email hostName hostEmail meeting mLocale ->
     sendMeetingInvitationMailImpl meetingTpls branding email hostName hostEmail meeting mLocale
   SendMeetingUpdateEmail email hostName hostEmail meeting changeSummary mLocale ->
@@ -99,7 +94,7 @@ emailSubsystemInterpreter userTpls teamTpls meetingTpls branding = interpret \ca
 sendTeamDeletionVerificationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Code.Value ->
   Maybe Locale ->
@@ -112,7 +107,7 @@ sendTeamDeletionVerificationMailImpl userTemplates branding email code mLocale =
 sendCreateScimTokenVerificationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Code.Value ->
   Maybe Locale ->
@@ -125,7 +120,7 @@ sendCreateScimTokenVerificationMailImpl userTemplates branding email code mLocal
 sendLoginVerificationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Code.Value ->
   Maybe Locale ->
@@ -140,7 +135,7 @@ renderSecondFactorVerificationEmail ::
   EmailAddress ->
   Code.Value ->
   SecondFactorVerificationEmailTemplate ->
-  Map Text Text ->
+  Branding ->
   Sem r Mail
 renderSecondFactorVerificationEmail email codeValue SecondFactorVerificationEmailTemplate {..} branding = do
   let replace =
@@ -171,7 +166,7 @@ renderSecondFactorVerificationEmail email codeValue SecondFactorVerificationEmai
 sendActivationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Name ->
   ActivationKey ->
@@ -186,7 +181,7 @@ sendActivationMailImpl userTemplates branding email name akey acode mLocale = do
 sendEmailAddressUpdateMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Name ->
   ActivationKey ->
@@ -240,7 +235,7 @@ renderActivationUrl t (ActivationKey k) (ActivationCode c) branding = do
 sendTeamActivationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Name ->
   ActivationKey ->
@@ -286,7 +281,7 @@ renderTeamActivationMail email name teamName akey@(ActivationKey key) acode@(Act
 sendVerificationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   ActivationKey ->
   ActivationCode ->
@@ -329,7 +324,7 @@ renderVerificationMail email akey acode VerificationEmailTemplate {..} branding 
 sendPasswordResetMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   PasswordResetKey ->
   PasswordResetCode ->
@@ -376,7 +371,7 @@ renderPwResetMail email pkey pcode PasswordResetEmailTemplate {..} branding = do
 sendNewClientEmailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Name ->
   Client ->
@@ -422,7 +417,7 @@ renderNewClientEmail email name locale Client {..} NewClientEmailTemplate {..} b
 sendAccountDeletionEmailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Name ->
   Code.Key ->
@@ -476,7 +471,7 @@ renderDeletionUrl t cKey cValue branding = do
 sendTeamInvitationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised TeamTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   TeamId ->
   EmailAddress ->
@@ -493,7 +488,7 @@ sendTeamInvitationMailImpl teamTemplates branding to tid from code loc = do
 sendTeamInvitationMailPersonalUserImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised TeamTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   TeamId ->
   EmailAddress ->
@@ -545,7 +540,7 @@ renderInvitationUrl t tid (InvitationCode c) =
 -------------------------------------------------------------------------------
 -- Member Welcome Email
 
-sendMemberWelcomeEmailImpl :: (Member EmailSending r, Member TinyLog r) => Localised TeamTemplates -> Map Text Text -> EmailAddress -> TeamId -> Text -> Maybe Locale -> Sem r ()
+sendMemberWelcomeEmailImpl :: (Member EmailSending r, Member TinyLog r) => Localised TeamTemplates -> Branding -> EmailAddress -> TeamId -> Text -> Maybe Locale -> Sem r ()
 sendMemberWelcomeEmailImpl teamTemplates branding to tid teamName loc = do
   let tpl = memberWelcomeEmail . snd $ forLocale loc teamTemplates
   mail <- logEmailRenderErrors "member welcome email" $ renderMemberWelcomeMail to tid teamName tpl branding
@@ -578,7 +573,7 @@ renderMemberWelcomeMail emailTo tid teamName MemberWelcomeEmailTemplate {..} bra
 -------------------------------------------------------------------------------
 -- New Team Owner Welcome Email
 
-sendNewTeamOwnerWelcomeEmailImpl :: (Member EmailSending r, Member TinyLog r) => Localised TeamTemplates -> Map Text Text -> EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> Sem r ()
+sendNewTeamOwnerWelcomeEmailImpl :: (Member EmailSending r, Member TinyLog r) => Localised TeamTemplates -> Branding -> EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> Sem r ()
 sendNewTeamOwnerWelcomeEmailImpl teamTemplates branding to tid teamName loc profileName = do
   let tpl = newTeamOwnerWelcomeEmail . snd $ forLocale loc teamTemplates
   mail <- logEmailRenderErrors "new team owner welcome email" $ renderNewTeamOwnerWelcomeEmail to tid teamName profileName tpl branding
@@ -615,7 +610,7 @@ renderNewTeamOwnerWelcomeEmail emailTo tid teamName profileName NewTeamOwnerWelc
 sendSAMLIdPChangedImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised TeamTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   TeamId ->
   Maybe UserId ->
@@ -639,7 +634,7 @@ renderIdPConfigChangeEmail ::
   (Member (Output Text) r) =>
   EmailAddress ->
   IdPConfigChangeEmailTemplate ->
-  Map Text Text ->
+  Branding ->
   [CertDescription] ->
   [CertDescription] ->
   TeamId ->
@@ -717,7 +712,7 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
 sendMeetingInvitationMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised MeetingTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Text ->
   EmailAddress ->
@@ -732,7 +727,7 @@ sendMeetingInvitationMailImpl meetingTemplates branding email hostName hostEmail
 sendMeetingUpdateMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised MeetingTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Text ->
   EmailAddress ->
@@ -748,7 +743,7 @@ sendMeetingUpdateMailImpl meetingTemplates branding email hostName hostEmail mee
 sendMeetingCancelMailImpl ::
   (Member EmailSending r, Member TinyLog r) =>
   Localised MeetingTemplates ->
-  Map Text Text ->
+  Branding ->
   EmailAddress ->
   Text ->
   EmailAddress ->
@@ -787,6 +782,40 @@ meetingEmailReplace meeting hostName hostEmail changeSummary =
           ("timezone_short", T.pack (timeZoneName (zone meeting.startTime)))
         ]
 
+renderMeetingEmail ::
+  (Member (Output Text) r) =>
+  -- | recipient
+  EmailAddress ->
+  -- | host name
+  Text ->
+  -- | host email
+  EmailAddress ->
+  Meeting ->
+  -- | change summary; empty for non-update emails
+  Text ->
+  -- | X-Zeta-Purpose header value
+  Text ->
+  MeetingEmailTemplate ->
+  Branding ->
+  Sem r Mail
+renderMeetingEmail email hostName hostEmail meeting changeSummary purpose MeetingEmailTemplate {..} branding = do
+  let replace = meetingEmailReplace meeting hostName (fromEmail hostEmail) changeSummary `Map.union` branding
+  txt <- renderTextWithBrandingSem meetingEmailBodyText replace
+  html <- renderHtmlWithBrandingSem meetingEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem meetingEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", purpose)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
+  where
+    from = Address (Just meetingEmailSenderName) (fromEmail meetingEmailSender)
+    to = Address Nothing (fromEmail email)
+
 renderMeetingInvitationEmail ::
   (Member (Output Text) r) =>
   -- | recipient
@@ -797,26 +826,10 @@ renderMeetingInvitationEmail ::
   EmailAddress ->
   Meeting ->
   MeetingEmailTemplate ->
-  -- | branding
-  Map Text Text ->
+  Branding ->
   Sem r Mail
-renderMeetingInvitationEmail email hostName hostEmail meeting MeetingEmailTemplate {..} branding = do
-  let replace = meetingEmailReplace meeting hostName (fromEmail hostEmail) "" `Map.union` branding
-  txt <- renderTextWithBrandingSem meetingEmailBodyText replace
-  html <- renderHtmlWithBrandingSem meetingEmailBodyHtml replace
-  subj <- renderTextWithBrandingSem meetingEmailSubject replace
-  pure
-    (emptyMail from)
-      { mailTo = [to],
-        mailHeaders =
-          [ ("Subject", toStrict subj),
-            ("X-Zeta-Purpose", "MeetingInvitation")
-          ],
-        mailParts = [[plainPart txt, htmlPart html]]
-      }
-  where
-    from = Address (Just meetingEmailSenderName) (fromEmail meetingEmailSender)
-    to = Address Nothing (fromEmail email)
+renderMeetingInvitationEmail email hostName hostEmail meeting tpl branding =
+  renderMeetingEmail email hostName hostEmail meeting "" "MeetingInvitation" tpl branding
 
 renderMeetingUpdateEmail ::
   (Member (Output Text) r) =>
@@ -830,26 +843,10 @@ renderMeetingUpdateEmail ::
   -- | human-readable change summary
   Text ->
   MeetingEmailTemplate ->
-  -- | branding
-  Map Text Text ->
+  Branding ->
   Sem r Mail
-renderMeetingUpdateEmail email hostName hostEmail meeting changeSummary MeetingEmailTemplate {..} branding = do
-  let replace = meetingEmailReplace meeting hostName (fromEmail hostEmail) changeSummary `Map.union` branding
-  txt <- renderTextWithBrandingSem meetingEmailBodyText replace
-  html <- renderHtmlWithBrandingSem meetingEmailBodyHtml replace
-  subj <- renderTextWithBrandingSem meetingEmailSubject replace
-  pure
-    (emptyMail from)
-      { mailTo = [to],
-        mailHeaders =
-          [ ("Subject", toStrict subj),
-            ("X-Zeta-Purpose", "MeetingUpdate")
-          ],
-        mailParts = [[plainPart txt, htmlPart html]]
-      }
-  where
-    from = Address (Just meetingEmailSenderName) (fromEmail meetingEmailSender)
-    to = Address Nothing (fromEmail email)
+renderMeetingUpdateEmail email hostName hostEmail meeting changeSummary tpl branding =
+  renderMeetingEmail email hostName hostEmail meeting changeSummary "MeetingUpdate" tpl branding
 
 renderMeetingCancelEmail ::
   (Member (Output Text) r) =>
@@ -861,26 +858,10 @@ renderMeetingCancelEmail ::
   EmailAddress ->
   Meeting ->
   MeetingEmailTemplate ->
-  -- | branding
-  Map Text Text ->
+  Branding ->
   Sem r Mail
-renderMeetingCancelEmail email hostName hostEmail meeting MeetingEmailTemplate {..} branding = do
-  let replace = meetingEmailReplace meeting hostName (fromEmail hostEmail) "" `Map.union` branding
-  txt <- renderTextWithBrandingSem meetingEmailBodyText replace
-  html <- renderHtmlWithBrandingSem meetingEmailBodyHtml replace
-  subj <- renderTextWithBrandingSem meetingEmailSubject replace
-  pure
-    (emptyMail from)
-      { mailTo = [to],
-        mailHeaders =
-          [ ("Subject", toStrict subj),
-            ("X-Zeta-Purpose", "MeetingCancellation")
-          ],
-        mailParts = [[plainPart txt, htmlPart html]]
-      }
-  where
-    from = Address (Just meetingEmailSenderName) (fromEmail meetingEmailSender)
-    to = Address Nothing (fromEmail email)
+renderMeetingCancelEmail email hostName hostEmail meeting tpl branding =
+  renderMeetingEmail email hostName hostEmail meeting "" "MeetingCancellation" tpl branding
 
 -------------------------------------------------------------------------------
 -- MIME Conversions

@@ -49,10 +49,8 @@ module Brig.App
     appLoggerLens,
     internalEventsLens,
     requestIdLens,
-    userTemplatesLens,
     providerTemplatesLens,
-    teamTemplatesLens,
-    meetingTemplatesLens,
+    emailTemplatesLens,
     templateBrandingLens,
     templateBrandingAsMapLens,
     httpManagerLens,
@@ -174,9 +172,7 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.Options qualified as EmailOpt
 import Wire.EmailSending.SMTP qualified as SMTP
-import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale, loadMeetingTemplates)
-import Wire.EmailSubsystem.Templates.Meeting
-import Wire.EmailSubsystem.Templates.User
+import Wire.EmailSubsystem.Template (EmailTemplates (..), Localised, TemplateBranding, forLocale, loadMeetingTemplates)
 import Wire.ExternalAccess.External
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
@@ -206,10 +202,8 @@ data Env = Env
     appLogger :: Logger,
     internalEvents :: QueueEnv,
     requestId :: RequestId,
-    userTemplates :: Localised UserTemplates,
+    emailTemplates :: EmailTemplates,
     providerTemplates :: Localised ProviderTemplates,
-    teamTemplates :: Localised TeamTemplates,
-    meetingTemplates :: Localised MeetingTemplates,
     templateBranding :: TemplateBranding,
     templateBrandingAsMap :: Map Text Text,
     httpManager :: Manager,
@@ -256,6 +250,17 @@ loadPublicKeyBundle lgr path = case path of
           pure Nothing
         Just keys -> pure $ Just keys
 
+loadEmailTemplates :: Opt.Opts -> IO EmailTemplates
+loadEmailTemplates opts = do
+  userTemplates <- loadUserTemplates opts
+  teamTemplates <- loadTeamTemplatesWithBrigOpts opts
+  meetingTemplates <-
+    loadMeetingTemplates
+      opts.emailSMS.general.templateDir
+      (Opt.defaultTemplateLocale opts.settings)
+      (Opt.checkedEmailSender opts.emailSMS.general)
+  pure EmailTemplates {userTemplates, teamTemplates, meetingTemplates}
+
 newEnv :: Opts -> IO Env
 newEnv opts = do
   Just md5 <- getDigestByName "MD5"
@@ -266,14 +271,8 @@ newEnv opts = do
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
-  utp <- loadUserTemplates opts
   ptp <- loadProviderTemplates opts
-  ttp <- loadTeamTemplatesWithBrigOpts opts
-  mtp <-
-    loadMeetingTemplates
-      opts.emailSMS.general.templateDir
-      (Opt.defaultTemplateLocale opts.settings)
-      (Opt.checkedEmailSender opts.emailSMS.general)
+  etp <- loadEmailTemplates opts
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
       brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
   (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
@@ -334,10 +333,8 @@ newEnv opts = do
         appLogger = lgr,
         internalEvents = (eventsQueue :: QueueEnv),
         requestId = RequestId defRequestId,
-        userTemplates = utp,
+        emailTemplates = etp,
         providerTemplates = ptp,
-        teamTemplates = ttp,
-        meetingTemplates = mtp,
         templateBranding = branding,
         templateBrandingAsMap = brandingAsMap,
         httpManager = mgr,
@@ -486,7 +483,7 @@ initCassandra o g =
     g
 
 teamTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
-teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)
+teamTemplatesWithLocale l = forLocale l <$> asks (.emailTemplates.teamTemplates)
 
 providerTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplatesWithLocale l = forLocale l <$> asks (.providerTemplates)

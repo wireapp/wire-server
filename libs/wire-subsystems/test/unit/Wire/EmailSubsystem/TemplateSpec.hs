@@ -93,8 +93,8 @@ spec = do
           it "update" $ testMeetingUpdateEmail ts
           it "cancel" $ testMeetingCancelEmail ts
 
-testMeeting :: Meeting
-testMeeting =
+meetingFixture :: Meeting
+meetingFixture =
   Meeting
     { id = Qualified (Id (fromJust (UUID.fromString "123e4567-e89b-12d3-a456-426614174000"))) (Domain "example.com"),
       title = unsafeRange "Quarterly Sync",
@@ -108,17 +108,17 @@ testMeeting =
       invitedEmails = [fromJust (emailAddressText "invitee@example.com")],
       createdAt = UTCTime (fromGregorian 2026 10 1) 0,
       updatedAt = UTCTime (fromGregorian 2026 10 1) 0,
-      link = Just testJoinUrl,
+      link = Just joinUrlFixture,
       hasPassword = False
     }
 
-testJoinUrl :: HttpsUrl
-testJoinUrl = HttpsUrl (fromRight (error "invalid test join URL") (parseURI strictURIParserOptions "https://meet.example.com/join/"))
+joinUrlFixture :: HttpsUrl
+joinUrlFixture = HttpsUrl (fromRight (error "invalid test join URL") (parseURI strictURIParserOptions "https://meet.example.com/join/"))
 
 testMeetingInvitationEmail :: (HasCallStack) => MeetingTemplates -> Expectation
 testMeetingInvitationEmail templates = do
   let tpl = templates.meetingInvitationEmail
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail testMeeting tpl branding
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meetingFixture tpl branding
       to = fromJust $ emailAddressText "invitee@example.com"
   assertNoErrors errs
   mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
@@ -130,7 +130,7 @@ testMeetingInvitationEmail templates = do
 testMeetingInvitationEmailNoLink :: (HasCallStack) => MeetingTemplates -> Expectation
 testMeetingInvitationEmailNoLink templates = do
   let tpl = templates.meetingInvitationEmail
-      meeting = testMeeting {link = Nothing}
+      meeting = meetingFixture {link = Nothing}
       (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meeting tpl branding
       to = fromJust $ emailAddressText "invitee@example.com"
   assertNoErrors errs
@@ -140,7 +140,7 @@ testMeetingUpdateEmail :: (HasCallStack) => MeetingTemplates -> Expectation
 testMeetingUpdateEmail templates = do
   let tpl = templates.meetingUpdateEmail
       summary = "Start time moved to 10:00"
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingUpdateEmail to hostName hostEmail testMeeting summary tpl branding
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingUpdateEmail to hostName hostEmail meetingFixture summary tpl branding
       to = fromJust $ emailAddressText "invitee@example.com"
   assertNoErrors errs
   mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
@@ -153,7 +153,7 @@ testMeetingUpdateEmail templates = do
 testMeetingCancelEmail :: (HasCallStack) => MeetingTemplates -> Expectation
 testMeetingCancelEmail templates = do
   let tpl = templates.meetingCancelEmail
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingCancelEmail to hostName hostEmail testMeeting tpl branding
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingCancelEmail to hostName hostEmail meetingFixture tpl branding
       to = fromJust $ emailAddressText "invitee@example.com"
   assertNoErrors errs
   mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender

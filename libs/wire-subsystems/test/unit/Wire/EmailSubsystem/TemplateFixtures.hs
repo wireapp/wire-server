@@ -82,3 +82,11 @@ loadTestUserTemplates = loadUserTemplates userTemplateOpts "templates" defLocale
 -- | Load the on-disk meeting templates. See 'loadTestTeamTemplates'.
 loadTestMeetingTemplates :: IO (Localised MeetingTemplates)
 loadTestMeetingTemplates = loadMeetingTemplates "templates" defLocale emailSender
+
+-- | Load all template sets consumed by the email subsystem interpreter.
+loadTestEmailTemplates :: IO EmailTemplates
+loadTestEmailTemplates =
+  EmailTemplates
+    <$> loadTestUserTemplates
+    <*> loadTestTeamTemplates
+    <*> loadTestMeetingTemplates

@@ -57,7 +57,6 @@ import Wire.EmailSubsystem qualified as Email
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.TemplateFixtures
-import Wire.EmailSubsystem.Templates.Team
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters
 import Wire.SAMLEmailSubsystem
@@ -96,7 +95,7 @@ spec = do
       parseLocalUnsafe = fromMaybe (error "Unknown locale") . parseLocale
 
   -- Run duplicated IO tasks here to save some time
-  teamTemplates :: Localised TeamTemplates <- runIO loadTestTeamTemplates
+  emailTemplates :: EmailTemplates <- runIO loadTestEmailTemplates
   newCerts <- runIO $ X509.readCertificates "test/resources/saml/certs.store"
 
   describe "SendSAMLIdPChanged" $ do
@@ -113,7 +112,7 @@ spec = do
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPCreated (Just uid) idp'
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap emailTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -129,7 +128,7 @@ spec = do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPDeleted uid idp'
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap emailTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -162,7 +161,7 @@ spec = do
                     )
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPUpdated uid idpOld' idpNew'
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap emailTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -181,7 +180,7 @@ spec = do
               teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
               teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap emailTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -196,7 +195,7 @@ spec = do
               teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
               teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
-          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap emailTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -215,7 +214,7 @@ spec = do
                   )
                   users
 
-          (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap teamTemplates $ do
+          (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap emailTemplates $ do
             sendSAMLIdPChanged notif
 
           assertNoWarnLogs logs
@@ -333,7 +332,7 @@ assertMailTextPartWithFile mail expectedTextPart = do
 runInterpreters ::
   [StoredUser] ->
   Map TeamId [TeamMember] ->
-  Localised TeamTemplates ->
+  EmailTemplates ->
   Sem
     '[ SAMLEmailSubsystem,
        TeamSubsystem,
@@ -351,7 +350,7 @@ runInterpreters ::
      ]
     a ->
   IO ([Mail], [(Level, LByteString)], a)
-runInterpreters users teamMap teamTemplates action = do
+runInterpreters users teamMap emailTemplates action = do
   lr <- newLogRecorder
   (mails, res) <-
     runM
@@ -365,7 +364,7 @@ runInterpreters users teamMap teamTemplates action = do
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
       . inMemoryUserStoreInterpreter
-      . emailSubsystemInterpreter undefined teamTemplates undefined branding
+      . emailSubsystemInterpreter emailTemplates branding
       . interpretTeamSubsystemToGalleyAPI
       . samlEmailSubsystemInterpreter
       $ action
