@@ -18,20 +18,29 @@
 module Wire.EmailSubsystem.TemplateSpec (spec) where
 
 import Data.Code
+import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Misc (HttpsUrl (..))
+import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64Url)
 import Data.Text.Ascii qualified as Ascii
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
+import Data.Time.Zones.All (TZLabel (..))
 import Data.UUID qualified as UUID
 import Imports
 import Network.Mail.Mime
 import Polysemy
 import Polysemy.Output
 import Test.Hspec
+import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Locale
+import Wire.API.Meeting (Meeting (..), MeetingType (..), TimeZone (..))
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
 import Wire.API.User.Activation
 import Wire.API.User.Client (Client (..), ClientCapabilityList (..), ClientType (..))
@@ -41,6 +50,7 @@ import Wire.API.User.Profile
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.TemplateFixtures
+import Wire.EmailSubsystem.Templates.Meeting
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
@@ -53,6 +63,7 @@ spec :: Spec
 spec = do
   teamTemplates <- runIO loadTestTeamTemplates
   userTemplates <- runIO loadTestUserTemplates
+  meetingTemplates <- runIO loadTestMeetingTemplates
   describe "email templates" $ do
     describe "team" $
       for_ (byLocale teamTemplates) $ \(loc, ts) ->
@@ -74,6 +85,104 @@ spec = do
           it "activation email" $ testActivationEmail ts
           it "activation email update" $ testActivationEmailUpdate ts
           it "team activation email" $ testTeamActivationEmail ts
+    describe "meeting" $
+      for_ (byLocale meetingTemplates) $ \(loc, ts) ->
+        describe (show loc) $ do
+          it "invitation" $ testMeetingInvitationEmail ts
+          it "invitation without join link" $ testMeetingInvitationEmailNoLink ts
+          it "update" $ testMeetingUpdateEmail ts
+          it "cancel" $ testMeetingCancelEmail ts
+
+meetingFixture :: Meeting
+meetingFixture =
+  Meeting
+    { id = Qualified (Id (fromJust (UUID.fromString "123e4567-e89b-12d3-a456-426614174000"))) (Domain "example.com"),
+      title = unsafeRange "Quarterly Sync",
+      creator = Qualified (Id (fromJust (UUID.fromString "223e4567-e89b-12d3-a456-426614174001"))) (Domain "example.com"),
+      startTime = UTCTime (fromGregorian 2026 10 12) (secondsToDiffTime (9 * 3600)),
+      endTime = UTCTime (fromGregorian 2026 10 12) (secondsToDiffTime (10 * 3600)),
+      tzid = TimeZone Europe__Berlin,
+      mtype = Scheduled,
+      recurrence = Nothing,
+      conversationId = Qualified (Id (fromJust (UUID.fromString "323e4567-e89b-12d3-a456-426614174002"))) (Domain "example.com"),
+      invitedEmails = [fromJust (emailAddressText "invitee@example.com")],
+      createdAt = UTCTime (fromGregorian 2026 10 1) 0,
+      updatedAt = UTCTime (fromGregorian 2026 10 1) 0,
+      link = Just joinUrlFixture,
+      hasPassword = False
+    }
+
+joinUrlFixture :: HttpsUrl
+joinUrlFixture = HttpsUrl (fromRight (error "invalid test join URL") (parseURI strictURIParserOptions "https://meet.example.com/join/"))
+
+testMeetingInvitationEmail :: (HasCallStack) => MeetingTemplates -> Expectation
+testMeetingInvitationEmail templates = do
+  let tpl = templates.meetingInvitationEmail
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meetingFixture tpl branding
+      to = fromJust $ emailAddressText "invitee@example.com"
+  assertNoErrors errs
+  mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
+  mail.mailTo `shouldBe` [Address Nothing "invitee@example.com"]
+  lookup "Subject" mail.mailHeaders `shouldSatisfy` isSubjectOf "Quarterly Sync"
+  lookup "X-Zeta-Purpose" mail.mailHeaders `shouldBe` Just "MeetingInvitation"
+  plainTextOf mail `shouldContain` "https://meet.example.com/join/"
+
+testMeetingInvitationEmailNoLink :: (HasCallStack) => MeetingTemplates -> Expectation
+testMeetingInvitationEmailNoLink templates = do
+  let tpl = templates.meetingInvitationEmail
+      meeting = meetingFixture {link = Nothing}
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meeting tpl branding
+      to = fromJust $ emailAddressText "invitee@example.com"
+  assertNoErrors errs
+  lookup "Subject" mail.mailHeaders `shouldSatisfy` isSubjectOf "Quarterly Sync"
+
+testMeetingUpdateEmail :: (HasCallStack) => MeetingTemplates -> Expectation
+testMeetingUpdateEmail templates = do
+  let tpl = templates.meetingUpdateEmail
+      summary = "Start time moved to 10:00"
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingUpdateEmail to hostName hostEmail meetingFixture summary tpl branding
+      to = fromJust $ emailAddressText "invitee@example.com"
+  assertNoErrors errs
+  mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
+  mail.mailTo `shouldBe` [Address Nothing "invitee@example.com"]
+  lookup "Subject" mail.mailHeaders `shouldSatisfy` isSubjectOf "Quarterly Sync"
+  lookup "X-Zeta-Purpose" mail.mailHeaders `shouldBe` Just "MeetingUpdate"
+  plainTextOf mail `shouldContain` T.unpack summary
+  plainTextOf mail `shouldContain` "Monday, 12 October 2026"
+
+testMeetingCancelEmail :: (HasCallStack) => MeetingTemplates -> Expectation
+testMeetingCancelEmail templates = do
+  let tpl = templates.meetingCancelEmail
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingCancelEmail to hostName hostEmail meetingFixture tpl branding
+      to = fromJust $ emailAddressText "invitee@example.com"
+  assertNoErrors errs
+  mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
+  mail.mailTo `shouldBe` [Address Nothing "invitee@example.com"]
+  lookup "Subject" mail.mailHeaders `shouldSatisfy` isSubjectOf "Quarterly Sync"
+  lookup "X-Zeta-Purpose" mail.mailHeaders `shouldBe` Just "MeetingCancellation"
+  plainTextOf mail `shouldContain` "Monday, 12 October 2026"
+
+-- Subjects are localized; assert the rendered meeting title part (the
+-- placeholder ${meeting_title} is locale-independent).
+isSubjectOf :: Text -> Maybe Text -> Bool
+isSubjectOf title = \case
+  Just subj -> (": " <> title) `T.isSuffixOf` subj
+  Nothing -> False
+
+plainTextOf :: (HasCallStack) => Mail -> String
+plainTextOf mail =
+  let textPart =
+        fromMaybe (error "No text part found") $
+          find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
+   in case textPart.partContent of
+        PartContent content -> TL.unpack (decodeUtf8 content)
+        NestedParts ns -> error $ "Unexpected NestedParts: " ++ show ns
+
+hostName :: Text
+hostName = "Alice Host"
+
+hostEmail :: EmailAddress
+hostEmail = fromJust $ emailAddressText "host@example.com"
 
 testTeamInvitationEmailExistingUser :: (HasCallStack) => TeamTemplates -> Expectation
 testTeamInvitationEmailExistingUser templates = do

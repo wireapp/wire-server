@@ -539,7 +539,7 @@ runBrigToIO e (AppT ma) = do
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBrandingAsMap
+              . emailSubsystemInterpreter e.emailTemplates e.templateBrandingAsMap
               . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
