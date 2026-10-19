@@ -7,6 +7,7 @@ import Hasql.Transaction.Sessions (IsolationLevel (..))
 import Imports
 import Options.Applicative
 import Test.Hspec
+import Wire.FanInNotificationsAdmin (SchemaShape (..))
 
 parse :: [String] -> Maybe Options
 parse = getParseResult . execParserPure defaultPrefs optionsInfo
@@ -72,7 +73,13 @@ spec = do
       `shouldBe` Produce (ProduceOptions 4 (TargetConfig KindUser 100 5 :| []) 2 64 (Just 30) 0 (Just (-42)))
 
   it "parses migrate" $
-    fmap (.command) (parse ["--db", "x", "migrate"]) `shouldBe` Just Migrate
+    fmap (.command) (parse ["--db", "x", "migrate"]) `shouldBe` Just (Migrate Plain)
+
+  it "parses migrate --partitioned" $
+    fmap (.command) (parse ["--db", "x", "migrate", "--partitioned"]) `shouldBe` Just (Migrate Partitioned)
+
+  it "parses drop-db" $
+    fmap (.command) (parse ["--db", "x", "drop-db"]) `shouldBe` Just DropDb
 
   it "parses reset" $
     fmap (.command) (parse ["--db", "x", "reset"]) `shouldBe` Just Reset

@@ -19,6 +19,7 @@ import Imports
 import Options.Applicative hiding (command)
 import Options.Applicative qualified as O
 import Options.Applicative.Help (Doc, pretty, vsep)
+import Wire.FanInNotificationsAdmin (SchemaShape (..))
 
 -- | No 'Show' instance: 'db' contains the database password.
 data GlobalOptions = GlobalOptions
@@ -63,7 +64,7 @@ experimentLabel = \case
   NoAcks -> "consume"
   Acks _ -> "consume-ack"
 
-data Command = Migrate | Reset | Produce ProduceOptions | Consume ConsumeOptions
+data Command = Migrate SchemaShape | DropDb | Reset | Produce ProduceOptions | Consume ConsumeOptions
   deriving (Eq, Show)
 
 data Options = Options
@@ -82,7 +83,8 @@ optionsParser =
   Options
     <$> globalParser
     <*> hsubparser
-      ( O.command "migrate" (info (pure Migrate) (progDesc "Create the fan-in notification tables (idempotent)"))
+      ( O.command "migrate" (info (Migrate <$> shapeParser) (progDesc "Create the experiment database if missing, configure pg_partman and create the fan-in notification tables (idempotent)"))
+          <> O.command "drop-db" (info (pure DropDb) (progDesc "Drop the experiment database"))
           <> O.command "reset" (info (pure Reset) (progDesc "Truncate all fan-in notification tables"))
           <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
           <> O.command "consume" (info (Consume <$> consumeParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
@@ -209,3 +211,7 @@ isolationReader = eitherReader $ \case
 
 targetsReader :: ReadM (NonEmpty TargetConfig)
 targetsReader = eitherReader (parseTargetSpec . T.pack)
+
+shapeParser :: Parser SchemaShape
+shapeParser =
+  flag Plain Partitioned (long "partitioned" <> help "Use pg_partman partitioned notification tables (experiment D) instead of the plain ones")
