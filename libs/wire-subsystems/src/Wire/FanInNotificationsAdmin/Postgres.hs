@@ -1,8 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.FanInNotificationsAdmin.Postgres where
+module Wire.FanInNotificationsAdmin.Postgres
+  ( interpretFanInNotificationsAdminToPostgres,
+    createDatabaseSql,
+    dropDatabaseSql,
+    setupPartmanSql,
+  )
+where
 
 import Data.FileEmbed (embedFile, makeRelativeToProject)
+import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -17,24 +24,76 @@ interpretFanInNotificationsAdminToPostgres :: (PGConstraints r) => InterpreterFo
 interpretFanInNotificationsAdminToPostgres = interpret $ \case
   -- The script is sent as one multi-statement query, which PostgreSQL runs in
   -- a single implicit transaction: either all tables exist or none.
-  Migrate -> runSessionWithRetry $ do
-    exists <- Session.statement () schemaExistsStatement
-    if exists
-      then pure AlreadyMigrated
-      else Session.script fanInSchema $> Migrated
+  Migrate shape -> runSessionWithRetry $ do
+    existing <- Session.statement () shapeStatement
+    case existing of
+      Nothing -> do
+        Session.script $ case shape of
+          Plain -> fanInSchema
+          Partitioned -> fanInSchema <> "\n" <> partitionedSchema
+        pure Migrated
+      Just s
+        | s == shape -> pure AlreadyMigrated
+        | otherwise -> pure (ExistsWithOtherShape s)
   TruncateAll -> runStatement () truncateAllStatement
   Ping -> runStatement () pingStatement
+  DatabaseExists n -> runStatement n.unDbName databaseExistsStatement
+  -- CREATE/DROP DATABASE and ALTER SYSTEM cannot run inside a transaction
+  -- block, so each is sent as its own single-statement script.
+  CreateDatabase n -> runSessionWithRetry $ Session.script (createDatabaseSql n)
+  DropDatabase n -> runSessionWithRetry $ Session.script (dropDatabaseSql n)
+  SetupPartman n -> runSessionWithRetry $ traverse_ Session.script (setupPartmanSql n)
+
+createDatabaseSql :: DbName -> Text
+createDatabaseSql n = "CREATE DATABASE " <> quoteIdent n
+
+dropDatabaseSql :: DbName -> Text
+dropDatabaseSql n = "DROP DATABASE IF EXISTS " <> quoteIdent n <> " WITH (FORCE)"
+
+-- | Statements to run one by one on the experiment database. The database name
+-- is rendered as a string literal; this is safe because 'DbName' is
+-- whitelisted (no quotes possible).
+setupPartmanSql :: DbName -> [Text]
+setupPartmanSql n =
+  [ "CREATE SCHEMA IF NOT EXISTS partman",
+    "CREATE EXTENSION IF NOT EXISTS pg_partman SCHEMA partman",
+    "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'partman_maintainer') THEN CREATE ROLE partman_maintainer WITH LOGIN; END IF; END $$",
+    "GRANT ALL ON SCHEMA partman TO partman_maintainer",
+    "GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_maintainer",
+    "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_maintainer",
+    "GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_maintainer",
+    "GRANT CREATE, USAGE ON SCHEMA public TO partman_maintainer",
+    "GRANT TEMPORARY ON DATABASE " <> quoteIdent n <> " TO partman_maintainer",
+    "ALTER SYSTEM SET pg_partman_bgw.dbname = '" <> n.unDbName <> "'",
+    "ALTER SYSTEM SET pg_partman_bgw.interval = 60",
+    "ALTER SYSTEM SET pg_partman_bgw.role = 'partman_maintainer'",
+    "SELECT pg_reload_conf()"
+  ]
+
+databaseExistsStatement :: Statement.Statement Text Bool
+databaseExistsStatement =
+  Statement.preparable
+    "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)"
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
 -- | Run as plain script, without hasql-migration bookkeeping.
 fanInSchema :: Text
 fanInSchema = Text.decodeUtf8 $(makeRelativeToProject "postgres-migrations/20260729073800-fan-in-notifications.sql" >>= embedFile)
 
-schemaExistsStatement :: Statement.Statement () Bool
-schemaExistsStatement =
+-- | Not a migration: only used by fan-in-perf.
+partitionedSchema :: Text
+partitionedSchema = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-notifications-partitioned.sql" >>= embedFile)
+
+-- | Nothing if the tables are absent, otherwise the shape of @user_notifications@.
+shapeStatement :: Statement.Statement () (Maybe SchemaShape)
+shapeStatement =
   Statement.unpreparable
-    "SELECT to_regclass('user_notifications') IS NOT NULL"
+    "SELECT c.relkind::text FROM pg_class c WHERE c.oid = to_regclass('user_notifications')"
     Encoders.noParams
-    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+    (Decoders.rowMaybe (Decoders.column (Decoders.nonNullable (shapeOf <$> Decoders.text))))
+  where
+    shapeOf k = if k == T.pack "p" then Partitioned else Plain
 
 -- | Keep the table list in sync with
 -- @postgres-migrations/20260729073800-fan-in-notifications.sql@.

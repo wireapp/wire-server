@@ -17,7 +17,7 @@ import Imports
 import PostgresqlConnectionString qualified
 import System.Exit (die)
 import UnliftIO.Exception (tryAny)
-import Wire.FanInNotificationsAdmin (MigrateResult (..), migrate, ping, truncateAll)
+import Wire.FanInNotificationsAdmin (MigrateResult (..), SchemaShape (..), migrate, ping, truncateAll)
 
 run :: Console -> Options -> IO ()
 run console opts = do
@@ -35,10 +35,11 @@ run console opts = do
   checkDatabase env
   case opts.command of
     Migrate ->
-      runStore env migrate >>= \case
+      runStore env (migrate Plain) >>= \case
         Left e -> abort ("migrate failed: " <> showT e)
         Right Migrated -> printLine console "created fan-in notification tables"
         Right AlreadyMigrated -> printLine console "fan-in notification tables already exist"
+        Right (ExistsWithOtherShape _) -> abort "fan-in notification tables exist with a different shape"
     Reset ->
       runStore env truncateAll
         >>= either

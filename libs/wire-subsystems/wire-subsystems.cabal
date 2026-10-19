@@ -10,6 +10,7 @@ license:            AGPL-3.0-only
 license-file:       LICENSE
 build-type:         Simple
 extra-source-files:
+  fan-in-sql/*.sql
   postgres-migrations/*.sql
   templates/**/*.html
   templates/**/*.txt
