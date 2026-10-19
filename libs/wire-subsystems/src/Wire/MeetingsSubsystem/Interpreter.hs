@@ -98,9 +98,10 @@ checkMeetingsEnabled ::
 -- instead of a renewal mechanism. Known trade-off: if the meeting-row
 -- insert fails after the code was created, the orphaned code row is
 -- unreachable forever (its key derives from the unpersisted id) and
--- will live out this TTL. The backfill's insert-if-absent
--- ('BackfillMeetingCode') also relies on this TTL: an expired row would be
--- conflated with a live one and never repaired.
+-- will live out this TTL. The one-off join-code backfill migration
+-- (postgres-migrations/20261019090000-meeting-join-code-backfill.sql) also
+-- relies on this TTL: an expired row would be conflated with a live one and
+-- never repaired.
 meetingCodeTimeout :: Timeout
 meetingCodeTimeout = Timeout (fromIntegral (maxBound @Int32))
 

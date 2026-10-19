@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | WPB-29361: the application-level meeting join-code backfill gives every
+-- | WPB-29361: the one-off meeting join-code backfill migration gives every
 -- meeting without a live join code one (without touching existing codes), so
 -- that every meeting can render its mandatory @link@.
 module Test.Migration.MeetingLinks where
@@ -37,7 +37,36 @@ import Test.Meetings (defaultMeetingJson, getMeetingIdAndDomain, linkKeyAndCode)
 import Testlib.PG (execSql)
 import Testlib.Prelude
 import Text.Regex.TDFA ((=~))
-import UnliftIO.Concurrent (threadDelay)
+
+-- | Mirror of
+-- libs/wire-subsystems/postgres-migrations/20261019090000-meeting-join-code-backfill.sql;
+-- the integration image has no repo checkout, so the statement is duplicated
+-- here.
+backfillSql :: String
+backfillSql =
+  "INSERT INTO conversation_codes (key, conversation, password, value, expires_at, target)\n\
+  \SELECT\n\
+  \  k.key,\n\
+  \  m.id,\n\
+  \  NULL,\n\
+  \  translate(encode(substring(decode(replace(gen_random_uuid()::text, '-', ''), 'hex') FROM 1 FOR 15), 'base64'), '+/', '-_'),\n\
+  \  now() + make_interval(secs => 2147483647),\n\
+  \  'meeting'\n\
+  \FROM meetings m\n\
+  \CROSS JOIN LATERAL (\n\
+  \  SELECT translate(encode(substring(sha256(('meeting:' || m.id::text)::bytea) FROM 1 FOR 15), 'base64'), '+/', '-_') AS key\n\
+  \) k\n\
+  \WHERE NOT EXISTS (\n\
+  \  SELECT 1 FROM conversation_codes live\n\
+  \  WHERE live.key = k.key AND live.expires_at > now()\n\
+  \)\n\
+  \ON CONFLICT (key) DO UPDATE\n\
+  \SET conversation = EXCLUDED.conversation,\n\
+  \    password = EXCLUDED.password,\n\
+  \    value = EXCLUDED.value,\n\
+  \    expires_at = EXCLUDED.expires_at,\n\
+  \    target = EXCLUDED.target\n\
+  \WHERE conversation_codes.expires_at <= now();"
 
 testMeetingJoinCodeBackfill :: (HasCallStack) => App ()
 testMeetingJoinCodeBackfill = do
@@ -97,29 +126,10 @@ testMeetingJoinCodeBackfill = do
     <> convAId
     <> "', NULL, 'stale-expired-value', now() - interval '1 hour', 'meeting')"
 
-  -- (3) Poll the list endpoint (which 500s with link-unavailable while B has
-  -- no code) until B gains a link; A's link must stay byte-identical.
-  let pollLink mid = do
-        -- Fresh deadline on every call: the second polling phase (after the
-        -- 65s idempotence wait) must not inherit the first phase's deadline.
-        deadline <- addUTCTime 120 <$> liftIO getCurrentTime
-        let poll = do
-              nowX <- liftIO getCurrentTime
-              if nowX > deadline
-                then assertFailure ("meeting " <> mid <> " did not gain a link within 120s")
-                else do
-                  listResp <- getMeetingsList owner
-                  if listResp.status == 500
-                    then liftIO (threadDelay 5_000_000) >> poll
-                    else do
-                      assertSuccess listResp
-                      meetings <- listResp.json & asList
-                      ms <- findMeetingById mid meetings
-                      case ms of
-                        Nothing -> liftIO (threadDelay 5_000_000) >> poll
-                        Just m -> m %. "link" >>= asString
-        poll
-  linkB <- pollLink meetingBId
+  -- (3) Run the one-off backfill migration (first pass); B gains a link and
+  -- A's link stays byte-identical.
+  execSql (T.pack backfillSql)
+  linkB <- fetchLink owner meetingBId
   let expected = "meeting-join/\\?key=[A-Za-z0-9_-]{20}&code=[A-Za-z0-9_-]{6,20}&domain=" <> domain
   assertBool ("unexpected backfilled meeting link: " <> linkB) (linkB =~ expected)
 
@@ -134,7 +144,7 @@ testMeetingJoinCodeBackfill = do
 
   -- (4b) C's expired code row was replaced: C gained a link whose key is the
   -- same deterministic key, but whose code is a fresh value.
-  linkC <- pollLink meetingCId
+  linkC <- fetchLink owner meetingCId
   assertBool ("unexpected backfilled meeting link: " <> linkC) (linkC =~ expected)
   let (keyC, codeC) = linkKeyAndCode linkC
   assertBool "backfill must reuse the meeting's stable key" (keyC == meetingJoinCodeKey meetingCId)
@@ -142,14 +152,28 @@ testMeetingJoinCodeBackfill = do
   getMeetingCodeCheck bob domain keyC codeC Nothing >>= assertStatus 200
   postMeetingJoin bob domain keyC codeC Nothing >>= assertStatus 200
 
-  -- (5) Idempotence: after another backfill pass, B's link (its code was
-  -- created in the previous pass) is byte-identical, and A's is untouched.
-  liftIO $ threadDelay 65_000_000
-  linkB' <- pollLink meetingBId
+  -- (5) Idempotence: a second pass must change nothing — B's and C's links
+  -- (their codes were created/replaced in the first pass) are byte-identical,
+  -- and A's is untouched.
+  execSql (T.pack backfillSql)
+  linkB' <- fetchLink owner meetingBId
   assertBool "backfill must not rotate an existing meeting's link" (linkB' == linkB)
+  linkC' <- fetchLink owner meetingCId
+  assertBool "backfill must not rotate a replaced code" (linkC' == linkC)
   fetchedA' <- getMeeting owner domain meetingAId >>= getJSON 200
   fetchedLinkA' <- fetchedA' %. "link" >>= asString
   assertBool "backfill must not touch an existing meeting's link" (fetchedLinkA' == linkA)
+
+-- | List the owner's meetings and return the link of the given meeting.
+fetchLink :: (HasCallStack) => Value -> String -> App String
+fetchLink owner mid = do
+  listResp <- getMeetingsList owner
+  assertSuccess listResp
+  meetings <- listResp.json & asList
+  ms <- findMeetingById mid meetings
+  case ms of
+    Nothing -> assertFailure ("meeting " <> mid <> " missing from meetings list")
+    Just m -> m %. "link" >>= asString
 
 findMeetingById :: (HasCallStack) => String -> [Value] -> App (Maybe Value)
 findMeetingById mid meetings = do
