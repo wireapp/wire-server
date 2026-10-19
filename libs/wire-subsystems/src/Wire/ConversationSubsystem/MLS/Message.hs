@@ -732,10 +732,12 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.commit.value.path
         pure ([], mempty)
     lConvOrSub' <- lift $ do
-      updateOutOfSyncFlag senderIdentity.client lConvOrSub
       storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
       -- reload conversation from db to make sure we have an up-to-date list of members
       lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+      -- Include members added by this commit when checking whether recovery
+      -- is complete.
+      updateOutOfSyncFlag senderIdentity.client lConvOrSub'
       let convOrSub' = tUnqualified lConvOrSub'
           mems = cmIntersect (void convOrSub.members) convOrSub'.members
       propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage mems
