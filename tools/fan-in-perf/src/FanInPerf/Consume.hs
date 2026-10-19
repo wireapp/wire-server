@@ -24,6 +24,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.QSem (QSem, newQSem, signalQSem, waitQSem)
 import Control.Exception (handleJust)
 import Data.Bits (shiftL)
+import Data.Misc (showT)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -43,7 +44,6 @@ import FanInPerf.Terminal
 import FanInPerf.Worker
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
 import Hasql.Pool (UsageError)
-import Data.Misc (showT)
 import Imports
 import Polysemy
 import Polysemy.Error qualified as PE

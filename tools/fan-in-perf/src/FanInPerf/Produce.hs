@@ -13,6 +13,7 @@ where
 import Control.Concurrent.Async
 import Control.Exception (evaluate)
 import Data.Aeson qualified as A
+import Data.Misc (showT)
 import Data.Text qualified as T
 import Data.Vector qualified as V
 import FanInPerf.Metrics
@@ -23,7 +24,6 @@ import FanInPerf.Targets
 import FanInPerf.Terminal
 import FanInPerf.Worker
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
-import Data.Misc (showT)
 import Imports
 import System.Random
 import UnliftIO.Exception (tryAny)
