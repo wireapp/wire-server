@@ -2644,6 +2644,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right Nothing -> fail "expected the meeting to be retrievable"
 
   specStoredMeetingUnmarshall
+
 specStoredMeetingUnmarshall :: Spec
 specStoredMeetingUnmarshall =
   describe "StoredMeeting postgres unmarshall" $ do
