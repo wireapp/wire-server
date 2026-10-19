@@ -1,0 +1,1 @@
+Add macOS local development guide covering Apple Silicon pitfalls (direnv + nix, nginx libzauth patching, Redis cluster workaround, docker platform overrides).
