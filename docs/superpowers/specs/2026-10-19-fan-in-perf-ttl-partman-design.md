@@ -131,9 +131,9 @@ minutes'`, `retention_keep_table = false` (drop, not detach). All other
      fail with a clear message rather than silently keeping it.
 5. **Switching shape** between D and baseline: drop and recreate the
    experiment database. Provide a way in the tool (e.g. `drop-db`
-   sub-command, or `migrate --recreate`; builder's call). Dropping must refuse
-   to touch any database other than the experiment DB named in `--db` and
-   must never default to `backendA`.
+   sub-command, or `migrate --recreate`; builder's call). It drops the
+   database named in `--db`; no name-based safety net (test DB, user
+   decision).
 
 `reset` stays as is: TRUNCATE on a partitioned parent clears its partitions,
 so it works for both shapes.
@@ -149,9 +149,9 @@ builder makes sure of that). Statements that can't run in a transaction
 (`CREATE/DROP DATABASE`, `ALTER SYSTEM`) must run outside one.
 
 Database and role names that end up in DDL are identifiers, not parameters:
-validate them against a strict whitelist (e.g. `^[a-z_][a-z0-9_]{0,62}$`) and
+validate them against a strict whitelist (e.g. `^[A-Za-z_][A-Za-z0-9_]{0,62}$`) and
 quote them as identifiers; never interpolate unvalidated input. Unit-test the
-validation (rejects quotes, semicolons, empty, too long, uppercase/space).
+validation (rejects quotes, semicolons, empty, too long, space, leading digit).
 
 Retention timing: pg_partman drops a child once its _upper_ bound is older than
 the retention. With 1-minute partitions and a 60 s maintenance interval, the
@@ -209,7 +209,7 @@ Fill in "Results so far" with a D entry once run (not part of the build).
   unit tests green (`wire-subsystems`, `fan-in-perf`), formatted, Cabal/Nix
   dependencies aligned.
 - Security: no superuser bgw; pinned pg_partman ≥ 5.5.0; identifiers in DDL
-  whitelisted and quoted; drop refuses anything but the experiment DB; dev
+  whitelisted and quoted; dev
   credentials stay the existing dev placeholders, never printed (existing
   `--db` behaviour); no secrets added.
 - Other services must still start on the new postgres image.
@@ -233,7 +233,6 @@ DATABASE` is obtained.
   only preloads the library.
 - Experiment DB default name `fan_in_perf`; baseline uses the same DB,
   recreated, plain schema.
-- Tool gets a way to drop/recreate the experiment DB, guarded against
-  touching other databases.
+- Tool gets a way to drop/recreate the experiment DB (unguarded, per user).
 - D is the existing `consume-ack` against the partitioned DB.
 - Exporter scrape interval raised to 1 s.
