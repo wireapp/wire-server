@@ -82,7 +82,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: /federation
       backendRefs:
         - name: integration
           port: {{ $dynamicBackend.federatorExternalPort }}
