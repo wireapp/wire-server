@@ -72,6 +72,63 @@ spec = do
   it "parses reset" $
     fmap (.command) (parse ["--db", "x", "reset"]) `shouldBe` Just Reset
 
+  it "parses consume with defaults" $ do
+    o <- parseOk ["--db", "postgresql://u:p@localhost/db", "consume", "--targets", "user:100,team:1"]
+    case o.command of
+      Consume c -> do
+        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
+          `shouldBe` (2000, 3, 100, 100, 32, 10, 0)
+        c.writerOptions.writers `shouldBe` 16
+        c.writerOptions.targets `shouldBe` (TargetConfig KindUser 100 1 :| [TargetConfig KindTeam 1 1])
+      _ -> expectationFailure "not a consume command"
+
+  it "parses all consume flags" $ do
+    o <-
+      parseOk
+        [ "--db",
+          "postgresql://u:p@localhost/db",
+          "consume",
+          "--targets",
+          "epoch:50",
+          "--clients",
+          "10",
+          "--epochs-per-client",
+          "2",
+          "--poll-interval",
+          "0",
+          "--fetch-limit",
+          "5",
+          "--reader-pool-size",
+          "4",
+          "--drain-timeout",
+          "0",
+          "--safety-window",
+          "60000",
+          "--writers",
+          "3",
+          "--duration",
+          "9"
+        ]
+    case o.command of
+      Consume c -> do
+        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
+          `shouldBe` (10, 2, 0, 5, 4, 0, 60000)
+        (c.writerOptions.writers, c.writerOptions.duration) `shouldBe` (3, Just 9)
+      _ -> expectationFailure "not a consume command"
+
+  it "rejects consume flags out of bounds and the connections kind" $ do
+    let consume extra = ["--db", "x", "consume", "--targets", "user:10"] <> extra
+    isNothing (parse (consume ["--clients", "0"])) `shouldBe` True
+    isNothing (parse (consume ["--fetch-limit", "0"])) `shouldBe` True
+    isNothing (parse (consume ["--poll-interval", "-1"])) `shouldBe` True
+    isNothing (parse (consume ["--reader-pool-size", "0"])) `shouldBe` True
+    isNothing (parse (consume ["--safety-window", "-1"])) `shouldBe` True
+    isNothing (parse (consume ["--safety-window", "60001"])) `shouldBe` True
+    isNothing (parse ["--db", "x", "consume", "--targets", "connections:5"]) `shouldBe` True
+    isNothing (parse ["--db", "x", "consume", "--targets", "user:10,connections:5"]) `shouldBe` True
+    -- `produce` still accepts connections
+    isNothing (parse ["--db", "x", "produce", "--targets", "connections:5"]) `shouldBe` False
+
   forM_
     [ ["produce", "--targets", "team:10"],
       ["--db", "x", "produce"],

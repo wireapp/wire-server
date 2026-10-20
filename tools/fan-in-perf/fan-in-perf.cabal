@@ -74,8 +74,12 @@ library
   import:          common-all
   hs-source-dirs:  src
   exposed-modules:
+    FanInPerf.Consume
+    FanInPerf.ConsumeStats
     FanInPerf.Metrics
     FanInPerf.Options
+    FanInPerf.Pool
+    FanInPerf.Population
     FanInPerf.Produce
     FanInPerf.Run
     FanInPerf.Stats
@@ -83,6 +87,7 @@ library
     FanInPerf.Targets
     FanInPerf.TargetSpecParser
     FanInPerf.Terminal
+    FanInPerf.Worker
 
   build-depends:
     , aeson
@@ -91,6 +96,7 @@ library
     , bytestring
     , containers
     , extended
+    , hasql
     , hasql-resource-pool
     , hasql-transaction
     , http-types
@@ -102,6 +108,7 @@ library
     , prometheus-client
     , random
     , text
+    , time
     , types-common
     , unliftio
     , uuid-types
@@ -129,8 +136,12 @@ test-suite fan-in-perf-tests
   hs-source-dirs: test
   ghc-options:    -threaded
   other-modules:
+    FanInPerf.ConsumeSpec
+    FanInPerf.ConsumeStatsSpec
     FanInPerf.MetricsSpec
     FanInPerf.OptionsSpec
+    FanInPerf.PoolSpec
+    FanInPerf.PopulationSpec
     FanInPerf.ProduceSpec
     FanInPerf.StatsSpec
     FanInPerf.TargetSpecParserSpec
@@ -143,6 +154,7 @@ test-suite fan-in-perf-tests
     , base
     , bytestring
     , containers
+    , extended
     , fan-in-perf
     , hasql
     , hasql-resource-pool
@@ -151,11 +163,14 @@ test-suite fan-in-perf-tests
     , http-types
     , imports
     , optparse-applicative
+    , polysemy
+    , postgresql-connection-string
     , prometheus-client
     , QuickCheck
     , random
     , text
     , types-common
+    , uuid-types
     , vector
     , wai
     , wire-api

@@ -25,6 +25,7 @@
 , QuickCheck
 , random
 , text
+, time
 , types-common
 , unliftio
 , uuid-types
@@ -47,6 +48,7 @@ mkDerivation {
     bytestring
     containers
     extended
+    hasql
     hasql-resource-pool
     hasql-transaction
     http-types
@@ -58,6 +60,7 @@ mkDerivation {
     prometheus-client
     random
     text
+    time
     types-common
     unliftio
     uuid-types
@@ -74,6 +77,7 @@ mkDerivation {
     base
     bytestring
     containers
+    extended
     hasql
     hasql-resource-pool
     hasql-transaction
@@ -81,11 +85,14 @@ mkDerivation {
     http-types
     imports
     optparse-applicative
+    polysemy
+    postgresql-connection-string
     prometheus-client
     QuickCheck
     random
     text
     types-common
+    uuid-types
     vector
     wai
     wire-api

@@ -21,7 +21,7 @@ receivers:
           static_configs:
             - targets: ['postgres-exporter:9187']
         - job_name: 'fan-in-perf'
-          scrape_interval: 5s
+          scrape_interval: 1s
           static_configs:
             - targets: ['host.docker.internal:9400']
 

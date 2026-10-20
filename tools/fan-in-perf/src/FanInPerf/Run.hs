@@ -5,13 +5,15 @@ import Data.Misc (Duration (..))
 import Data.Qualified (toLocalUnsafe)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import FanInPerf.Consume (runConsume)
 import FanInPerf.Metrics (runMetricsServer)
 import FanInPerf.Options
+import FanInPerf.Pool
 import FanInPerf.Produce (runProduce)
 import FanInPerf.Store
 import FanInPerf.Targets (localDomain)
 import FanInPerf.Terminal
-import Hasql.Pool.Extended (PoolConfig (..), initPostgresPoolFromConnString)
+import Hasql.Pool.Extended (PoolConfig (..))
 import Imports
 import PostgresqlConnectionString qualified
 import System.Exit (ExitCode (..), exitWith)
@@ -23,7 +25,8 @@ run console opts = do
   -- never echo the input: it contains the password
   connStr <- either (const (abort "invalid --db connection string")) pure (PostgresqlConnectionString.parse opts.global.db)
   let size = fromMaybe (defaultPoolSize opts.command) opts.global.poolSize
-  pool <- initPostgresPoolFromConnString (poolConfig size) connStr Nothing
+  fams <- mkPoolFamilies
+  pool <- initPool fams WriterPool (poolConfig size) connStr
   let env =
         Env
           { pool,
@@ -47,6 +50,13 @@ run console opts = do
         -- e.g. port already in use: fail loudly instead of running unobserved
         link server
         runProduce console env p
+    Consume c ->
+      withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
+        link server
+        -- readers get their own pool so they cannot starve the writers
+        readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
+        let readerEnv = Env {pool = readerPool, local = env.local, isolation = env.isolation}
+        runConsume console env readerEnv c
 
 checkDatabase :: Env -> IO ()
 checkDatabase env =
@@ -60,6 +70,7 @@ defaultPoolSize = \case
   Migrate -> 1
   Reset -> 1
   Produce p -> p.writers
+  Consume c -> c.writerOptions.writers
 
 poolConfig :: Int -> PoolConfig
 poolConfig size =

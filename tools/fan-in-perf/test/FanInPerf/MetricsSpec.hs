@@ -2,6 +2,7 @@ module FanInPerf.MetricsSpec (spec) where
 
 import Data.ByteString.Lazy.Char8 qualified as LBS8
 import Data.Vector.Unboxed qualified as VU
+import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
 import FanInPerf.Stats
 import FanInPerf.Targets (TargetKind (..))
@@ -51,6 +52,24 @@ spec = do
       out `shouldContain` "fanin_perf_push_rate_current{experiment=\"spec\"} 3"
       out `shouldContain` "fanin_perf_writers{experiment=\"spec\"} 4"
       out `shouldContain` "fanin_perf_push_duration_seconds_count{experiment=\"spec\"} 3"
+
+  describe "publishConsume" $
+    it "exports consume counters, gauges and histograms" $ do
+      m <- newConsumeMetrics "specc" 7
+      rs <- newReaderStats
+      replicateM_ 3 (recordFetch rs KindTeam 1000 [500])
+      recordFetch rs KindTeam 1000 []
+      total <- readReaderSnapshot rs
+      let (r, _) = consumeTick 0 1 10 total (initialConsumeTickState 0)
+      publishConsume m r
+      out <- LBS8.unpack <$> P.exportMetricsAsText
+      out `shouldContain` "fanin_perf_consumed_total{experiment=\"specc\",kind=\"team\"} 3"
+      out `shouldContain` "fanin_perf_empty_fetches_total{experiment=\"specc\",kind=\"team\"} 1"
+      out `shouldContain` "fanin_perf_consume_rate_current{experiment=\"specc\"} 3"
+      out `shouldContain` "fanin_perf_backlog{experiment=\"specc\"} 7"
+      out `shouldContain` "fanin_perf_clients{experiment=\"specc\"} 7"
+      out `shouldContain` "fanin_perf_delivery_lag_seconds_count{experiment=\"specc\"} 3"
+      out `shouldContain` "fanin_perf_fetch_duration_seconds_count{experiment=\"specc\"} 4"
 
   describe "metricsApp" $ do
     it "serves /metrics" $ statusFor ["metrics"] `shouldReturn` Just status200

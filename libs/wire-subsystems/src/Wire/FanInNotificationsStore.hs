@@ -6,6 +6,7 @@ import Data.Aeson
 import Data.Id
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified
+import Data.UUID (UUID)
 import Imports
 import Polysemy
 import Wire.API.MLS.Epoch
@@ -32,7 +33,20 @@ data Target
   | TargetEpoch !(GroupId, Epoch) -- All users in an epoch
   | TargetConnections !(Qualified UserId) -- All users connected to this user
 
+-- | One notification stream, i.e. one key of a notification table.
+data Stream
+  = StreamUser !UserId
+  | StreamClient !UserId !ClientId
+  | StreamTeam !TeamId
+  | StreamEpoch !GroupId !Epoch
+  deriving (Eq, Show)
+
 data FanInNotificationsStore m a where
   PushViaFanIn :: FanInPush -> FanInNotificationsStore m ()
+  -- | Notifications of a stream with an id greater than the given one, oldest
+  -- first, at most the given number.
+  FetchNotifications :: Stream -> UUID -> Int -> FanInNotificationsStore m [(UUID, Value)]
+  -- | Id of the latest notification ever pushed to the stream.
+  GetLastNotificationId :: Stream -> FanInNotificationsStore m (Maybe UUID)
 
 makeSem ''FanInNotificationsStore

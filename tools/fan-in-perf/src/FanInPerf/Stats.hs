@@ -12,6 +12,7 @@ module FanInPerf.Stats
     newWriterStats,
     recordSuccess,
     recordError,
+    recordExpected,
     Snapshot,
     emptySnapshot,
     readSnapshot,
@@ -23,7 +24,9 @@ module FanInPerf.Stats
     totalPushes,
     totalTargets,
     totalErrors,
+    totalExpected,
     latencyBuckets,
+    toBuckets,
     numBuckets,
     bucketIndex,
     bucketUpperBoundSeconds,
@@ -32,6 +35,7 @@ module FanInPerf.Stats
     initialTickState,
     TickReport (..),
     tick,
+    minTickInterval,
   )
 where
 
@@ -53,14 +57,15 @@ data Snapshot = Snapshot
   { pushes :: !(Map TargetKind Int),
     targets :: !(Map TargetKind Int),
     errors :: !(Map TargetKind Int),
-    latency :: !(IntMap Int)
+    latency :: !(IntMap Int),
+    expected :: !Int
   }
   deriving (Eq, Show)
 
 newtype WriterStats = WriterStats (IORef Snapshot)
 
 emptySnapshot :: Snapshot
-emptySnapshot = Snapshot mempty mempty mempty mempty
+emptySnapshot = Snapshot mempty mempty mempty mempty 0
 
 newWriterStats :: IO WriterStats
 newWriterStats = WriterStats <$> newIORef emptySnapshot
@@ -85,6 +90,11 @@ recordSuccess stats k n latencyNs =
 recordError :: WriterStats -> TargetKind -> IO ()
 recordError stats k = modifyStats stats $ \s -> s {errors = bump k 1 s.errors}
 
+-- | Notification deliveries readers should see because of the pushes recorded
+-- so far (only used by experiment B).
+recordExpected :: WriterStats -> Int -> IO ()
+recordExpected stats n = modifyStats stats $ \s -> s {expected = s.expected + n}
+
 -- | An identity atomic read-modify-write rather than 'readIORef': it is a full
 -- barrier, so the ticker never observes a stale snapshot from another core.
 -- (Lock-free, but it can make a concurrent writer's CAS retry once.)
@@ -99,7 +109,8 @@ sumSnapshots = foldl' addSnapshot emptySnapshot
         { pushes = Map.unionWith (+) x.pushes y.pushes,
           targets = Map.unionWith (+) x.targets y.targets,
           errors = Map.unionWith (+) x.errors y.errors,
-          latency = IntMap.unionWith (+) x.latency y.latency
+          latency = IntMap.unionWith (+) x.latency y.latency,
+          expected = x.expected + y.expected
         }
 
 diffSnapshot :: Snapshot -> Snapshot -> Snapshot
@@ -108,7 +119,8 @@ diffSnapshot new old =
     { pushes = diffMap new.pushes old.pushes,
       targets = diffMap new.targets old.targets,
       errors = diffMap new.errors old.errors,
-      latency = IntMap.unionWith (+) new.latency (negate <$> old.latency)
+      latency = IntMap.unionWith (+) new.latency (negate <$> old.latency),
+      expected = new.expected - old.expected
     }
   where
     -- absent key = 0, so a key in only one of the maps still diffs correctly
@@ -124,8 +136,14 @@ totalPushes s = sum s.pushes
 totalTargets s = sum s.targets
 totalErrors s = sum s.errors
 
+totalExpected :: Snapshot -> Int
+totalExpected s = s.expected
+
 latencyBuckets :: Snapshot -> VU.Vector Int
-latencyBuckets s = VU.accum (+) (VU.replicate numBuckets 0) (IntMap.toList s.latency)
+latencyBuckets s = toBuckets s.latency
+
+toBuckets :: IntMap Int -> VU.Vector Int
+toBuckets m = VU.accum (+) (VU.replicate numBuckets 0) (IntMap.toList m)
 
 bucketIndex :: Word64 -> Int
 bucketIndex ns = min (numBuckets - 1) (63 - countLeadingZeros (max 1 ns))

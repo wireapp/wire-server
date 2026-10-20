@@ -98,3 +98,14 @@ spec = do
       t <- mkTotal 3 1
       let (r, _) = tick 0 1 t (initialTickState 0)
       (r.errorRate, r.errorRatio) `shouldBe` (1, 0.25)
+
+  describe "expected deliveries" $
+    it "are summed over writers and diffed like the other counters" $ do
+      a <- newWriterStats
+      b <- newWriterStats
+      recordExpected a 5
+      s0 <- sumSnapshots <$> traverse readSnapshot [a, b]
+      recordExpected a 2
+      recordExpected b 10
+      s1 <- sumSnapshots <$> traverse readSnapshot [a, b]
+      (totalExpected s0, totalExpected s1, totalExpected (diffSnapshot s1 s0)) `shouldBe` (5, 17, 12)
