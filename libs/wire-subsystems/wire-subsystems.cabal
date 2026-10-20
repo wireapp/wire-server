@@ -415,6 +415,11 @@ library
     Wire.MlsKeyPackageSubsystem.Interpreter
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.OAuthAuthCodeStore
+    Wire.OAuthAuthCodeStore.Cassandra
+    Wire.OAuthAuthCodeStore.DualWrite
+    Wire.OAuthAuthCodeStore.Migration
+    Wire.OAuthAuthCodeStore.Postgres
     Wire.Options.Galley
     Wire.Options.Keys
     Wire.PaginationState
