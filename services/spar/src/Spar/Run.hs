@@ -50,7 +50,6 @@ import qualified SAML2.WebSSO as SAML
 import Spar.API (SparAPI, app)
 import Spar.App
 import qualified Spar.Data as Data
-import Spar.Data.Instances ()
 import Spar.Options as Opt
 import Spar.Orphans ()
 import System.Logger (Logger)

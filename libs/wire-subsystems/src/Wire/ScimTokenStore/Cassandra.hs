@@ -1,11 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -20,22 +21,52 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra) where
+module Wire.ScimTokenStore.Cassandra
+  ( scimTokenStoreToCassandra,
+    lookupScimTokenRaw,
+    convertPlaintextToken,
+  )
+where
 
 import Cassandra as Cas
 import Control.Arrow (Arrow ((&&&)))
 import Control.Lens
+import Data.ByteString (toStrict)
+import Data.ByteString.Conversion
 import Data.Id
+import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error
 import Data.Time
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
-import Spar.Data.Instances ()
-import Spar.Sem.ScimTokenStore
+import SAML2.WebSSO qualified as SAML
 import Text.RawString.QQ
 import Wire.API.User.Scim
 import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
-import qualified Prelude
+import Wire.ScimTokenStore
+
+deriving instance Cql ScimToken
+
+instance Cql ScimTokenHash where
+  ctype = Tagged TextColumn
+  toCql = CqlText . T.decodeUtf8With lenientDecode . toStrict . toByteString
+  fromCql (CqlText t) =
+    maybe
+      (Left "ScimTokenHash: parse error")
+      Right
+      (fromByteString . T.encodeUtf8 $ t)
+  fromCql _ = Left "ScimTokenHash: expected CqlText"
+
+instance Cql ScimTokenLookupKey where
+  ctype = Tagged TextColumn
+  toCql = \case
+    ScimTokenLookupKeyHashed h -> toCql h
+    ScimTokenLookupKeyPlaintext t -> toCql t
+  fromCql s@(CqlText _) =
+    case fromCql s of
+      Right h -> pure (ScimTokenLookupKeyHashed h)
+      Left _ -> ScimTokenLookupKeyPlaintext <$> fromCql s
+  fromCql _ = Left "ScimTokenLookupKey: expected CqlText"
 
 scimTokenStoreToCassandra ::
   forall m r a.
@@ -90,24 +121,37 @@ scimTokenLookupKey :: ScimTokenRow -> ScimTokenLookupKey
 scimTokenLookupKey (key, _, _, _, _, _, _) = key
 
 -- | Check whether a token exists and if yes, what team and IdP are
--- associated with it.
+-- associated with it. Plaintext-key rows are converted to hashed-key rows as a
+-- side effect (legacy tokens are re-keyed on first use).
 lookupScimToken ::
   (HasCallStack, MonadClient m) =>
   ScimToken ->
   m (Maybe ScimTokenInfo)
 lookupScimToken token = do
+  mRow <- lookupScimTokenRaw token
+  case mRow of
+    Just (ScimTokenLookupKeyPlaintext plain, info) -> do
+      convertPlaintextToken plain info
+      pure (Just info)
+    Just (ScimTokenLookupKeyHashed _, info) -> pure (Just info)
+    Nothing -> pure Nothing
+
+-- | Read the token row under both its hashed and plaintext key, returning the
+-- key it was found under together with the row info. Does not re-key.
+lookupScimTokenRaw ::
+  (HasCallStack, MonadClient m) =>
+  ScimToken ->
+  m (Maybe (ScimTokenLookupKey, ScimTokenInfo))
+lookupScimTokenRaw token = do
   let tokenHash = hashScimToken token
   rows <- retry x1 . query sel $ params LocalQuorum (tokenHash, token)
-  case fmap (scimTokenLookupKey &&& Prelude.id) rows of
-    [(ScimTokenLookupKeyHashed _, row)] ->
-      pure (Just (fromScimTokenRow row))
-    [(ScimTokenLookupKeyPlaintext plain, row)] ->
-      convert plain row
-    [(ScimTokenLookupKeyHashed _, _), (ScimTokenLookupKeyPlaintext plain, row)] ->
-      convert plain row
-    [(ScimTokenLookupKeyPlaintext plain, row), (ScimTokenLookupKeyHashed _, _)] ->
-      convert plain row
-    _ -> pure Nothing
+  pure $ case fmap (scimTokenLookupKey &&& fromScimTokenRow) rows of
+    [(key, info)] -> Just (key, info)
+    -- Both keys present (partially converted row): prefer the plaintext row so
+    -- the conversion below re-runs and removes the stale plaintext row.
+    [(ScimTokenLookupKeyPlaintext plain, info), (ScimTokenLookupKeyHashed _, _)] -> Just (ScimTokenLookupKeyPlaintext plain, info)
+    [(ScimTokenLookupKeyHashed _, _), (ScimTokenLookupKeyPlaintext plain, info)] -> Just (ScimTokenLookupKeyPlaintext plain, info)
+    _ -> Nothing
   where
     sel :: PrepQuery R (ScimTokenHash, ScimToken) ScimTokenRow
     sel =
@@ -116,18 +160,12 @@ lookupScimToken token = do
         FROM team_provisioning_by_token WHERE token_ in (?, ?)
       |]
 
-    convert :: (MonadClient m) => ScimToken -> ScimTokenRow -> m (Maybe ScimTokenInfo)
-    convert plain row = do
-      let tokenInfo = fromScimTokenRow row
-      connvertPlaintextToken plain tokenInfo
-      pure (Just tokenInfo)
-
-connvertPlaintextToken ::
+convertPlaintextToken ::
   (HasCallStack, MonadClient m) =>
   ScimToken ->
   ScimTokenInfo ->
   m ()
-connvertPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
+convertPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   let tokenHash = hashScimToken token

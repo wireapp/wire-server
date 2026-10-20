@@ -28,7 +28,6 @@ library
     Spar.App
     Spar.CanonicalInterpreter
     Spar.Data
-    Spar.Data.Instances
     Spar.Error
     Spar.Intra.RpcApp
     Spar.Options
@@ -77,9 +76,6 @@ library
     Spar.Sem.SAMLUserStore
     Spar.Sem.SAMLUserStore.Cassandra
     Spar.Sem.SAMLUserStore.Mem
-    Spar.Sem.ScimTokenStore
-    Spar.Sem.ScimTokenStore.Cassandra
-    Spar.Sem.ScimTokenStore.Mem
     Spar.Sem.Utils
 
   other-modules:      Paths_spar
@@ -148,6 +144,7 @@ library
     , crypton-x509
     , exceptions
     , extended
+    , hasql-resource-pool
     , hscim
     , hspec
     , http-types
@@ -164,7 +161,6 @@ library
     , QuickCheck
     , raw-strings-qq
     , saml2-web-sso
-    , semigroupoids
     , servant-multipart
     , servant-server
     , text

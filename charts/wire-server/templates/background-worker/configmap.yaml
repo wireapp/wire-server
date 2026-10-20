@@ -104,6 +104,8 @@ data:
     migrateCustomBackend: {{ .migrateCustomBackend }}
     migrateNonce: {{ .migrateNonce }}
     migrateConnections: {{ .migrateConnections }}
+    migrateScimTokens: {{ .migrateScimTokens }}
+    migrateScimExternalIds: {{ .migrateScimExternalIds }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
