@@ -117,7 +117,7 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
   GetIndexUsersPaginated _pageSize _pagingState ->
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
   GetScimUsersPaginated {} ->
-    error "GGetScimUsersPaginated not implemented in inMemoryUserStoreInterpreter"
+    error "GetScimUsersPaginated not implemented in inMemoryUserStoreInterpreter"
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
