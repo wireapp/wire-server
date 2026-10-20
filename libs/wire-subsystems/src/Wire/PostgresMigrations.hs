@@ -46,7 +46,9 @@ nonTransactionMigrations =
   Set.fromList
     [ "20260428072649-create-conv-parent-index.sql",
       "20260708090000-meetings-recurrence-eff-end-index.sql",
-      "20260708100000-meetings-end-time-nonrecurring-index.sql"
+      "20260708100000-meetings-end-time-nonrecurring-index.sql",
+      "20261020124413-create-user-team-index.sql",
+      "20261020124414-create-user-managed-by.sql"
     ]
 
 data PostgresMigrationError

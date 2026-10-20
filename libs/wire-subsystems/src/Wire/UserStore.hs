@@ -67,6 +67,11 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 
 data UserPageMarker = PagingExitingUsers UserId | PagingDeletedUsers UserId
 
+data OffsetPage a = OffsetPage
+  { results :: [a],
+    totalResults :: Int32
+  }
+
 -- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
 -- database logic; validate handle is application logic.)
 data UserStore m a where
@@ -74,6 +79,8 @@ data UserStore m a where
   GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
   DoesUserExist :: UserId -> UserStore m Bool
   GetIndexUsersPaginated :: Int32 -> Maybe (GeneralPaginationState UserPageMarker) -> UserStore m (PageWithState UserPageMarker IndexUser)
+  -- | Returns a 'Maybe' because cassandra doesn't support this.
+  GetScimUsersPaginated :: TeamId -> Int32 -> Maybe Int32 -> UserStore m (Maybe (OffsetPage StoredUser))
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateEmail :: UserId -> EmailAddress -> UserStore m ()
