@@ -97,6 +97,7 @@ galley:
       passwordReset: cassandra
       scimTokens: cassandra
       scimExternalIds: cassandra
+      samlUsers: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -889,6 +890,7 @@ spar:
       passwordReset: cassandra
       scimTokens: cassandra
       scimExternalIds: cassandra
+      samlUsers: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
 
@@ -1076,6 +1078,10 @@ background-worker:
     # to `migration-to-postgresql` before starting the migration.
     migrateScimTokens: false
     migrateScimExternalIds: false
+    # This will start the migration of spar saml user data.
+    # It's important to set `spar.config.postgresMigration.samlUsers`
+    # to `migration-to-postgresql` before starting the migration.
+    migrateSamlUsers: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

@@ -182,6 +182,7 @@ postgresMigration:
   blockList: postgresql
   scimTokens: cassandra
   scimExternalIds: cassandra
+  samlUsers: cassandra
 
 optSettings:
   setActivationTimeout: 4

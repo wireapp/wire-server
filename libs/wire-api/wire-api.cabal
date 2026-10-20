@@ -771,6 +771,7 @@ test-suite wire-api-tests
     , ram
     , random
     , regex-tdfa
+    , saml2-web-sso
     , schema-profunctor
     , servant
     , servant-server

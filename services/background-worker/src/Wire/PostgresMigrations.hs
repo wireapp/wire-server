@@ -29,6 +29,7 @@ import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
+import Wire.SAMLUserStore.Migration qualified as SAMLUserStore
 import Wire.ScimExternalIdStore.Migration qualified as ScimExternalIdStore
 import Wire.ScimTokenStore.Migration qualified as ScimTokenStore
 import Wire.TeamFeatureStore.Migration
@@ -201,4 +202,22 @@ scimExternalIds migOpts = do
   Log.info logger $ Log.msg (Log.val "started scim external ids migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling scim external ids migration")
+    cancel migrationLoop
+
+samlUsers :: MigrationOptions -> AppT IO CleanupAction
+samlUsers migOpts = do
+  cassClient <- asks (.cassandraSpar)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting saml users migration")
+  count <- register $ counter $ Prometheus.Info "wire_saml_users_migrated_to_pg" "Number of saml users migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_saml_users_migration_finished" "Whether the saml users migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_saml_users_migration_failed" "Whether the saml users migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_saml_users_migration_duration_seconds" "Duration of saml users migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ SAMLUserStore.migrateSAMLUsersLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started saml users migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling saml users migration")
     cancel migrationLoop

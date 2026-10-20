@@ -54,9 +54,6 @@ import qualified Spar.Options
 import Spar.Sem.AReqIDStore (AReqIDStore (..))
 import Spar.Sem.AssIDStore (AssIDStore (..))
 import Spar.Sem.SAML2 (SAML2 (..))
-import Spar.Sem.SAMLUserStore
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.SAMLUserStore.Mem
 import System.FilePath ((</>))
 import System.Logger (Msg)
 import System.Logger.Class (Level (..))
@@ -84,6 +81,9 @@ import Wire.IdPRawMetadataStore
 import Wire.IdPRawMetadataStore.Mem
 import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 import Wire.Reporter (Reporter (..))
+import Wire.SAMLUserStore
+import qualified Wire.SAMLUserStore as SAMLUserStore
+import Wire.SAMLUserStore.Mem
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
@@ -1050,7 +1050,8 @@ defaultTestOpts =
             blockList = CassandraStorage,
             passwordReset = CassandraStorage,
             scimTokens = CassandraStorage,
-            scimExternalIds = CassandraStorage
+            scimExternalIds = CassandraStorage,
+            samlUsers = CassandraStorage
           },
       postgresqlPassword = Nothing
     }

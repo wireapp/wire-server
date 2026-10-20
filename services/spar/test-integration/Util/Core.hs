@@ -185,7 +185,6 @@ import Spar.Error (SparError)
 import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Run
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -217,6 +216,7 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
 import Wire.BrigAPIAccess (getAccount)
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import qualified Wire.SAMLUserStore as SAMLUserStore
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 
 -- | Call 'mkEnv' with options from config files.
