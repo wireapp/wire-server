@@ -1,4 +1,4 @@
 dependencies:
 - name: kibana
-  version: 6.8.18
+  version: 6.8.22
   repository: https://helm.elastic.co
