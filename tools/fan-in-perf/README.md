@@ -50,6 +50,10 @@ fan-in-perf --db "$DB" consume-ack --targets user:1000,clients:1000,team:10,epoc
   --clients-per-user 2 --clients 2000 --duration 30 --ack-every 1
 ```
 
+`run-experiments.py --db "$DB" --out results.md` runs A-D on plain and
+partitioned tables (about 55 min; `--quick` for a smoke test) and writes the
+results as markdown (for the Jira ticket). It drops and recreates the database.
+
 Global flags go before the sub-command. The tool prints a status line per
 second and a summary at the end. Ctrl-C stops a run without `--duration`.
 
