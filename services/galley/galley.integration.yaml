@@ -272,3 +272,5 @@ postgresMigration:
   blockList: postgresql
   passwordReset: postgresql
   customBackend: postgresql
+  scimTokens: cassandra
+  scimExternalIds: cassandra

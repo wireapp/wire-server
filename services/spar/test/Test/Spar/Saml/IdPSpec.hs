@@ -57,8 +57,6 @@ import Spar.Sem.SAML2 (SAML2 (..))
 import Spar.Sem.SAMLUserStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem
-import Spar.Sem.ScimTokenStore
-import Spar.Sem.ScimTokenStore.Mem
 import System.FilePath ((</>))
 import System.Logger (Msg)
 import System.Logger.Class (Level (..))
@@ -90,6 +88,8 @@ import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
+import Wire.ScimTokenStore
+import Wire.ScimTokenStore.Mem
 import Wire.Sem.Logger (discardLogs)
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
 import Wire.Sem.Random
@@ -1049,7 +1049,9 @@ defaultTestOpts =
             user = CassandraStorage,
             blockList = CassandraStorage,
             passwordReset = CassandraStorage,
-            customBackend = CassandraStorage
+            customBackend = CassandraStorage,
+            scimTokens = CassandraStorage,
+            scimExternalIds = CassandraStorage
           },
       postgresqlPassword = Nothing
     }

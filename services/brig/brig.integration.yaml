@@ -181,6 +181,8 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   customBackend: postgresql
+  scimTokens: cassandra
+  scimExternalIds: cassandra
 
 optSettings:
   setActivationTimeout: 4

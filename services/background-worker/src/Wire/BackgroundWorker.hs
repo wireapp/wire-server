@@ -106,6 +106,19 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-custom-backend" $
             Migrations.customBackend opts.migrationOptions
+  cleanupScimTokensMigration <-
+    if opts.migrateScimTokens
+      then
+        runAppT env $
+          withNamedLogger "migrate-scim-tokens" $
+            Migrations.scimTokens opts.migrationOptions
+      else pure $ pure ()
+  cleanupScimExternalIdsMigration <-
+    if opts.migrateScimExternalIds
+      then
+        runAppT env $
+          withNamedLogger "migrate-scim-external-ids" $
+            Migrations.scimExternalIds opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
@@ -119,6 +132,7 @@ run opts galleyOpts = do
         void $
           runConcurrently $
             (,,,,,,,,,,,)
+            (,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -129,6 +143,8 @@ run opts galleyOpts = do
               <*> Concurrently cleanupBlockListMigration
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
+              <*> Concurrently cleanupScimTokensMigration
+              <*> Concurrently cleanupScimExternalIdsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

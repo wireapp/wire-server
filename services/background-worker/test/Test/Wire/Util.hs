@@ -56,6 +56,8 @@ testEnv = do
             blockList = CassandraStorage,
             passwordReset = CassandraStorage,
             customBackend = CassandraStorage
+            scimTokens = CassandraStorage,
+            scimExternalIds = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics

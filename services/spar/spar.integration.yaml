@@ -52,8 +52,10 @@ postgresMigration:
   blockList: cassandra
   passwordReset: cassandra
   customBackend: postgresql
+  scimTokens: postgresql
+  scimExternalIds: postgresql
 
-# Wire/AWS specific, optional
+  # Wire/AWS specific, optional
 # discoUrl: "https://"
 
 # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
