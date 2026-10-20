@@ -518,7 +518,7 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
               }
         _ -> do
           -- Postgres doesn't like it if the offset is below 0
-          let pageOffset = min 0 $ fromMaybe 0 mOffset
+          let pageOffset = max 0 $ fromMaybe 0 mOffset
           userRows <- Transaction.statement (tid, maxResults, pageOffset) selectUsers
           let usersWithoutAssets = map storedUserFromRow userRows
               uids = map (.id) usersWithoutAssets
