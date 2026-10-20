@@ -170,9 +170,7 @@ addPageDocs =
 -- values of offset. Please consider using other pagination methods.
 data OffsetPage a = OffsetPage
   { results :: [a],
-    totalResults :: Int32,
-    pageSize :: Int32,
-    startIndex :: Maybe Int32
+    totalResults :: Int32
   }
   deriving (Eq, Show, Functor, Generic)
   deriving (Arbitrary) via (GenericUniform (OffsetPage a))
@@ -186,8 +184,6 @@ instance (ToSchema a, Typeable a) => ToSchema (OffsetPage a) where
       OffsetPage
         <$> results .= fieldWithDocModifier "results" (S.description ?~ "List of results in the page") (array schema)
         <*> totalResults .= fieldWithDocModifier "total_results" (S.description ?~ "Total number of results in all pages") schema
-        <*> pageSize .= fieldWithDocModifier "page_size" (S.description ?~ "Number of results in a page") schema
-        <*> startIndex .= maybe_ (optFieldWithDocModifier "start_index" (S.description ?~ "0-based index of the frist result in the page when there is at least one result") schema)
 
 deriving via (Schema (OffsetPage User)) instance S.ToSchema (OffsetPage User)
 

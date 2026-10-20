@@ -509,13 +509,7 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
         0 ->
           -- Special case this because it is a way for scim clients to get a
           -- tally of number of users. So it might be used more often.
-          pure
-            OffsetPage
-              { results = [],
-                totalResults = count,
-                pageSize = maxResults,
-                startIndex = Nothing
-              }
+          pure OffsetPage {results = [], totalResults = count}
         _ -> do
           -- Postgres doesn't like it if the offset is below 0
           let pageOffset = max 0 $ fromMaybe 0 mOffset
@@ -530,15 +524,7 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
                   assetRows
               addAssets user = user {assets = Map.lookup user.id assetMap} :: StoredUser
               users = map addAssets usersWithoutAssets
-          pure $
-            OffsetPage
-              { results = users,
-                totalResults = count,
-                pageSize = maxResults,
-                startIndex = case users of
-                  [] -> Nothing
-                  _ -> Just pageOffset
-              }
+          pure $ OffsetPage {results = users, totalResults = count}
   where
     selectCount :: Hasql.Statement TeamId Int32
     selectCount =
