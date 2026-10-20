@@ -208,9 +208,10 @@ instance ToSchema OAuthResponseType where
 data OAuthScope
   = ReadFeatureConfigs
   | ReadSelf
-  | ReadConversations -- this is new?!
+  | ReadConversationsCode
   | WriteOnlyConversations
   | WriteOnlyConversationsCode
+  | DeleteOnlyConversationsCode
   | WriteOnlyConversationsName
   | WriteOnlyMeetings
   | DeleteOnlyMeetings
@@ -235,11 +236,17 @@ instance IsOAuthScope 'WriteOnlyConversations where
 instance IsOAuthScope 'WriteOnlyConversationsCode where
   toOAuthScope = WriteOnlyConversationsCode
 
+instance IsOAuthScope 'DeleteOnlyConversationsCode where
+  toOAuthScope = DeleteOnlyConversationsCode
+
 instance IsOAuthScope 'WriteOnlyConversationsName where
   toOAuthScope = WriteOnlyConversationsName
 
 instance IsOAuthScope 'WriteOnlyMeetings where
   toOAuthScope = WriteOnlyMeetings
+
+instance IsOAuthScope 'DeleteOnlyMeetings where
+  toOAuthScope = DeleteOnlyMeetings
 
 instance ToByteString OAuthScope where
   builder = \case
@@ -248,6 +255,7 @@ instance ToByteString OAuthScope where
     ReadConversationsCode -> "read:conversations_code"
     WriteOnlyConversations -> "write-only:conversations"
     WriteOnlyConversationsCode -> "write-only:conversations_code"
+    DeleteOnlyConversationsCode -> "delete-only:conversations_code"
     WriteOnlyConversationsName -> "write-only:conversations_name"
     WriteOnlyMeetings -> "write-only:meetings"
     DeleteOnlyMeetings -> "delete-only:meetings"
@@ -305,11 +313,6 @@ instance ToSchema OAuthScopes where
               then fail ("invalid scope: " <> show s <> "; " <> validScopes)
               else pure expanded
 
-      parseScope :: Text -> A.Parser OAuthScope
-      parseScope s =
-        (fromByteString' . fromStrict . TE.encodeUtf8) s
-          & maybe (fail ("invalid scope: " <> show s <> "; " <> validScopes)) pure
-
       -- Deprecated scopes are still handled correctly, but no need to brag about it.
       validScopes :: String
       validScopes =
@@ -356,12 +359,13 @@ storedScope t =
     & maybe (deprecatedScope t) Set.singleton
 
 -- | The cumulative scopes we used to hand out.  Only scopes that exist now can
--- come out of this, so @admin:meetings@ shrinks to @write-only:meetings@: there
--- is no @delete-only:meetings@ to grant, and no endpoint that would honour it.
+-- come out of this, so @admin:meetings@ shrinks to @write-only:meetings@ and
+-- @delete-only:meetings@: old tokens keep the rights they were granted.
 deprecatedScope :: Text -> Set OAuthScope
 deprecatedScope = \case
   "write:conversations" -> Set.fromList [WriteOnlyConversations]
   "write:conversations_code" -> Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]
+  "admin:conversations_code" -> Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode, DeleteOnlyConversationsCode]
   "write:conversations_name" -> Set.fromList [WriteOnlyConversationsName]
   "write:meetings" -> Set.fromList [WriteOnlyMeetings]
   "admin:meetings" -> Set.fromList [WriteOnlyMeetings]

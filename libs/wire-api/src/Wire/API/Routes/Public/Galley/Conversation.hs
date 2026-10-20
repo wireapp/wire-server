@@ -1135,6 +1135,7 @@ type ConversationAPI =
     :<|> Named
            "remove-code-unqualified"
            ( Summary "Delete conversation code"
+               :> DescriptionOAuthScope 'DeleteOnlyConversationsCode
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
