@@ -26,11 +26,11 @@ data FanInPush = FanInPush
   }
 
 data Target
-  = TargetUser UserId
-  | TargetUserClients (UserId, NE.NonEmpty ClientId)
-  | TargetTeam TeamId -- All users of a team
-  | TargetEpoch (GroupId, Epoch) -- All users in an epoch
-  | TargetConnections (Qualified UserId) -- All users connected to this user
+  = TargetUser !UserId
+  | TargetUserClients !(UserId, NE.NonEmpty ClientId)
+  | TargetTeam !TeamId -- All users of a team
+  | TargetEpoch !(GroupId, Epoch) -- All users in an epoch
+  | TargetConnections !(Qualified UserId) -- All users connected to this user
 
 data FanInNotificationsStore m a where
   PushViaFanIn :: FanInPush -> FanInNotificationsStore m ()

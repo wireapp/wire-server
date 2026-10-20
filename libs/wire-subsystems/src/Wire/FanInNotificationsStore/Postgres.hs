@@ -23,18 +23,15 @@ import Wire.API.MLS.Group
 import Wire.FanInNotificationsStore
 import Wire.Postgres
 
-type FanInNotificationsStorePostgresEffectConstraints r =
-  PGConstraints r
-
 interpretFanInNotificationsStoreToPostgres ::
-  (FanInNotificationsStorePostgresEffectConstraints r, Member (Input (Local ())) r) =>
+  (PGConstraints r, Member (Input (Local ())) r) =>
   TxSessions.IsolationLevel ->
   InterpreterFor FanInNotificationsStore r
 interpretFanInNotificationsStoreToPostgres isolationLevel = interpret $ \case
   PushViaFanIn push -> pushViaFanInImpl isolationLevel push
 
 pushViaFanInImpl ::
-  (FanInNotificationsStorePostgresEffectConstraints r, Member (Input (Local ())) r) =>
+  (PGConstraints r, Member (Input (Local ())) r) =>
   TxSessions.IsolationLevel ->
   FanInPush ->
   Sem r ()

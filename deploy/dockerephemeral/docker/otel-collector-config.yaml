@@ -20,6 +20,10 @@ receivers:
           scrape_interval: 15s
           static_configs:
             - targets: ['postgres-exporter:9187']
+        - job_name: 'fan-in-perf'
+          scrape_interval: 5s
+          static_configs:
+            - targets: ['host.docker.internal:9400']
 
 exporters:
   otlp:

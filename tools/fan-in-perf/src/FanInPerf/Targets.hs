@@ -1,0 +1,209 @@
+module FanInPerf.Targets
+  ( TargetKind (..),
+    allKinds,
+    kindName,
+    TargetConfig (..),
+    renderTargetSpec,
+    StreamPool (..),
+    Entry (..),
+    mkEntries,
+    sampleDistinct,
+    localDomain,
+    targetAt,
+    genTargets,
+    genPush,
+    targetKind,
+    pushKind,
+    targetKey,
+    mkPayload,
+  )
+where
+
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KM
+import Data.Bifunctor (first)
+import Data.Domain
+import Data.Id
+import Data.IntSet qualified as IntSet
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
+import Data.List.NonEmpty qualified as NE
+import Data.Qualified
+import Data.Text qualified as T
+import Data.Vector qualified as V
+import Imports
+import System.Random
+import System.Random.Stateful (runStateGen, uniformByteStringM, uniformRM)
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
+import Wire.API.Push.V2 (Route (RouteAny))
+import Wire.FanInNotificationsStore
+
+-- | One kind per 'Wire.FanInNotificationsStore.Target' constructor.
+data TargetKind = KindUser | KindClients | KindTeam | KindEpoch | KindConnections
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+allKinds :: [TargetKind]
+allKinds = [minBound .. maxBound]
+
+kindName :: TargetKind -> Text
+kindName = \case
+  KindUser -> "user"
+  KindClients -> "clients"
+  KindTeam -> "team"
+  KindEpoch -> "epoch"
+  KindConnections -> "connections"
+
+-- | @KIND:STREAMS[xK]@: @streams@ distinct stream keys, @perPush@ targets per push.
+data TargetConfig = TargetConfig
+  { kind :: TargetKind,
+    streams :: Int,
+    perPush :: Int
+  }
+  deriving (Eq, Show)
+
+renderTargetSpec :: NonEmpty TargetConfig -> Text
+renderTargetSpec =
+  T.intercalate ","
+    . map (\e -> kindName e.kind <> ":" <> T.pack (show e.streams) <> "x" <> T.pack (show e.perPush))
+    . NE.toList
+
+-- | Pre-generated stream keys of one '--targets' entry.
+data StreamPool
+  = UserPool (V.Vector UserId)
+  | ClientsPool (V.Vector (UserId, NonEmpty ClientId))
+  | TeamPool (V.Vector TeamId)
+  | EpochPool (V.Vector (GroupId, Epoch))
+  | ConnectionsPool (V.Vector UserId)
+
+data Entry = Entry
+  { spec :: TargetConfig,
+    pool :: StreamPool
+  }
+
+mkEntries :: (RandomGen g) => Int -> NonEmpty TargetConfig -> g -> (V.Vector Entry, g)
+mkEntries clientsPerUser specs g0 =
+  let step g s =
+        let (p, g') = mkPool clientsPerUser s g
+         in (g', Entry s p)
+      (g1, entries) = mapAccumL step g0 (NE.toList specs)
+   in (V.fromList entries, g1)
+
+mkPool :: (RandomGen g) => Int -> TargetConfig -> g -> (StreamPool, g)
+mkPool clientsPerUser s g0 =
+  let (g1, g2) = split g0
+   in ( case s.kind of
+          KindUser -> UserPool (V.unfoldrExactN s.streams genId g1)
+          KindClients -> ClientsPool (V.unfoldrExactN s.streams genUserClients g1)
+          KindTeam -> TeamPool (V.unfoldrExactN s.streams genId g1)
+          KindEpoch -> EpochPool (V.unfoldrExactN s.streams genGroupEpoch g1)
+          KindConnections -> ConnectionsPool (V.unfoldrExactN s.streams genId g1),
+        g2
+      )
+  where
+    -- Client ids 1..C per user: distinct, so one push never inserts the same
+    -- (user, client, notification) row twice.
+    clientIds = ClientId 1 :| map ClientId [2 .. fromIntegral clientsPerUser]
+    genUserClients g = let (u, g') = genId g in ((u, clientIds), g')
+
+genId :: (RandomGen g) => g -> (Id a, g)
+genId = first Id . uniform
+
+-- | MLS group ids are arbitrary bytes; 32 random bytes like real ones.
+genGroupEpoch :: (RandomGen g) => g -> ((GroupId, Epoch), g)
+genGroupEpoch g = runStateGen g $ \gen -> do
+  bytes <- uniformByteStringM 32 gen
+  epoch <- uniformRM (0, 1000) gen
+  pure (GroupId bytes, Epoch epoch)
+
+-- | @k@ distinct indices from @[0, n)@ using Floyd's algorithm: exactly @k@
+-- random draws regardless of how close @k@ is to @n@. Requires @1 <= k <= n@.
+-- Result is ascending.
+sampleDistinct :: (RandomGen g) => Int -> Int -> g -> ([Int], g)
+sampleDistinct n k = go (n - k) IntSet.empty
+  where
+    go j seen g
+      | j >= n = (IntSet.toAscList seen, g)
+      | otherwise =
+          let (t, g') = uniformR (0, j) g
+              pick = if IntSet.member t seen then j else t
+           in go (j + 1) (IntSet.insert pick seen) g'
+
+-- | Domain of every generated qualified target; the store only needs it to be consistent.
+localDomain :: Domain
+localDomain = Domain "example.com"
+
+targetAt :: StreamPool -> Int -> Target
+targetAt pool i = case pool of
+  UserPool v -> TargetUser (v V.! i)
+  ClientsPool v -> TargetUserClients (v V.! i)
+  TeamPool v -> TargetTeam (v V.! i)
+  EpochPool v -> TargetEpoch (v V.! i)
+  ConnectionsPool v -> TargetConnections (Qualified (v V.! i) localDomain)
+
+-- REVIEW: This looks overly complicated!
+
+-- | Picks an entry uniformly, then 'perPush' distinct stream keys of it. All
+-- targets of one push therefore share one constructor. Targets are sorted by
+-- pool index (pools are fixed, so this is one global order, and client ids per
+-- user are ascending): the store upserts rows in target order and does not
+-- sort itself, so unsorted overlapping pushes would deadlock (40P01).
+genTargets :: (RandomGen g) => V.Vector Entry -> g -> (NonEmpty Target, g)
+genTargets entries g0 =
+  let (ei, g1) = uniformR (0, V.length entries - 1) g0
+      e = entries V.! ei
+      (idxs, g2) = sampleDistinct e.spec.streams e.spec.perPush g1
+      -- perPush >= 1, so idxs is never empty; the fallback only satisfies the type
+      targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty idxs)
+   in (targets, g2)
+
+-- | A random push with the given payload and 'genTargets' targets.
+genPush :: (RandomGen g) => A.Object -> V.Vector Entry -> g -> (FanInPush, g)
+genPush payload entries g =
+  let (targets, g') = genTargets entries g
+   in (mkPush payload targets, g')
+
+targetKind :: Target -> TargetKind
+targetKind = \case
+  TargetUser _ -> KindUser
+  TargetUserClients _ -> KindClients
+  TargetTeam _ -> KindTeam
+  TargetEpoch _ -> KindEpoch
+  TargetConnections _ -> KindConnections
+
+-- | Kind of a push; all its targets share one constructor.
+pushKind :: FanInPush -> TargetKind
+pushKind push = case push.targets of
+  t : _ -> targetKind t
+  -- 'genPush' never produces a push without targets
+  [] -> minBound
+
+-- | Stream key as text, for tests and diagnostics.
+targetKey :: Target -> Text
+targetKey = \case
+  TargetUser uid -> idToText uid
+  TargetUserClients (uid, cids) -> idToText uid <> ":" <> T.intercalate "," (map clientToText (NE.toList cids))
+  TargetTeam tid -> idToText tid
+  TargetEpoch (gid, epoch) -> T.pack (show gid.unGroupId) <> "/" <> T.pack (show epoch.epochNumber)
+  TargetConnections q -> idToText (qUnqualified q) <> "@" <> domainText (qDomain q)
+
+-- | JSON payload of roughly @n@ bytes.
+mkPayload :: Int -> A.Object
+mkPayload n =
+  KM.fromList
+    [ ("type", A.String "fanin-perf"),
+      ("pad", A.String (T.replicate n "x"))
+    ]
+
+mkPush :: A.Object -> NonEmpty Target -> FanInPush
+mkPush payload targets =
+  FanInPush
+    { conn = Nothing,
+      transient = False,
+      route = RouteAny,
+      nativePriority = Nothing,
+      origin = Nothing,
+      targets = NE.toList targets,
+      json = payload,
+      apsData = Nothing,
+      isCellsEvent = False
+    }
