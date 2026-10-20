@@ -1,3 +1,4 @@
+{{- $store := env "GUNDECK_PRESENCE_STORE" }}
 tags:
   nginz: true
   brig: true
@@ -196,6 +197,7 @@ galley:
       password: {{ .Values.rabbitmqPassword }}
 
 gundeck:
+  presenceStore: {{ $store }}
   replicaCount: 1
   resources:
     requests: {}
@@ -205,9 +207,21 @@ gundeck:
     cassandra:
       host: cassandra-ephemeral
       replicaCount: 1
+    {{- if ne $store "postgresql" }}
     redis:
       host: redis-ephemeral
       connectionMode: master
+    {{- else }}
+    postgresql:
+      host: postgresql
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 20
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
+    {{- end }}
     aws:
       account: "123456789012"
       region: eu-west-1
@@ -222,6 +236,9 @@ gundeck:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+    {{- if eq $store "postgresql" }}
+    pgPassword: posty-the-gres
+    {{- end }}
 nginz:
   replicaCount: 1
   nginx_conf:
