@@ -6,6 +6,7 @@
 , aeson
 , aeson-qq
 , amazonka
+, amazonka-ses
 , amqp
 , arbiter-core
 , async
@@ -120,6 +121,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
+    amazonka-ses
     amqp
     arbiter-core
     async
