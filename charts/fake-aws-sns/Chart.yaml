@@ -2,3 +2,10 @@ apiVersion: v1
 description: Dummy ephemeral SNS service (based on localstack)
 name: fake-aws-sns
 version: 0.0.42
+annotations:
+  # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
+  helm.sh/images: |
+    - name: aws-cli
+      image: docker.io/mesosphere/aws-cli:1.14.5
+    - name: localstack
+      image: docker.io/localstack/localstack:0.8.7

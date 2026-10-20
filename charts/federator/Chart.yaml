@@ -3,3 +3,10 @@ description: Federator (part of Wire Server) - connects different wire installat
 name: federator
 version: 0.0.42
 type: application
+annotations:
+  # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
+  helm.sh/images: |
+    - name: federator
+      image: quay.io/wire/federator:do-not-use
+    - name: federator-integration
+      image: quay.io/wire/federator-integration:do-not-use
