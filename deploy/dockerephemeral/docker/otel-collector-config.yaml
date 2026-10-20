@@ -4,11 +4,7 @@ receivers:
     username: wire-server
     password: posty-the-gres
     databases:
-      - backendA
-      - backendB
-      - dyn-1
-      - dyn-2
-      - dyn-3
+      - fan_in_perf
     collection_interval: 15s
     tls:
       insecure: true
@@ -20,6 +16,10 @@ receivers:
           scrape_interval: 15s
           static_configs:
             - targets: ['postgres-exporter:9187']
+        - job_name: 'postgres-exporter-fan-in-perf'
+          scrape_interval: 1s
+          static_configs:
+            - targets: ['postgres-exporter-fan-in-perf:9187']
         - job_name: 'fan-in-perf'
           scrape_interval: 1s
           static_configs:

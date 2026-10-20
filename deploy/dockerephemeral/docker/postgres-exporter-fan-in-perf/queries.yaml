@@ -1,0 +1,46 @@
+# Custom queries for the fan-in-perf postgres-exporter (--extend.query-path).
+# Metric names: fan_in_partman_<column>.
+#
+# part_config is only read through query_to_xml() with a to_regclass() guard,
+# so the query returns no rows (instead of failing at parse time) when the
+# pg_partman extension is not installed in the database.
+fan_in_partman:
+  query: |
+    SELECT
+      pc.parent_table AS parent,
+      (SELECT count(*)
+         FROM pg_inherits i
+         JOIN pg_class c ON c.oid = i.inhrelid
+        WHERE i.inhparent = to_regclass(pc.parent_table)
+          AND pg_get_expr(c.relpartbound, c.oid) <> 'DEFAULT') AS partitions,
+      extract(epoch FROM now()) - (
+        SELECT min(('x' || substr(replace(m[1], '-', ''), 1, 12))::bit(48)::bigint) / 1000.0
+          FROM pg_inherits i
+          JOIN pg_class c ON c.oid = i.inhrelid,
+          LATERAL regexp_match(pg_get_expr(c.relpartbound, c.oid),
+                               'FROM \(''([0-9a-fA-F-]{36})''\)') AS m
+         WHERE i.inhparent = to_regclass(pc.parent_table)
+           AND m IS NOT NULL
+      ) AS oldest_partition_age_seconds,
+      extract(epoch FROM now() - pc.last_run::timestamptz) AS seconds_since_maintenance
+    FROM xmltable('/table/row'
+           PASSING query_to_xml(
+             CASE WHEN to_regclass('partman.part_config') IS NULL
+                  THEN 'SELECT NULL::text AS parent_table, NULL::timestamptz AS last_run WHERE false'
+                  ELSE 'SELECT parent_table, maintenance_last_run AS last_run FROM partman.part_config'
+             END, false, false, '')
+           COLUMNS parent_table text PATH 'parent_table',
+                   last_run text PATH 'last_run') AS pc
+  metrics:
+    - parent:
+        usage: "LABEL"
+        description: "Partitioned parent table"
+    - partitions:
+        usage: "GAUGE"
+        description: "Number of partitions (excluding default)"
+    - oldest_partition_age_seconds:
+        usage: "GAUGE"
+        description: "Age of the oldest partition's lower bound (UUIDv7 timestamp)"
+    - seconds_since_maintenance:
+        usage: "GAUGE"
+        description: "Seconds since pg_partman maintenance last ran successfully"
