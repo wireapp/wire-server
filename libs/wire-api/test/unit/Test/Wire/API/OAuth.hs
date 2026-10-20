@@ -49,9 +49,13 @@ testStoredScopes = do
   -- the deprecated write tier was a read tier as well
   storedScope "write:conversations_code"
     @?= Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]
-  -- the deprecated admin tier had a delete tier on top, but there is no
-  -- delete-only:meetings to grant
-  storedScope "admin:meetings" @?= Set.singleton WriteOnlyMeetings
+  -- the deprecated admin tier had a delete tier on top
+  storedScope "admin:meetings"
+    @?= Set.fromList [WriteOnlyMeetings, DeleteOnlyMeetings]
+  storedScope "admin:conversations_code"
+    @?= Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode, DeleteOnlyConversationsCode]
+  -- the deprecated write tier of a read-only base grants only read
+  storedScope "write:feature_configs" @?= Set.singleton ReadFeatureConfigs
   -- nothing we could honour
   storedScope "read:pizza" @?= Set.empty
   storedScope "smell:meetings" @?= Set.empty

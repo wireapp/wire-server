@@ -363,12 +363,13 @@ storedScope t =
 -- @delete-only:meetings@: old tokens keep the rights they were granted.
 deprecatedScope :: Text -> Set OAuthScope
 deprecatedScope = \case
+  "write:feature_configs" -> Set.fromList [ReadFeatureConfigs]
   "write:conversations" -> Set.fromList [WriteOnlyConversations]
   "write:conversations_code" -> Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode]
   "admin:conversations_code" -> Set.fromList [ReadConversationsCode, WriteOnlyConversationsCode, DeleteOnlyConversationsCode]
   "write:conversations_name" -> Set.fromList [WriteOnlyConversationsName]
   "write:meetings" -> Set.fromList [WriteOnlyMeetings]
-  "admin:meetings" -> Set.fromList [WriteOnlyMeetings]
+  "admin:meetings" -> Set.fromList [WriteOnlyMeetings, DeleteOnlyMeetings]
   _ -> Set.empty
 
 data CodeChallengeMethod = S256
