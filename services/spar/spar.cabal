@@ -73,9 +73,6 @@ library
     Spar.Sem.IdPRawMetadataStore.Spec
     Spar.Sem.SAML2
     Spar.Sem.SAML2.Library
-    Spar.Sem.SAMLUserStore
-    Spar.Sem.SAMLUserStore.Cassandra
-    Spar.Sem.SAMLUserStore.Mem
     Spar.Sem.Utils
 
   other-modules:      Paths_spar
@@ -450,13 +447,13 @@ executable spar-migrate-data
     , lens
     , optparse-applicative
     , saml2-web-sso
-    , spar
     , text
     , time
     , tinylog
     , types-common
     , uri-bytestring
     , utf8-string
+    , wire-api
     , wire-subsystems
 
   default-language:   Haskell2010

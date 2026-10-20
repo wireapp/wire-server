@@ -72,6 +72,7 @@ migrateNonce: false
 migrateConnections: false
 migrateScimTokens: false
 migrateScimExternalIds: false
+migrateSamlUsers: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -114,3 +115,4 @@ postgresMigration:
   connections: postgresql
   scimTokens: postgresql
   scimExternalIds: postgresql
+  samlUsers: postgresql
