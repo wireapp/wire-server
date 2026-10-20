@@ -503,7 +503,7 @@ getIndexUsersPaginatedImpl lim mState = do
 getScimUsersPaginatedImpl :: (PGConstraints r) => TeamId -> Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage StoredUser))
 getScimUsersPaginatedImpl tid maxResults mOffset =
   Just <$> do
-    runTransactionWithRetry ReadCommitted Read $ do
+    runTransactionWithRetry RepeatableRead Read $ do
       count <- Transaction.statement tid selectCount
       case maxResults of
         0 ->
@@ -517,7 +517,8 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
                 startIndex = Nothing
               }
         _ -> do
-          let pageOffset = fromMaybe 0 mOffset
+          -- Postgres doesn't like it if the offset is below 0
+          let pageOffset = min 0 $ fromMaybe 0 mOffset
           userRows <- Transaction.statement (tid, maxResults, pageOffset) selectUsers
           let usersWithoutAssets = map storedUserFromRow userRows
               uids = map (.id) usersWithoutAssets
