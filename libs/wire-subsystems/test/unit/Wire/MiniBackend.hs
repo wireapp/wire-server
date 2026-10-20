@@ -146,6 +146,8 @@ import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserKeyStore
+import Wire.UserSearchStore (UserSearchStore)
+import Wire.UserSearchStore.ElasticSearch (interpretUserSearchStoreElasticSearch)
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -288,6 +290,7 @@ type MiniBackendLowerEffects =
      AppStore,
      TeamCollaboratorsStore,
      UserKeyStore,
+     UserSearchStore,
      IndexedUserStore,
      FederationConfigStore,
      DRS.DomainRegistrationStore,
@@ -345,6 +348,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryDomainRegistrationStoreInterpreter
     . runFederationConfigStoreInMemory
     . inMemoryIndexedUserStoreInterpreter
+    . interpretUserSearchStoreElasticSearch
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
     . inMemoryAppStoreInterpreter

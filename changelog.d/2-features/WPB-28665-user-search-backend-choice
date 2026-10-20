@@ -1,0 +1,1 @@
+brig user search can now be served from PostgreSQL (`searchBackend: postgres`); ElasticSearch remains the default backend and is deprecated.
