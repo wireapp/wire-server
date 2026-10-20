@@ -77,6 +77,7 @@ library
     FanInPerf.Acks
     FanInPerf.Consume
     FanInPerf.ConsumeStats
+    FanInPerf.Database
     FanInPerf.Metrics
     FanInPerf.Options
     FanInPerf.Pool
@@ -140,6 +141,7 @@ test-suite fan-in-perf-tests
     FanInPerf.AcksSpec
     FanInPerf.ConsumeSpec
     FanInPerf.ConsumeStatsSpec
+    FanInPerf.DatabaseSpec
     FanInPerf.MetricsSpec
     FanInPerf.OptionsSpec
     FanInPerf.PoolSpec

@@ -654,6 +654,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
+    Wire.FanInNotificationsAdminSpec
     Wire.FanInNotificationsStore.PostgresSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec

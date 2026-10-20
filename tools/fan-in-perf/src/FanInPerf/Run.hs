@@ -5,6 +5,7 @@ import Data.Misc (Duration (..), showT)
 import Data.Qualified (toLocalUnsafe)
 import Data.Text qualified as T
 import FanInPerf.Consume (runConsume)
+import FanInPerf.Database
 import FanInPerf.Metrics (runMetricsServer)
 import FanInPerf.Options
 import FanInPerf.Pool
@@ -14,10 +15,11 @@ import FanInPerf.Targets (localDomain)
 import FanInPerf.Terminal
 import Hasql.Pool.Extended (PoolConfig (..))
 import Imports
+import Polysemy (Sem)
 import PostgresqlConnectionString qualified
 import System.Exit (die)
 import UnliftIO.Exception (tryAny)
-import Wire.FanInNotificationsAdmin (MigrateResult (..), migrate, ping, truncateAll)
+import Wire.FanInNotificationsAdmin (MigrateResult (..), SchemaShape (..), createDatabase, currentShape, databaseExists, dropDatabase, migrate, ping, setupPartman, truncateAll, unDbName)
 
 run :: Console -> Options -> IO ()
 run console opts = do
@@ -32,20 +34,46 @@ run console opts = do
             local = toLocalUnsafe localDomain (),
             isolation = opts.global.isolation
           }
-  checkDatabase env
+  -- the maintenance database, through its own single-connection pool
+  let mkAdminEnv = do
+        adminPool <- initPool fams AdminPool (poolConfig 1) (adminConnStr connStr)
+        pure env {pool = adminPool}
   case opts.command of
-    Migrate ->
-      runStore env migrate >>= \case
-        Left e -> abort ("migrate failed: " <> showT e)
-        Right Migrated -> printLine console "created fan-in notification tables"
-        Right AlreadyMigrated -> printLine console "fan-in notification tables already exist"
-    Reset ->
+    Migrate shape -> do
+      name <- experimentDb connStr & either abort pure
+      adminEnv <- mkAdminEnv
+      exists <- runOrAbort "database check" adminEnv (databaseExists name)
+      unless exists $ do
+        runOrAbort "create database" adminEnv (createDatabase name)
+        printLine console ("created database " <> unDbName name)
+      checkDatabase env
+      -- partman first: the partitioned migration needs it. Not on tables of the
+      -- other shape: setup changes instance-wide settings and would be pointless.
+      when (shape == Partitioned) $ do
+        runOrAbort "shape check" env currentShape >>= \case
+          Just other | other /= shape -> abort ("fan-in notification tables exist with other shape (" <> shapeName other <> "); run drop-db first")
+          _ -> pure ()
+        runOrAbort "setup partman" env (setupPartman name)
+      runOrAbort "migrate" env (migrate shape) >>= \case
+        Migrated -> printLine console ("created fan-in notification tables (" <> shapeName shape <> ")")
+        AlreadyMigrated -> printLine console "fan-in notification tables already exist"
+        ExistsWithOtherShape other -> abort ("fan-in notification tables exist with other shape (" <> shapeName other <> "); run drop-db first")
+    DropDb -> do
+      name <- experimentDb connStr & either abort pure
+      adminEnv <- mkAdminEnv
+      runOrAbort "drop database" adminEnv (dropDatabase name)
+      printLine console ("dropped database " <> unDbName name)
+    Reset -> do
+      checkDatabase env
       runStore env truncateAll
         >>= either
           (\e -> abort ("reset failed: " <> showT e))
           (const (printLine console "truncated all fan-in notification tables"))
-    Produce p -> withMetricsServer (runProduce console env p)
+    Produce p -> do
+      checkDatabase env
+      withMetricsServer (runProduce console env p)
     Consume c -> withMetricsServer $ do
+      checkDatabase env
       -- readers get their own pool so they cannot starve the writers
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
       runConsume console env env {pool = readerPool} c
@@ -65,7 +93,8 @@ checkDatabase env =
 
 defaultPoolSize :: Command -> Int
 defaultPoolSize = \case
-  Migrate -> 1
+  Migrate _ -> 1
+  DropDb -> 1
   Reset -> 1
   Produce p -> p.writers
   Consume c -> c.writerOptions.writers
@@ -81,6 +110,15 @@ poolConfig size =
       acquisitionTimeout = Duration 0,
       idlenessTimeout = Duration 600
     }
+
+runOrAbort :: Text -> Env -> Sem StoreEffects a -> IO a
+runOrAbort what env act =
+  runStore env act >>= either (\e -> abort (what <> " failed: " <> showT e)) pure
+
+shapeName :: SchemaShape -> Text
+shapeName = \case
+  Plain -> "plain"
+  Partitioned -> "partitioned"
 
 abort :: Text -> IO a
 abort = die . T.unpack

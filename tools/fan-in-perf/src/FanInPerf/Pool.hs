@@ -1,4 +1,4 @@
--- | Connection pools of the tool. Both pools report into the same
+-- | Connection pools of the tool. All pools report into the same
 -- @fanin_perf_pool_*@ metric families, told apart by the @role@ label.
 module FanInPerf.Pool
   ( PoolRole (..),
@@ -14,13 +14,14 @@ import Imports
 import PostgresqlConnectionString qualified
 import Prometheus qualified as P
 
-data PoolRole = WriterPool | ReaderPool
+data PoolRole = WriterPool | ReaderPool | AdminPool
   deriving (Eq, Show)
 
 roleLabel :: PoolRole -> Text
 roleLabel = \case
   WriterPool -> "writer"
   ReaderPool -> "reader"
+  AdminPool -> "admin"
 
 data PoolFamilies = PoolFamilies
   { readyForUse :: P.Vector Text P.Gauge,
@@ -76,6 +77,4 @@ poolMetrics fams role =
 initPool :: PoolFamilies -> PoolRole -> PoolConfig -> PostgresqlConnectionString.ConnectionString -> IO Pool
 initPool fams role config connStr = do
   metrics <- poolMetrics fams role
-  pool <- acquirePool metrics config connStr Nothing
-  startHasqlPoolStatsReporter pool
-  pure pool
+  initPostgresPoolFromConnString metrics config connStr Nothing

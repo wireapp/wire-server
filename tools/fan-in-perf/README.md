@@ -12,11 +12,13 @@ Design specs (background, rationale):
 - `docs/superpowers/specs/2026-10-08-fan-in-perf-design.md` (A: produce)
 - `docs/superpowers/specs/2026-10-12-fan-in-perf-consume-design.md` (B: consume)
 - `docs/superpowers/specs/2026-10-14-fan-in-perf-consume-ack-design.md` (C: consume-ack)
+- `docs/superpowers/specs/2026-10-19-fan-in-perf-ttl-partman-design.md` (D: consume-ack under TTL GC via pg_partman)
 
 ## Contents
 
 - [Quick start](#quick-start)
 - [Commands and parameters](#commands-and-parameters)
+- [D: consume-ack under TTL GC](#d-consume-ack-under-ttl-gc)
 - [Observability](#observability)
 - [Architecture](#architecture)
 - [Database schema](#database-schema)
@@ -31,9 +33,9 @@ Start PostgreSQL, the OTel collector and Grafana
 (`./deploy/dockerephemeral/run.sh`), then (`fan-in-perf` = the built executable, or `cabal run fan-in-perf --`):
 
 ```sh
-DB="postgresql://wire-server:posty-the-gres@localhost:5432/backendA"
+DB="postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf"
 
-fan-in-perf --db "$DB" migrate   # create tables (idempotent)
+fan-in-perf --db "$DB" migrate   # create database + tables (idempotent)
 fan-in-perf --db "$DB" reset     # truncate all fan-in tables
 
 # A: writers only
@@ -55,7 +57,8 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`.
 
 | Command | Experiment | Does |
 |---|---|---|
-| `migrate` | – | Creates the tables of `libs/wire-subsystems/fan-in-sql/fan-in-notifications.sql` unless they exist. No migration bookkeeping. |
+| `migrate [--partitioned]` | – | Creates the `--db` database if missing, then the tables of `libs/wire-subsystems/fan-in-sql/` (`fan-in-common.sql` + `fan-in-notifications-plain.sql`) unless they exist. No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman. Aborts if the tables exist with the other shape. |
+| `drop-db` | – | Drops the `--db` database (open sessions are terminated). No confirmation. |
 | `reset` | – | Truncates all fan-in tables (notifications, `last_*`, acks, `epoch_history`). |
 | `produce` | A | Writers push as fast as possible. |
 | `consume` | B | `produce` writers plus simulated reader clients. |
@@ -137,6 +140,112 @@ All `consume` flags, plus:
 `user` and `clients` entries must have equal `STREAMS` (one identity per
 reader). Run `reset` before each run: start positions are written as acks.
 
+## D: consume-ack under TTL GC
+
+D measures C (`consume-ack`) while pg_partman drops expired partitions: the
+six `*_notifications` tables are range-partitioned by UUIDv7 with retention
+5 minutes, 1 minute partitions (`partman.part_config`: `5 minutes`,
+`00:01:00`). Maintenance runs in the pg_partman background worker (role
+`partman_maintainer`, not a superuser) every 60 s. The tool contains no SQL;
+partitioning lives in `FanInNotificationsAdmin` (`libs/wire-subsystems`).
+
+Retention timing: `create_parent` premakes 10 past partitions (starting
+10 min ago), so the first bgw tick after `migrate --partitioned` drops about 5
+empty past partitions and "Partitions per parent" steps down before any load.
+The first drop that holds data comes about 6-7 minutes into a run, the oldest
+remaining child is then 6-8 minutes old. Use `--duration` of at least
+600 so several drops happen. A reader that lags more than 5 minutes behind
+loses rows to the drop; they show up as `missing`.
+
+No default partition. With one, every maintenance tick deadlocked with the
+readers (`deadlock detected`, SQLSTATE 40P01; readers are the victims, shown
+as fetch errors): pg_partman attaches the next child (default partition
+`ACCESS EXCLUSIVE`) and then drops the expired one (parent `ACCESS EXCLUSIVE`)
+in one transaction, while a reader holds the parent and waits for the default
+partition. Without it there were no deadlocks in four runs (3 x 130 s, 1 x
+420 s; with one: 45 in 130 s, 126 in 420 s). Consequence: a push whose
+`notification_id` falls outside the existing children (premake 10 = up to 10
+minutes ahead; bgw not running, or a UUIDv7 timestamp that far off or older
+than the oldest child) fails with `no partition of relation ... found for row`
+and counts as a push error, instead of landing in a default partition.
+
+Procedure:
+
+1. One-time after the image change (now `postgres:17.11-trixie` +
+   `postgresql-17-partman` 5.5.0, `deploy/dockerephemeral/docker/postgres/Dockerfile`).
+   The image declares an anonymous volume that `docker compose` keeps when
+   recreating a container, and the Alpine to Debian switch changes the
+   collation, so the old data directory is unsafe. Recreate, from `deploy/dockerephemeral`:
+   `cd deploy/dockerephemeral && docker compose build postgres && docker compose rm -sfv postgres && docker compose up -d postgres`.
+   **This DELETES all local dev DB data in that postgres.** `run.sh` does not
+   pass `--build`, hence the explicit build.
+2. `fan-in-perf --db "$DB" migrate --partitioned` (creates `fan_in_perf`).
+3. `fan-in-perf --db "$DB" consume-ack ... --duration 600` (or more), any
+   parameters (the constraints of [C](#consume-ack) apply).
+4. Baseline: `fan-in-perf --db "$DB" drop-db`, plain `fan-in-perf --db "$DB"
+   migrate`, identical `consume-ack` parameters and duration.
+5. Compare the `summary:` blocks (rates, latency percentiles) and the
+   Grafana "pg_partman" row: do dips line up with partition drops?
+
+Metrics (second exporter, `postgres-exporter-fan-in-perf`, query file
+`deploy/dockerephemeral/docker/postgres-exporter-fan-in-perf/queries.yaml`):
+
+| Metric | Meaning |
+|---|---|
+| `fan_in_partman_partitions{parent}` | Partitions per parent. |
+| `fan_in_partman_oldest_partition_age_seconds{parent}` | Age of the oldest partition's lower bound (UUIDv7 timestamp). |
+| `fan_in_partman_seconds_since_maintenance{parent}` | Seconds since the last successful maintenance run. |
+
+Notes:
+
+- The exporter (pinned `v0.20.1`) connects to `fan_in_perf`; it shows `up=0`
+  until `migrate` has created that database.
+- The exporter flag `--extend.query-path` is deprecated in that version but
+  still works.
+- The bgw settings (`pg_partman_bgw.dbname`, `.interval`, `.role`) are set by
+  `migrate` with `ALTER SYSTEM` plus `pg_reload_conf()`; compose only
+  preloads `pg_partman_bgw`. A reload is enough: all `pg_partman_bgw` GUCs
+  are PGC_SIGHUP, the master worker wakes on SIGHUP and re-reads `dbname`
+  each loop (`pg_partman_bgw.c`, v5.5.0).
+- Plain `migrate` does not touch pg_partman; only `migrate --partitioned`
+  does. Server `ALTER SYSTEM` settings from an earlier D run persist, which
+  keeps the baseline server config identical.
+- After `drop-db`, `pg_partman_bgw.dbname` still points at the dropped DB; the
+  bgw logs a connection error every 60 s until the next `migrate
+  --partitioned` (harmless).
+
+### Verifying the setup
+
+Checklist for the first run (`DB=postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf`):
+
+1. `fan-in-perf --db "$DB" migrate --partitioned` prints `created database
+   fan_in_perf` and `created fan-in notification tables (partitioned)`.
+   Re-run prints `fan-in notification tables already exist`.
+2. `psql "$DB" -c "SELECT parent_table, retention, partition_interval FROM
+   partman.part_config"` shows six rows, `5 minutes`, `00:01:00`.
+3. `psql "$DB" -c "SHOW pg_partman_bgw.dbname"` shows `fan_in_perf`. If the
+   worker does not maintain (partitions never get dropped), note that a
+   failed maintenance run sets `maintenance_last_run` to NULL, so
+   `fan_in_partman_seconds_since_maintenance` goes missing/NaN rather than
+   growing.
+   Also check that all children are owned by `partman_maintainer` (expect only
+   that row): `SELECT DISTINCT pg_get_userbyid(c.relowner) FROM pg_inherits i
+   JOIN pg_class c ON c.oid = i.inhrelid;`, and that the postgres log has no
+   `pg_partman maintenance skipped partition set` WARNING.
+4. `fan-in-perf --db "$DB" produce --targets user:1000,team:10,epoch:100
+   --duration 480`; meanwhile `psql "$DB" -c "SELECT count(*) FROM
+   pg_inherits WHERE inhparent='user_notifications'::regclass"` grows, then
+   stays flat. The first drop with data comes after about 6-7 minutes (about 5
+   empty premade partitions go right after migrate). Postgres logs
+   show no bgw errors; Grafana shows a sawtooth in "Partitions per parent".
+5. Plain `fan-in-perf --db "$DB" migrate` on the partitioned DB aborts with
+   `... exist with other shape (partitioned); run drop-db first`.
+6. With a `psql "$DB"` session open, `fan-in-perf --db "$DB" drop-db` prints
+   `dropped database fan_in_perf`. Then plain `migrate` prints `created
+   fan-in notification tables (plain)`.
+7. With `fan_in_perf%3Bx` as database name in `--db`, `drop-db` is refused
+   (`invalid database name`) and nothing is dropped.
+
 ## Observability
 
 ### Metrics
@@ -157,6 +266,7 @@ carry only `role`.
 | `fanin_perf_fetch_duration_seconds`, `_delivery_lag_seconds`, `_gate_wait_seconds` | B, C | Reader histograms. |
 | `fanin_perf_acks_total`, `_ack_errors_total`, `_ack_rate_current`, `_ack_rate_max`, `_ack_duration_seconds` | C | Ack upserts. |
 | `fanin_perf_pool_*{role="writer\|reader"}` | all | Connection pool stats (in use, idle, sessions, failures, timeouts, durations). |
+| `fan_in_partman_*` | D | From the second exporter, see [D](#d-consume-ack-under-ttl-gc). |
 
 ### Grafana (local)
 
@@ -164,10 +274,14 @@ carry only `role`.
 
 - `otel-collector`: scrapes `host.docker.internal:9400` every second
   (`docker/otel-collector-config.yaml`, job `fan-in-perf`) and the
-  PostgreSQL exporter. `host.docker.internal` maps to the host gateway.
+  both PostgreSQL exporters (`postgres-exporter`, and
+  `postgres-exporter-fan-in-perf` for the `fan_in_perf` database, which adds
+  the `fan_in_partman_*` metrics; scraped every 1 s).
+  `host.docker.internal` maps to the host gateway.
 - `grafana-lgtm`: Grafana on <http://localhost:3000> with the provisioned
   dashboards "fan-in-perf" (`docker/grafana-dashboards/fan-in-perf.json`)
-  and "postgres-exporter".
+  and "postgres-exporter". The "fan-in-perf" dashboard has a "pg_partman"
+  row (partitions per parent, oldest partition age).
 
 The tool runs on the host, so the collector container must reach host port
 9400. A changed `--metrics-port` also needs a changed scrape target.
@@ -391,7 +505,7 @@ than `W` after a higher one was delivered is still lost.
 
 ## Database schema
 
-Schema: `libs/wire-subsystems/fan-in-sql/fan-in-notifications.sql`.
+Schema: `libs/wire-subsystems/fan-in-sql/fan-in-common.sql` + `fan-in-notifications-plain.sql` (or `fan-in-notifications-partitioned.sql` with `--partitioned`, see D; not a production migration).
 
 Each stream kind has three tables:
 
@@ -403,6 +517,10 @@ Each stream kind has three tables:
 | epoch | `epoch_notifications (group_id, epoch)` | `last_epoch_notifications` | `epoch_notification_acks (user_id, client_id, group_id, epoch)` |
 | local connection | `local_connection_notifications (user_id)` | `last_local_connection_notifications` | `local_connection_acks` (unused) |
 | remote connection | `remote_connection_notifications (user_domain, user_id)` | `last_remote_connection_notifications` | `remote_connection_acks` (unused) |
+
+With `migrate --partitioned`, the six `*_notifications` tables are
+partitioned by range on `notification_id` (pg_partman, UUIDv7 time decoding,
+retention 5 minutes); `last_*`, ack tables and `epoch_history` stay plain.
 
 Plus `epoch_history` (unused by the tool). Notification rows carry `payload
 jsonb` and `origin`.
@@ -485,7 +603,7 @@ Safety window (16 writers, `--clients 2000 --targets user:2000,epoch:200
   `max(STREAMS(user), STREAMS(clients)) × --clients-per-user`.
 - Not simulated: `epoch_history` reads and epoch advances, the RFC's
   missed-notification check, reconnects, server flow control (serve ~100,
-  wait for acks), expiry/partitioning (planned experiment D), websockets,
+  wait for acks), expiry/partitioning beyond D's single configuration (5 min retention, 1 min partitions), websockets,
   native push, background jobs, legacy global ordering.
 - Pushes never mix kinds, although the store accepts mixed `[Target]`.
 - Lag assumes writers and readers share a clock (same process).
@@ -509,7 +627,9 @@ Safety window (16 writers, `--clients 2000 --targets user:2000,epoch:200
 | `last_local_connection_notifications` PK `(userId, notificationId)` | PK `(user_id)` | One last id per stream. |
 | No `last_remote_connection_notifications` | Added | Remote connection streams need a last id too. |
 | `team_notification_acks` PK `(userId, clientId)` | PK `(user_id, client_id, team_id)` | The table has a `teamId` column; the RFC PK allows only one team per client. |
-| `epoch_history` with `{ }`, `timestamtz` | Valid DDL | Typos. |
+| DDL typos: `epoch_history` with `{ }`, `timestamtz`; `last_local_connection_notifications` without comma before `PRIMARY KEY`; no `;` after the two connection notification tables | Valid DDL | Typos. |
+| Expiry: partition by days | 1 minute partitions, 5 minutes retention via pg_partman (D) | Short TTL keeps the experiment short; only this one configuration is run. |
+| `epoch_history` rows deleted once `supersededAt` is older than 28 days | Not implemented | `epoch_history` is unused by the tool. |
 | Init-ack SQL: `ON CONFLICT DO UPDATE` without target | Explicit conflict targets (ack PKs) | Required by PostgreSQL. |
 | Team init-ack selects from `team_notifications` with invalid `GROUP BY` | Reads `last_team_notifications` | Holds exactly the wanted id. |
 | Epoch init-ack writes `conversation_notification_acks`, `EXCLUDED.notificationId` | `epoch_notification_acks`, `excluded.last_notification_id` | Table/column did not exist. |
