@@ -26,6 +26,7 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Error
+import Wire.API.Pagination
 import Wire.API.Password
 import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User
@@ -66,11 +67,6 @@ data StoredUserHandleUpdate = MkStoredUserHandleUpdate
 data StoredUserUpdateError = StoredUserUpdateHandleExists
 
 data UserPageMarker = PagingExitingUsers UserId | PagingDeletedUsers UserId
-
-data OffsetPage a = OffsetPage
-  { results :: [a],
-    totalResults :: Int32
-  }
 
 -- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
 -- database logic; validate handle is application logic.)

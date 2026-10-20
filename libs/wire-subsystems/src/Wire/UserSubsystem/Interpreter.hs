@@ -58,6 +58,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
+import Wire.API.Pagination
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Routes.Versioned as V
@@ -206,6 +207,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
       CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+      InternalGetScimUsersPaginated tid maxResults offset ->
+        getScimUsersPaginatedImpl tid maxResults offset
 
 isUsersContactableImpl ::
   forall r.
@@ -705,6 +708,13 @@ guardLockedHandleField user updateOrigin handle = do
   e2eid <- hasE2EId user
   when ((scimConflict || (e2eid && hasHandle && not updateByScim)) && not idemp) do
     throw UserSubsystemHandleManagedByScim
+
+getScimUsersPaginatedImpl :: (Member UserStore r, Member (Input (Local any)) r, Member (Input UserSubsystemConfig) r) => TeamId -> Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage User))
+getScimUsersPaginatedImpl tid pageSize mOffset = do
+  mStoredUsers <- UserStore.getScimUsersPaginated tid pageSize mOffset
+  localDom <- inputs tDomain
+  locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
+  pure $ (mkUserFromStored localDom locale) <$$> mStoredUsers
 
 updateUserProfileImpl ::
   ( Member UserStore r,

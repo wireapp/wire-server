@@ -47,6 +47,7 @@ import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message qualified as Log
 import Wire.API.Asset hiding (Asset)
+import Wire.API.Pagination
 import Wire.API.Password
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature (FeatureStatus)
@@ -508,9 +509,16 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
         0 ->
           -- Special case this because it is a way for scim clients to get a
           -- tally of number of users. So it might be used more often.
-          pure OffsetPage {results = [], totalResults = count}
+          pure
+            OffsetPage
+              { results = [],
+                totalResults = count,
+                pageSize = maxResults,
+                startIndex = Nothing
+              }
         _ -> do
-          userRows <- Transaction.statement (tid, maxResults, fromMaybe 0 mOffset) selectUsers
+          let pageOffset = fromMaybe 0 mOffset
+          userRows <- Transaction.statement (tid, maxResults, pageOffset) selectUsers
           let usersWithoutAssets = map storedUserFromRow userRows
               uids = map (.id) usersWithoutAssets
           assetRows <- Transaction.statement uids selectAssetsStmt
@@ -521,7 +529,15 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
                   assetRows
               addAssets user = user {assets = Map.lookup user.id assetMap} :: StoredUser
               users = map addAssets usersWithoutAssets
-          pure $ OffsetPage {results = users, totalResults = count}
+          pure $
+            OffsetPage
+              { results = users,
+                totalResults = count,
+                pageSize = maxResults,
+                startIndex = case users of
+                  [] -> Nothing
+                  _ -> Just pageOffset
+              }
   where
     selectCount :: Hasql.Statement TeamId Int32
     selectCount =

@@ -44,6 +44,7 @@ import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag)
+import Wire.API.Pagination
 import Wire.API.Routes.Internal.Brig (GetBy (..), getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
@@ -187,6 +188,9 @@ data UserSubsystem m a where
   GetUserTeam :: UserId -> UserSubsystem m (Maybe TeamId)
   CheckUserIsAdmin :: UserId -> UserSubsystem m TeamId
   SetUserSearchable :: Local UserId -> UserId -> SetSearchable -> UserSubsystem m ()
+  -- Returns a 'Maybe' because only the Postgres interpreter of UserStore
+  -- supports this.
+  InternalGetScimUsersPaginated :: TeamId -> Int32 -> Maybe Int32 -> UserSubsystem m (Maybe (OffsetPage User))
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
