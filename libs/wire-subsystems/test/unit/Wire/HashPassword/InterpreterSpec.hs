@@ -47,22 +47,22 @@ rateLimitKey = RateLimitIp (IpAddr "0.0.0.0")
 spec :: Spec
 spec = describe "HashPassword.Interpreter" $ do
   -- Scrypt tests take too long to run, so we limit max success here
-  prop "Scrypt: hashPassword6/verify roundtrip" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword6) ->
+  prop "Scrypt: hashPassword6/verify roundtrip" $ withNumTests 20 $ \(pw :: PlainTextPassword6) ->
     let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword6 rateLimitKey pw
         isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
-  prop "Scrypt: hashPassword8/verify roundtrip" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) ->
+  prop "Scrypt: hashPassword8/verify roundtrip" $ withNumTests 20 $ \(pw :: PlainTextPassword8) ->
     let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
         isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
-  prop "Scrypt: hash/verify: wrong password" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) (wrongPw :: PlainTextPassword8) ->
+  prop "Scrypt: hash/verify: wrong password" $ withNumTests 20 $ \(pw :: PlainTextPassword8) (wrongPw :: PlainTextPassword8) ->
     let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
         isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey wrongPw hashed
      in pw /= wrongPw ==> isVerified === False
 
-  prop "Scrypt: hash/verify: verify with differentOptions" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) ->
+  prop "Scrypt: hash/verify: verify with differentOptions" $ withNumTests 20 $ \(pw :: PlainTextPassword8) ->
     let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
         isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
@@ -87,7 +87,7 @@ spec = describe "HashPassword.Interpreter" $ do
         isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
-  prop "verifyPasswordWithStatus: scrypt password" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) ->
+  prop "verifyPasswordWithStatus: scrypt password" $ withNumTests 20 $ \(pw :: PlainTextPassword8) ->
     let scryptHashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
         (_, statusWithScrypt) = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPasswordWithStatus rateLimitKey pw scryptHashed
         (_, statusWithArgon2id) = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPasswordWithStatus rateLimitKey pw scryptHashed

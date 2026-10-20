@@ -95,6 +95,7 @@
 , polysemy-wire-zoo
 , postgresql-connection-string
 , postgresql-error-codes
+, pqi-ffi
 , profunctors
 , prometheus-client
 , proto-lens
@@ -241,6 +242,7 @@ mkDerivation {
     polysemy-wire-zoo
     postgresql-connection-string
     postgresql-error-codes
+    pqi-ffi
     profunctors
     prometheus-client
     proto-lens
