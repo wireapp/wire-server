@@ -24,6 +24,7 @@ import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
+import Data.ByteString qualified as StrictBS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.HashMap.Strict qualified as HM
@@ -40,6 +41,7 @@ import Data.Text.Ascii
 import Data.Text.Encoding qualified as TE
 import Data.Text.Encoding.Error as TErr
 import Data.Time
+import Data.Vector.Generic qualified as VG
 import GHC.TypeLits (Nat, symbolVal)
 import Imports hiding (exp, head)
 import Prelude.Singletons (Show_)
@@ -50,6 +52,7 @@ import URI.ByteString
 import URI.ByteString.QQ qualified as URI.QQ
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -864,3 +867,38 @@ instance Cql OAuthCodeChallenge where
   toCql = CqlBlob . toByteString
   fromCql (CqlBlob t) = runParser parser (toStrict t)
   fromCql _ = Left "OAuthCodeChallenge: Blob expected"
+
+--------------------------------------------------------------------------------
+-- Postgres marshalling
+
+instance PostgresMarshall Text OAuthAuthorizationCode where
+  postgresMarshall = toText . unOAuthAuthorizationCode
+
+instance PostgresUnmarshall Text OAuthAuthorizationCode where
+  postgresUnmarshall = bimap T.pack OAuthAuthorizationCode . validateBase16
+
+instance PostgresMarshall Text OAuthCodeChallenge where
+  postgresMarshall = unOAuthCodeChallenge
+
+instance PostgresUnmarshall Text OAuthCodeChallenge where
+  postgresUnmarshall = Right . OAuthCodeChallenge
+
+instance PostgresMarshall StrictBS.ByteString RedirectUrl where
+  postgresMarshall = toByteString'
+
+instance PostgresUnmarshall StrictBS.ByteString RedirectUrl where
+  postgresUnmarshall = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
+
+-- | Scopes are stored as the current canonical scope strings; rows written by
+-- older versions may carry deprecated cumulative scopes (@write@, @admin@),
+-- which 'storedScope' expands exactly like the Cql reading path. The instances
+-- are generic over the vector type because hasql.TH encoders/decoders are.
+instance (VG.Vector v Text) => PostgresMarshall (v Text) OAuthScopes where
+  postgresMarshall =
+    VG.fromList
+      . map (TE.decodeUtf8With TErr.lenientDecode . toByteString')
+      . Set.toList
+      . unOAuthScopes
+
+instance (VG.Vector v Text) => PostgresUnmarshall (v Text) OAuthScopes where
+  postgresUnmarshall = Right . OAuthScopes . Set.unions . map storedScope . VG.toList

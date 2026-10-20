@@ -1674,11 +1674,22 @@ CREATE TABLE public.nonce (
     user_id uuid NOT NULL,
     key text NOT NULL,
     nonce uuid NOT NULL,
+-- Name: oauth_auth_code; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.oauth_auth_code (
+    code text NOT NULL,
+    client uuid NOT NULL,
+    "user" uuid NOT NULL,
+    scope text[] NOT NULL,
+    redirect_uri bytea NOT NULL,
+    code_challenge text,
     expires_at timestamp with time zone NOT NULL
 );
 
 
 ALTER TABLE public.nonce OWNER TO "wire-server";
+ALTER TABLE public.oauth_auth_code OWNER TO "wire-server";
 
 --
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
@@ -2199,6 +2210,11 @@ ALTER TABLE ONLY public.mls_history_client
 ALTER TABLE ONLY public.nonce
     ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 
+-- Name: oauth_auth_code oauth_auth_code_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.oauth_auth_code
+    ADD CONSTRAINT oauth_auth_code_pkey PRIMARY KEY (code);
 
 --
 -- Name: password_reset password_reset_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -2748,6 +2764,13 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: oauth_auth_code_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX oauth_auth_code_expires_at_idx ON public.oauth_auth_code USING btree (expires_at);
 
 
 --
