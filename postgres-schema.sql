@@ -1371,6 +1371,19 @@ CREATE TABLE public.bot_conv (
 ALTER TABLE public.bot_conv OWNER TO "wire-server";
 
 --
+-- Name: budget; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.budget (
+    key text NOT NULL,
+    budget integer NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.budget OWNER TO "wire-server";
+
+--
 -- Name: collaborators; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1990,6 +2003,14 @@ ALTER TABLE ONLY public.bot_conv
 
 
 --
+-- Name: budget budget_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.budget
+    ADD CONSTRAINT budget_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: collaborators collaborators_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -2531,6 +2552,13 @@ CREATE INDEX bot_conv_conv_idx ON public.bot_conv USING btree (conv);
 --
 
 CREATE INDEX bot_conv_team_idx ON public.bot_conv USING btree (conv_team);
+
+
+--
+-- Name: budget_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX budget_expires_at_idx ON public.budget USING btree (expires_at);
 
 
 --

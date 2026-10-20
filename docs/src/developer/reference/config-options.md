@@ -2332,6 +2332,7 @@ galley:
       blockList: postgresql
       passwordReset: postgresql
       customBackend: postgresql
+      budget: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2375,6 +2376,7 @@ The current settings and their background-worker flags are:
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
+- `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 
 **Migration pattern per migration setting**
 
@@ -2398,6 +2400,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: cassandra
          customBackend: cassandra
+         budget: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2471,6 +2474,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: postgresql
          customBackend: postgresql
+         budget: postgresql
    background-worker:
      config:
        migrateConversations: false
