@@ -123,39 +123,45 @@ claimLocalKeyPackages qusr skipOwn suite qTarget = do
   let target = tUnqualified qTarget
   su <- lift (liftSem $ getUser target) >>= maybe (throwE (ClientUserNotFound target)) pure
   case (su.activated, su.status) of
-    (True, Just Active) -> pure ()
+    (True, Just Active) -> claim su
     -- an ephemeral user is identity-less and won't get activated
-    (_, Just Ephemeral) -> pure ()
+    (_, Just Ephemeral) -> claim su
     (False, _) -> throwE $ ClientUserNotFound target
     (True, Nothing) -> throwE $ ClientUserNotFound target
     (True, Just Deleted) -> throwE $ ClientUserNotFound target
-    (True, Just Suspended) -> throwE $ ClientUserNotFound target
+    -- Preserve the stored packages for reactivation without exposing or
+    -- consuming them while the user cannot join MLS groups.
+    (True, Just Suspended) -> pure $ KeyPackageBundle Set.empty
     (True, Just PendingInvitation) -> throwE $ ClientUserNotFound target
-  -- while we do not support federation + MLS together with legalhold, to make sure that
-  -- the remote backend is complicit with our legalhold policies, we disallow anyone
-  -- fetching key packages for users under legalhold
-  --
-  -- This way we prevent both locally and on the remote to add a user under legalhold to an MLS
-  -- conversation
-  assertUserNotUnderLegalHold su
-
-  -- skip own client when the target is the requesting user itself
-  let own = guard (qusr == tUntagged qTarget) *> skipOwn
-  clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients target))
-  foldQualified
-    qTarget
-    ( \lusr ->
-        lift $
-          liftSem $
-            GalleyAPIAccess.guardLegalHold
-              (ProtectedUser (tUnqualified lusr))
-              (mkUserClients [(target, clients)])
-    )
-    (\_ -> pure ())
-    qusr
-  lift $
-    KeyPackageBundle . Set.fromList . catMaybes <$> traverse (mkEntry own) clients
   where
+    claim :: StoredUser -> ExceptT ClientError (AppT r) KeyPackageBundle
+    claim su = do
+      let target = tUnqualified qTarget
+      -- while we do not support federation + MLS together with legalhold, to make sure that
+      -- the remote backend is complicit with our legalhold policies, we disallow anyone
+      -- fetching key packages for users under legalhold
+      --
+      -- This way we prevent both locally and on the remote to add a user under legalhold to an MLS
+      -- conversation
+      assertUserNotUnderLegalHold su
+
+      -- skip own client when the target is the requesting user itself
+      let own = guard (qusr == tUntagged qTarget) *> skipOwn
+      clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients target))
+      foldQualified
+        qTarget
+        ( \lusr ->
+            lift $
+              liftSem $
+                GalleyAPIAccess.guardLegalHold
+                  (ProtectedUser (tUnqualified lusr))
+                  (mkUserClients [(target, clients)])
+        )
+        (\_ -> pure ())
+        qusr
+      lift $
+        KeyPackageBundle . Set.fromList . catMaybes <$> traverse (mkEntry own) clients
+
     mkEntry :: Maybe ClientId -> ClientId -> AppT r (Maybe KeyPackageBundleEntry)
     mkEntry own c =
       runMaybeT $ do

@@ -226,7 +226,7 @@ ejpdAPI ::
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
-mlsAPI :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => ServerT BrigIRoutes.MLSAPI (Handler r)
+mlsAPI :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
   Named @"get-mls-clients" getMLSClientsH
     :<|> Named @"get-mls-client" getMLSClientH
@@ -462,28 +462,36 @@ deleteAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handle
 deleteAccountConferenceCallingConfig uid =
   lift . liftSem $ UserStore.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getMLSClientH :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
+getMLSClientH :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
 getMLSClientH usr cid suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
-  lift $ getMLSClient lusr cid suiteTag
+  status <- lift $ liftSem $ UserStore.lookupStatus usr
+  lift $ getMLSClient status lusr cid suiteTag
 
-getMLSClientsH :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClientsH :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => UserId -> CipherSuite -> Handler r (Set ClientInfo)
 getMLSClientsH usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (liftSem (ClientStore.lookupClientIds usr))
-  clientInfos <- lift $ traverse (\c -> getMLSClient lusr c suiteTag) (toList allClients)
+  status <- lift $ liftSem $ UserStore.lookupStatus usr
+  clientInfos <- lift $ traverse (\c -> getMLSClient status lusr c suiteTag) (toList allClients)
   pure $ Set.fromList clientInfos
 
 getMLSClient ::
   (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
+  Maybe AccountStatus ->
   Local UserId ->
   ClientId ->
   CipherSuiteTag ->
   AppT r ClientInfo
-getMLSClient lusr cid suiteTag = do
-  numKeyPackages <- liftSem $ Mls.countMlsKeyPackages (tUnqualified lusr) cid suiteTag
+getMLSClient status lusr cid suiteTag = do
+  -- Match the claim endpoint: suspended users cannot supply key packages,
+  -- so their missing clients must not block MLS messages or commits.
+  numKeyPackages <-
+    if status == Just Suspended
+      then pure 0
+      else liftSem $ Mls.countMlsKeyPackages (tUnqualified lusr) cid suiteTag
   mc <- liftSem $ ClientStore.lookupClient (tUnqualified lusr) cid
   let keys = foldMap (.clientMLSPublicKeys) mc
       ss = csSignatureScheme suiteTag
