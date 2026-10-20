@@ -2632,10 +2632,10 @@ CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btr
 
 
 --
--- Name: wire_user_managed_by_idx; Type: INDEX; Schema: public; Owner: wire-server
+-- Name: wire_user_scim_users_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
-CREATE INDEX wire_user_managed_by_idx ON public.wire_user USING btree (managed_by);
+CREATE INDEX wire_user_scim_users_idx ON public.wire_user USING btree (team, id) WHERE (managed_by = 1);
 
 
 --
@@ -2643,13 +2643,6 @@ CREATE INDEX wire_user_managed_by_idx ON public.wire_user USING btree (managed_b
 --
 
 CREATE INDEX wire_user_service_idx ON public.wire_user USING btree (provider, service);
-
-
---
--- Name: wire_user_team_idx; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX wire_user_team_idx ON public.wire_user USING btree (team);
 
 
 --
