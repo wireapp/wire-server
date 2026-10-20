@@ -4,11 +4,6 @@ receivers:
     username: wire-server
     password: posty-the-gres
     databases:
-      - backendA
-      - backendB
-      - dyn-1
-      - dyn-2
-      - dyn-3
       - fan_in_perf
     collection_interval: 15s
     tls:
