@@ -854,9 +854,11 @@ testOutOfSyncError = do
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
       resp.status `shouldMatchInt` 201
 
-testOutOfSyncSuspendedUser :: (HasCallStack) => App ()
-testOutOfSyncSuspendedUser = do
-  (owner, tid, [alice, bob, charlie]) <- createTeam OwnDomain 4
+testOutOfSyncSuspendedUser :: (HasCallStack) => Domain -> App ()
+testOutOfSyncSuspendedUser domain = do
+  (owner, tid, [alice, bob]) <- createTeam OwnDomain 3
+  charlie <- randomUser domain def
+  connectTwoUsers owner charlie
   [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
   traverse_ supportMLS [alice, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
