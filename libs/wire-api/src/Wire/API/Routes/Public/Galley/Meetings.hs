@@ -52,7 +52,7 @@ type MeetingsAPI =
     :<|> Named
            "create-meeting@v17"
            ( Summary "Create a new meeting"
-               :> DescriptionOAuthScope 'WriteMeetings
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V17
                :> Until 'V19
                :> ZLocalUser
@@ -70,7 +70,7 @@ type MeetingsAPI =
     :<|> Named
            "create-meeting"
            ( Summary "Create a new meeting"
-               :> DescriptionOAuthScope 'WriteMeetings
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
                :> ZConn
@@ -127,6 +127,7 @@ type MeetingsAPI =
     :<|> Named
            "update-meeting"
            ( Summary "Update an existing meeting"
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
                :> ZConn
@@ -146,6 +147,7 @@ type MeetingsAPI =
     :<|> Named
            "delete-meeting"
            ( Summary "Delete a meeting"
+               :> DescriptionOAuthScope 'DeleteOnlyMeetings
                :> From 'V15
                :> ZLocalUser
                :> ZConn
@@ -292,7 +294,7 @@ type MeetingsAPI =
     :<|> Named
            "refresh-meeting-link"
            ( Summary "Refresh the join link of a meeting"
-               :> DescriptionOAuthScope 'WriteMeetings
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
                :> ZConn

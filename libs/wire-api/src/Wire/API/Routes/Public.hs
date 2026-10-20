@@ -363,7 +363,7 @@ addScopeDescription =
 -- that test only.)
 renderOAuthScope :: OAuth.OAuthScope -> Text
 renderOAuthScope scope =
-  "\nOAuth scope: `"
+  "<br>OAuth scope: `"
     <> (decodeUtf8With lenientDecode . toStrict . toByteString $ scope)
     <> "`"
 
