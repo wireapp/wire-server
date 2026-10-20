@@ -2,7 +2,6 @@
 -- @fanin_perf_pool_*@ metric families, told apart by the @role@ label.
 module FanInPerf.Pool
   ( PoolRole (..),
-    roleLabel,
     PoolFamilies,
     mkPoolFamilies,
     poolMetrics,

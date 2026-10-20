@@ -2,6 +2,8 @@ module FanInPerf.Options
   ( GlobalOptions (..),
     ProduceOptions (..),
     ConsumeOptions (..),
+    ReaderMode (..),
+    experimentLabel,
     Command (..),
     Options (..),
     optionsInfo,
@@ -45,9 +47,21 @@ data ConsumeOptions = ConsumeOptions
     fetchLimit :: Int,
     readerPoolSize :: Int,
     drainTimeout :: Int,
-    safetyWindowMs :: Int
+    safetyWindowMs :: Int,
+    mode :: ReaderMode
   }
   deriving (Eq, Show)
+
+-- | Whether reader clients acknowledge what they received (experiment C) or
+-- only keep cursors in memory (B). @Acks n@: ack every n-th notification.
+data ReaderMode = NoAcks | Acks Int
+  deriving (Eq, Show)
+
+-- | Value of the @experiment@ metric label and prefix of terminal lines.
+experimentLabel :: ReaderMode -> Text
+experimentLabel = \case
+  NoAcks -> "consume"
+  Acks _ -> "consume-ack"
 
 data Command = Migrate | Reset | Produce ProduceOptions | Consume ConsumeOptions
   deriving (Eq, Show)
@@ -71,7 +85,8 @@ optionsParser =
       ( O.command "migrate" (info (pure Migrate) (progDesc "Create the fan-in notification tables (idempotent)"))
           <> O.command "reset" (info (pure Reset) (progDesc "Truncate all fan-in notification tables"))
           <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
-          <> O.command "consume" (info (Consume <$> consumeParser) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
+          <> O.command "consume" (info (Consume <$> consumeParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
+          <> O.command "consume-ack" (info (Consume <$> consumeParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment C: like consume, but every client acknowledges the notifications it received"))
       )
 
 globalParser :: Parser GlobalOptions
@@ -90,16 +105,16 @@ produceParserWith targetsRdr =
   ProduceOptions
     <$> option (positive maxWriters) (long "writers" <> metavar "W" <> value 16 <> showDefault <> help "Concurrent writer threads")
     <*> option targetsRdr (long "targets" <> metavar "SPEC" <> helpDoc (Just targetsHelp))
-    <*> option (positive maxClientsPerUser) (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids per 'clients' target")
+    <*> option (positive maxClientsPerUser) (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids per user (in consume: users = ceil(--clients / C))")
     <*> option (positive maxPayloadBytes) (long "payload-bytes" <> metavar "B" <> value 512 <> showDefault <> help "Approximate JSON payload size")
     <*> optional (option (positive maxDuration) (long "duration" <> metavar "SECS" <> help "Run length (default: until Ctrl-C)"))
     <*> option (nonNegative maxDuration) (long "warmup" <> metavar "SECS" <> value 5 <> showDefault <> help "Seconds ignored for max-rate tracking")
     <*> optional (option anyInt (long "seed" <> metavar "INT" <> help "RNG seed (default: random, printed at start)"))
 
-consumeParser :: Parser ConsumeOptions
-consumeParser =
+consumeParserWith :: ReadM (NonEmpty TargetConfig) -> Parser ReaderMode -> Parser ConsumeOptions
+consumeParserWith targetsRdr modeParser =
   ConsumeOptions
-    <$> produceParserWith consumeTargetsReader
+    <$> produceParserWith targetsRdr
     <*> option (positive maxClients) (long "clients" <> metavar "N" <> value 2000 <> showDefault <> help "Simulated reader clients")
     <*> option (positive maxEpochsPerClient) (long "epochs-per-client" <> metavar "E" <> value 3 <> showDefault <> help "Epoch streams per client (needs an 'epoch' entry in --targets)")
     <*> option (nonNegative maxPollIntervalMs) (long "poll-interval" <> metavar "MS" <> value 100 <> showDefault <> help "Sleep in milliseconds after a fetch pass without a full page")
@@ -107,6 +122,24 @@ consumeParser =
     <*> option (positive maxPoolSize) (long "reader-pool-size" <> metavar "P" <> value 32 <> showDefault <> help "Connection pool size of the readers (writers: --pool-size)")
     <*> option (nonNegative maxDuration) (long "drain-timeout" <> metavar "SECS" <> value 10 <> showDefault <> help "Seconds to wait for readers to catch up after the writers stopped")
     <*> option (nonNegative maxSafetyWindowMs) (long "safety-window" <> metavar "MS" <> value 0 <> showDefault <> help "Readers re-fetch the last MS milliseconds (by UUIDv7 timestamp) of each stream to catch late commits; 0: plain > cursor")
+    <*> modeParser
+
+ackModeParser :: Parser ReaderMode
+ackModeParser =
+  Acks <$> option (positive maxAckEvery) (long "ack-every" <> metavar "N" <> value 100 <> showDefault <> help "A client acknowledges after every N-th notification it received (counted over all its streams)")
+
+-- | A reader fetches and acks as one (user, client): its user and client
+-- streams must come from the same users (see "FanInPerf.Population").
+consumeAckTargetsReader :: ReadM (NonEmpty TargetConfig)
+consumeAckTargetsReader = do
+  ts <- consumeTargetsReader
+  let streamsOf k = [t.streams | t <- toList ts, t.kind == k]
+  case (streamsOf KindUser, streamsOf KindClients) of
+    ([u], [c]) | u /= c -> readerError "'consume-ack' needs the same STREAMS for 'user' and 'clients' (one identity per reader)"
+    _ -> pure ts
+
+maxAckEvery :: Integer
+maxAckEvery = 10_000
 
 -- | Readers have no 'connections' streams (see the design spec's follow-ups).
 consumeTargetsReader :: ReadM (NonEmpty TargetConfig)

@@ -5,7 +5,7 @@ module Wire.FanInNotificationsStore.Postgres where
 import Data.Aeson (Value)
 import Data.Aeson qualified as Aeson
 import Data.Bits (shiftL, shiftR, (.|.))
-import Data.Domain (domainText)
+import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified
@@ -33,6 +33,8 @@ interpretFanInNotificationsStoreToPostgres isolationLevel = interpret $ \case
   PushViaFanIn push -> pushViaFanInImpl isolationLevel push
   FetchNotifications stream cursor n -> fetchNotificationsImpl stream cursor n
   GetLastNotificationId stream -> getLastNotificationIdImpl stream
+  InitAcks uid cid stream -> initAcksImpl uid cid stream
+  AckNotification uid cid stream nid -> ackNotificationImpl uid cid stream nid
 
 pushViaFanInImpl ::
   (PGConstraints r, Member (Input (Local ())) r) =>
@@ -44,7 +46,7 @@ pushViaFanInImpl isolationLevel push = do
   loc <- inputQualifyLocal ()
   let payload = Aeson.toJSON push.json
   runTransactionWithRetry isolationLevel TxSessions.Write do
-    forM_ push.targets \target -> do
+    forM_ (normalizeTargets push.targets) \target -> do
       case target of
         TargetUser uid ->
           pushUserNotification uid.toUUID notifId payload push.origin
@@ -60,6 +62,27 @@ pushViaFanInImpl isolationLevel push = do
           if locDomain == domain
             then pushLocalConnectionNotification uid.toUUID notifId payload push.origin
             else pushRemoteConnectionNotification (domainText domain) uid.toUUID notifId payload push.origin
+
+-- | Dedupe and sort targets. Duplicates would violate primary keys (and make
+-- the @last_*@ upserts affect a row twice); a stable order avoids deadlocks
+-- between concurrent pushes locking the same rows in opposite order.
+normalizeTargets :: [Target] -> [Target]
+normalizeTargets = mergeClients . map NE.head . NE.group . sortOn targetKey
+  where
+    mergeClients = \case
+      TargetUserClients (u, cs) : TargetUserClients (u', cs') : rest
+        | u == u' -> mergeClients (TargetUserClients (u, NE.sort (NE.nub (cs <> cs'))) : rest)
+      TargetUserClients (u, cs) : rest -> TargetUserClients (u, NE.sort (NE.nub cs)) : mergeClients rest
+      t : rest -> t : mergeClients rest
+      [] -> []
+
+targetKey :: Target -> (Int, UUID, Maybe Domain, Word64, ByteString)
+targetKey = \case
+  TargetUser u -> (0, u.toUUID, Nothing, 0, mempty)
+  TargetUserClients (u, _) -> (1, u.toUUID, Nothing, 0, mempty)
+  TargetTeam t -> (2, t.toUUID, Nothing, 0, mempty)
+  TargetEpoch (g, e) -> (3, UUID.nil, Nothing, fromIntegral e.epochNumber, g.unGroupId)
+  TargetConnections (Qualified u d) -> (4, u.toUUID, Just d, 0, mempty)
 
 -- | Time-ordered (UUIDv7) notification id.
 genNotificationId :: IO (Id a)
@@ -81,7 +104,7 @@ fetchNotificationsImpl stream cursor n =
   V.toList <$> case stream of
     StreamUser uid -> runStatement (uid.toUUID, cursor, limit') fetchUserStatement
     StreamClient uid cid ->
-      runStatement (uid.toUUID, fromIntegral cid.clientToWord64, cursor, limit') fetchClientStatement
+      runStatement (uid.toUUID, clientInt cid, cursor, limit') fetchClientStatement
     StreamTeam tid -> runStatement (tid.toUUID, cursor, limit') fetchTeamStatement
     StreamEpoch gid epoch ->
       runStatement (gid.unGroupId, fromIntegral epoch.epochNumber, cursor, limit') fetchEpochStatement
@@ -134,7 +157,7 @@ getLastNotificationIdImpl ::
   Sem r (Maybe UUID)
 getLastNotificationIdImpl = \case
   StreamUser uid -> runStatement uid.toUUID lastUserStatement
-  StreamClient uid cid -> runStatement (uid.toUUID, fromIntegral cid.clientToWord64) lastClientStatement
+  StreamClient uid cid -> runStatement (uid.toUUID, clientInt cid) lastClientStatement
   StreamTeam tid -> runStatement tid.toUUID lastTeamStatement
   StreamEpoch gid epoch -> runStatement (gid.unGroupId, fromIntegral epoch.epochNumber) lastEpochStatement
 
@@ -162,6 +185,110 @@ lastEpochStatement =
   [maybeStatement|
     select notification_id :: uuid from last_epoch_notifications
     where group_id = ($1 :: bytea) and epoch = ($2 :: int8)
+  |]
+
+clientInt :: ClientId -> Int64
+clientInt c = fromIntegral c.clientToWord64
+
+-- | Ack rows belong to the client (@uid@, @cid@); the stream's own key selects
+-- the latest notification. Conflict targets are the ack tables' primary keys
+-- (the RFC's SQL lacks them).
+initAcksImpl :: (PGConstraints r) => UserId -> ClientId -> Stream -> Sem r (Maybe UUID)
+initAcksImpl uid cid = \case
+  StreamUser u -> runStatement (uid.toUUID, clientInt cid, u.toUUID) initUserAckStatement
+  StreamClient u c -> runStatement (uid.toUUID, clientInt cid, u.toUUID, clientInt c) initClientAckStatement
+  StreamTeam t -> runStatement (uid.toUUID, clientInt cid, t.toUUID) initTeamAckStatement
+  StreamEpoch g e -> runStatement (uid.toUUID, clientInt cid, g.unGroupId, fromIntegral e.epochNumber) initEpochAckStatement
+
+initUserAckStatement :: Statement (UUID, Int64, UUID) (Maybe UUID)
+initUserAckStatement =
+  [maybeStatement|
+    insert into user_notification_acks (user_id, client_id, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), notification_id
+      from last_user_notifications where user_id = ($3 :: uuid)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+initClientAckStatement :: Statement (UUID, Int64, UUID, Int64) (Maybe UUID)
+initClientAckStatement =
+  [maybeStatement|
+    insert into client_notification_acks (user_id, client_id, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), notification_id
+      from last_client_notifications where user_id = ($3 :: uuid) and client_id = ($4 :: int8)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+-- RFC: selected from team_notifications with an invalid GROUP BY; the last_*
+-- table holds exactly the wanted id.
+initTeamAckStatement :: Statement (UUID, Int64, UUID) (Maybe UUID)
+initTeamAckStatement =
+  [maybeStatement|
+    insert into team_notification_acks (user_id, client_id, team_id, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), team_id, notification_id
+      from last_team_notifications where team_id = ($3 :: uuid)
+      on conflict (user_id, client_id, team_id) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+-- RFC: wrote the nonexistent conversation_notification_acks with EXCLUDED.notificationId.
+initEpochAckStatement :: Statement (UUID, Int64, ByteString, Int64) (Maybe UUID)
+initEpochAckStatement =
+  [maybeStatement|
+    insert into epoch_notification_acks (user_id, client_id, group_id, epoch, last_notification_id)
+      select ($1 :: uuid), ($2 :: int8), group_id, epoch, notification_id
+      from last_epoch_notifications where group_id = ($3 :: bytea) and epoch = ($4 :: int8)
+      on conflict (user_id, client_id, group_id, epoch) do update
+        set last_notification_id = excluded.last_notification_id
+      returning last_notification_id :: uuid
+  |]
+
+-- | @greatest@: a late or repeated ack never moves the ack backwards.
+ackNotificationImpl :: (PGConstraints r) => UserId -> ClientId -> Stream -> UUID -> Sem r ()
+ackNotificationImpl uid cid stream nid = case stream of
+  StreamUser _ -> runStatement (uid.toUUID, clientInt cid, nid) ackUserStatement
+  StreamClient _ _ -> runStatement (uid.toUUID, clientInt cid, nid) ackClientStatement
+  StreamTeam t -> runStatement (uid.toUUID, clientInt cid, t.toUUID, nid) ackTeamStatement
+  StreamEpoch g e -> runStatement (uid.toUUID, clientInt cid, g.unGroupId, fromIntegral e.epochNumber, nid) ackEpochStatement
+
+ackUserStatement :: Statement (UUID, Int64, UUID) ()
+ackUserStatement =
+  [resultlessStatement|
+    insert into user_notification_acks (user_id, client_id, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: uuid)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = greatest(user_notification_acks.last_notification_id, excluded.last_notification_id)
+  |]
+
+ackClientStatement :: Statement (UUID, Int64, UUID) ()
+ackClientStatement =
+  [resultlessStatement|
+    insert into client_notification_acks (user_id, client_id, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: uuid)
+      on conflict (user_id, client_id) do update
+        set last_notification_id = greatest(client_notification_acks.last_notification_id, excluded.last_notification_id)
+  |]
+
+ackTeamStatement :: Statement (UUID, Int64, UUID, UUID) ()
+ackTeamStatement =
+  [resultlessStatement|
+    insert into team_notification_acks (user_id, client_id, team_id, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: uuid, $4 :: uuid)
+      on conflict (user_id, client_id, team_id) do update
+        set last_notification_id = greatest(team_notification_acks.last_notification_id, excluded.last_notification_id)
+  |]
+
+ackEpochStatement :: Statement (UUID, Int64, ByteString, Int64, UUID) ()
+ackEpochStatement =
+  [resultlessStatement|
+    insert into epoch_notification_acks (user_id, client_id, group_id, epoch, last_notification_id)
+      values ($1 :: uuid, $2 :: int8, $3 :: bytea, $4 :: int8, $5 :: uuid)
+      on conflict (user_id, client_id, group_id, epoch) do update
+        set last_notification_id = greatest(epoch_notification_acks.last_notification_id, excluded.last_notification_id)
   |]
 
 pushUserNotification ::
@@ -202,7 +329,7 @@ pushClientNotifications ::
   Maybe UserId ->
   Tx.Transaction ()
 pushClientNotifications uid clientIds notifId payload origin = do
-  let clientIds' = V.fromList $ map (fromIntegral . (.clientToWord64)) (NE.toList clientIds) :: V.Vector Int64
+  let clientIds' = V.fromList $ map clientInt (NE.toList clientIds) :: V.Vector Int64
   Tx.statement
     (uid, clientIds', notifId.toUUID, payload, fmap (.toUUID) origin)
     insertClientNotificationsStatement

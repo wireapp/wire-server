@@ -5,12 +5,11 @@ module FanInPerf.Worker
     printQueuedErrors,
     waitForStop,
     isInterrupt,
-    tshow,
   )
 where
 
 import Control.Exception (AsyncException (UserInterrupt), handleJust)
-import Data.Text qualified as T
+import Data.Misc (showT)
 import FanInPerf.Terminal
 import Imports
 
@@ -30,7 +29,7 @@ printQueuedErrors console errors = do
   msgs <- atomically (flushTBQueue errors)
   traverse_ (printLine console) (take maxErrorLines msgs)
   when (length msgs > maxErrorLines) $
-    printLine console ("... " <> tshow (length msgs - maxErrorLines) <> " more errors suppressed")
+    printLine console ("... " <> showT (length msgs - maxErrorLines) <> " more errors suppressed")
 
 maxErrorLines :: Int
 maxErrorLines = 10
@@ -45,6 +44,3 @@ waitForStop mDuration = handleJust isInterrupt pure sleepFor
 isInterrupt :: AsyncException -> Maybe ()
 isInterrupt UserInterrupt = Just ()
 isInterrupt _ = Nothing
-
-tshow :: (Show a) => a -> Text
-tshow = T.pack . show

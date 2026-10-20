@@ -23,6 +23,7 @@ import FanInPerf.Targets
 import FanInPerf.Terminal
 import FanInPerf.Worker
 import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
+import Data.Misc (showT)
 import Imports
 import System.Random
 import UnliftIO.Exception (tryAny)
@@ -30,11 +31,12 @@ import Wire.FanInNotificationsStore
 
 data PushOutcome = PushOk | PushFailed Text
 
--- REVIEW: Dependency injection of doPush and reportError is odd. This is what effects are for!
-
 -- | One push: generate targets, run, record. Synchronous exceptions are
 -- counted as errors so a writer never dies; async ones (cancel) propagate.
+-- @expectedOf@ gives the deliveries readers should see for a successful push
+-- (computed outside the timed store call).
 writerStep ::
+  (FanInPush -> Int) ->
   (FanInPush -> IO PushOutcome) ->
   A.Object ->
   V.Vector Entry ->
@@ -42,7 +44,7 @@ writerStep ::
   (Text -> IO ()) ->
   StdGen ->
   IO StdGen
-writerStep doPush payload entries stats reportError g = do
+writerStep expectedOf doPush payload entries stats reportError g = do
   let (push, g') = genPush payload entries g
   -- build the targets before timing so latency covers only the store call
   evaluate (forceTargets push.targets)
@@ -59,14 +61,14 @@ writerStep doPush payload entries stats reportError g = do
     recordOutcome push outcome t0 t1 = do
       let kind = pushKind push
       case outcome of
-        PushOk -> recordSuccess stats kind (length push.targets) (t1 - t0)
+        PushOk -> recordSuccess stats kind (length push.targets) (expectedOf push) (t1 - t0)
         PushFailed msg -> do
           recordError stats kind
           reportError (kindName kind <> ": " <> msg)
 
 storePush :: Env -> FanInPush -> IO PushOutcome
 storePush env push =
-  either (PushFailed . tshow) (const PushOk)
+  either (PushFailed . showT) (const PushOk)
     <$> runStore env (pushViaFanIn push)
 
 -- | Everything the writers of a run start from.
@@ -74,7 +76,8 @@ data WriterSetup = WriterSetup
   { seed :: Int,
     entries :: V.Vector Entry,
     payload :: A.Object,
-    gens :: [StdGen]
+    gens :: [StdGen],
+    populationGen :: StdGen
   }
 
 -- | Seed (random unless given), entries, payload and one generator per writer.
@@ -82,14 +85,16 @@ prepareWriters :: ProduceOptions -> IO WriterSetup
 prepareWriters opts = do
   seed <- maybe randomIO pure opts.seed
   let (entries, gen') = mkEntries opts.clientsPerUser opts.targets (mkStdGen seed)
+      (populationGen, gen'') = split gen'
       payload = mkPayload opts.payloadBytes
-      gens = take opts.writers (unfoldr (Just . split) gen')
+      gens = take opts.writers (unfoldr (Just . split) gen'')
   pure WriterSetup {..}
 
 -- | Pushes until @stop@ reports true; checked between pushes, so no push is
 -- cut off.
 writerLoop ::
   IO Bool ->
+  (FanInPush -> Int) ->
   (FanInPush -> IO PushOutcome) ->
   A.Object ->
   V.Vector Entry ->
@@ -97,11 +102,11 @@ writerLoop ::
   (Text -> IO ()) ->
   StdGen ->
   IO ()
-writerLoop stop doPush payload entries ws reportError = loop
+writerLoop stop expectedOf doPush payload entries ws reportError = loop
   where
     loop !g = do
       stopped <- stop
-      unless stopped (writerStep doPush payload entries ws reportError g >>= loop)
+      unless stopped (writerStep expectedOf doPush payload entries ws reportError g >>= loop)
 
 runProduce :: Console -> Env -> ProduceOptions -> IO ()
 runProduce console env opts = do
@@ -109,12 +114,12 @@ runProduce console env opts = do
   metrics <- newMetrics "produce" opts.writers
   stats <- replicateM opts.writers newWriterStats
   (errors, reportError) <- newErrorReporter
-  let writer (ws, g) = writerLoop (pure False) (storePush env) setup.payload setup.entries ws reportError g
+  let writer (ws, g) = writerLoop (pure False) (const 0) (storePush env) setup.payload setup.entries ws reportError g
   start <- getMonotonicTime
   stateRef <- newIORef (initialTickState start)
   let doTick = tickOnce console metrics (fromIntegral opts.warmup) stats errors stateRef
   printLine console $
-    "produce: writers=" <> tshow opts.writers <> " targets=" <> renderTargetSpec opts.targets <> " seed=" <> tshow setup.seed
+    "produce: writers=" <> showT opts.writers <> " targets=" <> renderTargetSpec opts.targets <> " seed=" <> showT setup.seed
   withAsync (mapConcurrently_ writer (zip stats setup.gens)) $ \writersA -> do
     link writersA
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
@@ -130,18 +135,18 @@ runProduce console env opts = do
 tickOnce :: Console -> Metrics -> Double -> [WriterStats] -> TBQueue Text -> IORef TickState -> IO TickReport
 tickOnce console metrics warmup stats errors ref = do
   now <- getMonotonicTime
-  (report, _) <- tickWriters warmup now stats ref
+  report <- tickWriters warmup now stats ref
   printQueuedErrors console errors
   publish metrics report
   drawStatus console (formatStatus report)
   pure report
 
 -- | Writer half of a tick: sums the writers' counters, advances the tick
--- state. Returns the report and the summed counters.
-tickWriters :: Double -> Double -> [WriterStats] -> IORef TickState -> IO (TickReport, Snapshot)
+-- state.
+tickWriters :: Double -> Double -> [WriterStats] -> IORef TickState -> IO TickReport
 tickWriters warmup now stats ref = do
   total <- sumSnapshots <$> traverse readSnapshot stats
   st <- readIORef ref
   let (report, st') = tick warmup now total st
   writeIORef ref st'
-  pure (report, total)
+  pure report

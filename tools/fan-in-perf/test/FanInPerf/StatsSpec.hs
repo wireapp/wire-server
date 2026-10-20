@@ -12,12 +12,21 @@ import Test.QuickCheck
 spec :: Spec
 spec = do
   describe "bucketIndex" $ do
-    it "maps edges to log2 buckets" $
-      map bucketIndex [0, 1, 2, 3, 1023, 1024, maxBound]
-        `shouldBe` [0, 0, 1, 1, 9, 10, numBuckets - 1]
-    prop "latency is below its bucket's upper bound" $
-      forAll (choose (1, 2 ^ (numBuckets - 1 :: Int) - 1 :: Word64)) $ \ns ->
-        fromIntegral ns / 1e9 < bucketUpperBoundSeconds (bucketIndex ns)
+    it "maps edges to one bucket below 4 ns, then four buckets per power of two" $
+      map bucketIndex [0, 1, 2, 3, 4, 7, 8, 9, 10, 1023, 1024, maxBound]
+        `shouldBe` [0, 0, 0, 0, 1, 4, 5, 5, 6, 32, 33, numBuckets - 1]
+    it "uses every bucket: indices are dense up to the last" $
+      map bucketIndex [4, 5, 6, 7, 8, 10, 12, 14, 16] `shouldBe` [1 .. 9]
+    prop "latency is within its bucket, and at most 25% below the upper bound" $
+      forAll (choose (4, 2 ^ (40 :: Int) - 1 :: Word64)) $ \ns ->
+        let up = bucketUpperBoundSeconds (bucketIndex ns)
+            v = fromIntegral ns / 1e9
+         in v < up && up <= v * 1.2500001
+    prop "bucket upper bounds are strictly increasing (no duplicate bounds)" $
+      forAll (choose (0, numBuckets - 2)) $ \b ->
+        bucketUpperBoundSeconds b < bucketUpperBoundSeconds (b + 1)
+    it "estimates a value by the middle of its bucket" $
+      bucketMidSeconds (bucketIndex 1000) `shouldSatisfy` (\m -> abs (m - 1.0e-6) < 0.07e-6)
 
   describe "quantileSeconds" $ do
     it "is Nothing without samples" $
@@ -30,7 +39,7 @@ spec = do
   describe "WriterStats" $ do
     it "records successes and errors per kind" $ do
       ws <- newWriterStats
-      replicateM_ 3 (recordSuccess ws KindTeam 2 1000)
+      replicateM_ 3 (recordSuccess ws KindTeam 2 0 1000)
       recordError ws KindUser
       s <- readSnapshot ws
       (pushesOf KindTeam s, targetsOf KindTeam s, errorsOf KindUser s, totalPushes s, totalErrors s)
@@ -39,15 +48,15 @@ spec = do
 
     it "sums writers that ran concurrently" $ do
       wss <- replicateM 8 newWriterStats
-      forConcurrently_ wss $ \ws -> replicateM_ 10000 (recordSuccess ws KindUser 1 500)
+      forConcurrently_ wss $ \ws -> replicateM_ 10000 (recordSuccess ws KindUser 1 0 500)
       s <- sumSnapshots <$> traverse readSnapshot wss
       (totalPushes s, totalTargets s, VU.sum (latencyBuckets s)) `shouldBe` (80000, 80000, 80000)
 
     it "sumSnapshots adds kinds present in only one snapshot" $ do
       a <- newWriterStats
       b <- newWriterStats
-      recordSuccess a KindUser 2 1000
-      recordSuccess b KindTeam 3 1000
+      recordSuccess a KindUser 2 0 1000
+      recordSuccess b KindTeam 3 0 1000
       recordError b KindEpoch
       s <- sumSnapshots <$> traverse readSnapshot [a, b]
       (pushesOf KindUser s, pushesOf KindTeam s, targetsOf KindTeam s, errorsOf KindEpoch s, VU.sum (latencyBuckets s))
@@ -55,10 +64,10 @@ spec = do
 
     it "diffSnapshot subtracts per kind, including kinds absent from the old snapshot" $ do
       old <- newWriterStats
-      recordSuccess old KindUser 1 1000
+      recordSuccess old KindUser 1 0 1000
       s0 <- readSnapshot old
-      recordSuccess old KindUser 3 1000
-      recordSuccess old KindTeam 2 1000
+      recordSuccess old KindUser 3 0 1000
+      recordSuccess old KindTeam 2 0 1000
       recordError old KindEpoch
       s1 <- readSnapshot old
       let d = diffSnapshot s1 s0
@@ -68,7 +77,7 @@ spec = do
   describe "tick" $ do
     let mkTotal pushes errs = do
           ws <- newWriterStats
-          replicateM_ pushes (recordSuccess ws KindUser 2 1000)
+          replicateM_ pushes (recordSuccess ws KindUser 2 0 1000)
           replicateM_ errs (recordError ws KindUser)
           readSnapshot ws
 
@@ -103,9 +112,9 @@ spec = do
     it "are summed over writers and diffed like the other counters" $ do
       a <- newWriterStats
       b <- newWriterStats
-      recordExpected a 5
+      recordSuccess a KindUser 1 5 1000
       s0 <- sumSnapshots <$> traverse readSnapshot [a, b]
-      recordExpected a 2
-      recordExpected b 10
+      recordSuccess a KindUser 1 2 1000
+      recordSuccess b KindUser 1 10 1000
       s1 <- sumSnapshots <$> traverse readSnapshot [a, b]
       (totalExpected s0, totalExpected s1, totalExpected (diffSnapshot s1 s0)) `shouldBe` (5, 17, 12)

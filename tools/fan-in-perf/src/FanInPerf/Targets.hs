@@ -7,6 +7,8 @@ module FanInPerf.Targets
     StreamPool (..),
     Entry (..),
     mkEntries,
+    clientIdsUpTo,
+    genId,
     sampleDistinct,
     localDomain,
     targetAt,
@@ -27,6 +29,7 @@ import Data.Id
 import Data.IntSet qualified as IntSet
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NE
+import Data.Misc (showT)
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Vector qualified as V
@@ -64,7 +67,7 @@ data TargetConfig = TargetConfig
 renderTargetSpec :: NonEmpty TargetConfig -> Text
 renderTargetSpec =
   T.intercalate ","
-    . map (\e -> kindName e.kind <> ":" <> T.pack (show e.streams) <> "x" <> T.pack (show e.perPush))
+    . map (\e -> kindName e.kind <> ":" <> showT e.streams <> "x" <> showT e.perPush)
     . NE.toList
 
 -- | Pre-generated stream keys of one '--targets' entry.
@@ -80,30 +83,37 @@ data Entry = Entry
     pool :: StreamPool
   }
 
+-- | The user and clients pools are prefixes of one uid vector, so a reader
+-- client (user, client id) can read both the user's and its own client stream
+-- (see "FanInPerf.Population"). Different tables, so no extra contention.
 mkEntries :: (RandomGen g) => Int -> NonEmpty TargetConfig -> g -> (V.Vector Entry, g)
 mkEntries clientsPerUser specs g0 =
-  let step g s =
-        let (p, g') = mkPool clientsPerUser s g
+  let (gUsers, g1) = split g0
+      sharedUsers = maximum (0 : [s.streams | s <- NE.toList specs, s.kind `elem` [KindUser, KindClients]])
+      users = V.unfoldrExactN sharedUsers genId gUsers
+      step g s =
+        let (p, g') = mkPool clientsPerUser users s g
          in (g', Entry s p)
-      (g1, entries) = mapAccumL step g0 (NE.toList specs)
-   in (V.fromList entries, g1)
+      (g2, entries) = mapAccumL step g1 (NE.toList specs)
+   in (V.fromList entries, g2)
 
-mkPool :: (RandomGen g) => Int -> TargetConfig -> g -> (StreamPool, g)
-mkPool clientsPerUser s g0 =
+mkPool :: (RandomGen g) => Int -> V.Vector UserId -> TargetConfig -> g -> (StreamPool, g)
+mkPool clientsPerUser users s g0 =
   let (g1, g2) = split g0
    in ( case s.kind of
-          KindUser -> UserPool (V.unfoldrExactN s.streams genId g1)
-          KindClients -> ClientsPool (V.unfoldrExactN s.streams genUserClients g1)
+          KindUser -> UserPool (V.take s.streams users)
+          KindClients -> ClientsPool (V.map (,clientIds) (V.take s.streams users))
           KindTeam -> TeamPool (V.unfoldrExactN s.streams genId g1)
           KindEpoch -> EpochPool (V.unfoldrExactN s.streams genGroupEpoch g1)
           KindConnections -> ConnectionsPool (V.unfoldrExactN s.streams genId g1),
         g2
       )
   where
-    -- Client ids 1..C per user: distinct, so one push never inserts the same
-    -- (user, client, notification) row twice.
-    clientIds = ClientId 1 :| map ClientId [2 .. fromIntegral clientsPerUser]
-    genUserClients g = let (u, g') = genId g in ((u, clientIds), g')
+    clientIds = clientIdsUpTo clientsPerUser
+
+-- | Client ids 1..k (at least 1).
+clientIdsUpTo :: Int -> NonEmpty ClientId
+clientIdsUpTo k = ClientId 1 :| map ClientId [2 .. fromIntegral k]
 
 genId :: (RandomGen g) => g -> (Id a, g)
 genId = first Id . uniform
@@ -140,13 +150,9 @@ targetAt pool i = case pool of
   EpochPool v -> TargetEpoch (v V.! i)
   ConnectionsPool v -> TargetConnections (Qualified (v V.! i) localDomain)
 
--- REVIEW: This looks overly complicated!
-
 -- | Picks an entry uniformly, then 'perPush' distinct stream keys of it. All
--- targets of one push therefore share one constructor. Targets are sorted by
--- pool index (pools are fixed, so this is one global order, and client ids per
--- user are ascending): the store upserts rows in target order and does not
--- sort itself, so unsorted overlapping pushes would deadlock (40P01).
+-- targets of one push therefore share one constructor. Distinctness keeps the
+-- fan-in exactly 'perPush' (the store dedupes and sorts on its own).
 genTargets :: (RandomGen g) => V.Vector Entry -> g -> (NonEmpty Target, g)
 genTargets entries g0 =
   let (ei, g1) = uniformR (0, V.length entries - 1) g0
@@ -183,7 +189,7 @@ targetKey = \case
   TargetUser uid -> idToText uid
   TargetUserClients (uid, cids) -> idToText uid <> ":" <> T.intercalate "," (map clientToText (NE.toList cids))
   TargetTeam tid -> idToText tid
-  TargetEpoch (gid, epoch) -> T.pack (show gid.unGroupId) <> "/" <> T.pack (show epoch.epochNumber)
+  TargetEpoch (gid, epoch) -> showT gid.unGroupId <> "/" <> showT epoch.epochNumber
   TargetConnections q -> idToText (qUnqualified q) <> "@" <> domainText (qDomain q)
 
 -- | JSON payload of roughly @n@ bytes.

@@ -14,6 +14,11 @@ parse = getParseResult . execParserPure defaultPrefs optionsInfo
 parseOk :: [String] -> IO Options
 parseOk args = maybe (expectationFailure "parse failed" >> undefined) pure (parse args)
 
+consumeOf :: Options -> Maybe ConsumeOptions
+consumeOf o = case o.command of
+  Consume c -> Just c
+  _ -> Nothing
+
 spec :: Spec
 spec = do
   it "parses produce with defaults" $ do
@@ -128,6 +133,36 @@ spec = do
     isNothing (parse ["--db", "x", "consume", "--targets", "user:10,connections:5"]) `shouldBe` True
     -- `produce` still accepts connections
     isNothing (parse ["--db", "x", "produce", "--targets", "connections:5"]) `shouldBe` False
+
+  it "parses consume as NoAcks" $ do
+    o <- parseOk ["--db", "x", "consume", "--targets", "user:10"]
+    case o.command of
+      Consume c -> c.mode `shouldBe` NoAcks
+      _ -> expectationFailure "not a consume command"
+
+  it "parses consume-ack with defaults and --ack-every" $ do
+    o <- parseOk ["--db", "x", "consume-ack", "--targets", "user:10,clients:10,team:1"]
+    case o.command of
+      Consume c -> (c.mode, c.clients) `shouldBe` (Acks 100, 2000)
+      _ -> expectationFailure "not a consume command"
+    o1 <- parseOk ["--db", "x", "consume-ack", "--targets", "team:1", "--ack-every", "1"]
+    fmap (.mode) (consumeOf o1) `shouldBe` Just (Acks 1)
+    o2 <- parseOk ["--db", "x", "consume-ack", "--targets", "team:1", "--ack-every", "10000"]
+    fmap (.mode) (consumeOf o2) `shouldBe` Just (Acks 10000)
+
+  it "rejects bad consume-ack input" $ do
+    let ack extra = ["--db", "x", "consume-ack", "--targets", "team:1"] <> extra
+    isNothing (parse (ack ["--ack-every", "0"])) `shouldBe` True
+    isNothing (parse (ack ["--ack-every", "10001"])) `shouldBe` True
+    -- one identity per reader: user and clients pools must have the same size
+    isNothing (parse ["--db", "x", "consume-ack", "--targets", "user:10,clients:5"]) `shouldBe` True
+    isNothing (parse ["--db", "x", "consume-ack", "--targets", "connections:5"]) `shouldBe` True
+    -- consume keeps accepting different sizes and has no --ack-every
+    isNothing (parse ["--db", "x", "consume", "--targets", "user:10,clients:5"]) `shouldBe` False
+    isNothing (parse ["--db", "x", "consume", "--targets", "user:10", "--ack-every", "5"]) `shouldBe` True
+
+  it "labels the experiments" $
+    map experimentLabel [NoAcks, Acks 1] `shouldBe` ["consume", "consume-ack"]
 
   forM_
     [ ["produce", "--targets", "team:10"],

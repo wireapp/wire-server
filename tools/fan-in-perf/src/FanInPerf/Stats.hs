@@ -12,7 +12,6 @@ module FanInPerf.Stats
     newWriterStats,
     recordSuccess,
     recordError,
-    recordExpected,
     Snapshot,
     emptySnapshot,
     readSnapshot,
@@ -30,7 +29,9 @@ module FanInPerf.Stats
     numBuckets,
     bucketIndex,
     bucketUpperBoundSeconds,
+    bucketMidSeconds,
     quantileSeconds,
+    ratio,
     TickState (..),
     initialTickState,
     TickReport (..),
@@ -39,7 +40,7 @@ module FanInPerf.Stats
   )
 where
 
-import Data.Bits (countLeadingZeros)
+import Data.Bits (countLeadingZeros, shiftR)
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict qualified as Map
@@ -47,9 +48,31 @@ import Data.Vector.Unboxed qualified as VU
 import FanInPerf.Targets (TargetKind)
 import Imports
 
--- | Bucket @b@ holds latencies in @[2^b, 2^(b+1))@ ns: 1 ns .. ~18 min.
+-- | Log-linear histogram: bucket 0 holds everything below 4 ns (not measurable
+-- anyways). From 4 ns on, every power-of-two range @[2^o, 2^(o+1))@ (@o >= 2@)
+-- is split into 4 equally wide buckets:
+--
+-- * @o@ = floor (log2 ns), i.e. the range the value is in.
+-- * @s@ = 0..3, the sub-bucket within that range. Each is @2^(o-2)@ ns wide, so
+--   @s = (ns `shiftR` (o - 2)) - 4@ (the two bits below the leading one).
+--
+-- Bucket @4 * o + s - 7@ holds @[(4 + s) * 2^(o-2), (5 + s) * 2^(o-2))@ ns. The
+-- @- 7@ makes the indices dense: the first range (@o = 2@, @s = 0@) is bucket 1.
+-- Within a bucket the upper bound is at most 25% above the value (a plain
+-- power-of-two scheme: up to 100%).
+--
+-- Examples:
+--
+-- * 3 ns    -> bucket 0, @[0, 4)@
+-- * 4 ns    -> @o = 2, s = 0@, bucket 1, @[4, 5)@
+-- * 7 ns    -> @o = 2, s = 3@, bucket 4, @[7, 8)@
+-- * 8 ns    -> @o = 3, s = 0@ (width 2), bucket 5, @[8, 10)@
+-- * 11 ns   -> @o = 3, s = 1@, bucket 6, @[10, 12)@
+-- * 1000 ns -> @o = 9, s = 3@ (width 128), bucket 32, @[896, 1024)@
+--
+-- Range: 4 ns .. ~18 min (2^40 ns); larger values go to the last bucket.
 numBuckets :: Int
-numBuckets = 40
+numBuckets = 153
 
 -- | Counters per target kind (absent = 0) and a sparse latency histogram
 -- (bucket index -> count, absent = 0).
@@ -78,22 +101,21 @@ modifyStats (WriterStats r) f = atomicModifyIORef' r (\s -> (f s, ()))
 bump :: TargetKind -> Int -> Map TargetKind Int -> Map TargetKind Int
 bump k n = Map.insertWith (+) k n
 
-recordSuccess :: WriterStats -> TargetKind -> Int -> Word64 -> IO ()
-recordSuccess stats k n latencyNs =
+-- | @recordSuccess stats kind targets expected latencyNs@: one push with its
+-- target count and the notification deliveries readers should see because of
+-- it (consume mode, experiments B/C; 0 in produce).
+recordSuccess :: WriterStats -> TargetKind -> Int -> Int -> Word64 -> IO ()
+recordSuccess stats k n expected latencyNs =
   modifyStats stats $ \s ->
     s
       { pushes = bump k 1 s.pushes,
         targets = bump k n s.targets,
-        latency = IntMap.insertWith (+) (bucketIndex latencyNs) 1 s.latency
+        latency = IntMap.insertWith (+) (bucketIndex latencyNs) 1 s.latency,
+        expected = s.expected + expected
       }
 
 recordError :: WriterStats -> TargetKind -> IO ()
 recordError stats k = modifyStats stats $ \s -> s {errors = bump k 1 s.errors}
-
--- | Notification deliveries readers should see because of the pushes recorded
--- so far (only used by experiment B).
-recordExpected :: WriterStats -> Int -> IO ()
-recordExpected stats n = modifyStats stats $ \s -> s {expected = s.expected + n}
 
 -- | An identity atomic read-modify-write rather than 'readIORef': it is a full
 -- barrier, so the ticker never observes a stale snapshot from another core.
@@ -146,10 +168,26 @@ toBuckets :: IntMap Int -> VU.Vector Int
 toBuckets m = VU.accum (+) (VU.replicate numBuckets 0) (IntMap.toList m)
 
 bucketIndex :: Word64 -> Int
-bucketIndex ns = min (numBuckets - 1) (63 - countLeadingZeros (max 1 ns))
+bucketIndex ns
+  | ns < 4 = 0
+  | otherwise = min (numBuckets - 1) (4 * o + fromIntegral (ns `shiftR` (o - 2)) - 11)
+  where
+    o = 63 - countLeadingZeros ns
+
+-- | Lower (inclusive) and upper (exclusive) bound of bucket @b@ in ns.
+bucketBoundsNs :: Int -> (Double, Double)
+bucketBoundsNs b
+  | b == 0 = (0, 4)
+  | otherwise = (fromIntegral (4 + s) * 2 ^^ (o - 2), fromIntegral (5 + s) * 2 ^^ (o - 2))
+  where
+    (o, s) = (b + 7) `divMod` 4
 
 bucketUpperBoundSeconds :: Int -> Double
-bucketUpperBoundSeconds b = 2 ^^ (b + 1) / 1e9
+bucketUpperBoundSeconds b = snd (bucketBoundsNs b) / 1e9
+
+-- | Middle of the bucket; the estimate of a value in it.
+bucketMidSeconds :: Int -> Double
+bucketMidSeconds b = let (lo, hi) = bucketBoundsNs b in (lo + hi) / 2e9
 
 -- | Upper bound of the bucket containing quantile @q@.
 quantileSeconds :: Double -> VU.Vector Int -> Maybe Double
@@ -160,6 +198,10 @@ quantileSeconds q buckets
     cumulative = VU.postscanl' (+) 0 buckets
     total = VU.sum buckets
     threshold = max 1 (ceiling (q * fromIntegral total))
+
+-- | @n / d@, 0 when @d@ is not positive (nothing measured yet).
+ratio :: (Real a, Real b) => a -> b -> Double
+ratio n d = if d > 0 then realToFrac n / realToFrac d else 0
 
 data TickState = TickState
   { startTime :: Double,
@@ -178,6 +220,7 @@ data TickReport = TickReport
     targetRate :: Double,
     errorRate :: Double,
     errorRatio :: Double,
+    -- | latency percentiles of the pushes of the last tick ('Nothing' without any)
     p50 :: Maybe Double,
     p99 :: Maybe Double,
     delta :: Snapshot,
@@ -195,14 +238,14 @@ tick warmup now total st =
   let dt = now - st.lastTime
       delta = diffSnapshot total st.previous
       rate :: Int -> Double
-      rate n = if dt > 0 then fromIntegral n / dt else 0
+      rate n = ratio n dt
       pushes = totalPushes delta
       errors = totalErrors delta
       pushRate = rate pushes
       elapsed = now - st.startTime
       maxPushRate = if elapsed > warmup && dt >= minTickInterval then max st.maxRateSoFar pushRate else st.maxRateSoFar
-      errorRatio = if pushes + errors > 0 then fromIntegral errors / fromIntegral (pushes + errors) else 0
-      latency = latencyBuckets total
+      errorRatio = ratio errors (pushes + errors)
+      latency = latencyBuckets delta
       report =
         TickReport
           { elapsed,

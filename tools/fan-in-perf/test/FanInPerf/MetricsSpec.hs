@@ -1,6 +1,7 @@
 module FanInPerf.MetricsSpec (spec) where
 
 import Data.ByteString.Lazy.Char8 qualified as LBS8
+import Data.Text qualified as T
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
@@ -36,6 +37,8 @@ spec = do
       take 3 (map snd leValues) `shouldBe` ["2", "2", "5"]
       last leValues `shouldBe` (Just "+Inf", "5")
       length leValues `shouldBe` numBuckets + 1
+      let les = [read (T.unpack le) :: Double | (Just le, _) <- init leValues]
+      and (zipWith (<) les (drop 1 les)) `shouldBe` True
       values "fanin_perf_push_duration_seconds_count" `shouldBe` ["5"]
       length (values "fanin_perf_push_duration_seconds_sum") `shouldBe` 1
 
@@ -43,7 +46,7 @@ spec = do
     it "exports counters and gauges with experiment and kind labels" $ do
       m <- newMetrics "spec" 4
       ws <- newWriterStats
-      replicateM_ 3 (recordSuccess ws KindTeam 1 1000)
+      replicateM_ 3 (recordSuccess ws KindTeam 1 0 1000)
       total <- readSnapshot ws
       let (r, _) = tick 0 1 total (initialTickState 0)
       publish m r
@@ -59,8 +62,9 @@ spec = do
       rs <- newReaderStats
       replicateM_ 3 (recordFetch rs KindTeam 1000 [500])
       recordFetch rs KindTeam 1000 []
+      replicateM_ 5 (recordGateWait rs 1000)
       total <- readReaderSnapshot rs
-      let (r, _) = consumeTick 0 1 10 total (initialConsumeTickState 0)
+      let (r, _) = consumeTick 0 True 1 10 total (initialConsumeTickState 0)
       publishConsume m r
       out <- LBS8.unpack <$> P.exportMetricsAsText
       out `shouldContain` "fanin_perf_consumed_total{experiment=\"specc\",kind=\"team\"} 3"
@@ -70,6 +74,22 @@ spec = do
       out `shouldContain` "fanin_perf_clients{experiment=\"specc\"} 7"
       out `shouldContain` "fanin_perf_delivery_lag_seconds_count{experiment=\"specc\"} 3"
       out `shouldContain` "fanin_perf_fetch_duration_seconds_count{experiment=\"specc\"} 4"
+      out `shouldContain` "fanin_perf_gate_wait_seconds_count{experiment=\"specc\"} 5"
+
+  describe "publishAcks" $
+    it "exports ack counters, gauges and the ack latency histogram" $ do
+      m <- newAckMetrics "speca"
+      rs <- newReaderStats
+      replicateM_ 3 (recordAck rs KindTeam 1000)
+      recordAckError rs KindTeam
+      total <- readReaderSnapshot rs
+      let (r, _) = consumeTick 0 True 1 0 total (initialConsumeTickState 0)
+      publishAcks m r
+      out <- LBS8.unpack <$> P.exportMetricsAsText
+      out `shouldContain` "fanin_perf_acks_total{experiment=\"speca\",kind=\"team\"} 3"
+      out `shouldContain` "fanin_perf_ack_errors_total{experiment=\"speca\",kind=\"team\"} 1"
+      out `shouldContain` "fanin_perf_ack_rate_current{experiment=\"speca\"} 3"
+      out `shouldContain` "fanin_perf_ack_duration_seconds_count{experiment=\"speca\"} 3"
 
   describe "metricsApp" $ do
     it "serves /metrics" $ statusFor ["metrics"] `shouldReturn` Just status200

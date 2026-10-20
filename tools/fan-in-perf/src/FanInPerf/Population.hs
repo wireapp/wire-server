@@ -1,10 +1,18 @@
--- | Which streams each simulated reader client subscribes to. Derived from the
--- same stream pools the writers use, so readers poll streams that get written.
+-- | The simulated readers: teams of users, each user with its clients. Derived
+-- from the pools the writers use, so readers poll streams that get written.
+-- A reader is one client of one user and fetches and acks as that
+-- (user, client): 'readerStreams' derives its user and client streams from
+-- the same pair.
 module FanInPerf.Population
-  ( Client (..),
+  ( SimTeam (..),
+    SimUser (..),
+    Reader (..),
     Key,
+    streamKey,
     Population (..),
     mkPopulation,
+    readers,
+    readerStreams,
     streamKind,
     expectedDeliveries,
     coverage,
@@ -12,17 +20,38 @@ module FanInPerf.Population
 where
 
 import Data.Id
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
-import Data.Text qualified as T
+import Data.Misc (showT)
+import Data.Set qualified as Set
 import Data.Vector qualified as V
 import FanInPerf.Targets
-import Imports
+import Imports hiding (Reader)
+import System.Random (StdGen)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.FanInNotificationsStore
 
-newtype Client = Client {streams :: [Stream]}
+data SimTeam = SimTeam
+  { tid :: !TeamId,
+    members :: !(NonEmpty SimUser)
+  }
+
+data SimUser = SimUser
+  { uid :: !UserId,
+    -- | [] without 'epoch' in --targets; shared by all clients of the user
+    epochs :: ![(GroupId, Epoch)],
+    -- | 1..k, one reader thread each
+    clients :: !(NonEmpty ClientId)
+  }
+
+-- | What one reader thread needs.
+data Reader = Reader
+  { team :: !(Maybe TeamId),
+    user :: !SimUser,
+    cid :: !ClientId
+  }
 
 -- | Identifies one stream. 'Epoch' has no 'Ord', hence the plain number.
 data Key
@@ -33,10 +62,77 @@ data Key
   deriving (Eq, Ord, Show)
 
 data Population = Population
-  { simClients :: [Client],
-    -- | Number of clients reading each stream (streams nobody reads are absent).
+  { -- | 'team' in --targets: every user is in exactly one team ...
+    teams :: [SimTeam],
+    -- | ... otherwise all users are here.
+    personalUsers :: [SimUser],
+    -- | kinds present in --targets
+    kinds :: Set TargetKind,
+    -- | Number of readers of each stream (streams nobody reads are absent).
     subscribers :: Map Key Int
   }
+
+readers :: Population -> [Reader]
+readers p =
+  [Reader (Just t.tid) u c | t <- p.teams, u <- toList t.members, c <- toList u.clients]
+    <> [Reader Nothing u c | u <- p.personalUsers, c <- toList u.clients]
+
+-- | The only place reader streams come from.
+readerStreams :: Set TargetKind -> Reader -> [Stream]
+readerStreams kinds r =
+  [StreamUser r.user.uid | KindUser `Set.member` kinds]
+    <> [StreamClient r.user.uid r.cid | KindClients `Set.member` kinds]
+    <> [StreamTeam t | Just t <- [r.team]]
+    <> [uncurry StreamEpoch e | e <- r.user.epochs]
+
+-- | @mkPopulation clients epochsPerClient clientsPerUser entries gen@. Users
+-- are the shared uids of the user/clients pools ('mkEntries'), otherwise
+-- @ceil (clients / clientsPerUser)@ synthetic ones drawn from @gen@. Clients
+-- go round-robin over the users: user @u@ gets client ids @1..k_u@ (counts
+-- differ by at most one); users without clients are left out. User @u@ is in
+-- team @u mod S_t@ and reads @E@ consecutive epoch streams from @u * E@.
+-- 'entries' is never empty (the CLI requires at least one target entry).
+mkPopulation :: Int -> Int -> Int -> V.Vector Entry -> StdGen -> Either Text Population
+mkPopulation n epochs clientsPerUser entries gen = do
+  when (any ((== KindConnections) . (.spec.kind)) es) $
+    Left "connections targets are not supported by consume"
+  let kinds = Set.fromList (map (.spec.kind) es)
+      uids = fromMaybe (V.unfoldrExactN (ceilDiv n clientsPerUser) genId gen) (poolUsers es)
+      s = V.length uids
+  when (KindClients `Set.member` kinds && n > s * clientsPerUser) $
+    Left ("clients: " <> showT n <> " clients need at least that many (user, client id) pairs, the pool has " <> showT (s * clientsPerUser))
+  epochsOf <- userEpochs epochs es
+  let users = [(u, SimUser (uids V.! u) (epochsOf u) (clientIdsUpTo (ceilDiv (n - u) s))) | u <- [0 .. min n s - 1]]
+      (teams, personalUsers) = case [v | Entry _ (TeamPool v) <- es] of
+        v : _ -> (groupTeams v users, [])
+        [] -> ([], map snd users)
+      p = Population {teams, personalUsers, kinds, subscribers = mempty}
+  pure p {subscribers = Map.fromListWith (+) [(streamKey st, 1) | r <- readers p, st <- readerStreams kinds r]}
+  where
+    es = V.toList entries
+    ceilDiv a b = (a + b - 1) `div` b
+
+-- | The longer of the user and clients pools holds all shared uids (both are
+-- prefixes of one vector, see 'mkEntries').
+poolUsers :: [Entry] -> Maybe (V.Vector UserId)
+poolUsers es =
+  listToMaybe . sortOn (Down . V.length) $
+    [v | Entry _ (UserPool v) <- es] <> [V.map fst v | Entry _ (ClientsPool v) <- es]
+
+-- | @E@ consecutive epoch streams per user index; none without 'epoch'.
+userEpochs :: Int -> [Entry] -> Either Text (Int -> [(GroupId, Epoch)])
+userEpochs e es = case [v | Entry _ (EpochPool v) <- es] of
+  [] -> Right (const [])
+  v : _
+    | e > V.length v -> Left ("epoch: --epochs-per-client " <> showT e <> " exceeds the " <> showT (V.length v) <> " epoch streams")
+    | otherwise -> Right (\u -> [v V.! ((u * e + j) `mod` V.length v) | j <- [0 .. e - 1]])
+
+-- | User @u@ joins team @u mod S_t@; teams without members are left out.
+groupTeams :: V.Vector TeamId -> [(Int, SimUser)] -> [SimTeam]
+groupTeams v users =
+  [ SimTeam (v V.! t) ms
+  | (t, ms) <- Map.toList (Map.fromListWith (flip (<>)) [(u `mod` V.length v, su :| []) | (u, su) <- users])
+  ]
 
 streamKey :: Stream -> Key
 streamKey = \case
@@ -60,35 +156,6 @@ targetKeys = \case
   TargetTeam t -> [KTeam t]
   TargetEpoch (g, e) -> [KEpoch g e.epochNumber]
   TargetConnections _ -> []
-
--- | @mkPopulation clients epochsPerClient entries@. 'entries' is never empty
--- (the CLI requires at least one target entry).
-mkPopulation :: Int -> Int -> V.Vector Entry -> Either Text Population
-mkPopulation clients epochsPerClient entries = do
-  perEntry <- traverse (clientStreams clients epochsPerClient) (V.toList entries)
-  let simClients = map (Client . concat) (transpose perEntry)
-      subscribers = Map.fromListWith (+) [(streamKey s, 1) | c <- simClients, s <- c.streams]
-  pure Population {simClients, subscribers}
-
--- | For one entry: the streams it gives to each client (index = client number).
-clientStreams :: Int -> Int -> Entry -> Either Text [[Stream]]
-clientStreams clients epochs e = case e.pool of
-  UserPool v -> Right [[StreamUser (v V.! (i `mod` s))] | i <- idxs]
-  TeamPool v -> Right [[StreamTeam (v V.! (i `mod` s))] | i <- idxs]
-  ClientsPool v ->
-    let perUser = maybe 0 (NE.length . snd) (v V.!? 0)
-     in if clients > s * perUser
-          then Left ("clients: " <> n clients <> " clients need at least that many (user, client id) pairs, the pool has " <> n (s * perUser))
-          else Right [[let (uid, cids) = v V.! (i `mod` s) in StreamClient uid (cids NE.!! (i `div` s))] | i <- idxs]
-  EpochPool v
-    | epochs > s -> Left ("epoch: --epochs-per-client " <> n epochs <> " exceeds the " <> n s <> " epoch streams")
-    | otherwise ->
-        Right [[uncurry StreamEpoch (v V.! ((i * epochs + j) `mod` s)) | j <- [0 .. epochs - 1]] | i <- idxs]
-  ConnectionsPool _ -> Left "connections targets are not supported by consume"
-  where
-    s = e.spec.streams
-    idxs = [0 .. clients - 1]
-    n = T.pack . show
 
 -- | Notifications that reach readers when this push succeeds.
 expectedDeliveries :: Map Key Int -> FanInPush -> Int

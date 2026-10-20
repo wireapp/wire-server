@@ -3,10 +3,12 @@ module FanInPerf.Metrics
     newMetrics,
     publish,
     latencySampleGroup,
-    histogramSampleGroup,
     ConsumeMetrics,
     newConsumeMetrics,
     publishConsume,
+    AckMetrics,
+    newAckMetrics,
+    publishAcks,
     metricsApp,
     runMetricsServer,
   )
@@ -56,17 +58,20 @@ publish :: Metrics -> TickReport -> IO ()
 publish m r = do
   for_ allKinds $ \k -> do
     let lbl = (m.experimentName, kindName k)
-    add m.pushes lbl (pushesOf k r.delta)
-    add m.targets lbl (targetsOf k r.delta)
-    add m.errors lbl (errorsOf k r.delta)
-  set m.pushRateCurrent r.pushRate
-  set m.pushRateMax r.maxPushRate
-  set m.errorRateCurrent r.errorRate
-  set m.errorRatioCurrent r.errorRatio
+    addCounter m.pushes lbl (pushesOf k r.delta)
+    addCounter m.targets lbl (targetsOf k r.delta)
+    addCounter m.errors lbl (errorsOf k r.delta)
+  setGauge m.experimentName m.pushRateCurrent r.pushRate
+  setGauge m.experimentName m.pushRateMax r.maxPushRate
+  setGauge m.experimentName m.errorRateCurrent r.errorRate
+  setGauge m.experimentName m.errorRatioCurrent r.errorRatio
   writeIORef m.latency (latencyBuckets r.total)
-  where
-    add v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fromIntegral n))
-    set g x = P.withLabel g m.experimentName (`P.setGauge` x)
+
+addCounter :: P.Vector P.Label2 P.Counter -> (Text, Text) -> Int -> IO ()
+addCounter v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fromIntegral n))
+
+setGauge :: Text -> P.Vector P.Label1 P.Gauge -> Double -> IO ()
+setGauge experiment g x = P.withLabel g experiment (`P.setGauge` x)
 
 counterVec :: Text -> Text -> IO (P.Vector P.Label2 P.Counter)
 counterVec name help = P.register $ P.vector ("experiment", "kind") $ P.counter (P.Info name help)
@@ -82,8 +87,7 @@ histogramMetric name help experiment ref =
 latencySampleGroup :: Text -> VU.Vector Int -> P.SampleGroup
 latencySampleGroup = histogramSampleGroup "fanin_perf_push_duration_seconds" "Push latency in seconds"
 
--- | Bucket bounds are powers of two in nanoseconds; '_sum' is approximated by
--- bucket midpoints.
+-- | Bucket bounds are those of 'bucketIndex' (four per power of two).
 histogramSampleGroup :: Text -> Text -> Text -> VU.Vector Int -> P.SampleGroup
 histogramSampleGroup name help experiment buckets =
   P.SampleGroup info P.HistogramType (bucketSamples <> [sumSample, countSample])
@@ -97,10 +101,12 @@ histogramSampleGroup name help experiment buckets =
       | (b, c) <- zip [0 ..] cumulative
       ]
         <> [P.Sample (name <> "_bucket") [lbl, ("le", "+Inf")] (bshow count)]
-    -- REVIEW: This needs a better explanation!
-    -- midpoint of [2^b, 2^(b+1)) is 0.75 * upper bound
+    -- The tool keeps only bucket counts, not the observed values, so '_sum'
+    -- is an estimate: every value is taken to lie in the middle of its bucket
+    -- (at most 12.5% off for a single value). sum / count in Grafana is
+    -- therefore an approximate mean.
     approxSum :: Double
-    approxSum = sum [fromIntegral c * 0.75 * bucketUpperBoundSeconds b | (b, c) <- zip [0 ..] (VU.toList buckets)]
+    approxSum = sum [fromIntegral c * bucketMidSeconds b | (b, c) <- zip [0 ..] (VU.toList buckets)]
     sumSample = P.Sample (name <> "_sum") [lbl] (bshow approxSum)
     countSample = P.Sample (name <> "_count") [lbl] (bshow count)
     bshow :: (Show a) => a -> ByteString
@@ -116,7 +122,8 @@ data ConsumeMetrics = ConsumeMetrics
     consumeRateMax :: P.Vector P.Label1 P.Gauge,
     backlogGauge :: P.Vector P.Label1 P.Gauge,
     fetchLatencyRef :: IORef (VU.Vector Int),
-    lagRef :: IORef (VU.Vector Int)
+    lagRef :: IORef (VU.Vector Int),
+    gateWaitRef :: IORef (VU.Vector Int)
   }
 
 -- | Registers the consume metrics; call once per process.
@@ -133,27 +140,59 @@ newConsumeMetrics experiment clients = do
   P.withLabel clientsGauge experiment (`P.setGauge` fromIntegral clients)
   fetchLatencyRef <- newIORef (VU.replicate numBuckets 0)
   lagRef <- newIORef (VU.replicate numBuckets 0)
+  gateWaitRef <- newIORef (VU.replicate numBuckets 0)
   _ <- P.register (histogramMetric "fanin_perf_fetch_duration_seconds" "Fetch latency in seconds" experiment fetchLatencyRef)
   _ <- P.register (histogramMetric "fanin_perf_delivery_lag_seconds" "Time from a notification's creation to its delivery to a reader" experiment lagRef)
-  pure ConsumeMetrics {experiment, consumed, fetchCount, emptyFetchCount, fetchErrorCount, consumeRateCurrent, consumeRateMax, backlogGauge, fetchLatencyRef, lagRef}
+  _ <- P.register (histogramMetric "fanin_perf_gate_wait_seconds" "Wait for a reader gate slot (--reader-pool-size concurrent store calls) before a fetch or ack, in seconds" experiment gateWaitRef)
+  pure ConsumeMetrics {experiment, consumed, fetchCount, emptyFetchCount, fetchErrorCount, consumeRateCurrent, consumeRateMax, backlogGauge, fetchLatencyRef, lagRef, gateWaitRef}
 
 -- | Only the ticker thread calls this.
 publishConsume :: ConsumeMetrics -> ConsumeReport -> IO ()
 publishConsume m r = do
   for_ allKinds $ \k -> do
     let lbl = (m.experiment, kindName k)
-    add m.consumed lbl (deliveredOf k r.readerDelta)
-    add m.fetchCount lbl (fetchesOf k r.readerDelta)
-    add m.emptyFetchCount lbl (emptyFetchesOf k r.readerDelta)
-    add m.fetchErrorCount lbl (fetchErrorsOf k r.readerDelta)
-  set m.consumeRateCurrent r.consumeRate
-  set m.consumeRateMax r.maxConsumeRate
-  set m.backlogGauge (fromIntegral r.backlog)
+    addCounter m.consumed lbl (deliveredOf k r.readerDelta)
+    addCounter m.fetchCount lbl (fetchesOf k r.readerDelta)
+    addCounter m.emptyFetchCount lbl (emptyFetchesOf k r.readerDelta)
+    addCounter m.fetchErrorCount lbl (fetchErrorsOf k r.readerDelta)
+  setGauge m.experiment m.consumeRateCurrent r.consumeRate
+  setGauge m.experiment m.consumeRateMax r.maxConsumeRate
+  setGauge m.experiment m.backlogGauge (fromIntegral r.backlog)
   writeIORef m.fetchLatencyRef (fetchLatencyBuckets r.readerTotal)
   writeIORef m.lagRef (lagBuckets r.readerTotal)
-  where
-    add v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fromIntegral n))
-    set g x = P.withLabel g m.experiment (`P.setGauge` x)
+  writeIORef m.gateWaitRef (gateWaitBuckets r.readerTotal)
+
+data AckMetrics = AckMetrics
+  { experiment :: Text,
+    ackCount :: P.Vector P.Label2 P.Counter,
+    ackErrorCount :: P.Vector P.Label2 P.Counter,
+    ackRateCurrent :: P.Vector P.Label1 P.Gauge,
+    ackRateMax :: P.Vector P.Label1 P.Gauge,
+    ackLatencyRef :: IORef (VU.Vector Int)
+  }
+
+-- | Registers the ack metrics; call once per process and only when readers
+-- acknowledge, so B's /metrics stay unchanged.
+newAckMetrics :: Text -> IO AckMetrics
+newAckMetrics experiment = do
+  ackCount <- counterVec "fanin_perf_acks_total" "Ack upserts (one per stream at an ack point)"
+  ackErrorCount <- counterVec "fanin_perf_ack_errors_total" "Failed ack upserts"
+  ackRateCurrent <- gaugeVec "fanin_perf_ack_rate_current" "Ack upserts per second during the last tick"
+  ackRateMax <- gaugeVec "fanin_perf_ack_rate_max" "Maximal ack upserts per second after warmup"
+  ackLatencyRef <- newIORef (VU.replicate numBuckets 0)
+  _ <- P.register (histogramMetric "fanin_perf_ack_duration_seconds" "Ack upsert latency in seconds" experiment ackLatencyRef)
+  pure AckMetrics {..}
+
+-- | Only the ticker thread calls this.
+publishAcks :: AckMetrics -> ConsumeReport -> IO ()
+publishAcks m r = do
+  for_ allKinds $ \k -> do
+    let lbl = (m.experiment, kindName k)
+    addCounter m.ackCount lbl (acksOf k r.readerDelta)
+    addCounter m.ackErrorCount lbl (ackErrorsOf k r.readerDelta)
+  setGauge m.experiment m.ackRateCurrent r.ackRate
+  setGauge m.experiment m.ackRateMax r.maxAckRate
+  writeIORef m.ackLatencyRef (ackLatencyBuckets r.readerTotal)
 
 metricsApp :: Wai.Application
 metricsApp req respond = case Wai.pathInfo req of

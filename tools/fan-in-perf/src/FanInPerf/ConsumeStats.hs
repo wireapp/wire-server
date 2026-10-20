@@ -5,6 +5,9 @@ module FanInPerf.ConsumeStats
     newReaderStats,
     recordFetch,
     recordFetchError,
+    recordAck,
+    recordAckError,
+    recordGateWait,
     ReaderSnapshot,
     emptyReaderSnapshot,
     readReaderSnapshot,
@@ -14,12 +17,18 @@ module FanInPerf.ConsumeStats
     fetchesOf,
     emptyFetchesOf,
     fetchErrorsOf,
+    acksOf,
+    ackErrorsOf,
     totalDelivered,
     totalFetches,
     totalEmptyFetches,
     totalFetchErrors,
+    totalAcks,
+    totalAckErrors,
     fetchLatencyBuckets,
     lagBuckets,
+    ackLatencyBuckets,
+    gateWaitBuckets,
     ConsumeTickState,
     initialConsumeTickState,
     ConsumeReport (..),
@@ -31,7 +40,7 @@ import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict qualified as Map
 import Data.Vector.Unboxed qualified as VU
-import FanInPerf.Stats (bucketIndex, minTickInterval, quantileSeconds, toBuckets)
+import FanInPerf.Stats (bucketIndex, minTickInterval, quantileSeconds, ratio, toBuckets)
 import FanInPerf.Targets (TargetKind)
 import Imports
 
@@ -41,14 +50,30 @@ data ReaderSnapshot = ReaderSnapshot
     emptyFetches :: !(Map TargetKind Int),
     fetchErrors :: !(Map TargetKind Int),
     fetchLatency :: !(IntMap Int),
-    lag :: !(IntMap Int)
+    lag :: !(IntMap Int),
+    acks :: !(Map TargetKind Int),
+    ackErrors :: !(Map TargetKind Int),
+    ackLatency :: !(IntMap Int),
+    gateWait :: !(IntMap Int)
   }
   deriving (Eq, Show)
 
 newtype ReaderStats = ReaderStats (IORef ReaderSnapshot)
 
 emptyReaderSnapshot :: ReaderSnapshot
-emptyReaderSnapshot = ReaderSnapshot mempty mempty mempty mempty mempty mempty
+emptyReaderSnapshot =
+  ReaderSnapshot
+    { delivered = mempty,
+      fetches = mempty,
+      emptyFetches = mempty,
+      fetchErrors = mempty,
+      fetchLatency = mempty,
+      lag = mempty,
+      acks = mempty,
+      ackErrors = mempty,
+      ackLatency = mempty,
+      gateWait = mempty
+    }
 
 newReaderStats :: IO ReaderStats
 newReaderStats = ReaderStats <$> newIORef emptyReaderSnapshot
@@ -76,6 +101,23 @@ recordFetch stats k latencyNs lagsNs =
 recordFetchError :: ReaderStats -> TargetKind -> IO ()
 recordFetchError stats k = modifyReader stats $ \s -> s {fetchErrors = bump k 1 s.fetchErrors}
 
+-- | One ack upsert of a stream of the given kind and its latency (ns).
+recordAck :: ReaderStats -> TargetKind -> Word64 -> IO ()
+recordAck stats k latencyNs =
+  modifyReader stats $ \s ->
+    s
+      { acks = bump k 1 s.acks,
+        ackLatency = IntMap.insertWith (+) (bucketIndex latencyNs) 1 s.ackLatency
+      }
+
+recordAckError :: ReaderStats -> TargetKind -> IO ()
+recordAckError stats k = modifyReader stats $ \s -> s {ackErrors = bump k 1 s.ackErrors}
+
+-- | One wait (ns) for a slot of the reader gate before a store call.
+recordGateWait :: ReaderStats -> Word64 -> IO ()
+recordGateWait stats waitNs =
+  modifyReader stats $ \s -> s {gateWait = IntMap.insertWith (+) (bucketIndex waitNs) 1 s.gateWait}
+
 readReaderSnapshot :: ReaderStats -> IO ReaderSnapshot
 readReaderSnapshot (ReaderStats r) = atomicModifyIORef' r (\s -> (s, s))
 
@@ -89,7 +131,11 @@ sumReaderSnapshots = foldl' add emptyReaderSnapshot
           emptyFetches = Map.unionWith (+) x.emptyFetches y.emptyFetches,
           fetchErrors = Map.unionWith (+) x.fetchErrors y.fetchErrors,
           fetchLatency = IntMap.unionWith (+) x.fetchLatency y.fetchLatency,
-          lag = IntMap.unionWith (+) x.lag y.lag
+          lag = IntMap.unionWith (+) x.lag y.lag,
+          acks = Map.unionWith (+) x.acks y.acks,
+          ackErrors = Map.unionWith (+) x.ackErrors y.ackErrors,
+          ackLatency = IntMap.unionWith (+) x.ackLatency y.ackLatency,
+          gateWait = IntMap.unionWith (+) x.gateWait y.gateWait
         }
 
 diffReaderSnapshot :: ReaderSnapshot -> ReaderSnapshot -> ReaderSnapshot
@@ -100,7 +146,11 @@ diffReaderSnapshot new old =
       emptyFetches = diffMap new.emptyFetches old.emptyFetches,
       fetchErrors = diffMap new.fetchErrors old.fetchErrors,
       fetchLatency = IntMap.unionWith (+) new.fetchLatency (negate <$> old.fetchLatency),
-      lag = IntMap.unionWith (+) new.lag (negate <$> old.lag)
+      lag = IntMap.unionWith (+) new.lag (negate <$> old.lag),
+      acks = diffMap new.acks old.acks,
+      ackErrors = diffMap new.ackErrors old.ackErrors,
+      ackLatency = IntMap.unionWith (+) new.ackLatency (negate <$> old.ackLatency),
+      gateWait = IntMap.unionWith (+) new.gateWait (negate <$> old.gateWait)
     }
   where
     diffMap n o = Map.unionWith (+) n (negate <$> o)
@@ -110,6 +160,20 @@ deliveredOf k s = Map.findWithDefault 0 k s.delivered
 fetchesOf k s = Map.findWithDefault 0 k s.fetches
 emptyFetchesOf k s = Map.findWithDefault 0 k s.emptyFetches
 fetchErrorsOf k s = Map.findWithDefault 0 k s.fetchErrors
+
+acksOf, ackErrorsOf :: TargetKind -> ReaderSnapshot -> Int
+acksOf k s = Map.findWithDefault 0 k s.acks
+ackErrorsOf k s = Map.findWithDefault 0 k s.ackErrors
+
+totalAcks, totalAckErrors :: ReaderSnapshot -> Int
+totalAcks s = sum s.acks
+totalAckErrors s = sum s.ackErrors
+
+ackLatencyBuckets :: ReaderSnapshot -> VU.Vector Int
+ackLatencyBuckets s = toBuckets s.ackLatency
+
+gateWaitBuckets :: ReaderSnapshot -> VU.Vector Int
+gateWaitBuckets s = toBuckets s.gateWait
 
 totalDelivered, totalFetches, totalEmptyFetches, totalFetchErrors :: ReaderSnapshot -> Int
 totalDelivered s = sum s.delivered
@@ -125,11 +189,12 @@ data ConsumeTickState = ConsumeTickState
   { startedAt :: Double,
     lastTickAt :: Double,
     previousSnapshot :: ReaderSnapshot,
-    peakRate :: Double
+    peakRate :: Double,
+    peakAckRate :: Double
   }
 
 initialConsumeTickState :: Double -> ConsumeTickState
-initialConsumeTickState now = ConsumeTickState now now emptyReaderSnapshot 0
+initialConsumeTickState now = ConsumeTickState now now emptyReaderSnapshot 0 0
 
 data ConsumeReport = ConsumeReport
   { consumeRate :: Double,
@@ -138,10 +203,20 @@ data ConsumeReport = ConsumeReport
     -- | empty fetches / fetches during the last tick
     emptyFetchRatio :: Double,
     fetchErrorRate :: Double,
+    -- | percentiles of the last tick (the summary uses the totals instead)
     lagP50 :: Maybe Double,
     lagP99 :: Maybe Double,
     fetchP50 :: Maybe Double,
     fetchP99 :: Maybe Double,
+    -- | upserts per second; 0 / Nothing without acks
+    ackRate :: Double,
+    maxAckRate :: Double,
+    ackErrorRate :: Double,
+    ackP50 :: Maybe Double,
+    ackP99 :: Maybe Double,
+    -- | waits for a reader gate slot; Nothing without any
+    gateWaitP50 :: Maybe Double,
+    gateWaitP99 :: Maybe Double,
     -- | expected - delivered, clamped at 0: readers may see a push before the
     -- writer has recorded its expected deliveries.
     backlog :: Int,
@@ -150,30 +225,42 @@ data ConsumeReport = ConsumeReport
   }
   deriving (Eq, Show)
 
--- | @consumeTick warmup now expectedTotal readerTotal state@.
-consumeTick :: Double -> Double -> Int -> ReaderSnapshot -> ConsumeTickState -> (ConsumeReport, ConsumeTickState)
-consumeTick warmup now expectedTotal total st =
+-- | @consumeTick warmup writing now expectedTotal readerTotal state@. Peaks
+-- only count while the writers run (@writing@): the drain afterwards has the
+-- readers to itself and would inflate them.
+consumeTick :: Double -> Bool -> Double -> Int -> ReaderSnapshot -> ConsumeTickState -> (ConsumeReport, ConsumeTickState)
+consumeTick warmup writing now expectedTotal total st =
   let dt = now - st.lastTickAt
       delta = diffReaderSnapshot total st.previousSnapshot
       rate :: Int -> Double
-      rate n = if dt > 0 then fromIntegral n / dt else 0
+      rate n = ratio n dt
       elapsed = now - st.startedAt
       consumeRate = rate (totalDelivered delta)
-      peak = if elapsed > warmup && dt >= minTickInterval then max st.peakRate consumeRate else st.peakRate
+      afterWarmup = writing && elapsed > warmup && dt >= minTickInterval
+      peak = if afterWarmup then max st.peakRate consumeRate else st.peakRate
+      ackRate = rate (totalAcks delta)
+      peakAck = if afterWarmup then max st.peakAckRate ackRate else st.peakAckRate
       fetchesInTick = totalFetches delta
       report =
         ConsumeReport
           { consumeRate,
             maxConsumeRate = peak,
             fetchRate = rate fetchesInTick,
-            emptyFetchRatio = if fetchesInTick > 0 then fromIntegral (totalEmptyFetches delta) / fromIntegral fetchesInTick else 0,
+            emptyFetchRatio = ratio (totalEmptyFetches delta) fetchesInTick,
             fetchErrorRate = rate (totalFetchErrors delta),
-            lagP50 = quantileSeconds 0.5 (lagBuckets total),
-            lagP99 = quantileSeconds 0.99 (lagBuckets total),
-            fetchP50 = quantileSeconds 0.5 (fetchLatencyBuckets total),
-            fetchP99 = quantileSeconds 0.99 (fetchLatencyBuckets total),
+            lagP50 = quantileSeconds 0.5 (lagBuckets delta),
+            lagP99 = quantileSeconds 0.99 (lagBuckets delta),
+            fetchP50 = quantileSeconds 0.5 (fetchLatencyBuckets delta),
+            fetchP99 = quantileSeconds 0.99 (fetchLatencyBuckets delta),
+            ackRate,
+            maxAckRate = peakAck,
+            ackErrorRate = rate (totalAckErrors delta),
+            ackP50 = quantileSeconds 0.5 (ackLatencyBuckets delta),
+            ackP99 = quantileSeconds 0.99 (ackLatencyBuckets delta),
+            gateWaitP50 = quantileSeconds 0.5 (gateWaitBuckets delta),
+            gateWaitP99 = quantileSeconds 0.99 (gateWaitBuckets delta),
             backlog = max 0 (expectedTotal - totalDelivered total),
             readerDelta = delta,
             readerTotal = total
           }
-   in (report, st {lastTickAt = now, previousSnapshot = total, peakRate = peak})
+   in (report, st {lastTickAt = now, previousSnapshot = total, peakRate = peak, peakAckRate = peakAck})
