@@ -54,6 +54,7 @@ postgresMigration:
   customBackend: postgresql
   scimTokens: postgresql
   scimExternalIds: postgresql
+  samlUsers: postgresql
 
   # Wire/AWS specific, optional
 # discoUrl: "https://"

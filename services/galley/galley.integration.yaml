@@ -274,3 +274,4 @@ postgresMigration:
   customBackend: postgresql
   scimTokens: cassandra
   scimExternalIds: cassandra
+  samlUsers: cassandra

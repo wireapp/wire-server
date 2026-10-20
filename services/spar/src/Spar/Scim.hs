@@ -84,7 +84,6 @@ import Spar.Options
 import Spar.Scim.Auth
 import Spar.Scim.Group ()
 import Spar.Scim.User
-import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import System.Logger (Msg)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Group as Scim.Group
@@ -100,6 +99,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.IdPConfigStore (IdPConfigStore)
 import Wire.Reporter (Reporter)
+import Wire.SAMLUserStore (SAMLUserStore)
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimSubsystem
 import Wire.ScimTokenStore (ScimTokenStore)

@@ -22,25 +22,13 @@ module Spar.Data
     mkEnv,
     mkTTLAssertions,
     mkTTLAuthnRequests,
-
-    -- * SAML Users
-    NormalizedUNameID (..),
-    normalizeUnqualifiedNameId,
-    normalizeQualifiedNameId,
   )
 where
 
-import Cassandra as Cas
-import Control.Lens
 import Control.Monad.Except
-import Data.CaseInsensitive (foldCase)
-import qualified Data.CaseInsensitive as CI
 import Data.Time
 import GHC.TypeLits (KnownSymbol)
 import Imports
-import SAML2.Util (renderURI)
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Options
 import qualified Spar.Schema.Run as Migrations
 import Wire.API.User.Saml
@@ -93,32 +81,3 @@ nominalDiffToSeconds = round @Double . realToFrac
 
 ----------------------------------------------------------------------
 -- user
-
--- | Used as a lookup key for 'UnqualifiedNameID' that only depends on the
--- lowercase version of the identifier. Use 'normalizeUnqualifiedNameId' or
--- 'normalizeQualifiedNameId' to create values.
-newtype NormalizedUNameID = NormalizedUNameID {unNormalizedUNameID :: Text}
-  deriving stock (Eq, Ord, Generic)
-
-instance Cql NormalizedUNameID where
-  ctype = Tagged TextColumn
-  toCql = CqlText . unNormalizedUNameID
-  fromCql (CqlText t) = pure $ NormalizedUNameID t
-  fromCql _ = Left "NormalizedNameID: expected CqlText"
-
-normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
-normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
-  where
-    nameIdTxt :: SAML.UnqualifiedNameID -> Text
-    nameIdTxt (SAML.UNameIDUnspecified txt) = txt
-    nameIdTxt (SAML.UNameIDEmail email) = SAMLEmail.render $ CI.original email
-    nameIdTxt (SAML.UNameIDX509 txt) = txt
-    nameIdTxt (SAML.UNameIDWindows txt) = txt
-    nameIdTxt (SAML.UNameIDKerberos txt) = txt
-    nameIdTxt (SAML.UNameIDEntity uri) = renderURI uri
-    nameIdTxt (SAML.UNameIDPersistent txt) = txt
-    nameIdTxt (SAML.UNameIDTransient txt) = txt
-
--- | Qualifiers are ignored.
-normalizeQualifiedNameId :: SAML.NameID -> NormalizedUNameID
-normalizeQualifiedNameId = normalizeUnqualifiedNameId . view SAML.nameID

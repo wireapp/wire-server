@@ -84,8 +84,6 @@ import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified System.Logger as TinyLog
@@ -105,6 +103,8 @@ import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.Reporter (Reporter)
 import qualified Wire.Reporter as Reporter
+import Wire.SAMLUserStore (SAMLUserStore)
+import qualified Wire.SAMLUserStore as SAMLUserStore
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 import Wire.ScimSubsystem.Interpreter

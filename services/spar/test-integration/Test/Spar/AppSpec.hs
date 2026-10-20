@@ -35,7 +35,6 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Spar.App as Spar
 import Spar.Orphans ()
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Text.XML as XML
 import qualified Text.XML.DSig as DSig
 import URI.ByteString as URI
@@ -44,6 +43,7 @@ import Util
 import Web.Cookie
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
+import qualified Wire.SAMLUserStore as SAMLUserStore
 
 spec :: SpecWith TestEnv
 spec = describe "accessVerdict" $ do
