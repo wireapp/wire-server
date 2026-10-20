@@ -1,0 +1,34 @@
+receivers:
+  postgresql:
+    endpoint: postgres:5432
+    username: wire-server
+    password: posty-the-gres
+    databases:
+      - backendA
+      - backendB
+      - dyn-1
+      - dyn-2
+      - dyn-3
+    collection_interval: 15s
+    tls:
+      insecure: true
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'postgres-exporter'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['postgres-exporter:9187']
+
+exporters:
+  otlp:
+    endpoint: grafana-lgtm:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [postgresql, prometheus]
+      exporters: [otlp]
