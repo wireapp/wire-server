@@ -1285,17 +1285,6 @@ CREATE TABLE public.asset (
 ALTER TABLE public.asset OWNER TO "wire-server";
 
 --
--- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.email_blocklist (
-    email text NOT NULL
-);
-
-
-ALTER TABLE public.email_blocklist OWNER TO "wire-server";
-
---
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1307,6 +1296,19 @@ CREATE TABLE public.bot_conv (
 
 
 ALTER TABLE public.bot_conv OWNER TO "wire-server";
+
+--
+-- Name: budget; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.budget (
+    key text NOT NULL,
+    budget integer NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.budget OWNER TO "wire-server";
 
 --
 -- Name: collaborators; Type: TABLE; Schema: public; Owner: wire-server
@@ -1461,6 +1463,17 @@ CREATE TABLE public.domain_registration_challenge (
 
 
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
+
+--
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -1894,13 +1907,6 @@ ALTER TABLE ONLY arbiter.meetings_results
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
 
---
--- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.email_blocklist
-    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
-
 
 --
 -- Name: bot_conv bot_conv_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -1908,6 +1914,14 @@ ALTER TABLE ONLY public.email_blocklist
 
 ALTER TABLE ONLY public.bot_conv
     ADD CONSTRAINT bot_conv_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: budget budget_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.budget
+    ADD CONSTRAINT budget_pkey PRIMARY KEY (key);
 
 
 --
@@ -1980,6 +1994,14 @@ ALTER TABLE ONLY public.domain_registration_challenge
 
 ALTER TABLE ONLY public.domain_registration
     ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
 
 
 --
@@ -2380,6 +2402,13 @@ CREATE INDEX bot_conv_conv_idx ON public.bot_conv USING btree (conv);
 --
 
 CREATE INDEX bot_conv_team_idx ON public.bot_conv USING btree (conv_team);
+
+
+--
+-- Name: budget_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX budget_expires_at_idx ON public.budget USING btree (expires_at);
 
 
 --
