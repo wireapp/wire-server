@@ -129,6 +129,10 @@ import Wire.NonceStore.DualWrite
 import Wire.NonceStore.Postgres
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
+import Wire.OAuthAuthCodeStore (OAuthAuthCodeStore)
+import Wire.OAuthAuthCodeStore.Cassandra (oauthAuthCodeStoreToCassandra)
+import Wire.OAuthAuthCodeStore.DualWrite (interpretOAuthAuthCodeStoreToCassandraAndPostgres)
+import Wire.OAuthAuthCodeStore.Postgres (interpretOAuthAuthCodeStoreToPostgres)
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
@@ -283,6 +287,7 @@ type BrigLowerLevelEffects =
      Delay,
      Random,
      PasswordResetCodeStore,
+     OAuthAuthCodeStore,
      GalleyAPIAccess,
      SparAPIAccess,
      EmailSending,
@@ -475,6 +480,17 @@ runBrigToIO e (AppT ma) = do
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretBudgetStoreToPostgres
+      -- OAuthAuthCodeStore is peeled at the same slot as PasswordResetCodeStore:
+      -- it precedes the global runInputConst e.hasqlPool / mapError
+      -- postgresUsageErrorToHttpError providers, so the Postgres-backed branches
+      -- supply Input Pool and Error UsageError locally.
+      oauthAuthCodeStoreInterpreter =
+        case e.postgresMigration.oauthAuthCode of
+          CassandraStorage -> oauthAuthCodeStoreToCassandra @Cas.Client
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretOAuthAuthCodeStoreToPostgres
               . raiseUnder2
           MigrationToPostgresql ->
             runInputConst e.hasqlPool
@@ -497,6 +513,7 @@ runBrigToIO e (AppT ma) = do
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretConnectionStoreToCassandraAndPostgres
+              . interpretOAuthAuthCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
   ( either throwM pure
@@ -520,6 +537,7 @@ runBrigToIO e (AppT ma) = do
               . emailSendingInterpreter e
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
+              . oauthAuthCodeStoreInterpreter
               . passwordResetCodeStoreInterpreter
               . randomToIO
               . runDelay
