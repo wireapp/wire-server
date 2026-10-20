@@ -104,7 +104,7 @@ testCreateToken = do
         }
   -- Try to do @GET /Users@ and check that it succeeds
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
-  listUsers_ (Just token) (Just fltr) (env ^. teSpar)
+  listUsers_ (Just token) (Just fltr) Nothing Nothing (env ^. teSpar)
     !!! const 200 === statusCode
 
 -- @SF.Channel @TSFI.RESTfulAPI @S2
@@ -136,7 +136,7 @@ testCreateTokenWithVerificationCode = do
 
   -- Try to do @GET /Users@ and check that it succeeds
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
-  listUsers_ (Just token) (Just fltr) (env ^. teSpar)
+  listUsers_ (Just token) (Just fltr) Nothing Nothing (env ^. teSpar)
     !!! const 200 === statusCode
   where
     requestVerificationCode :: BrigReq -> EmailAddress -> Public.VerificationAction -> TestSpar ResponseLBS
@@ -401,11 +401,11 @@ testDeletedTokensAreUnusable = do
         }
   -- An operation with the token should succeed
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
-  listUsers_ (Just token) (Just fltr) (env ^. teSpar)
+  listUsers_ (Just token) (Just fltr) Nothing Nothing (env ^. teSpar)
     !!! const 200 === statusCode
   -- Delete the token and now the operation should fail
   deleteToken owner tokenInfo.stiId
-  listUsers_ (Just token) Nothing (env ^. teSpar)
+  listUsers_ (Just token) Nothing Nothing Nothing (env ^. teSpar)
     !!! checkErr 401 Nothing
 
 -- | Test that when a token is deleted, it no longer appears in the result of @GET
@@ -444,8 +444,8 @@ testAuthIsNeeded = do
   env <- ask
   -- Try to do @GET /Users@ with an invalid token and check that it fails
   let invalidToken = ScimToken "this-is-an-invalid-token"
-  listUsers_ (Just invalidToken) Nothing (env ^. teSpar) !!! checkErr 401 Nothing
+  listUsers_ (Just invalidToken) Nothing Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
   -- Try to do @GET /Users@ without a token and check that it fails
-  listUsers_ Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
+  listUsers_ Nothing Nothing Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
 
 -- @END

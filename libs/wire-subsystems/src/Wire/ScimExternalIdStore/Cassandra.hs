@@ -58,6 +58,7 @@ scimExternalIdStoreToCassandra =
       Delete tid eid -> deleteScimExternalId tid eid
       InsertStatus tid veid buid status -> insertScimExternalIdStatus tid veid buid status
       LookupStatus tid veid -> lookupScimExternalIdStatus tid veid
+      LookupByTeam tid -> lookupScimExternalIdsByTeam tid
 
 -- | If a scim externalId does not have an associated saml idp issuer, it cannot be stored in
 -- table @spar.user@.  In those cases, and only in those cases, we store the mapping to
@@ -101,3 +102,13 @@ lookupScimExternalIdStatus tid veid = do
   where
     sel :: PrepQuery R (TeamId, Text) (UserId, Maybe ScimUserCreationStatus)
     sel = "SELECT user, creation_status FROM scim_external WHERE team = ? and external_id = ?"
+
+-- | Return all @(externalId, userId)@ pairs stored for a given team. Used by
+-- SCIM @GET /Users@ without a filter to list the team's SCIM-managed users.
+-- 'team' is the partition key, so Cassandra serves this efficiently.
+lookupScimExternalIdsByTeam :: (HasCallStack, MonadClient m) => TeamId -> m [(Text, UserId)]
+lookupScimExternalIdsByTeam tid =
+  retry x1 . query sel $ params LocalQuorum (Identity tid)
+  where
+    sel :: PrepQuery R (Identity TeamId) (Text, UserId)
+    sel = "SELECT external_id, user FROM scim_external WHERE team = ?"

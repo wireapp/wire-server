@@ -144,10 +144,37 @@ instance
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
+    Maybe Int ->
+    Maybe Int ->
     Scim.ScimHandler (Sem r) (Scim.ListResponse (Scim.StoredUser ST.SparTag))
-  getUsers _ Nothing =
-    throwError $ Scim.badRequest Scim.TooMany (Just "Please specify a filter when getting users.")
-  getUsers tokeninfo@ScimTokenInfo {stiTeam, stiIdP} (Just filter') =
+  -- No filter: list all SCIM-managed users of the token's team, paginated per
+  -- RFC 7644 §3.4.2.4 (startIndex 1-based; count caps page size).
+  getUsers tokeninfo@ScimTokenInfo {stiTeam, stiIdP} Nothing mbStartIndex mbCount =
+    logScim
+      ( logFunction "Spar.Scim.User.getUsers"
+          . logTokenInfo tokeninfo
+      )
+      logScimUserIds
+      $ do
+        mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
+        pairs <- lift $ ScimExternalIdStore.lookupByTeam stiTeam
+        let allUids = map snd pairs
+            total = length allUids
+            -- RFC: "startIndex < 1 SHALL be interpreted as 1"
+            startIdx = max 1 (fromMaybe 1 mbStartIndex)
+            -- RFC: "negative count SHALL be interpreted as 0"; default cap if unspecified.
+            pageSize = max 0 (fromMaybe 100 mbCount)
+            pageUids = take pageSize . drop (startIdx - 1) $ allUids
+        -- getUserById returns MaybeT: entries whose brig account is missing
+        -- (half-created, deleted, out-of-team) are dropped via catMaybes.
+        users <- catMaybes <$> mapM (runMaybeT . getUserById mIdpConfig stiTeam) pageUids
+        let base = Scim.fromList users
+        pure $
+          base
+            { Scim.totalResults = total,
+              Scim.startIndex = startIdx
+            }
+  getUsers tokeninfo@ScimTokenInfo {stiTeam, stiIdP} (Just filter') _mbStartIndex _mbCount =
     logScim
       ( logFunction "Spar.Scim.User.getUsers"
           . logTokenInfo tokeninfo

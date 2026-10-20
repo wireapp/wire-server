@@ -307,7 +307,8 @@ deleteUser tok userid = do
       <!! const 204 === statusCode
   pure (responseJsonUnsafe r)
 
--- | List all users.
+-- | List all users (collects every page). Callers that want a single raw page
+-- should use 'listUsers_' directly with their own 'startIndex' / 'count'.
 listUsers ::
   (HasCallStack) =>
   ScimToken ->
@@ -319,13 +320,11 @@ listUsers tok mbFilter = do
     listUsers_
       (Just tok)
       mbFilter
+      Nothing
+      Nothing
       (env ^. teSpar)
       <!! const 200 === statusCode
   let r' = responseJsonUnsafe r
-  when (Scim.totalResults r' /= length (Scim.resources r')) $
-    error
-      "listUsers: got a paginated result, but pagination \
-      \is not supported yet"
   pure (Scim.resources r')
 
 -- | Get a user.
@@ -499,15 +498,21 @@ listUsers_ ::
   Maybe ScimToken ->
   -- | Predicate to filter the results
   Maybe Scim.Filter ->
+  -- | SCIM @startIndex@ (1-based)
+  Maybe Int ->
+  -- | SCIM @count@ (page size)
+  Maybe Int ->
   -- | Spar endpoint
   SparReq ->
   TestSpar ResponseLBS
-listUsers_ auth mbFilter spar_ = do
+listUsers_ auth mbFilter mbStartIndex mbCount spar_ = do
   call
     . get
     $ ( spar_
           . paths ["scim", "v2", "Users"]
           . queryItem' "filter" (toByteString' . Scim.renderFilter <$> mbFilter)
+          . queryItem' "startIndex" (toByteString' . show <$> mbStartIndex)
+          . queryItem' "count" (toByteString' . show <$> mbCount)
           . scimAuth auth
           . acceptScim
       )

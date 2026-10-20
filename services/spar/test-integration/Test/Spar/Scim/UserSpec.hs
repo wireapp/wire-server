@@ -419,7 +419,7 @@ specImportToScimFromInvitation =
 findUserByEmail :: ScimToken -> EmailAddress -> TestSpar (Scim.UserC.StoredUser SparTag)
 findUserByEmail tok email = do
   let fltr = filterBy "externalid" (fromEmail email)
-  resp <- listUsers_ (Just tok) (Just fltr) =<< view teSpar
+  resp <- listUsers_ (Just tok) (Just fltr) Nothing Nothing =<< view teSpar
   let users :: Scim.ListResponse (Scim.UserC.StoredUser SparTag) = responseJsonUnsafe resp
   case Scim.resources users of
     [fstUser] -> pure fstUser
@@ -1287,7 +1287,12 @@ testCreateUserTimeout = do
 -- | Tests for @GET /Users@.
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
-  it "lists all SCIM users in a team" $ testListProvisionedUsers
+  it "lists all SCIM users in a team (no filter)" $ testListProvisionedUsers
+  it "returns an empty page for a team with no SCIM users" $ testListProvisionedUsersEmptyTeam
+  it "honours count (returns no more than requested)" $ testListProvisionedUsersCount
+  it "honours startIndex (paginates past the first page)" $ testListProvisionedUsersStartIndex
+  it "returns only totalResults when count=0" $ testListProvisionedUsersCountZero
+  it "does not leak users from other teams" $ testListProvisionedUsersCrossTeamIsolation
   context "1 SAML IdP" $ do
     it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
     it "returns an empty list of SCIM-provisioned users if user not found (userName, externalId)" $ testDoNotFindProvisionedUser True
@@ -1305,16 +1310,87 @@ specListUsers = describe "GET /Users" $ do
   it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
   it "doesn't find users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
 
--- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
--- via SCIM are not listed.
+-- | @GET /Users@ without a filter returns the paginated list of the team's
+-- SCIM-managed users (RFC 7644 §3.4.2 / §3.4.2.4). Order is not guaranteed,
+-- so we compare by UserId sets.
 testListProvisionedUsers :: TestSpar ()
 testListProvisionedUsers = do
-  spar <- view teSpar
   (tok, _) <- registerIdPAndScimToken
-  listUsers_ (Just tok) Nothing spar !!! do
-    const 400 === statusCode
-    mkScimErrorResp Nothing (Just "tooMany") "400"
-      === responseBody
+  u1 <- createUser tok =<< randomScimUser
+  u2 <- createUser tok =<< randomScimUser
+  users <- listUsers tok Nothing
+  liftIO $
+    sort (scimUserId <$> users) `shouldBe` sort (scimUserId <$> [u1, u2])
+
+testListProvisionedUsersEmptyTeam :: TestSpar ()
+testListProvisionedUsersEmptyTeam = do
+  (tok, _) <- registerIdPAndScimToken
+  spar <- view teSpar
+  resp <- listUsers_ (Just tok) Nothing Nothing Nothing spar <!! const 200 === statusCode
+  let lr :: Scim.ListResponse (Scim.UserC.StoredUser SparTag) = responseJsonUnsafe resp
+  liftIO $ do
+    Scim.totalResults lr `shouldBe` 0
+    Scim.resources lr `shouldBe` []
+
+-- RFC 7644 §3.4.2.4: the server MUST NOT return more results than @count@
+-- requested. @totalResults@ reflects the full population.
+testListProvisionedUsersCount :: TestSpar ()
+testListProvisionedUsersCount = do
+  (tok, _) <- registerIdPAndScimToken
+  _ <- createUser tok =<< randomScimUser
+  _ <- createUser tok =<< randomScimUser
+  _ <- createUser tok =<< randomScimUser
+  spar <- view teSpar
+  resp <- listUsers_ (Just tok) Nothing Nothing (Just 2) spar <!! const 200 === statusCode
+  let lr :: Scim.ListResponse (Scim.UserC.StoredUser SparTag) = responseJsonUnsafe resp
+  liftIO $ do
+    Scim.totalResults lr `shouldBe` 3
+    length (Scim.resources lr) `shouldBe` 2
+    Scim.startIndex lr `shouldBe` 1
+
+-- Page 1 and page 2 must not overlap and together must cover every user.
+testListProvisionedUsersStartIndex :: TestSpar ()
+testListProvisionedUsersStartIndex = do
+  (tok, _) <- registerIdPAndScimToken
+  u1 <- createUser tok =<< randomScimUser
+  u2 <- createUser tok =<< randomScimUser
+  u3 <- createUser tok =<< randomScimUser
+  spar <- view teSpar
+  page1Resp <- listUsers_ (Just tok) Nothing (Just 1) (Just 2) spar <!! const 200 === statusCode
+  page2Resp <- listUsers_ (Just tok) Nothing (Just 3) (Just 2) spar <!! const 200 === statusCode
+  let page1 :: Scim.ListResponse (Scim.UserC.StoredUser SparTag) = responseJsonUnsafe page1Resp
+      page2 :: Scim.ListResponse (Scim.UserC.StoredUser SparTag) = responseJsonUnsafe page2Resp
+      collected = (scimUserId <$> Scim.resources page1) <> (scimUserId <$> Scim.resources page2)
+  liftIO $ do
+    Scim.startIndex page1 `shouldBe` 1
+    Scim.startIndex page2 `shouldBe` 3
+    length (Scim.resources page1) `shouldBe` 2
+    length (Scim.resources page2) `shouldBe` 1
+    sort collected `shouldBe` sort (scimUserId <$> [u1, u2, u3])
+
+-- RFC 7644: @count=0@ means totals only (no @Resources@).
+testListProvisionedUsersCountZero :: TestSpar ()
+testListProvisionedUsersCountZero = do
+  (tok, _) <- registerIdPAndScimToken
+  _ <- createUser tok =<< randomScimUser
+  _ <- createUser tok =<< randomScimUser
+  spar <- view teSpar
+  resp <- listUsers_ (Just tok) Nothing Nothing (Just 0) spar <!! const 200 === statusCode
+  let lr :: Scim.ListResponse (Scim.UserC.StoredUser SparTag) = responseJsonUnsafe resp
+  liftIO $ do
+    Scim.totalResults lr `shouldBe` 2
+    Scim.resources lr `shouldBe` []
+
+-- Token for team A must not see users of team B.
+testListProvisionedUsersCrossTeamIsolation :: TestSpar ()
+testListProvisionedUsersCrossTeamIsolation = do
+  (tokA, _) <- registerIdPAndScimToken
+  (tokB, _) <- registerIdPAndScimToken
+  uA <- createUser tokA =<< randomScimUser
+  _ <- createUser tokB =<< randomScimUser
+  usersA <- listUsers tokA Nothing
+  liftIO $ do
+    (scimUserId <$> usersA) `shouldBe` [scimUserId uA]
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do

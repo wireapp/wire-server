@@ -40,3 +40,6 @@ scimExternalIdStoreToMem = (runState mempty .) $
     Delete tid eid -> modify $ M.delete (tid, eid)
     InsertStatus tid veid uid status -> modify $ M.insert (tid, veid.validScimIdExternal) (uid, Just status)
     LookupStatus tid veid -> ((=<<) (\(uid, mStatus) -> (uid,) <$> mStatus)) <$> gets (M.lookup (tid, veid.validScimIdExternal))
+    LookupByTeam tid -> do
+      m <- get
+      pure [(eid, uid) | ((tid', eid), (uid, _)) <- M.toList m, tid' == tid]

@@ -49,6 +49,8 @@ data UserSite tag route = UserSite
   { usGetUsers ::
       route
         :- QueryParam "filter" Filter
+          :> QueryParam "startIndex" Int
+          :> QueryParam "count" Int
           :> Get '[SCIM] (ListResponse (StoredUser tag)),
     usGetUser ::
       route
@@ -79,10 +81,13 @@ data UserSite tag route = UserSite
 -- Methods used by the API
 
 class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
-  -- | Get all users, optionally filtered by a 'Filter'.
+  -- | Get all users, optionally filtered by a 'Filter', with SCIM pagination
+  -- parameters ('startIndex' is 1-based; 'count' limits results per page).
   getUsers ::
     AuthInfo tag ->
     Maybe Filter ->
+    Maybe Int ->
+    Maybe Int ->
     ScimHandler m (ListResponse (StoredUser tag))
 
   -- | Get a single user by ID.
@@ -167,9 +172,9 @@ userServer ::
   UserSite tag (AsServerT (ScimHandler m))
 userServer authData =
   UserSite
-    { usGetUsers = \mbFilter -> do
+    { usGetUsers = \mbFilter mbStartIndex mbCount -> do
         auth <- authCheck @tag authData
-        getUsers @tag auth mbFilter,
+        getUsers @tag auth mbFilter mbStartIndex mbCount,
       usGetUser = \uid -> do
         auth <- authCheck @tag authData
         getUser @tag auth uid,
