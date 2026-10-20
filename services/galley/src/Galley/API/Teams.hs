@@ -1222,6 +1222,7 @@ checkAdminLimit adminCount =
     throwS @'TooManyTeamAdmins
 
 -- | Updating a team collaborator permissions eventually cleaning their conversations
+-- TODO: move this to wire-subsystems
 updateTeamCollaborator ::
   forall r.
   ( Member P.TinyLog r,
@@ -1247,6 +1248,7 @@ updateTeamCollaborator lusr tid rusr perms = do
   internalUpdateTeamCollaborator rusr tid perms
 
 -- | Removing a team collaborator and clean their conversations
+-- TODO: move this to wire-subsystems
 removeTeamCollaborator ::
   forall r.
   ( Member NotificationSubsystem r,
