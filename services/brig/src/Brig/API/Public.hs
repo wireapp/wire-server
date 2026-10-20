@@ -95,6 +95,7 @@ import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
+import Servant.OpenApi (HasOpenApi)
 import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
@@ -111,6 +112,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
+import Wire.API.Routes.API (SpecialisedAPIRoutes)
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
@@ -122,6 +124,12 @@ import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Public.Brig.DomainVerification
+import Wire.API.Routes.Public.Brig.OAuth (OAuthAPITag)
+import Wire.API.Routes.Public.Cannon (CannonAPITag)
+import Wire.API.Routes.Public.Cargohold (CargoholdAPITag)
+import Wire.API.Routes.Public.Galley (GalleyAPITag)
+import Wire.API.Routes.Public.Gundeck (GundeckAPITag)
+import Wire.API.Routes.Public.Spar (SparAPITag)
 import Wire.API.Routes.Public.Swagger
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.Version
@@ -233,6 +241,26 @@ internalEndpointsSwaggerDocsAPIs =
     :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9088 SparInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI @"gundeck" "gundeck" 9086 GundeckInternalAPI.swaggerDoc
 
+-- | Live-rendered OpenAPI of all public services restricted to the version
+-- corresponding to @v@, adjusted like the frozen snapshots used to be: server
+-- URL set to @/vN@, title set, and servant's default responses cleaned up.
+liveSwagger ::
+  forall v.
+  ( HasOpenApi (SpecialisedAPIRoutes v BrigAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GalleyAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v SparAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CargoholdAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CannonAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GundeckAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v OAuthAPITag)
+  ) =>
+  Proxy v ->
+  VersionNumber ->
+  Servant.Server SwaggerDocsAPIBase
+liveSwagger _ vn =
+  swaggerSchemaUIServer $
+    versionedSwagger (Proxy @v) vn
+
 -- | Serves Swagger docs for public endpoints
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
@@ -241,25 +269,25 @@ versionedSwaggerDocsAPI (Just (VersionNumber V19)) =
   swaggerSchemaUIServer $
     devVersionSwagger
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-versionedSwaggerDocsAPI (Just (VersionNumber V18)) = swaggerPregenUIServer $(pregenSwagger V18)
-versionedSwaggerDocsAPI (Just (VersionNumber V17)) = swaggerPregenUIServer $(pregenSwagger V17)
-versionedSwaggerDocsAPI (Just (VersionNumber V16)) = swaggerPregenUIServer $(pregenSwagger V16)
-versionedSwaggerDocsAPI (Just (VersionNumber V15)) = swaggerPregenUIServer $(pregenSwagger V15)
-versionedSwaggerDocsAPI (Just (VersionNumber V14)) = swaggerPregenUIServer $(pregenSwagger V14)
-versionedSwaggerDocsAPI (Just (VersionNumber V13)) = swaggerPregenUIServer $(pregenSwagger V13)
-versionedSwaggerDocsAPI (Just (VersionNumber V12)) = swaggerPregenUIServer $(pregenSwagger V12)
-versionedSwaggerDocsAPI (Just (VersionNumber V11)) = swaggerPregenUIServer $(pregenSwagger V11)
-versionedSwaggerDocsAPI (Just (VersionNumber V10)) = swaggerPregenUIServer $(pregenSwagger V10)
-versionedSwaggerDocsAPI (Just (VersionNumber V9)) = swaggerPregenUIServer $(pregenSwagger V9)
-versionedSwaggerDocsAPI (Just (VersionNumber V8)) = swaggerPregenUIServer $(pregenSwagger V8)
-versionedSwaggerDocsAPI (Just (VersionNumber V7)) = swaggerPregenUIServer $(pregenSwagger V7)
-versionedSwaggerDocsAPI (Just (VersionNumber V6)) = swaggerPregenUIServer $(pregenSwagger V6)
-versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
-versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
-versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
-versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
-versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
-versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V18)) = liveSwagger (Proxy @'V18) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V17)) = liveSwagger (Proxy @'V17) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V16)) = liveSwagger (Proxy @'V16) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V15)) = liveSwagger (Proxy @'V15) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V14)) = liveSwagger (Proxy @'V14) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V13)) = liveSwagger (Proxy @'V13) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V12)) = liveSwagger (Proxy @'V12) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V11)) = liveSwagger (Proxy @'V11) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V10)) = liveSwagger (Proxy @'V10) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V9)) = liveSwagger (Proxy @'V9) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V8)) = liveSwagger (Proxy @'V8) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V7)) = liveSwagger (Proxy @'V7) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V6)) = liveSwagger (Proxy @'V6) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V5)) = liveSwagger (Proxy @'V5) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V4)) = liveSwagger (Proxy @'V4) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V3)) = liveSwagger (Proxy @'V3) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V2)) = liveSwagger (Proxy @'V2) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V1)) = liveSwagger (Proxy @'V1) vn
+versionedSwaggerDocsAPI (Just vn@(VersionNumber V0)) = liveSwagger (Proxy @'V0) vn
 versionedSwaggerDocsAPI Nothing = tocPage
   where
     -- Renders and returns a table-of-contents page
