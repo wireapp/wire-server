@@ -10,6 +10,7 @@ license:            AGPL-3.0-only
 license-file:       LICENSE
 build-type:         Simple
 extra-source-files:
+  fan-in-sql/*.sql
   postgres-migrations/*.sql
   templates/**/*.html
   templates/**/*.txt
@@ -155,6 +156,7 @@ common common-all
     , lrucaching
     , mime
     , mime-mail
+    , mmzk-typeid
     , MonadRandom
     , network
     , network-conduit-tls
@@ -349,6 +351,10 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
+    Wire.FanInNotificationsAdmin
+    Wire.FanInNotificationsAdmin.Postgres
+    Wire.FanInNotificationsStore
+    Wire.FanInNotificationsStore.Postgres
     Wire.FeaturesConfigSubsystem
     Wire.FeaturesConfigSubsystem.Interpreter
     Wire.FeaturesConfigSubsystem.Types
@@ -648,6 +654,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
+    Wire.FanInNotificationsStore.PostgresSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec
