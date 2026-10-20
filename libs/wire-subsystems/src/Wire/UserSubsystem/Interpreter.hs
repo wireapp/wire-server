@@ -712,14 +712,17 @@ guardLockedHandleField user updateOrigin handle = do
 getScimUsersPaginatedImpl ::
   ( Member UserStore r,
     Member (Input (Local any)) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member (Error UserSubsystemError) r
   ) =>
   TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (OffsetPage User)
 getScimUsersPaginatedImpl tid pageSize mOffset = do
-  mStoredUsers <- UserStore.getScimUsersPaginated tid (fromRange pageSize) mOffset
+  storedUsers <-
+    UserStore.getScimUsersPaginated tid (fromRange pageSize) mOffset
+      >>= note UserSubsystemOffsetPaginationNotSupported
   localDom <- inputs tDomain
   locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
-  pure $ (mkUserFromStored localDom locale) <$$> mStoredUsers
+  pure $ mkUserFromStored localDom locale <$> storedUsers
 
 updateUserProfileImpl ::
   ( Member UserStore r,
