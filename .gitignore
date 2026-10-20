@@ -111,3 +111,5 @@ tmp/
 
 # HLS config for haskell-tools plugin (Neovim)
 hls.json
+
+.claude
