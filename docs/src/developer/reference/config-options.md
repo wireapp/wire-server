@@ -2370,7 +2370,8 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
+The `postgresqlPassword` file is read by `brig`, `galley`, `spar`, and
+`background-worker`. Its content is
 used as `password` field.
 
 ### Using PostgreSQL for storing Cassandra-backed data
@@ -2396,6 +2397,8 @@ galley:
       budget: postgresql
       nonce: postgresql
       connections: postgresql
+      scimTokens: postgresql
+      scimExternalIds: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2407,6 +2410,8 @@ background-worker:
     migrateCustomBackend: false
     migrateNonce: false
     migrateConnections: false
+    migrateScimTokens: false
+    migrateScimExternalIds: false
 ```
 
 `spar` additionally exposes its own `spar.config.postgresMigration` block, using the
@@ -2448,6 +2453,8 @@ The current settings and their background-worker flags are:
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
+- `scimTokens` -> `migrateScimTokens`
+- `scimExternalIds` -> `migrateScimExternalIds`
 
 **Migration pattern per migration setting**
 
@@ -2486,9 +2493,11 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-   ```
+       migrateScimTokens: false
+       migrateScimExternalIds: false
+    ```
 
-   This change should restart the affected pods, and new writes will follow the
+    This change should restart the affected pods, and new writes will follow the
    migration interpreter.
 
 2. Run the backfill for the selected migration setting(s) via background-worker.
@@ -2535,6 +2544,8 @@ The current settings and their background-worker flags are:
    - `customBackend`: `wire_custom_backend_migration_finished`
    - `nonce`: `wire_nonce_migration_finished`
    - `connections`: `wire_connections_migration_finished`
+   - `scimTokens`: `wire_scim_tokens_migration_finished`
+   - `scimExternalIds`: `wire_scim_external_ids_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2555,6 +2566,8 @@ The current settings and their background-worker flags are:
          budget: postgresql
          nonce: postgresql
          connections: postgresql
+         scimTokens: cassandra
+         scimExternalIds: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2567,6 +2580,8 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
+       migrateScimTokens: false
+       migrateScimExternalIds: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2660,6 +2675,8 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
+migrateScimTokens: false
+migrateScimExternalIds: false
 
 # migration settings
 migrationOptions:

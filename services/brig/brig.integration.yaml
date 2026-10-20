@@ -184,6 +184,8 @@ postgresMigration:
   budget: postgresql
   nonce: postgresql
   connections: cassandra
+  scimTokens: cassandra
+  scimExternalIds: cassandra
 
 optSettings:
   setActivationTimeout: 4

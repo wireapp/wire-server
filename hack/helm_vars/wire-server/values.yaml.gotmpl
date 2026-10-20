@@ -316,6 +316,8 @@ galley:
       budget: {{ .Values.budgetStore }}
       nonce: {{ .Values.nonceStore }}
       connections: {{ .Values.connectionsStore }}
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -582,6 +584,8 @@ proxy:
 spar:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
+  secrets:
+    pgPassword: posty-the-gres
   resources:
     requests: {}
     limits:
@@ -612,7 +616,12 @@ spar:
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
       passwordReset: {{ .Values.passwordReset }}
-3: @ours
+      customBackend: {{ .Values.customBackendStore }}
+      budget: {{ .Values.budgetStore }}
+      nonce: {{ .Values.nonceStore }}
+      connections: {{ .Values.connectionsStore }}
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
