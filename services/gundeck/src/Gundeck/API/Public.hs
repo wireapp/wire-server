@@ -38,12 +38,18 @@ import Wire.API.Routes.Public.Gundeck
 -- Servant API
 
 servantSitemap :: ServerT GundeckAPI Gundeck
-servantSitemap = pushAPI :<|> notificationAPI :<|> timeAPI
+servantSitemap = pushAPI :<|> webPushAPI :<|> notificationAPI :<|> timeAPI
   where
     pushAPI =
       Named @"register-push-token" Push.addToken
         :<|> Named @"delete-push-token" Push.deleteToken
         :<|> Named @"get-push-tokens" Push.listTokens
+
+    webPushAPI =
+      Named @"register-web-push-subscription" Push.addWebSubscription
+        :<|> Named @"delete-web-push-subscription" Push.deleteWebSubscription
+        :<|> Named @"get-web-push-subscriptions" Push.listWebSubscriptions
+        :<|> Named @"get-vapid-public-key" Push.getVapidPublicKey
 
     notificationAPI =
       Named @"get-notification-by-id" Data.fetchId

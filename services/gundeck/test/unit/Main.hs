@@ -30,6 +30,13 @@ import ParseExistsError qualified
 import Push qualified
 import Test.Tasty
 import ThreadBudget qualified
+import Vapid qualified
+import WebPushCrypto qualified
+import WebPushDispatch qualified
+import WebPushHandlers qualified
+import WebPushRunner qualified
+import WebPushSerialise qualified
+import WebPushSsrf qualified
 
 main :: IO ()
 main =
@@ -42,5 +49,12 @@ main =
         Push.tests,
         ThreadBudget.tests,
         ParseExistsError.tests,
-        Aws.Arn.tests
+        Aws.Arn.tests,
+        Vapid.tests,
+        WebPushCrypto.tests,
+        WebPushDispatch.tests,
+        WebPushHandlers.tests,
+        WebPushRunner.tests,
+        WebPushSerialise.tests,
+        WebPushSsrf.tests
       ]
