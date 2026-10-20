@@ -57,7 +57,7 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`.
 
 | Command | Experiment | Does |
 |---|---|---|
-| `migrate [--partitioned]` | – | Creates the `--db` database if missing, then the tables of `libs/wire-subsystems/postgres-migrations/20260729073800-fan-in-notifications.sql` unless they exist. No migration bookkeeping. `--partitioned` (D) creates the six `*_notifications` tables partitioned and configures pg_partman. Aborts if the tables exist with the other shape. |
+| `migrate [--partitioned]` | – | Creates the `--db` database if missing, then the tables of `libs/wire-subsystems/fan-in-sql/` (`fan-in-common.sql` + `fan-in-notifications-plain.sql`) unless they exist. No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman. Aborts if the tables exist with the other shape. |
 | `drop-db` | – | Drops the `--db` database (open sessions are terminated). No confirmation. |
 | `reset` | – | Truncates all fan-in tables (notifications, `last_*`, acks, `epoch_history`). |
 | `produce` | A | Writers push as fast as possible. |
@@ -482,7 +482,7 @@ than `W` after a higher one was delivered is still lost.
 
 ## Database schema
 
-Schema: `libs/wire-subsystems/postgres-migrations/20260729073800-fan-in-notifications.sql`.
+Schema: `libs/wire-subsystems/fan-in-sql/fan-in-common.sql` + `fan-in-notifications-plain.sql` (not a production migration).
 
 Each stream kind has three tables:
 

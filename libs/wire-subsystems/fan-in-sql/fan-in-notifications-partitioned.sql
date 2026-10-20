@@ -1,16 +1,8 @@
--- NOT a migration. Used by fan-in-perf only (SchemaShape = Partitioned).
--- Runs right after postgres-migrations/20260729073800-fan-in-notifications.sql
--- in the same transaction, on an empty database, and replaces the six
--- *_notifications tables by pg_partman managed partitioned tables.
--- Keep the columns and primary keys in sync with the production migration.
+-- Used by fan-in-perf only (not a migration). SchemaShape = Partitioned (D).
+-- Runs after fan-in-common.sql, in the same transaction, on an empty database.
+-- The six *_notifications tables are pg_partman managed partitioned tables.
+-- Keep the columns and primary keys in sync with fan-in-notifications-plain.sql.
 -- Requires the partman schema (see SetupPartman) and role partman_maintainer.
-
-DROP TABLE user_notifications;
-DROP TABLE client_notifications;
-DROP TABLE team_notifications;
-DROP TABLE epoch_notifications;
-DROP TABLE local_connection_notifications;
-DROP TABLE remote_connection_notifications;
 
 CREATE TABLE user_notifications (
   user_id UUID NOT NULL,

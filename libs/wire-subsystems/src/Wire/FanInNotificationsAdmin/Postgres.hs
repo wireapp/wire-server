@@ -29,8 +29,8 @@ interpretFanInNotificationsAdminToPostgres = interpret $ \case
     case existing of
       Nothing -> do
         Session.script $ case shape of
-          Plain -> fanInSchema
-          Partitioned -> fanInSchema <> "\n" <> partitionedSchema
+          Plain -> commonSchema <> "\n" <> plainNotifications
+          Partitioned -> commonSchema <> "\n" <> partitionedNotifications
         pure Migrated
       Just s
         | s == shape -> pure AlreadyMigrated
@@ -77,13 +77,18 @@ databaseExistsStatement =
     (Encoders.param (Encoders.nonNullable Encoders.text))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
--- | Run as plain script, without hasql-migration bookkeeping.
-fanInSchema :: Text
-fanInSchema = Text.decodeUtf8 $(makeRelativeToProject "postgres-migrations/20260729073800-fan-in-notifications.sql" >>= embedFile)
+-- | Not a migration: the fan-in SQL files are only used by fan-in-perf. Tables
+-- shared by both shapes.
+commonSchema :: Text
+commonSchema = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-common.sql" >>= embedFile)
 
--- | Not a migration: only used by fan-in-perf.
-partitionedSchema :: Text
-partitionedSchema = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-notifications-partitioned.sql" >>= embedFile)
+-- | The six @*_notifications@ tables, plain (baseline).
+plainNotifications :: Text
+plainNotifications = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-notifications-plain.sql" >>= embedFile)
+
+-- | The six @*_notifications@ tables, partitioned and managed by pg_partman.
+partitionedNotifications :: Text
+partitionedNotifications = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-notifications-partitioned.sql" >>= embedFile)
 
 -- | Nothing if the tables are absent, otherwise the shape of @user_notifications@.
 shapeStatement :: Statement.Statement () (Maybe SchemaShape)
@@ -95,8 +100,7 @@ shapeStatement =
   where
     shapeOf k = if k == T.pack "p" then Partitioned else Plain
 
--- | Keep the table list in sync with
--- @postgres-migrations/20260729073800-fan-in-notifications.sql@.
+-- | Keep the table list in sync with the @fan-in-sql/*.sql@ files.
 truncateAllStatement :: Statement.Statement () ()
 truncateAllStatement =
   Statement.unpreparable
