@@ -709,9 +709,14 @@ guardLockedHandleField user updateOrigin handle = do
   when ((scimConflict || (e2eid && hasHandle && not updateByScim)) && not idemp) do
     throw UserSubsystemHandleManagedByScim
 
-getScimUsersPaginatedImpl :: (Member UserStore r, Member (Input (Local any)) r, Member (Input UserSubsystemConfig) r) => TeamId -> Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage User))
+getScimUsersPaginatedImpl ::
+  ( Member UserStore r,
+    Member (Input (Local any)) r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  TeamId -> Range 1 500 Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage User))
 getScimUsersPaginatedImpl tid pageSize mOffset = do
-  mStoredUsers <- UserStore.getScimUsersPaginated tid pageSize mOffset
+  mStoredUsers <- UserStore.getScimUsersPaginated tid (fromRange pageSize) mOffset
   localDom <- inputs tDomain
   locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
   pure $ (mkUserFromStored localDom locale) <$$> mStoredUsers

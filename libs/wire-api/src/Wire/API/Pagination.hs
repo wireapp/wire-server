@@ -190,3 +190,7 @@ instance (ToSchema a, Typeable a) => ToSchema (OffsetPage a) where
         <*> startIndex .= maybe_ (optFieldWithDocModifier "start_index" (S.description ?~ "0-based index of the frist result in the page when there is at least one result") schema)
 
 deriving via (Schema (OffsetPage User)) instance S.ToSchema (OffsetPage User)
+
+deriving via (Schema (OffsetPage User)) instance A.ToJSON (OffsetPage User)
+
+deriving via (Schema (OffsetPage User)) instance A.FromJSON (OffsetPage User)
