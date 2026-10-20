@@ -87,45 +87,50 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  -- Lock group rows in group_key order to avoid deadlock with concurrent triggers.
   PERFORM 1 FROM "arbiter"."conversations_groups" g
   WHERE g.group_key IN (SELECT group_key FROM old_table WHERE group_key IS NOT NULL)
-  ORDER BY g.group_key
-  FOR UPDATE;
-
-  UPDATE "arbiter"."conversations_groups" g
-  SET job_count = g.job_count - sub.removed_count,
-      min_priority = COALESCE(sub.new_min_priority, g.min_priority),
-      min_id = COALESCE(sub.new_min_id, g.min_id),
-      ready_count = GREATEST(0, g.ready_count - sub.removed_ready_count),
-      next_due = sub.new_next_due,
-      in_flight_until = CASE
-        WHEN sub.had_inflight THEN sub.surviving_ift
-        ELSE g.in_flight_until
-      END
-  FROM (
-    SELECT d.group_key, d.removed_count, d.removed_ready_count, d.had_inflight,
-      MIN(t.priority) AS new_min_priority,
-      MIN(t.id) AS new_min_id,
-      MIN(t.not_visible_until) FILTER (WHERE t.not_visible_until IS NOT NULL AND NOT t.suspended) AS new_next_due,
-      MAX(t.not_visible_until) FILTER (WHERE t.not_visible_until > NOW() AND NOT t.suspended AND (t.attempts > 0 OR t.throttled_until > NOW())) AS surviving_ift
+  ORDER BY g.group_key FOR UPDATE;
+  WITH t AS (
+    SELECT g0.group_key,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+      COALESCE(hp.priority, 0) AS min_priority,
+      COALESCE(hp.id, 0) AS min_id,
+      nd.not_visible_until AS next_due,
+      fi.not_visible_until AS in_flight_until
     FROM (
-      SELECT group_key, COUNT(*) AS removed_count,
-        COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended) AS removed_ready_count,
-        bool_or(not_visible_until > NOW() AND NOT suspended AND (attempts > 0 OR throttled_until > NOW())) AS had_inflight
-      FROM old_table
-      WHERE group_key IS NOT NULL
-      GROUP BY group_key
+      SELECT group_key, (-COUNT(*))::int AS count_delta,
+        (-COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended))::int AS ready_delta
+      FROM old_table WHERE group_key IS NOT NULL GROUP BY group_key
     ) d
-    LEFT JOIN "arbiter"."conversations" t ON t.group_key = d.group_key
-    GROUP BY d.group_key, d.removed_count, d.removed_ready_count, d.had_inflight
-  ) sub
-  WHERE g.group_key = sub.group_key;
-
-  DELETE FROM "arbiter"."conversations_groups"
-  WHERE job_count <= 0
-    AND group_key IN (SELECT group_key FROM old_table WHERE group_key IS NOT NULL);
-
+    JOIN "arbiter"."conversations_groups" g0 ON g0.group_key = d.group_key
+    LEFT JOIN LATERAL (
+      SELECT q.priority, q.id FROM "arbiter"."conversations" q
+      WHERE q.group_key = d.group_key
+      ORDER BY q.priority ASC, q.id ASC LIMIT 1
+    ) hp ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."conversations" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+      ORDER BY q.not_visible_until ASC LIMIT 1
+    ) nd ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."conversations" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+      ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+    ) fi ON TRUE
+  )
+  UPDATE "arbiter"."conversations_groups" g
+  SET job_count = t.job_count,
+    ready_count = t.ready_count,
+    min_priority = t.min_priority,
+    min_id = t.min_id,
+    next_due = t.next_due,
+    in_flight_until = t.in_flight_until
+  FROM t
+  WHERE g.group_key = t.group_key
+    AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+        IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
   RETURN NULL;
 END;
 $$;
@@ -145,26 +150,26 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  -- Lock group rows in group_key order to avoid deadlock with concurrent triggers.
   PERFORM 1 FROM "arbiter"."conversations_groups" g
   WHERE g.group_key IN (SELECT group_key FROM new_table WHERE group_key IS NOT NULL)
-  ORDER BY g.group_key
-  FOR UPDATE;
+  ORDER BY g.group_key FOR UPDATE;
 
   INSERT INTO "arbiter"."conversations_groups" (group_key, min_priority, min_id, job_count, ready_count, next_due)
   SELECT group_key,
-    MIN(priority),
-    MIN(id),
-    COUNT(*),
-    COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended),
-    MIN(not_visible_until) FILTER (WHERE not_visible_until IS NOT NULL AND NOT suspended)
+    MIN(priority) AS min_priority,
+    (MIN(ARRAY[priority::bigint, id]))[2] AS min_id,
+    COUNT(*) AS job_count,
+    COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended) AS ready_count,
+    MIN(not_visible_until) FILTER (WHERE not_visible_until IS NOT NULL AND NOT suspended) AS next_due
   FROM new_table
   WHERE group_key IS NOT NULL
   GROUP BY group_key
   ORDER BY group_key
   ON CONFLICT (group_key) DO UPDATE SET
-    min_priority = LEAST("arbiter"."conversations_groups".min_priority, EXCLUDED.min_priority),
-    min_id = LEAST("arbiter"."conversations_groups".min_id, EXCLUDED.min_id),
+    min_priority = CASE WHEN "arbiter"."conversations_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."conversations_groups".min_priority, "arbiter"."conversations_groups".min_id) THEN EXCLUDED.min_priority
+      ELSE "arbiter"."conversations_groups".min_priority END,
+    min_id = CASE WHEN "arbiter"."conversations_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."conversations_groups".min_priority, "arbiter"."conversations_groups".min_id) THEN EXCLUDED.min_id
+      ELSE "arbiter"."conversations_groups".min_id END,
     job_count = "arbiter"."conversations_groups".job_count + EXCLUDED.job_count,
     ready_count = "arbiter"."conversations_groups".ready_count + EXCLUDED.ready_count,
     next_due = LEAST("arbiter"."conversations_groups".next_due, EXCLUDED.next_due),
@@ -186,173 +191,183 @@ CREATE FUNCTION arbiter.maintain_conversations_groups_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM new_table WHERE group_key IS NOT NULL LIMIT 1)
+     AND NOT EXISTS (SELECT 1 FROM old_table WHERE group_key IS NOT NULL LIMIT 1) THEN
+    RETURN NULL;
+  END IF;
+
   IF NOT EXISTS (
-    SELECT 1 FROM new_table WHERE group_key IS NOT NULL LIMIT 1
-  ) AND NOT EXISTS (
-    SELECT 1 FROM old_table WHERE group_key IS NOT NULL LIMIT 1
+    SELECT 1 FROM new_table n JOIN old_table o ON o.id = n.id
+    WHERE (n.group_key IS NOT NULL OR o.group_key IS NOT NULL)
+      AND (n.group_key IS DISTINCT FROM o.group_key OR n.priority IS DISTINCT FROM o.priority OR n.not_visible_until IS DISTINCT FROM o.not_visible_until OR n.suspended IS DISTINCT FROM o.suspended OR n.attempts IS DISTINCT FROM o.attempts OR n.throttled_until IS DISTINCT FROM o.throttled_until)
+    LIMIT 1
   ) THEN
     RETURN NULL;
   END IF;
 
-  -- Lock group rows (old and new) in group_key order to avoid deadlock with concurrent triggers.
   PERFORM 1 FROM "arbiter"."conversations_groups" g
-  WHERE g.group_key IN (
-    SELECT group_key FROM new_table WHERE group_key IS NOT NULL
-    UNION
-    SELECT group_key FROM old_table WHERE group_key IS NOT NULL
-  )
-  ORDER BY g.group_key
-  FOR UPDATE;
-
-  -- Step 1: Full rescan - recompute in_flight_until when not_visible_until decreases or suspended changes
-  UPDATE "arbiter"."conversations_groups" g
-  SET in_flight_until = sub.new_ift
-  FROM (
-    SELECT t.group_key,
-      MAX(t.not_visible_until) FILTER (
-        WHERE t.not_visible_until > NOW() AND NOT t.suspended AND (t.attempts > 0 OR t.throttled_until > NOW())
-      ) AS new_ift
-    FROM "arbiter"."conversations" t
-    WHERE t.group_key IN (
-      SELECT n.group_key FROM new_table n
-      JOIN old_table o ON o.id = n.id
-      WHERE n.group_key IS NOT NULL
-        AND (o.not_visible_until IS DISTINCT FROM n.not_visible_until
-             OR o.suspended IS DISTINCT FROM n.suspended
-             OR o.attempts IS DISTINCT FROM n.attempts)
-        AND (
-          n.not_visible_until > NOW() AND NOT n.suspended AND n.attempts > 0
-          AND (o.not_visible_until IS NULL OR o.not_visible_until <= NOW()
-               OR n.not_visible_until > o.not_visible_until)
-        ) IS NOT TRUE
+  WHERE g.group_key IN (SELECT group_key
+  FROM new_table
+  WHERE group_key IS NOT NULL
+  UNION
+  SELECT group_key
+  FROM old_table
+  WHERE group_key IS NOT NULL)
+  ORDER BY g.group_key FOR UPDATE;
+  IF EXISTS (
+    SELECT 1 FROM new_table n JOIN old_table o ON o.id = n.id
+    WHERE o.group_key IS DISTINCT FROM n.group_key LIMIT 1
+  ) THEN
+    WITH t AS (
+      SELECT g0.group_key,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+        COALESCE(hp.priority, 0) AS min_priority,
+        COALESCE(hp.id, 0) AS min_id,
+        nd.not_visible_until AS next_due,
+        fi.not_visible_until AS in_flight_until
+      FROM (
+        SELECT o.group_key, (-COUNT(*))::int AS count_delta,
+          (-COUNT(*) FILTER (WHERE o.not_visible_until IS NULL AND NOT o.suspended))::int AS ready_delta
+        FROM old_table o JOIN new_table n ON n.id = o.id
+        WHERE o.group_key IS NOT NULL AND o.group_key IS DISTINCT FROM n.group_key
+        GROUP BY o.group_key
+      ) d
+      JOIN "arbiter"."conversations_groups" g0 ON g0.group_key = d.group_key
+      LEFT JOIN LATERAL (
+        SELECT q.priority, q.id FROM "arbiter"."conversations" q
+        WHERE q.group_key = d.group_key
+        ORDER BY q.priority ASC, q.id ASC LIMIT 1
+      ) hp ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."conversations" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+        ORDER BY q.not_visible_until ASC LIMIT 1
+      ) nd ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."conversations" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+        ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+      ) fi ON TRUE
     )
-    GROUP BY t.group_key
-  ) sub
-  WHERE g.group_key = sub.group_key
-    AND g.in_flight_until IS DISTINCT FROM sub.new_ift;
+    UPDATE "arbiter"."conversations_groups" g
+    SET job_count = t.job_count,
+      ready_count = t.ready_count,
+      min_priority = t.min_priority,
+      min_id = t.min_id,
+      next_due = t.next_due,
+      in_flight_until = t.in_flight_until
+    FROM t
+    WHERE g.group_key = t.group_key
+      AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+          IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
 
-  -- Step 2: group_key change (dedup replace) - remove from old group
-  UPDATE "arbiter"."conversations_groups" g
-  SET job_count = g.job_count - sub.cnt,
-      min_priority = COALESCE(sub.new_min_priority, g.min_priority),
-      min_id = COALESCE(sub.new_min_id, g.min_id),
-      ready_count = GREATEST(0, g.ready_count - sub.removed_ready_count),
-      next_due = sub.new_next_due,
-      in_flight_until = CASE
-        WHEN sub.had_inflight THEN sub.surviving_ift
-        ELSE g.in_flight_until
-      END
-  FROM (
-    SELECT d.group_key, d.cnt, d.removed_ready_count, d.had_inflight,
-      MIN(t.priority) AS new_min_priority, MIN(t.id) AS new_min_id,
-      MIN(t.not_visible_until) FILTER (WHERE t.not_visible_until IS NOT NULL AND NOT t.suspended) AS new_next_due,
-      MAX(t.not_visible_until) FILTER (WHERE t.not_visible_until > NOW() AND NOT t.suspended AND (t.attempts > 0 OR t.throttled_until > NOW())) AS surviving_ift
-    FROM (
-      SELECT o.group_key, COUNT(*) AS cnt,
-        COUNT(*) FILTER (WHERE o.not_visible_until IS NULL AND NOT o.suspended) AS removed_ready_count,
-        bool_or(o.not_visible_until > NOW() AND NOT o.suspended AND (o.attempts > 0 OR o.throttled_until > NOW())) AS had_inflight
-      FROM old_table o
-      JOIN new_table n ON o.id = n.id
-      WHERE o.group_key IS NOT NULL
-        AND o.group_key IS DISTINCT FROM n.group_key
-      GROUP BY o.group_key
-    ) d
-    LEFT JOIN "arbiter"."conversations" t ON t.group_key = d.group_key
-    GROUP BY d.group_key, d.cnt, d.removed_ready_count, d.had_inflight
-  ) sub
-  WHERE g.group_key = sub.group_key;
-
-  DELETE FROM "arbiter"."conversations_groups"
-  WHERE job_count <= 0
-    AND group_key IN (
-      SELECT o.group_key FROM old_table o
-      JOIN new_table n ON o.id = n.id
-      WHERE o.group_key IS NOT NULL
-        AND o.group_key IS DISTINCT FROM n.group_key
-    );
-
-  -- Step 3: group_key change - add to new group
-  INSERT INTO "arbiter"."conversations_groups" (group_key, min_priority, min_id, job_count, ready_count, next_due)
-  SELECT n.group_key, MIN(n.priority), MIN(n.id), COUNT(*),
-    COUNT(*) FILTER (WHERE n.not_visible_until IS NULL AND NOT n.suspended),
-    MIN(n.not_visible_until) FILTER (WHERE n.not_visible_until IS NOT NULL AND NOT n.suspended)
-  FROM new_table n
-  JOIN old_table o ON o.id = n.id
-  WHERE n.group_key IS NOT NULL
-    AND o.group_key IS DISTINCT FROM n.group_key
-  GROUP BY n.group_key
-  ORDER BY n.group_key
-  ON CONFLICT (group_key) DO UPDATE SET
-    min_priority = LEAST("arbiter"."conversations_groups".min_priority, EXCLUDED.min_priority),
-    min_id = LEAST("arbiter"."conversations_groups".min_id, EXCLUDED.min_id),
+    INSERT INTO "arbiter"."conversations_groups" (group_key, min_priority, min_id, job_count, ready_count, next_due)
+    SELECT n.group_key,
+      MIN(n.priority) AS min_priority,
+      (MIN(ARRAY[n.priority::bigint, n.id]))[2] AS min_id,
+      COUNT(*) AS job_count,
+      COUNT(*) FILTER (WHERE n.not_visible_until IS NULL AND NOT n.suspended) AS ready_count,
+      MIN(n.not_visible_until) FILTER (WHERE n.not_visible_until IS NOT NULL AND NOT n.suspended) AS next_due
+    FROM new_table n JOIN old_table o ON o.id = n.id
+    WHERE n.group_key IS NOT NULL AND o.group_key IS DISTINCT FROM n.group_key
+    GROUP BY n.group_key ORDER BY n.group_key
+    ON CONFLICT (group_key) DO UPDATE SET min_priority = CASE WHEN "arbiter"."conversations_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."conversations_groups".min_priority, "arbiter"."conversations_groups".min_id) THEN EXCLUDED.min_priority
+      ELSE "arbiter"."conversations_groups".min_priority END,
+    min_id = CASE WHEN "arbiter"."conversations_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."conversations_groups".min_priority, "arbiter"."conversations_groups".min_id) THEN EXCLUDED.min_id
+      ELSE "arbiter"."conversations_groups".min_id END,
     job_count = "arbiter"."conversations_groups".job_count + EXCLUDED.job_count,
     ready_count = "arbiter"."conversations_groups".ready_count + EXCLUDED.ready_count,
     next_due = LEAST("arbiter"."conversations_groups".next_due, EXCLUDED.next_due);
 
-  -- Step 4: same-group ordering/visibility change - recompute min and next_due.
-  UPDATE "arbiter"."conversations_groups" g
-  SET min_priority = sub.new_min_priority,
-      min_id = sub.new_min_id,
-      next_due = sub.new_next_due
-  FROM (
-    SELECT d.group_key,
-      MIN(t.priority) AS new_min_priority,
-      MIN(t.id) AS new_min_id,
-      MIN(t.not_visible_until) FILTER (WHERE t.not_visible_until IS NOT NULL AND NOT t.suspended) AS new_next_due
+    WITH t AS (
+      SELECT g0.group_key,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+        COALESCE(hp.priority, 0) AS min_priority,
+        COALESCE(hp.id, 0) AS min_id,
+        nd.not_visible_until AS next_due,
+        fi.not_visible_until AS in_flight_until
+      FROM (
+        SELECT n.group_key, 0 AS count_delta, 0 AS ready_delta
+        FROM new_table n JOIN old_table o ON o.id = n.id
+        WHERE n.group_key IS NOT NULL AND o.group_key IS DISTINCT FROM n.group_key
+        GROUP BY n.group_key
+      ) d
+      JOIN "arbiter"."conversations_groups" g0 ON g0.group_key = d.group_key
+      LEFT JOIN LATERAL (
+        SELECT q.priority, q.id FROM "arbiter"."conversations" q
+        WHERE q.group_key = d.group_key
+        ORDER BY q.priority ASC, q.id ASC LIMIT 1
+      ) hp ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."conversations" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+        ORDER BY q.not_visible_until ASC LIMIT 1
+      ) nd ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."conversations" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+        ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+      ) fi ON TRUE
+    )
+    UPDATE "arbiter"."conversations_groups" g
+    SET job_count = t.job_count,
+      ready_count = t.ready_count,
+      min_priority = t.min_priority,
+      min_id = t.min_id,
+      next_due = t.next_due,
+      in_flight_until = t.in_flight_until
+    FROM t
+    WHERE g.group_key = t.group_key
+      AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+          IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
+  END IF;
+  WITH t AS (
+    SELECT g0.group_key,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+      COALESCE(hp.priority, 0) AS min_priority,
+      COALESCE(hp.id, 0) AS min_id,
+      nd.not_visible_until AS next_due,
+      fi.not_visible_until AS in_flight_until
     FROM (
-      SELECT DISTINCT n.group_key
-      FROM new_table n
-      JOIN old_table o ON o.id = n.id
+      SELECT n.group_key, 0 AS count_delta,
+        SUM((n.not_visible_until IS NULL AND NOT n.suspended)::int - (o.not_visible_until IS NULL AND NOT o.suspended)::int)::int AS ready_delta
+      FROM new_table n JOIN old_table o ON o.id = n.id
       WHERE n.group_key IS NOT NULL
         AND n.group_key IS NOT DISTINCT FROM o.group_key
-        AND (n.priority IS DISTINCT FROM o.priority
-             OR o.not_visible_until IS DISTINCT FROM n.not_visible_until
-             OR o.suspended IS DISTINCT FROM n.suspended)
-    ) d
-    LEFT JOIN "arbiter"."conversations" t ON t.group_key = d.group_key
-    GROUP BY d.group_key
-  ) sub
-  WHERE g.group_key = sub.group_key
-    AND (g.min_priority IS DISTINCT FROM sub.new_min_priority
-         OR g.min_id IS DISTINCT FROM sub.new_min_id
-         OR g.next_due IS DISTINCT FROM sub.new_next_due);
-
-  -- Step 5: commutative in_flight_until extend and ready_count delta in one write.
-  UPDATE "arbiter"."conversations_groups" g
-  SET in_flight_until = GREATEST(g.in_flight_until, s.new_ift),
-      ready_count = GREATEST(0, g.ready_count + COALESCE(s.delta, 0))
-  FROM (
-    SELECT COALESCE(ift.group_key, rc.group_key) AS group_key, ift.new_ift, rc.delta
-    FROM (
-      SELECT n.group_key, MAX(n.not_visible_until) AS new_ift
-      FROM new_table n
-      JOIN old_table o ON o.id = n.id
-      WHERE n.group_key IS NOT NULL
-        AND n.not_visible_until > NOW()
-        AND NOT n.suspended
-        AND n.attempts > 0
-        AND (o.not_visible_until IS NULL OR o.not_visible_until <= NOW()
-             OR n.not_visible_until > o.not_visible_until)
+        AND (n.priority IS DISTINCT FROM o.priority OR n.not_visible_until IS DISTINCT FROM o.not_visible_until OR n.suspended IS DISTINCT FROM o.suspended OR n.attempts IS DISTINCT FROM o.attempts OR n.throttled_until IS DISTINCT FROM o.throttled_until)
       GROUP BY n.group_key
-    ) ift
-    FULL OUTER JOIN (
-      SELECT group_key, delta FROM (
-        SELECT n.group_key,
-          SUM(
-            (CASE WHEN n.not_visible_until IS NULL AND NOT n.suspended THEN 1 ELSE 0 END)
-            - (CASE WHEN o.not_visible_until IS NULL AND NOT o.suspended THEN 1 ELSE 0 END)
-          )::int AS delta
-        FROM new_table n
-        JOIN old_table o ON o.id = n.id
-        WHERE n.group_key IS NOT NULL
-          AND n.group_key IS NOT DISTINCT FROM o.group_key
-        GROUP BY n.group_key
-      ) z
-      WHERE delta <> 0
-    ) rc ON ift.group_key = rc.group_key
-  ) s
-  WHERE g.group_key = s.group_key;
-
+    ) d
+    JOIN "arbiter"."conversations_groups" g0 ON g0.group_key = d.group_key
+    LEFT JOIN LATERAL (
+      SELECT q.priority, q.id FROM "arbiter"."conversations" q
+      WHERE q.group_key = d.group_key
+      ORDER BY q.priority ASC, q.id ASC LIMIT 1
+    ) hp ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."conversations" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+      ORDER BY q.not_visible_until ASC LIMIT 1
+    ) nd ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."conversations" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+      ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+    ) fi ON TRUE
+  )
+  UPDATE "arbiter"."conversations_groups" g
+  SET job_count = t.job_count,
+    ready_count = t.ready_count,
+    min_priority = t.min_priority,
+    min_id = t.min_id,
+    next_due = t.next_due,
+    in_flight_until = t.in_flight_until
+  FROM t
+  WHERE g.group_key = t.group_key
+    AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+        IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
   RETURN NULL;
 END;
 $$;
@@ -372,45 +387,50 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  -- Lock group rows in group_key order to avoid deadlock with concurrent triggers.
   PERFORM 1 FROM "arbiter"."meetings_groups" g
   WHERE g.group_key IN (SELECT group_key FROM old_table WHERE group_key IS NOT NULL)
-  ORDER BY g.group_key
-  FOR UPDATE;
-
-  UPDATE "arbiter"."meetings_groups" g
-  SET job_count = g.job_count - sub.removed_count,
-      min_priority = COALESCE(sub.new_min_priority, g.min_priority),
-      min_id = COALESCE(sub.new_min_id, g.min_id),
-      ready_count = GREATEST(0, g.ready_count - sub.removed_ready_count),
-      next_due = sub.new_next_due,
-      in_flight_until = CASE
-        WHEN sub.had_inflight THEN sub.surviving_ift
-        ELSE g.in_flight_until
-      END
-  FROM (
-    SELECT d.group_key, d.removed_count, d.removed_ready_count, d.had_inflight,
-      MIN(t.priority) AS new_min_priority,
-      MIN(t.id) AS new_min_id,
-      MIN(t.not_visible_until) FILTER (WHERE t.not_visible_until IS NOT NULL AND NOT t.suspended) AS new_next_due,
-      MAX(t.not_visible_until) FILTER (WHERE t.not_visible_until > NOW() AND NOT t.suspended AND (t.attempts > 0 OR t.throttled_until > NOW())) AS surviving_ift
+  ORDER BY g.group_key FOR UPDATE;
+  WITH t AS (
+    SELECT g0.group_key,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+      COALESCE(hp.priority, 0) AS min_priority,
+      COALESCE(hp.id, 0) AS min_id,
+      nd.not_visible_until AS next_due,
+      fi.not_visible_until AS in_flight_until
     FROM (
-      SELECT group_key, COUNT(*) AS removed_count,
-        COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended) AS removed_ready_count,
-        bool_or(not_visible_until > NOW() AND NOT suspended AND (attempts > 0 OR throttled_until > NOW())) AS had_inflight
-      FROM old_table
-      WHERE group_key IS NOT NULL
-      GROUP BY group_key
+      SELECT group_key, (-COUNT(*))::int AS count_delta,
+        (-COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended))::int AS ready_delta
+      FROM old_table WHERE group_key IS NOT NULL GROUP BY group_key
     ) d
-    LEFT JOIN "arbiter"."meetings" t ON t.group_key = d.group_key
-    GROUP BY d.group_key, d.removed_count, d.removed_ready_count, d.had_inflight
-  ) sub
-  WHERE g.group_key = sub.group_key;
-
-  DELETE FROM "arbiter"."meetings_groups"
-  WHERE job_count <= 0
-    AND group_key IN (SELECT group_key FROM old_table WHERE group_key IS NOT NULL);
-
+    JOIN "arbiter"."meetings_groups" g0 ON g0.group_key = d.group_key
+    LEFT JOIN LATERAL (
+      SELECT q.priority, q.id FROM "arbiter"."meetings" q
+      WHERE q.group_key = d.group_key
+      ORDER BY q.priority ASC, q.id ASC LIMIT 1
+    ) hp ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."meetings" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+      ORDER BY q.not_visible_until ASC LIMIT 1
+    ) nd ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."meetings" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+      ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+    ) fi ON TRUE
+  )
+  UPDATE "arbiter"."meetings_groups" g
+  SET job_count = t.job_count,
+    ready_count = t.ready_count,
+    min_priority = t.min_priority,
+    min_id = t.min_id,
+    next_due = t.next_due,
+    in_flight_until = t.in_flight_until
+  FROM t
+  WHERE g.group_key = t.group_key
+    AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+        IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
   RETURN NULL;
 END;
 $$;
@@ -430,26 +450,26 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  -- Lock group rows in group_key order to avoid deadlock with concurrent triggers.
   PERFORM 1 FROM "arbiter"."meetings_groups" g
   WHERE g.group_key IN (SELECT group_key FROM new_table WHERE group_key IS NOT NULL)
-  ORDER BY g.group_key
-  FOR UPDATE;
+  ORDER BY g.group_key FOR UPDATE;
 
   INSERT INTO "arbiter"."meetings_groups" (group_key, min_priority, min_id, job_count, ready_count, next_due)
   SELECT group_key,
-    MIN(priority),
-    MIN(id),
-    COUNT(*),
-    COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended),
-    MIN(not_visible_until) FILTER (WHERE not_visible_until IS NOT NULL AND NOT suspended)
+    MIN(priority) AS min_priority,
+    (MIN(ARRAY[priority::bigint, id]))[2] AS min_id,
+    COUNT(*) AS job_count,
+    COUNT(*) FILTER (WHERE not_visible_until IS NULL AND NOT suspended) AS ready_count,
+    MIN(not_visible_until) FILTER (WHERE not_visible_until IS NOT NULL AND NOT suspended) AS next_due
   FROM new_table
   WHERE group_key IS NOT NULL
   GROUP BY group_key
   ORDER BY group_key
   ON CONFLICT (group_key) DO UPDATE SET
-    min_priority = LEAST("arbiter"."meetings_groups".min_priority, EXCLUDED.min_priority),
-    min_id = LEAST("arbiter"."meetings_groups".min_id, EXCLUDED.min_id),
+    min_priority = CASE WHEN "arbiter"."meetings_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."meetings_groups".min_priority, "arbiter"."meetings_groups".min_id) THEN EXCLUDED.min_priority
+      ELSE "arbiter"."meetings_groups".min_priority END,
+    min_id = CASE WHEN "arbiter"."meetings_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."meetings_groups".min_priority, "arbiter"."meetings_groups".min_id) THEN EXCLUDED.min_id
+      ELSE "arbiter"."meetings_groups".min_id END,
     job_count = "arbiter"."meetings_groups".job_count + EXCLUDED.job_count,
     ready_count = "arbiter"."meetings_groups".ready_count + EXCLUDED.ready_count,
     next_due = LEAST("arbiter"."meetings_groups".next_due, EXCLUDED.next_due),
@@ -471,173 +491,183 @@ CREATE FUNCTION arbiter.maintain_meetings_groups_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM new_table WHERE group_key IS NOT NULL LIMIT 1)
+     AND NOT EXISTS (SELECT 1 FROM old_table WHERE group_key IS NOT NULL LIMIT 1) THEN
+    RETURN NULL;
+  END IF;
+
   IF NOT EXISTS (
-    SELECT 1 FROM new_table WHERE group_key IS NOT NULL LIMIT 1
-  ) AND NOT EXISTS (
-    SELECT 1 FROM old_table WHERE group_key IS NOT NULL LIMIT 1
+    SELECT 1 FROM new_table n JOIN old_table o ON o.id = n.id
+    WHERE (n.group_key IS NOT NULL OR o.group_key IS NOT NULL)
+      AND (n.group_key IS DISTINCT FROM o.group_key OR n.priority IS DISTINCT FROM o.priority OR n.not_visible_until IS DISTINCT FROM o.not_visible_until OR n.suspended IS DISTINCT FROM o.suspended OR n.attempts IS DISTINCT FROM o.attempts OR n.throttled_until IS DISTINCT FROM o.throttled_until)
+    LIMIT 1
   ) THEN
     RETURN NULL;
   END IF;
 
-  -- Lock group rows (old and new) in group_key order to avoid deadlock with concurrent triggers.
   PERFORM 1 FROM "arbiter"."meetings_groups" g
-  WHERE g.group_key IN (
-    SELECT group_key FROM new_table WHERE group_key IS NOT NULL
-    UNION
-    SELECT group_key FROM old_table WHERE group_key IS NOT NULL
-  )
-  ORDER BY g.group_key
-  FOR UPDATE;
-
-  -- Step 1: Full rescan - recompute in_flight_until when not_visible_until decreases or suspended changes
-  UPDATE "arbiter"."meetings_groups" g
-  SET in_flight_until = sub.new_ift
-  FROM (
-    SELECT t.group_key,
-      MAX(t.not_visible_until) FILTER (
-        WHERE t.not_visible_until > NOW() AND NOT t.suspended AND (t.attempts > 0 OR t.throttled_until > NOW())
-      ) AS new_ift
-    FROM "arbiter"."meetings" t
-    WHERE t.group_key IN (
-      SELECT n.group_key FROM new_table n
-      JOIN old_table o ON o.id = n.id
-      WHERE n.group_key IS NOT NULL
-        AND (o.not_visible_until IS DISTINCT FROM n.not_visible_until
-             OR o.suspended IS DISTINCT FROM n.suspended
-             OR o.attempts IS DISTINCT FROM n.attempts)
-        AND (
-          n.not_visible_until > NOW() AND NOT n.suspended AND n.attempts > 0
-          AND (o.not_visible_until IS NULL OR o.not_visible_until <= NOW()
-               OR n.not_visible_until > o.not_visible_until)
-        ) IS NOT TRUE
+  WHERE g.group_key IN (SELECT group_key
+  FROM new_table
+  WHERE group_key IS NOT NULL
+  UNION
+  SELECT group_key
+  FROM old_table
+  WHERE group_key IS NOT NULL)
+  ORDER BY g.group_key FOR UPDATE;
+  IF EXISTS (
+    SELECT 1 FROM new_table n JOIN old_table o ON o.id = n.id
+    WHERE o.group_key IS DISTINCT FROM n.group_key LIMIT 1
+  ) THEN
+    WITH t AS (
+      SELECT g0.group_key,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+        COALESCE(hp.priority, 0) AS min_priority,
+        COALESCE(hp.id, 0) AS min_id,
+        nd.not_visible_until AS next_due,
+        fi.not_visible_until AS in_flight_until
+      FROM (
+        SELECT o.group_key, (-COUNT(*))::int AS count_delta,
+          (-COUNT(*) FILTER (WHERE o.not_visible_until IS NULL AND NOT o.suspended))::int AS ready_delta
+        FROM old_table o JOIN new_table n ON n.id = o.id
+        WHERE o.group_key IS NOT NULL AND o.group_key IS DISTINCT FROM n.group_key
+        GROUP BY o.group_key
+      ) d
+      JOIN "arbiter"."meetings_groups" g0 ON g0.group_key = d.group_key
+      LEFT JOIN LATERAL (
+        SELECT q.priority, q.id FROM "arbiter"."meetings" q
+        WHERE q.group_key = d.group_key
+        ORDER BY q.priority ASC, q.id ASC LIMIT 1
+      ) hp ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."meetings" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+        ORDER BY q.not_visible_until ASC LIMIT 1
+      ) nd ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."meetings" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+        ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+      ) fi ON TRUE
     )
-    GROUP BY t.group_key
-  ) sub
-  WHERE g.group_key = sub.group_key
-    AND g.in_flight_until IS DISTINCT FROM sub.new_ift;
+    UPDATE "arbiter"."meetings_groups" g
+    SET job_count = t.job_count,
+      ready_count = t.ready_count,
+      min_priority = t.min_priority,
+      min_id = t.min_id,
+      next_due = t.next_due,
+      in_flight_until = t.in_flight_until
+    FROM t
+    WHERE g.group_key = t.group_key
+      AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+          IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
 
-  -- Step 2: group_key change (dedup replace) - remove from old group
-  UPDATE "arbiter"."meetings_groups" g
-  SET job_count = g.job_count - sub.cnt,
-      min_priority = COALESCE(sub.new_min_priority, g.min_priority),
-      min_id = COALESCE(sub.new_min_id, g.min_id),
-      ready_count = GREATEST(0, g.ready_count - sub.removed_ready_count),
-      next_due = sub.new_next_due,
-      in_flight_until = CASE
-        WHEN sub.had_inflight THEN sub.surviving_ift
-        ELSE g.in_flight_until
-      END
-  FROM (
-    SELECT d.group_key, d.cnt, d.removed_ready_count, d.had_inflight,
-      MIN(t.priority) AS new_min_priority, MIN(t.id) AS new_min_id,
-      MIN(t.not_visible_until) FILTER (WHERE t.not_visible_until IS NOT NULL AND NOT t.suspended) AS new_next_due,
-      MAX(t.not_visible_until) FILTER (WHERE t.not_visible_until > NOW() AND NOT t.suspended AND (t.attempts > 0 OR t.throttled_until > NOW())) AS surviving_ift
-    FROM (
-      SELECT o.group_key, COUNT(*) AS cnt,
-        COUNT(*) FILTER (WHERE o.not_visible_until IS NULL AND NOT o.suspended) AS removed_ready_count,
-        bool_or(o.not_visible_until > NOW() AND NOT o.suspended AND (o.attempts > 0 OR o.throttled_until > NOW())) AS had_inflight
-      FROM old_table o
-      JOIN new_table n ON o.id = n.id
-      WHERE o.group_key IS NOT NULL
-        AND o.group_key IS DISTINCT FROM n.group_key
-      GROUP BY o.group_key
-    ) d
-    LEFT JOIN "arbiter"."meetings" t ON t.group_key = d.group_key
-    GROUP BY d.group_key, d.cnt, d.removed_ready_count, d.had_inflight
-  ) sub
-  WHERE g.group_key = sub.group_key;
-
-  DELETE FROM "arbiter"."meetings_groups"
-  WHERE job_count <= 0
-    AND group_key IN (
-      SELECT o.group_key FROM old_table o
-      JOIN new_table n ON o.id = n.id
-      WHERE o.group_key IS NOT NULL
-        AND o.group_key IS DISTINCT FROM n.group_key
-    );
-
-  -- Step 3: group_key change - add to new group
-  INSERT INTO "arbiter"."meetings_groups" (group_key, min_priority, min_id, job_count, ready_count, next_due)
-  SELECT n.group_key, MIN(n.priority), MIN(n.id), COUNT(*),
-    COUNT(*) FILTER (WHERE n.not_visible_until IS NULL AND NOT n.suspended),
-    MIN(n.not_visible_until) FILTER (WHERE n.not_visible_until IS NOT NULL AND NOT n.suspended)
-  FROM new_table n
-  JOIN old_table o ON o.id = n.id
-  WHERE n.group_key IS NOT NULL
-    AND o.group_key IS DISTINCT FROM n.group_key
-  GROUP BY n.group_key
-  ORDER BY n.group_key
-  ON CONFLICT (group_key) DO UPDATE SET
-    min_priority = LEAST("arbiter"."meetings_groups".min_priority, EXCLUDED.min_priority),
-    min_id = LEAST("arbiter"."meetings_groups".min_id, EXCLUDED.min_id),
+    INSERT INTO "arbiter"."meetings_groups" (group_key, min_priority, min_id, job_count, ready_count, next_due)
+    SELECT n.group_key,
+      MIN(n.priority) AS min_priority,
+      (MIN(ARRAY[n.priority::bigint, n.id]))[2] AS min_id,
+      COUNT(*) AS job_count,
+      COUNT(*) FILTER (WHERE n.not_visible_until IS NULL AND NOT n.suspended) AS ready_count,
+      MIN(n.not_visible_until) FILTER (WHERE n.not_visible_until IS NOT NULL AND NOT n.suspended) AS next_due
+    FROM new_table n JOIN old_table o ON o.id = n.id
+    WHERE n.group_key IS NOT NULL AND o.group_key IS DISTINCT FROM n.group_key
+    GROUP BY n.group_key ORDER BY n.group_key
+    ON CONFLICT (group_key) DO UPDATE SET min_priority = CASE WHEN "arbiter"."meetings_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."meetings_groups".min_priority, "arbiter"."meetings_groups".min_id) THEN EXCLUDED.min_priority
+      ELSE "arbiter"."meetings_groups".min_priority END,
+    min_id = CASE WHEN "arbiter"."meetings_groups".job_count = 0 OR (EXCLUDED.min_priority, EXCLUDED.min_id) < ("arbiter"."meetings_groups".min_priority, "arbiter"."meetings_groups".min_id) THEN EXCLUDED.min_id
+      ELSE "arbiter"."meetings_groups".min_id END,
     job_count = "arbiter"."meetings_groups".job_count + EXCLUDED.job_count,
     ready_count = "arbiter"."meetings_groups".ready_count + EXCLUDED.ready_count,
     next_due = LEAST("arbiter"."meetings_groups".next_due, EXCLUDED.next_due);
 
-  -- Step 4: same-group ordering/visibility change - recompute min and next_due.
-  UPDATE "arbiter"."meetings_groups" g
-  SET min_priority = sub.new_min_priority,
-      min_id = sub.new_min_id,
-      next_due = sub.new_next_due
-  FROM (
-    SELECT d.group_key,
-      MIN(t.priority) AS new_min_priority,
-      MIN(t.id) AS new_min_id,
-      MIN(t.not_visible_until) FILTER (WHERE t.not_visible_until IS NOT NULL AND NOT t.suspended) AS new_next_due
+    WITH t AS (
+      SELECT g0.group_key,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+        CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+        COALESCE(hp.priority, 0) AS min_priority,
+        COALESCE(hp.id, 0) AS min_id,
+        nd.not_visible_until AS next_due,
+        fi.not_visible_until AS in_flight_until
+      FROM (
+        SELECT n.group_key, 0 AS count_delta, 0 AS ready_delta
+        FROM new_table n JOIN old_table o ON o.id = n.id
+        WHERE n.group_key IS NOT NULL AND o.group_key IS DISTINCT FROM n.group_key
+        GROUP BY n.group_key
+      ) d
+      JOIN "arbiter"."meetings_groups" g0 ON g0.group_key = d.group_key
+      LEFT JOIN LATERAL (
+        SELECT q.priority, q.id FROM "arbiter"."meetings" q
+        WHERE q.group_key = d.group_key
+        ORDER BY q.priority ASC, q.id ASC LIMIT 1
+      ) hp ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."meetings" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+        ORDER BY q.not_visible_until ASC LIMIT 1
+      ) nd ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT q.not_visible_until FROM "arbiter"."meetings" q
+        WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+        ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+      ) fi ON TRUE
+    )
+    UPDATE "arbiter"."meetings_groups" g
+    SET job_count = t.job_count,
+      ready_count = t.ready_count,
+      min_priority = t.min_priority,
+      min_id = t.min_id,
+      next_due = t.next_due,
+      in_flight_until = t.in_flight_until
+    FROM t
+    WHERE g.group_key = t.group_key
+      AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+          IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
+  END IF;
+  WITH t AS (
+    SELECT g0.group_key,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.job_count + d.count_delta) END AS job_count,
+      CASE WHEN hp.priority IS NULL THEN 0 ELSE GREATEST(0, g0.ready_count + d.ready_delta) END AS ready_count,
+      COALESCE(hp.priority, 0) AS min_priority,
+      COALESCE(hp.id, 0) AS min_id,
+      nd.not_visible_until AS next_due,
+      fi.not_visible_until AS in_flight_until
     FROM (
-      SELECT DISTINCT n.group_key
-      FROM new_table n
-      JOIN old_table o ON o.id = n.id
+      SELECT n.group_key, 0 AS count_delta,
+        SUM((n.not_visible_until IS NULL AND NOT n.suspended)::int - (o.not_visible_until IS NULL AND NOT o.suspended)::int)::int AS ready_delta
+      FROM new_table n JOIN old_table o ON o.id = n.id
       WHERE n.group_key IS NOT NULL
         AND n.group_key IS NOT DISTINCT FROM o.group_key
-        AND (n.priority IS DISTINCT FROM o.priority
-             OR o.not_visible_until IS DISTINCT FROM n.not_visible_until
-             OR o.suspended IS DISTINCT FROM n.suspended)
-    ) d
-    LEFT JOIN "arbiter"."meetings" t ON t.group_key = d.group_key
-    GROUP BY d.group_key
-  ) sub
-  WHERE g.group_key = sub.group_key
-    AND (g.min_priority IS DISTINCT FROM sub.new_min_priority
-         OR g.min_id IS DISTINCT FROM sub.new_min_id
-         OR g.next_due IS DISTINCT FROM sub.new_next_due);
-
-  -- Step 5: commutative in_flight_until extend and ready_count delta in one write.
-  UPDATE "arbiter"."meetings_groups" g
-  SET in_flight_until = GREATEST(g.in_flight_until, s.new_ift),
-      ready_count = GREATEST(0, g.ready_count + COALESCE(s.delta, 0))
-  FROM (
-    SELECT COALESCE(ift.group_key, rc.group_key) AS group_key, ift.new_ift, rc.delta
-    FROM (
-      SELECT n.group_key, MAX(n.not_visible_until) AS new_ift
-      FROM new_table n
-      JOIN old_table o ON o.id = n.id
-      WHERE n.group_key IS NOT NULL
-        AND n.not_visible_until > NOW()
-        AND NOT n.suspended
-        AND n.attempts > 0
-        AND (o.not_visible_until IS NULL OR o.not_visible_until <= NOW()
-             OR n.not_visible_until > o.not_visible_until)
+        AND (n.priority IS DISTINCT FROM o.priority OR n.not_visible_until IS DISTINCT FROM o.not_visible_until OR n.suspended IS DISTINCT FROM o.suspended OR n.attempts IS DISTINCT FROM o.attempts OR n.throttled_until IS DISTINCT FROM o.throttled_until)
       GROUP BY n.group_key
-    ) ift
-    FULL OUTER JOIN (
-      SELECT group_key, delta FROM (
-        SELECT n.group_key,
-          SUM(
-            (CASE WHEN n.not_visible_until IS NULL AND NOT n.suspended THEN 1 ELSE 0 END)
-            - (CASE WHEN o.not_visible_until IS NULL AND NOT o.suspended THEN 1 ELSE 0 END)
-          )::int AS delta
-        FROM new_table n
-        JOIN old_table o ON o.id = n.id
-        WHERE n.group_key IS NOT NULL
-          AND n.group_key IS NOT DISTINCT FROM o.group_key
-        GROUP BY n.group_key
-      ) z
-      WHERE delta <> 0
-    ) rc ON ift.group_key = rc.group_key
-  ) s
-  WHERE g.group_key = s.group_key;
-
+    ) d
+    JOIN "arbiter"."meetings_groups" g0 ON g0.group_key = d.group_key
+    LEFT JOIN LATERAL (
+      SELECT q.priority, q.id FROM "arbiter"."meetings" q
+      WHERE q.group_key = d.group_key
+      ORDER BY q.priority ASC, q.id ASC LIMIT 1
+    ) hp ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."meetings" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until IS NOT NULL AND NOT q.suspended
+      ORDER BY q.not_visible_until ASC LIMIT 1
+    ) nd ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT q.not_visible_until FROM "arbiter"."meetings" q
+      WHERE q.group_key = d.group_key AND q.not_visible_until > NOW() AND NOT q.suspended AND (q.attempts > 0 OR q.throttled_until > NOW())
+      ORDER BY q.not_visible_until DESC NULLS LAST LIMIT 1
+    ) fi ON TRUE
+  )
+  UPDATE "arbiter"."meetings_groups" g
+  SET job_count = t.job_count,
+    ready_count = t.ready_count,
+    min_priority = t.min_priority,
+    min_id = t.min_id,
+    next_due = t.next_due,
+    in_flight_until = t.in_flight_until
+  FROM t
+  WHERE g.group_key = t.group_key
+    AND (g.job_count, g.ready_count, g.min_priority, g.min_id, g.next_due, g.in_flight_until)
+        IS DISTINCT FROM (t.job_count, t.ready_count, t.min_priority, t.min_id, t.next_due, t.in_flight_until);
   RETURN NULL;
 END;
 $$;
@@ -653,13 +683,22 @@ CREATE FUNCTION arbiter.notify_conversations_created() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  PERFORM pg_notify('conversations_created', '');
-  RETURN NEW;
+  IF EXISTS (SELECT 1 FROM new_table) THEN
+    PERFORM pg_notify('conversations_created', '');
+  END IF;
+  RETURN NULL;
 END;
 $$;
 
 
 ALTER FUNCTION arbiter.notify_conversations_created() OWNER TO "wire-server";
+
+--
+-- Name: FUNCTION notify_conversations_created(); Type: COMMENT; Schema: arbiter; Owner: wire-server
+--
+
+COMMENT ON FUNCTION arbiter.notify_conversations_created() IS 'arbiter:notify:v1';
+
 
 --
 -- Name: notify_meetings_created(); Type: FUNCTION; Schema: arbiter; Owner: wire-server
@@ -669,13 +708,22 @@ CREATE FUNCTION arbiter.notify_meetings_created() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  PERFORM pg_notify('meetings_created', '');
-  RETURN NEW;
+  IF EXISTS (SELECT 1 FROM new_table) THEN
+    PERFORM pg_notify('meetings_created', '');
+  END IF;
+  RETURN NULL;
 END;
 $$;
 
 
 ALTER FUNCTION arbiter.notify_meetings_created() OWNER TO "wire-server";
+
+--
+-- Name: FUNCTION notify_meetings_created(); Type: COMMENT; Schema: arbiter; Owner: wire-server
+--
+
+COMMENT ON FUNCTION arbiter.notify_meetings_created() IS 'arbiter:notify:v1';
+
 
 --
 -- Name: update_updated_at(); Type: FUNCTION; Schema: public; Owner: wire-server
@@ -732,7 +780,8 @@ ALTER TABLE arbiter.arbiter_concurrency_policies OWNER TO "wire-server";
 
 CREATE TABLE arbiter.arbiter_gates (
     task_name text NOT NULL,
-    last_run_at timestamp with time zone DEFAULT '1970-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    last_run_at timestamp with time zone DEFAULT '1970-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    metadata jsonb
 );
 
 
@@ -841,7 +890,11 @@ CREATE TABLE arbiter.conversations (
     concurrency_prefix text,
     rate_limit_cost double precision DEFAULT 1 NOT NULL,
     cancel_requested_at timestamp with time zone,
-    archive_for integer
+    archive_for integer,
+    traceparent text,
+    tracestate text,
+    claim_seq bigint DEFAULT 0 NOT NULL,
+    kind text
 )
 WITH (fillfactor='100');
 
@@ -879,7 +932,11 @@ CREATE TABLE arbiter.conversations_archive (
     max_attempts integer,
     parent_id bigint,
     parent_state jsonb,
-    suspended boolean DEFAULT false NOT NULL
+    suspended boolean DEFAULT false NOT NULL,
+    traceparent text,
+    tracestate text,
+    claim_seq bigint DEFAULT 0 NOT NULL,
+    kind text
 );
 
 
@@ -935,7 +992,11 @@ CREATE TABLE arbiter.conversations_dlq (
     concurrency_key text,
     concurrency_prefix text,
     rate_limit_cost double precision DEFAULT 1 NOT NULL,
-    archive_for integer
+    archive_for integer,
+    traceparent text,
+    tracestate text,
+    claim_seq bigint DEFAULT 0 NOT NULL,
+    kind text
 );
 
 
@@ -1069,7 +1130,11 @@ CREATE TABLE arbiter.meetings (
     concurrency_prefix text,
     rate_limit_cost double precision DEFAULT 1 NOT NULL,
     cancel_requested_at timestamp with time zone,
-    archive_for integer
+    archive_for integer,
+    traceparent text,
+    tracestate text,
+    claim_seq bigint DEFAULT 0 NOT NULL,
+    kind text
 )
 WITH (fillfactor='100');
 
@@ -1107,7 +1172,11 @@ CREATE TABLE arbiter.meetings_archive (
     max_attempts integer,
     parent_id bigint,
     parent_state jsonb,
-    suspended boolean DEFAULT false NOT NULL
+    suspended boolean DEFAULT false NOT NULL,
+    traceparent text,
+    tracestate text,
+    claim_seq bigint DEFAULT 0 NOT NULL,
+    kind text
 );
 
 
@@ -1163,7 +1232,11 @@ CREATE TABLE arbiter.meetings_dlq (
     concurrency_key text,
     concurrency_prefix text,
     rate_limit_cost double precision DEFAULT 1 NOT NULL,
-    archive_for integer
+    archive_for integer,
+    traceparent text,
+    tracestate text,
+    claim_seq bigint DEFAULT 0 NOT NULL,
+    kind text
 );
 
 
@@ -1283,17 +1356,6 @@ CREATE TABLE public.asset (
 
 
 ALTER TABLE public.asset OWNER TO "wire-server";
-
---
--- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.email_blocklist (
-    email text NOT NULL
-);
-
-
-ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 --
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
@@ -1461,6 +1523,17 @@ CREATE TABLE public.domain_registration_challenge (
 
 
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
+
+--
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -1894,13 +1967,6 @@ ALTER TABLE ONLY arbiter.meetings_results
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
 
---
--- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.email_blocklist
-    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
-
 
 --
 -- Name: bot_conv bot_conv_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -1980,6 +2046,14 @@ ALTER TABLE ONLY public.domain_registration_challenge
 
 ALTER TABLE ONLY public.domain_registration
     ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
 
 
 --
@@ -2187,10 +2261,38 @@ CREATE INDEX idx_conversations_dlq_parent_id ON arbiter.conversations_dlq USING 
 
 
 --
+-- Name: idx_conversations_group_in_flight; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_conversations_group_in_flight ON arbiter.conversations USING btree (group_key, not_visible_until DESC NULLS LAST) WHERE ((group_key IS NOT NULL) AND (not_visible_until IS NOT NULL) AND (NOT suspended) AND ((attempts > 0) OR (throttled_until IS NOT NULL)));
+
+
+--
 -- Name: idx_conversations_group_key; Type: INDEX; Schema: arbiter; Owner: wire-server
 --
 
 CREATE INDEX idx_conversations_group_key ON arbiter.conversations USING btree (group_key, priority, id) WHERE (group_key IS NOT NULL);
+
+
+--
+-- Name: idx_conversations_group_retried; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_conversations_group_retried ON arbiter.conversations USING btree (group_key, attempts DESC, priority, id) WHERE ((group_key IS NOT NULL) AND (attempts > 0));
+
+
+--
+-- Name: idx_conversations_grouped_due; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_conversations_grouped_due ON arbiter.conversations USING btree (group_key, not_visible_until) WHERE ((group_key IS NOT NULL) AND (not_visible_until IS NOT NULL) AND (NOT suspended));
+
+
+--
+-- Name: idx_conversations_groups_emptied; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_conversations_groups_emptied ON arbiter.conversations_groups USING btree (group_key) WHERE (job_count = 0);
 
 
 --
@@ -2313,10 +2415,38 @@ CREATE INDEX idx_meetings_dlq_parent_id ON arbiter.meetings_dlq USING btree (par
 
 
 --
+-- Name: idx_meetings_group_in_flight; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_group_in_flight ON arbiter.meetings USING btree (group_key, not_visible_until DESC NULLS LAST) WHERE ((group_key IS NOT NULL) AND (not_visible_until IS NOT NULL) AND (NOT suspended) AND ((attempts > 0) OR (throttled_until IS NOT NULL)));
+
+
+--
 -- Name: idx_meetings_group_key; Type: INDEX; Schema: arbiter; Owner: wire-server
 --
 
 CREATE INDEX idx_meetings_group_key ON arbiter.meetings USING btree (group_key, priority, id) WHERE (group_key IS NOT NULL);
+
+
+--
+-- Name: idx_meetings_group_retried; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_group_retried ON arbiter.meetings USING btree (group_key, attempts DESC, priority, id) WHERE ((group_key IS NOT NULL) AND (attempts > 0));
+
+
+--
+-- Name: idx_meetings_grouped_due; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_grouped_due ON arbiter.meetings USING btree (group_key, not_visible_until) WHERE ((group_key IS NOT NULL) AND (not_visible_until IS NOT NULL) AND (NOT suspended));
+
+
+--
+-- Name: idx_meetings_groups_emptied; Type: INDEX; Schema: arbiter; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_groups_emptied ON arbiter.meetings_groups USING btree (group_key) WHERE (job_count = 0);
 
 
 --
@@ -2502,6 +2632,13 @@ CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btr
 
 
 --
+-- Name: wire_user_managed_by_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX wire_user_managed_by_idx ON public.wire_user USING btree (managed_by);
+
+
+--
 -- Name: wire_user_service_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2509,10 +2646,24 @@ CREATE INDEX wire_user_service_idx ON public.wire_user USING btree (provider, se
 
 
 --
+-- Name: wire_user_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX wire_user_team_idx ON public.wire_user USING btree (team);
+
+
+--
 -- Name: conversations conversations_notify_trigger; Type: TRIGGER; Schema: arbiter; Owner: wire-server
 --
 
-CREATE TRIGGER conversations_notify_trigger AFTER INSERT ON arbiter.conversations FOR EACH ROW EXECUTE FUNCTION arbiter.notify_conversations_created();
+CREATE TRIGGER conversations_notify_trigger AFTER INSERT ON arbiter.conversations REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT EXECUTE FUNCTION arbiter.notify_conversations_created();
+
+
+--
+-- Name: TRIGGER conversations_notify_trigger ON conversations; Type: COMMENT; Schema: arbiter; Owner: wire-server
+--
+
+COMMENT ON TRIGGER conversations_notify_trigger ON arbiter.conversations IS 'arbiter:notify:v1';
 
 
 --
@@ -2561,7 +2712,14 @@ CREATE TRIGGER maintain_meetings_groups_update AFTER UPDATE ON arbiter.meetings 
 -- Name: meetings meetings_notify_trigger; Type: TRIGGER; Schema: arbiter; Owner: wire-server
 --
 
-CREATE TRIGGER meetings_notify_trigger AFTER INSERT ON arbiter.meetings FOR EACH ROW EXECUTE FUNCTION arbiter.notify_meetings_created();
+CREATE TRIGGER meetings_notify_trigger AFTER INSERT ON arbiter.meetings REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT EXECUTE FUNCTION arbiter.notify_meetings_created();
+
+
+--
+-- Name: TRIGGER meetings_notify_trigger ON meetings; Type: COMMENT; Schema: arbiter; Owner: wire-server
+--
+
+COMMENT ON TRIGGER meetings_notify_trigger ON arbiter.meetings IS 'arbiter:notify:v1';
 
 
 --
