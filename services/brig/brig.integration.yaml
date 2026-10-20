@@ -180,6 +180,8 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  scimTokens: cassandra
+  scimExternalIds: cassandra
 
 optSettings:
   setActivationTimeout: 4

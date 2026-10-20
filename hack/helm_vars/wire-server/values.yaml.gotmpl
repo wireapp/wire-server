@@ -312,6 +312,8 @@ galley:
       passwordReset: {{ .Values.passwordReset }}
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -608,6 +610,8 @@ spar:
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
       passwordReset: {{ .Values.passwordReset }}
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/

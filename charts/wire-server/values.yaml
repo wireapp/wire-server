@@ -95,6 +95,8 @@ galley:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
+      scimTokens: cassandra
+      scimExternalIds: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -884,6 +886,8 @@ spar:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
+      scimTokens: cassandra
+      scimExternalIds: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
 
@@ -1066,6 +1070,11 @@ background-worker:
     # It's important to set `settings.postgresMigration.passwordReset` to `migration-to-postgresql`
     # before starting the migration.
     migratePasswordReset: false
+    # This will start the migration of spar scim token and scim external id data.
+    # It's important to set `spar.config.postgresMigration.scimTokens` / `scimExternalIds`
+    # to `migration-to-postgresql` before starting the migration.
+    migrateScimTokens: false
+    migrateScimExternalIds: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

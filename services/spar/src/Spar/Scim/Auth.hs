@@ -52,8 +52,6 @@ import Spar.App (throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
-import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
@@ -65,6 +63,8 @@ import Wire.BrigAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.ScimTokenStore (ScimTokenStore)
+import qualified Wire.ScimTokenStore as ScimTokenStore
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 import Wire.Sem.Random (Random)

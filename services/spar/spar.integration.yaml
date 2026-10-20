@@ -51,6 +51,8 @@ postgresMigration:
   user: cassandra
   blockList: cassandra
   passwordReset: cassandra
+  scimTokens: postgresql
+  scimExternalIds: postgresql
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"

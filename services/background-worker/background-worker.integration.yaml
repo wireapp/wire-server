@@ -67,6 +67,8 @@ migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
 migratePasswordReset: false
+migrateScimTokens: false
+migrateScimExternalIds: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -103,3 +105,5 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  scimTokens: postgresql
+  scimExternalIds: postgresql
