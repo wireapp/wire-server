@@ -128,10 +128,14 @@ data:
           {{- if .replyTo }}
           replyTo: {{ .replyTo | quote }}
           {{- end }}
+          templateDir: {{ required "Missing value: galley.config.settings.meetings.email.templateDir" .templateDir | quote }}
+          {{- if .branding }}
+          branding: {{ toYaml .branding | nindent 10 }}
+          {{- end }}
           transport:
-          {{- if .useSES }}
-            sesQueue: {{ required "Missing value: galley.config.settings.meetings.email.aws.sesQueue" .aws.sesQueue }}
-            sesEndpoint: {{ .aws.sesEndpoint | quote }}
+          {{- if .sesQueue }}
+            sesQueue: {{ required "Missing value: galley.config.settings.meetings.email.sesQueue" .sesQueue }}
+            sesEndpoint: {{ required "Missing value: galley.config.settings.meetings.email.sesEndpoint" .sesEndpoint | quote }}
           {{- else }}
             smtpEndpoint:
               host: {{ .smtp.host }}

@@ -1,0 +1,1 @@
+Meeting invitation, update and cancellation emails are now sent to invited email addresses when a meeting is created, edited, its join link refreshed or it is deleted. Configure via `settings.meetings.email`; sending is disabled when unset.

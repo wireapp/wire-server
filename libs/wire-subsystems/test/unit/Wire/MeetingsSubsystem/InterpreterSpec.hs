@@ -28,7 +28,7 @@ import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl (..), IpAddr (..), plainTextPassword8Unsafe)
 import Data.Qualified
-import Data.Range (checked, unsafeRange)
+import Data.Range (Range, checked, unsafeRange)
 import Data.Set qualified as Set
 import Data.Tagged (Tagged)
 import Data.Time.Calendar (fromGregorian)
@@ -44,8 +44,7 @@ import Polysemy.TinyLog (TinyLog)
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty, (.&&.), (===), (==>))
-import Text.Email.Parser (unsafeEmailAddress)
+import Test.QuickCheck (NonNegative, arbitrary, counterexample, generate, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Conversation (Access (CodeAccess, InviteAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
 import Wire.API.Conversation.Role (pattern DeleteConversation)
@@ -59,10 +58,14 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
 import Wire.API.Team.Permission (fullPermissions)
+import Wire.API.User
+import Wire.BrigAPIAccess
+import Wire.BrigAPIAccess qualified as BrigAPIAccess
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as CodeStore
 import Wire.CodeStore.Code (Code (..), CodeReferent (..))
 import Wire.ConversationSubsystem
+import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
@@ -110,6 +113,10 @@ type TestStack =
      CodeStore,
      State (Map Key (Code, Maybe Password)),
      Input (Either HttpsUrl (Map Domain HttpsUrl)),
+     BrigAPIAccess,
+     EmailSubsystem,
+     State (Map UserId User),
+     State (Map EmailAddress [SentMail]),
      Embed IO
    ]
 
@@ -163,6 +170,10 @@ runTestStackWithURI ::
   IO (Either (Tagged ('ActionDenied 'DeleteConversation) ()) (Either MeetingError a))
 runTestStackWithURI now gen convCodeURI teams configs =
   runM
+    . evalState (Map.empty :: Map EmailAddress [SentMail])
+    . evalState (Map.empty :: Map UserId User)
+    . inMemoryEmailSubsystemInterpreter
+    . mockBrigAPIAccess
     . fmap (either (error . show) (either (error . show) Imports.id))
     . runInputConst convCodeURI
     . evalState (Map.empty :: Map Key (Code, Maybe Password))
@@ -206,9 +217,33 @@ emptyUpdate = API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing
 -- | Decode all 'Push' payloads that are meeting lifecycle events. Any push that
 -- decodes as a 'MeetingEvent.Event' is one: conversation events use distinct
 -- @type@ tags that the meeting 'EventType' enum rejects.
+-- | An update that only sets the meeting title (email tests).
+titleUpdate :: Range 1 256 Text -> API.UpdateMeeting
+titleUpdate t = API.UpdateMeeting Nothing Nothing (Just t) Nothing Nothing
+
 extractMeetingEvents :: [Push] -> [MeetingEvent.Event]
 extractMeetingEvents pushes =
   [e | push <- pushes, Success e <- [fromJSON (Object push.json)]]
+
+-- | Brig mock that only answers 'GetUsers' (used for meeting-email host
+-- resolution); every other operation is a programming error.
+mockBrigAPIAccess :: (Member (State (Map UserId User)) r) => InterpreterFor BrigAPIAccess r
+mockBrigAPIAccess = interpret \case
+  BrigAPIAccess.GetUsers uids -> gets (Map.elems . (`Map.restrictKeys` Set.fromList uids))
+  _ -> error "mockBrigAPIAccess: unimplemented operation"
+
+-- | A brig user record for the meeting host (creator) with the given name,
+-- email and locale, everything else generated.
+mkHostUser :: UserId -> Text -> Maybe EmailAddress -> Locale -> IO User
+mkHostUser uid name email loc = do
+  base <- generate arbitrary
+  pure
+    base
+      { userQualifiedId = Qualified uid (Domain "wire.com"),
+        userDisplayName = Name name,
+        userEmailUnvalidated = email,
+        userLocale = loc
+      }
 
 spec :: Spec
 spec = describe "MeetingsSubsystem.Interpreter" $ do
@@ -2454,7 +2489,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
           meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           put @[Push] []
-          _ <- updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing Nothing)
+          _ <- updateMeeting zUser2 (ConnId "test-conn") meeting.meeting.id (titleUpdate (unsafeRange "Hijack"))
           get @[Push]
 
       case result of
@@ -2721,6 +2756,186 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       case result of
         Left msg -> msg `shouldBe` ("invalid mtype" :: Text)
         Right _ -> expectationFailure "expected unmarshall to reject an invalid mtype"
+
+  describe "meeting emails" $ do
+    let now0 = UTCTime (fromGregorian 2026 1 1) 0
+        gen0 = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        dom = Domain "wire.com"
+        zUser1 = toLocalUnsafe dom uid1
+        zUser2 = toLocalUnsafe dom uid2
+        testConnId = ConnId "test-conn"
+        addrA = unsafeEmailAddress "a" "example.com"
+        addrB = unsafeEmailAddress "b" "example.com"
+        addrC = unsafeEmailAddress "c" "example.com"
+        addrD = unsafeEmailAddress "d" "example.com"
+        hostEmail = unsafeEmailAddress "host" "example.com"
+        hostLocale = def :: Locale
+
+        mkNewMeeting :: API.MeetingType -> [EmailAddress] -> API.NewMeeting
+        mkNewMeeting mtype invited =
+          API.NewMeeting
+            { title = fromJust $ checked "Email Meeting",
+              startTime = addUTCTime 3600 now0,
+              endTime = addUTCTime 7200 now0,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = mtype,
+              password = Nothing,
+              recurrence = Nothing,
+              invitedEmails = invited
+            }
+
+    it "sends an invitation email to each invited address on create" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA, addrB])
+        (,,,)
+          <$> sentTo addrA
+          <*> sentTo addrB
+          <*> totalEmails
+          <*> pure (Just meeting.meeting)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (mailsA, mailsB, total, Just m) -> do
+          contents mailsA `shouldBe` [MeetingInvitationMail "Alice Host" hostEmail m]
+          map (.locale) mailsA `shouldBe` [Just hostLocale]
+          contents mailsB `shouldBe` contents mailsA
+          total `shouldBe` 2
+        Right (_, _, _, Nothing) -> expectationFailure "unexpected Nothing"
+
+    it "sends no emails for immediate meetings" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        _ <- createMeeting zUser1 testConnId (mkNewMeeting API.Immediate [addrA])
+        totalEmails
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right total -> total `shouldBe` 0
+
+    it "sends an update email on a real change and none on a no-op update" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA, addrB])
+        updated <- updateMeeting zUser1 testConnId meeting.meeting.id (titleUpdate (unsafeRange "Renamed"))
+        mailsAfterChange <- sentTo addrA
+        _ <- updateMeeting zUser1 testConnId meeting.meeting.id (titleUpdate (unsafeRange "Renamed"))
+        mailsAfterNoop <- sentTo addrA
+        total <- totalEmails
+        pure (mailsAfterChange, mailsAfterNoop, total, updated, meeting.meeting)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (mailsAfterChange, mailsAfterNoop, total, Just updated, createdMeeting) -> do
+          let m = updated.meeting
+          contents mailsAfterChange
+            `shouldBe` [ MeetingInvitationMail "Alice Host" hostEmail createdMeeting,
+                         MeetingUpdateMail "Alice Host" hostEmail m "Title changed"
+                       ]
+          mailsAfterNoop `shouldBe` mailsAfterChange
+          total `shouldBe` 4 -- 2 invitations + 2 update mails (one per address)
+        Right (_, _, _, Nothing, _) -> expectationFailure "update unexpectedly returned Nothing"
+
+    it "sends a 'Join link changed' update email on refreshMeetingLink" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA])
+        refreshed <- refreshMeetingLink zUser1 testConnId meeting.meeting.id (API.RefreshMeetingLinkRequest Nothing)
+        mails <- sentTo addrA
+        pure (mails, refreshed, meeting.meeting)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (mails, Just refreshed, createdMeeting) ->
+          -- The invitation carries the link at creation time; the update mail
+          -- the fresh (rotated) one.
+          contents mails
+            `shouldBe` [ MeetingInvitationMail "Alice Host" hostEmail createdMeeting,
+                         MeetingUpdateMail "Alice Host" hostEmail refreshed.meeting "Join link changed"
+                       ]
+        Right (_, Nothing, _) -> expectationFailure "refresh unexpectedly returned Nothing"
+
+    it "sends a cancellation email per invited address on delete" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA, addrB])
+        deleted <- deleteMeeting zUser1 testConnId meeting.meeting.id
+        mailsA <- sentTo addrA
+        total <- totalEmails
+        pure (deleted, mailsA, total, meeting.meeting)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (deleted, mailsA, total, m) -> do
+          deleted `shouldBe` True
+          contents mailsA
+            `shouldBe` [ MeetingInvitationMail "Alice Host" hostEmail m,
+                         MeetingCancelMail "Alice Host" hostEmail m
+                       ]
+          total `shouldBe` 4
+
+    it "sends invitations only for newly added addresses (add/replace/remove)" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA])
+        _ <- addInvitedEmails zUser1 meeting.meeting.id [addrB, addrC]
+        _ <- replaceInvitedEmails zUser1 meeting.meeting.id [addrC, addrD]
+        _ <- removeInvitedEmails zUser1 meeting.meeting.id [addrD]
+        (,,,,) <$> sentTo addrA <*> sentTo addrB <*> sentTo addrC <*> sentTo addrD <*> totalEmails
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (mailsA, mailsB, mailsC, mailsD, total) -> do
+          let expected = [MeetingInvitationMail "Alice Host" hostEmail (meetingForMailIn mailsA)]
+          contents mailsA `shouldBe` expected
+          contents mailsB `shouldBe` expected
+          contents mailsC `shouldBe` expected
+          -- addrD only ever sees the invitation from replaceInvitedEmails.
+          length (contents mailsD) `shouldBe` 1
+          total `shouldBe` 4
+
+    it "sends no emails when the creator has no email address" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 Nothing hostLocale
+        _ <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA])
+        totalEmails
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right total -> total `shouldBe` 0
+
+    it "sends no emails for operations by a non-creator" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        plantHost uid2 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA])
+        _ <- updateMeeting zUser2 testConnId meeting.meeting.id (titleUpdate (unsafeRange "Hijack"))
+        deleted <- deleteMeeting zUser2 testConnId meeting.meeting.id
+        total <- totalEmails
+        pure (deleted, total)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (deleted, total) -> do
+          deleted `shouldBe` False
+          -- The create still sent its invitation; the denied update/delete
+          -- must not have added any emails.
+          total `shouldBe` 1
+
+-- | Plant a brig user record for the meeting creator in the mock brig state.
+plantHost :: UserId -> Maybe EmailAddress -> Locale -> Sem TestStack ()
+plantHost uid email loc = do
+  u <- liftIO (mkHostUser uid "Alice Host" email loc)
+  modify (Map.insert uid u)
+
+sentTo :: EmailAddress -> Sem TestStack [SentMail]
+sentTo = getEmailsSentTo
+
+totalEmails :: Sem TestStack Int
+totalEmails = gets @(Map EmailAddress [SentMail]) (sum . map length . Map.elems)
+
+contents :: [SentMail] -> [SentMailContent]
+contents = map (.content)
+
+-- | The 'API.Meeting' carried by the first mail sent to the address.
+meetingForMailIn :: [SentMail] -> API.Meeting
+meetingForMailIn mails = case map (.content) mails of
+  (MeetingInvitationMail _ _ m : _) -> m
+  _ -> error "meetingForMailIn: no invitation mail found"
 
 -- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
 expectedStartTimeTolerance :: NominalDiffTime
