@@ -271,3 +271,5 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   passwordReset: postgresql
+  scimTokens: cassandra
+  scimExternalIds: cassandra

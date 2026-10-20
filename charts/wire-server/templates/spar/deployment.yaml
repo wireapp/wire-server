@@ -25,6 +25,7 @@ spec:
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
         checksum/configmap: {{ include (print .Template.BasePath "/spar/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/spar/secret.yaml") . | sha256sum }}
     spec:
       topologySpreadConstraints:
         - maxSkew: 1
@@ -37,6 +38,9 @@ spec:
         - name: "spar-config"
           configMap:
             name: "spar"
+        - name: "spar-secrets"
+          secret:
+            secretName: "spar"
         {{- if eq (include "useCassandraTLS" .Values.spar.config.cassandra) "true" }}
         - name: "spar-cassandra"
           secret:
@@ -53,6 +57,8 @@ spec:
           volumeMounts:
           - name: "spar-config"
             mountPath: "/etc/wire/spar/conf"
+          - name: "spar-secrets"
+            mountPath: "/etc/wire/spar/secrets"
           {{- if eq (include "useCassandraTLS" .Values.spar.config.cassandra) "true" }}
           - name: "spar-cassandra"
             mountPath: "/etc/wire/spar/cassandra"

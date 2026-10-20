@@ -100,6 +100,20 @@ run opts galleyOpts = do
           withNamedLogger "migrate-password-reset" $
             Migrations.passwordReset opts.migrationOptions
       else pure $ pure ()
+  cleanupScimTokensMigration <-
+    if opts.migrateScimTokens
+      then
+        runAppT env $
+          withNamedLogger "migrate-scim-tokens" $
+            Migrations.scimTokens opts.migrationOptions
+      else pure $ pure ()
+  cleanupScimExternalIdsMigration <-
+    if opts.migrateScimExternalIds
+      then
+        runAppT env $
+          withNamedLogger "migrate-scim-external-ids" $
+            Migrations.scimExternalIds opts.migrationOptions
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -111,7 +125,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,)
+            (,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -121,6 +135,8 @@ run opts galleyOpts = do
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupBlockListMigration
               <*> Concurrently cleanupPasswordResetMigration
+              <*> Concurrently cleanupScimTokensMigration
+              <*> Concurrently cleanupScimExternalIdsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
