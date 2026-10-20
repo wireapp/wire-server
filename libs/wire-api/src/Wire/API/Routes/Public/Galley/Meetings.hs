@@ -294,7 +294,7 @@ type MeetingsAPI =
     :<|> Named
            "refresh-meeting-link"
            ( Summary "Refresh the join link of a meeting"
-               :> DescriptionOAuthScope 'WriteMeetings
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
                :> ZConn

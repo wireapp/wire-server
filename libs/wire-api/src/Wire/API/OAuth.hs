@@ -203,8 +203,8 @@ instance ToSchema OAuthResponseType where
 -- A scope is a tier and a base, but not every combination of the two is a
 -- scope: only the ones listed here exist, and they are the ones the routing
 -- tables document and @charts/nginz/values.yaml@ enforces.  Anything else is
--- rejected by 'FromByteString', so nobody can be granted e.g. a
--- @delete-only:conversations_code@ that no endpoint honours.
+-- rejected by 'FromByteString', so nobody can be granted a scope that no
+-- endpoint honours.
 data OAuthScope
   = ReadFeatureConfigs
   | ReadSelf
@@ -318,29 +318,6 @@ instance ToSchema OAuthScopes where
       validScopes =
         "valid scopes are: "
           <> T.unpack (oauthScopesToText (Set.fromList [minBound ..]))
-
-allScopes :: Text -> Set OAuthScope
-allScopes t =
-  case T.splitOn ":" t of
-    [oldTier, base] ->
-      let tierMap =
-            Map.fromList
-              [ ("read", ["read"]),
-                ("write", ["read", "write-only"]),
-                ("admin", ["read", "write-only", "delete-only"]),
-                ("write-only", ["write-only"]),
-                ("delete-only", ["delete-only"])
-              ]
-          newTiers = Map.lookup (T.toLower oldTier) tierMap
-       in maybe Set.empty (expandTiers base) newTiers
-    _ -> Set.empty
-  where
-    expandTiers :: Text -> [Text] -> Set OAuthScope
-    expandTiers base tiers =
-      Set.fromList $
-        mapMaybe
-          (\tier -> fromByteString' (fromStrict (TE.encodeUtf8 (tier <> ":" <> base))))
-          tiers
 
 -- | A scope as it can appear in the database, in terms of the scopes we have
 -- now.

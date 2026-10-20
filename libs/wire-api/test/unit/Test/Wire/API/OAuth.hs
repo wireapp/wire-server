@@ -85,35 +85,8 @@ testScopesParseOnlyKnown = do
   (eitherDecode "\"read:feature_configs read:self\"" :: Either String OAuthScopes)
     @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
 
-  (eitherDecode "\"read:feature_configs read:self\"" :: Either String OAuthScopes)
-    @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
-
   (eitherDecode "\"write:feature_configs read:self\"" :: Either String OAuthScopes)
     @?= Right (OAuthScopes (Set.fromList [ReadFeatureConfigs, ReadSelf]))
-
-{-
-
- WriteConversations
-write:conversations
-write-only:conversations
-
- WriteConversationsCode
-write:conversations_code
-write-only:conversations_code
-
- WriteConversationsName
-read:conversations_name
-write-only:conversations_name
-
- WriteMeetings
-write:meetings
-write-only:meetings
-
- AdminMeetings
-admin:meetings
-delete-only-meetings
-
--}
 
 testCodeChallengeVerification :: Assertion
 testCodeChallengeVerification = do

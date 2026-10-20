@@ -186,7 +186,7 @@ testOAuthRejectUnusefulTokenRequests = do
     msg <- resp.json %. "message" & asString
     msg `shouldContainString` "read:self"
     msg `shouldContainString` "write-only:conversations"
-  generateOAuthAuthorizationCode user cid ["delete-only:conversations_code"] redirectUri >>= assertStatus 400
+  generateOAuthAuthorizationCode user cid ["delete-only:conversations"] redirectUri >>= assertStatus 400
 
 testOAuthNewScopesOnDeprecatedAttribute :: (HasCallStack) => App ()
 testOAuthNewScopesOnDeprecatedAttribute = do
