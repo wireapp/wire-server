@@ -8,7 +8,8 @@
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "ejicn7cgzgb5qmbd2u7azzyuxk3s7_lp1g9vq74qklpqjjpi",
@@ -21,7 +22,8 @@
                 "id": "00000001-0000-0000-0000-000100000001",
                 "provider": "00000000-0000-0001-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "bdddc4zidwriaaj33u9qf87lwt757280x1ov2fp61al58353p79ngwnd002",
@@ -34,7 +36,8 @@
                 "id": "00000001-0000-0001-0000-000100000001",
                 "provider": "00000001-0000-0001-0000-000000000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "k_l3q0tp4vkvnbld_k4gd6d45pyjk8u41aom2y2yh1ysfkd0cg3st9_bf2qu8genm7_r6yop0",
@@ -47,7 +50,8 @@
                 "id": "00000001-0000-0000-0000-000100000001",
                 "provider": "00000001-0000-0001-0000-000100000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "u34kdore13nneih4_yvz6hrzdn1fbknebgfn40wqub4_at4wltiovo4jnezqqm7zkjtywx0w48v3z461f5ec2v245g",
@@ -56,7 +60,8 @@
                 "domain": "golden.example.com",
                 "id": "00000001-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "rm3w3leb1_9",
@@ -69,7 +74,8 @@
                 "id": "00000001-0000-0001-0000-000000000001",
                 "provider": "00000000-0000-0000-0000-000100000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "vp2rd8w7lmf6vrs10fm7pulw",
@@ -78,7 +84,8 @@
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "kkmo22xks1qlyei2_bfp44b0",
@@ -91,7 +98,8 @@
                 "id": "00000000-0000-0000-0000-000000000001",
                 "provider": "00000001-0000-0000-0000-000100000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "z8ebnqfymon",
@@ -104,7 +112,8 @@
                 "id": "00000001-0000-0001-0000-000100000001",
                 "provider": "00000001-0000-0001-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "3of35z0gjruit7b_duy8xi3bgykdsftb2ryoj_grnzfp18oqqs2jtv5q4ep0gcgd2wsjtmhf6pmdzz5ahrczci5o4mczjazfgxcno405k8azr771s4kh5at91l5yx",
@@ -117,7 +126,8 @@
                 "id": "00000001-0000-0001-0000-000100000000",
                 "provider": "00000000-0000-0001-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "i567cp5_vkae2dtra19lvhwcwj9ssgkg_r19ozt9it9gqzo14k9xed87kxpx27",
@@ -126,7 +136,8 @@
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0001-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "txuml7po8e05djfvcd0zk4_bn0hiq_kgvyp15nxnqn14zw1r",
@@ -139,7 +150,8 @@
                 "id": "00000001-0000-0001-0000-000100000000",
                 "provider": "00000000-0000-0000-0000-000100000000"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "hxcolas4lrgc4olpsi1vbdhoc6_1u89w9hywuh88_wfx859x2c_ff2wigldmoily_2agyh00476wxpwutn6d4pu22l33tugr6snuoi1teofgqr7bw49d4e8apqn5w",
@@ -152,7 +164,8 @@
                 "id": "00000000-0000-0000-0000-000100000001",
                 "provider": "00000000-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "214ujq5558xx8_9mjfja0pd24itn6uadzx",
@@ -165,7 +178,8 @@
                 "id": "00000000-0000-0000-0000-000100000000",
                 "provider": "00000001-0000-0000-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         },
         {
             "conversation_role": "22mdoy9vdwodcp2ms7fxjbpdlcbn_kgv0u3crai4wu57uz_41psgk5utjiv9ubef8vvck2wd4t3_obgapty8230lml462j02kc9qb5hjz50pee5cp_wn",
@@ -178,7 +192,8 @@
                 "id": "00000001-0000-0001-0000-000000000001",
                 "provider": "00000000-0000-0001-0000-000000000001"
             },
-            "status": 0
+            "status": 0,
+            "type": "regular"
         }
     ]
 }

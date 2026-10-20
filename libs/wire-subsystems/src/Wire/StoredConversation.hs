@@ -274,6 +274,7 @@ mlsMetadata conv =
 -- | Internal (cassandra) representation of a remote conversation member.
 data RemoteMember = RemoteMember
   { id_ :: Remote UserId,
+    omType :: UserType,
     convRoleName :: RoleName
   }
   deriving stock (Eq, Show)
@@ -286,6 +287,7 @@ remoteMemberToOther :: RemoteMember -> OtherMember
 remoteMemberToOther x =
   OtherMember
     { omQualifiedId = tUntagged x.id_,
+      omType = UserTypeRegular,
       omService = Nothing,
       omConvRoleName = x.convRoleName
     }
@@ -297,6 +299,7 @@ remoteMemberQualify m = qualifyAs m.id_ m
 data LocalMember = LocalMember
   { id_ :: UserId,
     status :: MemberStatus,
+    omType :: UserType,
     service :: Maybe ServiceRef,
     convRoleName :: RoleName
   }
