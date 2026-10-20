@@ -546,6 +546,7 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
           FROM wire_user
           WHERE team = $1 :: uuid
           AND managed_by = 1
+          ORDER BY id
           LIMIT $2 :: integer
           OFFSET $3 :: integer
         |]
