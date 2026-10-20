@@ -190,7 +190,7 @@ data UserSubsystem m a where
   SetUserSearchable :: Local UserId -> UserId -> SetSearchable -> UserSubsystem m ()
   -- Returns a 'Maybe' because only the Postgres interpreter of UserStore
   -- supports this.
-  InternalGetScimUsersPaginated :: TeamId -> Range 1 500 Int32 -> Maybe Int32 -> UserSubsystem m (Maybe (OffsetPage User))
+  InternalGetScimUsersPaginated :: TeamId -> Range 0 500 Int32 -> Maybe Int32 -> UserSubsystem m (Maybe (OffsetPage User))
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

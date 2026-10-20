@@ -714,7 +714,7 @@ getScimUsersPaginatedImpl ::
     Member (Input (Local any)) r,
     Member (Input UserSubsystemConfig) r
   ) =>
-  TeamId -> Range 1 500 Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage User))
+  TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (OffsetPage User)
 getScimUsersPaginatedImpl tid pageSize mOffset = do
   mStoredUsers <- UserStore.getScimUsersPaginated tid (fromRange pageSize) mOffset
   localDom <- inputs tDomain

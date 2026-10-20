@@ -866,7 +866,7 @@ type GetScimUsersPaginated =
         :> "teams"
         :> Capture "tid" TeamId
         :> "scim-users"
-        :> QueryParam' [Required, Strict] "page_size" (Range 1 500 Int32)
+        :> QueryParam' [Required, Strict] "page_size" (Range 0 500 Int32)
         :> QueryParam' [Optional, Strict] "offset" Int32
         :> Get '[JSON] (Maybe (OffsetPage User))
     )
