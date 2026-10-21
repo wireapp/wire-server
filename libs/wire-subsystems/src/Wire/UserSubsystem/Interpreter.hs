@@ -88,7 +88,7 @@ import Wire.DeleteQueue
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.Events
 import Wire.FederationAPIAccess
-import Wire.FederationConfigStore
+import Wire.FederationConfigSubsystem
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
@@ -136,7 +136,7 @@ runUserSubsystem ::
     FederationMonad fedM,
     Typeable fedM,
     Member IndexedUserStore r,
-    Member FederationConfigStore r,
+    Member FederationConfigSubsystem r,
     Member Metrics r,
     Member InvitationStore r,
     Member TinyLog r,
@@ -892,7 +892,7 @@ searchUsersImpl ::
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member FederationConfigStore r,
+    Member FederationConfigSubsystem r,
     RunClient (fedM 'Brig),
     Member (FederationAPIAccess fedM) r,
     FederationMonad fedM,
@@ -1016,7 +1016,7 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
         else hoistMaybe Nothing
 
 searchRemotely ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     RunClient (fedM 'Brig),
     Member (FederationAPIAccess fedM) r,
     FederationMonad fedM,

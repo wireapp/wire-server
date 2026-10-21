@@ -65,7 +65,7 @@ import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.FederationAPIAccess
-import Wire.FederationConfigStore
+import Wire.FederationConfigSubsystem
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -73,7 +73,7 @@ import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 
 createConnection ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -221,7 +221,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,

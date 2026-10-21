@@ -72,8 +72,8 @@ import Wire.ClientSubsystem (ClientSubsystem)
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ClientSubsystem.Error (clientErrorToHttpError)
 import Wire.Error
-import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.FederationConfigStore qualified as E
+import Wire.FederationConfigSubsystem (FederationConfigSubsystem)
+import Wire.FederationConfigSubsystem qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
@@ -88,7 +88,7 @@ type FederationAPI = "federation" :> BrigApi
 federationSitemap ::
   ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r,
-    Member FederationConfigStore r,
+    Member FederationConfigSubsystem r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
@@ -119,7 +119,7 @@ federationSitemap =
 
 -- Allow remote domains to send their known remote federation instances, and respond
 -- with the subset of those we aren't connected to.
-getFederationStatus :: (Member FederationConfigStore r) => Domain -> DomainSet -> Handler r NonConnectedBackends
+getFederationStatus :: (Member FederationConfigSubsystem r) => Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   cfg <- ask
   case cfg.settings.federationStrategy of
@@ -129,7 +129,7 @@ getFederationStatus _ request = do
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     Member GalleyAPIAccess r,
     Member UserStore r,
     Member NotificationSubsystem r
@@ -154,7 +154,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseNotFederating
 
 getUserByHandle ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     Member UserSubsystem r,
     Member UserStore r
   ) =>
@@ -231,7 +231,7 @@ fedClaimKeyPackages domain ckpr =
 -- | Searching for federated users on a remote backend
 searchUsers ::
   forall r.
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     Member UserSubsystem r,
     Member UserStore r
   ) =>
@@ -328,7 +328,7 @@ onUserDeleted origDomain udcn = lift $ do
   pure EmptyResponse
 
 -- | If domain is not configured fall back to `NoSearch`
-lookupSearchPolicy :: (Member FederationConfigStore r) => Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy :: (Member FederationConfigSubsystem r) => Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
   mConfig <- lift $ liftSem $ E.getFederationConfig domain
   pure $ maybe NoSearch searchPolicy mConfig
@@ -336,7 +336,7 @@ lookupSearchPolicy domain = do
 -- | If domain is not configured fall back to `NoSearch`
 -- if a team is provided, check if the team is allowed to search
 -- if no team is provided, and restriction is set by team, fall back to `NoSearch`
-lookupSearchPolicyWithTeam :: (Member FederationConfigStore r) => Domain -> Maybe TeamId -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicyWithTeam :: (Member FederationConfigSubsystem r) => Domain -> Maybe TeamId -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicyWithTeam domain mSearcherTeamId =
   lift $
     liftSem $
