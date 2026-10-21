@@ -82,6 +82,7 @@ import Data.Text.Encoding qualified as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Asset (AssetKey)
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -297,3 +298,27 @@ makeLenses ''Team
 makeLenses ''TeamList
 makeLenses ''TeamUpdateData
 makeLenses ''TeamDeleteData
+
+--------------------------------------------------------------------------------
+-- Postgres marshalling
+
+-- | Encoded as text: @default@ or the asset key (mirrors the Cassandra text
+-- column and the 'FromByteString' instance).
+instance PostgresMarshall Text Icon where
+  postgresMarshall DefaultIcon = "default"
+  postgresMarshall (Icon key) = T.decodeUtf8 (toByteString' key)
+
+instance PostgresUnmarshall Text Icon where
+  postgresUnmarshall t = case T.encodeUtf8 t of
+    "default" -> Right DefaultIcon
+    bs -> maybe (Left ("invalid icon: " <> t)) Right (fromByteString bs)
+
+-- | Encoded as text: @binding@ or @non_binding@.
+instance PostgresMarshall Text TeamBinding where
+  postgresMarshall Binding = "binding"
+  postgresMarshall NonBinding = "non_binding"
+
+instance PostgresUnmarshall Text TeamBinding where
+  postgresUnmarshall "binding" = Right Binding
+  postgresUnmarshall "non_binding" = Right NonBinding
+  postgresUnmarshall t = Left ("invalid team binding: " <> t)
