@@ -190,8 +190,18 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
     checkAllDeletionsWorked :: (HasCallStack) => String -> Value -> IntMap TestUserList -> Int -> App ()
     checkAllDeletionsWorked domain mel seedUsers phase = do
       let deletedSoFar = IntMap.restrictKeys seedUsers (IntSet.fromList $ [1 .. phase])
-      pooledForConcurrentlyN_ parallelism (scimUserIdsWithGetter deletedSoFar) $ \(token, uid) ->
-        getScimUser domain token uid >>= assertStatus 404
+      pooledForConcurrentlyN_ parallelism (scimUserIdsWithGetter deletedSoFar) $ \(token, uid) -> do
+        let getDeletedUser = getScimUser domain token uid
+        resp <-
+          if phase == 3
+            then eventually $ do
+              -- Reads can fail transiently while the background migration runs.
+              -- Retry only 500s; a resurrected user (200) must fail immediately.
+              response <- getDeletedUser
+              when (response.status == 500) $ assertStatus 404 response
+              pure response
+            else getDeletedUser
+        assertStatus 404 resp
 
       pooledForConcurrentlyN_ parallelism (nonScimUserIds mel deletedSoFar) $ \(getter, user) -> do
         uid <- user %. "qualified_id.id" & asString
