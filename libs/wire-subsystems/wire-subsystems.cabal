@@ -267,6 +267,11 @@ library
     Wire.CodeStore.DualWrite
     Wire.CodeStore.Migration
     Wire.CodeStore.Postgres
+    Wire.ConnectionStore
+    Wire.ConnectionStore.Cassandra
+    Wire.ConnectionStore.DualWrite
+    Wire.ConnectionStore.Migration
+    Wire.ConnectionStore.Postgres
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances

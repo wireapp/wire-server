@@ -25,6 +25,7 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.BlockListStore.Migration
 import Wire.CodeStore.Migration
+import Wire.ConnectionStore.Migration (migrateConnectionsLoop)
 import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.CustomBackendStore.Migration
 import Wire.DomainRegistrationStore.Migration
@@ -201,4 +202,22 @@ customBackend migOpts = do
   Log.info logger $ Log.msg (Log.val "started custom backend migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
+    cancel migrationLoop
+
+connections :: MigrationOptions -> AppT IO CleanupAction
+connections migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting connections migration")
+  count <- register $ counter $ Prometheus.Info "wire_connections_migrated_to_pg" "Number of connections migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_connections_migration_finished" "Whether the connections migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_connections_migration_failed" "Whether the connections migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_connections_migration_duration_seconds" "Duration of connections migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateConnectionsLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started connections migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling connections migration")
     cancel migrationLoop

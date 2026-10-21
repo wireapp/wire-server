@@ -502,7 +502,8 @@ spec = do
                 passwordReset = CassandraStorage,
                 customBackend = CassandraStorage,
                 budget = CassandraStorage,
-                nonce = CassandraStorage
+                nonce = CassandraStorage,
+                connections = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -572,7 +573,8 @@ spec = do
                 passwordReset = CassandraStorage,
                 customBackend = CassandraStorage,
                 budget = CassandraStorage,
-                nonce = CassandraStorage
+                nonce = CassandraStorage,
+                connections = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

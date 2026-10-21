@@ -274,3 +274,4 @@ postgresMigration:
   passwordReset: postgresql
   customBackend: postgresql
   budget: postgresql
+  connections: postgresql

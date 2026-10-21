@@ -179,6 +179,7 @@ library
     Test.MessageTimer
     Test.Migration.BlockList
     Test.Migration.Budget
+    Test.Migration.Connections
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.CustomBackend

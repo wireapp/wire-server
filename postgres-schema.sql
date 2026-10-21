@@ -1397,6 +1397,38 @@ CREATE TABLE public.collaborators (
 ALTER TABLE public.collaborators OWNER TO "wire-server";
 
 --
+-- Name: connection; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.connection (
+    "left" uuid NOT NULL,
+    "right" uuid NOT NULL,
+    status integer NOT NULL,
+    last_update timestamp with time zone NOT NULL,
+    conv uuid
+);
+
+
+ALTER TABLE public.connection OWNER TO "wire-server";
+
+--
+-- Name: connection_remote; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.connection_remote (
+    "left" uuid NOT NULL,
+    right_domain text NOT NULL,
+    right_user uuid NOT NULL,
+    status integer NOT NULL,
+    last_update timestamp with time zone NOT NULL,
+    conv_domain text,
+    conv_id uuid
+);
+
+
+ALTER TABLE public.connection_remote OWNER TO "wire-server";
+
+--
 -- Name: conversation; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2033,6 +2065,22 @@ ALTER TABLE ONLY public.collaborators
 
 
 --
+-- Name: connection connection_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.connection
+    ADD CONSTRAINT connection_pkey PRIMARY KEY ("left", "right");
+
+
+--
+-- Name: connection_remote connection_remote_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.connection_remote
+    ADD CONSTRAINT connection_remote_pkey PRIMARY KEY ("left", right_domain, right_user);
+
+
+--
 -- Name: conversation_codes conversation_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -2595,6 +2643,13 @@ CREATE INDEX collaborators_team_id_idx ON public.collaborators USING btree (team
 --
 
 CREATE INDEX collaborators_user_id_idx ON public.collaborators USING btree (user_id);
+
+
+--
+-- Name: connection_remote_right_domain_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX connection_remote_right_domain_idx ON public.connection_remote USING btree (right_domain);
 
 
 --

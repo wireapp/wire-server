@@ -89,6 +89,7 @@ data:
     migratePasswordReset: {{ .migratePasswordReset }}
     migrateCustomBackend: {{ .migrateCustomBackend }}
     migrateNonce: {{ .migrateNonce }}
+    migrateConnections: {{ .migrateConnections }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
