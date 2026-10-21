@@ -206,7 +206,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
       pooledForConcurrentlyN_ parallelism (nonScimUserIds mel deletedSoFar) $ \(getter, user) -> do
         uid <- user %. "qualified_id.id" & asString
         mTid <- lookupField user "team" & asStringM
-        getUser getter (object ["domain" .= domain, "id" .= uid]) `bindResponse` \resp -> do
+        retryTransient (getUser getter (object ["domain" .= domain, "id" .= uid])) `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
           resp.json `shouldMatch` tombstone domain uid mTid
 
@@ -219,7 +219,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
               (IntMap.elems deletedSoFar)
       pooledForConcurrentlyN_ parallelism bots $ \botUser -> do
         botTombstone <- setField "status" "deleted" =<< setField "deleted" True botUser
-        getSelf botUser `bindResponse` \resp -> do
+        retryTransient (getSelf botUser) `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
           resp.json `shouldMatch` botTombstone
 
@@ -251,7 +251,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
       pooledForConcurrentlyN_ parallelism tokensAndUsers $ \(token, scimUser) ->
         addJSONToFailureContext "scimUser" scimUser $ do
           uid <- scimUser %. "id" & asString
-          getScimUser domain token uid `bindResponse` \resp -> do
+          retryTransient (getScimUser domain token uid) `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 200
             resp.json `shouldMatch` scimUser
 
@@ -259,7 +259,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
     checkUsers users =
       pooledForConcurrentlyN_ parallelism users $ \user ->
         addJSONToFailureContext "user" user $ do
-          getSelf user `bindResponse` \resp -> do
+          retryTransient (getSelf user) `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 200
             resp.json `shouldMatch` user
 
@@ -300,7 +300,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
     getUnqualifiedUser :: String -> String -> App (Map String Value)
     getUnqualifiedUser domain uid = do
       let quid = object ["domain" .= domain, "id" .= uid]
-      Map.singleton uid <$> (getSelf quid >>= getJSON 200)
+      Map.singleton uid <$> (retryTransient (getSelf quid) >>= getJSON 200)
 
     createScimUsers :: (HasCallStack) => String -> Int -> Bool -> Bool -> App TestScimUsers
     createScimUsers domain n shouldCreateRichInfo shouldAcceptInvite = do
@@ -323,7 +323,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
           if shouldAcceptInvite
             then do
               registerInvitedUser domain tid email
-              scimUser <- getScimUser owner tok uid >>= getJSON 200
+              scimUser <- retryTransient (getScimUser owner tok uid) >>= getJSON 200
               (scimUser,) <$> getUnqualifiedUser domain uid
             else fmap (inactiveScimUser,) . fmap (Map.singleton uid) . getJSON 200 =<< I.getInvitationByEmail domain email
         pure $ (scimUser,defPassword,) <$> userOrInv
@@ -335,7 +335,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
         pooledForConcurrentlyN_ parallelism testScimUsers.users $ \(scimUser, _, _) -> do
           uid <- scimUser %. "id" & asString
           deleteScimUser domain testScimUsers.token uid >>= assertSuccess
-          getScimUser domain testScimUsers.token uid >>= assertStatus 404
+          retryTransient (getScimUser domain testScimUsers.token uid) >>= assertStatus 404
 
         unless arePendingUsers $ do
           void $ awaitNMatches (Map.size testScimUsers.users) isTeamMemberLeaveNotif wsOwner
@@ -396,12 +396,12 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
           pure (user, newPassword)
         UpdateEmail newEmail -> do
           activateEmail domain newEmail
-          getSelf user `bindResponse` \resp -> do
+          retryTransient (getSelf user) `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 200
             resp.json %. "email" `shouldMatch` newEmail
             (,pw) <$> assertJust "expected user data" resp.json
         _ -> do
-          getSelf user `bindResponse` \resp -> do
+          retryTransient (getSelf user) `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 200
             case update of
               UpdateName newName -> resp.json %. "name" `shouldMatch` newName
@@ -428,9 +428,9 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
         Map.singleton uid <$> case update of
           RegisterPendingScimUser -> do
             registerInvitedUser domain tid email
-            updatedScimUser <- getScimUser domain testScimUsers.token uid >>= getJSON 200
+            updatedScimUser <- retryTransient (getScimUser domain testScimUsers.token uid) >>= getJSON 200
             let quid = object ["domain" .= domain, "id" .= uid]
-            fmap (updatedScimUser,pw,) . getJSON 200 =<< getSelf quid
+            fmap (updatedScimUser,pw,) . getJSON 200 =<< retryTransient (getSelf quid)
           UpdatePendingScimUser updateUser -> do
             updatePendingScimUserAndCheck domain testScimUsers.token (scimUser, pw, inv) updateUser
       pure (testScimUsers {users = updatedUsers} :: TestScimUsers)
@@ -474,7 +474,7 @@ testUserMigrationToPostgres = withMockServer botServiceSettings mkBotService $ \
 
     getSelfWithAssertion :: (HasCallStack, MakesValue user) => user -> ((HasCallStack) => Response -> App ()) -> App (Map String Value)
     getSelfWithAssertion user assertion = do
-      getSelf user `bindResponse` \resp -> do
+      retryTransient (getSelf user) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         assertion resp
         Map.singleton <$> (resp.json %. "qualified_id.id" & asString) <*> (assertJust "expected GET /self to return a JSON" resp.json)
