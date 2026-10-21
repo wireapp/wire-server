@@ -50,6 +50,10 @@ import Wire.API.Connection qualified as Connection
 import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
+import Wire.API.Team (Icon, TeamBinding)
+import Wire.API.Team.Permission (Permissions)
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature
 import Wire.API.User.Auth (CookieId, CookieLabel, CookieType)
@@ -70,7 +74,12 @@ tests =
       testRoundTrip @A.Value @DbConfig,
       testRoundTrip @Int32 @CookieType,
       testRoundTrip @Text @CookieLabel,
-      testRoundTrip @Int64 @CookieId
+      testRoundTrip @Int64 @CookieId,
+      testRoundTrip @(Int64, Int64) @Permissions,
+      testRoundTrip @Text @Icon,
+      testRoundTrip @Text @TeamBinding,
+      testRoundTrip @Text @TeamStatus,
+      testRoundTrip @Text @TeamSearchVisibility
     ]
 
 testRoundTrip ::
