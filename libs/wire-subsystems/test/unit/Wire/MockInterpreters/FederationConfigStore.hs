@@ -29,9 +29,7 @@ inMemoryFederationConfigStoreInterpreter ::
 inMemoryFederationConfigStoreInterpreter =
   interpret $ \case
     GetFederationConfig domain -> gets $ find (\cfg -> cfg.domain == domain)
-    GetFederationConfigs -> do
-      remoteConfigs <- get
-      pure $ FederationDomainConfigs AllowDynamic remoteConfigs 1
+    GetFederationConfigs -> get
     AddFederationConfig newCfg -> do
       modify $ (newCfg :) . deleteBy (\a b -> a.domain == b.domain) newCfg
       pure AddFederationRemoteSuccess
@@ -43,8 +41,6 @@ inMemoryFederationConfigStoreInterpreter =
       error "RemoveFederationRemoteTeam not implemented in inMemoryFederationConfigStoreInterpreter"
     GetFederationRemoteTeams _ ->
       error "GetFederationRemoteTeams not implemented in inMemoryFederationConfigStoreInterpreter"
-    BackendFederatesWith _ ->
-      error "BackendFederatesWith not implemented in inMemoryFederationConfigStoreInterpreter"
 
 runFederationConfigStoreInMemory :: InterpreterFor FederationConfigStore r
 runFederationConfigStoreInMemory =
