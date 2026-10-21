@@ -29,17 +29,25 @@ import Testlib.Prelude
 getUserStore :: (HasCallStack) => App String
 getUserStore = readServiceConfig Brig %. "postgresMigration.user" & asString
 
--- | Create a team with a SCIM token and @n@ SCIM users. The users are not
--- activated, i.e. they stay in 'pending-invitation' state. Returns the token,
--- the owner and the SCIM IDs of the created users.
-setupTeamWithScimUsers :: (HasCallStack) => Int -> App (String, Value, [String])
+-- | Create a SCIM user. If 'acceptInvitation' is set, the invitation is accepted
+-- immediately, otherwise brig would garbage collect the user because of the
+-- very short team invitation timeout in the test environment.
+createScimUserInTeam :: (HasCallStack) => String -> String -> Bool -> App String
+createScimUserInTeam tok tid acceptInvitation = do
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails.0.value" & asString
+  scimId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  when acceptInvitation $ registerInvitedUser OwnDomain tid email
+  pure scimId
+
+-- | Create a team with a SCIM token and @n@ active SCIM users. Returns the
+-- token, the team ID, the owner and the SCIM IDs of the created users.
+setupTeamWithScimUsers :: (HasCallStack) => Int -> App (String, String, Value, [String])
 setupTeamWithScimUsers n = do
-  (owner, _tid, _) <- createTeam OwnDomain 1
+  (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
-  scimIds <- replicateM n $ do
-    scimUser <- randomScimUser
-    createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-  pure (tok, owner, scimIds)
+  scimIds <- replicateM n $ createScimUserInTeam tok tid True
+  pure (tok, tid, owner, scimIds)
 
 -- | Assert on the page structure and return the SCIM IDs of the resources.
 assertPage ::
@@ -71,8 +79,8 @@ testSparScimListUsersPaginated = do
   when (store == "postgresql") $ do
     let total = 12
         defaultCount = 10
-    (tok, _owner, scimIds) <- setupTeamWithScimUsers total
-    (tokOther, _ownerOther, scimIdsOther) <- setupTeamWithScimUsers 2
+    (tok, tid, _owner, scimIds) <- setupTeamWithScimUsers total
+    (tokOther, _tidOther, _ownerOther, scimIdsOther) <- setupTeamWithScimUsers 2
 
     -- walk through all pages, none of the users should be repeated and the team
     -- owner (managed by wire) should not be listed.
@@ -103,11 +111,16 @@ testSparScimListUsersPaginated = do
     otherIds <- assertPage Nothing Nothing 1 2 2 tokOther
     otherIds `shouldMatchSet` scimIdsOther
 
+    -- pending (not yet accepted) SCIM users are listed as well
+    pendingId <- createScimUserInTeam tok tid False
+    idsWithPending <- assertPage (Just 1) (Just 20) 1 (total + 1) (total + 1) tok
+    idsWithPending `shouldContain` [pendingId]
+
 testSparScimListUsersUnsupportedStore :: (HasCallStack) => App ()
 testSparScimListUsersUnsupportedStore = do
   store <- getUserStore
   when (store /= "postgresql") $ do
-    (tok, _owner, _scimIds) <- setupTeamWithScimUsers 1
+    (tok, _tid, _owner, _scimIds) <- setupTeamWithScimUsers 1
     listScimUsersPaginate OwnDomain tok (Just 1) (Just 10) `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 400
       resp.json %. "scimType" `shouldMatch` "tooMany"
