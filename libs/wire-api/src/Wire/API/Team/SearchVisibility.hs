@@ -28,6 +28,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Deriving.Aeson
 import Imports
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -68,6 +69,21 @@ instance ToSchema TeamSearchVisibility where
         [ element "standard" SearchVisibilityStandard,
           element "no-name-outside-team" SearchVisibilityNoNameOutsideTeam
         ]
+
+--------------------------------------------------------------------------------
+-- Postgres marshalling
+
+-- | Encoded as text with the swagger tag values.
+instance PostgresMarshall Text TeamSearchVisibility where
+  postgresMarshall = \case
+    SearchVisibilityStandard -> "standard"
+    SearchVisibilityNoNameOutsideTeam -> "no-name-outside-team"
+
+instance PostgresUnmarshall Text TeamSearchVisibility where
+  postgresUnmarshall = \case
+    "standard" -> Right SearchVisibilityStandard
+    "no-name-outside-team" -> Right SearchVisibilityNoNameOutsideTeam
+    t -> Left ("invalid team search visibility: " <> t)
 
 --------------------------------------------------------------------------------
 -- TeamSearchVisibilityView
