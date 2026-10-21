@@ -26,6 +26,7 @@ where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except hiding (mapError)
+import qualified Hasql.Pool as Hasql
 import qualified Hasql.Pool.Extended as HasqlPoolExt
 import Imports
 import Polysemy
@@ -46,8 +47,6 @@ import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
-import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.Utils
 import qualified System.Logger as TinyLog
 import Wire.API.Routes.Version (expandVersionExp)
@@ -57,6 +56,7 @@ import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError, clientErrorToHttpError)
 import Wire.DefaultSsoStore (DefaultSsoCode)
 import Wire.DefaultSsoStore.Cassandra (defaultSsoCodeToCassandra)
+import Wire.Error (postgresUsageErrorToHttpError)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IdPConfigStore (IdPConfigStore)
@@ -66,6 +66,7 @@ import Wire.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Wire.IdPSubsystem (IdPSubsystem)
 import Wire.IdPSubsystem.Interpreter (IdPSubsystemError, interpretIdPSubsystem)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 import Wire.Reporter (Reporter)
 import Wire.Reporter.Wai (reporterToTinyLogWai)
 import Wire.Rpc (Rpc, runRpcWithHttp)
@@ -74,8 +75,14 @@ import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
+import Wire.ScimExternalIdStore.DualWrite (interpretScimExternalIdStoreToCassandraAndPostgres)
+import Wire.ScimExternalIdStore.Postgres (interpretScimExternalIdStoreToPostgres)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
+import Wire.ScimTokenStore (ScimTokenStore)
+import Wire.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
+import Wire.ScimTokenStore.DualWrite (interpretScimTokenStoreToCassandraAndPostgres)
+import Wire.ScimTokenStore.Postgres (interpretScimTokenStoreToPostgres)
 import Wire.ScimUserMetaStore (ScimUserMetaStore)
 import Wire.ScimUserMetaStore.Cassandra (scimUserMetaStoreToCassandra)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
@@ -112,6 +119,7 @@ type LowerLevelCanonicalEffs =
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed Cas.Client,
+     Error Hasql.UsageError,
      Error IdpDbError,
      Error TTLError,
      Error RpcException,
@@ -130,45 +138,56 @@ type LowerLevelCanonicalEffs =
 
 runSparToIO :: Env -> Sem CanonicalEffs a -> IO (Either SparError a)
 runSparToIO ctx =
-  runFinal
-    . embedToFinal @IO
-    . nowToIO
-    . randomToIO
-    . runInputConst (sparCtxHasqlPool ctx)
-    . runInputConst (sparCtxLogger ctx)
-    . runInputConst (sparCtxOpts ctx)
-    . loggerToTinyLog (sparCtxLogger ctx)
-    . stringLoggerToTinyLog
-    . reporterToTinyLogWai
-    . runError @SparError
-    . rpcExceptionToSparError
-    . ttlErrorToSparError
-    . idpDbErrorToSparError
-    . interpretClientToIO (sparCtxCas ctx)
-    . samlUserStoreToCassandra
-    . idpRawMetadataStoreToCassandra
-    . idPToCassandra
-    . defaultSsoCodeToCassandra
-    . scimTokenStoreToCassandra
-    . scimUserMetaStoreToCassandra
-    . scimExternalIdStoreToCassandra
-    . mapScimSubsystemErrors
-    . mapIdPSubsystemErrors
-    . runInputConst (ctx.sparCtxScimSubsystemConfig)
-    . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
-    . iClientException
-    . iParseException
-    . verdictFormatStoreToCassandra
-    . aReqIDStoreToCassandra
-    . assIDStoreToCassandra
-    . sparRouteToServant (saml $ sparCtxOpts ctx)
-    . saml2ToSaml2WebSso
-    . interpretBrigAccess ctx.sparCtxOpts.brig
-    . interpretGalleyAPIAccessToRpc
-      (foldMap expandVersionExp (disabledAPIVersions . sparCtxOpts $ ctx))
-      (galley . sparCtxOpts $ ctx)
-    . interpretScimSubsystem
-    . interpretIdPSubsystem (enableIdPByEmailDiscovery . sparCtxOpts $ ctx)
+  let scimTokenStoreInterpreter =
+        case (sparCtxOpts ctx).postgresMigration.scimTokens of
+          CassandraStorage -> scimTokenStoreToCassandra
+          MigrationToPostgresql -> interpretScimTokenStoreToCassandraAndPostgres
+          PostgresqlStorage -> interpretScimTokenStoreToPostgres
+      scimExternalIdsStoreInterpreter =
+        case (sparCtxOpts ctx).postgresMigration.scimExternalIds of
+          CassandraStorage -> scimExternalIdStoreToCassandra
+          MigrationToPostgresql -> interpretScimExternalIdStoreToCassandraAndPostgres
+          PostgresqlStorage -> interpretScimExternalIdStoreToPostgres
+   in runFinal
+        . embedToFinal @IO
+        . nowToIO
+        . randomToIO
+        . runInputConst (sparCtxHasqlPool ctx)
+        . runInputConst (sparCtxLogger ctx)
+        . runInputConst (sparCtxOpts ctx)
+        . loggerToTinyLog (sparCtxLogger ctx)
+        . stringLoggerToTinyLog
+        . reporterToTinyLogWai
+        . runError @SparError
+        . rpcExceptionToSparError
+        . ttlErrorToSparError
+        . idpDbErrorToSparError
+        . Polysemy.Error.mapError (httpErrorToSparError . postgresUsageErrorToHttpError)
+        . interpretClientToIO (sparCtxCas ctx)
+        . samlUserStoreToCassandra
+        . idpRawMetadataStoreToCassandra
+        . idPToCassandra
+        . defaultSsoCodeToCassandra
+        . scimTokenStoreInterpreter
+        . scimUserMetaStoreToCassandra
+        . scimExternalIdsStoreInterpreter
+        . mapScimSubsystemErrors
+        . mapIdPSubsystemErrors
+        . runInputConst (ctx.sparCtxScimSubsystemConfig)
+        . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
+        . iClientException
+        . iParseException
+        . verdictFormatStoreToCassandra
+        . aReqIDStoreToCassandra
+        . assIDStoreToCassandra
+        . sparRouteToServant (saml $ sparCtxOpts ctx)
+        . saml2ToSaml2WebSso
+        . interpretBrigAccess ctx.sparCtxOpts.brig
+        . interpretGalleyAPIAccessToRpc
+          (foldMap expandVersionExp (disabledAPIVersions . sparCtxOpts $ ctx))
+          (galley . sparCtxOpts $ ctx)
+        . interpretScimSubsystem
+        . interpretIdPSubsystem (enableIdPByEmailDiscovery . sparCtxOpts $ ctx)
 
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)

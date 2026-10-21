@@ -1552,6 +1552,37 @@ CREATE TABLE public.password_reset (
 ALTER TABLE public.password_reset OWNER TO "wire-server";
 
 --
+-- Name: scim_external; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.scim_external (
+    team uuid NOT NULL,
+    external_id text NOT NULL,
+    "user" uuid NOT NULL,
+    creation_status integer
+);
+
+
+ALTER TABLE public.scim_external OWNER TO "wire-server";
+
+--
+-- Name: scim_token; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.scim_token (
+    token text NOT NULL,
+    team uuid NOT NULL,
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    idp uuid,
+    descr text NOT NULL,
+    name text
+);
+
+
+ALTER TABLE public.scim_token OWNER TO "wire-server";
+
+--
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2020,6 +2051,22 @@ ALTER TABLE ONLY public.mls_history_client
 
 ALTER TABLE ONLY public.password_reset
     ADD CONSTRAINT password_reset_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: scim_external scim_external_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.scim_external
+    ADD CONSTRAINT scim_external_pkey PRIMARY KEY (team, external_id);
+
+
+--
+-- Name: scim_token scim_token_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.scim_token
+    ADD CONSTRAINT scim_token_pkey PRIMARY KEY (token);
 
 
 --
@@ -2492,6 +2539,13 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: scim_token_by_team_id; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX scim_token_by_team_id ON public.scim_token USING btree (team, id);
 
 
 --

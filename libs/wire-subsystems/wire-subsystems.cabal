@@ -447,10 +447,19 @@ library
     Wire.SamlProtocolSettings.Servant
     Wire.ScimExternalIdStore
     Wire.ScimExternalIdStore.Cassandra
+    Wire.ScimExternalIdStore.DualWrite
     Wire.ScimExternalIdStore.Mem
+    Wire.ScimExternalIdStore.Migration
+    Wire.ScimExternalIdStore.Postgres
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
+    Wire.ScimTokenStore
+    Wire.ScimTokenStore.Cassandra
+    Wire.ScimTokenStore.DualWrite
+    Wire.ScimTokenStore.Mem
+    Wire.ScimTokenStore.Migration
+    Wire.ScimTokenStore.Postgres
     Wire.ScimUserMetaStore
     Wire.ScimUserMetaStore.Cassandra
     Wire.ScimUserMetaStore.Mem
