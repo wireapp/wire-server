@@ -162,14 +162,13 @@ instance
       $ do
         -- For some reason SCIM uses 1-based startIndex
         let zeroBasedStartIndex :: Maybe Int32 = (max 0 . subtract 1) <$> (toIntegralSized =<< mStartIndex)
-        count <- case toIntegralSized =<< mCount of
-          Nothing -> pure $ toRange (Proxy @10)
-          Just n -> case checkedEither n of
-            Right checkedN -> pure checkedN
-            Left _ ->
-              -- If needed, we could silently make this 500 and not fail. The
-              -- RFC is not very clear about this.
-              throwError $ Scim.badRequest Scim.TooMany (Just "The count must be within 0-500.")
+            clampCount n =
+              -- The RFC states negative values are to be interpretted as 0. it
+              -- doesn't say anything about bigger values, so we interpret them
+              -- as maxBound of the Range.
+              fromMaybe (if n < 0 then minBound else maxBound) $
+                checked =<< toIntegralSized n
+            count = maybe (toRange (Proxy @10)) clampCount mCount
         mPage <- lift $ BrigAPIAccess.getScimUsersPaginated tokenInfo.stiTeam count zeroBasedStartIndex
         case mPage of
           Nothing ->
