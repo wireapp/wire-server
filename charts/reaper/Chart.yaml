@@ -3,3 +3,8 @@ version: 0.0.42
 name: reaper
 appVersion: 0.1.0
 description: A helm charts to restart cannons if redis-ephemeal has died
+annotations:
+  # must conform to https://github.com/helm/community/blob/main/hips/hip-0015.md
+  helm.sh/images: |
+    - name: kubectl
+      image: docker.io/bitnamilegacy/kubectl:1.32.4
