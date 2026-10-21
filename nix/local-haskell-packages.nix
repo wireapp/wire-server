@@ -33,6 +33,8 @@ hsuper: hself: {
   wire-otel = hself.callPackage ../libs/wire-otel/default.nix { };
   wire-subsystems = hself.callPackage ../libs/wire-subsystems/default.nix { };
   zauth = hself.callPackage ../libs/zauth/default.nix { };
+  wire-licensing = hself.callPackage ../protected/libs/wire-licensing/default.nix { };
+  wire-server-enterprise = hself.callPackage ../protected/services/wire-server-enterprise/default.nix { };
   background-worker = hself.callPackage ../services/background-worker/default.nix { };
   brig = hself.callPackage ../services/brig/default.nix { };
   cannon = hself.callPackage ../services/cannon/default.nix { };
@@ -42,7 +44,6 @@ hsuper: hself: {
   gundeck = hself.callPackage ../services/gundeck/default.nix { };
   proxy = hself.callPackage ../services/proxy/default.nix { };
   spar = hself.callPackage ../services/spar/default.nix { };
-  wire-server-enterprise = hself.callPackage ../services/wire-server-enterprise/default.nix { };
   assets = hself.callPackage ../tools/db/assets/default.nix { };
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { };
   find-undead = hself.callPackage ../tools/db/find-undead/default.nix { };
