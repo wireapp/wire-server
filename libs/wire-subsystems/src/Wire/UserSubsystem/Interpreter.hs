@@ -713,7 +713,9 @@ getScimUsersPaginatedImpl ::
   ( Member UserStore r,
     Member (Input (Local any)) r,
     Member (Input UserSubsystemConfig) r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member DeleteQueue r,
+    Member InvitationStore r
   ) =>
   TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (OffsetPage User)
 getScimUsersPaginatedImpl tid pageSize mOffset = do
@@ -722,7 +724,9 @@ getScimUsersPaginatedImpl tid pageSize mOffset = do
       >>= note UserSubsystemOffsetPaginationNotSupported
   localDom <- inputs tDomain
   locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
-  pure $ mkUserFromStored localDom locale <$> storedUsers
+  let page = mkUserFromStored localDom locale <$> storedUsers
+  usersAfterGC <- garbageCollectExpiredScimInvitations page.results
+  pure $ page {results = usersAfterGC}
 
 updateUserProfileImpl ::
   ( Member UserStore r,
@@ -1144,7 +1148,7 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
   afterGC :: [User] <-
     if includeUsersWithExpiredInvitations
       then pure accsByIds
-      else garbageCollect accsByIds
+      else garbageCollectExpiredScimInvitations accsByIds
 
   pure $ filter weWant afterGC
   where
@@ -1164,27 +1168,32 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
         (_, False, Nothing) -> False
         _ -> True
 
-    -- user invited via scim expires together with its invitation. the UserSubsystem interface
-    -- semantics hides the fact that pending users have no TTL field. we chose to emulate this
-    -- in this convoluted way (by making the invitation expire and then checking if it's still
-    -- there when looking up pending users), because adding TTLs would have been a much bigger
-    -- change in the database schema (`enqueueUserDeletion` would need to happen purely based
-    -- on TTL values in cassandra, and there is too much application logic involved there).
-    --
-    -- we could also delete these users here and run a background process that scans for
-    -- pending users without invitation. we chose not to because enqueuing the user deletion
-    -- here is very cheap, and avoids database traffic if the user is looked up again. if the
-    -- background job is reliably taking care of this, there is no strong reason to keep this
-    -- function.
-    --
-    -- there are certainly other ways to improve this, but they probably involve a non-trivial
-    -- database schema re-design.
-    garbageCollect :: [User] -> Sem r [User]
-    garbageCollect users = do
-      (gcUsers, safeUser) <- partitionM toBeGarbageCollected users
-      mapM_ (enqueueUserDeletion . qUnqualified . userQualifiedId) gcUsers
-      pure safeUser
-
+-- | User invited via scim expires together with its invitation. the UserSubsystem interface
+-- semantics hides the fact that pending users have no TTL field. we chose to emulate this
+-- in this convoluted way (by making the invitation expire and then checking if it's still
+-- there when looking up pending users), because adding TTLs would have been a much bigger
+-- change in the database schema (`enqueueUserDeletion` would need to happen purely based
+-- on TTL values in cassandra, and there is too much application logic involved there).
+--
+-- we could also delete these users here and run a background process that scans for
+-- pending users without invitation. we chose not to because enqueuing the user deletion
+-- here is very cheap, and avoids database traffic if the user is looked up again. if the
+-- background job is reliably taking care of this, there is no strong reason to keep this
+-- function.
+--
+-- there are certainly other ways to improve this, but they probably involve a non-trivial
+-- database schema re-design.
+garbageCollectExpiredScimInvitations ::
+  forall r.
+  ( Member DeleteQueue r,
+    Member InvitationStore r
+  ) =>
+  [User] -> Sem r [User]
+garbageCollectExpiredScimInvitations users = do
+  (gcUsers, safeUser) <- partitionM toBeGarbageCollected users
+  mapM_ (enqueueUserDeletion . qUnqualified . userQualifiedId) gcUsers
+  pure safeUser
+  where
     toBeGarbageCollected :: User -> Sem r Bool
     toBeGarbageCollected user =
       case (emailIdentity =<< user.userIdentity, user.userStatus) of
