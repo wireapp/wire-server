@@ -216,6 +216,7 @@ library
     Test.Spar.CertFingerprintAllowlist
     Test.Spar.GetByEmail
     Test.Spar.IdPIssuerUpdate
+    Test.Spar.ListUsers
     Test.Spar.MultiIngressCrossIdpSso
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
