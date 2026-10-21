@@ -1285,17 +1285,6 @@ CREATE TABLE public.asset (
 ALTER TABLE public.asset OWNER TO "wire-server";
 
 --
--- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.email_blocklist (
-    email text NOT NULL
-);
-
-
-ALTER TABLE public.email_blocklist OWNER TO "wire-server";
-
---
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1320,6 +1309,38 @@ CREATE TABLE public.collaborators (
 
 
 ALTER TABLE public.collaborators OWNER TO "wire-server";
+
+--
+-- Name: connection; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.connection (
+    "left" uuid NOT NULL,
+    "right" uuid NOT NULL,
+    status integer NOT NULL,
+    last_update timestamp with time zone NOT NULL,
+    conv uuid
+);
+
+
+ALTER TABLE public.connection OWNER TO "wire-server";
+
+--
+-- Name: connection_remote; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.connection_remote (
+    "left" uuid NOT NULL,
+    right_domain text NOT NULL,
+    right_user uuid NOT NULL,
+    status integer NOT NULL,
+    last_update timestamp with time zone NOT NULL,
+    conv_domain text,
+    conv_id uuid
+);
+
+
+ALTER TABLE public.connection_remote OWNER TO "wire-server";
 
 --
 -- Name: conversation; Type: TABLE; Schema: public; Owner: wire-server
@@ -1461,6 +1482,17 @@ CREATE TABLE public.domain_registration_challenge (
 
 
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
+
+--
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -1894,13 +1926,6 @@ ALTER TABLE ONLY arbiter.meetings_results
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
 
---
--- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.email_blocklist
-    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
-
 
 --
 -- Name: bot_conv bot_conv_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -1916,6 +1941,22 @@ ALTER TABLE ONLY public.bot_conv
 
 ALTER TABLE ONLY public.collaborators
     ADD CONSTRAINT collaborators_pkey PRIMARY KEY (user_id, team_id);
+
+
+--
+-- Name: connection connection_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.connection
+    ADD CONSTRAINT connection_pkey PRIMARY KEY ("left", "right");
+
+
+--
+-- Name: connection_remote connection_remote_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.connection_remote
+    ADD CONSTRAINT connection_remote_pkey PRIMARY KEY ("left", right_domain, right_user);
 
 
 --
@@ -1980,6 +2021,14 @@ ALTER TABLE ONLY public.domain_registration_challenge
 
 ALTER TABLE ONLY public.domain_registration
     ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
 
 
 --
@@ -2394,6 +2443,13 @@ CREATE INDEX collaborators_team_id_idx ON public.collaborators USING btree (team
 --
 
 CREATE INDEX collaborators_user_id_idx ON public.collaborators USING btree (user_id);
+
+
+--
+-- Name: connection_remote_right_domain_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX connection_remote_right_domain_idx ON public.connection_remote USING btree (right_domain);
 
 
 --

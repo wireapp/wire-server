@@ -73,7 +73,6 @@
 , metrics-wai
 , mime
 , mime-mail
-, mmorph
 , MonadRandom
 , mtl
 , network
@@ -212,7 +211,6 @@ mkDerivation {
     metrics-wai
     mime
     mime-mail
-    mmorph
     MonadRandom
     mtl
     network

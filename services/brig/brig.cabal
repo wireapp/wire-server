@@ -108,8 +108,6 @@ library
     Brig.Data.Types
     Brig.Data.User
     Brig.DeleteQueue.Interpreter
-    Brig.Effects.ConnectionStore
-    Brig.Effects.ConnectionStore.Cassandra
     Brig.Index.Eval
     Brig.Index.Options
     Brig.Index.Types
@@ -260,7 +258,6 @@ library
     , metrics-wai                           >=0.3
     , mime
     , mime-mail                             >=0.4
-    , mmorph
     , MonadRandom                           >=0.5
     , mtl                                   >=2.1
     , network                               >=2.4

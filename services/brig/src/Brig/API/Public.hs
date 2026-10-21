@@ -44,7 +44,6 @@ import Brig.App
 import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
-import Brig.Effects.ConnectionStore
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
@@ -54,6 +53,7 @@ import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Client qualified as API
 import Cassandra qualified as C
 import Cassandra qualified as Data
+import Cassandra.Exec (GeneralPaginationState (..))
 import Control.Error hiding (bool, note)
 import Control.Lens ((?~))
 import Control.Monad.Except
@@ -161,6 +161,7 @@ import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem)
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ClientSubsystem.Error
+import Wire.ConnectionStore
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
@@ -1366,7 +1367,9 @@ createConnectionUnqualified ::
     Member UserStore r,
     Member UserSubsystem r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   ConnId ->
@@ -1386,6 +1389,8 @@ createConnection ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member TeamSubsystem r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r,
     HasBrigFederationAccess m r
   ) =>
   UserId ->
@@ -1401,7 +1406,9 @@ updateLocalConnection ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member UserStore r
+    Member UserStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   ConnId ->
@@ -1421,6 +1428,8 @@ updateConnection ::
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
     Member UserStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r,
     HasBrigFederationAccess m r
   ) =>
   UserId ->
@@ -1433,7 +1442,13 @@ updateConnection self conn other (Public.cuStatus -> newStatus) = do
   mkUpdateResult
     <$> API.updateConnection lself other newStatus (Just conn) !>> connError
 
-listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.UserConnectionList
+listLocalConnections ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  UserId ->
+  Maybe UserId ->
+  Maybe (Range 1 500 Int32) ->
+  (Handler r) Public.UserConnectionList
 listLocalConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
@@ -1446,29 +1461,40 @@ listLocalConnections uid start msize = do
 --
 -- - After local connections, remote connections are listed ordered
 -- - lexicographically by their domain and then by their id.
-listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> (Handler r) Public.ConnectionsPage
+listConnections ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  UserId ->
+  Public.ListConnectionsRequestPaginated ->
+  (Handler r) Public.ConnectionsPage
 listConnections uid Public.GetMultiTablePageRequest {..} = do
   self <- qualifyLocal uid
   case gmtprState of
     Just (Public.ConnectionPagingState Public.PagingRemotes stateBS) -> remotesOnly self (mkState <$> stateBS) (fromRange gmtprSize)
     _ -> localsAndRemotes self (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
-    pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Void Public.UserConnection -> Public.ConnectionsPage
+    pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState ByteString Public.UserConnection -> Public.ConnectionsPage
     pageToConnectionsPage table page@Data.PageWithState {..} =
       Public.MultiTablePage
         { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
           -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
           -- Is this type actually useless? Or the tests not good enough?
-          mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> (Data.paginationStateCassandra =<< pwsState))
+          mtpPagingState = Public.ConnectionPagingState table (pagingStateBytes =<< pwsState)
         }
+
+    -- Serialise either backend's paging marker as opaque response bytes.
+    pagingStateBytes :: GeneralPaginationState ByteString -> Maybe ByteString
+    pagingStateBytes = \case
+      PaginationStateCassandra ps -> Just (LBS.toStrict (C.unPagingState ps))
+      PaginationStatePostgres marker -> Just marker
 
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
 
     localsAndRemotes :: Local UserId -> Maybe C.PagingState -> Range 1 500 Int32 -> (Handler r) Public.ConnectionsPage
     localsAndRemotes self pagingState size = do
-      localPage <- lift $ pageToConnectionsPage Public.PagingLocals <$> wrapClient (Data.lookupLocalConnectionsPage self pagingState (rcast size))
+      localPage <- lift $ pageToConnectionsPage Public.PagingLocals <$> liftSem (Data.lookupLocalConnectionsPage self pagingState (rcast size))
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
         then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
@@ -1478,18 +1504,28 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 
     remotesOnly :: Local UserId -> Maybe C.PagingState -> Int32 -> (Handler r) Public.ConnectionsPage
     remotesOnly self pagingState size =
-      lift . wrapClient $
+      lift . liftSem $
         pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
 
-getLocalConnection :: UserId -> UserId -> (Handler r) (Maybe Public.UserConnection)
+getLocalConnection ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  UserId ->
+  UserId ->
+  (Handler r) (Maybe Public.UserConnection)
 getLocalConnection self other = do
   lother <- qualifyLocal other
   getConnection self (tUntagged lother)
 
-getConnection :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserConnection)
+getConnection ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  UserId ->
+  Qualified UserId ->
+  (Handler r) (Maybe Public.UserConnection)
 getConnection self other = do
   lself <- qualifyLocal self
-  lift . wrapClient $ Data.lookupConnection lself other
+  lift . liftSem $ Data.lookupConnection lself other
 
 deleteSelfUser ::
   ( Member GalleyAPIAccess r,
@@ -1508,7 +1544,8 @@ deleteSelfUser ::
     Member RateLimit r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
@@ -1529,7 +1566,8 @@ verifyDeleteUser ::
     Member Events r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()

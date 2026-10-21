@@ -100,6 +100,7 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem, ReAuthPolicy (ReAuthPolicy))
 import Wire.ClientSubsystem qualified as ClientSubsystem
+import Wire.ConnectionStore (ConnectionStore)
 import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
@@ -127,6 +128,7 @@ import Wire.Rpc
 import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.StoredUser (StoredUser (..))
@@ -190,7 +192,8 @@ servantSitemap ::
     Member AppSubsystem r,
     Member ClientStore r,
     Member ClientSubsystem r,
-    Member MlsKeyPackageSubsystem r
+    Member MlsKeyPackageSubsystem r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -221,7 +224,8 @@ ejpdAPI ::
     Member Rpc r,
     Member TeamSubsystem r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
@@ -260,7 +264,8 @@ accountAPI ::
     Member EnterpriseLoginSubsystem r,
     Member (Concurrency Unsafe) r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -646,7 +651,8 @@ deleteUserNoAuthH ::
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -818,21 +824,30 @@ getAccountStatusH uid = do
     (pure . AccountStatusResp)
     status
 
-getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
+getConnectionsStatusUnqualified ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  ConnectionsStatusRequest ->
+  Maybe Relation ->
+  (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
-  r <- wrapClient $ maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
+  r <- liftSem $ maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   pure $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
 
-getConnectionsStatus :: ConnectionsStatusRequestV2 -> (Handler r) [ConnectionStatusV2]
+getConnectionsStatus ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  ConnectionsStatusRequestV2 ->
+  (Handler r) [ConnectionStatusV2]
 getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   loc <- qualifyLocal ()
   conns <- lift $ case mtos of
-    Nothing -> wrapClient . Data.lookupAllStatuses =<< qualifyLocal froms
+    Nothing -> liftSem . Data.lookupAllStatuses =<< qualifyLocal froms
     Just tos -> do
       let getStatusesForOneDomain =
-            wrapClient
+            liftSem
               <$> foldQualified
                 loc
                 (Data.lookupLocalConnectionStatuses froms)
@@ -856,7 +871,9 @@ updateConnectionInternalH ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member UserStore r
+    Member UserStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r
   ) =>
   UpdateConnectionsInternal ->
   (Handler r) NoContent
@@ -1003,8 +1020,12 @@ checkHandleInternalH h = lift $ liftSem do
     API.CheckHandleFound -> CheckHandleResponseFound
     API.CheckHandleNotFound -> CheckHandleResponseNotFound
 
-getContactListH :: UserId -> (Handler r) UserIds
-getContactListH uid = lift . wrapClient $ UserIds <$> API.lookupContactList uid
+getContactListH ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  UserId ->
+  (Handler r) UserIds
+getContactListH uid = lift . liftSem $ UserIds <$> API.lookupContactList uid
 
 getUserExportDataH ::
   (Member UserSubsystem r) =>
