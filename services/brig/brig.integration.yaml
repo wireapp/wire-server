@@ -180,6 +180,7 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  service: postgresql
 
 optSettings:
   setActivationTimeout: 4
