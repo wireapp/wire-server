@@ -54,12 +54,15 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
+import Data.Bits (toIntegralSized)
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Handle (Handle, fromHandle, parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
+import Data.Proxy
+import Data.Range hiding (errorMsg)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding.Error
@@ -92,13 +95,16 @@ import qualified Web.Scim.Filter as Scim
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Error as Scim
+import Web.Scim.Schema.ListResponse (ListResponse (ListResponse))
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
+import Web.Scim.Schema.Schema (Schema (..))
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
 import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Web.Scim.Schema.User.Role as Scim.Role
+import Wire.API.Pagination
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.User
@@ -144,13 +150,52 @@ instance
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
+    Maybe Int ->
+    Maybe Int ->
     Scim.ScimHandler (Sem r) (Scim.ListResponse (Scim.StoredUser ST.SparTag))
-  getUsers _ Nothing =
-    throwError $ Scim.badRequest Scim.TooMany (Just "Please specify a filter when getting users.")
-  getUsers tokeninfo@ScimTokenInfo {stiTeam, stiIdP} (Just filter') =
+  getUsers tokenInfo Nothing mStartIndex mCount = do
     logScim
       ( logFunction "Spar.Scim.User.getUsers"
-          . logTokenInfo tokeninfo
+          . logTokenInfo tokenInfo
+      )
+      logScimUserIds
+      $ do
+        -- For some reason SCIM uses 1-based startIndex
+        let zeroBasedStartIndex :: Maybe Int32 = (max 0 . subtract 1) <$> (toIntegralSized =<< mStartIndex)
+        count <- case toIntegralSized =<< mCount of
+          Nothing -> pure $ toRange (Proxy @10)
+          Just n -> case checkedEither n of
+            Right checkedN -> pure checkedN
+            Left _ ->
+              -- If needed, we could silently make this 500 and not fail. The
+              -- RFC is not very clear about this.
+              throwError $ Scim.badRequest Scim.TooMany (Just "The count must be within 0-500.")
+        mPage <- lift $ BrigAPIAccess.getScimUsersPaginated tokenInfo.stiTeam count zeroBasedStartIndex
+        case mPage of
+          Nothing ->
+            -- brig doesn't support it, so we fallback to the old error
+            throwError $ Scim.badRequest Scim.TooMany (Just "Please specify a filter when getting users.")
+          Just page -> do
+            mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) tokenInfo.stiIdP
+            let mkStoredUser brigUser = do
+                  let mbNewVeidFromBrig = Intra.newVeidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig)
+                  case mbNewVeidFromBrig of
+                    Right veid ->
+                      Just <$> synthesizeStoredUser brigUser veid Nothing
+                    Left _ -> pure Nothing
+            scimUsers <- catMaybes <$> traverse mkStoredUser page.results
+            pure $
+              ListResponse
+                { schemas = [ListResponse20],
+                  itemsPerPage = length scimUsers,
+                  resources = scimUsers,
+                  totalResults = fromIntegral page.totalResults,
+                  startIndex = fromIntegral $ maybe 1 (+ 1) zeroBasedStartIndex
+                }
+  getUsers tokenInfo@ScimTokenInfo {stiTeam, stiIdP} (Just filter') _ _ =
+    logScim
+      ( logFunction "Spar.Scim.User.getUsers"
+          . logTokenInfo tokenInfo
           . logFilter filter'
       )
       logScimUserIds
