@@ -1285,15 +1285,16 @@ CREATE TABLE public.asset (
 ALTER TABLE public.asset OWNER TO "wire-server";
 
 --
--- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+-- Name: billing_team_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
-CREATE TABLE public.email_blocklist (
-    email text NOT NULL
+CREATE TABLE public.billing_team_member (
+    team uuid NOT NULL,
+    user_id uuid NOT NULL
 );
 
 
-ALTER TABLE public.email_blocklist OWNER TO "wire-server";
+ALTER TABLE public.billing_team_member OWNER TO "wire-server";
 
 --
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
@@ -1463,6 +1464,17 @@ CREATE TABLE public.domain_registration_challenge (
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
 
 --
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
+
+--
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1601,6 +1613,40 @@ CREATE TABLE public.subconversation (
 ALTER TABLE public.subconversation OWNER TO "wire-server";
 
 --
+-- Name: team; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team (
+    team uuid NOT NULL,
+    creator uuid NOT NULL,
+    name text NOT NULL,
+    icon text NOT NULL,
+    icon_key text,
+    splash_screen text,
+    deleted boolean DEFAULT false NOT NULL,
+    status text NOT NULL,
+    status_time timestamp with time zone DEFAULT now() NOT NULL,
+    binding text NOT NULL,
+    binding_time timestamp with time zone DEFAULT now() NOT NULL,
+    search_visibility text
+);
+
+
+ALTER TABLE public.team OWNER TO "wire-server";
+
+--
+-- Name: team_admin; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_admin (
+    team uuid NOT NULL,
+    user_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.team_admin OWNER TO "wire-server";
+
+--
 -- Name: team_features; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1614,6 +1660,23 @@ CREATE TABLE public.team_features (
 
 
 ALTER TABLE public.team_features OWNER TO "wire-server";
+
+--
+-- Name: team_member; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_member (
+    team uuid NOT NULL,
+    user_id uuid NOT NULL,
+    perms_self bigint NOT NULL,
+    perms_copy bigint NOT NULL,
+    invited_by uuid,
+    invited_at timestamp with time zone,
+    legalhold_status text
+);
+
+
+ALTER TABLE public.team_member OWNER TO "wire-server";
 
 --
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
@@ -1664,6 +1727,18 @@ CREATE TABLE public.user_migration_pending_deletes (
 
 
 ALTER TABLE public.user_migration_pending_deletes OWNER TO "wire-server";
+
+--
+-- Name: user_team; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_team (
+    user_id uuid NOT NULL,
+    team uuid NOT NULL
+);
+
+
+ALTER TABLE public.user_team OWNER TO "wire-server";
 
 --
 -- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
@@ -1894,12 +1969,13 @@ ALTER TABLE ONLY arbiter.meetings_results
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
 
+
 --
--- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+-- Name: billing_team_member billing_team_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
-ALTER TABLE ONLY public.email_blocklist
-    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
+ALTER TABLE ONLY public.billing_team_member
+    ADD CONSTRAINT billing_team_member_pkey PRIMARY KEY (team, user_id);
 
 
 --
@@ -1983,6 +2059,14 @@ ALTER TABLE ONLY public.domain_registration
 
 
 --
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
+
+
+--
 -- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -2039,11 +2123,35 @@ ALTER TABLE ONLY public.subconversation
 
 
 --
+-- Name: team_admin team_admin_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_admin
+    ADD CONSTRAINT team_admin_pkey PRIMARY KEY (team, user_id);
+
+
+--
 -- Name: team_features team_features_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: team_member team_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_member
+    ADD CONSTRAINT team_member_pkey PRIMARY KEY (team, user_id);
+
+
+--
+-- Name: team team_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team
+    ADD CONSTRAINT team_pkey PRIMARY KEY (team);
 
 
 --
@@ -2084,6 +2192,14 @@ ALTER TABLE ONLY public.user_group
 
 ALTER TABLE ONLY public.user_migration_pending_deletes
     ADD CONSTRAINT user_migration_pending_deletes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_team user_team_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_team
+    ADD CONSTRAINT user_team_pkey PRIMARY KEY (user_id, team);
 
 
 --
@@ -2495,10 +2611,24 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 
 
 --
+-- Name: team_member_user_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_member_user_idx ON public.team_member USING btree (user_id);
+
+
+--
 -- Name: user_group_member_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
 CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btree (user_id);
+
+
+--
+-- Name: user_team_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_team_team_idx ON public.user_team USING btree (team);
 
 
 --

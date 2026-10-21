@@ -183,6 +183,7 @@ library
     Test.Migration.DomainRegistration
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
+    Test.Migration.TeamStore
     Test.Migration.User
     Test.Migration.Util
     Test.MLS

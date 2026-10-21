@@ -53,6 +53,7 @@ import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
 import Wire.API.Message (UserClients)
+import Wire.API.PostgresMarshall
 import Wire.API.Team (Team)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.Arbitrary (GenericUniform (..))
@@ -77,6 +78,27 @@ instance S.ToSchema TeamStatus where
           S.element "suspended" Suspended,
           S.element "pending_active" PendingActive
         ]
+
+--------------------------------------------------------------------------------
+-- Postgres marshalling
+
+-- | Encoded as text with the swagger tag values.
+instance PostgresMarshall Text TeamStatus where
+  postgresMarshall = \case
+    Active -> "active"
+    PendingDelete -> "pending_delete"
+    Deleted -> "deleted"
+    Suspended -> "suspended"
+    PendingActive -> "pending_active"
+
+instance PostgresUnmarshall Text TeamStatus where
+  postgresUnmarshall = \case
+    "active" -> Right Active
+    "pending_delete" -> Right PendingDelete
+    "deleted" -> Right Deleted
+    "suspended" -> Right Suspended
+    "pending_active" -> Right PendingActive
+    t -> Left ("invalid team status: " <> t)
 
 data TeamData = TeamData
   { tdTeam :: !Team,
