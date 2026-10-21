@@ -187,4 +187,3 @@ selectLegalHoldWhitelistedTeam =
   [r|
         select team from legalhold_whitelisted where team = ?
     |]
-
