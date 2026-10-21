@@ -1185,7 +1185,7 @@ getScimUsersPaginated ::
 getScimUsersPaginated tid pageSize mOffset = do
   resp <-
     brigRequest $
-      method POST
+      method GET
         . paths ["/i/teams", toByteString' tid, "scim-users"]
         . queryItem "page_size" (toByteString' pageSize)
         . maybe id (queryItem "offset" . toByteString') mOffset
