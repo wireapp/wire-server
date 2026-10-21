@@ -26,19 +26,20 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (AppT, liftSem, qualifyLocal, wrapClientE)
-import Cassandra
+import Brig.App (AppT, liftSem, qualifyLocal)
 import Control.Error
 import Data.Id
-import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as LT
 import Imports
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Password
+import Wire.ActivationCodeStore
+import Wire.ActivationCodeVerificationStore
+  ( ActivationCodeVerificationStore,
+    verifyActivationCode,
+  )
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore qualified as Password
 import Wire.UserKeyStore
@@ -73,14 +74,15 @@ activateKey ::
   ( Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member UserStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r
   ) =>
   ActivationKey ->
   ActivationCode ->
   Maybe UserId ->
   ExceptT ActivationError (AppT r) (Maybe ActivationEvent)
 activateKey k c u = do
-  (emailKey, mUser) <- wrapClientE (verifyCode k c)
+  (emailKey, mUser) <- verifyCode k c
   pickUser (emailKey, mUser) >>= activate
   where
     pickUser :: (t, Maybe UserId) -> ExceptT ActivationError (AppT r) (t, UserId)
@@ -136,52 +138,18 @@ activateKey k c u = do
         throwE . UserKeyExists . LT.fromStrict $
           fromEmail (emailKeyOrig key)
 
--- | Verify an activation code.
+-- | Verify an activation code via the 'ActivationCodeVerificationStore' effect.
 verifyCode ::
-  (MonadClient m) =>
+  (Member ActivationCodeVerificationStore r) =>
   ActivationKey ->
   ActivationCode ->
-  ExceptT ActivationError m (EmailKey, Maybe UserId)
+  ExceptT ActivationError (AppT r) (EmailKey, Maybe UserId)
 verifyCode key code = do
-  s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
-  case s of
-    Just (ttl, Ascii t, k, c, u, r) ->
-      if
-        | c == code -> mkScope t k u
-        | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
-        | otherwise -> revoke >> throwE invalidCode
-    Nothing -> throwE invalidCode
-  where
-    mkScope "email" k u = case emailAddressText k of
-      Just e -> pure (mkEmailKey e, u)
-      Nothing -> throwE invalidCode
-    mkScope _ _ _ = throwE invalidCode
-    countdown = lift . retry x5 . write keyInsert . params LocalQuorum
-    revoke = lift $ deleteActivationPair key
-    keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
-    keyInsert =
-      "INSERT INTO activation_keys \
-      \(key, key_type, key_text, code, user, retries) VALUES \
-      \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
-
-mkActivationKey :: EmailKey -> IO ActivationKey
-mkActivationKey k = do
-  d <- liftIO $ getDigestByName "SHA256"
-  d' <- maybe (fail "SHA256 not found") pure d
-  let bs = digestBS d' (T.encodeUtf8 $ emailKeyUniq k)
-  pure . ActivationKey $ Ascii.encodeBase64Url bs
-
-deleteActivationPair :: (MonadClient m) => ActivationKey -> m ()
-deleteActivationPair = write keyDelete . params LocalQuorum . Identity
+  mResult <- lift . liftSem $ verifyActivationCode key code
+  maybe (throwE invalidCode) pure mResult
 
 invalidUser :: ActivationError
 invalidUser = InvalidActivationCodeWrongUser -- "User does not exist."
 
 invalidCode :: ActivationError
 invalidCode = InvalidActivationCodeWrongCode -- "Invalid activation code"
-
-keySelect :: PrepQuery R (Identity ActivationKey) (Int32, Ascii, Text, ActivationCode, Maybe UserId, Int32)
-keySelect = "SELECT ttl(code) as ttl, key_type, key_text, code, user, retries FROM activation_keys WHERE key = ?"
-
-keyDelete :: PrepQuery W (Identity ActivationKey) ()
-keyDelete = "DELETE FROM activation_keys WHERE key = ?"

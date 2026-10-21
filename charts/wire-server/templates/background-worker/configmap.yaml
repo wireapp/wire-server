@@ -87,6 +87,7 @@ data:
     migrateUsers: {{ .migrateUsers }}
     migrateBlockList: {{ .migrateBlockList }}
     migratePasswordReset: {{ .migratePasswordReset }}
+    migrateActivationKeys: {{ .migrateActivationKeys }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
@@ -114,6 +115,10 @@ data:
       workerStaleThreshold: {{ .jobs.workerStaleThreshold }}
     {{- with .meetingsCleanup }}
     meetingsCleanup:
+{{ toYaml . | indent 6 }}
+    {{- end }}
+    {{- with .activationKeysCleanup }}
+    activationKeysCleanup:
 {{ toYaml . | indent 6 }}
     {{- end }}
     {{- if $.Values.galley.config.postgresMigration }}

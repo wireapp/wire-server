@@ -61,6 +61,7 @@ migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
 migratePasswordReset: false
+migrateActivationKeys: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -89,11 +90,16 @@ meetingsCleanup:
   batchSize: 100
   schedule: "* * * * *"  # Run every minute
 
+# Cleanup of expired activation keys (nightly; every minute in CI)
+activationKeysCleanup:
+  schedule: "* * * * *"
+
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
   teamFeatures: postgresql
   domainRegistration: postgresql
   passwordReset: postgresql
+  activationKeys: postgresql
   user: postgresql
   blockList: postgresql
