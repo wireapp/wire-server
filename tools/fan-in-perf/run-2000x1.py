@@ -280,7 +280,6 @@ def report(res, env):
         r = lambda a, b: f"{a / b:.2f}" if a is not None and b else "-"
         L.append(f"- d. During TTL GC ({dp['drops']} partition drops in 11 min): within {GC_WINDOW} s of a drop vs. otherwise, ack/s {r(i['ack_s'], o['ack_s'])} x, "
                  f"ack p99 {r(i['ack_p99'], o['ack_p99'])} x, lag p99 {r(i['lag_p99'], o['lag_p99'])} x (medians); {cell(dp['errors'])} errors, {cell(dp['missing'])} missing, {cell(dp['deadlocks'])} deadlocks.")
-    L.append("- Single runs: identical configurations varied up to 2x between runs during tuning (WAL flush waits), so plain vs. partman differences in the tables above are within noise.")
     notes = []
     for r in res.values():
         if r["drain"] and not r["drain"].startswith("complete"):
