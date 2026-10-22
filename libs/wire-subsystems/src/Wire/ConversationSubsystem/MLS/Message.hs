@@ -476,10 +476,13 @@ sendMLSMessageWithDropIfUnsupported ::
 sendMLSMessageWithDropIfUnsupported path remote action =
   runFederatedEither remote action >>= \case
     Left (FederationCallFailure FederatorClientVersionMismatch) -> do
+      let convOrSubConvId = tUnqualified remote
       warn $
         Log.msg ("Dropping MLS message because the negotiated federation API version does not support the endpoint" :: ByteString)
           . Log.field "domain" (toByteString' (tDomain remote))
           . Log.field "path" path
+          . Log.field "parentConvId" (toByteString' (show convOrSubConvId.conv))
+          . Log.field "subConvId" (maybe ("none" :: ByteString) (toByteString' . show) convOrSubConvId.subconv)
       pure Nothing
     Left failure -> throw failure
     Right response -> pure (Just response)
