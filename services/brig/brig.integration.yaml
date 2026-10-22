@@ -184,6 +184,7 @@ postgresMigration:
   budget: postgresql
   nonce: postgresql
   connections: cassandra
+  properties: postgresql
 
 optSettings:
   setActivationTimeout: 4
