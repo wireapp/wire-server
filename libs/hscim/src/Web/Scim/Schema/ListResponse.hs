@@ -30,13 +30,6 @@ import Web.Scim.Schema.Schema
 
 -- | A "pagination" type used as a wrapper whenever a SCIM endpoint has to
 -- return a list.
---
--- Pagination is not actually supported anywhere in the code yet; whenever
--- there are several results we always return them all as one page, and we
--- don't support different values of 'startIndex'.
---
--- FUTUREWORK: Support for pagination might be added once we have to handle
--- organizations with lots of users.
 data ListResponse a = ListResponse
   { schemas :: [Schema],
     totalResults :: Int,
@@ -46,6 +39,8 @@ data ListResponse a = ListResponse
   }
   deriving (Show, Eq, Generic)
 
+-- | Hard codes the startIndex to 1 and assumes that these are all the results
+-- and calculates totalResults with it.
 fromList :: [a] -> ListResponse a
 fromList list =
   ListResponse

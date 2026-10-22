@@ -47,6 +47,7 @@ import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message qualified as Log
 import Wire.API.Asset hiding (Asset)
+import Wire.API.Pagination
 import Wire.API.Password
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature (FeatureStatus)
@@ -69,6 +70,8 @@ interpretUserStorePostgres =
     DoesUserExist uid -> doesUserExistImpl uid
     GetIndexUser uid -> getIndexUserImpl uid
     GetIndexUsersPaginated pageSize mPagingState -> getIndexUsersPaginatedImpl pageSize (paginationStatePostgres =<< mPagingState)
+    GetScimUsersPaginated tid excludedIds pageSize mOffset -> getScimUsersPaginatedImpl tid excludedIds pageSize mOffset
+    GetPendingScimUsers tid -> getPendingScimUsersImpl tid
     UpdateUser uid update -> updateUserImpl uid update
     UpdateEmail uid email -> updateEmailImpl uid (Just email)
     DeleteEmail uid -> updateEmailImpl uid Nothing
@@ -269,7 +272,7 @@ getUsersImpl uids = do
       (,,)
         <$> Pipeline.statement uids selectUsers
         <*> Pipeline.statement uids selectDeletedUsers
-        <*> Pipeline.statement uids selectAssets
+        <*> Pipeline.statement uids selectAssetsStmt
   let assetMap =
         foldr
           (\(uid, _, key, size) -> Map.insertWith (<>) uid [ImageAsset key size])
@@ -346,14 +349,14 @@ getUsersImpl uids = do
           WHERE id = ANY ($1 :: uuid[])
         |]
 
-    selectAssets :: Hasql.Statement [UserId] [(UserId, Int32, AssetKey, Maybe AssetSize)]
-    selectAssets =
-      dimapPG @(Vector _)
-        [vectorStatement|
-          SELECT user_id :: uuid, typ :: integer, key :: text, size :: integer?
-          FROM asset
-          WHERE user_id = ANY($1 :: uuid[])
-        |]
+selectAssetsStmt :: Hasql.Statement [UserId] [(UserId, Int32, AssetKey, Maybe AssetSize)]
+selectAssetsStmt =
+  dimapPG @(Vector _)
+    [vectorStatement|
+      SELECT user_id :: uuid, typ :: integer, key :: text, size :: integer?
+      FROM asset
+      WHERE user_id = ANY($1 :: uuid[])
+    |]
 
 doesUserExistImpl :: (PGConstraints r) => UserId -> Sem r Bool
 doesUserExistImpl uid =
@@ -496,6 +499,79 @@ getIndexUsersPaginatedImpl lim mState = do
           WHERE id > ($1 :: uuid)
           ORDER BY id ASC
           LIMIT ($2 :: integer)
+        |]
+
+getPendingScimUsersImpl :: (PGConstraints r) => TeamId -> Sem r (Maybe [(UserId, EmailAddress)])
+getPendingScimUsersImpl tid =
+  Just <$> runStatement tid selectPending
+  where
+    selectPending :: Hasql.Statement TeamId [(UserId, EmailAddress)]
+    selectPending =
+      dimapPG
+        [vectorStatement|
+          SELECT id :: uuid, email :: text
+          FROM wire_user
+          WHERE team = $1 :: uuid
+          AND managed_by = 1
+          AND account_status = 4
+          AND activated = true
+          AND email IS NOT NULL
+        |]
+
+getScimUsersPaginatedImpl :: (PGConstraints r) => TeamId -> [UserId] -> Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage StoredUser))
+getScimUsersPaginatedImpl tid excludedIds maxResults mOffset =
+  Just <$> do
+    runTransactionWithRetry RepeatableRead Read $ do
+      count <- Transaction.statement (tid, excludedIds) selectCount
+      case maxResults of
+        0 ->
+          -- Special case this because it is a way for scim clients to get a
+          -- tally of number of users. So it might be used more often.
+          pure OffsetPage {results = [], totalResults = count}
+        _ -> do
+          -- Postgres doesn't like it if the offset is below 0
+          let pageOffset = max 0 $ fromMaybe 0 mOffset
+          userRows <- Transaction.statement (tid, maxResults, pageOffset, excludedIds) selectUsers
+          let usersWithoutAssets = map storedUserFromRow userRows
+              uids = map (.id) usersWithoutAssets
+          assetRows <- Transaction.statement uids selectAssetsStmt
+          let assetMap =
+                foldr
+                  (\(uid, _, key, size) -> Map.insertWith (<>) uid [ImageAsset key size])
+                  Map.empty
+                  assetRows
+              addAssets user = user {assets = Map.lookup user.id assetMap} :: StoredUser
+              users = map addAssets usersWithoutAssets
+          pure $ OffsetPage {results = users, totalResults = count}
+  where
+    selectCount :: Hasql.Statement (TeamId, [UserId]) Int32
+    selectCount =
+      lmapPG @(_, Vector _)
+        [singletonStatement|
+          SELECT count(*) :: integer
+          FROM wire_user
+          WHERE team = $1 :: uuid
+          AND managed_by = 1
+          AND NOT (id = ANY($2 :: uuid[]))
+        |]
+
+    selectUsers :: Hasql.Statement (TeamId, Int32, Int32, [UserId]) [SelectUserRow]
+    selectUsers =
+      dimapPG @(_, _, _, Vector _)
+        [vectorStatement|
+          SELECT
+          id :: uuid, name :: text, text_status :: text?, picture :: jsonb?, email :: text?, email_unvalidated :: text?,
+          sso_id :: jsonb?, accent_id :: integer, activated :: boolean, account_status :: integer?,
+          expires :: timestamptz?, language :: text?, country :: text?, provider :: uuid?, service :: uuid?,
+          handle :: text?, team :: uuid?, managed_by :: integer?, supported_protocols :: integer?, searchable :: boolean?,
+          user_type :: integer
+          FROM wire_user
+          WHERE team = $1 :: uuid
+          AND managed_by = 1
+          AND NOT (id = ANY($4 :: uuid[]))
+          ORDER BY id
+          LIMIT $2 :: integer
+          OFFSET $3 :: integer
         |]
 
 updateUserImpl :: (PGConstraints r, Member TinyLog r) => UserId -> StoredUserUpdate -> Sem r ()

@@ -54,6 +54,7 @@ data UserSubsystemError
   | UserSubsystemGuardFailed GuardFailure
   | UserSubsystemMlsRemovalNotAllowed
   | UserSubsystemBlockedDomain
+  | UserSubsystemOffsetPaginationNotSupported
   deriving (Eq, Show)
 
 data GuardFailure
@@ -102,5 +103,7 @@ userSubsystemErrorToHttpError =
             InvalidDomain parseErr -> e400 parseErr
     UserSubsystemMlsRemovalNotAllowed -> errorToWai @E.MlsRemovalNotAllowed
     UserSubsystemBlockedDomain -> errorToWai @E.CustomerExtensionBlockedDomain
+    UserSubsystemOffsetPaginationNotSupported ->
+      Wai.mkError status400 "offset-pagination-not-supported" "Offset-based pagination is not supported by the server"
 
 instance Exception UserSubsystemError

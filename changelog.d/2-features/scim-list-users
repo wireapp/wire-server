@@ -1,0 +1,1 @@
+SCIM: Allow calling /Users without a filter when the user store is backed by PostgreSQL.

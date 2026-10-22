@@ -25,7 +25,7 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.TinyLog
-import Spar.Scim.User (deleteScimUser)
+import Spar.Scim.User (deleteScimUser, scimPaginationOffset)
 import Spar.Sem.SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem (samlUserStoreToMem)
 import System.Logger (Msg)
@@ -45,7 +45,18 @@ import Wire.ScimUserMetaStore.Mem (scimUserMetaStoreToMem)
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 
 spec :: Spec
-spec = describe "deleteScimUser" $ do
+spec = do
+  describe "scimPaginationOffset" $ do
+    it "normalizes non-positive indices before subtraction" $
+      map scimPaginationOffset [minBound, -2147483648, -1, 0, 1] `shouldBe` replicate 5 (Just 0)
+    it "supports the largest representable backend offset" $
+      scimPaginationOffset 2147483648 `shouldBe` Just maxBound
+    it "identifies offsets beyond the backend range" $
+      map scimPaginationOffset [2147483649, maxBound] `shouldBe` [Nothing, Nothing]
+  deletionSpec
+
+deletionSpec :: Spec
+deletionSpec = describe "deleteScimUser" $ do
   it "returns no error when the account was deleted for the first time (or partially)" $ do
     tokenInfo <- generate arbitrary
     acc <- someActiveUser tokenInfo

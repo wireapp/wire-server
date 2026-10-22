@@ -26,6 +26,7 @@ import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Data.Range
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
@@ -38,6 +39,7 @@ import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
+import Wire.API.Pagination
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
@@ -163,6 +165,7 @@ data BrigAPIAccess m a where
   GetDefaultUserLocale :: BrigAPIAccess m Locale
   CheckAdminGetTeamId :: UserId -> BrigAPIAccess m (Either Wai.Error TeamId)
   SendSAMLIdPChangedEmail :: IdpChangedNotification -> BrigAPIAccess m ()
+  GetScimUsersPaginated :: TeamId -> Range 0 500 Int32 -> Maybe Int32 -> BrigAPIAccess m (Maybe (OffsetPage User))
 
 makeSem ''BrigAPIAccess
 

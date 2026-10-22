@@ -332,6 +332,7 @@ teamsAPI =
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
     :<|> Named @"team-size" (lift . liftSem . getTeamSize)
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
+    :<|> Named @"get-scim-users-paginated" (\tid pageSize mOffset -> lift . liftSem $ User.internalGetScimUsersPaginated tid pageSize mOffset)
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
