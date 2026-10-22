@@ -1,0 +1,1 @@
+Integration test teardown and `hack/bin/integration-cleanup.sh` now delete the Envoy Gateway proxies and federation Services that envoy-mode test runs create in `envoy-gateway-system`; deleting the test namespaces alone leaked them.
