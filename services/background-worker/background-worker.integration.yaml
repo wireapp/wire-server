@@ -64,6 +64,7 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
+migrateUserKeys: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -105,3 +106,4 @@ postgresMigration:
   budget: postgresql
   nonce: postgresql
   connections: postgresql
+  userKey: cassandra
