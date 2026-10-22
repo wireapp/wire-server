@@ -64,6 +64,7 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
+migrateProviderPasswords: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -106,3 +107,4 @@ postgresMigration:
   nonce: postgresql
   connections: postgresql
   sessions: postgresql
+  providerPassword: postgresql

@@ -368,6 +368,16 @@ checkBlacklist domain email = do
   req <- baseRequest domain Brig Unversioned "i/users/blacklist"
   submit "GET" $ req & addQueryParams [("email", email)]
 
+putProviderPassword :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+putProviderPassword domain pid password = do
+  req <- baseRequest domain Brig Unversioned ("i/provider/" <> pid <> "/password")
+  submit "PUT" $ req & addJSON password
+
+checkProviderPassword :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+checkProviderPassword domain pid password = do
+  req <- baseRequest domain Brig Unversioned ("i/provider/" <> pid <> "/password/verify")
+  submit "POST" $ req & addJSON password
+
 data PutSSOId = PutSSOId
   { scimExternalId :: Maybe String,
     subject :: Maybe String,

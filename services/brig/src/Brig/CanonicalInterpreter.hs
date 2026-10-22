@@ -136,6 +136,7 @@ import Wire.PasswordResetCodeStore.DualWrite (interpretPasswordResetCodeStoreToC
 import Wire.PasswordResetCodeStore.Postgres (interpretPasswordResetCodeStoreToPostgres)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
+import Wire.PasswordStore.Postgres (interpretPasswordStoreToPostgres)
 import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
@@ -454,6 +455,18 @@ runBrigToIO e (AppT ma) = do
             . interpretSessionStoreToPostgres
             . raiseUnder2
 
+      -- The provider password store has no DualWrite interpreter: during
+      -- migration-to-postgresql Cassandra remains the source of truth (reads and
+      -- writes), and the background worker copies rows to PostgreSQL.
+      passwordStoreInterpreter = case e.postgresMigration.providerPassword of
+        CassandraStorage -> interpretPasswordStore e.casClient
+        MigrationToPostgresql -> interpretPasswordStore e.casClient
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretPasswordStoreToPostgres
+            . raiseUnder2
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -562,7 +575,7 @@ runBrigToIO e (AppT ma) = do
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
-              . interpretPasswordStore e.casClient
+              . passwordStoreInterpreter
               . sessionStoreInterpreter
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretClientStoreCassandra clientStoreCassandraEnv

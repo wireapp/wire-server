@@ -59,6 +59,7 @@ import Data.Misc
   ( Fingerprint (Fingerprint),
     FutureWork (FutureWork),
     IpAddr,
+    PlainTextPassword6,
     Rsa,
   )
 import Data.Qualified
@@ -81,7 +82,7 @@ import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Servant (ServerT, (:<|>) (..))
+import Servant (NoContent (..), ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
@@ -103,6 +104,7 @@ import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
 import Wire.API.Routes.Internal.Brig (getByNoFilters)
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
+import Wire.PasswordStore
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
@@ -212,6 +214,7 @@ providerAPI ::
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
     Member RateLimit r,
+    Member PasswordStore r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
     Member Now r
@@ -232,12 +235,45 @@ providerAPI =
 
 internalProviderAPI ::
   ( Member GalleyAPIAccess r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PasswordStore r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   ServerT BrigIRoutes.ProviderAPI (Handler r)
 internalProviderAPI =
   Named @"get-provider-activation-code" getActivationCode
     :<|> Named @"get-provider-password-reset-code" getPasswordResetCode
+    :<|> Named @"put-provider-password" putProviderPassword
+    :<|> Named @"check-provider-password" checkProviderPassword
+
+putProviderPassword ::
+  ( Member PasswordStore r,
+    Member HashPassword r,
+    Member RateLimit r
+  ) =>
+  ProviderId ->
+  PlainTextPassword6 ->
+  (Handler r) NoContent
+putProviderPassword pid plain = do
+  hashed <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) plain
+  lift . liftSem $ insertHashedProviderPassword pid hashed
+  pure NoContent
+
+checkProviderPassword ::
+  ( Member PasswordStore r,
+    Member HashPassword r,
+    Member RateLimit r
+  ) =>
+  ProviderId ->
+  PlainTextPassword6 ->
+  (Handler r) BrigIRoutes.CheckProviderPasswordResponse
+checkProviderPassword pid plain = lift . liftSem $ do
+  lookupHashedProviderPassword pid >>= \case
+    Nothing -> pure BrigIRoutes.WrongProviderPassword
+    Just hashed -> do
+      ok <- HashPassword.verifyPassword (RateLimitProvider pid) plain hashed
+      pure $ if ok then BrigIRoutes.CorrectProviderPassword else BrigIRoutes.WrongProviderPassword
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -247,7 +283,8 @@ newAccount ::
     Member EmailSending r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member PasswordStore r
   ) =>
   IpAddr ->
   Public.NewProvider ->
@@ -270,6 +307,7 @@ newAccount ip new = do
       safePass <- lift . liftSem $ HashPassword.hashPassword8 (RateLimitIp ip) newPass
       pure (safePass, Just newPass)
   pid <- wrapClientE $ DB.insertAccount name safePass url descr
+  lift . liftSem $ insertHashedProviderPassword pid safePass
   let gen = mkVerificationCodeGen email
   code <-
     lift . liftSem $
@@ -372,7 +410,8 @@ completePasswordReset ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member PasswordStore r
   ) =>
   Public.CompletePasswordReset ->
   (Handler r) ()
@@ -386,6 +425,7 @@ completePasswordReset (Public.CompletePasswordReset key value newpwd) = do
         throwStd (errorToWai @E.ResetPasswordMustDiffer)
       hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) newpwd
       wrapClientE $ DB.updateAccountPassword pid hashedPwd
+      lift . liftSem $ insertHashedProviderPassword pid hashedPwd
       lift . liftSem $ deleteCode key VerificationCode.PasswordReset
 
 --------------------------------------------------------------------------------
@@ -434,7 +474,8 @@ updateAccountPassword ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member PasswordStore r
   ) =>
   ProviderId ->
   Public.PasswordChange ->
@@ -447,6 +488,7 @@ updateAccountPassword pid upd = do
     throwStd (errorToWai @E.ResetPasswordMustDiffer)
   hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) upd.newPassword
   wrapClientE $ DB.updateAccountPassword pid hashedPwd
+  lift . liftSem $ insertHashedProviderPassword pid hashedPwd
 
 addService ::
   (Member GalleyAPIAccess r) =>
@@ -610,7 +652,8 @@ finishDeleteService pid sid = do
 
 deleteAccount ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member PasswordStore r
   ) =>
   ProviderId ->
   Public.DeleteProvider ->
@@ -630,6 +673,7 @@ deleteAccount pid del = do
     wrapClientE $ DB.deleteService pid sid name tags
   wrapClientE $ DB.deleteKey (mkEmailKey (providerEmail prov))
   wrapClientE $ DB.deleteAccount pid
+  lift . liftSem $ deleteHashedProviderPassword pid
 
 --------------------------------------------------------------------------------
 -- User API
