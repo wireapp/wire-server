@@ -283,3 +283,6 @@ postgresMigration:
   customBackend: postgresql
   budget: postgresql
   connections: postgresql
+  providerPassword: postgresql
+
+optSettings:
