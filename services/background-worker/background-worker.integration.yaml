@@ -70,6 +70,7 @@ migratePasswordReset: false
 migrateScimTokens: false
 migrateScimExternalIds: false
 migrateSamlUsers: false
+migrateScimUserMeta: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -109,3 +110,4 @@ postgresMigration:
   scimTokens: postgresql
   scimExternalIds: postgresql
   samlUsers: postgresql
+  scimUserMeta: postgresql

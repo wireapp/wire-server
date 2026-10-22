@@ -184,6 +184,7 @@ library
     Test.Migration.PasswordReset
     Test.Migration.SamlUsers
     Test.Migration.ScimStores
+    Test.Migration.ScimUserMeta
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util

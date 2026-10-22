@@ -274,3 +274,4 @@ postgresMigration:
   scimTokens: cassandra
   scimExternalIds: cassandra
   samlUsers: cassandra
+  scimUserMeta: cassandra

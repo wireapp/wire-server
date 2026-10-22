@@ -315,6 +315,7 @@ galley:
       scimTokens: {{ .Values.scimTokensStore }}
       scimExternalIds: {{ .Values.scimExternalIdsStore }}
       samlUsers: {{ .Values.samlUsersStore }}
+      scimUserMeta: {{ .Values.scimUserMetaStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -616,6 +617,7 @@ spar:
       scimTokens: {{ .Values.scimTokensStore }}
       scimExternalIds: {{ .Values.scimExternalIdsStore }}
       samlUsers: {{ .Values.samlUsersStore }}
+      scimUserMeta: {{ .Values.scimUserMetaStore }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
