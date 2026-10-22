@@ -188,6 +188,8 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
 import Wire.VerificationCodeStore
 import Wire.VerificationCodeStore.Cassandra
+import Wire.VerificationCodeStore.DualWrite (interpretVerificationCodeStoreToCassandraAndPostgres)
+import Wire.VerificationCodeStore.Postgres (interpretVerificationCodeStoreToPostgres)
 import Wire.VerificationCodeSubsystem
 import Wire.VerificationCodeSubsystem.Interpreter
 
@@ -477,10 +479,23 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . interpretBudgetStoreToPostgres
               . raiseUnder2
+
+      -- Same reasoning as passwordResetCodeStore above: VerificationCodeStore
+      -- must be peeled at this slot, before the global Pool/UsageError
+      -- providers, so the Postgres-backed branches supply them locally
+      -- (raiseUnder2 + runInputConst + mapError).
+      verificationCodeStoreInterpreter =
+        case e.postgresMigration.verificationCodes of
+          CassandraStorage -> interpretVerificationCodeStoreCassandra e.casClient
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretVerificationCodeStoreToPostgres
+              . raiseUnder2
           MigrationToPostgresql ->
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
-              . interpretBudgetStoreToCassandraAndPostgres @Cas.Client
+              . interpretVerificationCodeStoreToCassandraAndPostgres e.casClient
               . raiseUnder2
 
       -- Same slot consideration as passwordResetCodeStore above: the
@@ -498,6 +513,7 @@ runBrigToIO e (AppT ma) = do
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretConnectionStoreToCassandraAndPostgres
+              . interpretVerificationCodeStoreToCassandraAndPostgres e.casClient
               . raiseUnder2
 
   ( either throwM pure
@@ -545,7 +561,7 @@ runBrigToIO e (AppT ma) = do
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
-              . interpretVerificationCodeStoreCassandra e.casClient
+              . verificationCodeStoreInterpreter
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
               . interpretIndexedUserStoreES indexedUserStoreConfig
