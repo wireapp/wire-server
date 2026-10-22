@@ -13,16 +13,20 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.State (get, runState)
+import Polysemy.State (get, modify, runState)
+import Polysemy.TinyLog qualified as TinyLog
+import System.Logger qualified as Log
 import Test.Hspec
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error.Galley
-import Wire.API.Federation.Error (FederationError)
-import Wire.API.MLS.CipherSuite (legacyCipherSuite)
+import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite (legacyCipherSuite, tagCipherSuite)
 import Wire.API.MLS.Commit (HPKECiphertext (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation qualified as Group
+import Wire.API.MLS.GroupInfo (GroupContext (..))
 import Wire.API.MLS.Keys
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.ProtocolVersion (defaultProtocolVersion)
@@ -30,17 +34,20 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation (ConvOrSubChoice (Conv))
 import Wire.API.MLS.TargetedMessage
 import Wire.API.MLS.TargetedMessage qualified as Targeted
+import Wire.API.MLS.TransientMessage
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsSome))
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
+import Wire.ConversationStore (ConversationStore (..))
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), cseToGalleyError)
 import Wire.ConversationSubsystem.MLS.Message
 import Wire.ExternalAccess
+import Wire.FederationAPIAccess (FederationAPIAccess (..))
 import Wire.MockInterpreters.ConversationStore (inMemoryConversationStoreInterpreterWithMLS)
 import Wire.MockInterpreters.NotificationSubsystem (inMemoryNotificationSubsystemInterpreter)
 import Wire.MockInterpreters.Now (defaultTime, interpretNowConst)
 import Wire.MockInterpreters.TinyLog (noopLogger)
-import Wire.NotificationSubsystem (Push (..), Recipient (..))
+import Wire.NotificationSubsystem (NotificationSubsystem, Push (..), Recipient (..))
 import Wire.StoredConversation
 
 spec :: Spec
@@ -77,7 +84,7 @@ spec = describe "targeted MLS messages" do
 
   it "rejects a sender leaf that belongs to another client" do
     let fx = fixture
-        message = mapTargetedMessage (targetedMessage 1) (\msg -> msg {sender = fx.recipientLeaf})
+        message = mapTargetedMessage (targetedMessage 1) (\msg -> msg {Targeted.sender = fx.recipientLeaf})
     expectRejected fx [message]
 
   it "rejects an unknown recipient leaf" do
@@ -118,10 +125,78 @@ spec = describe "targeted MLS messages" do
 
   it "does not push earlier messages when a later message is invalid" do
     let fx = fixture
-        invalidMessage = mapTargetedMessage (targetedMessage 2) (\msg -> msg {sender = fx.recipientLeaf})
+        invalidMessage = mapTargetedMessage (targetedMessage 2) (\msg -> msg {Targeted.sender = fx.recipientLeaf})
         (pushes, result) = runTargetedWithPushes fx [targetedMessage 1, invalidMessage]
     result `shouldSatisfy` isLeft
     pushes `shouldBe` []
+
+  describe "submission to a remote conversation" do
+    for_ [TransientBroadcast, Targeted, TransientTargeted] $ \kind ->
+      describe (show kind) do
+        it "drops an unsupported federation endpoint with a warning" do
+          runRemoteSubmission kind True (FederationCallFailure FederatorClientVersionMismatch)
+            `shouldBe` ([Log.Warn], Right ())
+
+        it "preserves other federation failures" do
+          let failure = FederationCallFailure (FederatorClientHTTP2Error FederatorClientNoStatusCode)
+          runRemoteSubmission kind True failure
+            `shouldBe` ([], Left (show failure))
+
+        it "preserves version negotiation failures" do
+          let failure = FederationCallFailure (FederatorClientVersionNegotiationError InvalidVersionInfo)
+          runRemoteSubmission kind True failure
+            `shouldBe` ([], Left (show failure))
+
+        it "rejects non-members before attempting federation" do
+          runRemoteSubmission kind False (error "non-members must not call federation")
+            `shouldBe` ([], Left (show (cseToGalleyError ConversationSubsystemErrorConvMemberNotFound)))
+
+interpretRemoteFederation :: FederationError -> InterpreterFor (FederationAPIAccess FederatorClient) r
+interpretRemoteFederation failure = interpret $ \case
+  RunFederatedEither _ _ -> pure (Left failure)
+  _ -> error "unexpected federation call"
+
+-- Exercise the public handlers so all three remote routing paths are covered.
+data RemoteMessageKind = TransientBroadcast | Targeted | TransientTargeted
+  deriving (Show)
+
+runRemoteSubmission :: RemoteMessageKind -> Bool -> FederationError -> ([Log.Level], Either String ())
+runRemoteSubmission kind isMember failure =
+  run
+    . runState @[Log.Level] []
+    . runError @String
+    . mapError @MLSProtocolError show
+    . mapError @FederationError show
+    . mapError @ConversationSubsystemError (show . cseToGalleyError)
+    . runInputConst (Just (MLSKeysByPurpose (error "test MLS keys are not used")))
+    . interpret
+      ( \case
+          CheckLocalMemberRemoteConv _ _ -> pure isMember
+          _ -> error "unexpected conversation store call for remote submission"
+      )
+    . interpretRemoteFederation failure
+    . interpretExternalAccess
+    . interpretBackendNotificationQueueAccess
+    . interpret @NotificationSubsystem (\_ -> error "remote submission must not push locally")
+    . interpretNowConst defaultTime
+    . interpret (\case TinyLog.Log level _ -> modify @[Log.Level] (<> [level]))
+    $ void case kind of
+      TransientBroadcast -> postMLSTransientMessageFromLocalUser sender client broadcast
+      Targeted -> postMLSTargetedMessagesFromLocalUser sender client (TargetedMessageBatch [persistent])
+      TransientTargeted -> postMLSTransientTargetedMessageFromLocalUser sender client (TransientTargetedMessageBatch [transient])
+  where
+    sender = toLocalUnsafe (Domain "example.com") fixture.senderUser
+    client = fixture.senderClient
+    remoteGroup = Group.newGroupId One2OneConv (Qualified (Conv fixture.conversation.id_) (Domain "remote.example.com"))
+    persistent = mapTargetedMessage (targetedMessage 1) (\msg -> msg {Targeted.groupId = remoteGroup})
+    transient = mkRawMLS (TransientTargetedMessage (persistentTargetedMessageData persistent.value))
+    broadcast =
+      mkRawMLS $
+        TransientMessage
+          defaultProtocolVersion
+          transientMessageWireFormat
+          (TransientMessageTBS (GroupContext defaultProtocolVersion (tagCipherSuite legacyCipherSuite) remoteGroup (Epoch 5) "tree" "transcript" []) 0 1 "payload")
+          "signature"
 
 data Fixture = Fixture
   { conversation :: StoredConversation,
