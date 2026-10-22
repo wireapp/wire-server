@@ -72,7 +72,6 @@ import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.OpenTelemetry (withTracer)
 import Wire.PostgresMigrations
-import Wire.Sem.Paging qualified as P
 import Wire.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import Wire.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Wire.UserStore
@@ -204,9 +203,8 @@ bodyParserErrorFormatter _ _ errMsg =
 -- be done with cassandra TTLs, but it involves several tables and may require adjusting their
 -- write operations.
 pendingActivationCleanup ::
-  forall r p.
-  ( P.Paging p,
-    Member (UserPendingActivationStore p) r,
+  forall r.
+  ( Member UserPendingActivationStore r,
     Member DeleteQueue r,
     Member UserStore r
   ) =>
@@ -214,31 +212,31 @@ pendingActivationCleanup ::
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< asks (.currentTime)
-    forExpirationsPaged $ \exps -> do
-      uids <-
-        for exps $ \(UserPendingActivation uid expiresAt) -> do
-          isPendingInvitation <- (Just PendingInvitation ==) <$> liftSem (lookupStatus uid)
-          pure
-            ( expiresAt < now,
-              isPendingInvitation,
-              uid
-            )
-
-      API.deleteUsersNoVerify $
-        mapMaybe
-          ( \(isExpired, isPendingInvitation, uid) ->
-              if isExpired && isPendingInvitation then Just uid else Nothing
+    exps <- liftSem UsersPendingActivationStore.list
+    uids <-
+      for exps $ \(UserPendingActivation uid expiresAt) -> do
+        isPendingInvitation <- (Just PendingInvitation ==) <$> liftSem (lookupStatus uid)
+        pure
+          ( expiresAt < now,
+            isPendingInvitation,
+            uid
           )
-          uids
 
-      liftSem . UsersPendingActivationStore.removeMultiple $
-        mapMaybe
-          ( \(isExpired, _isPendingInvitation, uid) ->
-              if isExpired then Just uid else Nothing
-          )
-          uids
+    API.deleteUsersNoVerify $
+      mapMaybe
+        ( \(isExpired, isPendingInvitation, uid) ->
+            if isExpired && isPendingInvitation then Just uid else Nothing
+        )
+        uids
 
-    threadDelayRandom
+    liftSem . UsersPendingActivationStore.removeMultiple $
+      mapMaybe
+        ( \(isExpired, _isPendingInvitation, uid) ->
+            if isExpired then Just uid else Nothing
+        )
+        uids
+
+  threadDelayRandom
   where
     safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
     safeForever funName action =
@@ -247,16 +245,6 @@ pendingActivationCleanup = do
           err $ "error" .= displayException exc ~~ msg (val $ UTF8.fromString funName <> " failed")
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
-
-    forExpirationsPaged :: ([UserPendingActivation] -> (AppT r) ()) -> (AppT r) ()
-    forExpirationsPaged f = do
-      go =<< liftSem (UsersPendingActivationStore.list Nothing)
-      where
-        go :: P.Page p UserPendingActivation -> (AppT r) ()
-        go p = do
-          f (P.pageItems p)
-          when (P.pageHasMore p) $ do
-            go =<< liftSem (UsersPendingActivationStore.list $ Just $ P.pageState p)
 
     threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do
