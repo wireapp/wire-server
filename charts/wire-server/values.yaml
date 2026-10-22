@@ -102,6 +102,7 @@ galley:
       scimTokens: cassandra
       scimExternalIds: cassandra
       samlUsers: cassandra
+      scimUserMeta: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -896,6 +897,7 @@ spar:
       scimTokens: cassandra
       scimExternalIds: cassandra
       samlUsers: cassandra
+      scimUserMeta: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
 
@@ -1095,6 +1097,10 @@ background-worker:
     # It's important to set `spar.config.postgresMigration.samlUsers`
     # to `migration-to-postgresql` before starting the migration.
     migrateSamlUsers: false
+    # This will start the migration of spar scim user meta data.
+    # It's important to set `spar.config.postgresMigration.scimUserMeta`
+    # to `migration-to-postgresql` before starting the migration.
+    migrateScimUserMeta: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
