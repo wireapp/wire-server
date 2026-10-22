@@ -56,7 +56,6 @@ behavior of the features. Example:
 settings:
   featureFlags:
     sso: disabled-by-default
-    legalhold: disabled-by-default
     teamSearchVisibility: disabled-by-default
     setEmailVisibility: visible_to_self
 ```
@@ -82,18 +81,6 @@ IMPORTANT: if you change this from ‘enabled-by-default’ to
 script](https://github.com/wireapp/wire-server/tree/master/tools/db/migrate-sso-feature-flag)
 to fix all teams that have registered an idp.  (if you don’t, the idp
 will keep working, but the admin won’t be able to register new idps.)
-
-### LegalHold
-
-Optionally block customer support / backoffice from enabling legal
-hold for individual teams.  [Allowed
-values](https://github.com/wireapp/wire-server/blob/46713382a1a6544de3936eb03e987b9f76df3faa/libs/galley-types/src/Galley/Types/Teams.hs#L332-L334):
-‘disabled-permanently’, ‘disabled-by-default’.
-
-IMPORTANT: If you switch this back to `disabled-permanently` from
-`disabled-by-default`, LegalHold devices may still be active in teams
-that have created them while it was allowed.  This may change in the
-future.
 
 ### Expose invitation URLs to team admin
 
