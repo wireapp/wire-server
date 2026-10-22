@@ -87,6 +87,7 @@ data:
     migrateConversations: {{ .migrateConversations }}
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
+    migrateTeam: {{ .migrateTeam }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
     migrateUsers: {{ .migrateUsers }}
     migrateBlockList: {{ .migrateBlockList }}
