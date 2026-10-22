@@ -130,6 +130,24 @@ spec = describe "UserSubsystem.Interpreter" do
                 map (qUnqualified . userQualifiedId) page.results === [pendingUser.id]
               ]
 
+    it "finds live invitations beyond the first team invitation batch" $ do
+      PendingNotEmptyIdentityStoredUser user <- generate arbitrary
+      teamId <- generate arbitrary
+      email <- generate arbitrary
+      generated <- generate $ vectorOf 501 (arbitrary @StoredInvitation)
+      let ordered = sortOn (.invitationId) generated
+          invitations =
+            [ inv {InvitationStore.teamId = teamId, InvitationStore.email = if i == (500 :: Int) then email else inv.email}
+            | (i, inv) <- zip [0 ..] ordered
+            ]
+          pendingUser = user {teamId = Just teamId, managedBy = Just ManagedByScim, activated = True, email = Just email} :: StoredUser
+          backend = def {users = [pendingUser], invitations = Map.fromList [((teamId, inv.invitationId), inv) | inv <- invitations]}
+          page =
+            runNoFederationStack backend mempty def $
+              internalGetScimUsersPaginated teamId (toRange (Proxy @5)) Nothing
+      page.totalResults `shouldBe` 1
+      map (qUnqualified . userQualifiedId) page.results `shouldBe` [pendingUser.id]
+
   describe "getUserProfiles" do
     describe "[with federation]" do
       prop "gets all users on multiple federating backends" $

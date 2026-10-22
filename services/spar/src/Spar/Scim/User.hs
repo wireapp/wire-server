@@ -42,6 +42,7 @@ module Spar.Scim.User
     scimFindUserByExternalId,
     deleteScimUser,
     deleteScimUserData,
+    scimPaginationOffset,
   )
 where
 
@@ -132,6 +133,11 @@ import qualified Wire.Sem.Random as Random
 ----------------------------------------------------------------------------
 -- UserDB instance
 
+-- | Normalize in the wider type before subtracting and narrowing. Nothing
+-- means the requested offset cannot be represented by Brig, not an omitted index.
+scimPaginationOffset :: Int -> Maybe Int32
+scimPaginationOffset start = toIntegralSized (max 1 start - 1)
+
 instance
   ( Member (Logger (Msg -> Msg)) r,
     Member (Logger String) r,
@@ -160,8 +166,8 @@ instance
       )
       logScimUserIds
       $ do
-        -- For some reason SCIM uses 1-based startIndex
-        let zeroBasedStartIndex :: Maybe Int32 = (max 0 . subtract 1) <$> (toIntegralSized =<< mStartIndex)
+        let normalizedStartIndex = max 1 $ fromMaybe 1 mStartIndex
+            zeroBasedStartIndex = scimPaginationOffset normalizedStartIndex
             clampCount n =
               -- The RFC states negative values are to be interpretted as 0. it
               -- doesn't say anything about bigger values, so we interpret them
@@ -169,7 +175,10 @@ instance
               fromMaybe (if n < 0 then minBound else maxBound) $
                 checked =<< toIntegralSized n
             count = maybe (toRange (Proxy @10)) clampCount mCount
-        mPage <- lift $ BrigAPIAccess.getScimUsersPaginated tokenInfo.stiTeam count zeroBasedStartIndex
+            -- An unrepresentable offset is past the end of Brig's Int32-sized
+            -- result set. Fetch only the total and preserve the requested index.
+            backendCount = if isNothing zeroBasedStartIndex then minBound else count
+        mPage <- lift $ BrigAPIAccess.getScimUsersPaginated tokenInfo.stiTeam backendCount zeroBasedStartIndex
         case mPage of
           Nothing ->
             -- brig doesn't support it, so we fallback to the old error
@@ -189,7 +198,7 @@ instance
                   itemsPerPage = length scimUsers,
                   resources = scimUsers,
                   totalResults = fromIntegral page.totalResults,
-                  startIndex = fromIntegral $ maybe 1 (+ 1) zeroBasedStartIndex
+                  startIndex = normalizedStartIndex
                 }
   getUsers tokenInfo@ScimTokenInfo {stiTeam, stiIdP} (Just filter') _ _ =
     logScim

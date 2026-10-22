@@ -722,9 +722,22 @@ getScimUsersPaginatedImpl tid pageSize mOffset = do
   pendingUsers <-
     UserStore.getPendingScimUsers tid
       >>= note UserSubsystemOffsetPaginationNotSupported
-  -- Check only pending accounts. PostgreSQL applies the same exclusions before
-  -- counting and pagination; accepted users need no invitation lookups.
-  expiredIds <- fmap (map fst) $ filterM (fmap null . lookupInvitationsByEmail . snd) pendingUsers
+  -- Read live invitations in team-scoped batches instead of looking up each
+  -- pending user's email separately. Stop once all candidate emails are found.
+  let findExpiredEmails remaining cursor
+        | Set.null remaining = pure remaining
+        | otherwise = do
+            invitationPage <- lookupInvitationsPaginated (Just maxBound) tid cursor
+            let invitations = case invitationPage of
+                  PaginatedResult xs -> xs
+                  PaginatedResultHasMore xs -> xs
+                remaining' = remaining Set.\\ Set.fromList (map (.email) invitations)
+            case (invitationPage, listToMaybe $ reverse invitations) of
+              (PaginatedResultHasMore _, Just lastInvitation) ->
+                findExpiredEmails remaining' (Just lastInvitation.invitationId)
+              _ -> pure remaining'
+  expiredEmails <- findExpiredEmails (Set.fromList $ map snd pendingUsers) Nothing
+  let expiredIds = [uid | (uid, email) <- pendingUsers, Set.member email expiredEmails]
   storedPage <-
     UserStore.getScimUsersPaginated tid expiredIds (fromRange pageSize) mOffset
       >>= note UserSubsystemOffsetPaginationNotSupported

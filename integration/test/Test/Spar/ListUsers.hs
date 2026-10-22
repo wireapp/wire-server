@@ -112,9 +112,13 @@ testSparScimListUsersPaginated = do
       void $ assertPage domain (Just (total + 1)) (Just count) (total + 1) total 0 tok
 
       -- indexes lower than 1 are treated as 1
-      forM_ [0, -2] $ \startIndex -> do
+      forM_ [0, -2, -2147483648, minBound] $ \startIndex -> do
         ids <- assertPage domain (Just startIndex) (Just count) 1 total count tok
         ids `shouldMatchSet` take count allIds
+
+      -- Large indices must never wrap around or fall back to the first page.
+      forM_ [2147483648, 2147483649, maxBound] $ \startIndex ->
+        void $ assertPage domain (Just startIndex) (Just count) startIndex total 0 tok
 
       -- other teams are not mixed up
       otherIds <- assertPage domain Nothing Nothing 1 2 2 tokOther
