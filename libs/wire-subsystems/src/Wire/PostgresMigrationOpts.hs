@@ -63,6 +63,12 @@ data PostgresMigrationOpts = PostgresMigrationOpts
   }
   deriving (Show)
 
+-- NOTE: there is deliberately no @teamMembers@ storage location: member
+-- writes and reads are migrated together with the team metadata under the
+-- @team@ key (the listing effects that still read Cassandra keep working
+-- because the member copy loop is copy-only).  The background worker's
+-- @migrateTeamMembers@ flag controls the member copy loop independently.
+
 instance FromJSON PostgresMigrationOpts where
   parseJSON = withObject "PostgresMigrationOpts" $ \o ->
     PostgresMigrationOpts

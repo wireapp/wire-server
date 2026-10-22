@@ -1031,6 +1031,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.team` to `migration-to-postgresql`
     # before starting the migration.
     migrateTeam: false
+    # This will start the migration of team members.
+    # It's important to set `settings.postgresMigration.teamMembers` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateTeamMembers: false
     # This will start the migration of domain registration data.
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.

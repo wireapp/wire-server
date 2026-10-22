@@ -19,7 +19,19 @@
 -- Postgres.  There is no delete-after-copy: @team@ is a small row-per-team
 -- table, and rows are only ever mutated (never garbage collected) — the
 -- upsert keeps re-runs idempotent.
-module Wire.TeamStore.Migration (migrateTeamLoop) where
+--
+-- 'migrateTeamMembersLoop' additionally migrates the member tables
+-- (@team_member@, @user_team@, @billing_team_member@, @team_admin@), also
+-- copy-only: the listing effects that read those tables in Cassandra
+-- ('TeamMemberStore', the team listings) are not migrated yet, so deleting
+-- the Cassandra rows would empty them before their readers move to
+-- Postgres.  The copy runs under per-(team, user) exclusive locks; the
+-- dual-write interpreter takes the matching shared locks on member writes.
+module Wire.TeamStore.Migration
+  ( migrateTeamLoop,
+    migrateTeamMembersLoop,
+  )
+where
 
 import Cassandra hiding (Value)
 import Cassandra.Util (Writetime, writetimeToUTC)
@@ -27,10 +39,14 @@ import Data.Conduit
 import Data.Conduit.List qualified as C
 import Data.IORef qualified as IORef
 import Data.Id
+import Data.Json.Util (UTCTimeMillis (..), fromUTCTimeMillis)
+import Data.LegalHold (UserLegalHoldStatus)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.UUID (UUID)
+import Data.Vector (Vector)
+import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended qualified as Hasql
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -41,6 +57,7 @@ import Polysemy.AtomicState
 import Polysemy.Conc (interpretRace)
 import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
+import Polysemy.Error (Error, runError)
 import Polysemy.Input
 import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
 import Polysemy.TinyLog
@@ -50,13 +67,16 @@ import UnliftIO qualified
 import Wire.API.PostgresMarshall
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
+import Wire.API.Team.Permission (Permissions)
 import Wire.API.Team.SearchVisibility
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.Migration
+import Wire.MigrationLock
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
+import Wire.Util (embedClientInput)
 
 type EffectStack =
   [ AtomicState Int,
@@ -231,3 +251,197 @@ upsertTeamStatement =
       search_visibility = excluded.search_visibility,
       created_at = coalesce(excluded.created_at, team.created_at)
   |]
+
+--------------------------------------------------------------------------------
+-- Team members (WPB-22957): copy + delete-after-copy
+
+-- | Copies the member tables (Cassandra -> Postgres) and deletes the
+-- Cassandra rows after each member (plus its auxiliary rows) has been
+-- written to Postgres, under a per-(team, user) advisory lock so concurrent
+-- writes and the copy do not race.  Rows mutate (permissions, legalhold
+-- status) and disappear (members leave, team deletion sweeps members), so
+-- delete-after-copy is what eventually empties Cassandra.
+migrateTeamMembersLoop ::
+  MigrationOptions ->
+  ClientState ->
+  Hasql.Pool ->
+  Log.Logger ->
+  Prometheus.Counter ->
+  Prometheus.Counter ->
+  Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  IO ()
+migrateTeamMembersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
+  migrationLoop
+    logger
+    "team members"
+    migFinished
+    migFailed
+    (interpreter cassClient pgPool logger "team members")
+    (migrateAllTeamMembers migOpts migCounter migDuration)
+
+migrateAllTeamMembers ::
+  MigrationOptions ->
+  Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  ConduitM () Void (Sem EffectStack) ()
+migrateAllTeamMembers migOpts migCounter migDuration = do
+  lift $ info $ Log.msg (Log.val "migrateAllTeamMembers")
+  withCount (paginateSem selectAllTeamMembers (paramsP LocalQuorum () migOpts.pageSize) x5)
+    .| logRetrievedPage migOpts.pageSize id
+    .| C.mapM_
+      ( traverse_ $ \(tid, uid, perms, minvu, minvt, mlh) -> do
+          eith <-
+            runError @HasqlPool.UsageError
+              ( runError @MigrationLockError
+                  ( migrateTeamMemberRow
+                      migOpts
+                      migCounter
+                      migDuration
+                      ( toUUID tid,
+                        toUUID uid,
+                        postgresMarshall perms,
+                        toUUID <$> minvu,
+                        fromUTCTimeMillis <$> minvt,
+                        postgresMarshall <$> mlh
+                      )
+                  )
+              )
+          case eith of
+            Right (Right ()) -> pure ()
+            errs -> do
+              warn $
+                Log.msg (Log.val "error occurred during team member migration")
+                  . Log.field "key" (idToText tid <> ":" <> idToText uid)
+                  . Log.field "error" (show errs)
+              atomicModify (+ 1)
+      )
+
+-- | Copies one member row and its auxiliary rows to Postgres, under the
+-- per-(team, user) lock and the configured per-row timeout.  The Cassandra
+-- rows are kept (copy-only): the listing effects that read them
+-- (TeamMemberStore, the team listings) are not migrated yet, so deleting
+-- would empty them before their readers move to Postgres.  The exclusive
+-- lock serializes the copy against the shared locks the dual-write
+-- interpreter takes on member writes, so a concurrent permission change can
+-- not be overwritten by a stale copy.
+migrateTeamMemberRow ::
+  ( PGConstraints r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  MigrationOptions ->
+  Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  ( UUID,
+    UUID,
+    Vector Int16,
+    Maybe UUID,
+    Maybe UTCTime,
+    Maybe Int16
+  ) ->
+  Sem r ()
+migrateTeamMemberRow migOpts migCounter migDuration row@(tid, uid, _, _, _, _) =
+  withExclusiveMigrationLockAndTimeout
+    migOpts.timeout
+    migDuration
+    [(Id tid :: TeamId, Id uid :: UserId)]
+    $ do
+      upsertTeamMemberRow row
+      copyAuxiliaryTeamMemberRows (Id tid) (Id uid)
+      liftIO $ Prometheus.incCounter migCounter
+
+-- | Reads the auxiliary rows of one member from Cassandra and copies the
+-- ones that exist to Postgres.
+copyAuxiliaryTeamMemberRows ::
+  ( PGConstraints r,
+    Member (Input ClientState) r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r ()
+copyAuxiliaryTeamMemberRows tid uid = do
+  mUserTeam <-
+    embedClientInput $
+      retry x1 (query1 selectUserTeamExact (params LocalQuorum (uid, tid)))
+  for_ mUserTeam $ \_ -> runStatement (toUUID uid, toUUID tid) upsertUserTeamStatement
+  mBilling <-
+    embedClientInput $
+      retry x1 (query1 selectBillingTeamMemberExact (params LocalQuorum (tid, uid)))
+  for_ mBilling $ \_ -> runStatement (toUUID tid, toUUID uid) upsertBillingTeamMemberStatement
+  mAdmin <-
+    embedClientInput $
+      retry x1 (query1 selectTeamAdminExact (params LocalQuorum (tid, uid)))
+  for_ mAdmin $ \_ -> runStatement (toUUID tid, toUUID uid) upsertTeamAdminStatement
+
+-- | Upserts exactly what Cassandra had for this member row.
+upsertTeamMemberRow ::
+  (PGConstraints r) =>
+  (UUID, UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16) ->
+  Sem r ()
+upsertTeamMemberRow (tid, uid, perms, minvu, minvt, mlh) =
+  runStatement
+    ( tid,
+      uid,
+      perms,
+      minvu,
+      minvt,
+      mlh
+    )
+    upsertTeamMemberStatement
+
+upsertTeamMemberStatement ::
+  Hasql.Statement
+    (UUID, UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16)
+    ()
+upsertTeamMemberStatement =
+  [resultlessStatement|
+    insert into team_member (team, "user", perms, invited_by, invited_at, legalhold_status)
+    values ($1 :: uuid, $2 :: uuid, $3 :: smallint[], $4 :: uuid?, $5 :: timestamptz?, $6 :: smallint?)
+    on conflict (team, "user") do update set
+      perms = excluded.perms,
+      invited_by = excluded.invited_by,
+      invited_at = excluded.invited_at,
+      legalhold_status = excluded.legalhold_status
+  |]
+
+upsertUserTeamStatement :: Hasql.Statement (UUID, UUID) ()
+upsertUserTeamStatement =
+  [resultlessStatement|
+    insert into user_team ("user", team) values ($1 :: uuid, $2 :: uuid)
+    on conflict ("user", team) do update set team = excluded.team
+  |]
+
+upsertBillingTeamMemberStatement :: Hasql.Statement (UUID, UUID) ()
+upsertBillingTeamMemberStatement =
+  [resultlessStatement|
+    insert into billing_team_member (team, "user") values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, "user") do update set "user" = excluded."user"
+  |]
+
+upsertTeamAdminStatement :: Hasql.Statement (UUID, UUID) ()
+upsertTeamAdminStatement =
+  [resultlessStatement|
+    insert into team_admin (team, "user") values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, "user") do update set "user" = excluded."user"
+  |]
+
+--------------------------------------------------------------------------------
+-- local scan queries (bound at use site so the Cql/Tuple instances resolve,
+-- mirroring Wire.ConversationStore.Migration)
+
+selectAllTeamMembers :: PrepQuery R () (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+selectAllTeamMembers = "select team, user, perms, invited_by, invited_at, legalhold_status from team_member"
+
+selectUserTeamExact :: PrepQuery R (UserId, TeamId) (Identity TeamId)
+selectUserTeamExact = "select team from user_team where user = ? and team = ?"
+
+selectBillingTeamMemberExact :: PrepQuery R (TeamId, UserId) (Identity UserId)
+selectBillingTeamMemberExact = "select user from billing_team_member where team = ? and user = ?"
+
+selectTeamAdminExact :: PrepQuery R (TeamId, UserId) (Identity UserId)
+selectTeamAdminExact = "select user from team_admin where team = ? and user = ?"
