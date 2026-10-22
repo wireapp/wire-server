@@ -82,7 +82,7 @@ set -e
 # Envoy Gateway creates the proxies asynchronously, outside the Helm releases,
 # so helmfile does not wait for them. Wait until every Gateway is programmed,
 # i.e. its proxy has available replicas.
-if [[ "$WIRE_INGRESS_MODE" != "nginx" ]]; then
+if [[ "$WIRE_INGRESS_MODE" == "envoy" ]]; then
     for namespace in "$NAMESPACE_1" "$NAMESPACE_2"; do
         echo "Waiting for Gateways in '$namespace' to be programmed..."
         if ! kubectl -n "$namespace" wait gateways.gateway.networking.k8s.io --all --for=condition=Programmed --timeout=300s; then
