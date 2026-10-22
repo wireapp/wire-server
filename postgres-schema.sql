@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.11
--- Dumped by pg_dump version 17.11
+-- Dumped from database version 17.10
+-- Dumped by pg_dump version 17.10
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -2629,6 +2629,13 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 --
 
 CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btree (user_id);
+
+
+--
+-- Name: wire_user_pending_scim_users_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX wire_user_pending_scim_users_idx ON public.wire_user USING btree (team) INCLUDE (id, email) WHERE ((managed_by = 1) AND (account_status = 4) AND (activated = true) AND (email IS NOT NULL));
 
 
 --
