@@ -719,14 +719,20 @@ getScimUsersPaginatedImpl ::
   ) =>
   TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (OffsetPage User)
 getScimUsersPaginatedImpl tid pageSize mOffset = do
-  storedUsers <-
-    UserStore.getScimUsersPaginated tid (fromRange pageSize) mOffset
+  pendingUsers <-
+    UserStore.getPendingScimUsers tid
       >>= note UserSubsystemOffsetPaginationNotSupported
+  -- Check only pending accounts. PostgreSQL applies the same exclusions before
+  -- counting and pagination; accepted users need no invitation lookups.
+  expiredIds <- fmap (map fst) $ filterM (fmap null . lookupInvitationsByEmail . snd) pendingUsers
+  storedPage <-
+    UserStore.getScimUsersPaginated tid expiredIds (fromRange pageSize) mOffset
+      >>= note UserSubsystemOffsetPaginationNotSupported
+  -- Queue cleanup only after reading the page and its count.
+  mapM_ enqueueUserDeletion expiredIds
   localDom <- inputs tDomain
   locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
-  let page = mkUserFromStored localDom locale <$> storedUsers
-  usersAfterGC <- garbageCollectExpiredScimInvitations page.results
-  pure $ page {results = usersAfterGC}
+  pure $ mkUserFromStored localDom locale <$> storedPage
 
 updateUserProfileImpl ::
   ( Member UserStore r,
