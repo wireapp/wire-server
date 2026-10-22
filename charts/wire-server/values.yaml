@@ -106,6 +106,7 @@ galley:
       budget: cassandra
       nonce: cassandra
       connections: cassandra
+      verificationCodes: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1067,6 +1068,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.connections` to `migration-to-postgresql`
     # before starting the migration.
     migrateConnections: false
+    # This will start the migration of verification code data.
+    # It's important to set `settings.postgresMigration.verificationCodes` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateVerificationCodes: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
