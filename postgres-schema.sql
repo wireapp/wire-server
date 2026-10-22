@@ -1715,6 +1715,21 @@ CREATE TABLE public.spar_user (
 ALTER TABLE public.spar_user OWNER TO "wire-server";
 
 --
+-- Name: scim_user_times; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.scim_user_times (
+    uid uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    last_updated_at timestamp with time zone NOT NULL,
+    email_type text,
+    email_primary boolean
+);
+
+
+ALTER TABLE public.scim_user_times OWNER TO "wire-server";
+
+--
 -- Name: subconversation; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2192,6 +2207,14 @@ ALTER TABLE ONLY public.remote_conversation_local_member
 
 ALTER TABLE ONLY public.spar_user
     ADD CONSTRAINT spar_user_pkey PRIMARY KEY (issuer, normalized_uname_id);
+
+
+--
+-- Name: scim_user_times scim_user_times_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.scim_user_times
+    ADD CONSTRAINT scim_user_times_pkey PRIMARY KEY (uid);
 
 
 --

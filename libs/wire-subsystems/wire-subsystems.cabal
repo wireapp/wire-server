@@ -473,7 +473,10 @@ library
     Wire.ScimTokenStore.Postgres
     Wire.ScimUserMetaStore
     Wire.ScimUserMetaStore.Cassandra
+    Wire.ScimUserMetaStore.DualWrite
     Wire.ScimUserMetaStore.Mem
+    Wire.ScimUserMetaStore.Migration
+    Wire.ScimUserMetaStore.Postgres
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra
     Wire.SessionStore

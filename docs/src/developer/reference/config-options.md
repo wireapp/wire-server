@@ -2336,6 +2336,7 @@ galley:
       scimTokens: postgresql
       scimExternalIds: postgresql
       samlUsers: postgresql
+      scimUserMeta: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2348,6 +2349,7 @@ background-worker:
     migrateScimTokens: false
     migrateScimExternalIds: false
     migrateSamlUsers: false
+    migrateScimUserMeta: false
 ```
 
 `spar` additionally exposes its own `spar.config.postgresMigration` block, using the
@@ -2390,6 +2392,7 @@ The current settings and their background-worker flags are:
 - `scimTokens` -> `migrateScimTokens`
 - `scimExternalIds` -> `migrateScimExternalIds`
 - `samlUsers` -> `migrateSamlUsers`
+- `scimUserMeta` -> `migrateScimUserMeta`
 
 **Migration pattern per migration setting**
 
@@ -2427,6 +2430,7 @@ The current settings and their background-worker flags are:
        migrateScimTokens: false
        migrateScimExternalIds: false
        migrateSamlUsers: false
+       migrateScimUserMeta: false
     ```
 
     This change should restart the affected pods, and new writes will follow the
@@ -2476,6 +2480,7 @@ The current settings and their background-worker flags are:
    - `scimTokens`: `wire_scim_tokens_migration_finished`
    - `scimExternalIds`: `wire_scim_external_ids_migration_finished`
    - `samlUsers`: `wire_saml_users_migration_finished`
+   - `scimUserMeta`: `wire_scim_user_meta_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2496,6 +2501,7 @@ The current settings and their background-worker flags are:
          scimTokens: cassandra
          scimExternalIds: cassandra
          samlUsers: cassandra
+         scimUserMeta: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2509,6 +2515,7 @@ The current settings and their background-worker flags are:
        migrateScimTokens: false
        migrateScimExternalIds: false
        migrateSamlUsers: false
+       migrateScimUserMeta: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2603,6 +2610,7 @@ migrateCustomBackend: false
 migrateScimTokens: false
 migrateScimExternalIds: false
 migrateSamlUsers: false
+migrateScimUserMeta: false
 
 # migration settings
 migrationOptions:
