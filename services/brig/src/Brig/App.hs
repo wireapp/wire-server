@@ -142,6 +142,7 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
+import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended (initPostgresPool)
 import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
@@ -153,9 +154,10 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
+import Polysemy.Error (runError)
 import Polysemy.Fail
 import Polysemy.Final
-import Polysemy.Input (Input, input)
+import Polysemy.Input (Input, input, runInputConst)
 import Prometheus
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
@@ -173,11 +175,15 @@ import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.Options qualified as EmailOpt
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (EmailTemplates (..), Localised, TemplateBranding, forLocale, loadMeetingTemplates)
+import Wire.Error (postgresUsageErrorToHttpError)
 import Wire.ExternalAccess.External
+import Wire.Postgres (PGConstraints)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
+import Wire.SessionStore.DualWrite (interpretSessionStoreToCassandraAndPostgres)
+import Wire.SessionStore.Postgres (interpretSessionStoreToPostgres)
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion
@@ -674,8 +680,25 @@ instance HasRequestId (AppT r) where
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
 adhocSessionStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
 adhocSessionStoreInterpreter action = do
-  clientState <- asks (.casClient)
-  liftIO $ runM . interpretSessionStoreCassandra clientState $ action
+  env <- ask
+  liftIO $ case env.postgresMigration.sessions of
+    CassandraStorage -> runM $ interpretSessionStoreCassandra env.casClient action
+    MigrationToPostgresql ->
+      runSessionPG env.hasqlPool (interpretSessionStoreToCassandraAndPostgres env.casClient) action
+    PostgresqlStorage -> runSessionPG env.hasqlPool interpretSessionStoreToPostgres action
+
+-- | Both Postgres-backed SessionStore interpreters require 'PGConstraints';
+-- this runner supplies Input Pool and Error UsageError locally (raiseUnder2
+-- inserts them below the SessionStore slot) and surfaces UsageError as an
+-- HttpError exception.
+runSessionPG ::
+  HasqlPool.Pool ->
+  (forall r. (PGConstraints r) => InterpreterFor SessionStore r) ->
+  Sem '[SessionStore, Embed IO] a ->
+  IO a
+runSessionPG pool interp act = do
+  eith <- runM . runError @UsageError . runInputConst pool . interp . raiseUnder2 $ act
+  either (throwM . postgresUsageErrorToHttpError) pure eith
 
 --------------------------------------------------------------------------------
 -- Federation

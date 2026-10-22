@@ -161,6 +161,8 @@ import Wire.Sem.Random
 import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
+import Wire.SessionStore.DualWrite (interpretSessionStoreToCassandraAndPostgres)
+import Wire.SessionStore.Postgres (interpretSessionStoreToPostgres)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore
@@ -438,6 +440,24 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretNonceStoreToPostgres
         MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
 
+      -- SessionStore sits before the global runInputConst e.hasqlPool /
+      -- mapError postgresUsageErrorToHttpError providers, so the Postgres-backed
+      -- branches supply Input Pool and Error UsageError locally (raiseUnder2 +
+      -- runInputConst + mapError); UsageError is mapped to HttpError (handled
+      -- by rethrowHttpErrorIO further up).
+      sessionStoreInterpreter = case e.postgresMigration.sessions of
+        CassandraStorage -> interpretSessionStoreCassandra e.casClient
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretSessionStoreToPostgres
+            . raiseUnder2
+        MigrationToPostgresql ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretSessionStoreToCassandraAndPostgres e.casClient
+            . raiseUnder2
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -547,7 +567,7 @@ runBrigToIO e (AppT ma) = do
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
-              . interpretSessionStoreCassandra e.casClient
+              . sessionStoreInterpreter
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
