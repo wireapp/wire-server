@@ -57,6 +57,7 @@ migrationOptions:
   timeout: 5s
 migrateConversationCodes: false
 migrateTeamFeatures: false
+migrateTeam: false
 migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
@@ -106,3 +107,4 @@ postgresMigration:
   nonce: postgresql
   connections: postgresql
   sessions: postgresql
+  team: postgresql
