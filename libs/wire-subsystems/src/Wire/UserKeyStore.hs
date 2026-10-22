@@ -63,6 +63,13 @@ mkEmailKey orig =
       | otherwise = decodeUtf8 (localPart orig)
     trusted = ["wearezeta.com", "wire.com", "simulator.amazonses.com"]
 
+-- | Build an 'EmailKey' from an already-normalized key.
+--
+-- Only used where the original address is irrelevant (internal migration
+-- test endpoints); the original address is filled with a placeholder.
+mkRawEmailKey :: Text -> EmailKey
+mkRawEmailKey key = EmailKey key (unsafeEmailAddress "invalid" "example.com")
+
 data UserKeyStore m a where
   LookupKey :: EmailKey -> UserKeyStore m (Maybe UserId)
   InsertKey :: UserId -> EmailKey -> UserKeyStore m ()
