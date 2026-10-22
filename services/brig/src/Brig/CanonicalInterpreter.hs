@@ -172,6 +172,8 @@ import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Wire.UserPendingActivationStore.DualWrite (interpretUserPendingActivationStoreToCassandraAndPostgres)
+import Wire.UserPendingActivationStore.Postgres (interpretUserPendingActivationStoreToPostgres)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
@@ -269,7 +271,7 @@ type BrigLowerLevelEffects =
      Jwk,
      JwtTools,
      BudgetStore,
-     UserPendingActivationStore InternalPaging,
+     UserPendingActivationStore,
      Now,
      Delay,
      Random,
@@ -434,6 +436,19 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
+      userPendingActivationStoreInterpreter = case e.postgresMigration.userPendingActivation of
+        CassandraStorage -> userPendingActivationStoreToCassandra
+        MigrationToPostgresql ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretUserPendingActivationStoreToCassandraAndPostgres
+            . raiseUnder2
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretUserPendingActivationStoreToPostgres
+            . raiseUnder2
+
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between
       -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global
       -- runInputConst e.hasqlPool / mapError postgresUsageErrorToHttpError providers.
@@ -479,7 +494,7 @@ runBrigToIO e (AppT ma) = do
               . randomToIO
               . runDelay
               . nowToIOAction e.currentTime
-              . userPendingActivationStoreToCassandra
+              . userPendingActivationStoreInterpreter
               . budgetStoreToCassandra @Cas.Client
               . interpretJwtTools
               . interpretJwk

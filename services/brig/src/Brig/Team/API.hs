@@ -96,7 +96,7 @@ import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 
 servantAPI ::
-  forall p r.
+  forall r.
   ( Member GalleyAPIAccess r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
@@ -117,7 +117,7 @@ servantAPI ::
     Member AuthenticationSubsystem r,
     Member UserStore r,
     Member UserKeyStore r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -166,7 +166,7 @@ createInvitationViaScim ::
     Member UserKeyStore r,
     Member UserStore r,
     Member InvitationStore r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member TinyLog r,
     Member TeamInvitationSubsystem r,
     Member (Input (Local ())) r,
@@ -221,7 +221,7 @@ logInvitationRequest context action =
         pure (Right result)
 
 deleteInvitation ::
-  forall p r.
+  forall r.
   ( Member InvitationStore r,
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r,
@@ -237,7 +237,7 @@ deleteInvitation ::
     Member UserSubsystem r,
     Member UserStore r,
     Member UserKeyStore r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member (Input (Local ())) r
   ) =>
   UserId ->

@@ -353,10 +353,10 @@ upgradePersonalToTeam luid bNewTeam = do
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  forall r p.
+  forall r.
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
@@ -378,10 +378,10 @@ createUser =
     pure newUser
 
 createUserV16 ::
-  forall r p.
+  forall r.
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
@@ -405,10 +405,10 @@ createUserV16 =
         _ -> newUser
 
 createUserWith ::
-  forall r p.
+  forall r.
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
@@ -638,7 +638,7 @@ createUserInviteViaScim ::
     Member UserStore r,
     Member UserSubsystem r,
     Member InvitationStore r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member TinyLog r,
     Member (Input (Local ())) r
   ) =>
