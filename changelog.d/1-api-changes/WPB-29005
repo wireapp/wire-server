@@ -1,1 +1,1 @@
-Added the `POST /mls/messages/targeted` endpoint for persistent targeted MLS messages.
+Added the `POST /mls/messages/targeted` endpoint for persistent targeted MLS messages. (#5570, #5634)

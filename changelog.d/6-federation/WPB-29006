@@ -1,1 +1,1 @@
-Federated transient targeted MLS messages through the targeted MLS message notification in development Federation API V5. Receiving backends deliver them only to the specified recipient clients and do not persist them.
+Federated transient targeted MLS messages through the targeted MLS message notification in development Federation API V5. Receiving backends deliver them only to the specified recipient clients and do not persist them. (#5599, #5634)
