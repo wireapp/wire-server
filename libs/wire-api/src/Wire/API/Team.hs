@@ -70,6 +70,7 @@ import Data.Aeson (FromJSON, ToJSON, Value (..), toJSON)
 import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString qualified as Atto (Parser, string)
 import Data.Attoparsec.Combinator (choice)
+import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Id (TeamId, UserId)
@@ -78,10 +79,12 @@ import Data.OpenApi (HasDeprecated (deprecated))
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Asset (AssetKey)
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -149,6 +152,15 @@ instance ToSchema TeamBinding where
     over doc (deprecated ?~ True) $
       enum @Bool $
         mconcat [element True Binding, element False NonBinding]
+
+instance PostgresMarshall Bool TeamBinding where
+  postgresMarshall Binding = True
+  postgresMarshall NonBinding = False
+
+instance PostgresUnmarshall Bool TeamBinding where
+  postgresUnmarshall = \case
+    True -> Right Binding
+    False -> Right NonBinding
 
 --------------------------------------------------------------------------------
 -- TeamList
@@ -223,6 +235,12 @@ instance ToSchema Icon where
     where
       desc =
         "S3 asset key for an icon image with retention information. Allows special value 'default'."
+
+instance PostgresMarshall Text Icon where
+  postgresMarshall = T.decodeUtf8 . toByteString'
+
+instance PostgresUnmarshall Text Icon where
+  postgresUnmarshall = first Text.pack . runParser parser . T.encodeUtf8
 
 -- | Cassandra writetime(binding) timestamp
 newtype TeamCreationTime = TeamCreationTime

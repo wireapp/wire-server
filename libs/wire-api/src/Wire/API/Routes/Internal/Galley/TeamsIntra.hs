@@ -49,10 +49,12 @@ import Data.Currency qualified as Currency
 import Data.Json.Util
 import Data.OpenApi qualified as Swagger
 import Data.Schema qualified as S
+import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
 import Wire.API.Message (UserClients)
+import Wire.API.PostgresMarshall
 import Wire.API.Team (Team)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.Arbitrary (GenericUniform (..))
@@ -77,6 +79,23 @@ instance S.ToSchema TeamStatus where
           S.element "suspended" Suspended,
           S.element "pending_active" PendingActive
         ]
+
+instance PostgresMarshall Int32 TeamStatus where
+  postgresMarshall = \case
+    Active -> 0
+    PendingDelete -> 1
+    Deleted -> 2
+    Suspended -> 3
+    PendingActive -> 4
+
+instance PostgresUnmarshall Int32 TeamStatus where
+  postgresUnmarshall = \case
+    0 -> Right Active
+    1 -> Right PendingDelete
+    2 -> Right Deleted
+    3 -> Right Suspended
+    4 -> Right PendingActive
+    n -> Left $ "unexpected team status: " <> Text.pack (show n)
 
 data TeamData = TeamData
   { tdTeam :: !Team,
