@@ -96,6 +96,7 @@ galley:
       blockList: cassandra
       passwordReset: cassandra
       customBackend: cassandra
+      sessions: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1043,6 +1044,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.passwordReset` to `migration-to-postgresql`
     # before starting the migration.
     migratePasswordReset: false
+    # This will start the migration of session cookies.
+    # It's important to set `settings.postgresMigration.sessions` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateSessions: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.

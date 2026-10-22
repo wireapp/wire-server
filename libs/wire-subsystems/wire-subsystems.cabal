@@ -463,6 +463,9 @@ library
     Wire.ServiceStore.Cassandra
     Wire.SessionStore
     Wire.SessionStore.Cassandra
+    Wire.SessionStore.DualWrite
+    Wire.SessionStore.Migration
+    Wire.SessionStore.Postgres
     Wire.SFT
     Wire.SparAPIAccess
     Wire.SparAPIAccess.Rpc
