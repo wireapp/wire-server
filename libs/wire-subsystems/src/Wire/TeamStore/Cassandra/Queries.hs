@@ -22,6 +22,7 @@ import Cassandra.Util (Writetime)
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
+import Data.UUID (UUID)
 import Imports
 import Text.RawString.QQ
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -30,6 +31,25 @@ import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 
 -- Teams --------------------------------------------------------------------
+
+selectAllTeams ::
+  PrepQuery
+    R
+    ()
+    ( UUID,
+      UserId,
+      Text,
+      Icon,
+      Maybe Text,
+      Bool,
+      Maybe TeamStatus,
+      Maybe TeamBinding,
+      Maybe Icon,
+      Maybe TeamSearchVisibility,
+      Maybe (Writetime TeamBinding)
+    )
+selectAllTeams =
+  "select team, creator, name, icon, icon_key, deleted, status, binding, splash_screen, search_visibility, writetime(binding) from team"
 
 selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe Icon)
 selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding, splash_screen from team where team = ?"

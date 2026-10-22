@@ -57,7 +57,8 @@ testEnv = do
             customBackend = CassandraStorage,
             budget = CassandraStorage,
             nonce = CassandraStorage,
-            connections = CassandraStorage
+            connections = CassandraStorage,
+            team = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
