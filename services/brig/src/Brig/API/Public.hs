@@ -181,6 +181,7 @@ import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
+import Wire.PasswordStore (PasswordStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.SFT
@@ -379,6 +380,7 @@ servantSitemap ::
     Member NotificationSubsystem r,
     Member Now r,
     Member PasswordResetCodeStore r,
+    Member PasswordStore r,
     Member PropertySubsystem r,
     Member SFT r,
     Member TinyLog r,

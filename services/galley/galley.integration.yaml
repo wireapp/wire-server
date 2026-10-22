@@ -272,3 +272,6 @@ postgresMigration:
   blockList: postgresql
   passwordReset: postgresql
   customBackend: postgresql
+  providerPassword: postgresql
+
+optSettings:
