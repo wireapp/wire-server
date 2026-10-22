@@ -27,5 +27,7 @@ import Wire.API.Password
 data PasswordStore m a where
   -- | FUTUREWORK: When we create ProviderStore, we should migrate this action to that.
   LookupHashedProviderPassword :: ProviderId -> PasswordStore m (Maybe Password)
+  InsertHashedProviderPassword :: ProviderId -> Password -> PasswordStore m ()
+  DeleteHashedProviderPassword :: ProviderId -> PasswordStore m ()
 
 makeSem ''PasswordStore
