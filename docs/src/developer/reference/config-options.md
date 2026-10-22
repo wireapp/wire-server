@@ -2343,6 +2343,7 @@ galley:
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
+      userPendingActivation: postgresql
       passwordReset: postgresql
 background-worker:
   config:
@@ -2351,6 +2352,7 @@ background-worker:
     migrateTeamFeatures: false
     migrateDomainRegistration: false
     migrateBlockList: false
+    migrateUsersPendingActivation: false
     migratePasswordReset: false
 ```
 
@@ -2384,6 +2386,7 @@ The current settings and their background-worker flags are:
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
+- `userPendingActivation` -> `migrateUsersPendingActivation`
 - `passwordReset` -> `migratePasswordReset`
 
 **Migration pattern per migration setting**
@@ -2406,6 +2409,7 @@ The current settings and their background-worker flags are:
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
          blockList: cassandra
+         userPendingActivation: cassandra
          passwordReset: cassandra
    background-worker:
      config:
@@ -2415,6 +2419,7 @@ The current settings and their background-worker flags are:
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
+       migrateUsersPendingActivation: false
        migratePasswordReset: false
    ```
 
@@ -2432,6 +2437,7 @@ The current settings and their background-worker flags are:
        migrateDomainRegistration: true
        migrateUsers: true
        migrateBlockList: true
+       migrateUsersPendingActivation: false
        migratePasswordReset: true
    ```
 
@@ -2459,6 +2465,7 @@ The current settings and their background-worker flags are:
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
    - `blockList`: `wire_block_list_migration_finished`
+   - `userPendingActivation`: `wire_users_pending_activation_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
@@ -2475,6 +2482,7 @@ The current settings and their background-worker flags are:
          domainRegistration: postgresql
          user: postgresql
          blockList: cassandra
+         userPendingActivation: cassandra
          passwordReset: postgresql
    background-worker:
      config:
@@ -2484,6 +2492,7 @@ The current settings and their background-worker flags are:
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
+       migrateUsersPendingActivation: false
        migratePasswordReset: false
    ```
 
@@ -2574,6 +2583,7 @@ migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
 migrateBlockList: false
+migrateUsersPendingActivation: false
 migratePasswordReset: false
 
 # migration settings

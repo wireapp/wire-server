@@ -30,6 +30,7 @@ import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
+import Wire.UserPendingActivationStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
@@ -145,6 +146,24 @@ blockList migOpts = do
   Log.info logger $ Log.msg (Log.val "started blacklist migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling blacklist migration")
+    cancel migrationLoop
+
+usersPendingActivation :: MigrationOptions -> AppT IO CleanupAction
+usersPendingActivation migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting user pending activation migration")
+  count <- register $ counter $ Prometheus.Info "wire_users_pending_activation_migrated_to_pg" "Number of user pending activation rows migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_users_pending_activation_migration_finished" "Whether the user pending activation migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_users_pending_activation_migration_failed" "Whether the user pending activation migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_users_pending_activation_migration_duration_seconds" "Duration of user pending activation migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateUsersPendingActivationLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started user pending activation migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling user pending activation migration")
     cancel migrationLoop
 
 passwordReset :: MigrationOptions -> AppT IO CleanupAction

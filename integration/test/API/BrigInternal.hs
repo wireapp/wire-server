@@ -368,6 +368,16 @@ checkBlacklist domain email = do
   req <- baseRequest domain Brig Unversioned "i/users/blacklist"
   submit "GET" $ req & addQueryParams [("email", email)]
 
+putUserPendingActivation :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+putUserPendingActivation domain uid expiresAt = do
+  req <- baseRequest domain Brig Unversioned ("i/users/pending-activation/" <> uid)
+  submit "PUT" $ req & addJSON expiresAt
+
+getUserPendingActivations :: (HasCallStack, MakesValue domain) => domain -> App Response
+getUserPendingActivations domain = do
+  req <- baseRequest domain Brig Unversioned "i/users/pending-activation"
+  submit "GET" req
+
 data PutSSOId = PutSSOId
   { scimExternalId :: Maybe String,
     subject :: Maybe String,

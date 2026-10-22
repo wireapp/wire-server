@@ -55,6 +55,7 @@ import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Time (UTCTime)
 import Data.Time.Clock.System
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (head)
@@ -134,7 +135,8 @@ import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
-import Wire.UserPendingActivationStore (UserPendingActivationStore)
+import Wire.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User
@@ -146,7 +148,7 @@ import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
-  forall r p.
+  forall r.
   ( Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
@@ -163,7 +165,7 @@ servantSitemap ::
     Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
@@ -211,6 +213,8 @@ servantSitemap =
     :<|> samlIdPApi
     :<|> Named @"i-delete-app" deleteAppH
     :<|> Named @"i-get-app-ids" getAppIdsH
+    :<|> Named @"put-user-pending-activation" putUserPendingActivationH
+    :<|> Named @"get-user-pending-activations" getUserPendingActivationsH
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -235,7 +239,7 @@ accountAPI ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
@@ -307,7 +311,7 @@ accountAPI =
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
@@ -585,7 +589,7 @@ internalListFullClientsH (UserSet usrs) =
 createUserNoVerify ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
+    Member (UserPendingActivationStore) r,
     Member TinyLog r,
     Member Events r,
     Member InvitationStore r,
@@ -1076,3 +1080,18 @@ deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> 
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
+
+putUserPendingActivationH ::
+  (Member UserPendingActivationStore r) =>
+  UserId ->
+  UTCTime ->
+  Handler r NoContent
+putUserPendingActivationH uid expiresAt =
+  NoContent <$ lift (liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt))
+
+getUserPendingActivationsH ::
+  (Member UserPendingActivationStore r) =>
+  Handler r [(UserId, UTCTime)]
+getUserPendingActivationsH =
+  lift . liftSem $
+    fmap (map (\u -> (u.upaUserId, u.upaDay)) . sortOn (.upaUserId)) UserPendingActivationStore.list
