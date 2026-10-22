@@ -1,10 +1,9 @@
--- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -19,21 +18,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.SAMLUserStore.Cassandra
+module Wire.SAMLUserStore.Cassandra
   ( samlUserStoreToCassandra,
-    getAllByIssuerPaginated,
+    getSAMLUserRaw,
+    lookupSAMLUserLegacy,
+    insertSAMLUser,
+    deleteSAMLUserByIssuer,
+    deleteSAMLUser,
   )
 where
 
 import Cassandra as Cas
-import Control.Lens
 import Data.Id
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
-import qualified Spar.Data as Data
-import Spar.Sem.SAMLUserStore
-import Wire.IdPConfigStore.Orphans ()
+import SAML2.WebSSO qualified as SAML
+import {- instance Cql NormalizedUNameID -} Wire.API.User.Saml (NormalizedUNameID, normalizeQualifiedNameId)
+import {- instance Cql SAML.Issuer -} Wire.IdPConfigStore.Orphans ()
+import Wire.SAMLUserStore
 
 samlUserStoreToCassandra ::
   forall m r a.
@@ -46,32 +48,33 @@ samlUserStoreToCassandra =
       . \case
         Insert ur uid -> insertSAMLUser ur uid
         Get ur -> getSAMLUser ur
-        DeleteByIssuer is -> deleteSAMLUsersByIssuer is
+        DeleteByIssuer is -> deleteSAMLUserByIssuer is
         Delete uid ur -> deleteSAMLUser uid ur
-        GetAllByIssuerPaginated is -> getAllSAMLUsersByIssuerPaginated is
-        NextPage page -> nextPage' page
-
-nextPage' :: (HasCallStack, MonadClient m) => Cas.Page a -> m (Cas.Page a)
-nextPage' = Cas.liftClient . Cas.nextPage
+        GetAllByIssuer is -> getAllSAMLUsersByIssuer is
 
 -- | Replaces `getSAML{Some,Any}UsersByIssuer`.
 -- Since we currently do not have a team id stored together with the SAML user in user_v2
 -- we must get all and filter manually by asking brig for the team id when deleting an IdP.
 -- FUTUREWORK: to migrate to a new table that contains the team id.
-getAllSAMLUsersByIssuerPaginated :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Cas.Page (SAML.UserRef, UserId))
-getAllSAMLUsersByIssuerPaginated issuer = do
-  (_1 %~ SAML.UserRef issuer) <$$> retry x1 (paginate getAllByIssuer (paramsP LocalQuorum (Identity issuer) (size + 1)))
+getAllSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m [(SAML.UserRef, UserId)]
+getAllSAMLUsersByIssuer issuer = do
+  page <- retry x1 (paginate selByIssuer (paramsP LocalQuorum (Identity issuer) size))
+  drainPage issuer page
   where
     size = 200
 
-    getAllByIssuer :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
-    getAllByIssuer = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ?"
+    selByIssuer :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
+    selByIssuer = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ?"
+
+    drainPage iss pg =
+      let items = (first (SAML.UserRef iss nid, uid)) <$> Cas.result pg
+       in (items <>) <$> if Cas.hasMore pg then Cas.liftClient (Cas.nextPage pg) >>= drainPage iss else pure []
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params LocalQuorum (tenant, Data.normalizeQualifiedNameId subject, subject, uid)
+insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params LocalQuorum (tenant, normalizeQualifiedNameId subject, subject, uid)
   where
-    ins :: PrepQuery W (SAML.Issuer, Data.NormalizedUNameID, SAML.NameID, UserId) ()
+    ins :: PrepQuery W (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId) ()
     ins = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
 
 -- | Lookup a brig 'UserId' by IdP issuer and NameID.
@@ -81,36 +84,38 @@ insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params
 -- 'UserRef' (which in turn would break the (admittedly leaky) abstarctions of saml2-web-sso).
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser uref = do
-  mbUid <- getSAMLUserNew uref
+  mbUid <- getSAMLUserRaw uref
   case mbUid of
     Nothing -> migrateLegacy uref
     Just uid -> pure $ Just uid
   where
-    getSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-    getSAMLUserNew (SAML.UserRef tenant subject) =
-      runIdentity
-        <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, Data.normalizeQualifiedNameId subject))
-      where
-        sel :: PrepQuery R (SAML.Issuer, Data.NormalizedUNameID) (Identity UserId)
-        sel = "SELECT uid FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
-
     migrateLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
     migrateLegacy uref' = do
-      mbUid <- getSAMLUserLegacy uref'
+      mbUid <- lookupSAMLUserLegacy uref'
       for mbUid $ \uid -> do
         insertSAMLUser uref' uid
         pure uid
 
-    getSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-    getSAMLUserLegacy (SAML.UserRef tenant subject) =
-      runIdentity
-        <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, subject))
-      where
-        sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
-        sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
+-- | Raw lookup in @user_v2@ without the legacy migrate-on-read side effect.
+getSAMLUserRaw :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+getSAMLUserRaw (SAML.UserRef tenant subject) =
+  runIdentity
+    <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, normalizeQualifiedNameId subject))
+  where
+    sel :: PrepQuery R (SAML.Issuer, NormalizedUNameID) (Identity UserId)
+    sel = "SELECT uid FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
 
-deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
-deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params LocalQuorum (Identity issuer)
+-- | Lookup in the legacy @user@ table (raw @sso_id@ key, no normalization).
+lookupSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+lookupSAMLUserLegacy (SAML.UserRef tenant subject) =
+  runIdentity
+    <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, subject))
+  where
+    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
+    sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
+
+deleteSAMLUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
+deleteSAMLUserByIssuer issuer = retry x5 . write del $ params LocalQuorum (Identity issuer)
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
     del = "DELETE FROM user_v2 WHERE issuer = ?"
@@ -124,9 +129,9 @@ deleteSAMLUser uid uref = do
       deleteSAMLUserNew uref
   where
     deleteSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-    deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params LocalQuorum (tenant, Data.normalizeQualifiedNameId subject)
+    deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params LocalQuorum (tenant, normalizeQualifiedNameId subject)
       where
-        del :: PrepQuery W (SAML.Issuer, Data.NormalizedUNameID) ()
+        del :: PrepQuery W (SAML.Issuer, NormalizedUNameID) ()
         del = "DELETE FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
     deleteSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
     deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params LocalQuorum (tenant, subject)
