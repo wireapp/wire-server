@@ -1414,6 +1414,19 @@ CREATE TABLE public.conversation_out_of_sync (
 ALTER TABLE public.conversation_out_of_sync OWNER TO "wire-server";
 
 --
+-- Name: custom_backend; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.custom_backend (
+    domain text NOT NULL,
+    config_json_url bytea NOT NULL,
+    webapp_welcome_url bytea NOT NULL
+);
+
+
+ALTER TABLE public.custom_backend OWNER TO "wire-server";
+
+--
 -- Name: deleted_user; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1461,6 +1474,17 @@ CREATE TABLE public.domain_registration_challenge (
 
 
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
+
+--
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -1959,6 +1983,14 @@ ALTER TABLE ONLY public.conversation
 
 
 --
+-- Name: custom_backend custom_backend_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.custom_backend
+    ADD CONSTRAINT custom_backend_pkey PRIMARY KEY (domain);
+
+
+--
 -- Name: deleted_user deleted_user_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -1980,6 +2012,14 @@ ALTER TABLE ONLY public.domain_registration_challenge
 
 ALTER TABLE ONLY public.domain_registration
     ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
 
 
 --

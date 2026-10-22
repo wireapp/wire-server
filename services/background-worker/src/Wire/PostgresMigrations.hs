@@ -26,6 +26,7 @@ import Wire.BackgroundWorker.Util
 import Wire.BlockListStore.Migration
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration qualified as ConversationStore
+import Wire.CustomBackendStore.Migration
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
@@ -163,4 +164,22 @@ passwordReset migOpts = do
   Log.info logger $ Log.msg (Log.val "started password reset migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling password reset migration")
+    cancel migrationLoop
+
+customBackend :: MigrationOptions -> AppT IO CleanupAction
+customBackend migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting custom backend migration")
+  count <- register $ counter $ Prometheus.Info "wire_custom_backend_migrated_to_pg" "Number of custom backends migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_custom_backend_migration_finished" "Whether the custom backend migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_custom_backend_migration_failed" "Whether the custom backend migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_custom_backend_migration_duration_seconds" "Duration of custom backend migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateCustomBackendsLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started custom backend migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
     cancel migrationLoop
