@@ -50,7 +50,10 @@ import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
+import Wire.API.Team (Icon, TeamBinding)
 import Wire.API.Team.Feature
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
 import Wire.Arbitrary qualified as Arbitrary ()
 
@@ -64,6 +67,10 @@ tests =
       testRoundTrip @ByteString @Password.Password,
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
+      testRoundTrip @Int32 @TeamStatus,
+      testRoundTrip @Bool @TeamBinding,
+      testRoundTrip @Int32 @TeamSearchVisibility,
+      testRoundTrip @Text @Icon,
       testRoundTrip @A.Value @DbConfig
     ]
 

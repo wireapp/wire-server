@@ -71,6 +71,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-team-features" $
             Migrations.teamFeatures opts.migrationOptions
       else pure $ pure ()
+  cleanupTeamMigration <-
+    if opts.migrateTeam
+      then
+        runAppT env $
+          withNamedLogger "migrate-team" $
+            Migrations.team opts.migrationOptions
+      else pure $ pure ()
   cleanupDomainRegistrationMigration <-
     if opts.migrateDomainRegistration
       then
@@ -111,12 +118,13 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,)
+            (,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
               <*> Concurrently cleanUpConvCodesMigration
               <*> Concurrently cleanupTeamFeaturesMigration
+              <*> Concurrently cleanupTeamMigration
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupBlockListMigration

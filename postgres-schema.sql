@@ -1463,6 +1463,17 @@ CREATE TABLE public.domain_registration_challenge (
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
 
 --
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
+
+--
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1599,6 +1610,27 @@ CREATE TABLE public.subconversation (
 
 
 ALTER TABLE public.subconversation OWNER TO "wire-server";
+
+--
+-- Name: team; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team (
+    team uuid NOT NULL,
+    creator uuid,
+    name text,
+    icon text,
+    icon_key text,
+    splash_screen text,
+    binding boolean NOT NULL,
+    status integer NOT NULL,
+    search_visibility integer,
+    deleted boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone
+);
+
+
+ALTER TABLE public.team OWNER TO "wire-server";
 
 --
 -- Name: team_features; Type: TABLE; Schema: public; Owner: wire-server
@@ -1983,6 +2015,14 @@ ALTER TABLE ONLY public.domain_registration
 
 
 --
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
+
+
+--
 -- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -2044,6 +2084,14 @@ ALTER TABLE ONLY public.subconversation
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: team team_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team
+    ADD CONSTRAINT team_pkey PRIMARY KEY (team);
 
 
 --

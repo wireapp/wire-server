@@ -95,6 +95,7 @@ galley:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
+      team: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1026,6 +1027,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.teamFeatures` to `migration-to-postgresql`
     # before starting the migration.
     migrateTeamFeatures: false
+    # This will start the migration of team metadata.
+    # It's important to set `settings.postgresMigration.team` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateTeam: false
     # This will start the migration of domain registration data.
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.
