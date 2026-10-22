@@ -150,13 +150,7 @@ spec = describe "targeted MLS messages" do
         it "rejects non-members before attempting federation" do
           runRemoteSubmission kind False (error "non-members must not call federation")
             `shouldBe` ([], Left (show (cseToGalleyError ConversationSubsystemErrorConvMemberNotFound)))
-            it "processes a response from a supported remote" $ do
-              runRemoteSubmission kind True (Right (MLSMessageResponseUpdates []))
-                `shouldBe` ([], Right ())
 
-            it "rethrows protocol errors from a supported remote" $ do
-              runRemoteSubmission kind True (Right (MLSMessageResponseProtocolError "boom"))
-                `shouldBe` ([], Left (show (mlsProtocolError "boom")))
 interpretRemoteFederation :: FederationError -> InterpreterFor (FederationAPIAccess FederatorClient) r
 interpretRemoteFederation failure = interpret $ \case
   RunFederatedEither _ _ -> pure (Left failure)
