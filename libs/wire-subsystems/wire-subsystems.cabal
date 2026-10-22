@@ -431,6 +431,9 @@ library
     Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
+    Wire.PropertyStore.DualWrite
+    Wire.PropertyStore.Migration
+    Wire.PropertyStore.Postgres
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
     Wire.ProposalStore
