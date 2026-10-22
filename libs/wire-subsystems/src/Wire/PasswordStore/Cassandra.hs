@@ -17,7 +17,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.PasswordStore.Cassandra (interpretPasswordStore) where
+module Wire.PasswordStore.Cassandra
+  ( interpretPasswordStore,
+    selectAllProviderPasswords,
+  )
+where
 
 import Cassandra
 import Data.Id
@@ -32,11 +36,25 @@ interpretPasswordStore casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       LookupHashedProviderPassword pid -> embed $ lookupProviderPasswordImpl pid
+      InsertHashedProviderPassword pid pw -> embed $ insertProviderPasswordImpl pid pw
+      DeleteHashedProviderPassword pid -> embed $ deleteProviderPasswordImpl pid
 
 lookupProviderPasswordImpl :: (MonadClient m) => ProviderId -> m (Maybe Password)
 lookupProviderPasswordImpl u =
   (runIdentity =<<)
     <$> retry x1 (query1 providerPasswordSelect (params LocalQuorum (Identity u)))
+
+insertProviderPasswordImpl :: (MonadClient m) => ProviderId -> Password -> m ()
+insertProviderPasswordImpl pid pw =
+  retry x5 (write providerPasswordInsert (params LocalQuorum (pid, pw)))
+
+deleteProviderPasswordImpl :: (MonadClient m) => ProviderId -> m ()
+deleteProviderPasswordImpl pid =
+  retry x5 (write providerPasswordDelete (params LocalQuorum (Identity pid)))
+
+-- | Page over all provider passwords for the Cassandra -> PostgreSQL migration.
+selectAllProviderPasswords :: PrepQuery R () (ProviderId, Maybe Password)
+selectAllProviderPasswords = "SELECT id, password FROM provider"
 
 ------------------------------------------------------------------------
 -- Queries
@@ -44,3 +62,11 @@ lookupProviderPasswordImpl u =
 providerPasswordSelect :: PrepQuery R (Identity ProviderId) (Identity (Maybe Password))
 providerPasswordSelect =
   "SELECT password FROM provider WHERE id = ?"
+
+providerPasswordInsert :: PrepQuery W (ProviderId, Password) ()
+providerPasswordInsert =
+  "INSERT INTO provider (id, password) VALUES (?, ?)"
+
+providerPasswordDelete :: PrepQuery W (Identity ProviderId) ()
+providerPasswordDelete =
+  "DELETE password FROM provider WHERE id = ?"

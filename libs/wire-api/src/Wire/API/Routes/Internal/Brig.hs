@@ -33,6 +33,7 @@ module Wire.API.Routes.Internal.Brig
     EJPDRequest,
     ISearchIndexAPI,
     ProviderAPI,
+    CheckProviderPasswordResponse (..),
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
@@ -60,7 +61,7 @@ import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id as Id
-import Data.Misc (PlainTextPassword8)
+import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified, qualifiedSchema)
@@ -68,6 +69,7 @@ import Data.Schema hiding (swaggerDoc)
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.TypeLits
+import Generics.SOP (pattern I, pattern S, pattern Z)
 import Imports hiding (head)
 import Network.HTTP.Client qualified as HTTP
 import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
@@ -1018,6 +1020,46 @@ type ProviderAPI =
                :> QueryParam' '[Required, Strict] "email" EmailAddress
                :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
            )
+    :<|> Named
+           "put-provider-password"
+           ( Summary "Set a provider password directly (for migration testing only)"
+               :> "provider"
+               :> Capture "pid" Id.ProviderId
+               :> "password"
+               :> Servant.ReqBody '[Servant.JSON] PlainTextPassword6
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "check-provider-password"
+           ( Summary "Verify a provider password (for migration testing only)"
+               :> "provider"
+               :> Capture "pid" Id.ProviderId
+               :> "password"
+               :> "verify"
+               :> Servant.ReqBody '[Servant.JSON] PlainTextPassword6
+               :> MultiVerb
+                    'POST
+                    '[Servant.JSON]
+                    '[ Respond 404 "No or mismatching provider password" (),
+                       Respond 200 "Provider password matches" ()
+                     ]
+                    CheckProviderPasswordResponse
+           )
+
+data CheckProviderPasswordResponse = WrongProviderPassword | CorrectProviderPassword
+
+instance
+  AsUnion
+    '[ Respond 404 "No or mismatching provider password" (),
+       Respond 200 "Provider password matches" ()
+     ]
+    CheckProviderPasswordResponse
+  where
+  toUnion WrongProviderPassword = Z (I ())
+  toUnion CorrectProviderPassword = S (Z (I ()))
+  fromUnion (Z (I ())) = WrongProviderPassword
+  fromUnion (S (Z (I ()))) = CorrectProviderPassword
+  fromUnion (S (S x)) = case x of {}
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
