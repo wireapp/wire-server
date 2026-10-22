@@ -54,6 +54,7 @@ postgresMigration:
   scimTokens: postgresql
   scimExternalIds: postgresql
   samlUsers: postgresql
+  scimUserMeta: postgresql
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"
