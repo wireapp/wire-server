@@ -368,6 +368,16 @@ checkBlacklist domain email = do
   req <- baseRequest domain Brig Unversioned "i/users/blacklist"
   submit "GET" $ req & addQueryParams [("email", email)]
 
+putUserKey :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+putUserKey domain uid key = do
+  req <- baseRequest domain Brig Unversioned ("i/users/keys/" <> uid)
+  submit "PUT" $ req & addJSON key
+
+getUserKey :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getUserKey domain key = do
+  req <- baseRequest domain Brig Unversioned "i/users/keys"
+  submit "GET" $ req & addJSON key
+
 data PutSSOId = PutSSOId
   { scimExternalId :: Maybe String,
     subject :: Maybe String,

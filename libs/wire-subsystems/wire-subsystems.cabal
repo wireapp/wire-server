@@ -504,6 +504,9 @@ library
     Wire.UserGroupSubsystem.Interpreter
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
+    Wire.UserKeyStore.DualWrite
+    Wire.UserKeyStore.Migration
+    Wire.UserKeyStore.Postgres
     Wire.UserList
     Wire.UserPendingActivationStore
     Wire.UserPendingActivationStore.Cassandra

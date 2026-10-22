@@ -31,6 +31,7 @@ import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
+import Wire.UserKeyStore.Migration (migrateUserKeysLoop)
 import Wire.UserStore.Migration qualified as UserStore
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
@@ -146,6 +147,24 @@ blockList migOpts = do
   Log.info logger $ Log.msg (Log.val "started blacklist migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling blacklist migration")
+    cancel migrationLoop
+
+userKeys :: MigrationOptions -> AppT IO CleanupAction
+userKeys migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting user keys migration")
+  count <- register $ counter $ Prometheus.Info "wire_user_keys_migrated_to_pg" "Number of user keys migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_user_keys_migration_finished" "Whether the user keys migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_user_keys_migration_failed" "Whether the user keys migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_user_keys_migration_duration_seconds" "Duration of user keys migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateUserKeysLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started user keys migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling user keys migration")
     cancel migrationLoop
 
 passwordReset :: MigrationOptions -> AppT IO CleanupAction
