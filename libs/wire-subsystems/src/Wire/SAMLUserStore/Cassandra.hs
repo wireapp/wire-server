@@ -67,7 +67,7 @@ getAllSAMLUsersByIssuer issuer = do
     selByIssuer = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ?"
 
     drainPage iss pg =
-      let items = (first (SAML.UserRef iss nid, uid)) <$> Cas.result pg
+      let items = [(SAML.UserRef iss nid, uid) | (nid, uid) <- Cas.result pg]
        in (items <>) <$> if Cas.hasMore pg then Cas.liftClient (Cas.nextPage pg) >>= drainPage iss else pure []
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
