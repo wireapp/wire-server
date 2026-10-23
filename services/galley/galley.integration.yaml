@@ -271,3 +271,6 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   passwordReset: postgresql
+  providerPassword: postgresql
+
+optSettings:
