@@ -56,6 +56,7 @@ import Data.OpenApi qualified as S
 import Data.Schema (Schema (..), ToSchema (..), array, field, named, object, withParser, (.=))
 import Data.Text.Encoding (encodeUtf8)
 import Imports
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 -- | We define PrekeyId as Word16, but it dismisses to 32-bits unsigned standard IDs.
@@ -68,6 +69,12 @@ instance Cql PrekeyId where
   toCql = CqlInt . fromIntegral . keyId
   fromCql (CqlInt i) = pure $ PrekeyId (fromIntegral i)
   fromCql _ = Left "PrekeyId: Int expected"
+
+instance PostgresMarshall Int32 PrekeyId where
+  postgresMarshall = fromIntegral . keyId
+
+instance PostgresUnmarshall Int32 PrekeyId where
+  postgresUnmarshall = Right . PrekeyId . fromIntegral
 
 --------------------------------------------------------------------------------
 -- PrekeyBundle Specific Types
