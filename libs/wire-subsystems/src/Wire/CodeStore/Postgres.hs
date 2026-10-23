@@ -64,7 +64,7 @@ interpretCodeStoreToPostgres = interpret $ \case
   CreateMeetingCode mid t mPw -> do
     code <- Code.generate (CodeReferentMeeting mid) t
     insertCode code mPw
-    pure True
+    pure (Just code)
   RotateMeetingCode mid cid t mPw -> do
     code <- Code.generate (CodeReferentMeeting mid) t
     convKey <- Code.mkKey (CodeReferentConv cid)
@@ -73,7 +73,7 @@ interpretCodeStoreToPostgres = interpret $ \case
     runTransactionWithRetry ReadCommitted Write $ do
       Transaction.statement (insertTuple code mPw) insertCodeStatement
       Transaction.statement convKey deleteCodeStatement
-    pure True
+    pure (Just code)
   MakeKey ref -> do
     Code.mkKey ref
   GenerateCode ref t -> do

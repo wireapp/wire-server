@@ -181,6 +181,7 @@ library
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
+    Test.Migration.MeetingLinks
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
     Test.Migration.User
@@ -242,6 +243,7 @@ library
     Testlib.ModService
     Testlib.One2One
     Testlib.Options
+    Testlib.PG
     Testlib.Ports
     Testlib.Prekeys
     Testlib.Prelude

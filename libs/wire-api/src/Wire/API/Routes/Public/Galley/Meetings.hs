@@ -173,6 +173,7 @@ type MeetingsAPI =
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
+               :> CanThrow MeetingError
                :> MultiVerb1
                     'GET
                     '[JSON]
@@ -188,6 +189,7 @@ type MeetingsAPI =
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
+               :> CanThrow MeetingError
                :> Get '[JSON] MeetingV18
            )
     :<|> Named
@@ -199,6 +201,7 @@ type MeetingsAPI =
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
                :> CanThrow 'MeetingNotFound
+               :> CanThrow MeetingError
                :> Get '[JSON] Meeting
            )
     :<|> Named
@@ -209,6 +212,7 @@ type MeetingsAPI =
                :> ZLocalUser
                :> "meetings"
                :> "list"
+               :> CanThrow MeetingError
                :> MultiVerb1
                     'GET
                     '[JSON]
@@ -222,6 +226,7 @@ type MeetingsAPI =
                :> ZLocalUser
                :> "meetings"
                :> "list"
+               :> CanThrow MeetingError
                :> Get '[JSON] [MeetingV18]
            )
     :<|> Named
@@ -231,6 +236,7 @@ type MeetingsAPI =
                :> ZLocalUser
                :> "meetings"
                :> "list"
+               :> CanThrow MeetingError
                :> Get '[JSON] [Meeting]
            )
     :<|> Named
@@ -354,6 +360,7 @@ type MeetingsAPI =
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotATeamMember
                :> CanThrow 'TooManyMembers
+               :> CanThrow MeetingError
                :> MultiVerb
                     'POST
                     '[JSON]

@@ -54,7 +54,7 @@ interpretCodeStorePure = interpret $ \case
     code <- embed (Code.generate (CodeReferentMeeting mid) t)
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
     modify (Map.insert k (code, mPw))
-    pure True
+    pure (Just code)
   -- Mirrors the Postgres interpreter: rotation and guest-code revocation in
   -- one step (the in-memory map makes atomicity trivially free).
   RotateMeetingCode mid cid t mPw -> do
@@ -62,7 +62,7 @@ interpretCodeStorePure = interpret $ \case
     mk <- embed (Code.mkKey (CodeReferentMeeting mid))
     ck <- embed (Code.mkKey (CodeReferentConv cid))
     modify (Map.insert mk (code, mPw) . Map.delete ck)
-    pure True
+    pure (Just code)
   GetMeetingCode mid -> do
     k <- embed (Code.mkKey (CodeReferentMeeting mid))
     gets (Map.lookup k)
