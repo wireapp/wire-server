@@ -421,9 +421,12 @@ logErrorMsg (Wai.Error c l m md inner) =
     . msg (val "\"" +++ m +++ val "\"")
     . maybe id logErrorMsg inner
   where
-    logErrorData (Wai.FederationErrorData d p) =
-      field "domain" (domainText d)
+    -- Distinguish the requested peer from the parsed SRV target domain.
+    logErrorData (Wai.FederationErrorData federationDomain p srvTargetDomain srvTarget) =
+      maybe id (field "srv_target_domain" . domainText) srvTargetDomain
         . field "path" p
+        . field "federation_domain" (domainText federationDomain)
+        . maybe id (field "srv_target") srvTarget
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =

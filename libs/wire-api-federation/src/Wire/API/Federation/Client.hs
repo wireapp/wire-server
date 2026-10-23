@@ -283,7 +283,9 @@ mkFailureResponse status domain path body
                 { Wai.federrDomain = domain,
                   Wai.federrPath =
                     "/federation"
-                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
+                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path),
+                  Wai.federrSrvTargetDomain = Nothing,
+                  Wai.federrSrvTarget = Nothing
                 }
         }
   where

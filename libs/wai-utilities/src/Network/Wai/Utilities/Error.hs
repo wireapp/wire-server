@@ -52,24 +52,35 @@ mkError c l m = Error c l m Nothing Nothing
 instance Exception Error
 
 data ErrorData = FederationErrorData
-  { federrDomain :: !Domain,
-    federrPath :: !Text
+  { -- | The requested remote peer domain
+    federrDomain :: !Domain,
+    -- | The federation endpoint path involved in the error
+    federrPath :: !Text,
+    -- | The discovered SRV target's host, if it can be parsed as a Domain. For example, a target host like `srv.internal.example.com` produces this value; an unparseable host such as `unqualified` does not
+    federrSrvTargetDomain :: !(Maybe Domain),
+    -- | The discovered SRV host and port as text, for example srv.internal.example.com:443
+    federrSrvTarget :: !(Maybe Text)
   }
   deriving (Eq, Show, Typeable)
 
 instance ToJSON ErrorData where
-  toJSON (FederationErrorData d p) =
+  toJSON (FederationErrorData d p srvTargetDomain srvTarget) =
     object $
       [ "type" .= ("federation" :: Text),
         "domain" .= d,
-        "path" .= p
+        "path" .= p,
+        "federation_domain" .= d
       ]
+        ++ maybe [] (\domain -> ["srv_target_domain" .= domain]) srvTargetDomain
+        ++ maybe [] (\target -> ["srv_target" .= target]) srvTarget
 
 instance FromJSON ErrorData where
   parseJSON = withObject "ErrorData" $ \o ->
     FederationErrorData
       <$> o .: "domain"
       <*> o .: "path"
+      <*> o .:? "srv_target_domain"
+      <*> o .:? "srv_target"
 
 instance ToJSON Error where
   toJSON (Error c l m md inner) =

@@ -19,10 +19,13 @@ module Test.Federator.Remote where
 
 import Control.Exception (bracket)
 import Control.Monad.Codensity
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Domain
 import Data.Id
 import Federator.Discovery
 import Federator.Env (mkHttp2Manager)
+import Federator.Error (AsWai (..))
 import Federator.Options
 import Federator.Remote
 import Federator.Run (mkTLSSettingsOrThrow)
@@ -31,6 +34,7 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Handler.WarpTLS qualified as Warp
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.MockServer (startMockServer)
 import OpenSSL.Session (SSLContext)
 import Polysemy
@@ -52,7 +56,8 @@ tests =
     "Federator.Remote"
     [ testValidatesCertificateSuccess,
       testValidatesCertificateWrongHostname,
-      testConnectionError
+      testConnectionError,
+      testRemoteErrorsContainRequestedDomain
     ]
 
 settings :: RunSettings
@@ -144,14 +149,14 @@ testValidatesCertificateWrongHostname =
         withMockServer certForWrongDomain $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
           runCodensity (mkTestCall tlsSettings "localhost" port) $ \case
-            Left (RemoteError _ _ (FederatorClientTLSException _)) -> pure ()
+            Left (RemoteError _ _ _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail",
       testCase "when the server's certificate does not have the server key usage flag" $
         withMockServer certWithoutServerKeyUsage $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
           runCodensity (mkTestCall tlsSettings "localhost" port) $ \case
-            Left (RemoteError _ _ (FederatorClientTLSException _)) -> pure ()
+            Left (RemoteError _ _ _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
@@ -162,9 +167,55 @@ testConnectionError :: TestTree
 testConnectionError = testCase "connection failures are reported correctly" $ do
   tlsSettings <- mkTLSSettingsOrThrow settings
   runCodensity (mkTestCall tlsSettings "localhost" 1) $ \case
-    Left (RemoteError _ _ (FederatorClientConnectionError _)) -> pure ()
+    Left (RemoteError _ _ _ (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
     Right _ -> assertFailure "Expected connection with the server to fail"
+
+testRemoteErrorsContainRequestedDomain :: TestTree
+testRemoteErrorsContainRequestedDomain =
+  testCase "network and remote response errors log the requested domain" $ do
+    let remoteDomain = Domain "remote.example.com"
+        discoveredTarget = SrvTarget "srv.internal.example.com" 443
+        path = "/federation/brig/test"
+        expectedData =
+          Just $
+            Wai.FederationErrorData
+              remoteDomain
+              path
+              (Just $ Domain "srv.internal.example.com")
+              (Just "srv.internal.example.com:443")
+        unparseableTargetError =
+          toWai $
+            RemoteError
+              remoteDomain
+              (SrvTarget "unqualified" 443)
+              path
+              FederatorClientNoStatusCode
+        expectedDataWithoutParsedSrvDomain =
+          Just $
+            Wai.FederationErrorData
+              remoteDomain
+              path
+              Nothing
+              (Just "unqualified:443")
+        networkError =
+          toWai $
+            RemoteError remoteDomain discoveredTarget path FederatorClientNoStatusCode
+        responseError =
+          toWai $
+            RemoteErrorResponse remoteDomain discoveredTarget path status200 mempty
+    Wai.errorData networkError @?= expectedData
+    Wai.errorData responseError @?= expectedData
+    Wai.errorData unparseableTargetError @?= expectedDataWithoutParsedSrvDomain
+    case Aeson.toJSON (fromJust $ Wai.errorData networkError) of
+      Aeson.Object fields -> do
+        KeyMap.member "domain" fields @?= True
+        KeyMap.member "path" fields @?= True
+        KeyMap.lookup "domain" fields @?= Just (Aeson.toJSON remoteDomain)
+        KeyMap.lookup "federation_domain" fields @?= Just (Aeson.toJSON remoteDomain)
+        KeyMap.lookup "srv_target_domain" fields @?= Just (Aeson.toJSON (Domain "srv.internal.example.com"))
+        KeyMap.lookup "srv_target" fields @?= Just (Aeson.toJSON ("srv.internal.example.com:443" :: Text))
+      _ -> assertFailure "Expected federation error data JSON object"
 
 certForLocalhost :: Warp.TLSSettings
 certForLocalhost = Warp.tlsSettings "test/resources/unit/localhost.pem" "test/resources/unit/localhost-key.pem"
