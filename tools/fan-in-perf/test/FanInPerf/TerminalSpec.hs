@@ -199,3 +199,46 @@ spec = do
         `shouldBe` [ "coverage user: 2.00% of streams have a reader (warning: consumed/s will stay below targets/s)",
                      "coverage team: 100.00% of streams have a reader"
                    ]
+
+  describe "formatConsumeOnlyStatus" $ do
+    it "has no push and no lag segment" $
+      formatConsumeOnlyStatus NoAcks 42 creport
+        `shouldBe` "t=42s cons/s cur=8,000 max=9,000 | backlog=1,234 | err/s fetch=1"
+    it "adds the ack segment and ack errors" $
+      formatConsumeOnlyStatus (Acks 100) 42 creport {ackRate = 500.4, maxAckRate = 600, ackP99 = Just 0.002, ackErrorRate = 2}
+        `shouldBe` "t=42s cons/s cur=8,000 max=9,000 | ack/s cur=500 max=600 p99<=2.0ms | backlog=1,234 | err/s fetch=1 ack=2"
+    it "prints - for a maximum that was never measured" $
+      formatConsumeOnlyStatus NoAcks 1 creport {maxConsumeRate = 0} `shouldSatisfy` T.isInfixOf "max=- |"
+
+  describe "formatConsumeOnlySummary" $ do
+    it "reports missing notifications and takes the average from the elapsed time" $ do
+      s <- deliveredSnapshot
+      let out = formatConsumeOnlySummary NoAcks 5 2 ConsumeTimedOut [] creport {readerTotal = s}
+      out `shouldSatisfy` any (T.isInfixOf "duration=2.0s")
+      out `shouldSatisfy` any (T.isPrefixOf "consume-only: delivered=3 expected=5 missing=2 duplicates=0")
+      out `shouldSatisfy` any (T.isInfixOf "cons/s avg=2 ")
+      out `shouldSatisfy` any (T.isInfixOf "end: timed out after 2.0s")
+    it "has no push, lag or backlog-at-stop lines" $
+      formatConsumeOnlySummary NoAcks 0 1 ConsumeFinished [] creport
+        `shouldSatisfy` (\ls -> not (any (\l -> any (`T.isInfixOf` l) ["push", "lag", "backlog", "fan-out"]) ls))
+    it "reports duplicates, a finished run and no ack lines" $ do
+      s <- deliveredSnapshot
+      let out = formatConsumeOnlySummary NoAcks 2 1.23 ConsumeFinished [] creport {readerTotal = s}
+      out `shouldSatisfy` any (T.isInfixOf "missing=0 duplicates=1")
+      out `shouldSatisfy` any (T.isInfixOf "end: all readers caught up after 1.2s")
+      out `shouldSatisfy` (not . any (T.isInfixOf "acks="))
+    it "shows the time to the milestones, - for one never reached" $
+      formatConsumeOnlySummary NoAcks 5 5 ConsumeTimedOut [(50, Just 0.2), (90, Just 0.31), (99, Nothing)] creport
+        `shouldSatisfy` any (T.isInfixOf "time to delivered: 50%=0.2s 90%=0.3s 99%=-")
+    it "reports an interrupted run" $
+      formatConsumeOnlySummary NoAcks 5 3 ConsumeInterrupted [] creport `shouldSatisfy` any (T.isInfixOf "end: interrupted after 3.0s")
+    it "labels ack mode and reports acks" $ do
+      rs <- newReaderStats
+      replicateM_ 4 (recordAck rs KindUser 1_000_000)
+      s <- readReaderSnapshot rs
+      let out = formatConsumeOnlySummary (Acks 100) 0 2 ConsumeFinished [] creport {readerTotal = s, maxAckRate = 50}
+      out `shouldSatisfy` any (T.isPrefixOf "consume-only-ack: delivered=")
+      out `shouldSatisfy` any (T.isInfixOf "acks=4 errors=0 ack/s avg=2 max=50")
+    it "survives an empty run" $
+      formatConsumeOnlySummary NoAcks 0 0 ConsumeFinished [] creport
+        `shouldSatisfy` (not . any (T.isInfixOf "NaN"))

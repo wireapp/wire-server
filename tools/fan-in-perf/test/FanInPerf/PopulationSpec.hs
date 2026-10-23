@@ -13,7 +13,7 @@ import System.Random (mkStdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
-import Wire.FanInNotificationsStore (FanInPush (..), Stream (..))
+import Wire.FanInNotificationsStore (FanInPush (..), Stream (..), Target (..))
 
 entriesOf :: Int -> [TargetConfig] -> V.Vector Entry
 entriesOf clientsPerUser cfgs = fst (mkEntries clientsPerUser (NE.fromList cfgs) (mkStdGen 7))
@@ -116,6 +116,29 @@ spec = do
           -- stream pools are fixed, so scan pushes until one hits an unread stream
           counts = [expectedDeliveries p.subscribers (fst (genPush (mkPayload 0) es (mkStdGen s))) | s <- [1 .. 200]]
       (0 `elem` counts, all (`elem` [0, 1]) counts) `shouldBe` (True, True)
+
+  describe "expectedFromCounts" $ do
+    let es = entriesOf 1 [TargetConfig KindUser 100 1]
+        p = population 20 3 1 es
+        readUsers = [r.user.uid | r <- readers p]
+        readUser = fromMaybe (error "no readers") (listToMaybe readUsers)
+        unreadUser = fromMaybe (error "every pool user has a reader") (listToMaybe [u | u <- poolUsers es, u `notElem` readUsers])
+        poolUsers entries = concat [V.toList v | Entry _ (UserPool v) <- V.toList entries]
+    it "is rows times readers of the stream, summed over streams" $ do
+      let readersOf = Map.findWithDefault 0 (streamKey (StreamUser readUser)) p.subscribers
+      readersOf `shouldSatisfy` (>= 1)
+      expectedFromCounts p.subscribers [(StreamUser readUser, 7)] `shouldBe` 7 * readersOf
+      expectedFromCounts p.subscribers [(StreamUser readUser, 7), (StreamUser readUser, 1)] `shouldBe` 8 * readersOf
+    it "ignores rows of streams nobody reads" $ do
+      expectedFromCounts p.subscribers [(StreamUser unreadUser, 5)] `shouldBe` 0
+      subscribedRows p.subscribers [(StreamUser unreadUser, 5), (StreamUser readUser, 2)] `shouldBe` 2
+    it "equals the sum of expectedDeliveries of the pushes that wrote the rows" $ do
+      let pushes = [fst (genPush (mkPayload 0) es (mkStdGen sd)) | sd <- [1 .. 50]]
+          rows =
+            Map.fromListWith
+              (\(st, a) (_, b) -> (st, a + b))
+              [(streamKey st, (st, 1 :: Int)) | push <- pushes, TargetUser u <- push.targets, let st = StreamUser u]
+      expectedFromCounts p.subscribers (Map.elems rows) `shouldBe` sum (map (expectedDeliveries p.subscribers) pushes)
 
   describe "coverage" $ do
     it "is the share of pool streams with a reader" $

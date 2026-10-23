@@ -168,8 +168,51 @@ spec = do
     isNothing (parse ["--db", "x", "consume", "--targets", "user:10,clients:5"]) `shouldBe` False
     isNothing (parse ["--db", "x", "consume", "--targets", "user:10", "--ack-every", "5"]) `shouldBe` True
 
-  it "labels the experiments" $
+  it "labels the experiments" $ do
     map experimentLabel [NoAcks, Acks 1] `shouldBe` ["consume", "consume-ack"]
+    map consumeOnlyLabel [NoAcks, Acks 1] `shouldBe` ["consume-only", "consume-only-ack"]
+
+  describe "consume-only" $ do
+    let consumeOnly extra = ["--db", "x", "consume-only", "--targets", "user:10", "--seed", "7"] <> extra
+        consumeOnlyOf o = case o.command of
+          ConsumeOnly c -> Just c
+          _ -> Nothing
+    it "parses with defaults, no safety window" $ do
+      o <- parseOk (consumeOnly [])
+      consumeOnlyOf o
+        `shouldBe` Just
+          ConsumeOnlyOptions
+            { targets = TargetConfig KindUser 10 1 :| [],
+              clientsPerUser = 1,
+              seed = 7,
+              clients = 2000,
+              epochsPerClient = 3,
+              readerPoolSize = 32,
+              timeout = 600,
+              warmup = 5,
+              reader = ReaderOptions {fetchLimit = 100, safetyWindowMs = 0, mode = NoAcks}
+            }
+    it "parses flags" $ do
+      o <- parseOk (consumeOnly ["--clients", "10", "--clients-per-user", "2", "--timeout", "0", "--fetch-limit", "9", "--reader-pool-size", "4", "--warmup", "0", "--epochs-per-client", "2"])
+      fmap (\c -> (c.clients, c.clientsPerUser, c.timeout, c.readerPoolSize, c.warmup, c.epochsPerClient)) (consumeOnlyOf o) `shouldBe` Just (10, 2, 0, 4, 0, 2)
+      fmap (.reader.fetchLimit) (consumeOnlyOf o) `shouldBe` Just 9
+    it "needs --seed and --targets" $ do
+      isNothing (parse ["--db", "x", "consume-only", "--targets", "user:10"]) `shouldBe` True
+      isNothing (parse ["--db", "x", "consume-only", "--seed", "7"]) `shouldBe` True
+    it "has no writer, safety window, poll interval or drain flags" $ do
+      for_ [["--writers", "2"], ["--duration", "5"], ["--safety-window", "5"], ["--drain-timeout", "5"], ["--poll-interval", "5"], ["--payload-bytes", "5"]] $ \extra ->
+        isNothing (parse (consumeOnly extra)) `shouldBe` True
+    it "rejects the connections kind and flags out of bounds" $ do
+      isNothing (parse ["--db", "x", "consume-only", "--targets", "connections:5", "--seed", "7"]) `shouldBe` True
+      for_ [["--clients", "0"], ["--fetch-limit", "0"], ["--timeout", "-1"], ["--reader-pool-size", "0"]] $ \extra ->
+        isNothing (parse (consumeOnly extra)) `shouldBe` True
+    it "parses consume-only-ack with --ack-every" $ do
+      o <- parseOk ["--db", "x", "consume-only-ack", "--targets", "user:10,clients:10", "--seed", "1", "--ack-every", "5"]
+      fmap (.reader.mode) (consumeOnlyOf o) `shouldBe` Just (Acks 5)
+      o' <- parseOk ["--db", "x", "consume-only-ack", "--targets", "team:1", "--seed", "1"]
+      fmap (.reader.mode) (consumeOnlyOf o') `shouldBe` Just (Acks 100)
+    it "rejects different STREAMS for user and clients in consume-only-ack" $
+      isNothing (parse ["--db", "x", "consume-only-ack", "--targets", "user:10,clients:5", "--seed", "1"]) `shouldBe` True
 
   forM_
     [ ["produce", "--targets", "team:10"],

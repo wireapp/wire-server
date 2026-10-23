@@ -4,6 +4,9 @@ module FanInPerf.Terminal
     formatStatus,
     formatSummary,
     formatConsumeStatus,
+    formatConsumeOnlyStatus,
+    ConsumeEnd (..),
+    formatConsumeOnlySummary,
     WriterPhase (..),
     Drain (..),
     formatConsumeSummary,
@@ -21,7 +24,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.ConsumeStats
-import FanInPerf.Options (ReaderMode (..), experimentLabel)
+import FanInPerf.Options (ReaderMode (..), consumeOnlyLabel, experimentLabel)
 import FanInPerf.Stats
 import FanInPerf.Targets (TargetKind, kindName)
 import Imports
@@ -88,16 +91,60 @@ formatSummary r =
         "  latency (cumulative, incl. warmup) " <> pcts (latencyBuckets r.total)
       ]
 
+ackSegment :: ConsumeReport -> Text
+ackSegment c = "ack/s cur=" <> rateText c.ackRate <> " max=" <> maxText c.maxAckRate <> " " <> pct "p99" c.ackP99
+
+-- | @label: delivered=.. expected=.. missing=.. duplicates=..@ (net counts).
+deliveryLine :: Text -> Int -> Int -> Text
+deliveryLine label delivered expected =
+  label
+    <> ": delivered="
+    <> groupThousands delivered
+    <> " expected="
+    <> groupThousands expected
+    <> " missing="
+    <> groupThousands (max 0 (expected - delivered))
+    <> " duplicates="
+    <> groupThousands (max 0 (delivered - expected))
+
+-- | Summary lines of the acks; the average is over the caller's duration.
+ackSummaryLines :: ConsumeReport -> Double -> [Text]
+ackSummaryLines c avgAckRate =
+  [ "  acks=" <> groupThousands (totalAcks c.readerTotal) <> " errors=" <> groupThousands (totalAckErrors c.readerTotal) <> " ack/s avg=" <> rateText avgAckRate <> " max=" <> maxText c.maxAckRate,
+    "  ack latency (cumulative) " <> pcts (ackLatencyBuckets c.readerTotal)
+  ]
+
+-- | Cumulative fetch and gate wait summary lines.
+fetchGateLines :: ConsumeReport -> [Text]
+fetchGateLines c =
+  [ "  fetch (cumulative) " <> pcts (fetchLatencyBuckets c.readerTotal) <> " empty=" <> percent (ratio (totalEmptyFetches c.readerTotal) (totalFetches c.readerTotal)) <> " errors=" <> groupThousands (totalFetchErrors c.readerTotal),
+    "  gate wait (cumulative) " <> pcts (gateWaitBuckets c.readerTotal)
+  ]
+
 formatConsumeStatus :: ReaderMode -> TickReport -> ConsumeReport -> Text
 formatConsumeStatus mode r c =
   T.intercalate " | " $
     [ pushSegment r,
       "cons/s cur=" <> rateText c.consumeRate <> " max=" <> maxText c.maxConsumeRate
     ]
-      <> ["ack/s cur=" <> rateText c.ackRate <> " max=" <> maxText c.maxAckRate <> " " <> pct "p99" c.ackP99 | acking]
+      <> [ackSegment c | acking]
       <> [ pct "lag p50" c.lagP50 <> " " <> pct "p99" c.lagP99,
            "backlog=" <> groupThousands c.backlog,
            "err/s push=" <> rateText r.errorRate <> " fetch=" <> rateText c.fetchErrorRate <> (if acking then " ack=" <> rateText c.ackErrorRate else "")
+         ]
+  where
+    acking = mode /= NoAcks
+
+-- | Status line of 'FanInPerf.Options.ConsumeOnly': no pushes, and no lag (it
+-- would only be the age of the rows).
+formatConsumeOnlyStatus :: ReaderMode -> Double -> ConsumeReport -> Text
+formatConsumeOnlyStatus mode elapsed c =
+  T.intercalate " | " $
+    [ "t=" <> T.pack (show (round elapsed :: Int)) <> "s cons/s cur=" <> rateText c.consumeRate <> " max=" <> maxText c.maxConsumeRate
+    ]
+      <> [ackSegment c | acking]
+      <> [ "backlog=" <> groupThousands c.backlog,
+           "err/s fetch=" <> rateText c.fetchErrorRate <> (if acking then " ack=" <> rateText c.ackErrorRate else "")
          ]
   where
     acking = mode /= NoAcks
@@ -116,14 +163,7 @@ data Drain = DrainComplete Double | DrainStalled Double | DrainTimedOut Double |
 formatConsumeSummary :: ReaderMode -> Int -> WriterPhase -> Drain -> TickReport -> ConsumeReport -> [Text]
 formatConsumeSummary mode expected phase drain r c =
   let delivered = totalDelivered c.readerTotal
-      fetches = totalFetches c.readerTotal
-      emptyRatio = ratio (totalEmptyFetches c.readerTotal) fetches
       avgRate = ratio phase.delivered phase.duration
-      avgAckRate = ratio phase.acks phase.duration
-      ackLines =
-        [ "  acks=" <> groupThousands (totalAcks c.readerTotal) <> " errors=" <> groupThousands (totalAckErrors c.readerTotal) <> " ack/s avg=" <> rateText avgAckRate <> " max=" <> maxText c.maxAckRate,
-          "  ack latency (cumulative) " <> pcts (ackLatencyBuckets c.readerTotal)
-        ]
       pushes = totalPushes r.total
       backlogAtStop = max 0 (expected - phase.delivered)
       behind = avgRate > 0 && fromIntegral backlogAtStop > avgRate
@@ -133,27 +173,45 @@ formatConsumeSummary mode expected phase drain r c =
         DrainTimedOut t -> "timed out after " <> seconds t
         DrainInterrupted -> "interrupted"
    in formatSummary r {elapsed = phase.duration}
-        <> [ experimentLabel mode
-               <> ": delivered="
-               <> groupThousands delivered
-               <> " expected="
-               <> groupThousands expected
-               <> " missing="
-               <> groupThousands (max 0 (expected - delivered))
-               <> " duplicates="
-               <> groupThousands (max 0 (delivered - expected)),
+        <> [ deliveryLine (experimentLabel mode) delivered expected,
              "  cons/s avg=" <> rateText avgRate <> " max=" <> maxText c.maxConsumeRate <> " (avg incl. warmup, max after warmup, both writer phase)",
              "  fan-out: " <> T.pack (printf "%.1f" (ratio expected pushes)) <> " deliveries per push (cons/s and push/s differ by this factor)",
              "  backlog at writer stop: " <> groupThousands backlogAtStop <> (if avgRate > 0 then " (" <> seconds (ratio backlogAtStop avgRate) <> " of delivery)" else ""),
-             "  lag (cumulative) " <> pcts (lagBuckets c.readerTotal),
-             "  fetch (cumulative) " <> pcts (fetchLatencyBuckets c.readerTotal) <> " empty=" <> percent emptyRatio <> " errors=" <> groupThousands (totalFetchErrors c.readerTotal),
-             "  gate wait (cumulative) " <> pcts (gateWaitBuckets c.readerTotal)
+             "  lag (cumulative) " <> pcts (lagBuckets c.readerTotal)
            ]
+        <> fetchGateLines c
         <> [ "  warning: readers fell behind the writers (backlog above 1s of delivery at writer stop); missing then understates the cursor race, as readers stay below the head"
            | behind
            ]
-        <> (if mode /= NoAcks then ackLines else [])
+        <> (if mode /= NoAcks then ackSummaryLines c (ratio phase.acks phase.duration) else [])
         <> ["  drain: " <> drainText]
+
+-- | How a consume-only run ended: every reader caught up and stopped (what is
+-- still missing then was not delivered, e.g. failed fetches), or not.
+data ConsumeEnd = ConsumeFinished | ConsumeTimedOut | ConsumeInterrupted
+  deriving (Eq, Show)
+
+-- | @formatConsumeOnlySummary expectedDeliveries elapsed end milestones consumeReport@.
+-- @elapsed@ is the time from the start of the readers until the end of the run;
+-- the average over it includes the tail of the slowest readers, which the
+-- @milestones@ show: (percent, seconds until that share of the expected
+-- deliveries was reached, Nothing if never).
+formatConsumeOnlySummary :: ReaderMode -> Int -> Double -> ConsumeEnd -> [(Int, Maybe Double)] -> ConsumeReport -> [Text]
+formatConsumeOnlySummary mode expected elapsed end milestones c =
+  let delivered = totalDelivered c.readerTotal
+      avgRate = ratio delivered elapsed
+      endText = case end of
+        ConsumeFinished -> "all readers caught up after " <> seconds elapsed
+        ConsumeTimedOut -> "timed out after " <> seconds elapsed
+        ConsumeInterrupted -> "interrupted after " <> seconds elapsed
+   in [ "summary: duration=" <> seconds elapsed,
+        deliveryLine (consumeOnlyLabel mode) delivered expected,
+        "  cons/s avg=" <> rateText avgRate <> " max=" <> maxText c.maxConsumeRate <> " (avg incl. warmup and tail, max after warmup)",
+        "  time to delivered: " <> T.intercalate " " [T.pack (show p) <> "%=" <> maybe "-" seconds t | (p, t) <- milestones]
+      ]
+        <> fetchGateLines c
+        <> (if mode /= NoAcks then ackSummaryLines c (ratio (totalAcks c.readerTotal) elapsed) else [])
+        <> ["  end: " <> endText]
 
 formatCoverage :: [(TargetKind, Double)] -> [Text]
 formatCoverage = map line

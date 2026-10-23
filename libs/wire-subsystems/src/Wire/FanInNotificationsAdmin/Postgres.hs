@@ -9,15 +9,22 @@ module Wire.FanInNotificationsAdmin.Postgres
 where
 
 import Data.FileEmbed (embedFile, makeRelativeToProject)
+import Data.Id
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
+import Data.UUID (UUID)
+import Data.Vector qualified as V
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Session qualified as Session
 import Hasql.Statement qualified as Statement
+import Hasql.TH
 import Imports
 import Polysemy
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
 import Wire.FanInNotificationsAdmin
+import Wire.FanInNotificationsStore (Stream (..))
 import Wire.Postgres
 
 interpretFanInNotificationsAdminToPostgres :: (PGConstraints r) => InterpreterFor FanInNotificationsAdmin r
@@ -37,6 +44,7 @@ interpretFanInNotificationsAdminToPostgres = interpret $ \case
         | otherwise -> pure (ExistsWithOtherShape s)
   CurrentShape -> runStatement () shapeStatement
   TruncateAll -> runStatement () truncateAllStatement
+  CountStreams -> countStreamsImpl
   Ping -> runStatement () pingStatement
   DatabaseExists n -> runStatement n.unDbName databaseExistsStatement
   -- CREATE/DROP DATABASE and ALTER SYSTEM cannot run inside a transaction
@@ -115,6 +123,47 @@ truncateAllStatement =
     \epoch_notification_acks, local_connection_acks, remote_connection_acks"
     Encoders.noParams
     Decoders.noResult
+
+-- | Rows per stream. Keep the table list in sync with the
+-- @fan-in-sql/*.sql@ files (connection tables are not read by consumers).
+countStreamsImpl :: (PGConstraints r) => Sem r [(Stream, Int)]
+countStreamsImpl = do
+  users <- runStatement () countUserStatement
+  clients <- runStatement () countClientStatement
+  teams <- runStatement () countTeamStatement
+  epochs <- runStatement () countEpochStatement
+  pure . concat $
+    [ [(StreamUser (Id u), fromIntegral n) | (u, n) <- V.toList users],
+      [(StreamClient (Id u) (ClientId (fromIntegral c)), fromIntegral n) | (u, c, n) <- V.toList clients],
+      [(StreamTeam (Id t), fromIntegral n) | (t, n) <- V.toList teams],
+      [(StreamEpoch (GroupId g) (Epoch (fromIntegral e)), fromIntegral n) | (g, e, n) <- V.toList epochs]
+    ]
+
+countUserStatement :: Statement.Statement () (V.Vector (UUID, Int64))
+countUserStatement =
+  [vectorStatement|
+    select user_id :: uuid, count(*) :: int8 from user_notifications group by user_id
+  |]
+
+countClientStatement :: Statement.Statement () (V.Vector (UUID, Int64, Int64))
+countClientStatement =
+  [vectorStatement|
+    select user_id :: uuid, client_id :: int8, count(*) :: int8
+    from client_notifications group by user_id, client_id
+  |]
+
+countTeamStatement :: Statement.Statement () (V.Vector (UUID, Int64))
+countTeamStatement =
+  [vectorStatement|
+    select team_id :: uuid, count(*) :: int8 from team_notifications group by team_id
+  |]
+
+countEpochStatement :: Statement.Statement () (V.Vector (ByteString, Int64, Int64))
+countEpochStatement =
+  [vectorStatement|
+    select group_id :: bytea, epoch :: int8, count(*) :: int8
+    from epoch_notifications group by group_id, epoch
+  |]
 
 pingStatement :: Statement.Statement () ()
 pingStatement = Statement.unpreparable "SELECT 1" Encoders.noParams Decoders.noResult

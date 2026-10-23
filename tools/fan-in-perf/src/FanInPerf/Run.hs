@@ -4,7 +4,7 @@ import Control.Concurrent.Async (link, withAsync)
 import Data.Misc (Duration (..), showT)
 import Data.Qualified (toLocalUnsafe)
 import Data.Text qualified as T
-import FanInPerf.Consume (runConsume)
+import FanInPerf.Consume (runConsume, runConsumeOnly)
 import FanInPerf.Database
 import FanInPerf.Metrics (runMetricsServer)
 import FanInPerf.Options
@@ -77,6 +77,11 @@ run console opts = do
       -- readers get their own pool so they cannot starve the writers
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
       runConsume console env env {pool = readerPool} c
+    ConsumeOnly c -> withMetricsServer $ do
+      checkDatabase env
+      -- counting and reading both use the readers' pool (the writer pool stays idle)
+      readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
+      runConsumeOnly console env {pool = readerPool} c
   where
     withMetricsServer act =
       withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
@@ -98,6 +103,7 @@ defaultPoolSize = \case
   Reset -> 1
   Produce p -> p.writers
   Consume c -> c.writerOptions.writers
+  ConsumeOnly _ -> 1
 
 poolConfig :: Int -> PoolConfig
 poolConfig size =

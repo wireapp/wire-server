@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Runs fan-in-perf experiments A-D (WPB-26288) with --targets user:2000x1 and
 2,000 clients on pg_partman (partitioned) and plain tables, seed 42, and writes
-a markdown report for the Jira ticket.
+a markdown report for the Jira ticket. E and F (plain only) split B and C: first
+`produce`, then `consume-only[-ack]` on the rows it left, for the raw consumption
+speed.
 
-  run-2000x1.py [OUT.md]   (default: fan-in-2000x1-results.md)
+  run-2000x1.py [OUT.md] [--only A,E,...] [--quick] [--db CONNSTR]
+  (OUT.md default: fan-in-2000x1-results.md)
 
-DESTRUCTIVE: drops and recreates the database fan_in_perf. Takes about 40
-minutes. Settings were tuned on the author's machine (22 CPUs, 62 GiB) before.
+DESTRUCTIVE: drops and recreates the database (default fan_in_perf). Takes about
+40 minutes for A-D plus about 10 for E and F (--only E,F: the latter only,
+--quick: all durations divided by 10, for a smoke test). Settings were tuned on
+the author's machine (22 CPUs, 62 GiB) before.
 The tool's output of every run goes to LOGDIR. Checks of the results against
 the database and Prometheus: sanity-helpers.py.
 """
 
+import argparse
 import datetime
 import os
 import re
@@ -33,6 +39,14 @@ CLIENTS = 2000
 W_A, W_B, W_C = 64, 32, 16
 POOL_B, POOL_C = 64, 64
 WARMUP, DRAIN = 5, 30
+# E, F: produce (W_A writers) for SPLIT_PRODUCE s, then consume-only. Long enough
+# for the consume phase to last well past SPLIT_WARMUP (max rate ignores it).
+SPLIT_PRODUCE, SPLIT_WARMUP, SPLIT_TIMEOUT = 120, 2, 1200
+# Reader pool of E and F. With 64, the readers sometimes idled for about 5 s
+# (while all connections were idle, cause not found), which dominates the
+# average; 16, 32 and 48 never did in repeated runs.
+POOL_SPLIT = 32
+QUICK = 1  # --quick: durations divided by this
 
 
 def log(msg):
@@ -151,21 +165,14 @@ def run(label, args, partman):
     logpath = os.path.join(LOGDIR, label + ".log")
     dc = DropCounter() if partman and label.startswith("D") else None
     ticks = []  # (wall time, status line), to line them up with the drops
-    with open(logpath, "w") as lf:
-        if dc:
-            dc.start()
-        p = subprocess.Popen(fip(args), cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        for line in p.stdout:
-            lf.write(line)
-            if dc and line.startswith("t="):
-                ticks.append((time.time(), line))
-        rc = p.wait()
-        if dc:
-            dc.stop.set()
-            dc.join()
-            if dc.error:
-                raise dc.error
-    text = open(logpath).read()
+    if dc:
+        dc.start()
+    text, rc = tool_logged(logpath, args, (lambda line: ticks.append((time.time(), line)) if dc and line.startswith("t=") else None))
+    if dc:
+        dc.stop.set()
+        dc.join()
+        if dc.error:
+            raise dc.error
     if "\nsummary:" not in text:
         raise RuntimeError(f"{label}: no summary (exit {rc}), see {logpath}")
     time.sleep(2)
@@ -178,7 +185,7 @@ def run(label, args, partman):
 
 
 def common(exp, w, pool, dur):
-    a = [exp, "--writers", w, "--targets", TARGETS, "--warmup", WARMUP, "--duration", dur, "--seed", SEED]
+    a = [exp, "--writers", w, "--targets", TARGETS, "--warmup", WARMUP, "--duration", max(1, dur // QUICK), "--seed", SEED]
     if exp != "produce":
         a += ["--clients", CLIENTS, "--reader-pool-size", pool, "--safety-window", 200, "--drain-timeout", DRAIN]
     if exp == "consume-ack":
@@ -186,12 +193,86 @@ def common(exp, w, pool, dur):
     return a
 
 
-EXPERIMENTS = [
-    ("A", common("produce", W_A, None, 60)),
-    ("B", common("consume", W_B, POOL_B, 120)),
-    ("C", common("consume-ack", W_C, POOL_C, 120)),
-    ("D", common("consume-ack", W_C, POOL_C, 660)),
-]
+def experiments():
+    """Built at run time: --quick changes the durations."""
+    return [
+        ("A", common("produce", W_A, None, 60)),
+        ("B", common("consume", W_B, POOL_B, 120)),
+        ("C", common("consume-ack", W_C, POOL_C, 120)),
+        ("D", common("consume-ack", W_C, POOL_C, 660)),
+    ]
+
+
+def split_experiments():
+    """(label, produce args, consume-only args), run on plain tables only: the 5 min
+    retention of the partitioned tables would drop partitions during the consume phase."""
+    produce = common("produce", W_A, None, SPLIT_PRODUCE)
+    consume = ["--targets", TARGETS, "--seed", SEED, "--clients", CLIENTS, "--warmup", SPLIT_WARMUP, "--timeout", SPLIT_TIMEOUT]
+    return [
+        ("E", produce, ["consume-only", "--reader-pool-size", POOL_SPLIT] + consume),
+        ("F", produce, ["consume-only-ack", "--reader-pool-size", POOL_SPLIT, "--ack-every", 1] + consume),
+    ]
+
+
+def tool_logged(logpath, args, on_line=None):
+    """Runs the tool, logs its output (and passes each line to on_line); returns (output, exit code)."""
+    lines = []
+    with open(logpath, "w") as lf:
+        p = subprocess.Popen(fip(args), cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for line in p.stdout:
+            lf.write(line)
+            lines.append(line)
+            if on_line:
+                on_line(line)
+        rc = p.wait()
+    return "".join(lines), rc
+
+
+def parse_consume_only(text):
+    """The consume-only log: `parse` for the summary lines it shares with the others, plus its own."""
+    s = text[text.index("\nsummary:"):]
+    r = parse(text)
+    r.update(
+        rows_total=num(r"^consume-only(?:-ack)?: rows total=([\d,]+)", text),
+        expected=num(r"expected=([\d,]+) missing", s),
+        delivered=num(r"delivered=([\d,]+)", s),
+        cons_time=num(r"^summary: duration=([\d.]+)s", s, float),
+        cons_max=num(r"cons/s avg=[\d,]+ max=(\S+)", s, lambda x: x if x == "-" else int(x.replace(",", ""))),
+        fetch_p99=num(r"^  fetch .*p99<=(\S+)", s, str),
+        t50=num(r"^  time to delivered: 50%=(\S+)", s, str),
+        t90=num(r"^  time to delivered: .* 90%=(\S+)", s, str),
+        t99=num(r"^  time to delivered: .* 99%=(\S+)", s, str),
+        end=num(r"^  end: (.*)$", s, str),
+    )
+    return r
+
+
+def run_split(label, produce_args, consume_args):
+    """reset, produce, VACUUM ANALYZE + CHECKPOINT (else autovacuum and hint-bit
+    writes would land in the measured read phase), consume-only."""
+    tool(["reset"])
+    psql("checkpoint")
+    d0 = deadlocks()
+    ptext, prc = tool_logged(os.path.join(LOGDIR, label + "-produce.log"), produce_args)
+    if "\nsummary:" not in ptext:
+        raise RuntimeError(f"{label}: no produce summary (exit {prc}), see {LOGDIR}")
+    p = parse(ptext)
+    psql("vacuum analyze")
+    psql("checkpoint")
+    rows = int(psql("select count(*) from user_notifications"))
+    ctext, crc = tool_logged(os.path.join(LOGDIR, label + "-consume.log"), consume_args)
+    if "\nsummary:" not in ctext:
+        raise RuntimeError(f"{label}: no consume summary (exit {crc}), see {LOGDIR}")
+    c = parse_consume_only(ctext)
+    cmd = lambda a: "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in a)
+    return {
+        **c,
+        "label": label, "exit": prc or crc, "deadlocks": deadlocks() - d0, "rows": rows, "drain": None,
+        "pushes": p["pushes"], "push_s": p["push_s"], "push_p99": p["push_p99"], "push_err": p["push_err"],
+        "errors": p["errors"] + c["errors"],
+        "cmd": cmd(produce_args) + "\npsql -c 'VACUUM ANALYZE' -c CHECKPOINT\n" + cmd(consume_args),
+        "summary": "produce:\n" + p["summary"] + "\n\nconsume:\n" + c["summary"],
+    }
 
 
 def settle_partman():
@@ -218,11 +299,16 @@ COLS = {
           ("backlog at stop", "backlog"), ("missing", "missing"), ("errors", "errors")],
 }
 COLS["D"] = COLS["C"]
+COLS["E"] = [("push/s (produce)", "push_s"), ("rows", "rows"), ("consume time (s)", "cons_time"), ("cons/s (avg)", "cons_s"), ("cons/s (max)", "cons_max"),
+             ("time to 50 %", "t50"), ("90 %", "t90"), ("99 %", "t99"), ("fetch p99", "fetch_p99"), ("missing", "missing"), ("errors", "errors")]
+COLS["F"] = COLS["E"][:8] + [("ack/s (avg)", "ack_s"), ("ack p99", "ack_p99")] + COLS["E"][8:]
 TITLES = {
     "A": "A: maximal rate of adding notifications",
     "B": "B: adding and consuming by 2,000 clients",
     "C": "C: B, every client acknowledges every notification",
     "D": "D: C for 11 minutes while TTL garbage collection runs",
+    "E": "E: B split: produce only, then 2,000 clients consume only",
+    "F": "F: C split: produce only, then 2,000 clients consume and acknowledge only",
 }
 
 
@@ -239,12 +325,15 @@ def report(res, env):
          f"- Load: `--targets {TARGETS}`: 2,000 users with one client each; every push writes 1 notification to 1 user stream (plus its `last_user_notifications` upsert) in one transaction, read by 1 client, so cons/s = push/s. B-D: `--clients {CLIENTS}`, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
          f"- Writers A={W_A}, B={W_B}, C/D={W_C}; reader pool B={POOL_B}, C/D={POOL_C}: highest rate in sweeps beforehand at which readers keep up. Seed {SEED}. One run each.",
          "- Rates are averages over the writer phase incl. 5 s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
+         f"- E, F (plain only): `reset`, `produce` ({W_A} writers, {SPLIT_PRODUCE} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
          "- Only the `user` stream kind is exercised (no client/team/epoch streams, fan-out 1); not comparable to runs with a mixed target set.",
          "",
          "Per mode: `drop-db`, `migrate` (`--partitioned` for partman), before each run `reset`. Commands:", "", "```"]
     L += [r["cmd"] for r in res.values() if r["label"].endswith("plain")]
     L += ["```", "(partman: same commands)", ""]
-    for exp in "ABCD":
+    for exp in "ABCDEF":
+        if not any(f"{exp}-{m}" in res for m in MODES):
+            continue
         L += [f"## {TITLES[exp]}", "", "| Mode | " + " | ".join(h for h, _ in COLS[exp]) + " |", "|---" * (len(COLS[exp]) + 1) + "|"]
         for m in MODES:
             r = res.get(f"{exp}-{m}")
@@ -267,20 +356,38 @@ def report(res, env):
     g = lambda e, m: res.get(f"{e}-{m}", {})
     for m in MODES:
         a = g("A", m)
-        L.append(f"- a. ({m}) {cell(a.get('push_s'))} notifications/s (avg) added, push p99 {a.get('push_p99')}, {cell(a.get('errors'))} errors.")
+        if a:
+            L.append(f"- a. ({m}) {cell(a.get('push_s'))} notifications/s (avg) added, push p99 {a.get('push_p99')}, {cell(a.get('errors'))} errors.")
     for m in MODES:
         b = g("B", m)
-        L.append(f"- b. ({m}) {cell(b.get('push_s'))} added/s (avg) and {cell(b.get('cons_s'))} consumed/s (avg) by 2,000 clients, lag p99 {b.get('lag_p99')}, {cell(b.get('missing'))} missing.")
+        if b:
+            L.append(f"- b. ({m}) {cell(b.get('push_s'))} added/s (avg) and {cell(b.get('cons_s'))} consumed/s (avg) by 2,000 clients, lag p99 {b.get('lag_p99')}, {cell(b.get('missing'))} missing.")
     for m in MODES:
         c = g("C", m)
-        L.append(f"- c. ({m}) {cell(c.get('push_s'))} added/s (avg), {cell(c.get('cons_s'))} consumed/s (avg) and {cell(c.get('ack_s'))} acknowledged/s (avg), ack p99 {c.get('ack_p99')}, {cell(c.get('missing'))} missing.")
+        if c:
+            L.append(f"- c. ({m}) {cell(c.get('push_s'))} added/s (avg), {cell(c.get('cons_s'))} consumed/s (avg) and {cell(c.get('ack_s'))} acknowledged/s (avg), ack p99 {c.get('ack_p99')}, {cell(c.get('missing'))} missing.")
     dp = g("D", "partman")
     if dp:
         i, o = dp["gc"][True], dp["gc"][False]
         r = lambda a, b: f"{a / b:.2f}" if a is not None and b else "-"
         L.append(f"- d. During TTL GC ({dp['drops']} partition drops in 11 min): within {GC_WINDOW} s of a drop vs. otherwise, ack/s {r(i['ack_s'], o['ack_s'])} x, "
                  f"ack p99 {r(i['ack_p99'], o['ack_p99'])} x, lag p99 {r(i['lag_p99'], o['lag_p99'])} x (medians); {cell(dp['errors'])} errors, {cell(dp['missing'])} missing, {cell(dp['deadlocks'])} deadlocks.")
+    for e in "EF":
+        x = g(e, "plain")
+        if x:
+            extra = f", {cell(x['ack_s'])} acknowledged/s (avg), ack p99 {x['ack_p99']}" if e == "F" else ""
+            L.append(f"- e/f. ({e}, plain) raw consumption of {cell(x['rows'])} rows: {cell(x['cons_s'])} consumed/s (avg), {cell(x['cons_max'])}/s (max), 99 % delivered after {x['t99']}{extra}, fetch p99 {x['fetch_p99']}, {cell(x['missing'])} missing.")
     notes = []
+    for e in ("E", "F"):
+        x = res.get(f"{e}-plain")
+        # fan-out 1 and one client per user: every push is one row; writers still
+        # in flight when produce ends commit rows that are not counted (at most W_A)
+        if x and not 0 <= x["rows"] - x["pushes"] <= W_A:
+            notes.append(f"- {e}-plain: produce reported {x['pushes']:,} pushes but the table holds {x['rows']:,} rows")
+        if x and not x["end"].startswith("all readers caught up"):
+            notes.append(f"- {e}-plain: consume-only ended: {x['end']}")
+        if x and x["rows_total"] != x["rows"]:
+            notes.append(f"- {e}-plain: consume-only counted {cell(x['rows_total'])} rows, psql {x['rows']:,}")
     for r in res.values():
         if r["drain"] and not r["drain"].startswith("complete"):
             notes.append(f"- {r['label']}: drain {r['drain']}")
@@ -312,7 +419,16 @@ def env():
 
 
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else "fan-in-2000x1-results.md"
+    global DB, QUICK
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("out", nargs="?", default="fan-in-2000x1-results.md")
+    ap.add_argument("--only", help="comma-separated experiments to run, e.g. E,F (default: all)")
+    ap.add_argument("--quick", action="store_true", help="divide all durations by 10 (smoke test)")
+    ap.add_argument("--db", default=DB, help="connection string; the database is dropped and recreated")
+    args = ap.parse_args()
+    DB, out = args.db, args.out
+    QUICK = 10 if args.quick else 1
+    wanted = set(args.only.upper().split(",")) if args.only else set("ABCDEF")
     try:
         urllib.request.urlopen("http://localhost:9400/metrics", timeout=1)
         sys.exit("port 9400 is busy (another fan-in-perf run?)")
@@ -323,6 +439,10 @@ def main():
     os.makedirs(LOGDIR, exist_ok=True)
     res, e = {}, None
     for mode in MODES:
+        runs = [(x, a) for x, a in experiments() if x in wanted]
+        splits = [x for x in split_experiments() if x[0] in wanted] if mode == "plain" else []
+        if not runs and not splits:
+            continue
         log(f"database for {mode}")
         tool(["drop-db"])
         tool(["migrate"] + (["--partitioned"] if mode == "partman" else []))
@@ -331,9 +451,13 @@ def main():
         if mode == "partman":
             e["partman"] = psql("select extversion from pg_extension where extname = 'pg_partman'")
             settle_partman()
-        for exp, args in EXPERIMENTS:
+        for exp, a in runs:
             log(f"{exp} {mode}")
-            res[f"{exp}-{mode}"] = run(f"{exp}-{mode}", args, mode == "partman")
+            res[f"{exp}-{mode}"] = run(f"{exp}-{mode}", a, mode == "partman")
+        for exp, pa, ca in splits:
+            log(f"{exp} {mode}")
+            res[f"{exp}-{mode}"] = run_split(f"{exp}-{mode}", pa, ca)
+    e.setdefault("partman", "not run")
     md = report(res, e)
     with open(out, "w") as f:
         f.write(md)

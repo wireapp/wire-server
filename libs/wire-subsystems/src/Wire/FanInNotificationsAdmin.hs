@@ -7,6 +7,7 @@ module Wire.FanInNotificationsAdmin
     migrate,
     currentShape,
     truncateAll,
+    countStreams,
     ping,
     databaseExists,
     createDatabase,
@@ -22,6 +23,7 @@ where
 import Data.Text qualified as T
 import Imports
 import Polysemy
+import Wire.FanInNotificationsStore (Stream)
 
 -- | 'Plain' is the production schema; 'Partitioned' replaces the six
 -- @*_notifications@ tables by pg_partman managed partitioned tables.
@@ -60,6 +62,9 @@ data FanInNotificationsAdmin m a where
   -- | Shape of the existing tables, @Nothing@ if absent.
   CurrentShape :: FanInNotificationsAdmin m (Maybe SchemaShape)
   TruncateAll :: FanInNotificationsAdmin m ()
+  -- | Number of notifications of every stream with at least one row, for user,
+  -- client, team and epoch streams (no connection streams).
+  CountStreams :: FanInNotificationsAdmin m [(Stream, Int)]
   Ping :: FanInNotificationsAdmin m ()
   -- | Run on the admin connection.
   DatabaseExists :: DbName -> FanInNotificationsAdmin m Bool

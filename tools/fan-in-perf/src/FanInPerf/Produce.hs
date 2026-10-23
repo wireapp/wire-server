@@ -4,6 +4,7 @@ module FanInPerf.Produce
     writerStep,
     storePush,
     prepareWriters,
+    seededEntries,
     writerLoop,
     tickWriters,
     runProduce,
@@ -13,6 +14,7 @@ where
 import Control.Concurrent.Async
 import Control.Exception (evaluate)
 import Data.Aeson qualified as A
+import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (showT)
 import Data.Text qualified as T
 import Data.Vector qualified as V
@@ -84,11 +86,20 @@ data WriterSetup = WriterSetup
 prepareWriters :: ProduceOptions -> IO WriterSetup
 prepareWriters opts = do
   seed <- maybe randomIO pure opts.seed
-  let (entries, gen') = mkEntries opts.clientsPerUser opts.targets (mkStdGen seed)
-      (populationGen, gen'') = split gen'
+  let (entries, populationGen, writerGen) = seededEntries seed opts.clientsPerUser opts.targets
       payload = mkPayload opts.payloadBytes
-      gens = take opts.writers (unfoldr (Just . split) gen'')
+      gens = take opts.writers (unfoldr (Just . split) writerGen)
   pure WriterSetup {..}
+
+-- | @seededEntries seed clientsPerUser targets@: the stream key pools, the
+-- generator of the population and the one the writers' generators are split
+-- from. Depends on nothing else, so a later @consume-only@ run with the same
+-- arguments rebuilds the pools a @produce@ run wrote to.
+seededEntries :: Int -> Int -> NonEmpty TargetConfig -> (V.Vector Entry, StdGen, StdGen)
+seededEntries seed clientsPerUser targets =
+  let (entries, gen') = mkEntries clientsPerUser targets (mkStdGen seed)
+      (populationGen, writerGen) = split gen'
+   in (entries, populationGen, writerGen)
 
 -- | Pushes until @stop@ reports true; checked between pushes, so no push is
 -- cut off.

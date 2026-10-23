@@ -18,6 +18,7 @@ Design specs (background, rationale):
 
 - [Quick start](#quick-start)
 - [Commands and parameters](#commands-and-parameters)
+- [E, F: split run (produce, then consume only)](#e-f-split-run-produce-then-consume-only)
 - [D: consume-ack under TTL GC](#d-consume-ack-under-ttl-gc)
 - [Observability](#observability)
 - [Architecture](#architecture)
@@ -48,11 +49,19 @@ fan-in-perf --db "$DB" consume --targets user:2000,team:1,epoch:200 --duration 3
 fan-in-perf --db "$DB" reset
 fan-in-perf --db "$DB" consume-ack --targets user:1000,clients:1000,team:10,epoch:200 \
   --clients-per-user 2 --clients 2000 --duration 30 --ack-every 1
+
+# E: split B, first only write ...
+fan-in-perf --db "$DB" reset
+fan-in-perf --db "$DB" produce --writers 32 --targets user:2000x1 --duration 60 --seed 42
+# ... then only read what is there (same --seed, --targets, --clients-per-user)
+fan-in-perf --db "$DB" consume-only --targets user:2000x1 --seed 42
 ```
 
 `run-experiments.py --db "$DB" --out results.md` runs A-D on plain and
 partitioned tables (about 55 min; `--quick` for a smoke test) and writes the
 results as markdown (for the Jira ticket). It drops and recreates the database.
+`run-2000x1.py` does the same for a fixed `user:2000x1` load and also runs the
+split experiments E and F (`--only E,F`: just those).
 
 Global flags go before the sub-command. The tool prints a status line per
 second and a summary at the end. Ctrl-C stops a run without `--duration`.
@@ -67,6 +76,8 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`.
 | `produce` | A | Writers push as fast as possible. |
 | `consume` | B | `produce` writers plus simulated reader clients. |
 | `consume-ack` | C | `consume` where every reader also acknowledges. |
+| `consume-only` | E | Readers only: every one fetches what an earlier `produce` run left, once, and stops. |
+| `consume-only-ack` | F | `consume-only` where every reader also acknowledges. |
 
 ### Global
 
@@ -143,6 +154,87 @@ All `consume` flags, plus:
 
 `user` and `clients` entries must have equal `STREAMS` (one identity per
 reader). Run `reset` before each run: start positions are written as acks.
+
+### `consume-only`, `consume-only-ack`
+
+Run after `produce`; see [E, F](#e-f-split-run-produce-then-consume-only).
+
+| Flag | Default | Range | Meaning |
+|---|---|---|---|
+| `--targets SPEC` | required | | Same as the `produce` run (`connections` rejected). |
+| `--seed INT` | required | any | Seed of the `produce` run: rebuilds its stream keys. |
+| `--clients-per-user C` | 1 | 1–100000 | As in the `produce` run. |
+| `--clients N` | 2000 | 1–100000 | Simulated readers, as in `consume`. |
+| `--epochs-per-client E` | 3 | 1–10000 | As in `consume`. |
+| `--fetch-limit L` | 100 | 1–10000 | Notifications per fetch. |
+| `--reader-pool-size P` | 32 | 1–10000 | Reader connection pool size and gate, as in `consume`. |
+| `--timeout SECS` | 600 | ≥ 0 | Stop the run after `SECS`; readers not yet done count as missing. 0: none. |
+| `--warmup SECS` | 5 | ≥ 0 | Seconds ignored by the `max` rate. |
+| `--ack-every N` | 100 | 1–10000 | `consume-only-ack` only, as in `consume-ack`. |
+
+There are no `--writers`, `--duration`, `--poll-interval`, `--drain-timeout` or
+`--safety-window`: nothing is written while the readers run and they do not poll.
+
+## E, F: split run (produce, then consume only)
+
+B and C run writers and readers at once, so the read rate is shared with the
+write load. E and F separate them to show the raw consumption speed:
+
+```sh
+fan-in-perf --db "$DB" reset
+fan-in-perf --db "$DB" produce --targets T --clients-per-user K --seed S --duration D
+psql "$DB" -c 'VACUUM ANALYZE' -c CHECKPOINT      # optional, see below
+fan-in-perf --db "$DB" consume-only --targets T --clients-per-user K --seed S
+```
+
+The two commands are separate processes, so the consume phase can be started
+by hand at any time or by a driver (`run-2000x1.py` runs E and F on plain
+tables).
+
+How a run works:
+
+- `--seed`, `--targets` and `--clients-per-user` must be those of `produce`:
+  the stream keys are derived from them, so the readers poll the streams that
+  were written. The tool prints `rows total`, `rows in subscribed streams` and
+  `expected`, and aborts if the database is empty or none of its rows is in a
+  subscribed stream (wrong seed or targets).
+- *expected* is not tracked in memory as in B and C but computed from the
+  database: rows per stream (`GROUP BY` over the `user`, `client`, `team` and
+  `epoch` tables) × readers of the stream, as in the push-by-push count of B.
+  `missing` and `duplicates` mean the same as there.
+- Readers start at the nil UUID in both modes, not at the latest id and not with
+  `InitAcks` (both would skip the backlog): a client that was offline while
+  the rows were written and has acknowledged nothing. In `consume-only-ack` the
+  ack rows are created by the first ack.
+- Every reader fetches its streams until no page is full, acks as in C, and
+  stops. The run ends when the last reader is done, or after `--timeout`. There
+  is no polling and no stall heuristic. A stream whose fetch fails stays behind
+  (counted as fetch error and as `missing`).
+- Output: `cons/s avg` is delivered / time until the last reader was done,
+  including warmup and the tail of the slowest readers. `time to delivered`
+  gives the time to 50, 90 and 99 % of the expected deliveries (50 ms
+  resolution) to tell a tail from the steady rate. `max` needs a status tick
+  of at least 0.5 s after `--warmup`, so it is `-` for a run shorter than that.
+  There is no lag (it would be the age of the rows) and no push or backlog
+  line.
+
+Caveats:
+
+- The rows were just written, so caches are warm. Autovacuum, hint-bit
+  writes and a pending checkpoint would otherwise happen inside the measured
+  reads: run `VACUUM ANALYZE` and `CHECKPOINT` between the phases.
+- Use plain tables. The partitioned tables of D delete rows after 5 minutes,
+  which would show up as `missing`.
+- `produce` ends by cancelling its writers; pushes in flight then may commit
+  without being counted, so the table can hold up to `--writers` more rows than
+  `pushes=`. E and F use the row count.
+- Produce long enough that the consume phase lasts well past `--warmup`.
+- With `--reader-pool-size 64` the readers sometimes idled for about 5 s
+  while every connection was idle (cause not found); 16, 32 and 48 did not in
+  repeated runs. The `time to delivered` lines show such a tail.
+- Whether a rate is limited by the tool or by the database is not clear from
+  the numbers: sample `pg_stat_activity` wait events during the run (mostly
+  `Client:ClientRead` means the tool is the limit).
 
 ## D: consume-ack under TTL GC
 
@@ -256,19 +348,19 @@ Checklist for the first run (`DB=postgresql://wire-server:posty-the-gres@localho
 
 `/metrics` (Prometheus text format) on `0.0.0.0:<--metrics-port>`. All
 families except `fanin_perf_pool_*` have an `experiment` label (`produce`,
-`consume`, `consume-ack`); most counters also a `kind` label. Pool families
+`consume`, `consume-ack`, `consume-only`, `consume-only-ack`); most counters also a `kind` label. Pool families
 carry only `role`.
 
 | Family | Experiments | Meaning |
 |---|---|---|
-| `fanin_perf_pushes_total`, `_errors_total`, `_targets_total` | all | Pushes, failed pushes, targets (`clients`: users, not rows). |
-| `fanin_perf_push_rate_current`, `_push_rate_max`, `_error_rate_current`, `_error_ratio_current` | all | Per-tick rates. |
-| `fanin_perf_push_duration_seconds` | all | Push latency histogram. |
-| `fanin_perf_writers` | all | Writer threads. |
-| `fanin_perf_consumed_total`, `_fetches_total`, `_empty_fetches_total`, `_fetch_errors_total` | B, C | Reader counters. |
-| `fanin_perf_consume_rate_current`, `_consume_rate_max`, `_backlog`, `_clients` | B, C | Reader gauges; backlog = expected − delivered. |
-| `fanin_perf_fetch_duration_seconds`, `_delivery_lag_seconds`, `_gate_wait_seconds` | B, C | Reader histograms. |
-| `fanin_perf_acks_total`, `_ack_errors_total`, `_ack_rate_current`, `_ack_rate_max`, `_ack_duration_seconds` | C | Ack upserts. |
+| `fanin_perf_pushes_total`, `_errors_total`, `_targets_total` | A–D | Pushes, failed pushes, targets (`clients`: users, not rows). |
+| `fanin_perf_push_rate_current`, `_push_rate_max`, `_error_rate_current`, `_error_ratio_current` | A–D | Per-tick rates. |
+| `fanin_perf_push_duration_seconds` | A–D | Push latency histogram. |
+| `fanin_perf_writers` | A–D | Writer threads. |
+| `fanin_perf_consumed_total`, `_fetches_total`, `_empty_fetches_total`, `_fetch_errors_total` | B, C, E, F | Reader counters. |
+| `fanin_perf_consume_rate_current`, `_consume_rate_max`, `_backlog`, `_clients` | B, C, E, F | Reader gauges; backlog = expected − delivered. |
+| `fanin_perf_fetch_duration_seconds`, `_delivery_lag_seconds`, `_gate_wait_seconds` | B, C, E, F (lag: meaningful in B, C only; in E, F it is the age of the rows) | Reader histograms. |
+| `fanin_perf_acks_total`, `_ack_errors_total`, `_ack_rate_current`, `_ack_rate_max`, `_ack_duration_seconds` | C, F | Ack upserts. |
 | `fanin_perf_pool_*{role="writer\|reader"}` | all | Connection pool stats (in use, idle, sessions, failures, timeouts, durations). |
 | `fan_in_partman_*` | D | From the second exporter, see [D](#d-consume-ack-under-ttl-gc). |
 

@@ -15,6 +15,8 @@ module FanInPerf.Population
     readerStreams,
     streamKind,
     expectedDeliveries,
+    expectedFromCounts,
+    subscribedRows,
     coverage,
   )
 where
@@ -161,6 +163,18 @@ targetKeys = \case
 expectedDeliveries :: Map Key Int -> FanInPush -> Int
 expectedDeliveries subs push =
   sum [Map.findWithDefault 0 k subs | t <- push.targets, k <- targetKeys t]
+
+-- | Notifications that reach readers when the streams hold the given number of
+-- rows (stream, rows): rows times readers of the stream, so what 'expectedDeliveries'
+-- adds up push by push.
+expectedFromCounts :: Map Key Int -> [(Stream, Int)] -> Int
+expectedFromCounts subs counts =
+  sum [n * Map.findWithDefault 0 (streamKey s) subs | (s, n) <- counts]
+
+-- | Rows in streams somebody reads.
+subscribedRows :: Map Key Int -> [(Stream, Int)] -> Int
+subscribedRows subs counts =
+  sum [n | (s, n) <- counts, streamKey s `Map.member` subs]
 
 -- | Per entry: share of its pool streams that have at least one reader.
 coverage :: Map Key Int -> V.Vector Entry -> [(TargetKind, Double)]
