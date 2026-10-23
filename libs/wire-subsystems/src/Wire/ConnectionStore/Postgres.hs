@@ -198,12 +198,21 @@ interpretConnectionStoreToPostgres = interpret $ \case
 relationStatusCodes :: [Relation] -> [Int32]
 relationStatusCodes rs =
   [ postgresMarshall rwh
-    | rwh <- [AcceptedWithHistory, BlockedWithHistory, PendingWithHistory, IgnoredWithHistory,
-              SentWithHistory, CancelledWithHistory, MissingLegalholdConsentFromAccepted,
-              MissingLegalholdConsentFromBlocked, MissingLegalholdConsentFromPending,
-              MissingLegalholdConsentFromIgnored, MissingLegalholdConsentFromSent,
-              MissingLegalholdConsentFromCancelled]
-    , relationDropHistory rwh `elem` rs
+  | rwh <-
+      [ AcceptedWithHistory,
+        BlockedWithHistory,
+        PendingWithHistory,
+        IgnoredWithHistory,
+        SentWithHistory,
+        CancelledWithHistory,
+        MissingLegalholdConsentFromAccepted,
+        MissingLegalholdConsentFromBlocked,
+        MissingLegalholdConsentFromPending,
+        MissingLegalholdConsentFromIgnored,
+        MissingLegalholdConsentFromSent,
+        MissingLegalholdConsentFromCancelled
+      ],
+    relationDropHistory rwh `elem` rs
   ]
 
 countLocalConnectionsByStatus :: Hasql.Statement (UserId, [Int32]) Int64
