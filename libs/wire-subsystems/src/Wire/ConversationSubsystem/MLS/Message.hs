@@ -297,7 +297,8 @@ postTransientMessageToRemoteConv ::
     Member (Error MLSProtocolError) r,
     Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (FederationAPIAccess FederatorClient) r
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   ClientId ->
@@ -307,7 +308,7 @@ postTransientMessageToRemoteConv ::
 postTransientMessageToRemoteConv lusr client raw rConvOrSubId = do
   flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
   response <-
-    runFederated rConvOrSubId $
+    sendMLSMessageWithDropIfUnsupported "send-mls-transient-message" rConvOrSubId $
       fedClient @'Galley @"send-mls-transient-message" $
         MLSMessageSendRequest
           { convOrSubId = tUnqualified rConvOrSubId,
@@ -316,7 +317,7 @@ postTransientMessageToRemoteConv lusr client raw rConvOrSubId = do
             rawMessage = Base64ByteString raw.raw,
             enableOutOfSyncCheck = Nothing
           }
-  case response of
+  for_ response $ \case
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseUpdates [] -> pure ()
@@ -430,7 +431,8 @@ postMLSTargetedMessagesToRemoteConv ::
     Member (Error MLSProtocolError) r,
     Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (FederationAPIAccess FederatorClient) r
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   ClientId ->
@@ -443,7 +445,7 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
   -- map and epoch, so it performs recipient and message validation.
   flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
   response <-
-    runFederated rConvOrSubId $
+    sendMLSMessageWithDropIfUnsupported "send-mls-targeted-message" rConvOrSubId $
       fedClient @'Galley @"send-mls-targeted-message" $
         MLSMessageSendRequest
           { convOrSubId = tUnqualified rConvOrSubId,
@@ -452,12 +454,38 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
             rawMessage = Base64ByteString (encodeMLS' batch),
             enableOutOfSyncCheck = Nothing
           }
-  case response of
+  for_ response $ \case
     MLSMessageResponseError responseError -> rethrowErrors @MLSMessageStaticErrors responseError
     MLSMessageResponseProtocolError protocolError -> throw (mlsProtocolError protocolError)
     MLSMessageResponseUpdates [] -> pure ()
     MLSMessageResponseUpdates _ -> throw $ mlsProtocolError "unexpected conversation updates for targeted messages"
     _ -> throw $ mlsProtocolError "unexpected federation response for targeted messages"
+
+-- These application messages do not change MLS group state. Like their queued
+-- notifications, submissions can be dropped when the negotiated federation
+-- version does not support them. Transport and negotiation errors still fail.
+sendMLSMessageWithDropIfUnsupported ::
+  ( Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r,
+    Member TinyLog r
+  ) =>
+  Text ->
+  Remote ConvOrSubConvId ->
+  FederatorClient 'Galley MLSMessageResponse ->
+  Sem r (Maybe MLSMessageResponse)
+sendMLSMessageWithDropIfUnsupported path remote action =
+  runFederatedEither remote action >>= \case
+    Left (FederationCallFailure FederatorClientVersionMismatch) -> do
+      let convOrSubConvId = tUnqualified remote
+      warn $
+        Log.msg ("Dropping MLS message because the negotiated federation API version does not support the endpoint" :: ByteString)
+          . Log.field "domain" (toByteString' (tDomain remote))
+          . Log.field "path" path
+          . Log.field "parentConvId" (toByteString' (show convOrSubConvId.conv))
+          . Log.field "subConvId" (maybe ("none" :: ByteString) (toByteString' . show) convOrSubConvId.subconv)
+      pure Nothing
+    Left failure -> throw failure
+    Right response -> pure (Just response)
 
 validateAndPropagateTargetedMessages ::
   ( Member (Error MLSProtocolError) r,

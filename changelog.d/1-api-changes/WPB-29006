@@ -1,1 +1,1 @@
-Added `POST /mls/messages/transient-targeted` for submitting batches of transient targeted MLS messages. Messages are delivered to the specified recipient clients and are not persisted.
+Added `POST /mls/messages/transient-targeted` for submitting batches of transient targeted MLS messages. Messages are delivered to the specified recipient clients and are not persisted. (#5599, #5634)
