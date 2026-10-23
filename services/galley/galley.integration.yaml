@@ -278,3 +278,4 @@ postgresMigration:
   connections: postgresql
   sessions: postgresql
   clients: postgresql
+  userClientIndex: postgresql
