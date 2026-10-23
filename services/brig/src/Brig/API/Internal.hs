@@ -109,10 +109,12 @@ import Wire.Events qualified as Events
 import Wire.FederationConfigStore
   ( AddFederationRemoteResult (..),
     AddFederationRemoteTeamResult (..),
-    FederationConfigStore,
     UpdateFederationResult (..),
   )
-import Wire.FederationConfigStore qualified as E
+import Wire.FederationConfigSubsystem
+  ( FederationConfigSubsystem,
+  )
+import Wire.FederationConfigSubsystem qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
@@ -150,7 +152,7 @@ servantSitemap ::
   ( Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
-    Member FederationConfigStore r,
+    Member FederationConfigSubsystem r,
     Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
@@ -372,7 +374,7 @@ authAPI =
       )
 
 federationRemotesAPI ::
-  (Member FederationConfigStore r) =>
+  (Member FederationConfigSubsystem r) =>
   ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
@@ -382,16 +384,16 @@ federationRemotesAPI =
     :<|> Named @"get-federation-remote-teams" getFederationRemoteTeams
     :<|> Named @"delete-federation-remote-team" deleteFederationRemoteTeam
 
-deleteFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> TeamId -> (Handler r) ()
+deleteFederationRemoteTeam :: (Member FederationConfigSubsystem r) => Domain -> TeamId -> (Handler r) ()
 deleteFederationRemoteTeam domain teamId =
   lift $ liftSem $ E.removeFederationRemoteTeam domain teamId
 
-getFederationRemoteTeams :: (Member FederationConfigStore r) => Domain -> (Handler r) [FederationRemoteTeam]
+getFederationRemoteTeams :: (Member FederationConfigSubsystem r) => Domain -> (Handler r) [FederationRemoteTeam]
 getFederationRemoteTeams domain =
   lift $ liftSem $ E.getFederationRemoteTeams domain
 
 addFederationRemoteTeam ::
-  (Member FederationConfigStore r) =>
+  (Member FederationConfigSubsystem r) =>
   Domain ->
   FederationRemoteTeam ->
   (Handler r) ()
@@ -406,11 +408,11 @@ addFederationRemoteTeam domain rt =
         "Federation is not configured to be restricted by teams. Therefore adding a team to a \
         \remote domain is not allowed."
 
-getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
+getFederationRemotes :: (Member FederationConfigSubsystem r) => (Handler r) FederationDomainConfigs
 getFederationRemotes = lift $ liftSem $ E.getFederationConfigs
 
 addFederationRemote ::
-  (Member FederationConfigStore r) =>
+  (Member FederationConfigSubsystem r) =>
   FederationDomainConfig ->
   (Handler r) ()
 addFederationRemote fedDomConf = do
@@ -432,7 +434,7 @@ addFederationRemote fedDomConf = do
                  <> T.pack (show (Map.lookup (domain fedDomConf) cfg))
              )
 
-updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
+updateFederationRemote :: (Member FederationConfigSubsystem r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
   if (dom /= fedcfg.domain)
     then

@@ -48,7 +48,7 @@ import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.FederationAPIAccess
-import Wire.FederationConfigStore
+import Wire.FederationConfigSubsystem
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.UserStore as UserStore
@@ -301,7 +301,7 @@ performRemoteAction self other mconnection action = do
 
 createConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
-    Member FederationConfigStore r,
+    Member FederationConfigSubsystem r,
     Member UserStore r,
     Member UserSubsystem r,
     Member NotificationSubsystem r,
@@ -324,7 +324,7 @@ createConnectionToRemoteUser self zcon other = do
 updateConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
-    Member FederationConfigStore r,
+    Member FederationConfigSubsystem r,
     Member UserStore r,
     HasBrigFederationAccess m r
   ) =>
@@ -360,7 +360,7 @@ checkLimitForLocalAction u oldRel action =
 -- profile of the remote user because we sometimes need it again, and
 -- don't want to fetch it twice.
 ensureFederatesWith ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     HasBrigFederationAccess m r
   ) =>
   Remote UserId ->

@@ -359,6 +359,8 @@ library
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
+    Wire.FederationConfigSubsystem
+    Wire.FederationConfigSubsystem.Interpreter
     Wire.FederationSubsystem
     Wire.FederationSubsystem.Internals
     Wire.FederationSubsystem.Interpreter
