@@ -494,6 +494,11 @@ library
     Wire.TeamSubsystem.GalleyAPI
     Wire.TeamSubsystem.Interpreter
     Wire.TeamSubsystem.Util
+    Wire.UserClientIndexStore
+    Wire.UserClientIndexStore.Cassandra
+    Wire.UserClientIndexStore.DualWrite
+    Wire.UserClientIndexStore.Migration
+    Wire.UserClientIndexStore.Postgres
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
     Wire.UserGroupSubsystem

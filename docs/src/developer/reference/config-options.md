@@ -2332,6 +2332,7 @@ galley:
       blockList: postgresql
       passwordReset: postgresql
       clients: postgresql
+      userClientIndex: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2341,6 +2342,7 @@ background-worker:
     migrateBlockList: false
     migratePasswordReset: false
     migrateClients: false
+    migrateUserClientIndex: false
 ```
 
 #### Migration for existing installations
@@ -2375,6 +2377,7 @@ The current settings and their background-worker flags are:
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `clients` -> `migrateClients`
+- `userClientIndex` -> `migrateUserClientIndex`
 
 **Migration pattern per migration setting**
 
@@ -2398,6 +2401,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: cassandra
          clients: cassandra
+         userClientIndex: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2408,6 +2412,7 @@ The current settings and their background-worker flags are:
        migrateBlockList: false
        migratePasswordReset: false
        migrateClients: false
+       migrateUserClientIndex: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2426,6 +2431,7 @@ The current settings and their background-worker flags are:
        migrateBlockList: true
        migratePasswordReset: true
        migrateClients: true
+       migrateUserClientIndex: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2454,6 +2460,7 @@ The current settings and their background-worker flags are:
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `clients`: `wire_clients_migration_finished`
+   - `userClientIndex`: `wire_user_client_index_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2471,6 +2478,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: postgresql
          clients: postgresql
+         userClientIndex: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2481,6 +2489,7 @@ The current settings and their background-worker flags are:
        migrateBlockList: false
        migratePasswordReset: false
        migrateClients: false
+       migrateUserClientIndex: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2572,6 +2581,7 @@ migrateDomainRegistration: false
 migrateBlockList: false
 migratePasswordReset: false
 migrateClients: false
+migrateUserClientIndex: false
 
 # migration settings
 migrationOptions:

@@ -96,6 +96,7 @@ galley:
       blockList: cassandra
       passwordReset: cassandra
       clients: cassandra
+      userClientIndex: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1048,7 +1049,9 @@ background-worker:
     # before starting the migration.
     migrateClients: false
     # This will start the migration of user client index data.
+    # It's important to set `settings.postgresMigration.userClientIndex` to `migration-to-postgresql`
     # before starting the migration.
+    migrateUserClientIndex: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

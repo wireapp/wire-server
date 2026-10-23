@@ -107,9 +107,12 @@ run opts galleyOpts = do
           withNamedLogger "migrate-clients" $
             Migrations.clients opts.migrationOptions
       else pure $ pure ()
+  cleanupUserClientIndexMigration <-
+    if opts.migrateUserClientIndex
       then
         runAppT env $
           withNamedLogger "migrate-user-client-index" $
+            Migrations.userClientIndex opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
@@ -133,6 +136,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupBlockListMigration
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupClientsMigration
+              <*> Concurrently cleanupUserClientIndexMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

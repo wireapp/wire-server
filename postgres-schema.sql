@@ -1737,13 +1737,16 @@ CREATE TABLE public.team_features (
 ALTER TABLE public.team_features OWNER TO "wire-server";
 
 --
+-- Name: user_client_index; Type: TABLE; Schema: public; Owner: wire-server
 --
 
+CREATE TABLE public.user_client_index (
     user_id uuid NOT NULL,
     client_id text NOT NULL
 );
 
 
+ALTER TABLE public.user_client_index OWNER TO "wire-server";
 
 --
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
@@ -2202,8 +2205,11 @@ ALTER TABLE ONLY public.team_features
 
 
 --
+-- Name: user_client_index user_client_index_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
+ALTER TABLE ONLY public.user_client_index
+    ADD CONSTRAINT user_client_index_pkey PRIMARY KEY (user_id, client_id);
 
 
 --
