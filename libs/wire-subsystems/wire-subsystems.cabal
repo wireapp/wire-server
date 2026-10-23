@@ -251,6 +251,8 @@ library
     Wire.BrigAPIAccess.Rpc
     Wire.BudgetStore
     Wire.BudgetStore.Cassandra
+    Wire.BudgetStore.DualWrite
+    Wire.BudgetStore.Postgres
     Wire.ClientStore
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB

@@ -97,3 +97,4 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  budget: postgresql

@@ -271,3 +271,4 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   passwordReset: postgresql
+  budget: postgresql
