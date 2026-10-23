@@ -60,6 +60,7 @@ migrateTeamFeatures: false
 migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
+migrateUsersPendingActivation: false
 migratePasswordReset: false
 
 # Background jobs consumer configuration for integration
@@ -97,3 +98,4 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  userPendingActivation: postgresql
