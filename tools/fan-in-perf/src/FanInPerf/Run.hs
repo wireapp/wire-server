@@ -79,6 +79,9 @@ run console opts = do
       runConsume console env env {pool = readerPool} c
     ConsumeOnly c -> withMetricsServer $ do
       checkDatabase env
+      runOrAbort "shape check" env currentShape >>= \case
+        Just Partitioned -> printLine console "warning: partitioned tables: pg_partman retention can drop rows during the run, they then count as missing"
+        _ -> pure ()
       -- counting and reading both use the readers' pool (the writer pool stays idle)
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
       runConsumeOnly console env {pool = readerPool} c

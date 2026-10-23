@@ -224,7 +224,7 @@ Caveats:
   writes and a pending checkpoint would otherwise happen inside the measured
   reads: run `VACUUM ANALYZE` and `CHECKPOINT` between the phases.
 - Use plain tables. The partitioned tables of D delete rows after 5 minutes,
-  which would show up as `missing`.
+  which would show up as `missing`; `consume-only` warns when it finds them.
 - `produce` ends by cancelling its writers; pushes in flight then may commit
   without being counted, so the table can hold up to `--writers` more rows than
   `pushes=`. E and F use the row count.
