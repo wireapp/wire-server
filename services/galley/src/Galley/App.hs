@@ -138,10 +138,8 @@ import Wire.Licensing.Effect (Licensing)
 import Wire.Licensing.Interpreter (runLicense)
 import Wire.Licensing.License qualified as Licensing
 import Wire.ListItems (ListItems)
-import Wire.ListItems.Team.Cassandra
-  ( interpretInternalTeamListToCassandra,
-    interpretTeamListToCassandra,
-  )
+import Wire.ListItems.Team.Cassandra (interpretTeamListToCassandra)
+import Wire.ListItems.Team.Postgres (interpretTeamListToPostgres)
 import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore (MeetingsStore)
@@ -244,7 +242,6 @@ type GalleyEffects =
      TeamMemberStore InternalPaging,
      TeamMemberStore CassandraPaging,
      ListItems LegacyPaging TeamId,
-     ListItems InternalPaging TeamId,
      Input ExposeInvitationURLsAllowlist,
      Input FeatureFlags,
      Input FanoutLimit,
@@ -457,7 +454,17 @@ evalGalley e =
         case (e ^. options . postgresMigration).teamStore of
           CassandraStorage -> interpretTeamStoreToCassandra
           PostgresqlStorage -> interpretTeamStoreToPostgres
+<<<<<<< HEAD
           MigrationToPostgresql -> interpretTeamStoreToPostgres
+=======
+      -- ListItems is a read-only effect over user_team; there is no DualWrite
+      -- interpreter. Reads stay on Cassandra until the teamStore migration has
+      -- copied the rows, then flip to Postgres via listItems: postgresql.
+      teamListInterpreter =
+        case (e ^. options . postgresMigration).listItems of
+          PostgresqlStorage -> interpretTeamListToPostgres
+          _ -> interpretTeamListToCassandra
+>>>>>>> 74986c18ca (WPB-29585: migrate ListItems team instance reads to PostGreSQL)
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -560,8 +567,7 @@ evalGalley e =
         . runInputConst (currentFanoutLimitOpts (e ^. options))
         . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
         . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
-        . interpretInternalTeamListToCassandra
-        . interpretTeamListToCassandra
+        . teamListInterpreter
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
         . teamFeatureStoreInterpreter

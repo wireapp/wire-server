@@ -63,7 +63,13 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     budget :: StorageLocation,
     nonce :: StorageLocation,
     connections :: StorageLocation,
-    teamStore :: StorageLocation
+    teamStore :: StorageLocation,
+    -- | Read-path selection for the ListItems effect (user -> teams
+    -- pagination). There is no dedicated copy loop: the @user_team@ rows are
+    -- copied by the teamStore migration, so this only flips where the
+    -- pagination reads are served from.
+    listItems :: StorageLocation
+>>>>>>> 4d189c6c22 (WPB-29585: migrate ListItems team instance reads to PostGreSQL)
   }
   deriving (Show)
 
@@ -82,3 +88,4 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "nonce"
       <*> o .: "connections"
       <*> o .: "teamStore"
+      <*> o .: "listItems"
