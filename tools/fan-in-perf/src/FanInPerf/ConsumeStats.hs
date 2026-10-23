@@ -118,8 +118,9 @@ recordGateWait :: ReaderStats -> Word64 -> IO ()
 recordGateWait stats waitNs =
   modifyReader stats $ \s -> s {gateWait = IntMap.insertWith (+) (bucketIndex waitNs) 1 s.gateWait}
 
+-- | Plain read, see "FanInPerf.Stats": monitoring never makes a reader retry its CAS.
 readReaderSnapshot :: ReaderStats -> IO ReaderSnapshot
-readReaderSnapshot (ReaderStats r) = atomicModifyIORef' r (\s -> (s, s))
+readReaderSnapshot (ReaderStats r) = readIORef r
 
 sumReaderSnapshots :: [ReaderSnapshot] -> ReaderSnapshot
 sumReaderSnapshots = foldl' add emptyReaderSnapshot

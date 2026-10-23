@@ -2,11 +2,11 @@
 -- 'WriterStats' (an 'IORef' holding a pure 'Snapshot') and is its only writer;
 -- the ticker thread reads all of them and sums the snapshots.
 --
--- Both sides use the atomic 'IORef' operations ('atomicModifyIORef'') on
--- purpose: they act as memory barriers, so a snapshot published by a writer is
--- fully visible to the ticker on other cores. Plain 'readIORef' / 'writeIORef'
--- give no such ordering guarantee. The cost is irrelevant here (uncontended;
--- the ticker reads once per second).
+-- Writers publish with 'atomicModifyIORef'' (a barrier: the snapshot is fully
+-- visible to other cores once published). The ticker reads with a plain
+-- 'readIORef': it never writes, so it can never make a writer's compare-and-swap
+-- retry. It may see a snapshot a few microseconds old, which is fine for
+-- monitoring: writer speed has priority over measurement.
 module FanInPerf.Stats
   ( WriterStats,
     newWriterStats,
@@ -117,11 +117,10 @@ recordSuccess stats k n expected latencyNs =
 recordError :: WriterStats -> TargetKind -> IO ()
 recordError stats k = modifyStats stats $ \s -> s {errors = bump k 1 s.errors}
 
--- | An identity atomic read-modify-write rather than 'readIORef': it is a full
--- barrier, so the ticker never observes a stale snapshot from another core.
--- (Lock-free, but it can make a concurrent writer's CAS retry once.)
+-- | A plain read of the immutable snapshot (see the module header). After the
+-- writer threads ended, it sees their last write.
 readSnapshot :: WriterStats -> IO Snapshot
-readSnapshot (WriterStats r) = atomicModifyIORef' r (\s -> (s, s))
+readSnapshot (WriterStats r) = readIORef r
 
 sumSnapshots :: [Snapshot] -> Snapshot
 sumSnapshots = foldl' addSnapshot emptySnapshot
