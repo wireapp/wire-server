@@ -43,6 +43,12 @@ spec = do
       byStream due `shouldBe` byStream [Pending user (nid 3) 2, Pending team (nid 5) 2]
       st' `shouldBe` emptyAckState
 
+  describe "pendingAcks" $ do
+    it "is every stream below N with its maximum id, nothing for an empty state" $ do
+      pendingAcks emptyAckState `shouldBe` []
+      let st = deliverAll 10 [(user, 1), (team, 5), (user, 3)] emptyAckState
+      byStream (pendingAcks st) `shouldBe` byStream [Pending user (nid 3) 2, Pending team (nid 5) 1]
+
   describe "restoreFailed" $ do
     it "keeps a failed ack's id pending but starts counting from zero" $ do
       let st = restoreFailed [Pending user (nid 9) 3] emptyAckState

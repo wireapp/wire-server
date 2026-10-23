@@ -7,6 +7,7 @@ module FanInPerf.Acks
     AckState,
     emptyAckState,
     unacked,
+    pendingAcks,
     deliver,
     restoreFailed,
   )
@@ -38,6 +39,10 @@ emptyAckState = AckState mempty 0
 
 unacked :: AckState -> Int
 unacked (AckState _ n) = n
+
+-- | Every stream with unacknowledged notifications (one entry with the highest id).
+pendingAcks :: AckState -> [Pending]
+pendingAcks (AckState m _) = Map.elems m
 
 -- | Merges entries into the state: higher id, counts added.
 restore :: [Pending] -> AckState -> AckState

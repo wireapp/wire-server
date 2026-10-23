@@ -308,16 +308,23 @@ readerLoop gate env opts pollIntervalMs client stats reportError = go emptyAckSt
       threadDelay (pollIntervalMs * 1000)
       go acks' subs'
 
+-- | One store call of a reader, through the gate.
+gatedStore :: QSem -> Env -> ReaderStats -> Sem StoreEffects a -> IO (Either UsageError a)
+gatedStore gate env stats = throughGate gate stats . runStore env
+
+-- | Writes the given acks of a reader; returns the failed ones.
+ackWriter :: QSem -> Env -> ReaderStats -> Pop.Reader -> (Text -> IO ()) -> [Pending] -> IO [Pending]
+ackWriter gate env stats client reportError =
+  ackPending showT stats reportError (gatedStore gate env stats . ackOne stats client)
+
 -- | Fetches the streams of one client until none returns a full page. A stream
 -- whose fetch failed stays behind (counted as fetch error); 'readerLoop' fetches
 -- it again on its next poll, 'runConsumeOnly' on its next pass.
 readerCatchUp :: QSem -> Env -> ReaderOptions -> Pop.Reader -> ReaderStats -> (Text -> IO ()) -> AckState -> [Subscription] -> IO ([Subscription], AckState)
 readerCatchUp gate env opts client stats reportError acks0 subs0 = catchUp acks0 (map (,True) subs0)
   where
-    gated :: Sem StoreEffects a -> IO (Either UsageError a)
-    gated = throughGate gate stats . runStore env
-    fetchOne sub = gated (readerPass @UsageError showT opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
-    writeAcks = ackPending showT stats reportError (gated . ackOne stats client)
+    fetchOne sub = gatedStore gate env stats (readerPass @UsageError showT opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
+    writeAcks = ackWriter gate env stats client reportError
     received acks delivered = case opts.mode of
       NoAcks -> pure acks
       Acks n -> acknowledge n writeAcks acks delivered
@@ -556,7 +563,12 @@ runConsumeOnly console env opts = do
             before <- totalFetchErrors <$> readReaderSnapshot stats
             (subs', acks') <- readerCatchUp gate env opts.reader client stats reportError acks subs
             after <- totalFetchErrors <$> readReaderSnapshot stats
-            when (after > before) $ threadDelay 100_000 >> go acks' subs'
+            if after > before
+              then threadDelay 100_000 >> go acks' subs'
+              else case opts.reader.mode of
+                -- a real client acks what it read before it goes idle
+                Acks _ -> void (ackWriter gate env stats client reportError (pendingAcks acks'))
+                NoAcks -> pure ()
   -- built before the clock starts, not while the readers spawn
   traverse_ evaluate (concat clientSubs)
   start <- getMonotonicTime
