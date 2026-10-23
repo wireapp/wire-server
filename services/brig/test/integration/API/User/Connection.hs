@@ -25,7 +25,6 @@ where
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Data.Connection (remoteConnectionInsert)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
@@ -47,6 +46,7 @@ import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User as User
+import Wire.ConnectionStore.Cassandra (remoteConnectionInsert)
 
 tests ::
   ConnectionLimit ->

@@ -37,12 +37,14 @@ import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
 import Wire.ClientStore (ClientStore)
+import Wire.ConnectionStore (ConnectionStore)
 import Wire.Events (Events)
 import Wire.InvitationStore (InvitationStore)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Delay
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
@@ -56,6 +58,7 @@ onEvent ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member Delay r,
+    Member (ConnectionStore InternalPaging) r,
     Member Race r,
     Member (Input (Local ())) r,
     Member UserKeyStore r,

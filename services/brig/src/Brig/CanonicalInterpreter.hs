@@ -20,8 +20,6 @@ module Brig.CanonicalInterpreter where
 import Brig.AWS (amazonkaEnv, prekeyTable)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
-import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.IO.Intra (runEvents)
 import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
@@ -80,6 +78,10 @@ import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error (clientErrorToHttpError)
 import Wire.ClientSubsystem.Interpreter
+import Wire.ConnectionStore (ConnectionStore)
+import Wire.ConnectionStore.Cassandra (connectionStoreToCassandra)
+import Wire.ConnectionStore.DualWrite (interpretConnectionStoreToCassandraAndPostgres)
+import Wire.ConnectionStore.Postgres (interpretConnectionStoreToPostgres)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
@@ -454,6 +456,23 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
+      -- Same slot consideration as passwordResetCodeStore above: the
+      -- Postgres-backed branches supply Input Pool and Error UsageError
+      -- locally (raiseUnder2 + runInputConst + mapError).
+      connectionsStoreInterpreter =
+        case e.postgresMigration.connections of
+          CassandraStorage -> connectionStoreToCassandra
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretConnectionStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretConnectionStoreToCassandraAndPostgres
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -494,7 +513,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst appSubsystemConfig
               . runInputConst e.hasqlPool
               . runInputConst e.casClient
-              . connectionStoreToCassandra
+              . connectionsStoreInterpreter
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
