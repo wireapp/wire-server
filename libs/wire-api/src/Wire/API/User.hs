@@ -1384,6 +1384,12 @@ instance S.ToParamSchema InvitationCode where
 instance FromHttpApiData InvitationCode where
   parseQueryParam = bimap T.pack InvitationCode . validateBase64Url
 
+instance PostgresMarshall Text InvitationCode where
+  postgresMarshall = T.decodeUtf8 . toByteString'
+
+instance PostgresUnmarshall Text InvitationCode where
+  postgresUnmarshall = bimap T.pack InvitationCode . validateBase64Url
+
 instance ToHttpApiData InvitationCode where
   toQueryParam =
     T.decodeUtf8With lenientDecode
