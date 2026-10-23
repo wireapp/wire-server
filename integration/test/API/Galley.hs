@@ -735,6 +735,12 @@ getTeam user tid = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr])
   submit "GET" req
 
+getCustomBackend :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> App Response
+getCustomBackend user domain = do
+  d <- asString domain
+  req <- baseRequest user Galley Versioned (joinHttpPath ["custom-backend", "by-domain", d])
+  submit "GET" req
+
 getTeamMembers :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> App Response
 getTeamMembers user tid = do
   tidStr <- asString tid

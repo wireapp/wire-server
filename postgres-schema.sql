@@ -1476,6 +1476,19 @@ CREATE TABLE public.conversation_out_of_sync (
 ALTER TABLE public.conversation_out_of_sync OWNER TO "wire-server";
 
 --
+-- Name: custom_backend; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.custom_backend (
+    domain text NOT NULL,
+    config_json_url bytea NOT NULL,
+    webapp_welcome_url bytea NOT NULL
+);
+
+
+ALTER TABLE public.custom_backend OWNER TO "wire-server";
+
+--
 -- Name: deleted_user; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2022,6 +2035,14 @@ ALTER TABLE ONLY public.conversation_out_of_sync
 
 ALTER TABLE ONLY public.conversation
     ADD CONSTRAINT conversation_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_backend custom_backend_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.custom_backend
+    ADD CONSTRAINT custom_backend_pkey PRIMARY KEY (domain);
 
 
 --

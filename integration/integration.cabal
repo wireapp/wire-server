@@ -180,6 +180,7 @@ library
     Test.Migration.BlockList
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
+    Test.Migration.CustomBackend
     Test.Migration.DomainRegistration
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures

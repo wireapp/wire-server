@@ -319,6 +319,9 @@ library
     Wire.ConversationSubsystem.Util
     Wire.CustomBackendStore
     Wire.CustomBackendStore.Cassandra
+    Wire.CustomBackendStore.DualWrite
+    Wire.CustomBackendStore.Migration
+    Wire.CustomBackendStore.Postgres
     Wire.DefaultSsoStore
     Wire.DefaultSsoStore.Cassandra
     Wire.DefaultSsoStore.Mem

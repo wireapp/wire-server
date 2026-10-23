@@ -170,6 +170,19 @@ setTeamFeatureMigrationState domain tid state = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "feature-migration-state"]
   submit "PUT" $ req & addJSON (A.String (T.pack state))
 
+putCustomBackend :: (HasCallStack, MakesValue user, MakesValue domain, MakesValue payload) => user -> domain -> payload -> App Response
+putCustomBackend user domain payload = do
+  d <- asString domain
+  p <- make payload
+  req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "custom-backend", "by-domain", d]
+  submit "PUT" $ req & addJSON p
+
+deleteCustomBackend :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> App Response
+deleteCustomBackend user domain = do
+  d <- asString domain
+  req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "custom-backend", "by-domain", d]
+  submit "DELETE" req
+
 setCellsState :: (MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
 setCellsState user conv state = do
   convId <- snd <$> objQid conv
