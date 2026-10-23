@@ -28,13 +28,16 @@ import Cassandra qualified as C
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
 import Data.Aeson qualified as A
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
 import Data.OpenApi qualified as S
 import Data.Text.Ascii
+import Data.Text.Encoding qualified as Text
 import Imports
 import Servant
 import Test.QuickCheck
+import Wire.API.PostgresMarshall
 
 newtype PropertyKeysAndValues = PropertyKeysAndValues (Map PropertyKey Value)
   deriving stock (Eq, Show)
@@ -90,3 +93,23 @@ instance S.ToSchema RawPropertyValue where
   declareNamedSchema _ =
     pure . S.NamedSchema (Just "PropertyValue") $
       mempty & S.description ?~ "An arbitrary JSON value for a property"
+
+instance Arbitrary RawPropertyValue where
+  arbitrary = RawPropertyValue . BS.fromStrict . BS.pack <$> arbitrary
+
+-- | Stored as @text@, mirroring the Cassandra @ascii@ column.
+instance PostgresMarshall Text PropertyKey where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
+
+instance PostgresUnmarshall Text PropertyKey where
+  postgresUnmarshall =
+    maybe (Left "PropertyKey: invalid ascii printable") Right
+      . fromByteString
+      . Text.encodeUtf8
+
+-- | Stored as @bytea@, mirroring the Cassandra @blob@ column.
+instance PostgresMarshall ByteString RawPropertyValue where
+  postgresMarshall = BS.toStrict . rawPropertyBytes
+
+instance PostgresUnmarshall ByteString RawPropertyValue where
+  postgresUnmarshall = Right . RawPropertyValue . BS.fromStrict

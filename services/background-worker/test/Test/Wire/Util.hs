@@ -53,7 +53,8 @@ testEnv = do
             domainRegistration = CassandraStorage,
             user = CassandraStorage,
             blockList = CassandraStorage,
-            passwordReset = CassandraStorage
+            passwordReset = CassandraStorage,
+            properties = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
