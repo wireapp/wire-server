@@ -273,3 +273,4 @@ postgresMigration:
   passwordReset: postgresql
   customBackend: postgresql
   clients: postgresql
+  userClientIndex: postgresql
