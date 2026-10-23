@@ -306,7 +306,7 @@ TITLES = {
     "A": "A: maximal rate of adding notifications",
     "B": "B: adding and consuming by 2,000 clients",
     "C": "C: B, every client acknowledges every notification",
-    "D": "D: C for 11 minutes while TTL garbage collection runs",
+    "D": "D: C for {D} while TTL garbage collection runs",
     "E": "E: B split: produce only, then 2,000 clients consume only",
     "F": "F: C split: produce only, then 2,000 clients consume and acknowledge only",
 }
@@ -316,25 +316,33 @@ def cell(v):
     return "-" if v is None else f"{v:,}" if isinstance(v, int) else str(v)
 
 
+def duration_text(secs):
+    return f"{secs // 60} minutes" if secs % 60 == 0 else f"{secs} s"
+
+
 def report(res, env):
+    dur = {x: int(a[a.index("--duration") + 1]) for x, a in experiments()}  # as run (--quick)
+    split_dur = int(split_experiments()[0][1][split_experiments()[0][1].index("--duration") + 1])
+    partman = any(k.endswith("-partman") for k in res)
     L = ["# Notification fan-in: PostgreSQL benchmark, `user:2000x1`, 2,000 clients (WPB-26288)", "",
          "## Setup", "",
          f"- Date {env['date']}, commit `{env['commit']}`, driver `tools/fan-in-perf/run-2000x1.py`",
          f"- Host: {env['cpus']} CPUs, {env['mem']} RAM; tool and database share it. {env['pg']}; {env['settings']}",
-         f"- pg_partman {env['partman']}: six `*_notifications` tables range-partitioned by UUIDv7, 1 min partitions, 5 min retention, no default partition, maintenance by the background worker every 60 s. `plain`: unpartitioned, no TTL.",
+         *([f"- pg_partman {env['partman']}: six `*_notifications` tables range-partitioned by UUIDv7, 1 min partitions, 5 min retention, no default partition, maintenance by the background worker every 60 s. `plain`: unpartitioned, no TTL.",] if partman else []),
          f"- Load: `--targets {TARGETS}`: 2,000 users with one client each; every push writes 1 notification to 1 user stream (plus its `last_user_notifications` upsert) in one transaction, read by 1 client, so cons/s = push/s. B-D: `--clients {CLIENTS}`, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
          f"- Writers A={W_A}, B={W_B}, C/D={W_C}; reader pool B={POOL_B}, C/D={POOL_C}: highest rate in sweeps beforehand at which readers keep up. Seed {SEED}. One run each.",
-         "- Rates are averages over the writer phase incl. 5 s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
-         f"- E, F (plain only): `reset`, `produce` ({W_A} writers, {SPLIT_PRODUCE} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
+         f"- Rates are averages over the writer phase incl. {WARMUP} s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
+         f"- E, F (plain only): `reset`, `produce` ({W_A} writers, {split_dur} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
+         *(["- `--quick`: all durations divided by 10 (smoke test), the numbers are not comparable to a full run."] if QUICK > 1 else []),
          "- Only the `user` stream kind is exercised (no client/team/epoch streams, fan-out 1); not comparable to runs with a mixed target set.",
          "",
          "Per mode: `drop-db`, `migrate` (`--partitioned` for partman), before each run `reset`. Commands:", "", "```"]
     L += [r["cmd"] for r in res.values() if r["label"].endswith("plain")]
-    L += ["```", "(partman: same commands)", ""]
+    L += ["```", *(["(partman: same commands for A-D; E, F run on plain tables only)"] if partman else []), ""]
     for exp in "ABCDEF":
         if not any(f"{exp}-{m}" in res for m in MODES):
             continue
-        L += [f"## {TITLES[exp]}", "", "| Mode | " + " | ".join(h for h, _ in COLS[exp]) + " |", "|---" * (len(COLS[exp]) + 1) + "|"]
+        L += [f"## {TITLES[exp].format(**{k: duration_text(v) for k, v in dur.items()})}", "", "| Mode | " + " | ".join(h for h, _ in COLS[exp]) + " |", "|---" * (len(COLS[exp]) + 1) + "|"]
         for m in MODES:
             r = res.get(f"{exp}-{m}")
             if r:
