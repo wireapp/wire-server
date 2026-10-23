@@ -1,1 +1,0 @@
-Added the targeted MLS message notification to development Federation API V5. The recipient backend forwards each message only to the specified recipient client. (#5570, #5634)

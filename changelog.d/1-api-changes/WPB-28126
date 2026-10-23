@@ -1,1 +1,0 @@
-Meeting responses on V19 endpoints (create, get, list, update, link refresh) expose a `has_password` field indicating whether the meeting's join link is password-protected.

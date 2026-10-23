@@ -1,1 +1,0 @@
-Added transient MLS broadcast message notifications to development Federation API V5. Receiving backends deliver them only to connected local clients and do not persist them. (#5601, #5634)

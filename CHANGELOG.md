@@ -1,3 +1,175 @@
+# [2026-10-23] (Chart Release 5.38.0)
+
+## Release notes
+
+
+* **[Only relevant if you have overwritten `oauth_scope` directives in
+  your nginx config]** The nginz route configuration syntax changed:
+  `oauth_scope` (a bare scope base, e.g. `conversations_code`) is
+  deprecated in favor of `oauth_scopes` (whole scopes,
+  e.g. `["read:conversations_code", "write-only:conversations_code"]`).
+
+  If you override nginz routes in your own values, migrate each
+  `oauth_scope` entry to the equivalent `oauth_scopes` list;
+  `oauth_scopes` wins where a route has both. If you use the bundled
+  chart, there is nothing to do, it is already updated.
+
+  The old directive and old oauth tokens remain valid with new
+  wire-server, but we will remove the deprecated functionality in some
+  future release.
+
+  See docs/src/developer/reference/config-options.md,
+  https://docs.wire.com/latest/developer/reference/oauth.html for more
+  context. (#5542)
+
+
+## API changes
+
+
+* Remove deprecated field `profilePict` from UserProfile. (#5538)
+
+* Meeting responses on V19 endpoints (create, get, list, update, link refresh) expose a `has_password` field indicating whether the meeting's join link is password-protected. (#5595)
+
+* Disentangle oauth scopes (write access should not imply read access).
+  `{PUT,DELETE} /meetings/<domain>/<id>` are now OAuth-accessible via `write-only:meetings` / `delete-only:meetings`. (#5542)
+
+* #5590 API changes
+
+  - Added `GET /calls/config/v3` serving TURN credentials in coturn's native
+    long-term credential format instead of zauth: `username` is `<unix-expiry>:<uid>`
+    and `credential` is the base64-encoded HMAC-SHA1 of the username keyed with the
+    coturn `static-auth-secret`. The endpoint is enabled by the new optional brig
+    option `turn.coturnSecret` (path to the file containing the coturn
+    static-auth-secret); while unset, `/calls/config/v3` responds with `500`.
+    Enabling `turn.coturnSecret` requires the entire advertised TURN fleet to
+    validate coturn native long-term credentials; `turn.secret` (zauth) remains
+    authoritative for `/calls/config` and `/calls/config/v2`.
+
+* The meetings endpoints (POST /meetings, PUT /meetings/{domain}/{id}, GET /meetings/{domain}/{id}, GET /meetings/list) expose a `link` field on the meeting object starting at API version V19: an https join link carrying the meeting's live join code as `key`/`code` query parameters (`<base>/meeting-join/?key=<codeKey>&code=<codeValue>&domain=<domain>`). The field is present only when the meeting has a live join code; it is omitted otherwise (e.g. meetings created before this change, deployments whose code store cannot hold meeting codes, or multi-ingress deployments with no join-link URI configured for the user's domain). The V15-V18 endpoint shapes are unchanged. (#5559)
+
+* Added the `POST /mls/messages/targeted` endpoint for persistent targeted MLS messages. (#5570, #5634)
+
+* Added `POST /mls/messages/transient-targeted` for submitting batches of transient targeted MLS messages. Messages are delivered to the specified recipient clients and are not persisted. (#5599, #5634)
+
+* Added `POST /mls/messages/transient` for submitting a single transient broadcast MLS message. Messages are delivered to connected group members and are not persisted. (#5601, #5634)
+
+* The meeting `type` is no longer accepted on `PUT /meetings/{domain}/{id}`.
+
+  `"recurrence": null` in an update body is now honored as "unset the recurrence" on all API versions (V15–V19); previously it was rejected with a 400 decode error. (#5577)
+
+* POST /meetings (V19) accepts an optional `password` field to password-protect the meeting's join link/code at creation time. (#5588)
+
+* Meeting join links are now capability-bearing query-parameter URLs (`<base>/meeting-join/?key=<codeKey>&code=<codeValue>&domain=<domain>`), mirroring conversation join links. The join endpoints are `POST /meeting/{domain}/{key}/{code}/join?password=…` and the unauthenticated `GET /meeting/{domain}/{key}/{code}/code-check?password=…`: the stable `key` addresses the code row and the rotating `code` value is the capability, so refreshing a link invalidates every previously issued URL. (#5559)
+
+* Add `GET /meeting/{domain}/{key}/{code}/code-check?password=…`, which works without authentication and returns the metadata (title, time, recurrence) of the meeting a join link resolves to (`404 meeting-not-found` for unknown, stale, or expired codes and for keys addressing a conversation code; `403 invalid-meeting-password` when the link is password-protected and the password query param is missing or wrong). Add `POST /meeting/{domain}/{key}/{code}/join?password=…` for authenticated users, which joins the meeting's conversation like `POST /conversations/join` via the link's code access (re-joining is a no-op) and returns the meeting with its conversation view. Both replace the pre-release `GET|POST /meeting-join?key=…&code=…` routes. Known trade-off: the optional `password` travels as a query parameter, so it can appear in access logs and browser history (nginz masks `password=` in its sanitized access log); it only gates joining a single meeting, not an account. (#5560)
+
+
+## Features
+
+
+* Added persistent targeted MLS messages. (#5570, #5634)
+
+* Add support for transient targeted MLS messages. (#5599, #5634)
+
+* Added transient broadcast MLS messaging, including delivery to connected members of federated conversations. (#5601, #5634)
+
+* SCIM: Allow calling /Users without a filter when the user store is backed by PostgreSQL. (#5627)
+
+* charts/wire-ingress: New `gateway.allowedListenerNamespaces` admits ListenerSets of companion charts (e.g. step-certificates) from other namespaces to the chart's Gateway; the release namespace is always admitted. With `FIPS_202205_tls_profile`, the patch now also covers attached ListenerSets that have no `ClientTrafficPolicy`. The README recommends the `XDSNameSchemeV2` runtime flag on Envoy Gateway 1.9 (with `gateway.patchPolicies.xdsNameSchemeV2: true`), because legacy listener names depend on ListenerSet creation order. The README no longer marks the chart as not ready for production. (#5600)
+
+* charts/wire-ingress: The Envoy proxy fleet created by this chart now defaults to 3 replicas with advisory node/availability-zone spread. Adds a default PDB (except if replicas is set to 1). Default `gateway.zoneAwareRouting.enabled` makes Envoy prefer backend pods in its own availability zone, cutting inter-AZ traffic cost on multi-zone clusters. New `gateway.annotations` and `gateway.infrastructure.labels`. See the wire-ingress README. (#5574)
+
+
+## Bug fixes and other updates
+
+
+* Remove nginz exposure of `/i/federation-status`. (#5614)
+
+* Stealth users are no longer returned by exact-handle searches, including
+  federated search and `POST /list-users` with `qualified_handles`. (#5596)
+
+* Fix suspended users blocking MLS messages and recovery. (#5608)
+
+* fake-aws-s3 chart: minio and mc images now default to
+  `quay.io/wire/mirror-images/minio/{minio,mc}`. As the original repository
+  sources are gone, this avoids manual overrides in Helm values. (#5592)
+
+* legalhold chart: postgresql subchart now pulls
+  `bitnamilegacy/postgresql:11.10.0` (`docker.io/bitnami` was deprovisioned).
+  Fixes image pull failures. (#5592)
+
+* Detect silent postgresql connection failures and discard connections. (#5547)
+
+
+## Documentation
+
+
+* Fix broken curl example and update link to versioned link (#5602)
+
+
+## Internal changes
+
+
+* Create new backoffice endpoint to export active users by TeamID (#5594)
+
+* Galley conversation subsystem: throw `ConversationSubsystemError` constructors
+  directly instead of relying on `mapErrors` for a set of standalone exceptions
+  (`ChannelsNotEnabled`, `NotAnMlsConversation`, `MLSNonEmptyMemberList`,
+  `NoBindingTeamMembers`, `BroadcastLimitExceeded`,
+  `MLSFederatedOne2OneNotSupported`, `CreateConversationCodeConflict`,
+  `InvalidTarget`, `MLSClientMismatch`, `MLSInvalidLeafNodeIndex`,
+  `MLSUnsupportedProposal`, `MLSFederatedResetNotSupported`,
+  `InvalidConversationPassword`, `AdminlessConversation`). The corresponding
+  `ErrorS`/`Error` entries and `mapError` lines are removed from
+  `Wire.ConversationSubsystem.Errors`. No API, schema, or config change; the
+  mapped error responses are observationally identical.
+  Galley conversation subsystem: complete the ErrorS → ConversationSubsystemError migration. All remaining internal throws (conversation actions, MLS message path, OTR messages, codes/guest links, sub-conversations, NotConnected/MLSNotEnabled) now throw `ConversationSubsystemError` constructors directly; federation boundaries map via total `cseToGalleyError`/`galleyErrorToCSE`. Dead `ErrorS` chains (`TooManyMembers`, `GroupIdVersionNotSupported`), the per-tag `HasConversationActionGalleyErrors` family, and a stray generated `libs/wire-subsystems/config` are removed. No API, schema, or config change.
+  Remaining `ErrorS` throws in `Wire.ConversationSubsystem` are migrated to
+  `ConversationSubsystemError` (MLSSubConvUnsupportedConvType, MLS message path,
+  conversation delete, cells state, conversation-code URI, conversation creation,
+  MLS proposal failures). TeamSubsystem/TeamStore boundary functions
+  (`permissionCheck`, `lookupBindingTeam`) are wrapped by local CSE variants
+  (`permissionCheckCSE`, `lookupBindingTeamCSE`). The `ErrorS` machinery
+  (`ConversationSubsystemErrorEffects` entries, `mapError` lines,
+  `RethrowErrors`/`ToGalleyRuntimeError` instances, dead `getMember`, and
+  `Update.hs`'s `-Wno-redundant-constraints`) is removed, including the last
+  four dead `ErrorS` rows in `ConversationSubsystemErrorEffects` and
+  `UpdateConversationAccessEffects`.
+  No API, schema, or config change. (#5348)
+
+* Updated email templates to v1.0.160 (#5572)
+
+* Add meeting invitation, update and cancellation email operations to the email subsystem (#5605)
+
+* added tests for basic federation use cases across Fed API versions (#5589)
+
+* Envoy-mode integration tests: teardown and `hack/bin/integration-cleanup.sh` now delete the Envoy Gateway proxies and federation Services that test runs create in `envoy-gateway-system` (deleting the test namespaces alone leaked them), and setup waits until all Gateways are programmed, as helmfile does not wait for the Envoy proxies. (#5630)
+
+* Add HIP-0015 `helm.sh/images` annotations to internal charts; `hack/bin/set-wire-server-image-version.sh` stamps the `:do-not-use` placeholder with the release version. (#5603)
+
+* wire-ingress: Use ListenerSets for application listeners and traffic policies.
+  Requires Envoy Gateway >= 1.9; for 1.9, use Kubernetes 1.33–1.36 and Gateway API 1.6.1 standard CRDs plus matching Envoy Gateway extension CRDs.
+  Federation requires `extensionApis.enableLua: true` in the controller configuration. (#5591)
+
+* SBOM generation: add placeholder Helm values so charts render without errors in
+  `hack/bin/create-helm-sboms.sh`. (#5592)
+
+
+## Federation changes
+
+
+* Added the targeted MLS message notification to development Federation API V5. The recipient backend forwards each message only to the specified recipient client. (#5570, #5634)
+
+* Federated transient targeted MLS messages through the targeted MLS message notification in development Federation API V5. Receiving backends deliver them only to the specified recipient clients and do not persist them. (#5599, #5634)
+
+* Added transient MLS broadcast message notifications to development Federation API V5. Receiving backends deliver them only to connected local clients and do not persist them. (#5601, #5634)
+
+* Federation now has a runtime-controlled development API version. It is disabled by default.
+  Runtime disabling is supported for V2 and newer versions; legacy V0 and V1 cannot be disabled. (#5582)
+
+* Added a pinned Federation API V3 backend fixture and integration-test setup for local and Kubernetes CI testing. (#5583)
+
+
 # [2026-10-05] (Chart Release 5.37.0)
 
 ## Release notes

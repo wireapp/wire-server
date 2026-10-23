@@ -1,2 +1,0 @@
-Disentangle oauth scopes (write access should not imply read access).
-`{PUT,DELETE} /meetings/<domain>/<id>` are now OAuth-accessible via `write-only:meetings` / `delete-only:meetings`.
