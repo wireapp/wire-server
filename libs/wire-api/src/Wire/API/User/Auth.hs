@@ -85,6 +85,7 @@ import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Servant
 import Web.Cookie
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.MultiVerb
 import Wire.API.User.Identity (EmailAddress, Phone)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -283,6 +284,12 @@ instance ToHttpApiData CookieLabel where
   toUrlPiece = cookieLabelText
 
 deriving instance Cql CookieLabel
+
+instance PostgresMarshall Text CookieLabel where
+  postgresMarshall = cookieLabelText
+
+instance PostgresUnmarshall Text CookieLabel where
+  postgresUnmarshall = Right . CookieLabel
 
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
