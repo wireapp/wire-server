@@ -88,6 +88,7 @@ data:
     migrateBlockList: {{ .migrateBlockList }}
     migratePasswordReset: {{ .migratePasswordReset }}
     migrateClients: {{ .migrateClients }}
+    migrateUserClientIndex: {{ .migrateUserClientIndex }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 

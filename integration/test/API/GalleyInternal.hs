@@ -196,3 +196,17 @@ isConversationOutOfSync conv = do
     Unversioned
     (joinHttpPath ["i", "conversations", convId, "out-of-sync"])
     >>= submit "GET"
+
+-- | galley internal @POST /clients/:cid@ (test-add-client): registers a client
+-- id for the user directly in the user-client index store.
+testAddClient :: (HasCallStack, MakesValue user) => user -> String -> App Response
+testAddClient user cid = do
+  baseRequest user Galley Unversioned (joinHttpPath ["clients", cid])
+    >>= submit "POST"
+
+-- | galley internal @GET /test/clients@ (test-get-clients): reads the client
+-- ids of the authenticated user from the user-client index store.
+testGetClients :: (HasCallStack, MakesValue user) => user -> App Response
+testGetClients user = do
+  baseRequest user Galley Unversioned (joinHttpPath ["test", "clients"])
+    >>= submit "GET"
