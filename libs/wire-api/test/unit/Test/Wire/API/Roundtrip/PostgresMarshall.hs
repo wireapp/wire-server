@@ -47,6 +47,7 @@ import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.Connection qualified as Connection
+import Wire.API.MLS.KeyPackage
 import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
@@ -66,6 +67,8 @@ tests =
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
       testRoundTrip @Int32 @Connection.RelationWithHistory,
+      testRoundTrip @ByteString @KeyPackageRef,
+      testRoundTrip @ByteString @KeyPackageData,
       testRoundTrip @A.Value @DbConfig
     ]
 

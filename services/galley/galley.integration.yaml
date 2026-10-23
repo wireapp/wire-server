@@ -279,6 +279,7 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   nonce: postgresql
+  mlsKeyPackages: postgresql
   passwordReset: postgresql
   customBackend: postgresql
   budget: postgresql
