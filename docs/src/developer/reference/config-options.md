@@ -2331,6 +2331,7 @@ galley:
       user: postgresql
       blockList: postgresql
       passwordReset: postgresql
+      invitations: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2372,6 +2373,7 @@ The current settings and their background-worker flags are:
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
+- `invitations` -> `migrateInvitations`
 
 **Migration pattern per migration setting**
 
@@ -2394,6 +2396,7 @@ The current settings and their background-worker flags are:
          user: migration-to-postgresql
          blockList: cassandra
          passwordReset: cassandra
+         invitations: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2403,6 +2406,7 @@ The current settings and their background-worker flags are:
        migrateUsers: false
        migrateBlockList: false
        migratePasswordReset: false
+       migrateInvitations: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2447,6 +2451,7 @@ The current settings and their background-worker flags are:
    > worker finishes migrating the valid users.
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
+- `invitations`: `wire_invitations_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2463,6 +2468,7 @@ The current settings and their background-worker flags are:
          user: postgresql
          blockList: cassandra
          passwordReset: postgresql
+         invitations: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2472,6 +2478,7 @@ The current settings and their background-worker flags are:
        migrateUsers: false
        migrateBlockList: false
        migratePasswordReset: false
+       migrateInvitations: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2562,6 +2569,7 @@ migrateTeamFeatures: false
 migrateDomainRegistration: false
 migrateBlockList: false
 migratePasswordReset: false
+migrateInvitations: false
 
 # migration settings
 migrationOptions:

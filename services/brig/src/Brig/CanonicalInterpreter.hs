@@ -113,6 +113,8 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.InvitationStore.DualWrite (interpretInvitationStoreToCassandraAndPostgres)
+import Wire.InvitationStore.Postgres (interpretInvitationStoreToPostgres)
 import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
@@ -454,6 +456,24 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
+      -- Same reasoning as passwordResetCodeStore above: InvitationStore must
+      -- be peeled at this slot, before the global Pool/UsageError providers,
+      -- so the Postgres-backed branches supply them locally (raiseUnder2 +
+      -- runInputConst + mapError).
+      invitationStoreInterpreter =
+        case e.postgresMigration.invitations of
+          CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretInvitationStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretInvitationStoreToCassandraAndPostgres e.casClient
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -497,7 +517,7 @@ runBrigToIO e (AppT ma) = do
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
-              . interpretInvitationStoreToCassandra e.casClient
+              . invitationStoreInterpreter
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
