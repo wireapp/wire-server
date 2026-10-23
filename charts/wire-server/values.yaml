@@ -99,6 +99,7 @@ galley:
       budget: cassandra
       nonce: cassandra
       connections: cassandra
+      mlsKeyPackages: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1058,6 +1059,11 @@ background-worker:
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
     migrateCustomBackend: false
+
+    # This will start the migration of mls key packages data.
+    # It's important to set `settings.postgresMigration.mlsKeyPackages` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateMlsKeyPackages: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

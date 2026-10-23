@@ -30,6 +30,7 @@ import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.CustomBackendStore.Migration
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
+import Wire.MlsKeyPackageStore.Migration (migrateMlsKeyPackagesLoop)
 import Wire.NonceStore.Migration
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
@@ -220,4 +221,19 @@ connections migOpts = do
   Log.info logger $ Log.msg (Log.val "started connections migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
+mlsKeyPackages :: MigrationOptions -> AppT IO CleanupAction
+mlsKeyPackages migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting mls key packages migration")
+  count <- register $ counter $ Prometheus.Info "wire_mls_key_packages_migrated_to_pg" "Number of mls key packages migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_mls_key_packages_migration_finished" "Whether the mls key packages migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_mls_key_packages_migration_failed" "Whether the mls key packages migration to Postgresql has failed"
+
+  migrationLoop <- async . lift $ migrateMlsKeyPackagesLoop migOpts cassClient pgPool logger count finished failed
+
+  Log.info logger $ Log.msg (Log.val "started mls key packages migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling mls key packages migration")
     cancel migrationLoop
