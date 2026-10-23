@@ -2331,6 +2331,7 @@ galley:
       user: postgresql
       blockList: postgresql
       passwordReset: postgresql
+      verificationCodes: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2339,6 +2340,7 @@ background-worker:
     migrateDomainRegistration: false
     migrateBlockList: false
     migratePasswordReset: false
+    migrateVerificationCodes: false
 ```
 
 #### Migration for existing installations
@@ -2372,6 +2374,7 @@ The current settings and their background-worker flags are:
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
+- `verificationCodes` -> `migrateVerificationCodes`
 
 **Migration pattern per migration setting**
 
@@ -2394,6 +2397,7 @@ The current settings and their background-worker flags are:
          user: migration-to-postgresql
          blockList: cassandra
          passwordReset: cassandra
+         verificationCodes: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2403,6 +2407,7 @@ The current settings and their background-worker flags are:
        migrateUsers: false
        migrateBlockList: false
        migratePasswordReset: false
+       migrateVerificationCodes: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2447,6 +2452,7 @@ The current settings and their background-worker flags are:
    > worker finishes migrating the valid users.
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
+   - `verificationCodes`: `wire_verification_codes_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2463,6 +2469,7 @@ The current settings and their background-worker flags are:
          user: postgresql
          blockList: cassandra
          passwordReset: postgresql
+         verificationCodes: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2472,6 +2479,7 @@ The current settings and their background-worker flags are:
        migrateUsers: false
        migrateBlockList: false
        migratePasswordReset: false
+       migrateVerificationCodes: false
    ```
 
 **How to run migrations independently or in batches**

@@ -31,6 +31,7 @@ import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
+import Wire.VerificationCodeStore.Migration
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
 conversations migOpts = do
@@ -163,4 +164,22 @@ passwordReset migOpts = do
   Log.info logger $ Log.msg (Log.val "started password reset migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling password reset migration")
+    cancel migrationLoop
+
+verificationCodes :: MigrationOptions -> AppT IO CleanupAction
+verificationCodes migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting verification codes migration")
+  count <- register $ counter $ Prometheus.Info "wire_verification_codes_migrated_to_pg" "Number of verification codes migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_verification_codes_migration_finished" "Whether the verification codes migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_verification_codes_migration_failed" "Whether the verification codes migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_verification_codes_migration_duration_seconds" "Duration of verification codes migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateVerificationCodesLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started verification codes migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling verification codes migration")
     cancel migrationLoop
