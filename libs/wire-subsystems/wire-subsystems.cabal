@@ -253,7 +253,10 @@ library
     Wire.BudgetStore.Cassandra
     Wire.ClientStore
     Wire.ClientStore.Cassandra
+    Wire.ClientStore.DualWrite
     Wire.ClientStore.DynamoDB
+    Wire.ClientStore.Migration
+    Wire.ClientStore.Postgres
     Wire.ClientSubsystem
     Wire.ClientSubsystem.Error
     Wire.ClientSubsystem.Interpreter
@@ -491,8 +494,6 @@ library
     Wire.TeamSubsystem.GalleyAPI
     Wire.TeamSubsystem.Interpreter
     Wire.TeamSubsystem.Util
-    Wire.UserClientIndexStore
-    Wire.UserClientIndexStore.Cassandra
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
     Wire.UserGroupSubsystem

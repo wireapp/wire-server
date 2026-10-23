@@ -61,6 +61,7 @@ migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
 migratePasswordReset: false
+migrateClients: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -95,5 +96,6 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   passwordReset: postgresql
+  clients: postgresql
   user: postgresql
   blockList: postgresql
