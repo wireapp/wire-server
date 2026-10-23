@@ -76,7 +76,9 @@ import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
 import Wire.BudgetStore.Postgres (interpretBudgetStoreToPostgres)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
+import Wire.ClientStore.DualWrite (interpretClientStoreToCassandraAndPostgres)
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
+import Wire.ClientStore.Postgres (interpretClientStoreToPostgres)
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error (clientErrorToHttpError)
 import Wire.ClientSubsystem.Interpreter
@@ -238,6 +240,7 @@ type BrigLowerLevelEffects =
      BlockListStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
+     ClientStore,
      Error UsageError,
      Error EnterpriseLoginSubsystemError,
      Error MigrationLockError,
@@ -255,7 +258,6 @@ type BrigLowerLevelEffects =
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      CryptoSign,
      HashPassword,
-     ClientStore,
      IndexedUserStore,
      SessionStore,
      PasswordStore,
@@ -438,6 +440,10 @@ runBrigToIO e (AppT ma) = do
         CassandraStorage -> interpretNonceStoreToCassandra e.casClient
         PostgresqlStorage -> interpretNonceStoreToPostgres
         MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
+      clientStore = case e.postgresMigration.clients of
+        CassandraStorage -> interpretClientStoreCassandra clientStoreCassandraEnv
+        MigrationToPostgresql -> interpretClientStoreToCassandraAndPostgres clientStoreCassandraEnv
+        PostgresqlStorage -> interpretClientStoreToPostgres
 
       -- SessionStore sits before the global runInputConst e.hasqlPool /
       -- mapError postgresUsageErrorToHttpError providers, so the Postgres-backed
@@ -565,7 +571,6 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordStore e.casClient
               . sessionStoreInterpreter
               . interpretIndexedUserStoreES indexedUserStoreConfig
-              . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
               . interpretFederationAPIAccess federationApiAccessConfig
@@ -583,6 +588,7 @@ runBrigToIO e (AppT ma) = do
               . mapError migrationLockErrorToHttpError
               . mapError enterpriseLoginSubsystemErrorToHttpError
               . mapError postgresUsageErrorToHttpError
+              . clientStore
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
               . blockListStore
