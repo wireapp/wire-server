@@ -32,9 +32,11 @@ import Data.Aeson
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString)
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
+import Wire.API.PostgresMarshall
 import Wire.API.Team.Permission (Permissions (self), permsToInt)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -85,6 +87,16 @@ data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Role)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema Role
+
+-- The Postgres encoding is fromEnum-based (0..3) and intentionally differs
+-- from the Cassandra 'Cql' instance, which uses 1..4.
+instance PostgresMarshall Int32 Role where
+  postgresMarshall = fromIntegral . fromEnum
+
+instance PostgresUnmarshall Int32 Role where
+  postgresUnmarshall n
+    | n >= 0 && n <= fromIntegral (fromEnum (maxBound @Role)) = Right (toEnum (fromIntegral n))
+    | otherwise = Left ("Unknown role: " <> Text.pack (show n))
 
 instance ToSchema Role where
   schema =
