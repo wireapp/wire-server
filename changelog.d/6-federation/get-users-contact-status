@@ -1,0 +1,1 @@
+Added `get-users-contact-status` to the Brig federation API (development version V5). Batch request per domain; the remote backend rejects more than 1000 users with 400.
