@@ -95,6 +95,7 @@
 , polysemy-wire-zoo
 , postgresql-connection-string
 , postgresql-error-codes
+, pqi-ffi
 , profunctors
 , prometheus-client
 , proto-lens
@@ -133,6 +134,7 @@
 , transformers
 , types-common
 , types-common-journal
+, tz
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -240,6 +242,7 @@ mkDerivation {
     polysemy-wire-zoo
     postgresql-connection-string
     postgresql-error-codes
+    pqi-ffi
     profunctors
     prometheus-client
     proto-lens
@@ -274,6 +277,7 @@ mkDerivation {
     transformers
     types-common
     types-common-journal
+    tz
     unliftio
     unordered-containers
     uri-bytestring
@@ -412,6 +416,7 @@ mkDerivation {
     transformers
     types-common
     types-common-journal
+    tz
     unliftio
     unordered-containers
     uri-bytestring

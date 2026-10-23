@@ -6,7 +6,7 @@ POTWIERDŹ SWÓJ ADRES EMAIL
 ${email} został zarejestrowany jako Twój nowy adres e-mail na ${brand}. Kliknij
 poniższy przycisk, aby zweryfikować swój adres.
 
-Zweryfikuj [${url}]If you can’t select the button, copy and paste this link to
+Zweryfikuj [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

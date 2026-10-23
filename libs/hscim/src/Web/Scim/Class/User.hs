@@ -49,6 +49,8 @@ data UserSite tag route = UserSite
   { usGetUsers ::
       route
         :- QueryParam "filter" Filter
+          :> QueryParam "startIndex" Int
+          :> QueryParam "count" Int
           :> Get '[SCIM] (ListResponse (StoredUser tag)),
     usGetUser ::
       route
@@ -83,6 +85,12 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   getUsers ::
     AuthInfo tag ->
     Maybe Filter ->
+    -- | startIndex, 1-based-index of the first query result. A value less than
+    -- 1 shall be interpreter as 1.
+    Maybe Int ->
+    -- | count (max results), Specifies the desired maximum number of query.
+    -- MUST NOT return more results per page.
+    Maybe Int ->
     ScimHandler m (ListResponse (StoredUser tag))
 
   -- | Get a single user by ID.
@@ -167,9 +175,9 @@ userServer ::
   UserSite tag (AsServerT (ScimHandler m))
 userServer authData =
   UserSite
-    { usGetUsers = \mbFilter -> do
+    { usGetUsers = \mbFilter mbStartIndex mbCount -> do
         auth <- authCheck @tag authData
-        getUsers @tag auth mbFilter,
+        getUsers @tag auth mbFilter mbStartIndex mbCount,
       usGetUser = \uid -> do
         auth <- authCheck @tag authData
         getUser @tag auth uid,

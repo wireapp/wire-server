@@ -123,6 +123,7 @@ library
     , time                   >=1.8
     , transformers
     , types-common
+    , wai
     , wai-utilities
     , wire-api
 
@@ -139,6 +140,7 @@ test-suite spec
     Test.Wire.API.Federation.API.BrigSpec
     Test.Wire.API.Federation.API.GalleySpec
     Test.Wire.API.Federation.API.Util
+    Test.Wire.API.Federation.API.VersionSpec
     Test.Wire.API.Federation.Golden.ConversationCreated
     Test.Wire.API.Federation.Golden.ConversationUpdate
     Test.Wire.API.Federation.Golden.GetOne2OneConversationResponse
@@ -211,6 +213,7 @@ test-suite spec
     , bytestring
     , containers
     , hspec
+    , http-types
     , HUnit
     , imports
     , QuickCheck           >=2.13
@@ -219,6 +222,7 @@ test-suite spec
     , time
     , types-common
     , uuid
+    , wai
     , wire-api
     , wire-api-federation
 

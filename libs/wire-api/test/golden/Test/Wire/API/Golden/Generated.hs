@@ -899,10 +899,10 @@ tests =
           ],
       testGroup "Golden: UserProfile_user" $
         testObjects
-          [ ( Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_1,
+          [ ( Versioned @V18 Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_1,
               "testObject_UserProfile_user_1.json"
             ),
-            ( Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_2,
+            ( Versioned @V18 Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_2,
               "testObject_UserProfile_user_2.json"
             )
           ],

@@ -33,7 +33,6 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group.Serialisation
@@ -42,6 +41,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ProposalStore
 import Wire.StoredConversation
 
@@ -65,14 +65,14 @@ logMLSClientMismatch proposalType target proposedClients heldClients gid epoch =
       . Log.field "epoch" (epochNumber epoch)
 
 getLocalConvForUser ::
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member ConversationStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r StoredConversation
 getLocalConvForUser qusr lcnv = do
-  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  conv <- getConversation (tUnqualified lcnv) >>= note ConversationSubsystemErrorConvNotFound
 
   -- check that sender is part of conversation
   isMember' <-
@@ -84,7 +84,7 @@ getLocalConvForUser qusr lcnv = do
       )
       (fmap isJust . getRemoteMember conv.id_)
       qusr
-  unless isMember' $ throwS @'ConvNotFound
+  unless isMember' $ throw ConversationSubsystemErrorConvNotFound
 
   pure conv
 
@@ -121,7 +121,7 @@ withCommitLock ::
   forall r.
   ( Member Resource r,
     Member ConversationStore r,
-    Member (ErrorS 'MLSStaleMessage) r,
+    Member (Error ConversationSubsystemError) r,
     Member MLSCommitLockStore r,
     Member TinyLog r
   ) =>
@@ -140,7 +140,7 @@ withCommitLock lConvOrSubId gid epoch =
               gid
               epoch
               Nothing
-            throwS @'MLSStaleMessage
+            throw ConversationSubsystemErrorMLSStaleMessage
       )
       ( const $ do
           releaseCommitLock gid epoch
@@ -159,7 +159,7 @@ withCommitLock lConvOrSubId gid epoch =
                   gid
                   epoch
                   (Just actualEpoch)
-                throwS @'MLSStaleMessage
+                throw ConversationSubsystemErrorMLSStaleMessage
               k ()
           )
             `onException` logCommitLockFailure "operation" lConvOrSubId gid epoch

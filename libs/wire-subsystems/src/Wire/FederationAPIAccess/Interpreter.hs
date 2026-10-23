@@ -27,6 +27,7 @@ import Polysemy
 import Util.Options
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version (Version)
 import Wire.FederationAPIAccess (FederationAPIAccess (..))
 import Wire.Sem.Concurrency
 
@@ -34,7 +35,8 @@ data FederationAPIAccessConfig = FederationAPIAccessConfig
   { ownDomain :: Domain,
     federatorEndpoint :: Maybe Endpoint,
     http2Manager :: Http2Manager,
-    requestId :: RequestId
+    requestId :: RequestId,
+    localVersions :: Set Version
   }
 
 type FederatedActionRunner fedM r = forall c x. Domain -> fedM c x -> Sem r (Either FederationError x)
@@ -66,7 +68,8 @@ interpretFederationAPIAccess config action = do
                       ceTargetDomain = remoteDomain,
                       ceFederator = fedEndpoint,
                       ceHttp2Manager = config.http2Manager,
-                      ceOriginRequestId = config.requestId
+                      ceOriginRequestId = config.requestId,
+                      ceLocalVersions = config.localVersions
                     }
             embed . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
   interpretFederationAPIAccessGeneral runner (pure isFederationConfigured) action

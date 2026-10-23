@@ -42,6 +42,7 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
+import Data.Set qualified as Set
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
@@ -57,8 +58,10 @@ import Wire.API.Push.V2 qualified as Push
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
-import Wire.API.User (UserProfile)
+import Wire.API.User (UserProfile, profileSearchable)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
@@ -95,7 +98,10 @@ federationSitemap ::
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
-  Named @"api-version" (\_ _ -> pure versionInfo)
+  ( Named @"api-version" $ \_ _ -> do
+      disabled <- asks (.disabledFederationVersions)
+      pure $ versionInfoFor (supportedVersions Set.\\ disabled)
+  )
     :<|> Named @"get-user-by-handle" getUserByHandle
     :<|> Named @"get-users-by-ids" getUsersByIds
     :<|> Named @"claim-prekey" claimPrekey
@@ -154,7 +160,7 @@ getUserByHandle ::
   ) =>
   Domain ->
   Handle ->
-  ExceptT HttpError (AppT r) (Maybe UserProfile)
+  ExceptT HttpError (AppT r) (Maybe (V.Versioned V.V18 UserProfile))
 getUserByHandle domain handle = do
   searchPolicy <- lookupSearchPolicy domain
 
@@ -172,16 +178,17 @@ getUserByHandle domain handle = do
           pure Nothing
         Just ownerId -> do
           localOwnerId <- qualifyLocal ownerId
-          liftSem $ UserSubsystem.getLocalUserProfile localOwnerId
+          mProfile <- liftSem $ UserSubsystem.getLocalUserProfile localOwnerId
+          pure $ fmap (V.Versioned @V.V18) $ mProfile >>= \profile -> if profileSearchable profile then Just profile else Nothing
 
 getUsersByIds ::
   (Member UserSubsystem r) =>
   Domain ->
   [UserId] ->
-  ExceptT HttpError (AppT r) [UserProfile]
+  ExceptT HttpError (AppT r) [V.Versioned V.V18 UserProfile]
 getUsersByIds _ uids = do
   luids <- qualifyLocal uids
-  lift $ liftSem $ UserSubsystem.getLocalUserProfiles luids
+  lift $ liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfiles luids
 
 claimPrekey ::
   (Member ClientSubsystem r) =>
@@ -269,7 +276,9 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
               mFoundUserTeamId <- lift $ liftSem $ UserStore.getUserTeam foundUser
               localFoundUser <- qualifyLocal foundUser
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
-                then lift . liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser
+                then do
+                  mFoundUser <- lift . liftSem $ UserSubsystem.getLocalUserProfile localFoundUser
+                  fmap contactFromProfile <$> filterHandleResults localFoundUser (maybeToList mFoundUser)
                 else pure []
           let filterTypes = case mbUserTypeFilter of
                 Just [] -> id
@@ -286,15 +295,15 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
 getUserClients :: (Member ClientSubsystem r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = lift (liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientErrorToHttpError
 
-getMLSClients :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
+getMLSClients :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
   Internal.getMLSClientsH mcr.userId mcr.cipherSuite
 
-getMLSClient :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientRequest -> Handler r ClientInfo
+getMLSClient :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientRequest -> Handler r ClientInfo
 getMLSClient _domain mcr =
   Internal.getMLSClientH mcr.userId mcr.clientId mcr.cipherSuite
 
-getMLSClientsV0 :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
+getMLSClientsV0 :: (Member UserStore r, Member ClientStore r, Member MlsKeyPackageSubsystem r) => Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
 getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0)
 
 onUserDeleted ::

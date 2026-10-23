@@ -38,6 +38,7 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     GetRichInfoMultiResponse (..),
     GetBy (..),
+    GetScimUsersPaginated,
     getByNoFilters,
     CreateGroupInternalRequest (..),
     UpdateGroupInternalRequest (..),
@@ -64,6 +65,7 @@ import Data.Misc (PlainTextPassword8)
 import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified, qualifiedSchema)
+import Data.Range
 import Data.Schema hiding (swaggerDoc)
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
@@ -81,6 +83,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
+import Wire.API.Pagination
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -784,6 +787,7 @@ type TeamsAPI =
     :<|> UnsuspendTeam
     :<|> TeamSize
     :<|> TeamInvitations
+    :<|> GetScimUsersPaginated
 
 type InvitationByEmail =
   Named
@@ -853,6 +857,18 @@ type TeamInvitations =
         :> "invitations"
         :> Servant.ReqBody '[JSON] NewUserScimInvitation
         :> Post '[JSON] User
+    )
+
+type GetScimUsersPaginated =
+  Named
+    "get-scim-users-paginated"
+    ( Summary "Offset based pagination of scim users in a team"
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "scim-users"
+        :> QueryParam' [Required, Strict] "page_size" (Range 0 500 Int32)
+        :> QueryParam' [Optional, Strict] "offset" Int32
+        :> Get '[JSON] (OffsetPage User)
     )
 
 type UserAPI =

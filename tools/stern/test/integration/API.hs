@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,13 +24,16 @@
 
 module API (tests) where
 
-import Bilge
+import Bilge hiding (head)
 import Bilge.Assert
+import Bilge.RPC (parseResponseLBS)
 import Control.Applicative
+import Control.Exception (ErrorCall (..))
 import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy.Char8 qualified as B8
 import Data.Default
 import Data.Handle
 import Data.Id
@@ -99,6 +103,7 @@ tests s =
       test s "PUT /teams/:tid/features/outlookCalIntegration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @OutlookCalIntegrationConfig,
       test s "GET /i/consent" testGetConsentLog,
       test s "GET /teams/:id" testGetTeamInfo,
+      test s "GET /teams/:id/members/csv" testMemberCsv,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
       test s "/teams/:tid/search-visibility" testSearchVisibility,
       test s "/sso-domain-redirect" testRudSsoDomainRedirect,
@@ -260,6 +265,24 @@ testDeleteTeam = do
   eventually $ do
     info <- getTeamInfo tid
     liftIO $ assertEqual "team status should be 'Deleted'" Team.Deleted info.tiData.tdStatus
+
+testMemberCsv :: TestM ()
+testMemberCsv = do
+  (uid, tid, mids) <- createTeamWithNMembers 1
+  do
+    (getMembersCsv tid) >>= \csvBS -> do
+      let rows = sort $ tail $ B8.lines $ csvBS
+      -- two people in the team, creator and member
+      liftIO $ length rows @?= 2
+      for_ rows $ \row -> do
+        let cols = B8.split ',' row
+            parseField = unquote . read . B8.unpack . (cols !!)
+        -- team member we created and creator must be present
+        liftIO $ assertBool "team member id in csv" $ parseField 11 `elem` map show (uid : mids)
+  where
+    unquote :: String -> String
+    unquote ('\'' : x) = x
+    unquote x = x
 
 testEjpdInfo :: TestM ()
 testEjpdInfo = do
@@ -711,6 +734,12 @@ getTeamInfo tid = do
   stern <- view tsStern
   r <- get (stern . paths ["teams", toByteString' tid] . expect2xx)
   pure $ responseJsonUnsafe r
+
+getMembersCsv :: TeamId -> TestM LByteString
+getMembersCsv tid = do
+  stern <- view tsStern
+  r <- get (stern . paths ["teams", toByteString' tid, "members", "csv"] . expect2xx)
+  parseResponseLBS (\lText -> ErrorCall $ show lText) r
 
 searchUsers :: UserId -> TestM (SearchResult Contact)
 searchUsers uid = do

@@ -5,14 +5,14 @@ ${brand_label_url} [${brand_url}]
 TEAM INVITATION
 ${inviter} has invited you to join a team on Wire.
 
-Join Team [${url}]Or open this link in your browser:
+Join Team [${url}] Or open this link in your browser:
 ${url} [${url}]
 
 Report abusive invitation link [${support}]
 
-What is Wire?Wire is the most secure collaboration platform. Work with your team
-and external partners wherever you are through messages, video conferencing and
-file sharing – always secured with end-to-end-encryption.
+What is Wire? Wire is the most secure collaboration platform. Work with your
+team and external partners wherever you are through messages, video conferencing
+and file sharing – always secured with end-to-end-encryption.
 Learn more [https://wire.com/].
 
 Any questions? Contact us [${support}]

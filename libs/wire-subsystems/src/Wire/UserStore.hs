@@ -26,6 +26,7 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Error
+import Wire.API.Pagination
 import Wire.API.Password
 import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User
@@ -74,6 +75,11 @@ data UserStore m a where
   GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
   DoesUserExist :: UserId -> UserStore m Bool
   GetIndexUsersPaginated :: Int32 -> Maybe (GeneralPaginationState UserPageMarker) -> UserStore m (PageWithState UserPageMarker IndexUser)
+  -- | Returns a 'Maybe' because cassandra doesn't support this.
+  GetScimUsersPaginated :: TeamId -> [UserId] -> Int32 -> Maybe Int32 -> UserStore m (Maybe (OffsetPage StoredUser))
+  -- | Pending SCIM users with an email identity, for invitation expiration checks.
+  -- Returns 'Nothing' when offset pagination is unsupported.
+  GetPendingScimUsers :: TeamId -> UserStore m (Maybe [(UserId, EmailAddress)])
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateEmail :: UserId -> EmailAddress -> UserStore m ()

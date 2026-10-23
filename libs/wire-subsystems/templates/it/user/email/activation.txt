@@ -6,8 +6,8 @@ VERIFICA IL TUO INDIRIZZO E-MAIL
 ${email} è stato utilizzata per registrarsi su ${brand}.
 Clicca il pulsante per verificare il tuo indirizzo.
 
-Verifica [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verifica [${url}] Se non riesci a selezionare il pulsante, copia e incolla
+questo link nel browser:
 
 ${url}
 

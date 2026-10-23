@@ -17,9 +17,14 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   targetRefs:
+    {{- range $domain := include "wire-ingress.domains" . | fromJsonArray }}
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      name: {{ include "wire-ingress.fullname" . }}-nginz-websockets
+      name: {{ include "wire-ingress.fullname" $ }}-nginz-websockets{{ $domain.suffix }}
+    {{- end }}
+  {{- if .Values.gateway.zoneAwareRouting.enabled }}
+  mergeType: StrategicMerge
+  {{- end }}
   timeout:
     http:
       streamIdleTimeout: "0s"

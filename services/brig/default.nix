@@ -361,6 +361,7 @@ mkDerivation {
     base
     binary
     bytestring
+    bytestring-conversion
     containers
     data-timeout
     dns

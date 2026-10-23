@@ -79,6 +79,21 @@ if (( EXIT_CODE > 0)); then
 fi
 set -e
 
+# Envoy Gateway creates the proxies asynchronously, outside the Helm releases,
+# so helmfile does not wait for them. Wait until every Gateway is programmed,
+# i.e. its proxy has available replicas.
+if [[ "$WIRE_INGRESS_MODE" == "envoy" ]]; then
+    for namespace in "$NAMESPACE_1" "$NAMESPACE_2"; do
+        echo "Waiting for Gateways in '$namespace' to be programmed..."
+        if ! kubectl -n "$namespace" wait gateways.gateway.networking.k8s.io --all --for=condition=Programmed --timeout=300s; then
+            echo "!! Gateways in '$namespace' not programmed. Attempting to get some more information ..."
+            kubectl -n "$namespace" get gateways.gateway.networking.k8s.io -o yaml
+            kubectl -n "$ENVOY_GATEWAY_NAMESPACE" get pods -o wide -l "gateway.envoyproxy.io/owning-gateway-namespace=$namespace"
+            exit 1
+        fi
+    done
+fi
+
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
     SNS_POD=$(kubectl -n "${NAMESPACE_1}" get pods | grep fake-aws-sns | grep Running | awk '{print $1}')

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Script to delete any integration namespaces prefixed with `test-` older than 2 hours.
-# Also deletes leftover nginx ingress classes.
+# Also deletes leftover nginx ingress classes and Envoy Gateway objects.
 #
 # Motivation: cleanup of old test clusters that were not deleted (e.g. by the CI system, because it broke)
 
@@ -33,3 +33,4 @@ else
 fi
 
 "${DIR}/integration-teardown-ingress-classes.sh"
+"${DIR}/integration-cleanup-envoy.sh" || echo "Failed to delete Envoy Gateway leftovers; continuing..."

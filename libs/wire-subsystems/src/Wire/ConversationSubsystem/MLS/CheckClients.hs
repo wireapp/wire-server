@@ -36,7 +36,6 @@ import Polysemy.Async (Async)
 import Polysemy.Async qualified as P
 import Polysemy.Error
 import Polysemy.TinyLog (TinyLog)
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -48,6 +47,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.User.Client
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.ConversationSubsystem.MLS.Util (logMLSClientMismatch)
 import Wire.FederationAPIAccess (FederationAPIAccess)
@@ -55,8 +55,7 @@ import Wire.FederationAPIAccess (FederationAPIAccess)
 checkClients ::
   ( Member BrigAPIAccess r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS MLSClientMismatch) r,
-    Member (ErrorS MLSIdentityMismatch) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r,
     Member (Error InternalError) r,
     Member TinyLog r,
@@ -142,7 +141,7 @@ checkClients lConvOrSub ciphersuite gid epoch newCM = do
                 (foldMap Map.keysSet (cmLookup qtarget cm))
                 gid
                 epoch
-              throwS @'MLSClientMismatch
+              throw ConversationSubsystemErrorMLSClientMismatch
 
           pure False
 

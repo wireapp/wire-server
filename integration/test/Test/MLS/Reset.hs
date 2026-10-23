@@ -22,7 +22,7 @@ import MLS.Util
 import Notifications (isConvResetNotif)
 import SetupHelpers
 import Testlib.Prelude
-import Testlib.VersionedFed
+import Testlib.VersionedFed (AnyFedDomain, unFedDomain)
 
 testResetGroupConversation :: (HasCallStack) => Domain -> App ()
 testResetGroupConversation domain = do
@@ -148,7 +148,9 @@ testResetMixedConversation domain = do
   otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
 
 testResetWithLegacyBackend :: (HasCallStack) => AnyFedDomain -> App ()
-testResetWithLegacyBackend domain = when (unFedDomain domain > 0) $ do
+-- V0 does not support this reset flow, and V3 supports GroupIdVersion2. The
+-- assertions below therefore apply only to the V1 and V2 backends.
+testResetWithLegacyBackend domain = when (unFedDomain domain > 0 && unFedDomain domain <= 2) $ do
   let suite = Ciphersuite "0x0001"
   [alice, bob, charlie] <- createAndConnectUsers [make OwnDomain, make OtherDomain, make domain]
   [alice1, bob1, charlie1] <-

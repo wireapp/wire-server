@@ -6,7 +6,7 @@ TWOJE NOWE KONTO NA ${brand}
 Nowy zespół ${brand} został utworzony z ${email}. Prosimy, zweryfikuj swój adres
 email.
 
-Zweryfikuj [${url}]If you can’t select the button, copy and paste this link to
+Zweryfikuj [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

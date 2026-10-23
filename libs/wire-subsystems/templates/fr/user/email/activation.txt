@@ -6,8 +6,8 @@ VÉRIFICATION DE VOTRE ADRESSE EMAIL
 ${email} a été utilisé pour s'enregistrer sur ${brand}.
 Cliquez sur le bouton ci-dessous pour vérifier votre adresse.
 
-Vérifier [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Vérifier [${url}] Si vous ne pouvez pas sélectionner le bouton, copiez-collez ce
+lien dans votre navigateur :
 
 ${url}
 

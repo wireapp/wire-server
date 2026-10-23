@@ -79,7 +79,8 @@ data FederatorClientEnv = FederatorClientEnv
     ceTargetDomain :: Domain,
     ceFederator :: Endpoint,
     ceHttp2Manager :: Http2Manager,
-    ceOriginRequestId :: RequestId
+    ceOriginRequestId :: RequestId,
+    ceLocalVersions :: Set Version
   }
 
 data FederatorClientVersionedEnv = FederatorClientVersionedEnv
@@ -319,7 +320,7 @@ runFederatorClientToCodensity env action = runExceptT $ do
   v <-
     runVersionedFederatorClientToCodensity
       (FederatorClientVersionedEnv env Nothing)
-      (versionNegotiation supportedVersions)
+      (versionNegotiation env.ceLocalVersions)
   runVersionedFederatorClientToCodensity @c
     (FederatorClientVersionedEnv env (Just v))
     action

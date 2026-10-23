@@ -5,12 +5,9 @@
 {{- if or .Values.gateway.patchPolicies.targetGatewayClass .Values.gateway.envoyProxy.spec.mergeGateways }}
 {{- fail "FIPS_202205_tls_profile requires a dedicated Gateway: mergeGateways and GatewayClass-wide patching change the generated listener names this patch targets" }}
 {{- end }}
-{{/* gateway.tls.enabled is load-bearing, not cosmetic: the patch adds a key
-     inside common_tls_context.tls_params, a node Envoy Gateway emits only when a
-     ClientTrafficPolicy sets TLS parameters. With an externally created Gateway,
-     also verify this chart's ClientTrafficPolicy is the one that won — a
-     pre-existing policy on the same target makes ours Conflicted, dropping
-     tls_params and silently voiding this patch. */}}
+{{/* gateway.tls.enabled is load-bearing, not cosmetic: when the patch matches
+     nothing (e.g. a wrong xdsNameSchemeV2), this chart's ClientTrafficPolicy is
+     what keeps its listeners on the restrictive TLS 1.2-only baseline. */}}
 {{- if or (not .Values.gateway.tls.enabled) (not .Values.gateway.patchPolicies.enabled) }}
 {{- fail "FIPS_202205_tls_profile requires gateway.tls.enabled and gateway.patchPolicies.enabled" }}
 {{- end }}
@@ -46,13 +43,17 @@ spec:
       {{- /* Legacy scheme names the socket after the FIRST listener on the port,
            so this defaults to the HTTPS section. Override via xdsListenerName
            if an externally created Gateway declares another listener first. */}}
-      name: {{ printf "%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) (include "wire-ingress.httpsSectionName" .) | quote }}
+      name: {{ printf "%s/%s/%s/%s/%s" .Release.Namespace (include "wire-ingress.gatewayName" .) .Release.Namespace (include "wire-ingress.fullname" .) (include "wire-ingress.httpsSectionName" .) | quote }}
       {{- end }}
       operation:
         op: add
-        # All TLS filter chains on this socket, including federation and
-        # additional domains. Never assume filter_chains[0] is the only one.
-        jsonPath: "$.filter_chains[*].transport_socket.typed_config.common_tls_context.tls_params"
-        path: compliance_policies
-        value: [FIPS_202205]
+        # All TLS filter chains on this socket, including federation, additional
+        # domains and ListenerSets of other releases (e.g. sftd). Never assume
+        # filter_chains[0] is the only one. Replaces tls_params whole, so chains
+        # without a ClientTrafficPolicy are covered too; FIPS_202205 overrides
+        # their versions, ciphers, groups and signature algorithms anyway.
+        jsonPath: "$.filter_chains[*].transport_socket.typed_config.common_tls_context"
+        path: tls_params
+        value:
+          compliance_policies: [FIPS_202205]
 {{- end }}

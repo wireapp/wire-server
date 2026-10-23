@@ -10,8 +10,8 @@ jetzt Besitzer des Teams (${team_name}).
 Laden Sie andere Personen ein, Ihrem Team beizutreten, und passen Sie die
 Einstellungen im Team-Management an.
 
-TEAM-MANAGEMENT ÖFFNEN [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
-kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
+TEAM-MANAGEMENT ÖFFNEN [${url}] Wenn Sie die Schaltfläche nicht auswählen
+können, kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 

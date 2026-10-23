@@ -71,9 +71,13 @@ parseVersion req = do
 looksLikeVersion :: Text -> Bool
 looksLikeVersion version = case T.splitAt 1 version of (h, t) -> h == "v" && T.all isDigit t
 
--- | swagger-delivering end-points are not disableable: they should work for all versions.
+-- | Some endpoints are not disableable: they should work for all versions.
 requestIsDisableable :: Request -> Bool
 requestIsDisableable (pathInfo -> path) = case path of
+  -- Federation versions are controlled independently by the federation
+  -- middleware. The public API disabled-version setting must not reject a
+  -- version-prefixed federation request before that middleware sees it.
+  ("federation" : _) -> False
   ("api" : "swagger-ui" : _) -> False
   ("api" : "swagger.json" : _) -> False
   _ -> True

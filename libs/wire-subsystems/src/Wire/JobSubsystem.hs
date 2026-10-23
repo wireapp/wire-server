@@ -19,6 +19,8 @@
 
 module Wire.JobSubsystem
   ( JobSubsystemConfig (..),
+    defaultJobSubsystemConfig,
+    arbiterSchemaName,
     JobSubsystem (..),
     scheduleAdminlessSetupJob,
     scheduleAdminlessDeletionJob,
@@ -27,6 +29,7 @@ module Wire.JobSubsystem
   )
 where
 
+import Arbiter.Core (SchemaName)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
@@ -37,6 +40,12 @@ import Polysemy
 data JobSubsystemConfig = JobSubsystemConfig
   { jobSubsystemSchemaName :: Text
   }
+
+defaultJobSubsystemConfig :: JobSubsystemConfig
+defaultJobSubsystemConfig = JobSubsystemConfig {jobSubsystemSchemaName = arbiterSchemaName}
+
+arbiterSchemaName :: SchemaName
+arbiterSchemaName = "arbiter"
 
 data JobSubsystem m a where
   ScheduleAdminlessSetupJob :: Maybe (Local UserId) -> TeamId -> JobSubsystem m ()

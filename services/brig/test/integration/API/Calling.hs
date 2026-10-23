@@ -215,7 +215,7 @@ testCallsConfigV2SRV b opts = do
 assertConfiguration :: (HasCallStack) => RTCConfiguration -> NonEmpty TurnURI -> Http ()
 assertConfiguration cfg expected = do
   let actual = concatMap (toList . view iceURLs) $ toList $ cfg ^. rtcConfIceServers
-  liftIO $ assertEqual "Expected adverstised TURN servers to match actual ones" (sort $ toList expected) (sort actual)
+  liftIO $ assertEqual "Expected advertised TURN servers to match actual ones" (sort $ toList expected) (sort actual)
 
 getTurnConfigurationV1 :: UserId -> Brig -> Http RTCConfiguration
 getTurnConfigurationV1 = getAndValidateTurnConfiguration ""

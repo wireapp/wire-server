@@ -26,6 +26,7 @@ module Wire.Options.Galley
     maxConvSize,
     intraListing,
     disabledAPIVersions,
+    disabledFederationAPIVersions,
     conversationCodeURI,
     multiIngress,
     concurrentDeletionEvents,
@@ -88,6 +89,7 @@ import System.Logger.Extended (Level, LogFormat)
 import Util.Options hiding (endpoint)
 import Util.Options.Common
 import Wire.API.Conversation.Protocol
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Routes.Version
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
@@ -167,6 +169,7 @@ data Settings = Settings
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,
     _disabledAPIVersions :: !(Set VersionExp),
+    _disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp),
     -- | The lifetime of a conversation guest link in seconds with the maximum of 1 year (31536000 seconds).
     -- If not set use the default `defGuestLinkTTLSeconds`
     _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),

@@ -59,8 +59,9 @@ import Util
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
-import Wire.API.Federation.Version
 import Wire.API.Routes.FederationDomainConfig as FD
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User as User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -89,8 +90,7 @@ tests m opts brig fedBrigClient =
         test m "POST /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
-        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
+        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -247,7 +247,7 @@ testGetUserByHandleRestrictions opts brig = do
         maybeUserProfile <-
           runWaiTestFedClient domain $
             createWaiTestFedClient @"get-user-by-handle" @'Brig handle
-        liftIO $ assertEqual "Unexpected search result" expectedUser (profileQualifiedId <$> maybeUserProfile)
+        liftIO $ assertEqual "Unexpected search result" expectedUser (profileQualifiedId . V.unVersioned @V.V18 <$> maybeUserProfile)
 
   withSettingsOverrides opts' $ do
     expectSearch domainNoSearch Nothing
@@ -269,7 +269,7 @@ testGetUserByHandleSuccess opts brig = do
   liftIO $ do
     case maybeProfile of
       Nothing -> assertFailure "Expected to find profile, found Nothing"
-      Just profile -> do
+      Just (V.Versioned @V.V18 profile) -> do
         assertEqual "should return correct user Id" quid (profileQualifiedId profile)
         assertEqual "should not have email address" Nothing (profileEmail profile)
 
@@ -295,8 +295,8 @@ testGetUsersByIdsSuccess brig fedBrigClient = do
       quid2 = userQualifiedId user2
   profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [uid1, uid2]
   liftIO $ do
-    assertEqual "should return correct user Id" (Set.fromList [quid1, quid2]) (Set.fromList $ profileQualifiedId <$> profiles)
-    assertEqual "should not have email address" [Nothing, Nothing] (map profileEmail profiles)
+    assertEqual "should return correct user Id" (Set.fromList [quid1, quid2]) (Set.fromList $ profileQualifiedId <$> fmap V.unVersioned profiles)
+    assertEqual "should not have email address" [Nothing, Nothing] (map profileEmail $ fmap V.unVersioned profiles)
 
 testGetUsersByIdsPartial :: Brig -> FedClient 'Brig -> Http ()
 testGetUsersByIdsPartial brig fedBrigClient = do
@@ -306,7 +306,7 @@ testGetUsersByIdsPartial brig fedBrigClient = do
     runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") $
       [User.userId presentUser, absentUserId]
   liftIO $
-    assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
+    assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> fmap V.unVersioned profiles)
 
 testGetUsersByIdsFederationRestrictionAllowAllFound :: FedClient 'Brig -> Http ()
 testGetUsersByIdsFederationRestrictionAllowAllFound fedBrigClient = do
@@ -386,8 +386,3 @@ testGetUserClientsNotFound fedBrigClient = do
       "client set for user should match"
       (Just (Set.fromList []))
       (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)
-
-testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
-testAPIVersion _brig fedBrigClient = do
-  vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
-  liftIO $ vinfoSupported vinfo @?= map versionInt (toList supportedVersions)

@@ -26,3 +26,9 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+
+# bitnami removed old tags from docker.io/bitnami; the legacy repo keeps them
+postgresql:
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: 11.10.0

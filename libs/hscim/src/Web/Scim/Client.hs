@@ -115,6 +115,8 @@ getUsers ::
   ClientEnv ->
   Maybe (AuthData tag) ->
   Maybe Filter ->
+  Maybe Int ->
+  Maybe Int ->
   IO (ListResponse (StoredUser tag))
 getUsers env tok = case users (scimClients env) tok of ((r :<|> (_ :<|> _)) :<|> (_ :<|> (_ :<|> _))) -> r
 

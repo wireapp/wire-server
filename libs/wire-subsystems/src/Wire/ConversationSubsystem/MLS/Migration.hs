@@ -26,6 +26,7 @@ import Polysemy.Error (Error)
 import Wire.API.Federation.API
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.BrigAPIAccess
@@ -76,4 +77,4 @@ checkMigrationCriteria now conv ws
         . runFederatedConcurrently (map (.id_) conv.mcRemoteMembers)
         $ \ruids ->
           fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
-      pure $ all (containsMLS . profileSupportedProtocols) remoteProfiles
+      pure $ all ((containsMLS . profileSupportedProtocols) . V.unVersioned) remoteProfiles

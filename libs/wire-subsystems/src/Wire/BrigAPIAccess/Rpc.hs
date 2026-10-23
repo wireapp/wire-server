@@ -27,6 +27,7 @@ import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Data.Range
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
 import Imports
@@ -49,6 +50,7 @@ import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
+import Wire.API.Pagination
 import Wire.API.Routes.Internal.Brig (CreateGroupInternalRequest (..), GetBy, IdpChangedNotification (..), UpdateGroupInternalRequest (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
@@ -191,6 +193,8 @@ interpretBrigAccess brigEndpoint =
         checkAdminGetTeamId uid
       SendSAMLIdPChangedEmail notif ->
         sendSAMLIdPChangedEmail notif
+      GetScimUsersPaginated tid maxResults mOffset ->
+        getScimUsersPaginated tid maxResults mOffset
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -1170,3 +1174,29 @@ sendSAMLIdPChangedEmail notif = do
         . json notif
   unless (statusCode resp == 200) $
     rethrow "brig" resp
+
+getScimUsersPaginated ::
+  ( Member (Input Endpoint) r,
+    Member Rpc r,
+    Member (Error RpcException) r,
+    Member (Error ParseException) r
+  ) =>
+  TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage User))
+getScimUsersPaginated tid pageSize mOffset = do
+  resp <-
+    brigRequest $
+      method GET
+        . paths ["/i/teams", toByteString' tid, "scim-users"]
+        . queryItem "page_size" (toByteString' pageSize)
+        . maybe id (queryItem "offset" . toByteString') mOffset
+  case statusCode resp of
+    200 -> Just <$> decodeBodyOrThrow "brig" resp
+    400 -> do
+      errorBody <- decodeBodyOrThrow @Wai.Error "brig" resp
+      if errorBody.label == "offset-pagination-not-supported"
+        then pure Nothing
+        else rethrow "brig" resp
+    404 ->
+      -- Consider 404 as same as offset-pagination-not-supported
+      pure Nothing
+    _ -> rethrow "brig" resp

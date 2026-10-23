@@ -5,6 +5,7 @@
 { mkDerivation
 , base
 , bytestring
+, case-insensitive
 , containers
 , hs-opentelemetry-api
 , hs-opentelemetry-instrumentation-http-client
@@ -27,6 +28,7 @@ mkDerivation {
   libraryHaskellDepends = [
     base
     bytestring
+    case-insensitive
     containers
     hs-opentelemetry-api
     hs-opentelemetry-instrumentation-http-client

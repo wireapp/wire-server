@@ -29,6 +29,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.State
+import Wire.API.Pagination (OffsetPage (..))
 import Wire.API.Password
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
@@ -116,6 +117,23 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
     pure $ storedUserToIndexUser <$> mUser
   GetIndexUsersPaginated _pageSize _pagingState ->
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
+  GetPendingScimUsers tid -> do
+    users <- get @[StoredUser]
+    pure $ Just $ do
+      user <- users
+      guard $ user.teamId == Just tid && user.managedBy == Just ManagedByScim
+      guard $ user.status == Just PendingInvitation && user.activated
+      email <- maybeToList user.email
+      pure (user.id, email)
+  GetScimUsersPaginated tid excludedIds pageSize mOffset -> do
+    users <- get @[StoredUser]
+    let eligible = sortOn (.id) $ filter (\user -> user.teamId == Just tid && user.managedBy == Just ManagedByScim && user.id `notElem` excludedIds) users
+    pure $
+      Just
+        OffsetPage
+          { results = take (fromIntegral pageSize) $ drop (fromIntegral $ max 0 $ fromMaybe 0 mOffset) eligible,
+            totalResults = fromIntegral $ length eligible
+          }
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser

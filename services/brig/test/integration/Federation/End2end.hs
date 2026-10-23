@@ -56,6 +56,8 @@ import Wire.API.Internal.Notification
 import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User hiding (assetKey)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -134,7 +136,7 @@ testGetUsersById brig1 brig2 = do
     !!! do
       const 200 === statusCode
       const (Just expected)
-        === fmap (sort . map profileQualifiedId)
+        === fmap (sort . map (profileQualifiedId . V.unVersioned @V.V18))
           . responseJsonMaybe
 
 testClaimPrekeySuccess :: Brig -> Brig -> Http ()

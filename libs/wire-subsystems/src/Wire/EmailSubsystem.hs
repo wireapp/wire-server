@@ -27,6 +27,7 @@ import Polysemy
 import SAML2.WebSSO
 import URI.ByteString (URI)
 import Wire.API.Locale
+import Wire.API.Meeting (Meeting)
 import Wire.API.User
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Client (Client (..))
@@ -61,5 +62,11 @@ data EmailSubsystem m a where
     Maybe URI ->
     Maybe Locale ->
     EmailSubsystem m ()
+  -- | Send a meeting invitation email to one invited email address.
+  SendMeetingInvitationEmail :: EmailAddress -> Text -> EmailAddress -> Meeting -> Maybe Locale -> EmailSubsystem m ()
+  -- | Send a meeting update email to one invited email address.
+  SendMeetingUpdateEmail :: EmailAddress -> Text -> EmailAddress -> Meeting -> Text -> Maybe Locale -> EmailSubsystem m ()
+  -- | Send a meeting cancellation email to one invited email address.
+  SendMeetingCancelEmail :: EmailAddress -> Text -> EmailAddress -> Meeting -> Maybe Locale -> EmailSubsystem m ()
 
 makeSem ''EmailSubsystem

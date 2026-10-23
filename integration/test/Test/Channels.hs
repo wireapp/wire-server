@@ -20,6 +20,7 @@
 module Test.Channels where
 
 import API.Brig
+import qualified API.BrigInternal as BrigI
 import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
@@ -852,6 +853,63 @@ testOutOfSyncError = do
     mp <- createAddCommit alice1 convId [bob, charlie]
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
       resp.status `shouldMatchInt` 201
+
+testOutOfSyncSuspendedUser :: (HasCallStack) => Domain -> App ()
+testOutOfSyncSuspendedUser domain = do
+  (owner, tid, [alice, bob]) <- createTeam OwnDomain 3
+  charlie <- randomUser domain def
+  connectTwoUsers owner charlie
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ supportMLS [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  ch <- postConversation alice1 defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId ch
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- Charlie belongs to the conversation, but not to its MLS group.
+  void $ addMembersToChannel owner convId def {users = [charlie]} >>= getJSON 200
+
+  let assertOutOfSync = do
+        flag <- isConversationOutOfSync convId >>= getJSON 200
+        flag `shouldMatch` True
+      assertSendingBlocked = do
+        mp <- createApplicationMessage convId alice1 "blocked while Charlie is active"
+        bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+          resp.status `shouldMatchInt` 409
+          resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+          resp.json %. "missing_users" `shouldMatchSet` (traverse objQidObject [charlie])
+
+  assertOutOfSync
+  assertSendingBlocked
+
+  BrigI.setAccountStatus charlie "suspended" >>= assertSuccess
+
+  -- Suspension alone should unblock delivery, without a recovery commit.
+  void $ createApplicationMessage convId alice1 "Charlie is suspended" >>= sendAndConsumeMessage
+  assertOutOfSync
+  bindResponse (claimKeyPackages def alice1 charlie) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "key_packages" >>= asList >>= shouldBeEmpty
+
+  BrigI.setAccountStatus charlie "active" >>= assertSuccess
+  assertOutOfSync
+  assertSendingBlocked
+
+  -- The package uploaded before suspension is available again. Use that
+  -- claimed package directly so recovery does not need another upload/claim.
+  bundle <- claimKeyPackages def alice1 charlie >>= getJSON 200
+  packages <- unbundleKeyPackages bundle
+  length packages `shouldMatchInt` 1
+  void $ createAddCommitWithKeyPackages alice1 convId packages Nothing >>= sendAndConsumeCommitBundle
+
+  flag <- isConversationOutOfSync convId >>= getJSON 200
+  flag `shouldMatch` False
+  void $ createApplicationMessage convId alice1 "Charlie has joined" >>= sendAndConsumeMessage
+  void $ createApplicationMessage convId charlie1 "recovery complete" >>= sendAndConsumeMessage
 
 testOutOfSyncFederation :: (HasCallStack) => App ()
 testOutOfSyncFederation = do

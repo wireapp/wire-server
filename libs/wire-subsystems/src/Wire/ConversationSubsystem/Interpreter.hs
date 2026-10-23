@@ -176,6 +176,12 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
   PostMLSMessageFromLocalUser v lusr c conn smsg ->
     mapErrors $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
+  PostMLSTargetedMessagesFromLocalUser lusr c batch ->
+    mapErrors $ MLSMessage.postMLSTargetedMessagesFromLocalUser lusr c batch
+  PostMLSTransientTargetedMessageFromLocalUser lusr c message ->
+    mapErrors $ MLSMessage.postMLSTransientTargetedMessageFromLocalUser lusr c message
+  PostMLSTransientMessageFromLocalUser lusr c message ->
+    mapErrors $ MLSMessage.postMLSTransientMessageFromLocalUser lusr c message
   IsMLSEnabled ->
     mapErrors $ MLSEnabled.isMLSEnabled
   GetConversationsInternal luser mids mstart msize ->
@@ -194,6 +200,10 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.mlsSendWelcome domain req
   FederationSendMLSMessage domain msr ->
     mapErrors $ Federation.sendMLSMessage domain msr
+  FederationSendMLSTargetedMessage domain msr ->
+    mapErrors $ Federation.sendMLSTargetedMessage domain msr
+  FederationSendMLSTransientMessage domain msr ->
+    mapErrors $ Federation.sendMLSTransientMessage domain msr
   FederationSendMLSCommitBundle domain msr ->
     mapErrors $ Federation.sendMLSCommitBundle domain msr
   FederationQueryGroupInfo domain req ->
@@ -218,6 +228,10 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.onMessageSent domain rm
   FederationOnMLSMessageSent domain rmm ->
     mapErrors $ Federation.onMLSMessageSent domain rmm
+  FederationOnMLSTransientMessageSent domain rmm ->
+    mapErrors $ Federation.onMLSTransientMessageSent domain rmm
+  FederationOnMLSTargetedMessageSent domain rmm ->
+    mapErrors $ Federation.onMLSTargetedMessageSent domain rmm
   FederationOnConversationUpdated domain cu ->
     mapErrors $ Federation.onConversationUpdated domain cu
   FederationOnSystemMemberUpdate domain notification ->
@@ -304,6 +318,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.replaceMembers responseMode lusr zcon qcnv invite
   JoinConversationById lusr con cnv ->
     mapErrors $ Update.joinConversationById lusr con cnv
+  JoinMeetingConversation lusr con cnv ->
+    mapErrors $ Update.joinMeetingConversation lusr con cnv
   JoinConversationByReusableCode lusr con req ->
     mapErrors $ Update.joinConversationByReusableCode lusr con req
   CheckReusableCode addr code ->

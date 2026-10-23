@@ -23,7 +23,6 @@ where
 
 import AWS.Util (readAuthExpiration)
 import Amazonka qualified as AWS
-import Arbiter.Core qualified as ArbiterCore
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Concurrent.Async qualified as Async
@@ -62,12 +61,15 @@ import Servant hiding (route)
 import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
+import Wire.API.Federation.Version (federationVersionMiddleware)
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.AWS (awsEnv)
 import Wire.BoundedQueue.STM qualified as Q
+import Wire.JobSubsystem (arbiterSchemaName)
 import Wire.JobSubsystem.Migrations (mkArbiterConnectionString, runJobMigrations)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.Options.Galley
@@ -83,7 +85,7 @@ run opts = lowerCodensity do
       mkArbiterConnectionString
         (opts ^. postgresql)
         (opts ^. postgresqlPassword)
-  lift $ runJobMigrations arbiterConnStr ArbiterCore.defaultSchemaName
+  lift $ runJobMigrations arbiterConnStr arbiterSchemaName
   let settings' =
         newSettings $
           defaultServer
@@ -109,6 +111,8 @@ mkApp opts =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
             . requestIdMiddleware logger defaultRequestIdHeaderName
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
+            . federationVersionMiddleware
+              (foldMap Federation.expandVersionExp (opts ^. settings . disabledFederationAPIVersions))
             . otelMiddleware
             . GZip.gunzip
             . GZip.gzip GZip.defaultGzipSettings

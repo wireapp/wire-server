@@ -103,6 +103,16 @@ type GalleyApi =
            "send-mls-message"
            MLSMessageSendRequest
            MLSMessageResponse
+    :<|> FedEndpointWithMods
+           '[From 'V5]
+           "send-mls-targeted-message"
+           MLSMessageSendRequest
+           MLSMessageResponse
+    :<|> FedEndpointWithMods
+           '[From 'V5]
+           "send-mls-transient-message"
+           MLSMessageSendRequest
+           MLSMessageResponse
     :<|> FedEndpoint
            "send-mls-commit-bundle"
            MLSMessageSendRequest

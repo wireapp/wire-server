@@ -109,7 +109,7 @@ instance UserTypes Mock where
   supportedSchemas = [User20]
 
 instance UserDB Mock TestServer where
-  getUsers () mbFilter = do
+  getUsers () mbFilter mbStartIndex mbCount = do
     m <- asks userDB
     users <- liftSTM $ ListT.toList $ STMMap.listT m
     let check user = case mbFilter of
@@ -119,7 +119,9 @@ instance UserDB Mock TestServer where
             case filterUser filter_ user' of
               Right res -> pure res
               Left err -> throwScim (badRequest InvalidFilter (Just err))
-    fromList . sortWith (Common.id . thing) <$> filterM check (snd <$> users)
+    pureSorted <$> filterM check (snd <$> users)
+    where
+      pureSorted users = toPage (fromMaybe 1 mbStartIndex) mbCount $ sortWith (Common.id . thing) users
 
   getUser () uid = do
     m <- asks userDB

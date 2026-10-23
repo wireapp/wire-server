@@ -6,7 +6,7 @@ SUA NOVA CONTA EM ${brand}
 Um nova conta na equipe ${brand} foi criada com ${email}. Por favor, verifique
 seu e-mail.
 
-Verificar [${url}]Se você não conseguir selecionar o botão, copie e cole este
+Verificar [${url}] Se você não conseguir selecionar o botão, copie e cole este
 link no seu navegador:
 
 ${url}

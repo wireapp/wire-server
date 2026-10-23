@@ -1,0 +1,1 @@
+Annullato: ${meeting_title}

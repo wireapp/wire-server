@@ -62,6 +62,7 @@ import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfi
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
 import Wire.API.Routes.Version qualified as Routes.Version
+import Wire.API.Routes.Versioned (Versioned)
 import Wire.API.SystemSettings qualified as SystemSettings
 import Wire.API.Team qualified as Team
 import Wire.API.Team.Conversation qualified as Team.Conversation
@@ -110,6 +111,9 @@ tests =
       testRoundTrip @Call.Config.TurnUsername,
       testRoundTrip @Call.Config.RTCIceServer,
       testRoundTrip @Call.Config.RTCConfiguration,
+      testRoundTrip @Call.Config.CoturnUsername,
+      testRoundTrip @Call.Config.RTCIceServerV3,
+      testRoundTrip @Call.Config.RTCConfigurationV3,
       testRoundTrip @Call.Config.SFTServer,
       testRoundTrip @Connection.ConnectionRequest,
       testRoundTrip @Connection.Relation,
@@ -286,7 +290,7 @@ tests =
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
       testRoundTrip @(User.LimitedQualifiedUserIdList 20),
-      testRoundTrip @User.UserProfile,
+      testRoundTrip @(Versioned Routes.Version.V18 User.UserProfile),
       testRoundTrip @User.User,
       testRoundTrip @User.UserSet,
       testRoundTrip @User.SelfProfile,

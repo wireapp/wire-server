@@ -30,6 +30,7 @@ import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.SuffixNamer
+import qualified Wire.API.Federation.Version as Federation
 import Wire.API.Routes.Version
 
 -- | AWS CloudFront settings.
@@ -151,7 +152,8 @@ data Settings = Settings
     -- This is referred to as the 'backend domain' in the public documentation; See
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
     federationDomain :: !Domain,
-    disabledAPIVersions :: !(Set VersionExp)
+    disabledAPIVersions :: !(Set VersionExp),
+    disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp)
   }
   deriving (Show, Generic)
 

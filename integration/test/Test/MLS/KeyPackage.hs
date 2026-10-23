@@ -39,8 +39,9 @@ testClaimKeyPackagesUserSuspended = do
   (owner, _, [alice]) <- createTeam OwnDomain 2
   API.BrigInternal.setAccountStatus alice "suspended" >>= assertSuccess
   bindResponse (claimKeyPackages def owner alice) $ \resp -> do
-    resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "invalid-user"
+    resp.status `shouldMatchInt` 200
+    packages <- resp.json %. "key_packages" & asList
+    length packages `shouldMatchInt` 0
 
 testClaimKeyPackagesEphemeralUser :: App ()
 testClaimKeyPackagesEphemeralUser = do

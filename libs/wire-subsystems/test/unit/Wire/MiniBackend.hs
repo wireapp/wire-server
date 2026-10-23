@@ -60,6 +60,7 @@ import Data.Map.Strict qualified as M
 import Data.Proxy
 import Data.Qualified
 import Data.Tagged (Tagged)
+import Data.Text qualified as Text
 import Data.Time
 import Data.Type.Equality
 import Data.Vector qualified as Vector
@@ -85,6 +86,8 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.Password
+import Wire.API.Routes.Version qualified as V
+import Wire.API.Routes.Versioned qualified as V
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
@@ -581,18 +584,34 @@ lookupSubsystemOperation ::
   a
 lookupSubsystemOperation goal@(goalComp, goalRoute, Proxy @goalType) a = \case
   TNil -> a
-  (comp, route, client) ::: xs -> case eqTypeRep (typeRep @goalType) (typeOf client) of
-    Just HRefl | comp == goalComp && route == goalRoute -> client
-    _ -> lookupSubsystemOperation goal a xs
+  (comp, route, client) ::: xs ->
+    if comp == goalComp && route == goalRoute
+      then case eqTypeRep (typeRep @goalType) (typeOf client) of
+        Just HRefl -> client
+        Nothing ->
+          error $
+            "lookupSubsystemOperation: "
+              ++ show (comp, route)
+              ++ " lookup failed due to endpoint type mismatch.\n"
+              ++ "Expected API type: "
+              ++ show (typeRep @goalType)
+              ++ "\n"
+              ++ "But actual mock:   "
+              ++ show (typeOf client)
+      else
+        lookupSubsystemOperation goal a xs
 
 instance FederationMonad MiniFederationMonad where
   fedClientWithProxy (Proxy @name) (Proxy @api) (_ :: Proxy (MiniFederationMonad comp)) =
     lookupSubsystemOperation
       (componentVal @comp, nameVal @name, Proxy @(Client (MiniFederationMonad comp) api))
       do
-        error
+        error $
           "The testsuite has evaluated a tuple of component, route and client that is\
-          \ not covered by the MiniFederation implementation of FederationMonad"
+          \ not covered by the MiniFederation implementation of FederationMonad: "
+            ++ Text.unpack (nameVal @name)
+            ++ ", "
+            ++ show (componentVal @comp)
       do
         (Brig, "get-users-by-ids", miniGetUsersByIds)
           ::: (Brig, "get-user-by-id", miniGetUserById)
@@ -635,11 +654,11 @@ miniGetAllProfiles = do
       (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) Nothing defUserLegalHoldStatus)
       users
 
-miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]
+miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [V.Versioned V.V18 UserProfile]
 miniGetUsersByIds userIds = runOnOwnBackend do
   usersById :: LM.Map UserId UserProfile <-
     M.fromList . map (\user -> (user.profileQualifiedId.qUnqualified, user)) <$> miniGetAllProfiles
-  pure $ mapMaybe (flip M.lookup usersById) userIds
+  pure $ mapMaybe (fmap V.Versioned . flip M.lookup usersById) userIds
 
 miniGetUserById :: UserId -> MiniFederationMonad 'Brig (Maybe UserProfile)
 miniGetUserById uid =

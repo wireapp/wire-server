@@ -118,6 +118,7 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError)
 import Wire.FeaturesConfigSubsystem
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.ListItems
@@ -517,7 +518,7 @@ addTeamMember ::
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,

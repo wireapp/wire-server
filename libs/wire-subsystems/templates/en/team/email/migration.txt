@@ -9,7 +9,7 @@ By joining Wire migrates your personal account into a team account.
 
 Select the button below to proceed with the invitation.
 
-Join team [${url}]If you can’t select the button, copy and paste this link to
+Join team [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

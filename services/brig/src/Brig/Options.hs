@@ -52,6 +52,7 @@ import Util.Options
 import Util.SuffixNamer
 import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
@@ -265,7 +266,11 @@ data TurnOpts = TurnOpts
     tokenTTL :: !Word32,
     -- | How long until a new TURN configuration
     --   should be fetched, in seconds
-    configTTL :: !Word32
+    configTTL :: !Word32,
+    -- | Path to the file containing the coturn 'static-auth-secret' shared with
+    --   coturn TURN servers configured for native long-term credentials.
+    --   Enables @/calls/config/v3@; optional.
+    coturnSecret :: !(Maybe FilePath)
   }
   deriving (Show)
 
@@ -281,6 +286,7 @@ instance FromJSON TurnOpts where
       <$> o .: "secret"
       <*> o .: "tokenTTL"
       <*> o .: "configTTL"
+      <*> o .:? "coturnSecret"
 
 data TurnServersSource
   = TurnSourceDNS TurnDnsOpts
@@ -521,6 +527,7 @@ data Settings = Settings
     keyPackageMaximumLifetime :: Maybe NominalDiffTime,
     -- | Disabled versions are not advertised and are completely disabled.
     disabledAPIVersions :: !(Set VersionExp),
+    disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp),
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
     -- use `2FACodeGenerationDelaySecs` as the getter function which always provides a default value
     twoFACodeGenerationDelaySecsInternal :: !(Maybe Int),
@@ -821,6 +828,7 @@ instance FromJSON Settings where
               "oAuthEnabledInternal" -> "setOAuthEnabled"
               "oAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
               "oAuthMaxActiveRefreshTokensInternal" -> "setOAuthMaxActiveRefreshTokens"
+              "disabledFederationAPIVersions" -> "setDisabledFederationAPIVersions"
               other -> "set" <> capitalise other
           }
 

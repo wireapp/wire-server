@@ -32,7 +32,6 @@ import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Config
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Client (FederatorClient)
@@ -45,6 +44,7 @@ import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationSubsystem.CreateInternal
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess (FederationAPIAccess)
@@ -64,17 +64,8 @@ import Wire.TeamSubsystem (TeamSubsystem)
 createLegacyGroupConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
-    Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -102,17 +93,8 @@ createLegacyGroupConversation lusr conn newConv = mapError UnreachableBackendsLe
 createGroupOwnConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
-    Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -145,17 +127,8 @@ createGroupOwnConversation lusr conn newConv = do
 createGroupConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
-    Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -207,13 +180,7 @@ createOne2OneConversation ::
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member (Error InvalidInput) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'NoBindingTeamMembers) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
@@ -245,8 +212,7 @@ createConnectConversation ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (Error UnreachableBackends) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
     Member Now r,
