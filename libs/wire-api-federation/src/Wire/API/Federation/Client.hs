@@ -280,10 +280,12 @@ mkFailureResponse status domain path body
         { Wai.errorData =
             Just
               Wai.FederationErrorData
-                { Wai.federrDomain = domain,
+                { Wai.federrDomain = Just domain,
                   Wai.federrPath =
                     "/federation"
-                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
+                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path),
+                  Wai.federrFederationDomain = Just domain,
+                  Wai.federrSrvTarget = Nothing
                 }
         }
   where

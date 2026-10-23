@@ -215,8 +215,8 @@ federationClientErrorToWai FederatorClientVersionMismatch =
     "internal-error"
     "Endpoint version mismatch in federation client"
 
-federationRemoteHTTP2Error :: SrvTarget -> Text -> FederatorClientHTTP2Error -> Wai.Error
-federationRemoteHTTP2Error target path = \case
+federationRemoteHTTP2Error :: SrvTarget -> Domain -> Text -> FederatorClientHTTP2Error -> Wai.Error
+federationRemoteHTTP2Error target remoteDomain path = \case
   FederatorClientNoStatusCode ->
     ( Wai.mkError
         unexpectedFederationResponseStatus
@@ -248,12 +248,22 @@ federationRemoteHTTP2Error target path = \case
   where
     addErrData err =
       err
-        { Wai.errorData =
-            ( (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
-                Either String Domain
-            )
-              & either (const Nothing) (\dom -> Just (Wai.FederationErrorData dom path))
+        { Wai.errorData = mkErrorData
         }
+    mkErrorData =
+      Just $
+        Wai.FederationErrorData
+          (either (const Nothing) Just legacyDomain)
+          path
+          (Just remoteDomain)
+          (Just srvTargetText)
+    legacyDomain =
+      (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
+        Either String Domain
+    srvTargetText =
+      T.decodeUtf8With T.lenientDecode (srvTargetDomain target)
+        <> ":"
+        <> T.pack (show (srvTargetPort target))
 
 federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationClientHTTP2Error (FederatorClientConnectionError e) =
@@ -267,8 +277,8 @@ federationClientHTTP2Error e =
     "federation-local-error"
     (LT.pack (displayExceptionNoBacktrace e))
 
-federationRemoteResponseError :: SrvTarget -> Text -> HTTP.Status -> LByteString -> Wai.Error
-federationRemoteResponseError target path status body =
+federationRemoteResponseError :: SrvTarget -> Domain -> Text -> HTTP.Status -> LByteString -> Wai.Error
+federationRemoteResponseError target remoteDomain path status body =
   ( Wai.mkError
       unexpectedFederationResponseStatus
       "federation-remote-error"
@@ -276,11 +286,7 @@ federationRemoteResponseError target path status body =
           <> LT.pack (show (HTTP.statusCode status))
       )
   )
-    { Wai.errorData =
-        ( (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
-            Either String Domain
-        )
-          & either (const Nothing) (\dom -> Just (Wai.FederationErrorData dom path)),
+    { Wai.errorData = mkErrorData,
       Wai.innerError =
         Just $
           fromMaybe
@@ -291,6 +297,21 @@ federationRemoteResponseError target path status body =
             )
             (Aeson.decode body)
     }
+  where
+    mkErrorData =
+      Just $
+        Wai.FederationErrorData
+          (either (const Nothing) Just legacyDomain)
+          path
+          (Just remoteDomain)
+          (Just srvTargetText)
+    legacyDomain =
+      (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
+        Either String Domain
+    srvTargetText =
+      T.decodeUtf8With T.lenientDecode (srvTargetDomain target)
+        <> ":"
+        <> T.pack (show (srvTargetPort target))
 
 federationServantErrorToWai :: ClientError -> Wai.Error
 federationServantErrorToWai (DecodeFailure msg _) = federationInvalidBody msg
