@@ -283,3 +283,4 @@ postgresMigration:
   customBackend: postgresql
   budget: postgresql
   connections: postgresql
+  invitations: postgresql
