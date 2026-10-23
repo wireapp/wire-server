@@ -145,6 +145,7 @@ common common-all
     , http-client-openssl
     , http-types
     , http2-manager
+    , iCalendar
     , imports
     , iproute
     , iso639
@@ -338,6 +339,7 @@ library
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
     Wire.EmailSubsystem
+    Wire.EmailSubsystem.Ics
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
     Wire.EmailSubsystem.Templates.Meeting

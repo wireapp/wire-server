@@ -71,6 +71,7 @@
 , http-client-openssl
 , http-types
 , http2-manager
+, iCalendar
 , imports
 , iproute
 , iso639
@@ -219,6 +220,7 @@ mkDerivation {
     http-client-openssl
     http-types
     http2-manager
+    iCalendar
     imports
     iproute
     iso639
@@ -358,6 +360,7 @@ mkDerivation {
     http-client-openssl
     http-types
     http2-manager
+    iCalendar
     imports
     iproute
     iso639

@@ -1,0 +1,1 @@
+Meeting invitation, update and cancellation emails now attach an RFC 5545 .ics calendar file, and the Add to calendar link references the attachment.
