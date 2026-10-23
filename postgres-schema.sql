@@ -1681,6 +1681,21 @@ CREATE TABLE public.nonce (
 ALTER TABLE public.nonce OWNER TO "wire-server";
 
 --
+-- Name: mls_key_packages; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.mls_key_packages (
+    "user" uuid NOT NULL,
+    client text NOT NULL,
+    cipher_suite integer NOT NULL,
+    ref bytea NOT NULL,
+    data bytea NOT NULL
+);
+
+
+ALTER TABLE public.mls_key_packages OWNER TO "wire-server";
+
+--
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2198,6 +2213,13 @@ ALTER TABLE ONLY public.mls_history_client
 
 ALTER TABLE ONLY public.nonce
     ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
+
+--
+-- Name: mls_key_packages mls_key_packages_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.mls_key_packages
+    ADD CONSTRAINT mls_key_packages_pkey PRIMARY KEY ("user", client, cipher_suite, ref);
 
 
 --
