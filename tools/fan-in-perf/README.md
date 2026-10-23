@@ -208,8 +208,8 @@ How a run works:
   ack rows are created by the first ack.
 - Every reader fetches its streams until no page is full, acks as in C, and
   stops. The run ends when the last reader is done, or after `--timeout`. There
-  is no polling and no stall heuristic. A stream whose fetch fails stays behind
-  (counted as fetch error and as `missing`).
+  is no polling and no stall heuristic. A reader whose fetch failed repeats its
+  pass after 100 ms, until it is clean or `--timeout` (fetch errors are counted).
 - Output: `cons/s avg` is delivered / time until the last reader was done,
   including warmup and the tail of the slowest readers. `time to delivered`
   gives the time to 50, 90 and 99 % of the expected deliveries (50 ms

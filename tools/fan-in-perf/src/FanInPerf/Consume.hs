@@ -308,9 +308,9 @@ readerLoop gate env opts pollIntervalMs client stats reportError = go emptyAckSt
       threadDelay (pollIntervalMs * 1000)
       go acks' subs'
 
--- | Fetches the streams of one client until none returns a full page. 'runConsumeOnly'
--- runs this once per client; a stream whose fetch failed stays behind (counted as
--- fetch error).
+-- | Fetches the streams of one client until none returns a full page. A stream
+-- whose fetch failed stays behind (counted as fetch error); 'readerLoop' fetches
+-- it again on its next poll, 'runConsumeOnly' on its next pass.
 readerCatchUp :: QSem -> Env -> ReaderOptions -> Pop.Reader -> ReaderStats -> (Text -> IO ()) -> AckState -> [Subscription] -> IO ([Subscription], AckState)
 readerCatchUp gate env opts client stats reportError acks0 subs0 = catchUp acks0 (map (,True) subs0)
   where
@@ -548,7 +548,15 @@ runConsumeOnly console env opts = do
   readerStats <- replicateM opts.clients newReaderStats
   (errors, reportError) <- newErrorReporter
   let clientSubs = [[newSubscription (streamKind s) s UUID.nil | s <- readerStreams population.kinds r] | r <- readers population]
-      readerClient (stats, (client, subs)) = void (readerCatchUp gate env opts.reader client stats reportError emptyAckState subs)
+      -- A pass with fetch errors leaves streams behind; repeat it after a constant
+      -- pause (until it is clean or --timeout), else their rest would count as missing.
+      readerClient (stats, (client, subs0)) = go emptyAckState subs0
+        where
+          go acks subs = do
+            before <- totalFetchErrors <$> readReaderSnapshot stats
+            (subs', acks') <- readerCatchUp gate env opts.reader client stats reportError acks subs
+            after <- totalFetchErrors <$> readReaderSnapshot stats
+            when (after > before) $ threadDelay 100_000 >> go acks' subs'
   -- built before the clock starts, not while the readers spawn
   traverse_ evaluate (concat clientSubs)
   start <- getMonotonicTime
