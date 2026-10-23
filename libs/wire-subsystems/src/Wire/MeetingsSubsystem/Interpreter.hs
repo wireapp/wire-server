@@ -212,7 +212,7 @@ createMeetingImpl ::
     Member RateLimit r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   API.NewMeeting ->
   Sem r API.MeetingWithConversation
 createMeetingImpl zUser connId newMeeting = do
@@ -291,7 +291,7 @@ createMeetingImpl zUser connId newMeeting = do
       trial
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
-  notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
+  notifyMeetingEvent zUser connId storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
   base <- codeURIBase (tDomain zUser)
   storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting

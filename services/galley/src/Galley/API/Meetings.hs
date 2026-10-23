@@ -29,6 +29,7 @@ module Galley.API.Meetings
     updateMeetingV18,
     getMeetingV18,
     listMeetingsV18,
+    createMeetingV19,
     addMeetingInvitation,
     removeMeetingInvitation,
     replaceMeetingInvitation,
@@ -183,6 +184,14 @@ listMeetingsV18 ::
   Local UserId ->
   Sem r [MeetingV18]
 listMeetingsV18 lUser = Meetings.listMeetingsV18 lUser
+
+createMeetingV19 ::
+  (Member Meetings.MeetingsSubsystem r) =>
+  Local UserId ->
+  Maybe ConnId ->
+  NewMeetingV19 ->
+  Sem r MeetingWithConversationV19
+createMeetingV19 lUser connId newMeeting = Meetings.createMeetingV19 lUser connId newMeeting
 
 addMeetingInvitation ::
   ( Member Meetings.MeetingsSubsystem r,

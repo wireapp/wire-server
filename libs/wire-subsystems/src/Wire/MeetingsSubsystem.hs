@@ -135,6 +135,11 @@ data MeetingsSubsystem m a where
   ListMeetingsV18 ::
     Local UserId ->
     MeetingsSubsystem m [MeetingV18]
+  CreateMeetingV19 ::
+    Local UserId ->
+    ConnId ->
+    NewMeetingV19 ->
+    MeetingsSubsystem m MeetingWithConversationV19
   AddInvitedEmails ::
     Local UserId ->
     Qualified MeetingId ->
