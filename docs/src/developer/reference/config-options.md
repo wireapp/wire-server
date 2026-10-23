@@ -2331,6 +2331,7 @@ galley:
       user: postgresql
       blockList: postgresql
       passwordReset: postgresql
+      sessions: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2339,6 +2340,7 @@ background-worker:
     migrateDomainRegistration: false
     migrateBlockList: false
     migratePasswordReset: false
+    migrateSessions: false
 ```
 
 #### Migration for existing installations
@@ -2372,6 +2374,7 @@ The current settings and their background-worker flags are:
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
+- `sessions` -> `migrateSessions`
 
 **Migration pattern per migration setting**
 
@@ -2394,6 +2397,7 @@ The current settings and their background-worker flags are:
          user: migration-to-postgresql
          blockList: cassandra
          passwordReset: cassandra
+         sessions: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2403,6 +2407,7 @@ The current settings and their background-worker flags are:
        migrateUsers: false
        migrateBlockList: false
        migratePasswordReset: false
+       migrateSessions: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2420,6 +2425,7 @@ The current settings and their background-worker flags are:
        migrateUsers: true
        migrateBlockList: true
        migratePasswordReset: true
+       migrateSessions: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2447,6 +2453,7 @@ The current settings and their background-worker flags are:
    > worker finishes migrating the valid users.
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
+   - `sessions`: `wire_sessions_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2463,6 +2470,7 @@ The current settings and their background-worker flags are:
          user: postgresql
          blockList: cassandra
          passwordReset: postgresql
+         sessions: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2472,6 +2480,7 @@ The current settings and their background-worker flags are:
        migrateUsers: false
        migrateBlockList: false
        migratePasswordReset: false
+       migrateSessions: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2562,6 +2571,7 @@ migrateTeamFeatures: false
 migrateDomainRegistration: false
 migrateBlockList: false
 migratePasswordReset: false
+migrateSessions: false
 
 # migration settings
 migrationOptions:

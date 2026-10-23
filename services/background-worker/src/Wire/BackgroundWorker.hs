@@ -100,6 +100,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-password-reset" $
             Migrations.passwordReset opts.migrationOptions
       else pure $ pure ()
+  cleanupSessionsMigration <-
+    if opts.migrateSessions
+      then
+        runAppT env $
+          withNamedLogger "migrate-sessions" $
+            Migrations.sessions opts.migrationOptions
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -111,7 +118,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,)
+            (,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -121,6 +128,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupBlockListMigration
               <*> Concurrently cleanupPasswordResetMigration
+              <*> Concurrently cleanupSessionsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
