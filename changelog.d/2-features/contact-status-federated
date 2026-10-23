@@ -1,0 +1,1 @@
+`contact_status` in `POST /list-users?include-contact-status=true` now covers federated users. The requester's backend sends its context (MLS availability, allowed cipher suites) in one batched call per remote domain; the remote backend evaluates the rule on its own users.

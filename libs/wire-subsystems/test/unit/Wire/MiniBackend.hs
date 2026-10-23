@@ -95,6 +95,7 @@ import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
+import Wire.API.VersionInfo (VersionedMonad (..))
 import Wire.ActivationCodeStore
 import Wire.AppStore
 import Wire.AppSubsystem
@@ -566,6 +567,9 @@ newtype MiniFederationMonad comp a = MkMiniFederationMonad
 instance RunClient (MiniFederationMonad comp) where
   runRequestAcceptStatus _acceptableStatuses _req = error "MiniFederation does not support servant client"
   throwClientError _err = error "MiniFederation does not support servant client"
+
+instance VersionedMonad v (MiniFederationMonad comp) where
+  guardVersion _ = pure ()
 
 data SubsystemOperationList where
   TNil :: SubsystemOperationList

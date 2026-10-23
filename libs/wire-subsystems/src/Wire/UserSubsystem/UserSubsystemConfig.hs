@@ -32,7 +32,9 @@ data UserSubsystemConfig = UserSubsystemConfig
     searchSameTeamOnly :: Bool,
     maxTeamSize :: Word32,
     activationCodeTimeout :: Timeout,
-    blockedDomains :: HashSet Domain
+    blockedDomains :: HashSet Domain,
+    -- | Whether MLS is enabled on this server (target-side input of the contactability rule).
+    mlsEnabled :: Bool
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
@@ -50,5 +52,6 @@ instance Default UserSubsystemConfig where
         searchSameTeamOnly = False,
         maxTeamSize = 100,
         activationCodeTimeout = Timeout . fromIntegral @Word $ 24 * 3600,
-        blockedDomains = empty
+        blockedDomains = empty,
+        mlsEnabled = False
       }

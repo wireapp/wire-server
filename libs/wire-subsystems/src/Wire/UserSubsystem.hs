@@ -43,7 +43,6 @@ import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
-import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.Routes.Internal.Brig (GetBy (..), getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
@@ -51,7 +50,6 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
-import Wire.API.User.Client (Client)
 import Wire.API.User.IdentityProvider hiding (domain, team)
 import Wire.API.User.Search
 import Wire.ActivationCodeStore
@@ -169,7 +167,14 @@ data UserSubsystem m a where
     Maybe (Range 1 500 Int32) ->
     Maybe [UserTypeFilter] ->
     UserSubsystem m (SearchResult Contact)
-  IsUsersContactable :: Map UserId (Set BaseProtocolTag, Set Client) -> Bool -> Set CipherSuiteTag -> UserSubsystem m (Map UserId Bool)
+  -- | Evaluate the contactability rule for local users. Unknown and
+  -- pending-invitation users are left out, deleted users are non-contactable.
+  GetLocalContactStatuses :: ContactStatusContext -> [UserId] -> UserSubsystem m (Map UserId ContactStatus)
+  -- | Evaluate the contactability rule for local and remote users, from the
+  -- point of view of the given requester (whose team configuration is read
+  -- once). Remote users are queried with one federation call per domain; a
+  -- failing domain is left out.
+  GetContactStatuses :: Local UserId -> [Qualified UserId] -> UserSubsystem m (Map (Qualified UserId) ContactStatus)
   BrowseTeam ::
     UserId ->
     BrowseTeamFilters ->

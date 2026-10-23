@@ -29,6 +29,7 @@ import Data.Domain
 import Data.Handle
 import Data.HashSet qualified as HashSet
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
 import Data.Proxy
@@ -38,46 +39,65 @@ import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Time (Day (ModifiedJulianDay), UTCTime (..))
+import Data.UUID qualified as UUID
 import Database.Bloodhound.Internal.Client qualified as ES
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal
 import Polysemy.State
+import Polysemy.TinyLog (TinyLog)
 import SAML2.WebSSO qualified as SAML
+import Servant.Client.Core (RunClient (..))
+import Servant.Client.Core qualified as SC
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Type.Reflection (eqTypeRep, typeRep, (:~~:) (HRefl))
 import Wire.API.EnterpriseLogin
+import Wire.API.Federation.API (FederationMonad (..))
+import Wire.API.Federation.API.Brig qualified as FedBrig
+import Wire.API.Federation.Component (Component (Brig))
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature (FeatureStatus (..), LockStatus (..), LockableFeature (..), MlsE2EIdConfig, npUpdate)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.User.Client (Client (..), ClientType (..))
+import Wire.API.User.Client.Prekey (PrekeyId (..), UncheckedPrekeyBundle (..))
 import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.API.VersionInfo (VersionedMonad (..))
 import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem
+import Wire.Arbitrary (GenericUniform (..))
 import Wire.AuthenticationSubsystem.Error
+import Wire.ClientStore (ClientStore)
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.DomainRegistrationStore qualified as DRS
+import Wire.FederationAPIAccess (FederationAPIAccess (..))
 import Wire.IndexedUserStore qualified as IU
 import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
+import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem (..))
 import Wire.MockInterpreters
 import Wire.RateLimit
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
+import Wire.UserStore (UserStore)
 import Wire.UserStore.IndexUser
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
-import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
+import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..), getContactStatusesImpl, getLocalContactStatusesImpl)
 import Wire.Util
 import Wire.VerificationCodeSubsystem
 
@@ -1238,3 +1258,257 @@ spec = describe "UserSubsystem.Interpreter" do
                   runNoFederationStackUserSubsystemErrorEither localBackend teams config $
                     getLocalAppProfiles callerId targetTeamId
              in result === Left UserSubsystemProfileNotFound
+
+  describe "getContactStatuses" do
+    prop "one federation call per remote domain, none without remote users" $
+      \(remoteUsers :: Map Domain [UserId]) (localUserIds :: [UserId]) ctx -> do
+        let remote = remoteOnly remoteUsers
+            handlers = Map.map (const allContactable) remote
+            qids = qualify remote <> qualify (Map.singleton localDomain' localUserIds)
+            (calls, _) = runContactRequester emptyBackend handlers (getContactStatusesImpl lself ctx qids)
+        sort calls === sort (Map.keys remote)
+
+    prop "no federation call when there are no remote users" $
+      \(localUserIds :: [UserId]) ctx -> do
+        let (calls, _) = runContactRequester emptyBackend mempty (getContactStatusesImpl lself ctx (qualify (Map.singleton localDomain' localUserIds)))
+        calls === []
+
+    prop "a failing remote domain has no entries, other domains are unaffected" $
+      \(upUsers :: Map Domain [UserId]) (downUsers :: Map Domain [UserId]) ctx -> do
+        let up = remoteOnly upUsers
+            down = remoteOnly (Map.difference downUsers up)
+            handlers = Map.map (const allContactable) up
+            (calls, result) = runContactRequester emptyBackend handlers (getContactStatusesImpl lself ctx (qualify up <> qualify down))
+        conjoin
+          [ result === Map.fromList [(q, ContactStatus Contactable) | q <- qualify up],
+            sort calls === sort (Map.keys up <> Map.keys down)
+          ]
+
+    prop "pending-invitation users are left out, deleted users are non-contactable" $
+      \ctx targetMls (facts :: [(StoredUser, UserFacts)]) -> do
+        let b0 = mkContactBackend targetMls facts
+            -- every second user has a pending invitation
+            backend =
+              b0
+                { storedUsers =
+                    [ if odd i then u {status = Just PendingInvitation} else u
+                    | (i, u) <- zip [0 :: Int ..] b0.storedUsers
+                    ] ::
+                      [StoredUser]
+                }
+            expected =
+              Map.fromList
+                [ (u.id, ContactStatus (if oracle ctx targetMls fs then Contactable else NonContactable))
+                | (i, (u, fs)) <- zip [0 :: Int ..] (uniqueFacts facts),
+                  even i
+                ]
+        runContactBackend backend (getLocalContactStatusesImpl ctx (map (.id) b0.storedUsers)) === expected
+
+    prop "local route and remote route evaluate the same facts identically" $
+      \ctx targetMls (facts :: [(StoredUser, UserFacts)]) (unknownIds :: [UserId]) -> do
+        let backend = mkContactBackend targetMls facts
+            known = [u.id | u <- backend.storedUsers]
+            qids = [Qualified u targetDomain | u <- known <> unknownIds]
+            targetSelf = toLocalUnsafe targetDomain (Id UUID.nil)
+            -- requester backend: unrelated server MLS flag, must have no influence
+            requesterBackend = emptyBackend {serverMls = not targetMls}
+            (_, viaLocal) =
+              runContactRequester backend mempty (getContactStatusesImpl targetSelf ctx qids)
+            (calls, viaRemote) =
+              runContactRequester requesterBackend (Map.singleton targetDomain (loopback backend)) (getContactStatusesImpl lself ctx qids)
+            expected =
+              Map.fromList
+                [ (Qualified u.id targetDomain, ContactStatus (if oracle ctx targetMls fs then Contactable else NonContactable))
+                | (u, fs) <- uniqueFacts facts,
+                  u.id `elem` known
+                ]
+        conjoin
+          [ viaLocal === expected,
+            viaRemote === expected,
+            length calls === (if null qids then 0 else 1)
+          ]
+  where
+    localDomain' = Domain "local.example.com"
+    targetDomain = Domain "target.example.com"
+    lself = toLocalUnsafe localDomain' (Id UUID.nil)
+    qualify m = [Qualified u d | (d, us) <- Map.toList m, u <- us]
+    remoteOnly = Map.filter (not . null) . Map.delete localDomain'
+    allContactable req = FedBrig.GetContactStatusResponse (Map.fromList [(u, ContactStatus Contactable) | u <- fromRange req.users])
+
+----------------------------------------------------------------------
+-- contact status test harness
+
+data ClientFacts = ClientFacts
+  { hasPrekey :: Bool,
+    signatureSuites :: S.Set CipherSuiteTag,
+    keyPackageSuites :: S.Set CipherSuiteTag
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientFacts)
+
+data UserFacts = UserFacts
+  { protocols :: S.Set BaseProtocolTag,
+    clients :: [ClientFacts],
+    deleted :: Bool
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserFacts)
+
+data ContactBackend = ContactBackend
+  { serverMls :: Bool,
+    storedUsers :: [StoredUser],
+    clientState :: ClientStoreState,
+    keyPackages :: S.Set (UserId, ClientId, CipherSuiteTag)
+  }
+
+emptyBackend :: ContactBackend
+emptyBackend = ContactBackend False [] emptyClientStoreState mempty
+
+-- | Keep the first occurrence of each user id.
+uniqueFacts :: [(StoredUser, UserFacts)] -> [(StoredUser, UserFacts)]
+uniqueFacts = nubBy (\a b -> (fst a).id == (fst b).id)
+
+mkContactBackend :: Bool -> [(StoredUser, UserFacts)] -> ContactBackend
+mkContactBackend mlsFlag facts =
+  ContactBackend
+    { serverMls = mlsFlag,
+      storedUsers = [u {status = Just (if fs.deleted then Deleted else Active), supportedProtocols = Just fs.protocols} | (u, fs) <- ufs] :: [StoredUser],
+      clientState =
+        ClientStoreState . Map.fromList $
+          [ (u.id, Map.fromList [(cid, StoredClient (mkClient cid cf) [UncheckedPrekeyBundle (PrekeyId 1) "k" | cf.hasPrekey]) | (cid, cf) <- numbered fs])
+          | (u, fs) <- ufs
+          ],
+      keyPackages =
+        S.fromList
+          [(u.id, cid, suite) | (u, fs) <- ufs, (cid, cf) <- numbered fs, suite <- S.toList cf.keyPackageSuites]
+    }
+  where
+    ufs = uniqueFacts facts
+    numbered fs = zip (ClientId <$> [1 ..]) fs.clients
+    mkClient cid cf =
+      Client
+        { clientId = cid,
+          clientType = PermanentClientType,
+          clientTime = toUTCTimeMillis (UTCTime (ModifiedJulianDay 0) 0),
+          clientClass = Nothing,
+          clientLabel = Nothing,
+          clientCookie = Nothing,
+          clientModel = Nothing,
+          clientCapabilities = mempty,
+          clientMLSPublicKeys = Map.fromList [(csSignatureScheme suite, "key") | suite <- S.toList cf.signatureSuites],
+          clientLastActive = Nothing
+        }
+
+-- | The contactability rule, written out independently of the interpreter.
+oracle :: ContactStatusContext -> Bool -> UserFacts -> Bool
+oracle ctx targetMls fs
+  | fs.deleted = False
+  | otherwise = proteus || mlsReady
+  where
+    protos = if S.null fs.protocols then defSupportedProtocols else fs.protocols
+    proteus = BaseProtocolProteusTag `S.member` protos && any (.hasPrekey) fs.clients
+    mlsReady =
+      ctx.mlsAvailable
+        && targetMls
+        && BaseProtocolMLSTag `S.member` protos
+        && any
+          ( \c ->
+              any
+                (\suite -> csSignatureScheme suite `elem` S.map csSignatureScheme c.signatureSuites && suite `S.member` c.keyPackageSuites)
+                ctx.allowedCipherSuites
+          )
+          fs.clients
+
+type ContactHandler = FedBrig.GetContactStatusRequest -> FedBrig.GetContactStatusResponse
+
+-- | Federation monad whose only endpoint is @get-users-contact-status@, answered by a pure handler.
+newtype CFed (comp :: Component) a = CFed (ContactHandler -> a)
+  deriving (Functor, Applicative, Monad) via ((->) ContactHandler)
+
+instance RunClient (CFed comp) where
+  runRequestAcceptStatus _ _ = error "CFed does not support servant client"
+  throwClientError _ = error "CFed does not support servant client"
+
+instance VersionedMonad v (CFed comp) where
+  guardVersion _ = pure ()
+
+instance FederationMonad CFed where
+  fedClientWithProxy (Proxy @_) (Proxy @api) (_ :: Proxy (CFed comp)) =
+    case eqTypeRep
+      (typeRep @(SC.Client (CFed comp) api))
+      (typeRep @(FedBrig.GetContactStatusRequest -> CFed 'Brig FedBrig.GetContactStatusResponse)) of
+      Just HRefl -> \req -> CFed ($ req)
+      Nothing -> error "CFed: only get-users-contact-status is supported"
+
+mockMlsKeyPackages :: ContactBackend -> InterpreterFor MlsKeyPackageSubsystem r
+mockMlsKeyPackages b = interpret \case
+  HasMlsKeyPackagesBulk reqs -> pure (S.fromList [r | r <- reqs, r `S.member` b.keyPackages])
+  _ -> error "unimplemented MlsKeyPackageSubsystem operation"
+
+-- | Interprets the store/config layers shared by backend and requester.
+runContactStores ::
+  ContactBackend ->
+  Sem (UserStore : ClientStore : MlsKeyPackageSubsystem : Input UserSubsystemConfig : r) a ->
+  Sem r a
+runContactStores b =
+  runInputConst (def {mlsEnabled = b.serverMls})
+    . mockMlsKeyPackages b
+    . evalState b.clientState
+    . runInMemoryClientStoreInterpreterWithState
+    . raiseUnder
+    . runInMemoryUserStoreInterpreter b.storedUsers mempty
+
+runContactBackend ::
+  ContactBackend ->
+  Sem '[UserStore, ClientStore, MlsKeyPackageSubsystem, Input UserSubsystemConfig] a ->
+  a
+runContactBackend b = run . runContactStores b
+
+loopback :: ContactBackend -> ContactHandler
+loopback b req =
+  FedBrig.GetContactStatusResponse . runContactBackend b $
+    getLocalContactStatusesImpl req.context (fromRange req.users)
+
+-- | Records each call; domains without a handler are unreachable.
+runCountingFed ::
+  (Member (State [Domain]) r) =>
+  Map Domain ContactHandler ->
+  InterpreterFor (FederationAPIAccess CFed) r
+runCountingFed handlers = interpret \case
+  RunFederatedEither remote (CFed f) -> do
+    modify (tDomain remote :)
+    pure $ case Map.lookup (tDomain remote) handlers of
+      Nothing -> Left (FederationUnexpectedError "unreachable")
+      Just h -> Right (f h)
+  RunFederatedConcurrentlyEither remotes rpc ->
+    for (bucketRemote remotes) \ruids@(tDomain -> d) -> case rpc ruids of
+      CFed f -> do
+        modify (d :)
+        pure $ case Map.lookup d handlers of
+          Nothing -> Left (ruids, FederationUnexpectedError "unreachable")
+          Just h -> Right (qualifyAs ruids (f h))
+  RunFederatedConcurrentlyBucketsEither {} -> error "unimplemented: RunFederatedConcurrentlyBucketsEither"
+  IsFederationConfigured -> pure True
+
+-- | Runs on the requester's backend. Returns the domains that were called (with
+-- multiplicity) and the result.
+runContactRequester ::
+  ContactBackend ->
+  Map Domain ContactHandler ->
+  Sem
+    '[ UserStore,
+       ClientStore,
+       MlsKeyPackageSubsystem,
+       Input UserSubsystemConfig,
+       FederationAPIAccess CFed,
+       TinyLog,
+       State [Domain]
+     ]
+    a ->
+  ([Domain], a)
+runContactRequester b handlers =
+  run
+    . runState []
+    . noopLogger
+    . runCountingFed handlers
+    . runContactStores b

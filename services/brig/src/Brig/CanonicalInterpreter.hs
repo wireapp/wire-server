@@ -339,7 +339,8 @@ runBrigToIO e (AppT ma) = do
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
             maxTeamSize = e.settings.maxTeamSize,
             activationCodeTimeout = e.settings.activationTimeout,
-            blockedDomains = blockedDomains
+            blockedDomains = blockedDomains,
+            mlsEnabled = fromMaybe False e.settings.enableMLS
           }
       appSubsystemConfig = AppSubsystemConfig {defaultLocale = userSubsystemConfig.defaultLocale}
       teamInvitationSubsystemConfig =

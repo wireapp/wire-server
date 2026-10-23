@@ -27,19 +27,20 @@ import qualified API.GalleyInternal as I
 import API.Gundeck
 import qualified API.Nginz as Nginz
 import Control.Monad.Codensity (Codensity (runCodensity))
-import Control.Monad.Extra (findM)
+import Control.Monad.Extra (anyM, findM)
 import Control.Monad.Reader (asks)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Time.Clock
 import Data.Time.Format
-import MLS.Util (createMLSClient, uploadNewKeyPackage)
+import MLS.Util (InitMLSClient (..), createMLSClient, uploadNewKeyPackage)
 import Notifications
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
+import Testlib.VersionedFed (FedDomain)
 
 testInvitePersonalUserToTeam :: (HasCallStack) => App ()
 testInvitePersonalUserToTeam = do
@@ -510,23 +511,7 @@ testListUsersContactStatus = do
   mlsClient <- createMLSClient def mlsUser
   void $ uploadNewKeyPackage def mlsClient
   putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
-  setTeamFeatureConfig
-    owner
-    tid
-    "mls"
-    ( object
-        [ "status" .= ("enabled" :: String),
-          "config"
-            .= object
-              [ "protocolToggleUsers" .= ([] :: [String]),
-                "defaultProtocol" .= ("mls" :: String),
-                "supportedProtocols" .= (["proteus", "mls"] :: [String]),
-                "allowedCipherSuites" .= ([2] :: [Int]),
-                "defaultCipherSuite" .= (2 :: Int)
-              ]
-        ]
-    )
-    >>= assertSuccess
+  enableMlsForTeam owner tid
 
   let users = [noClientUser, proteusUser, mlsUser]
   userIds <- for users objQidObject
@@ -552,14 +537,123 @@ testListUsersContactStatus = do
     profiles <- resp.json %. "found" >>= asList
     assertContactStatus profiles proteusUser "non-contactable"
     assertContactStatus profiles mlsUser "non-contactable"
+
+enableMlsForTeam :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
+enableMlsForTeam owner tid =
+  setTeamFeatureConfig
+    owner
+    tid
+    "mls"
+    ( object
+        [ "status" .= ("enabled" :: String),
+          "config"
+            .= object
+              [ "protocolToggleUsers" .= ([] :: [String]),
+                "defaultProtocol" .= ("mls" :: String),
+                "supportedProtocols" .= (["proteus", "mls"] :: [String]),
+                "allowedCipherSuites" .= ([2] :: [Int]),
+                "defaultCipherSuite" .= (2 :: Int)
+              ]
+        ]
+    )
+    >>= assertSuccess
+
+assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
+assertContactStatus profiles user expected = do
+  uid <- user %. "id"
+  profile <- findM (fmap (== Just uid) . flip lookupField "id") profiles
+  case profile of
+    Nothing -> assertFailure "list-users did not return the requested user"
+    Just p -> p %. "contact_status.state" `shouldMatch` expected
+
+keyPackageCount :: (HasCallStack) => ClientIdentity -> App Int
+keyPackageCount c = countKeyPackages def c >>= getJSON 200 >>= (%. "count") >>= asInt
+
+-- | Same expected contact_status for local and remote targets (federated
+-- @get-users-contact-status@). Requester is always a team owner on OwnDomain
+-- with MLS enabled for cipher suite 0x0002.
+testListUsersContactStatusScenarios :: (HasCallStack) => Domain -> App ()
+testListUsersContactStatusScenarios targetDomain = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  enableMlsForTeam owner tid
+
+  noClientUser <- randomUser targetDomain def
+  proteusUser <- randomUser targetDomain def
+  proteusClient <- addClient proteusUser def >>= getJSON 201 >>= (%. "id") >>= asString
+  mlsUser <- randomUser targetDomain def
+  mlsClient <- createMLSClient def mlsUser
+  void $ uploadNewKeyPackage def mlsClient
+  putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
+  -- only a key package for a suite that the requester team does not allow
+  let disallowedSuite = Ciphersuite "0x0001"
+  badSuiteUser <- randomUser targetDomain def
+  badSuiteClient <- createMLSClient def {ciphersuites = [disallowedSuite]} badSuiteUser
+  void $ uploadNewKeyPackage disallowedSuite badSuiteClient
+  putUserSupportedProtocols badSuiteUser ["mls"] >>= assertSuccess
+
+  userIds <- for [noClientUser, proteusUser, mlsUser, badSuiteUser] objQidObject
+  prekeysBefore <- getClientPrekeyIds proteusUser proteusClient
+  kpBefore <- keyPackageCount mlsClient
+
+  -- twice, to also catch consumption on the first call
+  replicateM_ 2
+    $ listUsersWithContactStatus owner userIds
+    `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      profiles <- resp.json %. "found" >>= asList
+      assertContactStatus profiles noClientUser "non-contactable"
+      assertContactStatus profiles proteusUser "contactable"
+      assertContactStatus profiles mlsUser "contactable"
+      assertContactStatus profiles badSuiteUser "non-contactable"
+
+  -- non-consuming
+  getClientPrekeyIds proteusUser proteusClient `shouldMatch` prekeysBefore
+  kpAfter <- keyPackageCount mlsClient
+  kpAfter `shouldMatchInt` kpBefore
   where
-    assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
-    assertContactStatus profiles user expected = do
-      uid <- user %. "id"
-      profile <- findM (fmap (== Just uid) . flip lookupField "id") profiles
-      case profile of
-        Nothing -> assertFailure "list-users did not return the requested user"
-        Just p -> p %. "contact_status.state" `shouldMatch` expected
+    getClientPrekeyIds user client =
+      getClientPrekeys user client >>= getJSON 200 >>= asList >>= traverse asInt
+
+-- | Remote backend is down: list-users still returns 200 and local users keep
+-- their contact_status; the unreachable remote user gets none.
+testListUsersContactStatusRemoteDown :: (HasCallStack) => App ()
+testListUsersContactStatusRemoteDown = do
+  resourcePool <- asks (.resourcePool)
+  localUser <- randomUser OwnDomain def
+  void $ addClient localUser def >>= getJSON 201
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
+    downUser <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
+      u <- randomUser downBackend.berDomain def
+      void $ addClient u def >>= getJSON 201
+      pure u
+    -- backend is stopped again here
+    userIds <- for [localUser, downUser] objQidObject
+    listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      profiles <- resp.json %. "found" >>= asList
+      localId <- localUser %. "id"
+      downId <- downUser %. "id"
+      for_ profiles $ \p -> do
+        pid <- p %. "id"
+        mStatus <- lookupField p "contact_status"
+        if pid == localId
+          then p %. "contact_status.state" `shouldMatch` "contactable"
+          else when (pid == downId) $ assertBool "unreachable remote must have no contact_status" (isNothing mStatus)
+      assertBool "local user must be returned" =<< anyM (fmap (== localId) . (%. "id")) profiles
+
+-- | Remote backend without the contact-status endpoint (old federation
+-- version): 200, profile returned, contact_status absent. Needs
+-- ENABLE_FEDERATION_V1=1.
+testListUsersContactStatusOldFedRemote :: (HasCallStack) => FedDomain 1 -> App ()
+testListUsersContactStatusOldFedRemote fedDomain = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  oldUser <- randomUser fedDomain def
+  void $ addClient oldUser def >>= getJSON 201
+  listUsersWithContactStatus owner [oldUser] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profile <- assertOne =<< asList (resp.json %. "found")
+    lookupField profile "contact_status" `shouldMatch` (Nothing :: Maybe Value)
 
 testGetTeamsInvitationInfo :: (HasCallStack) => App ()
 testGetTeamsInvitationInfo = do

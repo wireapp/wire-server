@@ -817,6 +817,11 @@ updateServiceConn domain providerId serviceId connectionUpdate = do
     . addJSON upd
     $ req
 
+getClientPrekeys :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getClientPrekeys user client = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["clients", client, "prekeys"]
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__prekeys__client_
 getUsersPrekeysClient :: (HasCallStack, MakesValue caller, MakesValue targetUser) => caller -> targetUser -> String -> App Response
 getUsersPrekeysClient caller targetUser targetClient = do

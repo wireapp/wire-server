@@ -27,6 +27,8 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.OpenApi (OpenApi, ToSchema)
 import Data.Proxy (Proxy (Proxy))
+import Data.Range (Range)
+import GHC.TypeLits (natVal)
 import Imports
 import Servant.API
 import Servant.OpenApi (HasOpenApi (toOpenApi))
@@ -84,6 +86,11 @@ type BrigApi =
     -- we should return V18 UserProfiles in older API versions and V19 ones starting with the newer one.
     :<|> FedEndpoint "get-user-by-handle" Handle (Maybe (V.Versioned V.V18 UserProfile))
     :<|> FedEndpoint "get-users-by-ids" [UserId] [V.Versioned V.V18 UserProfile]
+    :<|> FedEndpointWithMods
+           '[From 'V5]
+           "get-users-contact-status"
+           GetContactStatusRequest
+           GetContactStatusResponse
     :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
     :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle
     :<|> FedEndpoint "claim-multi-prekey-bundle" UserClients UserClientPrekeyMap
@@ -100,6 +107,34 @@ type BrigApi =
     -- All the notification endpoints that go through the queue-based
     -- federation client ('fedQueueClient').
     :<|> BrigNotificationAPI
+
+-- | Maximum number of users accepted in one 'get-users-contact-status' request.
+-- Requesters send larger batches in chunks of this size.
+type MaxContactStatusUsers = 1000
+
+maxContactStatusUsers :: Int
+maxContactStatusUsers = fromIntegral (natVal (Proxy @MaxContactStatusUsers))
+
+-- | Batch request: one call per remote domain (per chunk of 'maxContactStatusUsers'). The requester computes the
+-- 'ContactStatusContext' once; the target backend must not re-derive it.
+data GetContactStatusRequest = GetContactStatusRequest
+  { context :: ContactStatusContext,
+    users :: Range 1 MaxContactStatusUsers [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetContactStatusRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetContactStatusRequest)
+
+instance ToSchema GetContactStatusRequest
+
+newtype GetContactStatusResponse = GetContactStatusResponse
+  { statuses :: Map UserId ContactStatus
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetContactStatusResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetContactStatusResponse)
+
+instance ToSchema GetContactStatusResponse
 
 newtype DomainSet = DomainSet
   { domains :: Set Domain

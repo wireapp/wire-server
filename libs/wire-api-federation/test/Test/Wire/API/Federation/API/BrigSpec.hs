@@ -23,12 +23,14 @@ import Data.Aeson.Types (parseEither)
 import Imports
 import Test.Hspec (Spec, describe, shouldBe, specify)
 import Test.Wire.API.Federation.API.Util
-import Wire.API.Federation.API.Brig (SearchRequest (..))
+import Wire.API.Federation.API.Brig (GetContactStatusRequest, GetContactStatusResponse, SearchRequest (..))
 
 spec :: Spec
 spec = describe "Wire.API.Federation.API.Brig" $ do
   describe "RoundTripTests" $ do
     jsonRoundTrip @SearchRequest
+    jsonRoundTrip @GetContactStatusRequest
+    jsonRoundTrip @GetContactStatusResponse
   describe "JSON Golden Tests" $ do
     jsonGoldenTest "SearchRequest" [aesonQQ|{"term": "searchedThing"}|] (SearchRequest "searchedThing" Nothing Nothing Nothing)
 

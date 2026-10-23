@@ -104,6 +104,7 @@ federationSitemap =
   )
     :<|> Named @"get-user-by-handle" getUserByHandle
     :<|> Named @"get-users-by-ids" getUsersByIds
+    :<|> Named @"get-users-contact-status" getUsersContactStatus
     :<|> Named @"claim-prekey" claimPrekey
     :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
     :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
@@ -189,6 +190,15 @@ getUsersByIds ::
 getUsersByIds _ uids = do
   luids <- qualifyLocal uids
   lift $ liftSem $ fmap (V.Versioned @V.V18) <$> UserSubsystem.getLocalUserProfiles luids
+
+-- | The requester computed the 'ContactStatusContext'; it is used as is.
+getUsersContactStatus ::
+  (Member UserSubsystem r) =>
+  Domain ->
+  GetContactStatusRequest ->
+  Handler r GetContactStatusResponse
+getUsersContactStatus _ req =
+  lift . liftSem $ GetContactStatusResponse <$> UserSubsystem.getLocalContactStatuses req.context (fromRange req.users)
 
 claimPrekey ::
   (Member ClientSubsystem r) =>
