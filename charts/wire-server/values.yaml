@@ -95,6 +95,7 @@ galley:
       user: cassandra
       blockList: cassandra
       teamStore: cassandra
+      listItems: cassandra
       passwordReset: cassandra
     settings:
       httpPoolSize: 128

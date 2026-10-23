@@ -399,6 +399,7 @@ library
     Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.ListItems.Team.Cassandra
+    Wire.ListItems.Team.Postgres
     Wire.MeetingNotifier
     Wire.MeetingNotifier.Interpreter
     Wire.MeetingNotifier.NoOpInterpreter
