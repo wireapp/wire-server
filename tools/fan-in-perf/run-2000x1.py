@@ -320,6 +320,19 @@ def duration_text(secs):
     return f"{secs // 60} minutes" if secs % 60 == 0 else f"{secs} s"
 
 
+def gc_section(pm):
+    """The TTL GC paragraph and table of D partman (printed right after D's table)."""
+    expired = pm["pushes"] - pm["rows"]
+    secs_expired = expired / pm["push_s"] if pm["push_s"] else 0
+    i, o = pm["gc"][True], pm["gc"][False]
+    f = lambda x, ms=False: "-" if x is None else (f"{x * 1000:.1f}ms" if x < 1 else f"{x:.2f}s") if ms else f"{x:,.0f}"
+    return [f"D partman: {pm['drops']} partition drops (each takes an `ACCESS EXCLUSIVE` lock on the parent); {expired:,} rows (about {secs_expired:.0f} s of pushes) were expired by TTL, i.e. the later drops held data.", "",
+          f"Impact of the drops: per-second status lines within {GC_WINDOW} s of a drop vs. all other seconds of D partman (medians):", "",
+          "| Window | seconds | push/s (median) | ack/s (median) | ack p99 (median) | ack p99 max | lag p99 (median) | backlog (median) |", "|---|---|---|---|---|---|---|---|",
+          f"| within {GC_WINDOW} s of a drop | {i['seconds']} | {f(i['push_s'])} | {f(i['ack_s'])} | {f(i['ack_p99'], True)} | {f(i['ack_p99_max'], True)} | {f(i['lag_p99'], True)} | {f(i['backlog'])} |",
+          f"| other | {o['seconds']} | {f(o['push_s'])} | {f(o['ack_s'])} | {f(o['ack_p99'], True)} | {f(o['ack_p99_max'], True)} | {f(o['lag_p99'], True)} | {f(o['backlog'])} |", ""]
+
+
 def report(res, env):
     dur = {x: int(a[a.index("--duration") + 1]) for x, a in experiments()}  # as run (--quick)
     split_dur = int(split_experiments()[0][1][split_experiments()[0][1].index("--duration") + 1])
@@ -348,18 +361,8 @@ def report(res, env):
             if r:
                 L.append(f"| {m} | " + " | ".join(cell(r[k]) for _, k in COLS[exp]) + " |")
         L.append("")
-    pm = res.get("D-partman")
-    if pm:
-        expired = pm["pushes"] - pm["rows"]
-        secs_expired = expired / pm["push_s"] if pm["push_s"] else 0
-        i, o = pm["gc"][True], pm["gc"][False]
-        f = lambda x, ms=False: "-" if x is None else (f"{x * 1000:.1f}ms" if x < 1 else f"{x:.2f}s") if ms else f"{x:,.0f}"
-        L += [f"D partman: {pm['drops']} partition drops (each takes an `ACCESS EXCLUSIVE` lock on the parent); {expired:,} rows (about {secs_expired:.0f} s of pushes) were expired by TTL, i.e. the later drops held data.", "",
-              f"Impact of the drops: per-second status lines within {GC_WINDOW} s of a drop vs. all other seconds of D partman (medians):", "",
-              "| Window | seconds | push/s (median) | ack/s (median) | ack p99 (median) | ack p99 max | lag p99 (median) | backlog (median) |", "|---|---|---|---|---|---|---|---|",
-              f"| within {GC_WINDOW} s of a drop | {i['seconds']} | {f(i['push_s'])} | {f(i['ack_s'])} | {f(i['ack_p99'], True)} | {f(i['ack_p99_max'], True)} | {f(i['lag_p99'], True)} | {f(i['backlog'])} |",
-              f"| other | {o['seconds']} | {f(o['push_s'])} | {f(o['ack_s'])} | {f(o['ack_p99'], True)} | {f(o['ack_p99_max'], True)} | {f(o['lag_p99'], True)} | {f(o['backlog'])} |", ""]
-
+        if exp == "D" and "D-partman" in res:
+            L += gc_section(res["D-partman"])
     L += ["## Answers", ""]
     g = lambda e, m: res.get(f"{e}-{m}", {})
     for m in MODES:
@@ -378,7 +381,7 @@ def report(res, env):
     if dp:
         i, o = dp["gc"][True], dp["gc"][False]
         r = lambda a, b: f"{a / b:.2f}" if a is not None and b else "-"
-        L.append(f"- d. During TTL GC ({dp['drops']} partition drops in 11 min): within {GC_WINDOW} s of a drop vs. otherwise, ack/s {r(i['ack_s'], o['ack_s'])} x, "
+        L.append(f"- d. During TTL GC ({dp['drops']} partition drops in {duration_text(dur['D'])}): within {GC_WINDOW} s of a drop vs. otherwise, ack/s {r(i['ack_s'], o['ack_s'])} x, "
                  f"ack p99 {r(i['ack_p99'], o['ack_p99'])} x, lag p99 {r(i['lag_p99'], o['lag_p99'])} x (medians); {cell(dp['errors'])} errors, {cell(dp['missing'])} missing, {cell(dp['deadlocks'])} deadlocks.")
     for e in "EF":
         x = g(e, "plain")
