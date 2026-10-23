@@ -504,7 +504,8 @@ spec = do
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
                 connections = CassandraStorage,
-                teamStore = CassandraStorage
+                teamStore = CassandraStorage,
+                listItems = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -576,7 +577,8 @@ spec = do
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
                 connections = CassandraStorage,
-                teamStore = CassandraStorage
+                teamStore = CassandraStorage,
+                listItems = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
