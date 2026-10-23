@@ -190,7 +190,10 @@ selectConnectionLefts = "SELECT DISTINCT left FROM connection"
 selectRemoteConnectionLefts :: PrepQuery R () (Identity UserId)
 selectRemoteConnectionLefts = "SELECT DISTINCT left FROM connection_remote"
 
--- Upserts preserving the original Cassandra timestamps.
+-- Upserts preserving the original Cassandra timestamps. On conflict, an
+-- existing row is only overwritten when the Cassandra row is at least as new
+-- (ties go to Cassandra), so a replayed stale row cannot clobber a newer row
+-- that dual-write already put in Postgres.
 
 upsertConnection ::
   ( Member (Input HasqlPoolExt.Pool) r,
@@ -209,6 +212,7 @@ upsertConnection _left (l, r, rel, ts, mconv) =
                            VALUES ($1 :: uuid, $2 :: uuid, $3 :: int4, $4 :: timestamptz, $5 :: uuid?)
                            ON CONFLICT ("left", "right") DO UPDATE
                            SET status = ($3 :: int4), last_update = ($4 :: timestamptz), conv = ($5 :: uuid?)
+                           WHERE connection.last_update <= ($4 :: timestamptz)
                           |]
 
 upsertRemoteConnection ::
@@ -228,4 +232,5 @@ upsertRemoteConnection left (domain, r, rel, ts, convDomain, convId) =
                            VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: int4, $5 :: timestamptz, $6 :: text, $7 :: uuid)
                            ON CONFLICT ("left", right_domain, right_user) DO UPDATE
                            SET status = ($4 :: int4), last_update = ($5 :: timestamptz), conv_domain = ($6 :: text), conv_id = ($7 :: uuid)
+                           WHERE connection_remote.last_update <= ($5 :: timestamptz)
                           |]

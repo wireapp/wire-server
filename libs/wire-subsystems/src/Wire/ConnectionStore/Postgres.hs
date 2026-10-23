@@ -89,6 +89,7 @@ interpretConnectionStoreToPostgres = interpret $ \case
       target
     pure now
   DeleteConnections u -> do
+    runStatement u deleteIncomingLocalConnections
     runStatement u deleteLocalConnections
     runStatement u deleteRemoteConnectionsByLeft
   DeleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) rs ->
@@ -125,32 +126,14 @@ interpretConnectionStoreToPostgres = interpret $ \case
     rows <- case mStart of
       Just u -> runStatement (tUnqualified self, u, size) selectLocalConnectionsFrom
       Nothing -> runStatement (tUnqualified self, size) selectLocalConnections
-    let ucs = map (localRowToUserConnectionByRight self) (Vector.toList rows)
-        mMarker =
-          if Vector.length rows == fromIntegral size
-            then (\(_, rid, _, _) -> toByteString' rid) <$> lastRow (Vector.toList rows)
-            else Nothing
-    pure
-      PageWithState
-        { pwsResults = ucs,
-          pwsState = PaginationStatePostgres <$> mMarker
-        }
+    pure $ buildPageWithState (localRowToUserConnectionByRight self) (\(_, rid, _, _) -> toByteString' rid) size rows
   LookupRemoteConnectionsPage self pagingState size -> do
     let mStart = pagingState >>= decodeRemoteMarker . LBS.toStrict . unPagingState
     rows <- case mStart of
       Just (domain, ruser) ->
         runStatement (tUnqualified self, domain, ruser, size) selectRemoteConnectionsFrom
       Nothing -> runStatement (tUnqualified self, size) selectRemoteConnections
-    let ucs = map (remoteRowToUserConnectionByRow self) (Vector.toList rows)
-        mMarker =
-          if Vector.length rows == fromIntegral (size :: Int32)
-            then (\(d, rid, _, _, _, _) -> encodeRemoteMarker d rid) <$> lastRow (Vector.toList rows)
-            else Nothing
-    pure
-      PageWithState
-        { pwsResults = ucs,
-          pwsState = PaginationStatePostgres <$> mMarker
-        }
+    pure $ buildPageWithState (remoteRowToUserConnectionByRow self) (\(d, rid, _, _, _, _) -> encodeRemoteMarker d rid) size rows
   LookupConnectionStatus from to -> do
     rows <- runStatement (from, to) selectConnectionStatuses
     pure $ map (\(l, r, s) -> toConnectionStatus (Id l, Id r, unStatus s)) (Vector.toList rows)
@@ -204,14 +187,56 @@ interpretConnectionStoreToPostgres = interpret $ \case
     rows <- runStatement u selectAllLocalRelations
     pure $ map (bimap Id unStatus) (Vector.toList rows)
   CountConnections u r -> do
-    rels <- map unStatus . Vector.toList <$> runStatement (tUnqualified u) selectLocalStatuses
-    relsRemote <- map unStatus . Vector.toList <$> runStatement (tUnqualified u) selectRemoteStatuses
-    let count n s | relationDropHistory s `elem` r = n + 1
-        count n _ = n
-    pure $ foldl' count 0 rels + foldl' count 0 relsRemote
+    let codes = relationStatusCodes r
+    localCount <- runStatement (tUnqualified u, codes) countLocalConnectionsByStatus
+    remoteCount <- runStatement (tUnqualified u, codes) countRemoteConnectionsByStatus
+    pure (localCount + remoteCount)
+
+-- | All stored 'RelationWithHistory' status codes whose relation is in the
+-- given set (the Postgres analogue of the Cassandra 'countConnections' fold
+-- over 'relationDropHistory').
+relationStatusCodes :: [Relation] -> [Int32]
+relationStatusCodes rs =
+  [ postgresMarshall rwh
+    | rwh <- [AcceptedWithHistory, BlockedWithHistory, PendingWithHistory, IgnoredWithHistory,
+              SentWithHistory, CancelledWithHistory, MissingLegalholdConsentFromAccepted,
+              MissingLegalholdConsentFromBlocked, MissingLegalholdConsentFromPending,
+              MissingLegalholdConsentFromIgnored, MissingLegalholdConsentFromSent,
+              MissingLegalholdConsentFromCancelled]
+    , relationDropHistory rwh `elem` rs
+  ]
+
+countLocalConnectionsByStatus :: Hasql.Statement (UserId, [Int32]) Int64
+countLocalConnectionsByStatus =
+  lmapPG @(UUID, Vector.Vector Int32) @(UserId, [Int32])
+    [singletonStatement|SELECT (count(*) FILTER (WHERE status = ANY ($2 :: int4[])) :: int8)
+                        FROM connection WHERE "left" = ($1 :: uuid)|]
+
+countRemoteConnectionsByStatus :: Hasql.Statement (UserId, [Int32]) Int64
+countRemoteConnectionsByStatus =
+  lmapPG @(UUID, Vector.Vector Int32) @(UserId, [Int32])
+    [singletonStatement|SELECT (count(*) FILTER (WHERE status = ANY ($2 :: int4[])) :: int8)
+                        FROM connection_remote WHERE "left" = ($1 :: uuid)|]
 
 lastRow :: [a] -> Maybe a
 lastRow = listToMaybe . reverse
+
+-- | Shared construction of a Cassandra-style page from a keyset page: the
+-- marker is the last row iff the page came back full.
+buildPageWithState ::
+  (row -> UserConnection) ->
+  (row -> ByteString) ->
+  Int32 ->
+  Vector.Vector row ->
+  Cas.PageWithState ByteString UserConnection
+buildPageWithState toUC mkMarker size rows =
+  PageWithState
+    { pwsResults = map toUC xs,
+      pwsState = PaginationStatePostgres <$> mMarker
+    }
+  where
+    xs = Vector.toList rows
+    mMarker = if length xs == fromIntegral size then mkMarker <$> lastRow xs else Nothing
 
 -- | Walk all pages of a user's remote connections (keyset by
 -- (right_domain, right_user)) and return the row vectors as a list.
@@ -337,6 +362,17 @@ deleteLocalConnections =
   lmapPG
     [resultlessStatement|DELETE FROM connection WHERE "left" = ($1 :: uuid)|]
 
+-- | Deletes the mirror rows pointing at the deleted user ((left=contact,
+-- right=u) for every contact of u), mirroring the Cassandra per-contact
+-- 'connectionDelete' calls in 'Wire.ConnectionStore.Cassandra.deleteConnections'.
+deleteIncomingLocalConnections :: Hasql.Statement UserId ()
+deleteIncomingLocalConnections =
+  lmapPG
+    [resultlessStatement|DELETE FROM connection c
+                         WHERE c."right" = ($1 :: uuid)
+                           AND c."left" = ANY (SELECT s."right" FROM connection s WHERE s."left" = ($1 :: uuid))
+                        |]
+
 deleteRemoteConnectionsByLeft :: Hasql.Statement UserId ()
 deleteRemoteConnectionsByLeft =
   lmapPG
@@ -346,7 +382,7 @@ deleteRemoteConnectionsByUsers :: Hasql.Statement (UserId, Domain, [UserId]) ()
 deleteRemoteConnectionsByUsers =
   lmapPG @(UUID, Text, Vector.Vector UUID) @(UserId, Domain, [UserId])
     [resultlessStatement|DELETE FROM connection_remote
-                         WHERE "left" = ($1 :: uuid) AND right_domain = ($2 :: text) AND right_user = ANY ($3 :: uuid[])
+                         WHERE "left" = ANY ($3 :: uuid[]) AND right_domain = ($2 :: text) AND right_user = ($1 :: uuid)
                         |]
 
 selectLocalConnection :: Hasql.Statement (UserId, UserId) (Maybe (UUID, Int32, UTCTime, Maybe UUID))
@@ -452,13 +488,3 @@ selectAllRemoteRelations =
     [vectorStatement|SELECT (right_domain :: text), (right_user :: uuid), (status :: int4)
                      FROM connection_remote WHERE "left" = ($1 :: uuid)
                     |]
-
-selectLocalStatuses :: Hasql.Statement UserId (Vector.Vector Int32)
-selectLocalStatuses =
-  dimapPG
-    [vectorStatement|SELECT (status :: int4) FROM connection WHERE "left" = ($1 :: uuid)|]
-
-selectRemoteStatuses :: Hasql.Statement UserId (Vector.Vector Int32)
-selectRemoteStatuses =
-  dimapPG
-    [vectorStatement|SELECT (status :: int4) FROM connection_remote WHERE "left" = ($1 :: uuid)|]
