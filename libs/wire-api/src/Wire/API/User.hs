@@ -33,6 +33,7 @@ module Wire.API.User
     UserProfile (..),
     ContactStatus (..),
     ContactStatusState (..),
+    ContactStatusContext (..),
     SelfProfile (..),
     -- User (should not be here)
     User (..),
@@ -217,6 +218,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Locale
+import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.Password
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service (ServiceRef)
@@ -626,6 +628,26 @@ data ContactStatus = ContactStatus
 
 instance ToSchema ContactStatus where
   schema = object $ ContactStatus <$> contactStatusState .= field "state" schema
+
+-- | Requester-side inputs of the contactability rule. Computed once by the
+-- requester's backend and shipped to the backend that owns the target users, so
+-- that local and remote users are evaluated by the same rule.
+data ContactStatusContext = ContactStatusContext
+  { -- | Requester-side only: requester's server and team allow MLS. The
+    -- target's own server flag is applied by the target backend.
+    mlsAvailable :: Bool,
+    allowedCipherSuites :: Set CipherSuiteTag
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ContactStatusContext)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ContactStatusContext)
+
+instance ToSchema ContactStatusContext where
+  schema =
+    object $
+      ContactStatusContext
+        <$> (.mlsAvailable) .= field "mls_available" schema
+        <*> (.allowedCipherSuites) .= field "allowed_cipher_suites" (set schema)
 
 --------------------------------------------------------------------------------
 -- SelfProfile
