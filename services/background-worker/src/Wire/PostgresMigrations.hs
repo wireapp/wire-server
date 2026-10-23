@@ -28,6 +28,7 @@ import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
+import Wire.OAuthAuthCodeStore.Migration
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
@@ -163,4 +164,22 @@ passwordReset migOpts = do
   Log.info logger $ Log.msg (Log.val "started password reset migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling password reset migration")
+    cancel migrationLoop
+
+oauthAuthCode :: MigrationOptions -> AppT IO CleanupAction
+oauthAuthCode migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting oauth auth code migration")
+  count <- register $ counter $ Prometheus.Info "wire_oauth_auth_code_migrated_to_pg" "Number of oauth auth codes migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_oauth_auth_code_migration_finished" "Whether the oauth auth code migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_oauth_auth_code_migration_failed" "Whether the oauth auth code migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_oauth_auth_code_migration_duration_seconds" "Duration of oauth auth code migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateOAuthAuthCodeLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started oauth auth code migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling oauth auth code migration")
     cancel migrationLoop
