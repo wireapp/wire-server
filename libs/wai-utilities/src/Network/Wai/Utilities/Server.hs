@@ -421,9 +421,13 @@ logErrorMsg (Wai.Error c l m md inner) =
     . msg (val "\"" +++ m +++ val "\"")
     . maybe id logErrorMsg inner
   where
-    logErrorData (Wai.FederationErrorData d p) =
-      field "domain" (domainText d)
+    -- Log the legacy domain as srv_target_domain to distinguish it from the
+    -- requested federation_domain and raw srv_target.
+    logErrorData (Wai.FederationErrorData d p federationDomain srvTarget) =
+      maybe id (field "srv_target_domain" . domainText) d
         . field "path" p
+        . maybe id (field "federation_domain" . domainText) federationDomain
+        . maybe id (field "srv_target") srvTarget
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =

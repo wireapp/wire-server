@@ -111,7 +111,7 @@ testRejectRequestsWithoutClientCertIngress env = runTestFederator env $ do
       Right _ -> expectationFailure "Expected client certificate error, got response"
       Left (RemoteError {}) ->
         expectationFailure "Expected client certificate error, got remote error"
-      Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
+      Left (RemoteErrorResponse _ _ _ status _) -> status `shouldBe` HTTP.status400
 
 -- @END
 

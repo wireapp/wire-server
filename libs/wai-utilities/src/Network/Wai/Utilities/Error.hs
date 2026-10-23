@@ -52,24 +52,31 @@ mkError c l m = Error c l m Nothing Nothing
 instance Exception Error
 
 data ErrorData = FederationErrorData
-  { federrDomain :: !Domain,
-    federrPath :: !Text
+  { -- | Existing response field: the parsed SRV domain or requested peer.
+    federrDomain :: !(Maybe Domain),
+    federrPath :: !Text,
+    -- | Requested peer domain, for logs.
+    federrFederationDomain :: !(Maybe Domain),
+    -- | Discovered SRV host and port, for logs.
+    federrSrvTarget :: !(Maybe Text)
   }
   deriving (Eq, Show, Typeable)
 
 instance ToJSON ErrorData where
-  toJSON (FederationErrorData d p) =
+  -- Keep log-only fields out of the response.
+  toJSON (FederationErrorData d p _federationDomain _srvTarget) =
     object $
-      [ "type" .= ("federation" :: Text),
-        "domain" .= d,
-        "path" .= p
-      ]
+      ["type" .= ("federation" :: Text)]
+        ++ maybe [] (\domain -> ["domain" .= domain]) d
+        ++ ["path" .= p]
 
 instance FromJSON ErrorData where
   parseJSON = withObject "ErrorData" $ \o ->
     FederationErrorData
-      <$> o .: "domain"
+      <$> o .:? "domain"
       <*> o .: "path"
+      <*> pure Nothing
+      <*> pure Nothing
 
 instance ToJSON Error where
   toJSON (Error c l m md inner) =
