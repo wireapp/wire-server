@@ -22,16 +22,9 @@ where
 
 import Cassandra.Schema
 import Imports
-import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 3 "DEPRECATED AS OF https://github.com/wireapp/wire-server/pull/2441" $ do
-  void $
-    schema'
-      [r|
-        CREATE TABLE if not exists bind_cookie
-            ( cookie          text
-            , session_owner   uuid
-            , primary key (cookie)
-            )
-    |]
+migration = Migration 3 "DEPRECATED AS OF https://github.com/wireapp/wire-server/pull/2441" (pure ())
+
+-- bind_cookie was created here; dead since PR #2441, dropped by V24.
+-- No-op keeps version history contiguous.

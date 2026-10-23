@@ -1,0 +1,1 @@
+spar: schema migration V24 permanently deletes the unused Cassandra table `spar.bind_cookie` (dead since the SSO bind-cookie flow was removed in PR #2441). No operator action is required; if a recovery window is desired, take a Cassandra snapshot before deploying, since the DROP is irreversible.
