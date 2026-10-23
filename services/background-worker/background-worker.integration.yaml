@@ -61,6 +61,7 @@ migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
 migratePasswordReset: false
+migrateMlsKeyPackages: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -97,3 +98,4 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  mlsKeyPackages: postgresql
