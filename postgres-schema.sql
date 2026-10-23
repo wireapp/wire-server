@@ -1674,6 +1674,27 @@ CREATE TABLE public.subconversation (
 ALTER TABLE public.subconversation OWNER TO "wire-server";
 
 --
+-- Name: team; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team (
+    team uuid NOT NULL,
+    creator uuid,
+    name text,
+    icon text,
+    icon_key text,
+    splash_screen text,
+    binding boolean NOT NULL,
+    status integer NOT NULL,
+    search_visibility integer,
+    deleted boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone
+);
+
+
+ALTER TABLE public.team OWNER TO "wire-server";
+
+--
 -- Name: team_features; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2118,6 +2139,14 @@ ALTER TABLE ONLY public.subconversation
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: team team_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team
+    ADD CONSTRAINT team_pkey PRIMARY KEY (team);
 
 
 --
