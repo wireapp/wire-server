@@ -1,0 +1,1 @@
+Migration of ListItems (user -> teams pagination) reads from cassandra to postgres. Adds a required `postgresMigration.listItems` key to galley/brig/background-worker config; keep it on `cassandra` until the `teamStore` migration has finished (`wire_team_members_migration_finished == 1.0`), then flip to `postgresql`.

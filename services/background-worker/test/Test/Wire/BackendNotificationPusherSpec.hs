@@ -500,7 +500,8 @@ spec = do
                 user = CassandraStorage,
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
-                teamStore = CassandraStorage
+                teamStore = CassandraStorage,
+                listItems = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -568,7 +569,8 @@ spec = do
                 user = CassandraStorage,
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
-                teamStore = CassandraStorage
+                teamStore = CassandraStorage,
+                listItems = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

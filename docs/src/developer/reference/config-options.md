@@ -2341,6 +2341,7 @@ galley:
       conversationCodes: postgresql
       teamFeatures: postgresql
       teamStore: postgresql
+      listItems: postgresql
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
@@ -2384,6 +2385,7 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `teamStore` -> `migrateTeamMembers`
+- `listItems` -> read-only over `user_team`: no dedicated worker flag; data is copied by `migrateTeamMembers`. Flip `listItems` to `postgresql` only after `wire_team_members_migration_finished` reaches `1.0`
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
@@ -2407,6 +2409,7 @@ The current settings and their background-worker flags are:
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
          teamStore: migration-to-postgresql
+      listItems: cassandra
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
          blockList: cassandra
@@ -2454,6 +2457,7 @@ The current settings and their background-worker flags are:
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
    - `teamStore`: `wire_team_members_migration_finished`
+   - `listItems`: no metric (read-path only; covered by `wire_team_members_migration_finished`)
    - `domainRegistration`: `wire_domain_registration_migration_finished`
    - `user`: `wire_user_migration_finished`
 
@@ -2480,6 +2484,7 @@ The current settings and their background-worker flags are:
          conversationCodes: postgresql
          teamFeatures: postgresql
          teamStore: postgresql
+      listItems: postgresql
          domainRegistration: postgresql
          user: postgresql
          blockList: cassandra
