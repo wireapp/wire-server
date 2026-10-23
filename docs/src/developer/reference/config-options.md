@@ -2396,6 +2396,7 @@ galley:
       budget: postgresql
       nonce: postgresql
       connections: postgresql
+      clients: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2407,6 +2408,7 @@ background-worker:
     migrateCustomBackend: false
     migrateNonce: false
     migrateConnections: false
+    migrateClients: false
 ```
 
 #### Migration for existing installations
@@ -2443,6 +2445,7 @@ The current settings and their background-worker flags are:
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
+- `clients` -> `migrateClients`
 
 **Migration pattern per migration setting**
 
@@ -2469,6 +2472,7 @@ The current settings and their background-worker flags are:
          budget: cassandra
          nonce: cassandra
          connections: cassandra
+         clients: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2481,6 +2485,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
+       migrateClients: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2500,6 +2505,7 @@ The current settings and their background-worker flags are:
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateConnections: true
+       migrateClients: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2530,6 +2536,7 @@ The current settings and their background-worker flags are:
    - `customBackend`: `wire_custom_backend_migration_finished`
    - `nonce`: `wire_nonce_migration_finished`
    - `connections`: `wire_connections_migration_finished`
+   - `clients`: `wire_clients_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2550,6 +2557,7 @@ The current settings and their background-worker flags are:
          budget: postgresql
          nonce: postgresql
          connections: postgresql
+         clients: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2562,6 +2570,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
+       migrateClients: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2655,6 +2664,7 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
+migrateClients: false
 
 # migration settings
 migrationOptions:

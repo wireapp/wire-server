@@ -336,6 +336,12 @@ instance Cql SignatureSchemeTag where
       signatureSchemeFromName name
   fromCql _ = Left "SignatureScheme: Text expected"
 
+instance PostgresMarshall Text SignatureSchemeTag where
+  postgresMarshall = signatureSchemeName
+
+instance PostgresUnmarshall Text SignatureSchemeTag where
+  postgresUnmarshall = note "Unexpected signature scheme" . signatureSchemeFromName
+
 signatureSchemeName :: SignatureSchemeTag -> Text
 signatureSchemeName Ed25519 = "ed25519"
 signatureSchemeName Ecdsa_secp256r1_sha256 = "ecdsa_secp256r1_sha256"

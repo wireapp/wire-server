@@ -181,6 +181,7 @@ library
     Test.Migration.BlockList
     Test.Migration.Budget
     Test.Migration.Connections
+    Test.Migration.ClientStore
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.CustomBackend
