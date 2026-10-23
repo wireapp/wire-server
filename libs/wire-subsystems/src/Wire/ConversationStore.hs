@@ -178,6 +178,13 @@ acceptConnectConversation cid = setConversationType cid One2OneConv
 upsertMember :: (Member ConversationStore r) => Local ConvId -> Local UserId -> Sem r [LocalMember]
 upsertMember c u = fst <$> upsertMembers (tUnqualified c) (UserList [(tUnqualified u, roleNameWireAdmin)] [])
 
+-- | Delete a bot's member row. Bots do not support MLS, so there is no
+-- remove proposal to sign; 'BotId' is a newtype, so a plain 'UserId' cannot
+-- reach this 'ProteusOnlyConversation' claim by mistake.
+deleteBotMemberRow :: (Member ConversationStore r) => ConvId -> BotId -> Sem r ()
+deleteBotMemberRow cid bid =
+  deleteMemberRowsOnly ProteusOnlyConversation cid (UserList [botUserId bid] [])
+
 getConvOrSubGroupInfo ::
   (Member ConversationStore r) =>
   ConvOrSubConvId ->

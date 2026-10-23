@@ -2325,7 +2325,7 @@ rmBot lusr zcon b = do
                 conn = zcon
               }
           ]
-        E.deleteMemberRowsOnly E.ProteusOnlyConversation c.id_ (UserList [botUserId (b ^. rmBotId)] [])
+        E.deleteBotMemberRow c.id_ (b ^. rmBotId)
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)
         pure $ Updated e
