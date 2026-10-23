@@ -4,8 +4,16 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
-cabalFiles=$(find "$ROOT_DIR" -type f -name '*.cabal' \
-                 | grep -v dist-newstyle | sort)
+submoduleRoots=$(git -C "$ROOT_DIR" config --file "$ROOT_DIR/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null | awk '{print $2}' || true)
+cabalFiles=$(
+    {
+        git -C "$ROOT_DIR" ls-files -- '*.cabal' | sed "s|^|$ROOT_DIR/|"
+        # shellcheck disable=SC2086  # submodule paths contain no whitespace
+        for sub in $submoduleRoots; do
+            find "$ROOT_DIR/$sub" -type f -name '*.cabal' 2>/dev/null || true
+        done
+    } | grep -v dist-newstyle | sort -u
+)
 
 warningFile=$(mktemp)
 cat >"$warningFile" <<EOF

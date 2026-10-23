@@ -33,6 +33,7 @@ packages:
   , libs/wire-message-proto-lens/
   , libs/wire-subsystems/
   , libs/zauth/
+  , protected/services/wire-server-enterprise
   , services/background-worker/
   , services/brig/
   , services/cannon/
@@ -41,7 +42,6 @@ packages:
   , services/galley/
   , services/gundeck/
   , services/proxy/
-  , services/wire-server-enterprise
   , services/spar/
   , tools/db/assets/
   , tools/db/auto-whitelist/
