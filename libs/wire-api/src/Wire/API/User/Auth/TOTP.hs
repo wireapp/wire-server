@@ -248,7 +248,7 @@ secondFactorCodeFromText t =
     Nothing ->
       case Text.stripPrefix "recovery:" t of
         Just rest -> SFRecovery <$> recoveryCodeFromText rest
-        Nothing -> Left $ "unknown second factor type in " <> show t
+        Nothing -> Left "unknown second factor type; expected totp: or recovery:"
 
 instance ToSchema SecondFactorCode where
   schema =
