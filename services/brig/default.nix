@@ -226,6 +226,7 @@ mkDerivation {
     polysemy-wire-zoo
     prometheus-client
     proto-lens
+    QuickCheck
     ram
     random-shuffle
     raw-strings-qq

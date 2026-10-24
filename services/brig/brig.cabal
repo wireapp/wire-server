@@ -91,6 +91,7 @@ library
     Brig.API.OAuth
     Brig.API.Public
     Brig.API.Public.Swagger
+    Brig.API.TOTP.Mock
     Brig.API.Types
     Brig.API.User
     Brig.API.Util
@@ -274,6 +275,7 @@ library
     , polysemy-wire-zoo
     , prometheus-client
     , proto-lens                            >=0.1
+    , QuickCheck
     , ram
     , random-shuffle                        >=0.0.3
     , raw-strings-qq

@@ -61,6 +61,7 @@ import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.SendActivationCode_user
 import Test.Wire.API.Golden.Manual.SubConversation
+import Test.Wire.API.Golden.Manual.TOTP
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
@@ -75,7 +76,35 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "NewApp" $
+    [ testGroup "TOTPEnrolment" $
+        testObjects
+          [ (testObject_TOTPEnrolment_1, "testObject_TOTPEnrolment_1.json"),
+            (testObject_TOTPEnrolment_2, "testObject_TOTPEnrolment_2.json")
+          ],
+      testGroup "TOTPCredentialInfo" $
+        testObjects
+          [ (testObject_TOTPCredentialInfo_1, "testObject_TOTPCredentialInfo_1.json"),
+            (testObject_TOTPCredentialInfo_2, "testObject_TOTPCredentialInfo_2.json")
+          ],
+      testGroup "TOTPRecoveryCodes" $
+        testObjects
+          [ (testObject_TOTPRecoveryCodes_1, "testObject_TOTPRecoveryCodes_1.json"),
+            (testObject_TOTPRecoveryCodes_2, "testObject_TOTPRecoveryCodes_2.json")
+          ],
+      testGroup "ReauthBody" $
+        testObjects
+          [ (testObject_ReauthBody_1, "testObject_ReauthBody_1.json"),
+            (testObject_ReauthBody_2, "testObject_ReauthBody_2.json"),
+            (testObject_ReauthBody_3, "testObject_ReauthBody_3.json"),
+            (testObject_ReauthBody_4, "testObject_ReauthBody_4.json")
+          ],
+      testGroup "NewTOTPCredential" $
+        testObjects [(testObject_NewTOTPCredential_1, "testObject_NewTOTPCredential_1.json")],
+      testGroup "ActivateTOTPCredential" $
+        testObjects [(testObject_ActivateTOTPCredential_1, "testObject_ActivateTOTPCredential_1.json")],
+      testGroup "TOTPCredentialName" $
+        testObjects [(testObject_TOTPCredentialName_1, "testObject_TOTPCredentialName_1.json")],
+      testGroup "NewApp" $
         testObjects [(testObject_NewApp_1, "testObject_NewApp_1.json")],
       testGroup "AdminlessDeletionJob" $
         testObjects
