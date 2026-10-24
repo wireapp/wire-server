@@ -65,6 +65,7 @@ import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
+import Wire.API.Routes.Public.Brig.TOTP (TOTPAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -111,6 +112,7 @@ type BrigAPI =
     :<|> DomainVerificationChallengeAPI
     :<|> UserGroupAPI
     :<|> AppsAPI
+    :<|> TOTPAPI
 
 data BrigAPITag
 

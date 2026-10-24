@@ -37,6 +37,7 @@ import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util (isMLSEnabled)
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Public.Swagger
+import Brig.API.TOTP.Mock (totpAPI)
 import Brig.API.Types
 import Brig.API.User qualified as API
 import Brig.API.Util
@@ -440,6 +441,7 @@ servantSitemap =
     :<|> domainVerificationChallengeAPI
     :<|> userGroupAPI
     :<|> appsAPI
+    :<|> totpAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
