@@ -42,6 +42,7 @@ import Test.Wire.API.Team.Export qualified as Team.Export
 import Test.Wire.API.Team.Member qualified as Team.Member
 import Test.Wire.API.User qualified as User
 import Test.Wire.API.User.Auth qualified as User.Auth
+import Test.Wire.API.User.Auth.TOTP qualified as User.Auth.TOTP
 import Test.Wire.API.User.RichInfo qualified as User.RichInfo
 import Test.Wire.API.User.Search qualified as User.Search
 
@@ -57,6 +58,7 @@ main =
         User.Search.tests,
         User.RichInfo.tests,
         User.Auth.tests,
+        User.Auth.TOTP.tests,
         Roundtrip.Aeson.tests,
         Roundtrip.ByteString.tests,
         Roundtrip.HttpApiData.tests,

@@ -226,6 +226,7 @@ library
     Test.TeamCollaborators
     Test.Teams
     Test.TeamSettings
+    Test.TOTP
     Test.User
     Test.UserGroup
     Test.Version
