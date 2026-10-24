@@ -6,7 +6,7 @@
 
 ## This step is already written
 
-It is `otp-tickets/plan-mock-api.md`, in full. Do not duplicate it here — implement that file. It is handover-ready: it carries its own reading list, repo mechanics, traps, file:line anchors, the error table, and acceptance criteria.
+It is `../otp-tickets/plan-mock-api.md`, in full. Do not duplicate it here — implement that file. It is handover-ready: it carries its own reading list, repo mechanics, traps, file:line anchors, the error table, and acceptance criteria.
 
 Summary of what it delivers, so this directory reads end to end:
 

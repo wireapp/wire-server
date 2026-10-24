@@ -8,7 +8,7 @@ This is the step the whole feature exists for. Everything before it was a settin
 
 ## Read first
 
-`otp-tickets/plan-otp.md` §6 in full, and `plan-otp-11`. §6 now also contains the SSO rule (D15) and the password-reset analysis (D16); the former is in scope here, the latter is A6.
+`../otp-tickets/plan-otp.md` §6 in full, and `plan-otp-11`. §6 now also contains the SSO rule (D15) and the password-reset analysis (D16); the former is in scope here, the latter is A6.
 
 ## Scope
 

@@ -9,3 +9,17 @@ otp-tickets:
 otp-agile:
  - newly cut tickets that should lead to faster and more incremental
    results.
+
+
+
+product questions:
+
+- should "name" be unique?
+  Arguments for enforcing per-user name uniqueness:
+   - The name is the only human-readable identifier; without uniqueness the settings UI shows indistinguishable duplicate entries
+   - Adds a UNIQUE (user_id, name) DB constraint + a TOTPNameConflict error, checked at both enrolment and rename
+   - Consistent with how the feature is positioned (D6: "Multiple authenticators, with a configurable cap")
+  Arguments against:
+   - Adds friction (user must invent unique names)
+   - Could be handled client-side (append "(2)", etc.)
+   - The UUID is always available as the true identifier

@@ -6,7 +6,7 @@ links:
 - https://wearezeta.atlassian.net/wiki/spaces/AIS/pages/3364651049/TOTP+RFC+6238+support+in+wire-server+Implementation+plan
 ```
 
-**Context:** [spec](https://wearezeta.atlassian.net/wiki/spaces/AIS/pages/3364651049/TOTP+RFC+6238+support+in+wire-server+Implementation+plan) §2 (types), §5 (routes), §0 (`otpauth://`). A copy of that spec lives in this repo at `otp-tickets/plan-otp.md`; every `§n` and `Dn` reference below points into it, so you do not need Confluence access to implement this ticket.
+**Context:** [spec](https://wearezeta.atlassian.net/wiki/spaces/AIS/pages/3364651049/TOTP+RFC+6238+support+in+wire-server+Implementation+plan) §2 (types), §5 (routes), §0 (`otpauth://`). A copy of that spec lives next to this file, at `plan-otp.md`; every `§n` and `Dn` reference below points into it, so you do not need Confluence access to implement this ticket.
 
 ## Why this one exists
 
@@ -28,9 +28,10 @@ This ticket is written to be implementable without the surrounding conversation.
 
 | | |
 |---|---|
-| `otp-tickets/plan-otp.md` | the full spec. §2 is the type list, §4 the error table and the subsystem design, §5 the REST surface, §8 config. Read §0, §2, §4, §5. Skip §3 (storage) and §6 (second-factor wiring) — nothing here touches them. |
-| `otp-tickets/plan-otp-01-api-types.md` | the sibling ticket whose work this one absorbs. Its "Requirements" section is the authority on secret handling and parser strictness. |
-| `otp-tickets/plan-otp-07-enrolment-endpoints.md` | its "Documentation is part of this ticket" section is the checklist the route `Description`s must satisfy. |
+| `plan-otp.md` | the full spec. §2 is the type list, §4 the error table and the subsystem design, §5 the REST surface, §8 config. Read §0, §2, §4, §5. Skip §3 (storage) and §6 (second-factor wiring) — nothing here touches them. |
+| `plan-otp-01-api-types.md` | the sibling ticket whose work this one absorbs. Its "Requirements" section is the authority on secret handling and parser strictness. |
+| `plan-otp-07-enrolment-endpoints.md` | its "Documentation is part of this ticket" section is the checklist the route `Description`s must satisfy. |
+| `plan-otp-27-secret-containment.md` | written *after* this ticket was first implemented, and it audits exactly what this ticket builds. Read it before writing the secret types — see trap 5 below. |
 
 The sibling tickets are drafts and will likely be re-cut. Where they disagree with *this* file, this file wins.
 
@@ -49,6 +50,7 @@ The sibling tickets are drafts and will likely be re-cut. Where they disagree wi
 2. **Adding an `Id` tag is a five-place ritual** in `libs/types-common/src/Data/Id.hs`: the `IdTag` constructor (`:115`), a case in `idTagName`, a `KnownIdTag` instance, the `type TOTPCredentialId = Id 'TOTPCredential` alias, *and* the module export list. Miss one and the error message points somewhere else entirely. `UserGroupId` is the template — grep for it and copy all five.
 3. **`TOTPClientClockSkew` wants a `RichError` body** carrying `server_time` (§4). Do not build that here; ship it as a plain `StaticError` like its neighbours and let `TOTP 10` upgrade it. It is a rabbit hole and the mock never throws it.
 4. The redacting `Show` on `TOTPSecret`/`TOTPCode`/`RecoveryCode` means test failure output is unhelpful by design. That is the correct trade; do not "temporarily" derive `Show` to debug and then forget.
+5. **The redacting `Show` does not cover the roundtrip test, and the acceptance criteria below send you straight into that gap.** `Test.Wire.API.Roundtrip.Aeson.testRoundTrip` prints `counterexample (show (toJSON v))` — `show` of the *JSON*, not of the value — so the redacting instance is bypassed entirely and a generated secret lands in CI logs the first time a roundtrip property fails. It needs no malice and no unusual code, only one flaky property. This ticket still requires the types to be added to that suite (the roundtrip coverage is worth more than the exposure, and the values are `Arbitrary`-generated, not real user secrets), but **fix the helper in the same commit**: make the counterexample opt-out per type, which is a two-line change to a shared helper and protects every secret-bearing type anyone adds later. `plan-otp-27-secret-containment.md` leak path (5) is the full analysis, along with six other paths this ticket's abstraction does not close. Read it before deciding how much to promise in the module header.
 
 ---
 
@@ -226,7 +228,8 @@ This is the half of `TOTP 08` that moves here. What stays in `TOTP 08` is the `d
 
 - `make c package=wire-api` and `make c package=brig` clean.
 - `integration/test/Test/Swagger.hs` green, with the five new endpoints in the document. (It also runs the `vacuum` OpenAPI linter, so a malformed schema fails there rather than in review.)
-- All new types in `libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs`; `TOTPCredentialId` in the `HttpApiData` roundtrip.
+- All new types in `libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs`; `TOTPCredentialId` in the `HttpApiData` roundtrip. **Together with the `testRoundTrip` counterexample fix from trap 5** — adding the secret-bearing types to that suite without it puts generated secrets in CI logs on any failure.
+- A test that a failing roundtrip on a secret-bearing type produces a counterexample containing no part of the value. Without it, the trap-5 fix silently regresses the next time that helper is touched.
 - Golden JSON for `TOTPEnrolment`, `TOTPCredentialInfo`, `TOTPRecoveryCodes`, `ReauthBody` (manual golden modules under `libs/wire-api/test/golden/Test/Wire/API/Golden/Manual/`, registered in `Manual.hs`; `App.hs` there is a recent template).
 - Negative parse tests: padded Base32, malformed Base32, non-digit `TOTPCode`, wrong-length `TOTPCode`, a recovery code in the wrong shape, and a `SecondFactorCode` that parses as exactly one of its two branches and never both. The mock's main job is telling clients their request is wrong, so the parsers are the part worth testing.
 - A test asserting `show` of a `TOTPSecret`, a `TOTPCode` and a `RecoveryCode` leaks nothing.

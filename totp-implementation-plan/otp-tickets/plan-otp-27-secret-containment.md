@@ -6,7 +6,7 @@ links:
 - https://wearezeta.atlassian.net/wiki/spaces/AIS/pages/3364651049/TOTP+RFC+6238+support+in+wire-server+Implementation+plan
 ```
 
-**Context:** [spec](https://wearezeta.atlassian.net/wiki/spaces/AIS/pages/3364651049/TOTP+RFC+6238+support+in+wire-server+Implementation+plan) §2 (the "do not derive `Show` naively" rule), §4 (constant-time comparison). A copy lives at `otp-tickets/plan-otp.md`.
+**Context:** [spec](https://wearezeta.atlassian.net/wiki/spaces/AIS/pages/3364651049/TOTP+RFC+6238+support+in+wire-server+Implementation+plan) §2 (the "do not derive `Show` naively" rule), §4 (constant-time comparison). A copy lives at `plan-otp.md`.
 
 ## Why this one exists
 

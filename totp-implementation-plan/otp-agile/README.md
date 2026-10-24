@@ -1,10 +1,12 @@
 # TOTP, re-cut for delivery
 
-`otp-tickets/` is the engineering plan: 27 tickets, layered bottom-up — types, store, crypto, subsystem, config, endpoints, then feature after feature. It is a good decomposition of the *problem*. It is a bad decomposition of the *work*, because nothing is visible to anyone outside the backend team until about ticket 7, and nothing a user would recognise as "two-factor authentication" exists until about ticket 11.
+*Layout: this file is `totp-implementation-plan/otp-agile/README.md`. Its sibling directory `../otp-tickets/` holds the spec and the original tickets; every path below is relative to here.*
+
+`../otp-tickets/` is the engineering plan: 27 tickets, layered bottom-up — types, store, crypto, subsystem, config, endpoints, then feature after feature. It is a good decomposition of the *problem*. It is a bad decomposition of the *work*, because nothing is visible to anyone outside the backend team until about ticket 7, and nothing a user would recognise as "two-factor authentication" exists until about ticket 11.
 
 This directory re-cuts the same work outside-in. Each step ends in something a person can touch, demo, and give feedback on. The backend lies to begin with, and each step replaces one lie with the truth.
 
-`otp-tickets/` stays as-is and stays authoritative on *how* each piece works. These files say *in what order*, *how far to fake it*, and *when to stop faking*. Where they disagree on sequencing, this directory wins; where they disagree on design, `otp-tickets/plan-otp.md` wins.
+`../otp-tickets/` stays as-is and stays authoritative on *how* each piece works. These files say *in what order*, *how far to fake it*, and *when to stop faking*. Where they disagree on sequencing, this directory wins; where they disagree on design, `../otp-tickets/plan-otp.md` wins.
 
 ---
 
@@ -72,15 +74,15 @@ A6 and A7 groups 2–3 are neither gate. They can land after general availabilit
 
 `plan-otp-26` (reauth evidence) is **not** on that list, and the temptation to put it there is the mistake. It is written as a later refactor of fifteen call sites, and `plan-otp-11` explicitly ships `EnsureReauthenticated` returning `()` with a note that 26 will fix it. That is backwards: A3 is where the type is *born*, with three call sites, and building it right there costs a fraction of converting it afterwards. It is folded into A3.
 
-## What `otp-tickets/` is still for
+## What the sibling `otp-tickets/` is still for
 
 This directory is a **sequencing layer**, not a replacement. It says in what order, how far to fake it, and when to stop faking. It does not restate the engineering detail, and it should not — every one of the 26 tickets is referenced from these files and remains authoritative on *how* its piece works: acceptance criteria, test lists, design rationale, and the arguments for decisions that look arbitrary until you read them.
 
 So: read the A-file for scope and sequencing, then read the tickets it names for the detail. `plan-otp.md` is the spec behind both.
 
-One file there is actively misleading now. **`otp-tickets/BLOCKERS.md` encodes the old bottom-up dependency graph** — `05` blocked by `03`, `07` blocked by `06`, and so on. Those were real dependencies for the old ordering and they are *not* the constraints here; this re-cut deliberately violates several of them (A1 ships storage without encryption, which `BLOCKERS.md` has `05` waiting on `03` to avoid). Treat it as a historical artefact. The dependency statement that applies is the one above: A0–A4 sequential, A5 a parallel bucket, A6 and A7 independent and depending only on A3.
+One file there is actively misleading now. **`../otp-tickets/BLOCKERS.md` encodes the old bottom-up dependency graph** — `05` blocked by `03`, `07` blocked by `06`, and so on. Those were real dependencies for the old ordering and they are *not* the constraints here; this re-cut deliberately violates several of them (A1 ships storage without encryption, which `BLOCKERS.md` has `05` waiting on `03` to avoid). Treat it as a historical artefact. The dependency statement that applies is the one above: A0–A4 sequential, A5 a parallel bucket, A6 and A7 independent and depending only on A3.
 
-`otp-tickets/TICKET_IDS.csv` has no rows for `plan-mock-api.md` or for any file in this directory. Someone will need to cut tickets for A0–A7 and add them.
+`../otp-tickets/TICKET_IDS.csv` has no rows for `plan-mock-api.md` or for any file in this directory. Someone will need to cut tickets for A0–A7 and add them.
 
 ---
 

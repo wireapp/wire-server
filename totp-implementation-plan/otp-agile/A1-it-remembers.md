@@ -14,7 +14,7 @@ Faking the crypto for one more step is nearly free. Faking the storage is what w
 
 ## Scope
 
-Real, as specified in `otp-tickets/plan-otp.md`:
+Real, as specified in `../otp-tickets/plan-otp.md`:
 
 - **The Postgres tables and the migration** — `totp_credential` only. Not `totp_step_claim` (that is replay protection, A5) and not `totp_recovery_code` (A4). `plan-otp-02` and §3.
 - **`Wire.TOTPStore` + the Postgres interpreter**, to the dumb-store rule in §3/D12: storage only, no policy, no TTL arithmetic, no activated/pending filtering. Omit `ClaimStepIfNewer` and the recovery-code operations; nothing calls them yet.
