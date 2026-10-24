@@ -403,9 +403,12 @@ data TOTPEnrolment = TOTPEnrolment
     serverTime :: UTCTimeMillis,
     expiresAt :: UTCTimeMillis
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TOTPEnrolment)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema TOTPEnrolment
+
+instance Show TOTPEnrolment where
+  show _ = "TOTPEnrolment <redacted>"
 
 instance ToSchema TOTPEnrolment where
   schema =
