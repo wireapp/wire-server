@@ -1,0 +1,1 @@
+Developer docs: document how temporary guest accounts (brig ephemeral users) join meetings via meeting join links, and add an integration test covering the flow.
