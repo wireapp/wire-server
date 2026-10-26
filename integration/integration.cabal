@@ -184,6 +184,7 @@ library
     Test.Migration.DomainRegistration
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
+    Test.Migration.TeamNotifications
     Test.Migration.User
     Test.Migration.Util
     Test.MLS

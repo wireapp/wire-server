@@ -2332,6 +2332,7 @@ galley:
       blockList: postgresql
       passwordReset: postgresql
       customBackend: postgresql
+      teamNotifications: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2341,6 +2342,7 @@ background-worker:
     migrateBlockList: false
     migratePasswordReset: false
     migrateCustomBackend: false
+    migrateTeamNotifications: false
 ```
 
 #### Migration for existing installations
@@ -2375,6 +2377,7 @@ The current settings and their background-worker flags are:
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
+- `teamNotifications` -> `migrateTeamNotifications`
 
 **Migration pattern per migration setting**
 
@@ -2398,6 +2401,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: cassandra
          customBackend: cassandra
+         teamNotifications: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2408,6 +2412,7 @@ The current settings and their background-worker flags are:
        migrateBlockList: false
        migratePasswordReset: false
        migrateCustomBackend: false
+       migrateTeamNotifications: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2454,6 +2459,7 @@ The current settings and their background-worker flags are:
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
+   - `teamNotifications`: `wire_team_notifications_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2471,6 +2477,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: postgresql
          customBackend: postgresql
+         teamNotifications: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2481,6 +2488,7 @@ The current settings and their background-worker flags are:
        migrateBlockList: false
        migratePasswordReset: false
        migrateCustomBackend: false
+       migrateTeamNotifications: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2572,6 +2580,7 @@ migrateDomainRegistration: false
 migrateBlockList: false
 migratePasswordReset: false
 migrateCustomBackend: false
+migrateTeamNotifications: false
 
 # migration settings
 migrationOptions:

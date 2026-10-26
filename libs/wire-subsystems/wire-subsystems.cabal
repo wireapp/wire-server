@@ -489,6 +489,9 @@ library
     Wire.TeamMemberStore.Cassandra
     Wire.TeamNotificationStore
     Wire.TeamNotificationStore.Cassandra
+    Wire.TeamNotificationStore.DualWrite
+    Wire.TeamNotificationStore.Migration
+    Wire.TeamNotificationStore.Postgres
     Wire.TeamStore
     Wire.TeamStore.Cassandra
     Wire.TeamStore.Cassandra.Queries
@@ -712,6 +715,7 @@ test-suite wire-subsystems-tests
     Wire.StoredConversationSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
+    Wire.TeamNotificationStoreSpec
     Wire.UserGroupSubsystem.InterpreterSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
