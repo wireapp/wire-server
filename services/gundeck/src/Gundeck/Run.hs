@@ -15,6 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -59,6 +60,7 @@ import Gundeck.Options hiding (host, port)
 import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended (rawPool)
 import Imports
 import Network.AMQP
 import Network.AMQP.Types
@@ -81,11 +83,14 @@ import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry
+import Wire.PostgresMigrations (runAllMigrations)
 
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (rThreads, env) <- createEnv opts
   let logger = env ^. applog
+
+  runAllMigrations env._hasqlPool.rawPool env._applog
 
   runDirect env setUpRabbitMqExchangesAndQueues
 

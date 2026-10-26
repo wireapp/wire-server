@@ -39,6 +39,8 @@ import Gundeck.Options as Opt hiding (host, port)
 import Gundeck.Options qualified as O
 import Gundeck.Redis qualified as Redis
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.AMQP (Channel)
 import Network.AMQP.Extended qualified as Q
@@ -55,6 +57,7 @@ data Env = Env
     _applog :: !Logger.Logger,
     _manager :: !Manager,
     _cstate :: !ClientState,
+    _hasqlPool :: !HasqlPoolExt.Pool,
     _rstate :: !Redis.RobustConnection,
     _rstateAdditionalWrite :: !(Maybe Redis.RobustConnection),
     _awsEnv :: !Aws.Env,
@@ -96,6 +99,7 @@ createEnv o = do
       Nothing
       l
 
+  hspool <- initPostgresPool (o ^. postgresqlPool) (o ^. postgresql) (o ^. postgresqlPassword)
   a <- Aws.mkEnv l o n
   io <-
     mkAutoUpdate
@@ -104,7 +108,7 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p hspool r rAdditional a io mtbs rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
