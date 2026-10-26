@@ -1,0 +1,1 @@
+Meeting join links are now licensed: `POST /meeting/{domain}/{key}/{code}/join` and `GET /meeting/{domain}/{key}/{code}/code-check` return `403 id-feature-error` unless the deployment's license covers invitation links.

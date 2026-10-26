@@ -146,6 +146,7 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
+, wire-licensing
 , wire-otel
 , witherable
 , zauth
@@ -290,6 +291,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-licensing
     wire-otel
     witherable
     zauth
@@ -430,6 +432,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-licensing
     wire-otel
     witherable
     zauth

@@ -252,6 +252,7 @@ library
     , wai-utilities                         >=0.16
     , wire-api
     , wire-api-federation
+    , wire-licensing
     , wire-otel
     , wire-subsystems
 

@@ -369,6 +369,10 @@ galley:
   #   smtpPassword: <smtp-password>  # mounted at /etc/wire/galley/secrets/smtp-password.txt;
   #                                 # consumed via settings.meetings.email.smtp.passwordFile
   #                                 # (mirrors brig's smtp.passwordFile)
+  #   license: <licence payload>  # stored verbatim (stringData) and exposed to
+  #                     # galley as the WIRE_LICENSE environment variable;
+  #                     # gates meeting join-by-link behind invitationLinks
+  #                     # licensing
   secrets: {}
 
   podSecurityContext:
@@ -380,8 +384,7 @@ galley:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
@@ -1107,6 +1110,10 @@ background-worker:
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
 
+  # Optional secret keys (see templates/background-worker/secret.yaml):
+  #   license: <licence payload>  # stored verbatim (stringData) and exposed to
+  #                               # background-worker as the WIRE_LICENSE environment
+  #                               # variable; should match galley.secrets.license
   secrets: {}
 
   podSecurityContext:
@@ -1356,8 +1363,7 @@ brig:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
