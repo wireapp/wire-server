@@ -1,3 +1,4 @@
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -47,7 +48,7 @@ import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -134,6 +135,9 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.Licensing.Effect (Licensing)
+import Wire.Licensing.Interpreter (runLicense)
+import Wire.Licensing.License qualified as Licensing
 import Wire.ListItems (ListItems)
 import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
@@ -200,6 +204,7 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     Licensing,
      MeetingNotifier,
      JobSubsystem,
      Input RequestId,
@@ -407,9 +412,10 @@ interpretTinyLog e = interpret $ \case
 
 evalGalleyToIO :: Env -> Sem GalleyEffects a -> IO a
 evalGalleyToIO env action = do
+  eval <- evalGalley env
   r <-
     -- log IO exceptions
-    runExceptT (evalGalley env action) `UnliftIO.catch` \(e :: SomeException) -> do
+    runExceptT (eval action) `UnliftIO.catch` \(e :: SomeException) -> do
       Log.err (env ^. applog) $
         Log.msg ("IO Exception occurred" :: ByteString)
           . Log.field "message" (displayException e)
@@ -427,8 +433,8 @@ logAndMapError :: forall e1 e2 r a. (Member TinyLog r, Member (Error e2) r) => (
 logAndMapError fErr fLog logMsg action =
   mapError fErr $ logErrors @_ @e1 fLog logMsg action
 
-evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
-evalGalley e =
+evalGalley :: Env -> IO (Sem GalleyEffects a -> ExceptT JSONResponse IO a)
+evalGalley e = do
   let convStoreInterpreter =
         interpretConversationStoreByMigration (e ^. options . postgresMigration).conversation (e ^. cstate)
       convCodesStoreInterpreter =
@@ -479,7 +485,9 @@ evalGalley e =
             maxConvSize = e._options._settings._maxConvSize,
             listClientsUsingBrig = e._options._settings._intraListing
           }
-   in ExceptT
+  runLicense' <- runLicense (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
+  pure $ \action ->
+    ExceptT
         . runFinal @IO
         . unsafelyPerformConcurrency
         . resourceToIOFinal
@@ -584,8 +592,10 @@ evalGalley e =
         . runInputConst (e ^. reqId)
         . interpretJobSubsystem defaultJobSubsystemConfig
         . interpretMeetingNotifier
-        . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
+        $ runLicense'
+          ( interpretConversationSubsystem
+              (Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options)) action)
+          )
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
