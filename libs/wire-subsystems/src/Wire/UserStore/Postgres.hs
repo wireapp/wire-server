@@ -70,8 +70,7 @@ interpretUserStorePostgres =
     DoesUserExist uid -> doesUserExistImpl uid
     GetIndexUser uid -> getIndexUserImpl uid
     GetIndexUsersPaginated pageSize mPagingState -> getIndexUsersPaginatedImpl pageSize (paginationStatePostgres =<< mPagingState)
-    GetScimUsersPaginated tid excludedIds pageSize mOffset -> getScimUsersPaginatedImpl tid excludedIds pageSize mOffset
-    GetPendingScimUsers tid -> getPendingScimUsersImpl tid
+    GetScimUsersPaginated tid pageSize mOffset -> getScimUsersPaginatedImpl tid pageSize mOffset
     UpdateUser uid update -> updateUserImpl uid update
     UpdateEmail uid email -> updateEmailImpl uid (Just email)
     DeleteEmail uid -> updateEmailImpl uid Nothing
@@ -501,28 +500,11 @@ getIndexUsersPaginatedImpl lim mState = do
           LIMIT ($2 :: integer)
         |]
 
-getPendingScimUsersImpl :: (PGConstraints r) => TeamId -> Sem r (Maybe [(UserId, EmailAddress)])
-getPendingScimUsersImpl tid =
-  Just <$> runStatement tid selectPending
-  where
-    selectPending :: Hasql.Statement TeamId [(UserId, EmailAddress)]
-    selectPending =
-      dimapPG
-        [vectorStatement|
-          SELECT id :: uuid, email :: text
-          FROM wire_user
-          WHERE team = $1 :: uuid
-          AND managed_by = 1
-          AND account_status = 4
-          AND activated = true
-          AND email IS NOT NULL
-        |]
-
-getScimUsersPaginatedImpl :: (PGConstraints r) => TeamId -> [UserId] -> Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage StoredUser))
-getScimUsersPaginatedImpl tid excludedIds maxResults mOffset =
+getScimUsersPaginatedImpl :: (PGConstraints r) => TeamId -> Int32 -> Maybe Int32 -> Sem r (Maybe (OffsetPage StoredUser))
+getScimUsersPaginatedImpl tid maxResults mOffset =
   Just <$> do
     runTransactionWithRetry RepeatableRead Read $ do
-      count <- Transaction.statement (tid, excludedIds) selectCount
+      count <- Transaction.statement tid selectCount
       case maxResults of
         0 ->
           -- Special case this because it is a way for scim clients to get a
@@ -531,7 +513,7 @@ getScimUsersPaginatedImpl tid excludedIds maxResults mOffset =
         _ -> do
           -- Postgres doesn't like it if the offset is below 0
           let pageOffset = max 0 $ fromMaybe 0 mOffset
-          userRows <- Transaction.statement (tid, maxResults, pageOffset, excludedIds) selectUsers
+          userRows <- Transaction.statement (tid, maxResults, pageOffset) selectUsers
           let usersWithoutAssets = map storedUserFromRow userRows
               uids = map (.id) usersWithoutAssets
           assetRows <- Transaction.statement uids selectAssetsStmt
@@ -544,20 +526,32 @@ getScimUsersPaginatedImpl tid excludedIds maxResults mOffset =
               users = map addAssets usersWithoutAssets
           pure $ OffsetPage {results = users, totalResults = count}
   where
-    selectCount :: Hasql.Statement (TeamId, [UserId]) Int32
+    -- The pending-scim-user shape here must match the partial index
+    -- `wire_user_pending_scim_users_idx` (managed_by = 1, account_status = 4,
+    -- activated = true, email IS NOT NULL): pending users are listed only while
+    -- a live (non-expired) team invitation exists for their email.
+    selectCount :: Hasql.Statement TeamId Int32
     selectCount =
-      lmapPG @(_, Vector _)
+      lmapPG
         [singletonStatement|
           SELECT count(*) :: integer
           FROM wire_user
-          WHERE team = $1 :: uuid
+          WHERE team = ($1 :: uuid)
           AND managed_by = 1
-          AND NOT (id = ANY($2 :: uuid[]))
+          AND (
+            NOT (account_status = 4 AND activated = true AND email IS NOT NULL)
+            OR EXISTS (
+              SELECT 1 FROM team_invitation ti
+              WHERE ti.team = ($1 :: uuid)
+                AND ti.email = wire_user.email
+                AND ti.expires_at > now()
+            )
+          )
         |]
 
-    selectUsers :: Hasql.Statement (TeamId, Int32, Int32, [UserId]) [SelectUserRow]
+    selectUsers :: Hasql.Statement (TeamId, Int32, Int32) [SelectUserRow]
     selectUsers =
-      dimapPG @(_, _, _, Vector _)
+      dimapPG
         [vectorStatement|
           SELECT
           id :: uuid, name :: text, text_status :: text?, picture :: jsonb?, email :: text?, email_unvalidated :: text?,
@@ -566,9 +560,17 @@ getScimUsersPaginatedImpl tid excludedIds maxResults mOffset =
           handle :: text?, team :: uuid?, managed_by :: integer?, supported_protocols :: integer?, searchable :: boolean?,
           user_type :: integer
           FROM wire_user
-          WHERE team = $1 :: uuid
+          WHERE team = ($1 :: uuid)
           AND managed_by = 1
-          AND NOT (id = ANY($4 :: uuid[]))
+          AND (
+            NOT (account_status = 4 AND activated = true AND email IS NOT NULL)
+            OR EXISTS (
+              SELECT 1 FROM team_invitation ti
+              WHERE ti.team = ($1 :: uuid)
+                AND ti.email = wire_user.email
+                AND ti.expires_at > now()
+            )
+          )
           ORDER BY id
           LIMIT $2 :: integer
           OFFSET $3 :: integer
