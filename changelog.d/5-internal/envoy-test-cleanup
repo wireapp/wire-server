@@ -1,1 +1,0 @@
-Envoy-mode integration tests: teardown and `hack/bin/integration-cleanup.sh` now delete the Envoy Gateway proxies and federation Services that test runs create in `envoy-gateway-system` (deleting the test namespaces alone leaked them), and setup waits until all Gateways are programmed, as helmfile does not wait for the Envoy proxies.

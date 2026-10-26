@@ -1,2 +1,0 @@
-Stealth users are no longer returned by exact-handle searches, including
-federated search and `POST /list-users` with `qualified_handles`.

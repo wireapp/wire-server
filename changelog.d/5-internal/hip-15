@@ -1,1 +1,0 @@
-Add HIP-0015 `helm.sh/images` annotations to internal charts; `hack/bin/set-wire-server-image-version.sh` stamps the `:do-not-use` placeholder with the release version.
