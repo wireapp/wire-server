@@ -26,12 +26,14 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64.URL as B64U
 import Data.String.Conversions
 import qualified Data.Text as T
+import Data.Time.Clock
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Database.CQL.IO
 import Network.HTTP.Types
 import Network.URI
 import SetupHelpers
+import Test.Meetings (defaultMeetingJson)
 import Testlib.Prelude
 
 testOAuthRevokeSession :: (HasCallStack) => App ()
@@ -201,6 +203,23 @@ testOAuthNewScopesOnDeprecatedAttribute = do
 
   -- ... and the deprecated attribute still tells the scopes apart
   Nginz.getSelf user convToken >>= assertStatus 403
+
+-- | @POST /meetings@ can be called with an OAuth access token that has the
+-- @write-only:meetings@ scope, and not with one that lacks it.
+testOAuthPostMeeting :: (HasCallStack) => App ()
+testOAuthPostMeeting = do
+  (user, _, _) <- createTeam OwnDomain 1
+  cid <- oauthClient user
+  now <- liftIO getCurrentTime
+  let newMeeting = defaultMeetingJson "OAuth Standup" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+
+  meetingsToken <- accessTokenFor user cid ["write-only:meetings"]
+  bindResponse (Nginz.postMeeting user newMeeting meetingsToken) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "title" `shouldMatch` "OAuth Standup"
+
+  convToken <- accessTokenFor user cid ["write-only:conversations"]
+  Nginz.postMeeting user newMeeting convToken >>= assertStatus 403
 
 testOAuthDeprecatedScopesInCassandra :: (HasCallStack) => TaggedBool "old scope syntax" -> App ()
 testOAuthDeprecatedScopesInCassandra (TaggedBool oldScopeSyntax) = do
