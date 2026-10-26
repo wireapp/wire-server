@@ -88,7 +88,6 @@ codeTests =
     testCase "rejects non-digits" $
       assertLeft "letters" (totpCodeFromText "12a456"),
     testCase "rejects non-ASCII digits" $
-      -- U+0660 ARABIC-INDIC DIGIT ZERO: 'Data.Char.isDigit' would accept this.
       assertLeft "arabic-indic digits" (totpCodeFromText "\1632\1632\1632\1632\1632\1632"),
     testCase "rejects a too short code" $
       assertLeft "five digits" (totpCodeFromText "12345"),
