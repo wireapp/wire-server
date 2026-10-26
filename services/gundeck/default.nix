@@ -86,6 +86,7 @@
 , websockets
 , wire-api
 , wire-otel
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -154,6 +155,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-otel
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
