@@ -31,7 +31,7 @@ import Test.Hspec
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Error (runErrorS)
-import Wire.API.Error.Galley (GalleyError (MLSClientMismatch, MLSIdentityMismatch), MLSProtocolError)
+import Wire.API.Error.Galley (GalleyError (MLSIdentityMismatch), MLSProtocolError)
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.CipherSuite
@@ -40,6 +40,7 @@ import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation (ConvOrSubChoice (..))
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.CheckClients
 import Wire.FederationAPIAccess (FederationAPIAccess (..))
 import Wire.MockInterpreters.TinyLog (noopLogger)
@@ -83,7 +84,7 @@ runCheckClients behavior =
     . runError @TestBrigFailure
     . runError @InternalError
     . (fmap (fromMaybe (error "unexpected MLSIdentityMismatch")) . runErrorS @'MLSIdentityMismatch)
-    . (fmap (fromMaybe (error "unexpected MLSClientMismatch")) . runErrorS @'MLSClientMismatch)
+    . (fmap (either (error "unexpected ConversationSubsystemError") id) . runError @ConversationSubsystemError)
     . (fmap (either (error "unexpected MLSProtocolError") id) . runError @MLSProtocolError)
     . noopLogger
     . asyncToIOFinal

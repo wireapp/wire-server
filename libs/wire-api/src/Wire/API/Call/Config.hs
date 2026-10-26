@@ -36,6 +36,28 @@ module Wire.API.Call.Config
     iceUsername,
     iceCredential,
 
+    -- * RTCConfigurationV3
+    RTCConfigurationV3,
+    rtcConfigurationV3,
+    rtcConfV3IceServers,
+    rtcConfV3SftServers,
+    rtcConfV3SftServersAll,
+    rtcConfV3TTL,
+    rtcConfV3IsFederating,
+
+    -- * RTCIceServerV3
+    RTCIceServerV3,
+    rtcIceServerV3,
+    iceV3URLs,
+    iceV3Username,
+    iceV3Credential,
+
+    -- * CoturnUsername
+    CoturnUsername,
+    coturnUsername,
+    cuExpiresAt,
+    cuUid,
+
     -- * TurnURI
     TurnURI,
     turnURI,
@@ -585,6 +607,123 @@ instance Arbitrary TurnUsername where
       genAlphaNum = QC.elements $ ['a' .. 'z'] <> ['0' .. '9']
 
 --------------------------------------------------------------------------------
+-- CoturnUsername
+
+-- | Username for coturn's native long-term credential mechanism,
+-- of the form @\<unix-expiry-timestamp\>:\<uid\>@.
+data CoturnUsername = CoturnUsername
+  { -- | positive, integral seconds
+    _cuExpiresAt :: POSIXTime,
+    -- | [a-z0-9]+
+    _cuUid :: Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema CoturnUsername)
+
+coturnUsername :: POSIXTime -> Text -> CoturnUsername
+coturnUsername = CoturnUsername
+
+instance ToSchema CoturnUsername where
+  schema = toText .= parsedText "CoturnUsername" fromText
+    where
+      fromText :: Text -> Either String CoturnUsername
+      fromText = parseOnly (parseCoturnUsername <* endOfInput)
+
+      toText :: CoturnUsername -> Text
+      toText = TE.decodeUtf8With lenientDecode . toStrict . toByteString
+
+instance BC.ToByteString CoturnUsername where
+  builder cu =
+    word64Dec (round (_cuExpiresAt cu))
+      <> shortByteString ":"
+      <> byteString (view (re utf8) (_cuUid cu))
+
+parseCoturnUsername :: Text.Parser CoturnUsername
+parseCoturnUsername =
+  CoturnUsername
+    <$> (fmap (fromIntegral :: Word64 -> POSIXTime) decimal)
+    <*> (char ':' *> takeWhile1 (inClass "a-z0-9"))
+
+instance Arbitrary CoturnUsername where
+  arbitrary =
+    CoturnUsername
+      <$> (fromIntegral <$> arbitrary @Word64)
+      <*> (Text.pack <$> QC.listOf1 genAlphaNum)
+    where
+      genAlphaNum = QC.elements $ ['a' .. 'z'] <> ['0' .. '9']
+
+--------------------------------------------------------------------------------
+-- RTCIceServerV3
+
+-- | A configuration object resembling \"RTCIceServer\" (v3), with coturn native
+-- long-term credentials instead of zauth.
+--
+-- cf. https://developer.mozilla.org/en-US/docs/Web/API/RTCIceServer
+data RTCIceServerV3 = RTCIceServerV3
+  { _iceV3URLs :: NonEmpty TurnURI,
+    _iceV3Username :: CoturnUsername,
+    _iceV3Credential :: AsciiBase64
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RTCIceServerV3)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RTCIceServerV3)
+
+rtcIceServerV3 :: NonEmpty TurnURI -> CoturnUsername -> AsciiBase64 -> RTCIceServerV3
+rtcIceServerV3 = RTCIceServerV3
+
+instance ToSchema RTCIceServerV3 where
+  schema =
+    objectWithDocModifier (description ?~ "A subset of the WebRTC 'RTCIceServer' object") $
+      RTCIceServerV3
+        <$> _iceV3URLs
+          .= fieldWithDocModifier "urls" (description ?~ "Array of TURN server addresses of the form 'turn:<addr>:<port>'") (nonEmptyArray schema)
+        <*> _iceV3Username
+          .= fieldWithDocModifier "username" (description ?~ "Coturn long-term credential username of the form '<unix-expiry>:<uid>'") schema
+        <*> _iceV3Credential
+          .= fieldWithDocModifier "credential" (description ?~ "Base64-encoded HMAC-SHA1 of the username keyed with the coturn static-auth-secret") schema
+
+--------------------------------------------------------------------------------
+-- RTCConfigurationV3
+
+-- | A configuration object resembling \"RTCConfiguration\" (v3), with coturn
+-- native long-term TURN credentials. All fields other than the TURN ice servers
+-- are identical to 'RTCConfiguration' (v2).
+data RTCConfigurationV3 = RTCConfigurationV3
+  { _rtcConfV3IceServers :: NonEmpty RTCIceServerV3,
+    _rtcConfV3SftServers :: Maybe (NonEmpty SFTServer),
+    _rtcConfV3TTL :: Word32,
+    _rtcConfV3SftServersAll :: Maybe [AuthSFTServer],
+    _rtcConfV3IsFederating :: Maybe Bool
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RTCConfigurationV3)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RTCConfigurationV3)
+
+rtcConfigurationV3 ::
+  NonEmpty RTCIceServerV3 ->
+  Maybe (NonEmpty SFTServer) ->
+  Word32 ->
+  Maybe [AuthSFTServer] ->
+  Maybe Bool ->
+  RTCConfigurationV3
+rtcConfigurationV3 = RTCConfigurationV3
+
+instance ToSchema RTCConfigurationV3 where
+  schema =
+    objectWithDocModifier (description ?~ "A subset of the WebRTC 'RTCConfiguration' dictionary") $
+      RTCConfigurationV3
+        <$> _rtcConfV3IceServers
+          .= fieldWithDocModifier "ice_servers" (description ?~ "Array of 'RTCIceServer' objects") (nonEmptyArray schema)
+        <*> _rtcConfV3SftServers
+          .= maybe_ (optFieldWithDocModifier "sft_servers" (description ?~ "Array of 'SFTServer' objects (optional)") (nonEmptyArray schema))
+        <*> _rtcConfV3TTL
+          .= fieldWithDocModifier "ttl" (description ?~ "Number of seconds after which the configuration should be refreshed (advisory)") schema
+        <*> _rtcConfV3SftServersAll
+          .= maybe_ (optFieldWithDocModifier "sft_servers_all" (description ?~ "Array of all SFT servers") (array schema))
+        <*> _rtcConfV3IsFederating
+          .= maybe_ (optFieldWithDocModifier "is_federating" (description ?~ "True if the client should connect to an SFT in the sft_servers_all and request it to federate") schema)
+
+--------------------------------------------------------------------------------
 -- convenience
 
 -- | given a list of URIs and a size, limit URIs
@@ -638,3 +777,6 @@ makeLenses ''TurnURI
 makeLenses ''TurnUsername
 makeLenses ''SFTServer
 makeLenses ''AuthSFTServer
+makeLenses ''CoturnUsername
+makeLenses ''RTCIceServerV3
+makeLenses ''RTCConfigurationV3

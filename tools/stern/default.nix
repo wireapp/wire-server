@@ -96,6 +96,7 @@ mkDerivation {
     aeson
     base
     bilge
+    bytestring
     bytestring-conversion
     containers
     cookie

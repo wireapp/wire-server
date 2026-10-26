@@ -82,7 +82,12 @@ import Wire.API.User.Auth (CookieType (PersistentCookie))
 import Wire.Sem.Jwk (readJwk)
 
 tests :: Manager -> C.ClientState -> Brig -> Nginz -> Opts -> TestTree
-tests m db b n o = do
+tests m db b nginz o = do
+  -- nginz forwards the request's Host as Z-Host and the services parse that as
+  -- a Domain.  The test config contacts nginz by IP, which is not a Domain, so
+  -- send the local domain as Host.  (Cf. 'rawBaseNginzRequest' in the new
+  -- integration suite.)
+  let n = nginz . header "Host" (cs (domainText o.settings.federationDomain))
   testGroup
     "oauth"
     [ test m "register new oauth client" $ testRegisterNewOAuthClient b,
@@ -122,9 +127,9 @@ tests m db b n o = do
         ],
       testGroup
         "accessing resources (only testing happy path to ensure scopes are valid)"
-        [ test m "write:conversations" $ testWriteConversationsSuccessNginz b n,
+        [ test m "write-only:conversations" $ testWriteConversationsSuccessNginz b n,
           test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n,
-          test m "write:conversations_code" $ testWriteConversationsCodeSuccessNginz b n
+          test m "write-only:conversations_code" $ testWriteConversationsCodeSuccessNginz b n
         ],
       testGroup
         "refresh tokens"
@@ -159,7 +164,7 @@ testCreateOAuthCodeSuccess brig = do
   let newOAuthClient@(OAuthClientConfig _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   c <- registerNewOAuthClient brig newOAuthClient
   uid <- randomId
-  let scope = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  let scope = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
   state <- UUID.toText <$> liftIO nextRandom
 
   createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId scope OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
@@ -179,7 +184,7 @@ testCreateOAuthCodeRedirectUrlMismatch brig = do
   uid <- randomId
   state <- UUID.toText <$> liftIO nextRandom
   let differentUrl = mkUrl "https://wire.com"
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId mempty OAuthResponseTypeCode differentUrl state S256 challenge) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId (OAuthScopes $ Set.singleton ReadSelf) OAuthResponseTypeCode differentUrl state S256 challenge) !!! do
     const 400 === statusCode
     const Nothing === (fmap getPath . getLocation)
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
@@ -190,7 +195,7 @@ testCreateOAuthCodeClientNotFound brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid (OAuthScopes $ Set.singleton ReadSelf) OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
     const 404 === statusCode
     const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -231,7 +236,7 @@ testCreateAccessTokenWrongClientId :: Brig -> Http ()
 testCreateAccessTokenWrongClientId brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
   (_, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   cid <- randomId
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
@@ -243,7 +248,7 @@ testCreateAccessTokenWrongAuthorizationCode :: Brig -> Http ()
 testCreateAccessTokenWrongAuthorizationCode brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
   (cid, _) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   let code = OAuthAuthorizationCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
@@ -255,7 +260,7 @@ testCreateAccessTokenWrongUrl :: Brig -> Http ()
 testCreateAccessTokenWrongUrl brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://wire.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   let wrongUrl = mkUrl "https://example.com"
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code wrongUrl
@@ -268,7 +273,7 @@ testCreateAccessTokenExpiredCode opts brig =
   withSettingsOverrides (opts & Opt.settingsLens . Opt.oAuthAuthorizationCodeExpirationTimeSecsInternalLens ?~ 1) $ do
     uid <- randomId
     let redirectUrl = mkUrl "https://example.com"
-    let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+    let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
     (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
     liftIO $ threadDelay (1 * 1200 * 1000)
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
@@ -280,7 +285,7 @@ testCreateAccessTokenWrongGrantType :: Brig -> Http ()
 testCreateAccessTokenWrongGrantType brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeRefreshToken cid verifier code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! assertAccessDenied
@@ -289,7 +294,7 @@ testCreateAccessTokenWrongCodeChallenge :: Brig -> Http ()
 testCreateAccessTokenWrongCodeChallenge brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
   (cid, code) <- generateOAuthClientAndAuthorizationCode' wrongCodeChallenge brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
@@ -303,7 +308,7 @@ testCreateAccessTokenWrongCodeVerifier :: Brig -> Http ()
 testCreateAccessTokenWrongCodeVerifier brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid wrongCodeVerifier code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
@@ -327,7 +332,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
     uid <- randomId
     state <- UUID.toText <$> liftIO nextRandom
     let redirectUrl = mkUrl "https://example.com"
-    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid (OAuthScopes $ Set.singleton ReadSelf) OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
       const 403 === statusCode
       const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
       const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -389,7 +394,7 @@ testAccessResourceInsufficientScope :: Brig -> Nginz -> Http ()
 testAccessResourceInsufficientScope brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations]
+  let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations]
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
@@ -443,7 +448,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
     uid <- randomId
     jwk <- liftIO $ readJwk (fromMaybe "path to jwk not set" opts.settings.oAuthJwkKeyPair) <&> fromMaybe (error "invalid key")
     let redirectUrl = mkUrl "https://example.com"
-    let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+    let scopes = OAuthScopes $ Set.fromList [WriteOnlyConversations, WriteOnlyConversationsCode]
     let delayOneSec =
           -- we have to wait ~1 sec before we create the next token, to make sure it is created with a different timestamp
           -- this is due to the interpreter of the `Now` effect which auto-updates every second
@@ -645,7 +650,7 @@ testListApplicationsWithAccountAccess brig = do
 testWriteConversationsSuccessNginz :: Brig -> Nginz -> Http ()
 testWriteConversationsSuccessNginz brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
-  resp <- getAccessTokenForScope brig uid [WriteConversations]
+  resp <- getAccessTokenForScope brig uid [WriteOnlyConversations]
   createTeamConv nginz authHeader resp.accessToken tid "oauth test group" !!! do
     const 201 === statusCode
 
@@ -659,7 +664,7 @@ testReadFeatureConfigsSuccessNginz brig nginz = do
 testWriteConversationsCodeSuccessNginz :: Brig -> Nginz -> Http ()
 testWriteConversationsCodeSuccessNginz brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
-  resp <- getAccessTokenForScope brig uid [WriteConversations, WriteConversationsCode]
+  resp <- getAccessTokenForScope brig uid [WriteOnlyConversations, WriteOnlyConversationsCode]
   conv <-
     responseJsonError @_ @(Conversation GroupConvType)
       =<< createTeamConv nginz authHeader resp.accessToken tid "oauth test group" <!! do
@@ -732,7 +737,7 @@ getFeatureConfigs svc mkHeader token = do
 createOAuthApplicationWithAccountAccess :: Brig -> UserId -> Http OAuthAccessTokenResponse
 createOAuthApplicationWithAccountAccess brig uid = do
   let redirectUrl = mkUrl "https://example.com"
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ mempty) redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ Set.singleton ReadSelf) redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   createOAuthAccessToken brig accessTokenRequest
 

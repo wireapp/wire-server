@@ -138,6 +138,15 @@ isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-a
 isNewMLSMessageNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isNewMLSMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-add"
 
+isNewMLSTargetedMessageNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isNewMLSTargetedMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-targeted"
+
+isNewMLSTransientTargetedMessageNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isNewMLSTransientTargetedMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-transient-targeted"
+
+isNewMLSTransientMessageNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isNewMLSTransientMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-transient"
+
 isWelcomeNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isWelcomeNotif n = fieldEquals n "payload.0.type" "conversation.mls-welcome"
 

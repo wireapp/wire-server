@@ -19,10 +19,10 @@ module Wire.ConversationSubsystem.MLS.Enabled where
 
 import Imports hiding (getFirst)
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 
 isMLSEnabled :: (Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r) => Sem r Bool
 isMLSEnabled = inputs isJust
@@ -31,14 +31,14 @@ isMLSEnabled = inputs isJust
 -- MLS endpoint, NOT in utility functions.
 assertMLSEnabled ::
   ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member (ErrorS 'MLSNotEnabled) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Sem r ()
 assertMLSEnabled = void getMLSPrivateKeys
 
 getMLSPrivateKeys ::
   ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member (ErrorS 'MLSNotEnabled) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Sem r (MLSKeysByPurpose MLSPrivateKeys)
-getMLSPrivateKeys = noteS @'MLSNotEnabled =<< input
+getMLSPrivateKeys = note ConversationSubsystemErrorMLSNotEnabled =<< input

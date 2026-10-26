@@ -6,7 +6,7 @@ BESTÄTIGEN SIE IHRE E-MAIL-ADRESSE
 ${email} wurde als Ihre neue E-Mail-Adresse auf ${brand} registriert. Klicken
 Sie auf den folgenden Button, um Ihre neue Adresse zu bestätigen.
 
-Bestätigen [${url}]Wenn Sie die Schaltfläche nicht auswählen können, kopieren
+Bestätigen [${url}] Wenn Sie die Schaltfläche nicht auswählen können, kopieren
 Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}

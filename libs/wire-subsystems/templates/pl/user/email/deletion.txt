@@ -6,7 +6,7 @@ USUŃ SWOJE KONTO
 Otrzymaliśmy prośbę o usunięcie konta ${brand}. Kliknij przycisk poniżej w ciągu
 10 minut, aby usunąć wszystkie konwersacje, treści i połączenia.
 
-Usuń konto [${url}]If you can’t select the button, copy and paste this link to
+Usuń konto [${url}] If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}

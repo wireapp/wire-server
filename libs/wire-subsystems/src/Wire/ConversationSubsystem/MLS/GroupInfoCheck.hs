@@ -30,7 +30,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.NonDet
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
@@ -42,6 +41,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 
 data GroupInfoMismatch = GroupInfoMismatch
@@ -58,7 +58,8 @@ checkGroupState ::
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member (Error MLSProtocolError) r,
     Member ConversationStore r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   ConvOrSubConv ->
   IndexMap ->
@@ -89,19 +90,24 @@ groupStateMismatch leaves groupInfo = do
     getIdentity leaf = fst <$> credentialIdentityAndKey leaf.credential
 
 existingGroupStateMismatch ::
-  (Member ConversationStore r) =>
+  (Member ConversationStore r, Member (Error ConversationSubsystemError) r) =>
   ConvOrSubConv ->
   Sem r (Maybe GroupInfoMismatch)
-existingGroupStateMismatch convOrSub =
-  fmap join . runErrorS @MLSMissingGroupInfo $
-    do
-      groupInfoData <- getConvOrSubGroupInfo convOrSub.id >>= noteS @MLSMissingGroupInfo
-      groupInfo <-
-        either (\_ -> throwS @MLSMissingGroupInfo) pure $
-          decodeMLS' (unGroupInfoData groupInfoData)
-      case groupStateMismatch convOrSub.indexMap groupInfo of
-        Left _ -> throwS @MLSMissingGroupInfo
-        Right m -> pure m
+existingGroupStateMismatch convOrSub = do
+  res <-
+    runError @ConversationSubsystemError $
+      do
+        groupInfoData <- getConvOrSubGroupInfo convOrSub.id >>= note ConversationSubsystemErrorMLSMissingGroupInfo
+        groupInfo <-
+          either (\_ -> throw ConversationSubsystemErrorMLSMissingGroupInfo) pure $
+            decodeMLS' (unGroupInfoData groupInfoData)
+        case groupStateMismatch convOrSub.indexMap groupInfo of
+          Left _ -> throw ConversationSubsystemErrorMLSMissingGroupInfo
+          Right m -> pure m
+  case res of
+    Right m -> pure m
+    Left ConversationSubsystemErrorMLSMissingGroupInfo -> pure Nothing
+    Left e -> throw e
 
 isGroupInfoCheckEnabled ::
   ( Member FeaturesConfigSubsystem r,

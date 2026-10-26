@@ -35,6 +35,7 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.Event.Team
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
 import Wire.API.User
@@ -102,7 +103,7 @@ createAppImpl ::
   Local UserId ->
   TeamId ->
   NewApp ->
-  Sem r CreatedApp
+  Sem r (CreatedApp v)
 createAppImpl lusr tid newApp = do
   verifyUserPasswordError lusr newApp.password
   (creator, mem) <- ensureTeamMember lusr tid
@@ -141,7 +142,7 @@ createAppImpl lusr tid newApp = do
           let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u)) Nothing
               mbApp :: Maybe AppInfo = Just $ storedAppToAppInfo app
               lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
-           in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
+           in Versioned $ mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
         cookie = mkSomeToken c.cookieValue
       }
 

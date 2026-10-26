@@ -7,11 +7,11 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    rev = "c560a5a0c3e89b4cfafd07bbd4f2fb42c22afa28";
-    sha256 = "sha256-QuCXrrLOgnPXybJBai4hVX6CdAsOzgbOEcBUp6N2mfE=";
+    rev = "3df2defdfb2b4a66382d62cf4aa50f2c6c3c1700";
+    sha256 = "sha256-rmj2RjyXIEFq12mmXvhzdKZJVUg0YVaoNOsUwEc6s30=";
   };
   pname = "mls-test-cli";
-  version = "0.11";
+  version = "0.15.0";
   cargoLock = {
     lockFile = "${src}/Cargo.lock";
     outputHashes = {

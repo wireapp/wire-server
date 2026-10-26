@@ -1287,7 +1287,6 @@ testCreateUserTimeout = do
 -- | Tests for @GET /Users@.
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
-  it "lists all SCIM users in a team" $ testListProvisionedUsers
   context "1 SAML IdP" $ do
     it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
     it "returns an empty list of SCIM-provisioned users if user not found (userName, externalId)" $ testDoNotFindProvisionedUser True
@@ -1304,17 +1303,6 @@ specListUsers = describe "GET /Users" $ do
   it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
   it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
   it "doesn't find users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
-
--- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
--- via SCIM are not listed.
-testListProvisionedUsers :: TestSpar ()
-testListProvisionedUsers = do
-  spar <- view teSpar
-  (tok, _) <- registerIdPAndScimToken
-  listUsers_ (Just tok) Nothing spar !!! do
-    const 400 === statusCode
-    mkScimErrorResp Nothing (Just "tooMany") "400"
-      === responseBody
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do

@@ -194,6 +194,13 @@ rabbitmq-v2:
   adminPort: 15672
   vHost: federation-v2
 
+rabbitmq-v3:
+  host: localhost
+  port: 5671
+  adminHost: localhost
+  adminPort: 15672
+  vHost: federation-v3
+
 cassandra:
   host: 127.0.0.1
   port: 9042
@@ -330,6 +337,49 @@ federation-v2:
   wireServerEnterprise:
     host: 127.0.0.1
     port: 23079
+  rabbitMqVHost: /
+
+federation-v3:
+  originDomain: federation-v3.example.com
+  brig:
+    host: 127.0.0.1
+    port: 24082
+  cannon:
+    host: 127.0.0.1
+    port: 24083
+  cargohold:
+    host: 127.0.0.1
+    port: 24084
+  federatorInternal:
+    host: 127.0.0.1
+    port: 24097
+  federatorExternal:
+    host: 127.0.0.1
+    port: 24098
+  galley:
+    host: 127.0.0.1
+    port: 24085
+  gundeck:
+    host: 127.0.0.1
+    port: 24086
+  nginz:
+    host: 127.0.0.1
+    port: 24080
+  spar:
+    host: 127.0.0.1
+    port: 24088
+  proxy:
+    host: 127.0.0.1
+    port: 24087
+  backgroundWorker:
+    host: 127.0.0.1
+    port: 24089
+  stern:
+    host: 127.0.0.1
+    port: 24091
+  wireServerEnterprise:
+    host: 127.0.0.1
+    port: 24079
   rabbitMqVHost: /
 
 integrationTestHostName: "localhost"

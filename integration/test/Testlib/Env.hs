@@ -108,7 +108,8 @@ mkGlobalEnv cfgFile = do
             (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap),
             (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap),
             (intConfig.federationV1.originDomain, intConfig.federationV1.beServiceMap),
-            (intConfig.federationV2.originDomain, intConfig.federationV2.beServiceMap)
+            (intConfig.federationV2.originDomain, intConfig.federationV2.beServiceMap),
+            (intConfig.federationV3.originDomain, intConfig.federationV3.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
@@ -130,6 +131,7 @@ mkGlobalEnv cfgFile = do
         gFederationV0Domain = intConfig.federationV0.originDomain,
         gFederationV1Domain = intConfig.federationV1.originDomain,
         gFederationV2Domain = intConfig.federationV2.originDomain,
+        gFederationV3Domain = intConfig.federationV3.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 19,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
@@ -138,6 +140,7 @@ mkGlobalEnv cfgFile = do
         gRabbitMQConfigV0 = intConfig.rabbitmqV0,
         gRabbitMQConfigV1 = intConfig.rabbitmqV1,
         gRabbitMQConfigV2 = intConfig.rabbitmqV2,
+        gRabbitMQConfigV3 = intConfig.rabbitmqV3,
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds,
         gDNSMockServerConfig = intConfig.dnsMockServer,
@@ -183,6 +186,7 @@ mkEnv currentTestName ge = do
           federationV0Domain = gFederationV0Domain ge,
           federationV1Domain = gFederationV1Domain ge,
           federationV2Domain = gFederationV2Domain ge,
+          federationV3Domain = gFederationV3Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
           -- hardcode API versions for federated domains because they don't have
@@ -192,7 +196,8 @@ mkEnv currentTestName ge = do
             Map.fromList
               [ (gFederationV0Domain ge, 4),
                 (gFederationV1Domain ge, 5),
-                (gFederationV2Domain ge, 8)
+                (gFederationV2Domain ge, 8),
+                (gFederationV3Domain ge, 8)
               ],
           manager = manager,
           servicesCwdBase = gServicesCwdBase ge,

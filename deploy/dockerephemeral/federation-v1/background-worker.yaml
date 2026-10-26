@@ -1,4 +1,4 @@
-logLevel: Debug
+logLevel: Warn
 
 backgroundWorker:
   host: 0.0.0.0
@@ -20,6 +20,7 @@ rabbitmq:
   host: rabbitmq
   port: 5672
   vHost: federation-v1
+  adminHost: rabbitmq
   adminPort: 15672
 
 backendNotificationPusher:

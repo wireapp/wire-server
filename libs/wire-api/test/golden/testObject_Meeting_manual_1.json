@@ -1,10 +1,11 @@
 {
     "created_at": "2017-12-31T00:00:00Z",
     "end_time": "2018-01-01T01:00:00Z",
+    "has_password": true,
     "invited_emails": [
         "someone@example.com"
     ],
-    "link": "https://account.wire.com/conversation-join/00000001-0000-0000-0000-000000000001",
+    "link": "https://account.wire.com/meeting-join/?key=AAAAAAAAAAAAAAAAAAAA&code=BBBBBBBBBBBBBBBBBBBB&domain=example.com",
     "qualified_conversation": {
         "domain": "example.com",
         "id": "00000003-0000-0000-0000-000000000003"

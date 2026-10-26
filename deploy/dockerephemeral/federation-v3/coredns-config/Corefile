@@ -1,0 +1,4 @@
+example.com {
+    file /coredns-config/db.example.com
+    log
+}

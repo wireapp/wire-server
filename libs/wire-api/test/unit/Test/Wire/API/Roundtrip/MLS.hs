@@ -34,6 +34,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.TransientMessage
 import Wire.API.MLS.Welcome
 
 tests :: T.TestTree
@@ -54,6 +55,8 @@ tests =
       testRoundTrip @Welcome,
       testRoundTrip @Proposal,
       testRoundTrip @ProposalRef,
+      testRoundTrip @TransientMessageAad,
+      testRoundTrip @TransientMessage,
       testRoundTrip @VarInt
     ]
 

@@ -164,35 +164,47 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             -- 'BackendNotification's anymore.
             ceFederator <- asks (.federatorInternal)
             ceHttp2Manager <- asks http2Manager
+            ceLocalVersions <- asks (.federationVersions)
             let ceOriginDomain = notif.ownDomain
                 ceTargetDomain = targetDomain
                 ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
                 cveEnv = FederatorClientEnv {..}
                 cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
                 fcEnv = FederatorClientVersionedEnv {..}
-            sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
-            lift $ ack envelope
-            metrics <- asks backendNotificationMetrics
-            withLabel metrics.pushedCounter (domainText targetDomain) incCounter
-            withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+            if V0 `Set.member` ceLocalVersions
+              then do
+                sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
+                lift $ ack envelope
+                metrics <- asks backendNotificationMetrics
+                withLabel metrics.pushedCounter (domainText targetDomain) incCounter
+                withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+              else do
+                Log.fatal $
+                  Log.msg (Log.val "Legacy notification requires enabled federation API version V0; the notification will remain queued")
+                    . Log.field "domain" (domainText targetDomain)
+                    . Log.field "path" notif.path
+                metrics <- asks backendNotificationMetrics
+                withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 1)
       Right bundle -> do
         federator <- asks (.federatorInternal)
         manager <- asks http2Manager
-        let env =
+        localVersions <- asks (.federationVersions)
+        let clientEnv =
               FederatorClientEnv
                 { ceOriginDomain = ownDomain . NE.head $ bundle.notifications,
                   ceTargetDomain = targetDomain,
                   ceFederator = federator,
                   ceHttp2Manager = manager,
                   ceOriginRequestId =
-                    fromMaybe (RequestId defRequestId) . (.requestId) . NE.head $ bundle.notifications
+                    fromMaybe (RequestId defRequestId) . (.requestId) . NE.head $ bundle.notifications,
+                  ceLocalVersions = localVersions
                 }
         remoteVersions :: Set Int <-
           liftIO
             -- use versioned client with no version set: since we are manually
             -- performing version negotiation, we don't want the client to
             -- negotiate a version for us
-            ( runVersionedFederatorClient @'Brig (unversionedEnv env) $
+            ( runVersionedFederatorClient @'Brig (unversionedEnv clientEnv) $
                 fedClientIn @'Brig @"api-version" ()
             )
             >>= \case
@@ -205,7 +217,10 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
               Right vi -> pure . Set.fromList . vinfoSupported $ vi
 
         -- compute the best usable version in a notification
-        let bestVersion = bodyVersions >=> flip latestCommonVersion remoteVersions
+        let localRemoteVersions =
+              Set.fromList . map versionInt . Set.toList $
+                Set.filter (\v -> versionInt v `Set.member` remoteVersions) localVersions
+            bestVersion = bodyVersions >=> flip latestCommonVersion localRemoteVersions
         case pairedMaximumOn bestVersion (toList (notifications bundle)) of
           (_, Nothing) -> do
             metrics <- asks backendNotificationMetrics
@@ -227,10 +242,11 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
           (notif, cveVersion) -> do
             ceFederator <- asks (.federatorInternal)
             ceHttp2Manager <- asks http2Manager
+            notificationLocalVersions <- asks (.federationVersions)
             let ceOriginDomain = notif.ownDomain
                 ceTargetDomain = targetDomain
                 ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
-                cveEnv = FederatorClientEnv {..}
+                cveEnv = FederatorClientEnv {ceLocalVersions = notificationLocalVersions, ..}
                 fcEnv = FederatorClientVersionedEnv {..}
             sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
             lift $ ack envelope

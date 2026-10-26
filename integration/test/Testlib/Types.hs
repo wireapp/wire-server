@@ -134,6 +134,7 @@ data GlobalEnv = GlobalEnv
     gFederationV0Domain :: String,
     gFederationV1Domain :: String,
     gFederationV2Domain :: String,
+    gFederationV3Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gServicesCwdBase :: Maybe FilePath,
@@ -142,6 +143,7 @@ data GlobalEnv = GlobalEnv
     gRabbitMQConfigV0 :: RabbitMqAdminOpts,
     gRabbitMQConfigV1 :: RabbitMqAdminOpts,
     gRabbitMQConfigV2 :: RabbitMqAdminOpts,
+    gRabbitMQConfigV3 :: RabbitMqAdminOpts,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
     gDNSMockServerConfig :: DNSMockServerConfig,
@@ -157,12 +159,14 @@ data IntegrationConfig = IntegrationConfig
     federationV0 :: BackendConfig,
     federationV1 :: BackendConfig,
     federationV2 :: BackendConfig,
+    federationV3 :: BackendConfig,
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMqAdminOpts,
     rabbitmqV0 :: RabbitMqAdminOpts,
     rabbitmqV1 :: RabbitMqAdminOpts,
     rabbitmqV2 :: RabbitMqAdminOpts,
+    rabbitmqV3 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
     dnsMockServer :: DNSMockServerConfig,
     cellsEventQueue :: String
@@ -178,12 +182,14 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "federation-v0"
         <*> o .: fromString "federation-v1"
         <*> o .: fromString "federation-v2"
+        <*> o .: fromString "federation-v3"
         <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "rabbitmq-v0"
         <*> o .: fromString "rabbitmq-v1"
         <*> o .: fromString "rabbitmq-v2"
+        <*> o .: fromString "rabbitmq-v3"
         <*> o .: fromString "cassandra"
         <*> o .: fromString "dnsMockServer"
         <*> o .: fromString "cellsEventQueue"
@@ -263,6 +269,7 @@ data Env = Env
     federationV0Domain :: String,
     federationV1Domain :: String,
     federationV2Domain :: String,
+    federationV3Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
     apiVersionByDomain :: Map String Int,

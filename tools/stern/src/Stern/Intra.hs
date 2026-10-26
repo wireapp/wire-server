@@ -44,6 +44,7 @@ module Stern.Intra
     isBlacklisted,
     setBlacklistStatus,
     getTeamFeatureFlag,
+    getTeamMembersCsv,
     setTeamFeatureFlag,
     patchTeamFeatureFlag,
     setTeamFeatureLockStatus,
@@ -121,6 +122,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
+import Wire.API.Routes.LowLevelStream (LowLevelStreamingBody)
 import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
@@ -687,6 +689,21 @@ getTeamMembers tid = do
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
+
+getTeamMembersCsv :: TeamId -> Handler LowLevelStreamingBody
+getTeamMembersCsv tid = do
+  info $ msg "Getting team members csv"
+  g <- asks (.galley)
+  mgr <- lift $ asks (.httpManager)
+  catchRpcErrors $
+    rpcStream
+      "galley"
+      mgr
+      g
+      ( method GET
+          . Bilge.paths ["i", "teams", toByteString' tid, "members", "csv"]
+          . expect2xx
+      )
 
 getEmailConsentLog :: EmailAddress -> Handler ConsentLog
 getEmailConsentLog email = do

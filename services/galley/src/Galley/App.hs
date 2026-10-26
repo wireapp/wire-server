@@ -42,7 +42,6 @@ module Galley.App
   )
 where
 
-import Arbiter.Core qualified as ArbiterCore
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
@@ -90,6 +89,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley (GalleyError (..), MeetingError, NonFederatingBackends, OperationDenied, UnreachableBackends)
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Meeting (defaultLegacyTimeZone, parseTimeZone)
 import Wire.API.Team.Collaborator
@@ -127,7 +127,7 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
-import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem (JobSubsystem, defaultJobSubsystemConfig)
 import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
@@ -261,7 +261,6 @@ type GalleyEffects =
      ErrorS 'HistoryNotSupported,
      ErrorS 'NotATeamMember,
      ErrorS 'ConvAccessDenied,
-     ErrorS 'NotConnected,
      ErrorS 'MLSNotEnabled,
      ErrorS 'MLSNonEmptyMemberList,
      ErrorS 'MissingLegalholdConsent,
@@ -461,7 +460,9 @@ evalGalley e =
           { ownDomain = e._options._settings._federationDomain,
             federatorEndpoint = e._options._federator,
             http2Manager = e._http2Manager,
-            requestId = e._reqId
+            requestId = e._reqId,
+            localVersions =
+              Federation.enabledFederationVersions e._options._settings._disabledFederationAPIVersions
           }
       conversationSubsystemConfig =
         ConversationSubsystemConfig
@@ -513,7 +514,6 @@ evalGalley e =
         . mapError toResponse -- ErrorS 'MissingLegalholdConsent
         . mapError toResponse -- ErrorS 'MLSNonEmptyMemberList
         . mapError toResponse -- ErrorS 'MLSNotEnabled
-        . mapError toResponse -- ErrorS 'NotConnected
         . mapError toResponse -- ErrorS 'ConvAccessDenied
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'HistoryNotSupported
@@ -575,10 +575,7 @@ evalGalley e =
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
         . runInputConst (e ^. reqId)
-        . interpretJobSubsystem
-          JobSubsystemConfig
-            { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
-            }
+        . interpretJobSubsystem defaultJobSubsystemConfig
         . interpretMeetingNotifier
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))

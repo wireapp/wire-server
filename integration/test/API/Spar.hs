@@ -99,6 +99,16 @@ findUsersByExternalId domain scimToken externalId = do
     & scimCommonHeaders scimToken
     & addQueryParams [("filter", "externalId eq \"" <> externalId <> "\"")]
 
+listScimUsersPaginate :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe Int -> Maybe Int -> App Response
+listScimUsersPaginate domain scimToken mbStartIndex mbCount = do
+  req <- baseRequest domain Spar Versioned "/scim/v2/Users"
+  submit "GET" $ req
+    & scimCommonHeaders scimToken
+    & addQueryParams
+      ( maybe [] (\startIndex -> [("startIndex", show startIndex)]) mbStartIndex
+          <> maybe [] (\count -> [("count", show count)]) mbCount
+      )
+
 getScimUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 getScimUser domain scimToken uid = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Users", uid]

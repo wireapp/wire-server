@@ -1,0 +1,30 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+${meeting_title}
+${host_name} (${host_email}) ti ha invitato a una riunione su Wire.
+
+Quando
+${start_date}
+${start_time} – ${end_time} (${timezone_short})
+Aggiungi al calendario [${ics_url}]
+
+Come partecipare
+Al momento della riunione, seleziona «Partecipa alla riunione» qui sotto. Puoi
+anche incollare questo link nel browser:
+${join_url} [${join_url}]
+
+Partecipa alla riunione [${join_url}] Segnala un invito abusivo [${support}]
+
+Che cos’è Wire? Wire è la piattaforma di collaborazione più sicura. Lavora con
+il tuo team e con partner esterni ovunque tu sia tramite messaggi,
+videoconferenze e condivisione di file – sempre protetto dalla crittografia
+end-to-end.
+Scopri di più [https://wire.com/].
+
+Hai domande? Contattaci [${support}]
+
+Informativa sulla privacy e condizioni d’uso [${legal}]· Segnala abusi
+[${misuse}]
+${copyright}. Tutti i diritti riservati.

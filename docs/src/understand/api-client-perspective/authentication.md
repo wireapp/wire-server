@@ -370,7 +370,7 @@ reset must be initiated.
 A completed password reset results in all access cookies to be revoked,
 requiring the user to [login](#login).
 
-## Related topics: SSO, Legalhold
+## Related topics: SSO
 
 <a id="sso"></a>
 
@@ -383,7 +383,3 @@ More information:
 - [FAQ](../single-sign-on/trouble-shooting.md#trouble-shooting-faq)
 - [setup howtos for various IdP vendors](../../understand/single-sign-on/README.md)
 - [a few fragments that may help admins](https://github.com/wireapp/wire-docs/blob/main/src/developer/reference/spar-braindump.md)
-
-### LegalHold
-
-Users that are part of a team, for which a team admin has configured “LegalHold”, can add a so-called “LegalHold” device. The endpoints in use to authenticate for a “LegalHold” Device are the same as for regular users, but the access tokens they get can only use a restricted set of API endpoints. See also [legalhold documentation on wire-server](https://github.com/wireapp/wire-docs/blob/main/src/developer/reference/team/legalhold.md)

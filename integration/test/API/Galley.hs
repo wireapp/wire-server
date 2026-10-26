@@ -331,6 +331,21 @@ postMLSMessage cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/messages"
   submit "POST" (addMLS msg req)
 
+postMLSTargetedMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
+postMLSTargetedMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages/targeted"
+  submit "POST" (addMLS msg req)
+
+postMLSTransientTargetedMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
+postMLSTransientTargetedMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages/transient-targeted"
+  submit "POST" (addMLS msg req)
+
+postMLSTransientMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
+postMLSTransientMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages/transient"
+  submit "POST" (addMLS msg req)
+
 postMLSCommitBundle :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
 postMLSCommitBundle cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
@@ -1073,6 +1088,11 @@ putMeeting user domain meetingId updatedMeeting = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
   submit "PUT" $ req & addJSON updatedMeeting
 
+postMeetingLinkRefresh :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+postMeetingLinkRefresh user domain meetingId body = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "link", "refresh"])
+  submit "POST" $ req & addJSON body
+
 deleteMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
 deleteMeeting user domain meetingId = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
@@ -1112,3 +1132,31 @@ getMeetingV :: (HasCallStack, MakesValue user) => Int -> user -> String -> Strin
 getMeetingV v user domain meetingId = do
   req <- baseRequest user Galley (ExplicitVersion v) (joinHttpPath ["meetings", domain, meetingId])
   submit "GET" req
+
+-- | Unauthenticated: @GET /meeting/{domain}/{key}/{code}/code-check@.
+-- Built without any auth headers: the endpoint works without a cookie.
+getMeetingCodeCheck ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  String ->
+  Maybe String ->
+  App Response
+getMeetingCodeCheck user domain key code mPw = do
+  req <- rawBaseRequest user Galley Versioned (joinHttpPath ["meeting", domain, key, code, "code-check"])
+  submit "GET" $ req & addClientIP & addQueryParams (maybe [] (\pw -> [("password", pw)]) mPw)
+
+-- | Authenticated: @POST /meeting/{domain}/{key}/{code}/join@. The optional
+-- password is a query param.
+postMeetingJoin ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  String ->
+  Maybe String ->
+  App Response
+postMeetingJoin user domain key code mPw = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meeting", domain, key, code, "join"])
+  submit "POST" $ req & addClientIP & addQueryParams (maybe [] (\pw -> [("password", pw)]) mPw)

@@ -42,6 +42,7 @@
 , transformers
 , types-common
 , uuid
+, wai
 , wai-utilities
 , wire-api
 }:
@@ -81,6 +82,7 @@ mkDerivation {
     time
     transformers
     types-common
+    wai
     wai-utilities
     wire-api
   ];
@@ -91,6 +93,7 @@ mkDerivation {
     bytestring
     containers
     hspec
+    http-types
     HUnit
     imports
     QuickCheck
@@ -99,6 +102,7 @@ mkDerivation {
     time
     types-common
     uuid
+    wai
     wire-api
   ];
   testToolDepends = [ hspec-discover ];

@@ -62,6 +62,8 @@ interpretUserStoreCassandra casClient =
       DoesUserExist uid -> doesUserExistImpl uid
       GetIndexUser uid -> getIndexUserImpl uid
       GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize (paginationStateCassandra =<< mPagingState)
+      GetScimUsersPaginated {} -> pure Nothing
+      GetPendingScimUsers {} -> pure Nothing
       UpdateUser uid update -> updateUserImpl uid update
       UpdateEmail uid email -> updateEmailImpl uid email
       UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
@@ -137,6 +139,8 @@ interpretUserStoreToCassandraAndPostgres casClient =
         (PagingExitingUsers $ Id UUID.nil)
         pageSize
         mPagingState
+    GetScimUsersPaginated {} -> pure Nothing
+    GetPendingScimUsers {} -> pure Nothing
     UpdateUser uid update ->
       runAppropriateInterpreter casClient uid $ UserStore.updateUser uid update
     UpdateEmail uid email ->

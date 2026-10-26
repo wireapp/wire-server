@@ -38,6 +38,7 @@ import System.IO.Error (isDoesNotExistError)
 import System.Logger (field, msg, val)
 import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
+import Wire.EmailSubsystem.Templates.Meeting
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
@@ -64,6 +65,18 @@ forLocale pref t = case pref of
 -- | See 'genTemplateBranding'.
 type TemplateBranding = Text -> Text
 
+-- | Flattened branding placeholders keyed by variable name, as consumed by
+-- 'renderTextWithBrandingSem' / 'renderHtmlWithBrandingSem' and the
+-- 'Wire.EmailSubsystem' interpreter.
+type Branding = Map Text Text
+
+-- | All template sets consumed by the 'Wire.EmailSubsystem' interpreter.
+data EmailTemplates = EmailTemplates
+  { userTemplates :: Localised UserTemplates,
+    teamTemplates :: Localised TeamTemplates,
+    meetingTemplates :: Localised MeetingTemplates
+  }
+
 -- | Localised templates.
 data Localised a = Localised
   { locDefault :: (Locale, a),
@@ -80,14 +93,14 @@ renderTextWithBranding tpl replace branding = render tpl (replace . branding)
 renderHtmlWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
 renderHtmlWithBranding tpl replace branding = render tpl (HTML.text . replace . branding)
 
-renderHtmlWithBrandingSem :: (Member (Output Text) r) => Template -> Map Text Text -> Sem r Lazy.Text
+renderHtmlWithBrandingSem :: (Member (Output Text) r) => Template -> Branding -> Sem r Lazy.Text
 renderHtmlWithBrandingSem = renderWithBrandingSem HTML.text
 
-renderTextWithBrandingSem :: (Member (Output Text) r) => Template -> Map Text Text -> Sem r Lazy.Text
+renderTextWithBrandingSem :: (Member (Output Text) r) => Template -> Branding -> Sem r Lazy.Text
 renderTextWithBrandingSem = renderWithBrandingSem id
 
 -- If a template field is not declared, do not replace it and drop key to `Output` effect.  This way we catch all errors, not just the first, and the caller gets to decide what to do with the error.
-renderWithBrandingSem :: (Member (Output Text) r) => (Text -> Text) -> Template -> Map Text Text -> Sem r Lazy.Text
+renderWithBrandingSem :: (Member (Output Text) r) => (Text -> Text) -> Template -> Branding -> Sem r Lazy.Text
 renderWithBrandingSem escapeHtml tpl replace = do
   let f x = case Map.lookup x replace of
         Just v -> pure v
@@ -253,6 +266,34 @@ loadTeamTemplates tOptions templatesDir defLocale sender = readLocalesDir defLoc
     tExistingUrl = template tOptions.tExistingUserInvitationUrl
     readTemplate' = readTemplateWithDefault templatesDir defLocale "team"
     readText' = readTextWithDefault templatesDir defLocale "team"
+
+loadMeetingTemplates :: FilePath -> Locale -> EmailAddress -> IO (Localised MeetingTemplates)
+loadMeetingTemplates templatesDir defLocale sender = readLocalesDir defLocale templatesDir "meeting" $ \fp ->
+  MeetingTemplates
+    <$> ( MeetingEmailTemplate
+            <$> readTemplate' fp "email/invitation-subject.txt"
+            <*> readTemplate' fp "email/invitation.txt"
+            <*> readTemplate' fp "email/invitation.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( MeetingEmailTemplate
+            <$> readTemplate' fp "email/update-subject.txt"
+            <*> readTemplate' fp "email/update.txt"
+            <*> readTemplate' fp "email/update.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+    <*> ( MeetingEmailTemplate
+            <$> readTemplate' fp "email/cancel-subject.txt"
+            <*> readTemplate' fp "email/cancel.txt"
+            <*> readTemplate' fp "email/cancel.html"
+            <*> pure sender
+            <*> readText' fp "email/sender.txt"
+        )
+  where
+    readTemplate' = readTemplateWithDefault templatesDir defLocale "meeting"
+    readText' = readTextWithDefault templatesDir defLocale "meeting"
 
 -- | URL templates needed to render the user email templates. These are plain
 -- 'Text' 'Data.Text.Template.template' strings, mirroring the corresponding

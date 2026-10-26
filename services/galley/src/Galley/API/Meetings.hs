@@ -32,11 +32,16 @@ module Galley.API.Meetings
     addMeetingInvitation,
     removeMeetingInvitation,
     replaceMeetingInvitation,
+    refreshMeetingLink,
+    codeCheckMeetingLink,
+    joinMeeting,
   )
 where
 
+import Data.Code (Key, Value)
 import Data.Domain (Domain)
 import Data.Id
+import Data.Misc (IpAddr, PlainTextPassword8)
 import Data.Qualified
 import Imports
 import Polysemy
@@ -115,7 +120,7 @@ updateMeetingV16 ::
   ConnId ->
   Domain ->
   MeetingId ->
-  UpdateMeetingV16 ->
+  UpdateMeeting ->
   Sem r MeetingWithConversationV16
 updateMeetingV16 zUser connId domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
@@ -155,7 +160,7 @@ updateMeetingV18 ::
   ConnId ->
   Domain ->
   MeetingId ->
-  UpdateMeetingV18 ->
+  UpdateMeeting ->
   Sem r MeetingWithConversationV18
 updateMeetingV18 zUser connId domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
@@ -220,3 +225,60 @@ replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails)
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.replaceInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
+
+refreshMeetingLink ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  MeetingId ->
+  RefreshMeetingLinkRequest ->
+  Sem r MeetingWithConversation
+refreshMeetingLink zUser connId domain meetingId req =
+  noteS @'MeetingNotFound
+    =<< Meetings.refreshMeetingLink zUser connId (Qualified meetingId domain) req
+
+-- | WPB-28989: check a meeting join link unauthenticated. No creator or
+-- conversation membership is required; anything that does not resolve to a
+-- live local meeting behind the link's code is surfaced as 404, a missing
+-- or wrong password on a password-protected code as 403.
+codeCheckMeetingLink ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r,
+    Member (ErrorS 'InvalidMeetingPassword) r
+  ) =>
+  IpAddr ->
+  Domain ->
+  Key ->
+  Value ->
+  Maybe PlainTextPassword8 ->
+  Sem r MeetingCodeCheck
+codeCheckMeetingLink origIp domain key codeValue mPassword =
+  Meetings.codeCheckMeetingLink origIp domain key codeValue mPassword >>= \case
+    Meetings.CodeCheckNotFound -> throwS @'MeetingNotFound
+    Meetings.CodeCheckInvalidPassword -> throwS @'InvalidMeetingPassword
+    Meetings.CodeCheckOk meta -> pure meta
+
+-- | WPB-28989: join a meeting through its join link, like
+-- @POST /conversations/join@. A link that does not resolve is surfaced as
+-- 404 meeting-not-found, a password mismatch as 403 invalid-meeting-password;
+-- join failures surface their conversation errors.
+joinMeeting ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r,
+    Member (ErrorS 'InvalidMeetingPassword) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  Key ->
+  Value ->
+  Maybe PlainTextPassword8 ->
+  Sem r MeetingWithConversation
+joinMeeting zUser connId domain key codeValue mPassword =
+  Meetings.joinMeeting zUser connId domain key codeValue mPassword >>= \case
+    Meetings.JoinMeetingNotFound -> throwS @'MeetingNotFound
+    Meetings.JoinMeetingInvalidPassword -> throwS @'InvalidMeetingPassword
+    Meetings.JoinMeetingOk mwc -> pure mwc

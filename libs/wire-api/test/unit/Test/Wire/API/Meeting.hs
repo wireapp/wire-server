@@ -35,13 +35,15 @@
 
 module Test.Wire.API.Meeting where
 
-import Control.Lens ((^?))
+import Control.Lens (asIndex, ifolded, (^..), (^?))
 import Control.Lens.At (ix)
+import Data.Aeson (decode)
+import Data.ByteString.Lazy (fromStrict)
 import Data.OpenApi qualified as S
 import Data.Proxy (Proxy (..))
 import Imports
 import Test.Tasty
-import Test.Tasty.HUnit (assertBool, testCase)
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (Property, conjoin, testProperty, (===))
 import Wire.API.Meeting
 
@@ -52,35 +54,40 @@ tests =
     [ testProperty "toLegacy . fromLegacy === id (V16)" toLegacyFromLegacy,
       testProperty "toLegacyV18 preserves all meeting fields" toLegacyV18Preserves,
       testProperty "fromLegacyNewMeetingV18 injects scheduled type" fromLegacyNewMeetingV18Scheduled,
-      testCase "legacy update schema does not expose type" legacyUpdateSchemaHasNoType,
-      testProperty "legacyUpdateToMeeting drops type" legacyUpdateToMeetingDropsType
+      testCase "update schema does not expose type" updateSchemaHasNoType,
+      testCase "recurrence absent/null/obj decode contract" recurrenceDecodeContract
     ]
 
-schemaHasTypeProperty :: (S.ToSchema a) => Proxy a -> Bool
-schemaHasTypeProperty p = isJust ((S.toSchema p) ^? S.properties . ix "type")
+schemaProperties :: (S.ToSchema a) => Proxy a -> [Text]
+schemaProperties p = S.toSchema p ^.. S.properties . ifolded . asIndex
 
--- | The frozen V15-V18 update endpoints must not accept a @type@ field;
--- only the V19 'UpdateMeeting' schema exposes it.
-legacyUpdateSchemaHasNoType :: IO ()
-legacyUpdateSchemaHasNoType = do
-  assertBool "legacy update schema should not have a 'type' property" $
-    not (schemaHasTypeProperty (Proxy @UpdateMeetingLegacy))
-  assertBool "V19 update schema should have a 'type' property" $
-    schemaHasTypeProperty (Proxy @UpdateMeeting)
+-- | The meeting type is fixed at creation (WPB-29119): the update schema must
+-- not accept a @type@ field on any API version. The property set is pinned so
+-- any future field addition forces a deliberate change here.
+updateSchemaHasNoType :: IO ()
+updateSchemaHasNoType = do
+  schemaProperties (Proxy @UpdateMeeting)
+    @?= ["start_time", "end_time", "title", "recurrence", "tzid"]
+  assertBool "update schema should not have a 'type' property" $
+    not (schemaHasTypeProperty (Proxy @UpdateMeeting))
+  where
+    schemaHasTypeProperty :: (S.ToSchema a) => Proxy a -> Bool
+    schemaHasTypeProperty p = isJust ((S.toSchema p) ^? S.properties . ix "type")
 
--- | Legacy update requests map onto the V19 shape with @mtype = Nothing@,
--- i.e. the stored meeting type is left unchanged.
-legacyUpdateToMeetingDropsType :: UpdateMeetingLegacy -> Property
-legacyUpdateToMeetingDropsType u =
-  let v19 = legacyUpdateToMeeting u
-   in conjoin
-        [ v19.mtype === Nothing,
-          v19.startTime === u.startTime,
-          v19.endTime === u.endTime,
-          v19.title === u.title,
-          v19.recurrence === u.recurrence,
-          v19.tzid === u.tzid
-        ]
+-- | @recurrence@ distinguishes three update states: absent means "leave
+-- unchanged", null means "unset", and an object means "set". A body with no
+-- recognised update fields must decode to a fully-empty 'UpdateMeeting' so
+-- the @EmptyUpdate@ guard rejects it (WPB-29119).
+recurrenceDecodeContract :: IO ()
+recurrenceDecodeContract = do
+  let dec :: ByteString -> IO UpdateMeeting
+      dec = maybe (fail "failed to decode") pure . decode . fromStrict
+      emptyUpdate = UpdateMeeting Nothing Nothing Nothing Nothing Nothing
+  dec "{}" >>= (@?= emptyUpdate)
+  dec "{\"type\":\"scheduled\"}" >>= (@?= emptyUpdate)
+  dec "{\"recurrence\":null}" >>= \u -> u.recurrence @?= Just Nothing
+  dec "{\"recurrence\":{\"frequency\":\"daily\"}}" >>= \u ->
+    assertBool "expected Just recurrence" (isJust u.recurrence)
 
 -- | V19->V18 conversion preserves every field of the meeting (only @mtype@
 -- is dropped).

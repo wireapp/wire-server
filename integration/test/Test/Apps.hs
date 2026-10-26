@@ -324,7 +324,6 @@ testRetrieveUsersIncludingApps = do
             ("id", SString),
             ("legalhold_status", SString),
             ("name", SString),
-            ("picture", SArray SAny),
             ("qualified_id", SObject [("domain", SString), ("id", SString)]),
             ("searchable", SBool),
             ("supported_protocols", SArray SString),

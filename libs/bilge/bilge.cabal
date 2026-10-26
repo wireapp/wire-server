@@ -88,6 +88,7 @@ library
     , http-client        >=0.7
     , http-types         >=0.8
     , imports
+    , kan-extensions
     , lens
     , monad-control      >=1.0
     , mtl                >=2.2

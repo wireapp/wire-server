@@ -28,12 +28,15 @@ import Control.Concurrent.Timeout qualified as System
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Bifunctor
+import Data.ByteString.Conversion (toByteString')
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Range
 import Data.Set qualified as Set
+import Data.Text.Ascii (encodeBase64)
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Timeout
 import Imports
 import Network.DNS
@@ -113,6 +116,11 @@ tests =
           testCase "v2 endpoint, SFT static URL without /sft_servers_all.json" testSFTStaticV2StaticUrlError,
           testCase "v2 endpoint, SFT static URL with    /sft_servers_all.json" testSFTStaticV2StaticUrlList,
           testCase "v2 endpoint, SFT static URL with with setSftListAllServers \"disabeld\"" testSFTStaticV2ListAllServersDisabled
+        ],
+      testGroup
+        "v3"
+        [ testCase "coturn-native turn credentials" testCallsConfigV3CoturnCredentials,
+          testCase "sft_servers_all mirrors v2" testCallsConfigV3SftServersAll
         ]
     ]
 
@@ -274,7 +282,8 @@ sftStaticEnv = withOpenSSL $ do
       secret = "secret word"
       turnSource = TurnSourceFiles (TurnServersFiles "../../../../libs/wire-subsystems/test/resources/turn/servers.txt" "../../../../libs/wire-subsystems/test/resources/turn/servers-v2.txt")
   Just sha512 <- getDigestByName "SHA512"
-  env <- mkTurnEnv turnSource tokenTtl configTtl secret sha512
+  Just sha1 <- getDigestByName "SHA1"
+  env <- mkTurnEnv turnSource tokenTtl configTtl secret sha512 sha1 (Just "coturn secret word")
   let TurnServersFromFiles _ serversV1IORef serversV2IORef = env ^. turnServers
   atomicWriteIORef serversV1IORef (Discovered turnUri)
   atomicWriteIORef serversV2IORef (Discovered turnUri)
@@ -385,6 +394,63 @@ testSFTStaticV2ListAllServersDisabled = do
     "when SFT static URL is enabled and setSftListAllServers is \"disabled\" then sft_servers_all is missing"
     Nothing
     (cfg ^. rtcConfSftServersAll)
+
+-- The v3 endpoint `GET /calls/config/v3`: coturn native long-term credentials
+testCallsConfigV3CoturnCredentials :: IO ()
+testCallsConfigV3CoturnCredentials = withOpenSSL $ do
+  Just sha1 <- getDigestByName "SHA1"
+  env <- fst <$> sftStaticEnv
+  turnUri <- generate arbitrary
+  uid <- generate arbitrary
+  now <- getPOSIXTime
+  cfg <-
+    runM @IO
+      . ignoreLogs
+      . interpretSFTInMemory mempty
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfigV3 uid env "coturn secret word" (Discovered turnUri) Nothing Nothing Nothing HideAllSFTServers (Just False) True
+  let ice = NonEmpty.head (cfg ^. rtcConfV3IceServers)
+  assertEqual
+    "v3 config should advertise exactly the given turn uris"
+    (sort . NonEmpty.toList $ turnUri)
+    (sort . concatMap (NonEmpty.toList . (^. iceV3URLs)) . toList $ cfg ^. rtcConfV3IceServers)
+  let username = ice ^. iceV3Username
+  assertBool "username expiry should be now + tokenTtl (10s, tolerance 2s)" $
+    abs ((username ^. cuExpiresAt) - (now + 10)) < 2
+  assertEqual "username uid should be the deterministic per-user value" (genTurnUid uid) (username ^. cuUid)
+  assertEqual
+    "credential should be base64(HMAC-SHA1(coturn secret, username))"
+    (encodeBase64 (hmacBS sha1 "coturn secret word" (toByteString' username)))
+    (ice ^. iceV3Credential)
+  assertEqual "is_federating should be present (False)" (Just False) (cfg ^. rtcConfV3IsFederating)
+
+-- The v3 endpoint `GET /calls/config/v3` with list-all-servers enabled
+testCallsConfigV3SftServersAll :: IO ()
+testCallsConfigV3SftServersAll = do
+  uid <- generate arbitrary
+  env <- fst <$> sftStaticEnv
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+      servers = entry1 :| [entry2, entry3]
+  sftEnv <-
+    SFTEnv
+      <$> newIORef (Discovered . mkSFTServers $ servers)
+      <*> pure "foo.example.com"
+      <*> pure 5
+      <*> pure (unsafeRange 1)
+      <*> pure Nothing
+  turnUri <- generate arbitrary
+  cfg <-
+    runM @IO
+      . ignoreLogs
+      . interpretSFTInMemory mempty
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfigV3 uid env "coturn secret word" (Discovered turnUri) Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers (Just False) True
+  assertEqual
+    "sft_servers_all in v3 should mirror v2 behavior"
+    (Just . fmap ((^. sftURL) . sftServerFromSrvTarget . srvTarget) . toList $ servers)
+    ((^. authURL) <$$> cfg ^. rtcConfV3SftServersAll)
 
 throwErrorInIO :: (Member (Embed IO) r, Exception e) => Sem (Error e ': r) a -> Sem r a
 throwErrorInIO action = do

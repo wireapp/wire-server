@@ -56,7 +56,6 @@ behavior of the features. Example:
 settings:
   featureFlags:
     sso: disabled-by-default
-    legalhold: disabled-by-default
     teamSearchVisibility: disabled-by-default
     setEmailVisibility: visible_to_self
 ```
@@ -82,18 +81,6 @@ IMPORTANT: if you change this from ‘enabled-by-default’ to
 script](https://github.com/wireapp/wire-server/tree/master/tools/db/migrate-sso-feature-flag)
 to fix all teams that have registered an idp.  (if you don’t, the idp
 will keep working, but the admin won’t be able to register new idps.)
-
-### LegalHold
-
-Optionally block customer support / backoffice from enabling legal
-hold for individual teams.  [Allowed
-values](https://github.com/wireapp/wire-server/blob/46713382a1a6544de3936eb03e987b9f76df3faa/libs/galley-types/src/Galley/Types/Teams.hs#L332-L334):
-‘disabled-permanently’, ‘disabled-by-default’.
-
-IMPORTANT: If you switch this back to `disabled-permanently` from
-`disabled-by-default`, LegalHold devices may still be active in teams
-that have created them while it was allowed.  This may change in the
-future.
 
 ### Expose invitation URLs to team admin
 
@@ -997,6 +984,27 @@ sft:
     secret: /path/to/secret
 ```
 
+### coturn native TURN credentials
+
+The optional `turn.coturnSecret` option (path to the file containing the coturn
+`static-auth-secret`) enables the `GET /calls/config/v3` endpoint, which serves
+TURN credentials in coturn's native long-term credential format instead of zauth:
+`username` is `<unix-expiry>:<uid>` and `credential` is the base64-encoded
+HMAC-SHA1 of the username keyed with the coturn static-auth-secret. The expiry is
+driven by `turn.tokenTTL`. The coturn server must be configured with
+`use-auth-secret`, the same `static-auth-secret`, and a `realm`. While
+`turn.coturnSecret` is unset, `/calls/config/v3` responds with `500`. Enabling
+`turn.coturnSecret` requires the entire advertised TURN fleet (i.e. the servers
+listed via `turn.serversSource`) to validate coturn native long-term
+credentials; `turn.secret` (zauth) remains authoritative for `/calls/config`
+and `/calls/config/v2` until those endpoints are decommissioned.
+
+```default
+# [brig.yaml]
+turn:
+  coturnSecret: /path/to/coturn-secret
+```
+
 ### Locale
 
 #### setDefaultLocale (deprecated / ignored)
@@ -1101,6 +1109,63 @@ optSettings:
   # ...
   setOAuthMaxActiveRefreshTokens: 10
 ```
+
+#### Scopes
+
+Which scope an OAuth token needs is configured per route in `nginz`'s Helm
+chart, and enforced by *nginz*:
+
+```yaml
+# [nginz/values.yaml]
+nginx_conf:
+  upstreams:
+    galley:
+      - path: /conversations/([^/]*)/code
+        envs:
+        - all
+        oauth_scopes: ["read:conversations_code", "write-only:conversations_code"]
+```
+
+A scope has a tier and a base, e.g. the tier `read` and the base
+`conversations_code`.  The method of the request decides which tier it needs:
+
+| method          | tier          |
+| --------------- | ------------- |
+| `GET`           | `read`        |
+| `POST`, `PUT`   | `write-only`  |
+| `DELETE`        | `delete-only` |
+
+Only the listed scopes of that tier let a token in, and the tiers are
+independent of each other: `write-only:` does not include `read:`.  So in the
+example above, a `GET` needs `read:conversations_code`, and a `DELETE` gets
+nowhere, because the list has no `delete-only:conversations_code`.
+
+A route with no `oauth_scopes` (or with an empty list) (and with no
+`oauth_scope`, see next section) accepts no OAuth token at all.  It
+may still be reachable with a cookie or a zauth token; scopes are
+about OAuth only.
+
+Every scope should also be named in the swagger docs, which is a separate
+annotation in the routing tables.  A unit test in `wire-api` compares the two
+and fails if they disagree.
+
+##### Deprecated: `oauth_scope`
+
+Older configurations name only the base and leave the tier to *nginz*:
+
+```yaml
+# [nginz/values.yaml]
+        oauth_scope: conversations_code
+```
+
+Here the tiers build on one another: `write:` includes `read:`, and `admin:`
+includes `write:`.  A `GET` therefore passes with `read:`, `write:`, or
+`admin:conversations_code`, and a `DELETE` needs `admin:conversations_code`.
+
+`oauth_scopes` replaces this, and wins over it where a route has both.  Tokens
+work across the change in either direction: a token with old scopes gets into a
+route that has moved to `oauth_scopes`, and a token with new scopes gets into a
+route that has not.
 
 #### Password hashing options
 
@@ -1251,6 +1316,21 @@ config.disabledAPIVersions: [ v3, development ]
 This setting is required to be present for all the services (brig, cannon, cargohold, galley, gundeck, proxy, and spar).
 
 The default value (provided under `charts/<service>/values.yaml`) is `[ development ]` and disables the development versions. To enable all versions including the development versions set the value to be empty: `[]`.
+
+#### Disabling federation API versions
+
+Federation API versions are configured independently from public client API versions. The development federation version is disabled by default. Set the value to `[]` to enable it, or list an explicit version or `development` to disable it.
+
+When using the unified `wire-server` chart, configure this once at the chart root:
+
+```yaml
+apiVersions:
+  disabledFederationAPIVersions: [ development ]
+```
+
+When deploying service charts separately, configure the corresponding Brig, Galley, and Cargohold service-level settings with the same value.
+
+When disabled, a federation version is omitted from version negotiation and incoming requests using it are rejected. Outgoing federation requests do not negotiate a disabled local version.
 
 ### Team invitation URL for personal users
 

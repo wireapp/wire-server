@@ -271,6 +271,11 @@ http {
         if ($sanitized_request ~ (.*)access_token=[^&\s]*(.*)) {
             set $sanitized_request $1access_token=****$2;
         }
+        # remove join-link (conversation/meeting) passwords from logs; they
+        # travel as query parameters on the code-check/join endpoints.
+        if ($sanitized_request ~ (.*)password=[^&\s]*(.*)) {
+            set $sanitized_request $1password=****$2;
+        }
 
             {{- if ($location.basic_auth) }}
         auth_basic "Restricted";
@@ -297,7 +302,14 @@ http {
               {{- end }}
             {{- end }}
 
-            {{- if ($location.oauth_scope) }}
+            {{- if hasKey $location "oauth_scopes" }}
+              {{- if $location.oauth_scopes }}
+        oauth_scopes {{ join " " $location.oauth_scopes }};
+              {{- else }}
+        # 'oauth_scopes: []': no OAuth token gets in here.  (Without any
+        # 'oauth_scope[s]' directive libzauth rejects them all.)
+              {{- end }}
+            {{- else if ($location.oauth_scope) }}
         oauth_scope {{ $location.oauth_scope }};
             {{- end }}
 

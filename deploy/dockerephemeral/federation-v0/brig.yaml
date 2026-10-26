@@ -65,7 +65,7 @@ emailSMS:
   # the operator).
   email:
     sesQueue: integration-brig-events-federation-v0
-    sesEndpoint: http://ses:4569 # https://email.eu-west-1.amazonaws.com
+    sesEndpoint: http://ses:4579 # https://email.eu-west-1.amazonaws.com
     # If you prefer to use SMTP directly, uncomment the following lines
     # and set the correct credentials.
     # NOTE: In case a user tries to supply config values for both SES and SMTP,
@@ -188,8 +188,23 @@ optSettings:
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
   setFederationDomainConfigsUpdateFreq: 1
   setFederationStrategy: allowAll
+  # The pinned v0 background-worker subscribes only to explicitly listed domains.
   setFederationDomainConfigs:
     - domain: example.com
+      search_policy: full_search
+    - domain: b.example.com
+      search_policy: full_search
+    - domain: d1.example.com
+      search_policy: full_search
+    - domain: d2.example.com
+      search_policy: full_search
+    - domain: d3.example.com
+      search_policy: full_search
+    - domain: federation-v1.example.com
+      search_policy: full_search
+    - domain: federation-v2.example.com
+      search_policy: full_search
+    - domain: federation-v3.example.com
       search_policy: full_search
   set2FACodeGenerationDelaySecs: 5
   setNonceTtlSecs: 5

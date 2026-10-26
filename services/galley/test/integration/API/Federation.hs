@@ -1,19 +1,3 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -77,6 +61,8 @@ import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
 import Wire.API.Message
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
+import Wire.API.Routes.Version as V
+import Wire.API.Routes.Versioned as V
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
@@ -743,7 +729,7 @@ leaveConversationNonExistent = do
   alice <- randomQualifiedId remoteDomain
   conv <- randomId
 
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   let leaveRequest = FedGalley.LeaveConversationRequest conv (qUnqualified alice)
   resp <-
     fmap (.response) $
@@ -767,7 +753,7 @@ leaveConversationInvalidType = do
   connectWithRemoteUser (tUnqualified alice) (tUntagged bob)
   createOne2OneConvWithRemote alice bob
 
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   let leaveRequest = FedGalley.LeaveConversationRequest (qUnqualified conv) (tUnqualified bob)
   resp <-
     fmap (.response) $
@@ -876,11 +862,11 @@ sendMessage = do
   bobId <- randomId
   bobClient <- liftIO $ generate arbitrary
   let bob = Qualified bobId remoteDomain
-      bobProfile = mkProfile bob (Name "Bob")
+      bobProfile = V.Versioned @V.V18 $ mkProfile bob (Name "Bob")
   chadId <- randomId
   chadClient <- liftIO $ generate arbitrary
   let chad = Qualified chadId remoteDomain
-      chadProfile = mkProfile chad (Name "Chad")
+      chadProfile = V.Versioned @V.V18 $ mkProfile chad (Name "Chad")
 
   connectWithRemoteUser aliceId bob
   connectWithRemoteUser aliceId chad
@@ -928,7 +914,7 @@ sendMessage = do
             ]
   void $ withTempMockFederator' (mock <|> mockReply EmptyResponse) $ do
     WS.bracketR cannon aliceId $ \ws -> do
-      g <- viewGalley
+      g <- view tsUnversionedGalley
       msresp <-
         post
           ( g

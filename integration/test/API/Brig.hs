@@ -266,6 +266,20 @@ listUsers usr qualifiedUserIds = do
   req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
   submit "POST" (req & addJSONObject ["qualified_ids" .= qUsers])
 
+listUsersByHandles :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> [String] -> App Response
+listUsersByHandles usr domain handles = do
+  d <- objDomain domain
+  req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
+  submit
+    "POST"
+    (req & addJSONObject ["qualified_handles" .= map (\handle -> object ["handle" .= handle, "domain" .= d]) handles])
+
+getUserByHandleQualified :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> String -> App Response
+getUserByHandleQualified usr domain handle = do
+  d <- objDomain domain
+  req <- baseRequest usr Brig (ExplicitVersion 1) $ joinHttpPath ["users", "by-handle", d, handle]
+  submit "GET" req
+
 listUsersWithContactStatus :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
 listUsersWithContactStatus usr qualifiedUserIds = do
   qUsers <- mapM objQidObject qualifiedUserIds
@@ -335,6 +349,24 @@ getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"
   submit "GET" req
+
+postFederationAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
+postFederationAPIVersion domain = do
+  req <- baseRequest domain Brig Unversioned "/federation/api-version"
+  origin <- objDomain domain
+  submit "POST" $ req & addHeader "Wire-Origin-Domain" origin & addJSON ()
+
+postFederationAPIVersionWithVersion :: (HasCallStack, MakesValue domain) => domain -> Int -> App Response
+postFederationAPIVersionWithVersion domain version = do
+  req <- rawBaseRequest domain Brig Unversioned "/federation/api-version"
+  origin <- objDomain domain
+  submit "POST" $ req & addHeader "Wire-Origin-Domain" origin & addHeader "X-Wire-API-Version" (show version) & addJSON ()
+
+postFederationAPIVersionAtPathVersion :: (HasCallStack, MakesValue domain) => domain -> Int -> App Response
+postFederationAPIVersionAtPathVersion domain version = do
+  req <- rawBaseRequest domain Brig (ExplicitVersion version) "/federation/api-version"
+  origin <- objDomain domain
+  submit "POST" $ req & addHeader "Wire-Origin-Domain" origin & addJSON ()
 
 postConnection ::
   ( HasCallStack,
@@ -817,6 +849,12 @@ renewToken caller cookie = do
 getCallsConfigV2 :: (HasCallStack, MakesValue user) => user -> App Response
 getCallsConfigV2 user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_calls_config_v3
+getCallsConfigV3 :: (HasCallStack, MakesValue user) => user -> App Response
+getCallsConfigV3 user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v3"]
   submit "GET" req
 
 addBot :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response

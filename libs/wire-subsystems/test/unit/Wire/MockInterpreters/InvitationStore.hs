@@ -20,6 +20,7 @@ module Wire.MockInterpreters.InvitationStore where
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Map (alter, elems, (!?))
 import Data.Map qualified as M
+import Data.Range (fromRange)
 import Imports hiding ((!?))
 import Polysemy
 import Polysemy.State (State, get, gets, modify)
@@ -64,7 +65,12 @@ inMemoryInvitationStoreInterpreter = interpret \case
               remaining -> Just remaining
         )
         (tid, email)
-  LookupInvitationsPaginated {} -> error "LookupInvitationsPaginated"
+  LookupInvitationsPaginated mSize tid cursor -> do
+    invitations <- gets @(Map (TeamId, InvitationId) StoredInvitation) elems
+    let matching = sortOn (.invitationId) $ filter (\inv -> inv.teamId == tid && maybe True (< inv.invitationId) cursor) invitations
+        size = fromIntegral $ maybe 100 fromRange mSize
+        page = take size matching
+    pure $ if length matching > size then PaginatedResultHasMore page else PaginatedResult page
   CountInvitations tid ->
     gets @(Map (TeamId, InvitationId) StoredInvitation)
       (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))

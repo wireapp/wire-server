@@ -59,8 +59,6 @@ import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -77,6 +75,7 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE)
 import Wire.ConversationSubsystem.Internal qualified as ConvSubsystem
 import Wire.ConversationSubsystem.LegalholdConflicts
 import Wire.ConversationSubsystem.Util
@@ -260,9 +259,7 @@ postRemoteOtrMessage sender conv rawMsg = do
 
 postBroadcast ::
   ( Member BrigAPIAccess r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (Error ConversationSubsystemError) r,
     Member ExternalAccess r,
     Member (Input FeatureFlags) r,
     Member Now r,
@@ -290,11 +287,11 @@ postBroadcast lusr con msg = runError $ do
           $ msg
   now <- Now.get
 
-  tid <- lookupBindingTeam senderUser
+  tid <- lookupBindingTeamCSE senderUser
   limit <- fromIntegral . fromRange <$> input @FanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $
-    throwS @'BroadcastLimitExceeded
+    throw ConversationSubsystemErrorBroadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
@@ -343,7 +340,7 @@ postBroadcast lusr con msg = runError $ do
   pure otrResult {mssFailedToSend = failedToSend}
   where
     maybeFetchLimitedTeamMemberList ::
-      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member TeamSubsystem r
       ) =>
       Int ->
@@ -355,11 +352,11 @@ postBroadcast lusr con msg = runError $ do
       let localUserIdsInRcps = Map.keys rcps
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
-        throwS @'BroadcastLimitExceeded
+        throw ConversationSubsystemErrorBroadcastLimitExceeded
       TeamSubsystem.internalSelectTeamMembers tid localUserIdsToLookup
 
     maybeFetchAllMembersInTeam ::
-      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member TeamSubsystem r
       ) =>
       TeamId ->
@@ -367,7 +364,7 @@ postBroadcast lusr con msg = runError $ do
     maybeFetchAllMembersInTeam tid = do
       mems <- getTeamMembersForFanout tid
       when (mems ^. teamMemberListType == ListTruncated) $
-        throwS @'BroadcastLimitExceeded
+        throw ConversationSubsystemErrorBroadcastLimitExceeded
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
@@ -382,7 +379,8 @@ postQualifiedOtrMessage ::
     Member Now r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -392,8 +390,12 @@ postQualifiedOtrMessage ::
   Sem r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn lcnv msg =
   runError @(MessageNotSent MessageSendingStatus)
-    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
-    . mapToRuntimeError @'InvalidOperation @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
+    . catchCSE
+      ( \case
+          ConversationSubsystemErrorConvNotFound -> Just MessageNotSentConversationNotFound
+          ConversationSubsystemErrorInvalidOperation -> Just MessageNotSentConversationNotFound
+          _ -> Nothing
+      )
     $ do
       let localDomain = tDomain lcnv
       now <- Now.get
@@ -402,9 +404,9 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           senderUser = qUnqualified sender
       let senderClient = qualifiedNewOtrSender msg
 
-      conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+      conv <- getConversation (tUnqualified lcnv) >>= note ConversationSubsystemErrorConvNotFound
       unless (protocolTag conv.protocol `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
-        throwS @'InvalidOperation
+        throw ConversationSubsystemErrorInvalidOperation
 
       let localMemberIds = (.id_) <$> conv.localMembers
           botMap :: BotMap
@@ -421,7 +423,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
 
       -- check if the sender is part of the conversation
       unless (Set.member sender members) $
-        throwS @'ConvNotFound
+        throw ConversationSubsystemErrorConvNotFound
 
       -- get local clients
       localClients <-

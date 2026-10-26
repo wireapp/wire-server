@@ -22,6 +22,7 @@
 module Wire.BackgroundWorker.Workers (startWorker) where
 
 import Arbiter.Core qualified as ArbiterCore
+import Arbiter.Core.Job.Types.Internal qualified as ArbiterCore
 import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
 import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
@@ -41,6 +42,7 @@ import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
 import Wire.BackgroundWorker.Options (JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util
 import Wire.ExternalAccess.External
+import Wire.JobSubsystem (arbiterSchemaName)
 import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Migrations (runJobMigrations)
 import Wire.MeetingsCleanupWorker
@@ -100,11 +102,11 @@ startWorker scheduledConfig meetingsCleanupConfig = do
         JobRunnerConfig
           { jobRunnerLogger = env.logger,
             jobRunnerSchedule = meetingsCleanupConfig.schedule,
-            jobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+            jobRunnerSchemaName = arbiterSchemaName,
             jobRunnerSettings = workerSettings
           } ::
           JobRunnerConfig JobRegistry
-  liftIO $ runJobMigrations env.arbiterConnStr ArbiterCore.defaultSchemaName
+  liftIO $ runJobMigrations env.arbiterConnStr arbiterSchemaName
   liftIO $ runJobRunner env extEnv workersConfig cleanupConfig
 
 jobDuration :: Duration -> NominalDiffTime
@@ -160,9 +162,8 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
     ArbiterWorkerCron.SkipOverlap
     ( \_ scheduledFor ->
         (ArbiterCore.defaultGroupedJob "meetings-cleanup" (MeetingsCleanup MeetingsCleanupJob))
-          { ArbiterCore.notVisibleUntil = Just scheduledFor,
-            ArbiterCore.maxAttempts = Just 3
-          }
+          & ArbiterCore.setNotVisibleUntil (Just scheduledFor)
+          & ArbiterCore.setMaxAttempts (Just 3)
     ) of
     Left err -> throwIO . userError $ "Invalid cron schedule for meetings-cleanup: " <> err
     Right job -> pure job
@@ -244,7 +245,9 @@ mapJobPayload f job =
       ArbiterCore.suspended = job.suspended,
       ArbiterCore.claimedBy = job.claimedBy,
       ArbiterCore.archiveFor = job.archiveFor,
-      ArbiterCore.admission = job.admission
+      ArbiterCore.traceContext = job.traceContext,
+      ArbiterCore.payloadKeys = job.payloadKeys,
+      ArbiterCore.claimSeq = job.claimSeq
     }
 
 applyExplicitDefaults ::

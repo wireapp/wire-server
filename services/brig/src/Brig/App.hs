@@ -49,9 +49,8 @@ module Brig.App
     appLoggerLens,
     internalEventsLens,
     requestIdLens,
-    userTemplatesLens,
     providerTemplatesLens,
-    teamTemplatesLens,
+    emailTemplatesLens,
     templateBrandingLens,
     templateBrandingAsMapLens,
     httpManagerLens,
@@ -71,6 +70,7 @@ module Brig.App
     keyPackageLocalLockLens,
     rabbitmqChannelLens,
     disabledVersionsLens,
+    disabledFederationVersionsLens,
     enableSFTFederationLens,
     rateLimitEnvLens,
     amqpJobsPublisherChannelLens,
@@ -164,6 +164,7 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Util.SuffixNamer
 import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
@@ -171,8 +172,7 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.Options qualified as EmailOpt
 import Wire.EmailSending.SMTP qualified as SMTP
-import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
-import Wire.EmailSubsystem.Templates.User
+import Wire.EmailSubsystem.Template (EmailTemplates (..), Localised, TemplateBranding, forLocale, loadMeetingTemplates)
 import Wire.ExternalAccess.External
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
@@ -202,9 +202,8 @@ data Env = Env
     appLogger :: Logger,
     internalEvents :: QueueEnv,
     requestId :: RequestId,
-    userTemplates :: Localised UserTemplates,
+    emailTemplates :: EmailTemplates,
     providerTemplates :: Localised ProviderTemplates,
-    teamTemplates :: Localised TeamTemplates,
     templateBranding :: TemplateBranding,
     templateBrandingAsMap :: Map Text Text,
     httpManager :: Manager,
@@ -224,6 +223,7 @@ data Env = Env
     keyPackageLocalLock :: MVar (),
     rabbitmqChannel :: MVar Q.Channel,
     disabledVersions :: Set Version,
+    disabledFederationVersions :: Set Federation.Version,
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
     amqpJobsPublisherChannel :: MVar Q.Channel,
@@ -250,6 +250,17 @@ loadPublicKeyBundle lgr path = case path of
           pure Nothing
         Just keys -> pure $ Just keys
 
+loadEmailTemplates :: Opt.Opts -> IO EmailTemplates
+loadEmailTemplates opts = do
+  userTemplates <- loadUserTemplates opts
+  teamTemplates <- loadTeamTemplatesWithBrigOpts opts
+  meetingTemplates <-
+    loadMeetingTemplates
+      opts.emailSMS.general.templateDir
+      (Opt.defaultTemplateLocale opts.settings)
+      (Opt.checkedEmailSender opts.emailSMS.general)
+  pure EmailTemplates {userTemplates, teamTemplates, meetingTemplates}
+
 newEnv :: Opts -> IO Env
 newEnv opts = do
   Just md5 <- getDigestByName "MD5"
@@ -260,9 +271,8 @@ newEnv opts = do
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
-  utp <- loadUserTemplates opts
   ptp <- loadProviderTemplates opts
-  ttp <- loadTeamTemplatesWithBrigOpts opts
+  etp <- loadEmailTemplates opts
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
       brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
   (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
@@ -274,7 +284,9 @@ newEnv opts = do
       FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
   let turnOpts = Opt.turn opts
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
-  turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
+  Just sha1 <- getDigestByName "SHA1"
+  mCoturnSecret <- forM (Opt.coturnSecret turnOpts) $ (fmap (Text.encodeUtf8 . Text.strip) . Text.readFile)
+  turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512 sha1 mCoturnSecret
   eventsQueue :: QueueEnv <- case opts.internalEvents.internalEventsQueue of
     StompQueueOpts q -> do
       stomp :: Stomp.Env <- case (opts.stompOptions, opts.settings.stomp) of
@@ -297,6 +309,7 @@ newEnv opts = do
   kpLock <- newMVar ()
   rabbitChan <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
+      allDisabledFederationVersions = foldMap Federation.expandVersionExp opts.settings.disabledFederationAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
@@ -320,9 +333,8 @@ newEnv opts = do
         appLogger = lgr,
         internalEvents = (eventsQueue :: QueueEnv),
         requestId = RequestId defRequestId,
-        userTemplates = utp,
+        emailTemplates = etp,
         providerTemplates = ptp,
-        teamTemplates = ttp,
         templateBranding = branding,
         templateBrandingAsMap = brandingAsMap,
         httpManager = mgr,
@@ -342,6 +354,7 @@ newEnv opts = do
         keyPackageLocalLock = kpLock,
         rabbitmqChannel = rabbitChan,
         disabledVersions = allDisabledVersions,
+        disabledFederationVersions = allDisabledFederationVersions,
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
         amqpJobsPublisherChannel,
@@ -470,7 +483,7 @@ initCassandra o g =
     g
 
 teamTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
-teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)
+teamTemplatesWithLocale l = forLocale l <$> asks (.emailTemplates.teamTemplates)
 
 providerTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplatesWithLocale l = forLocale l <$> asks (.providerTemplates)

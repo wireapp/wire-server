@@ -1,0 +1,33 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+${meeting_title}
+${host_name} (${host_email}) a modifié une réunion sur Wire.
+
+Ce qui a changé
+${change_summary}
+
+Quand
+${start_date}
+${start_time} – ${end_time} (${timezone_short})
+Ajouter au calendrier [${ics_url}]
+
+Comment rejoindre
+Au moment de la réunion, cliquez sur « Rejoindre la réunion » ci-dessous. Vous
+pouvez aussi coller ce lien dans votre navigateur :
+${join_url} [${join_url}]
+
+Rejoindre la réunion [${join_url}] Signaler une invitation abusive [${support}]
+
+Qu’est-ce que Wire ? Wire est la plateforme de collaboration la plus sécurisée.
+Travaillez avec votre équipe et vos partenaires externes où que vous soyez par
+messages, visioconférence et partage de fichiers – toujours sécurisé grâce au
+chiffrement de bout en bout.
+En savoir plus [https://wire.com/].
+
+Des questions ? Contactez-nous [${support}]
+
+Politique de confidentialité et conditions d’utilisation [${legal}]· Signaler un
+abus [${misuse}]
+${copyright}. Tous droits réservés.

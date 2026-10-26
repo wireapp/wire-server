@@ -216,6 +216,7 @@ library
     Test.Spar.CertFingerprintAllowlist
     Test.Spar.GetByEmail
     Test.Spar.IdPIssuerUpdate
+    Test.Spar.ListUsers
     Test.Spar.MultiIngressCrossIdpSso
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
@@ -305,7 +306,7 @@ library
     , optparse-applicative
     , process
     , proto-lens
-    , QuickCheck               ^>=2.15.0.1
+    , QuickCheck
     , ram
     , random
     , raw-strings-qq

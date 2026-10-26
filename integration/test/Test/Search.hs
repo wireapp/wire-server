@@ -521,15 +521,26 @@ testUserSearchable = do
   -- Handle for POST /handles still works for non-searchable users
   u2handle <- API.randomHandle
   BrigP.putHandle u2 u2handle `bindResponse` assertSuccess
+  BrigP.getUserByHandleQualified u1 OwnDomain u2handle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
   BrigP.checkHandles u1 [u3handle, u2handle] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     freeHandles <- resp.json & asList
     assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
 
   -- Regular user can't find non-searchable team member by exact handle.
+  BrigP.getUserByHandleQualified u1 OwnDomain u3handle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
   withFoundDocs u1 u3handle $ \docs -> do
     foundUids <- for docs objId
     assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
+
+  -- POST /list-users must not resolve a non-searchable user by exact handle.
+  BrigP.listUsersByHandles u1 OwnDomain [u3handle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    foundUids <- for profiles objId
+    assertBool "list-users must not return non-searchable users by exact handle" $ notElem u3id foundUids
 
   -- /teams/:tid/members, both admin and regular user get only searchable members
   searchableUsers'Uids <- mapM objId [owner, admin, u2]
@@ -594,12 +605,20 @@ testStealthUsersWithFederation = do
   BrigP.putSelf searchee (def {BrigP.name = Just searchTerm}) >>= assertSuccess
   BrigI.refreshIndex OtherDomain
 
+  searcheeHandle <- API.randomHandle
+  BrigP.putHandle searchee searcheeHandle >>= assertSuccess
+
   assertCanFind searcher searchee searchTerm OtherDomain
+  BrigP.getUserByHandleQualified searcher OtherDomain searcheeHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
 
   BrigP.setUserSearchable owner searcheeId False >>= assertSuccess
   BrigI.refreshIndex OtherDomain
 
   assertCannotFind searcher searchee searchTerm OtherDomain
+  assertCannotFind searcher searchee searcheeHandle OtherDomain
+  BrigP.getUserByHandleQualified searcher OtherDomain searcheeHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
 
 testSuspendedUserSearch :: (HasCallStack) => App ()
 testSuspendedUserSearch = do

@@ -38,14 +38,11 @@ module Wire.API.Meeting
     MeetingV18 (..),
     MeetingWithConversationV18 (..),
     NewMeetingV18 (..),
-    UpdateMeetingV18,
-    UpdateMeetingLegacy (..),
 
     -- * Legacy meetings (V15/V16)
     MeetingV16 (..),
     MeetingWithConversationV16 (..),
     NewMeetingV16 (..),
-    UpdateMeetingV16,
 
     -- * Conversions
     toLegacy,
@@ -56,12 +53,13 @@ module Wire.API.Meeting
     toLegacyV18,
     toLegacyWithConvV18,
     fromLegacyNewMeetingV18,
-    legacyUpdateToMeeting,
 
     -- * Misc
     Recurrence (..),
     Frequency (..),
     MeetingEmailsInvitation (..),
+    RefreshMeetingLinkRequest (..),
+    MeetingCodeCheck (..),
   )
 where
 
@@ -69,10 +67,12 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON, toJSON)
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (toByteString')
+import Data.Code (Key, Value)
+import Data.Domain (Domain)
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
-import Data.Misc (HttpsUrl (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword8)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Range (Range)
@@ -84,6 +84,7 @@ import Data.Time.Zones.Types (TZ)
 import Imports
 import Test.QuickCheck (elements)
 import URI.ByteString (uriPath)
+import URI.ByteString qualified as URI
 import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -154,10 +155,14 @@ data Meeting = Meeting
     invitedEmails :: [EmailAddress],
     createdAt :: UTCTime,
     updatedAt :: UTCTime,
-    -- | https join link whose final path segment is the meeting's UUID;
-    -- 'Nothing' when the meeting has no live join code (legacy meetings, or
-    -- code-store modes that cannot hold meeting codes)
-    link :: Maybe HttpsUrl
+    -- | https join link containing the meeting's live join code as query
+    -- parameters; 'Nothing' when the meeting has no live join code (legacy
+    -- meetings, or code-store modes that cannot hold meeting codes)
+    link :: Maybe HttpsUrl,
+    -- | Whether the live join code is protected by a password. Note this
+    -- does not imply 'link' is present: deployments without a configured
+    -- code URI omit the link even when the meeting's code has a password.
+    hasPassword :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
@@ -219,6 +224,7 @@ meetingObject =
     <*> (.createdAt) .= field "created_at" utcTimeSchema
     <*> (.updatedAt) .= field "updated_at" utcTimeSchema
     <*> (.link) .= maybe_ (optField "link" schema)
+    <*> (.hasPassword) .= field "has_password" schema
 
 instance ToSchema Meeting where
   schema = objectWithDocModifier (description ?~ "A meeting (immediate or scheduled)") meetingObject
@@ -345,7 +351,8 @@ data NewMeeting = NewMeeting
     mtype :: MeetingType,
     recurrence :: Maybe Recurrence,
     title :: Range 1 256 Text,
-    invitedEmails :: [EmailAddress]
+    invitedEmails :: [EmailAddress],
+    password :: Maybe PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeeting)
@@ -373,6 +380,13 @@ instance ToSchema NewMeeting where
         <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.title) .= field "title" schema
         <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
+        <*> (.password)
+          .= maybe_
+            ( optFieldWithDocModifier
+                "password"
+                (description ?~ "Optional password for the meeting's join link. The link can only be resolved and joined with this password; omit or null for a passwordless link. Minimum length 8.")
+                schema
+            )
 
 -- | Request to create a new meeting (V15/V16). Carries @end_time@ but no @tzid@.
 data NewMeetingV16 = NewMeetingV16
@@ -447,18 +461,17 @@ parseMeetingType = \case
   "scheduled" -> Just Scheduled
   _ -> Nothing
 
--- | Request to update an existing meeting (V19). @tzid@ is optional: 'Just'
+-- | Request to update an existing meeting. @tzid@ is optional: 'Just'
 -- sets the meeting's IANA time zone, while omitting it leaves the stored time
--- zone unchanged; @end_time@ is optional. @type@ is optional: omitting it
--- leaves the stored meeting type unchanged.
+-- unchanged; @end_time@ is optional. The meeting type is chosen at creation and
+-- is never part of updates (WPB-29119).
 data UpdateMeeting = UpdateMeeting
   { startTime :: Maybe UTCTime,
     endTime :: Maybe UTCTime,
     title :: Maybe (Range 1 256 Text),
     -- | 'Just x' means "set 'recurrence' to 'x', meaning set to a value or unset it"
     recurrence :: Maybe (Maybe Recurrence),
-    tzid :: Maybe TimeZone,
-    mtype :: Maybe MeetingType
+    tzid :: Maybe TimeZone
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeeting)
@@ -471,50 +484,8 @@ instance ToSchema UpdateMeeting where
         <$> (.startTime) .= maybe_ (optField "start_time" utcTimeSchema)
         <*> (.endTime) .= maybe_ (optField "end_time" utcTimeSchema)
         <*> (.title) .= maybe_ (optField "title" schema)
-        <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
+        <*> (.recurrence) .= maybe_ (optField' "recurrence" (named "Recurrence" (nullable (unnamed schema))))
         <*> (.tzid) .= maybe_ (optField "tzid" schema)
-        <*> (.mtype) .= maybe_ (optField "type" schema)
-
--- | Request to update an existing meeting on the frozen V15-V18 endpoints.
--- Identical to 'UpdateMeeting' except it carries no @type@ field, so legacy
--- clients cannot change the stored meeting type.
-data UpdateMeetingLegacy = UpdateMeetingLegacy
-  { startTime :: Maybe UTCTime,
-    endTime :: Maybe UTCTime,
-    title :: Maybe (Range 1 256 Text),
-    recurrence :: Maybe (Maybe Recurrence),
-    tzid :: Maybe TimeZone
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeetingLegacy)
-  deriving (Arbitrary) via (GenericUniform UpdateMeetingLegacy)
-
-type UpdateMeetingV16 = UpdateMeetingLegacy
-
-type UpdateMeetingV18 = UpdateMeetingLegacy
-
-instance ToSchema UpdateMeetingLegacy where
-  schema =
-    objectWithDocModifier (description ?~ "Request to update a meeting") $
-      UpdateMeetingLegacy
-        <$> (.startTime) .= maybe_ (optField "start_time" utcTimeSchema)
-        <*> (.endTime) .= maybe_ (optField "end_time" utcTimeSchema)
-        <*> (.title) .= maybe_ (optField "title" schema)
-        <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
-        <*> (.tzid) .= maybe_ (optField "tzid" schema)
-
--- | Map a legacy update request onto the V19 shape. @mtype@ is always
--- 'Nothing', i.e. the stored meeting type is left unchanged.
-legacyUpdateToMeeting :: UpdateMeetingLegacy -> UpdateMeeting
-legacyUpdateToMeeting u =
-  UpdateMeeting
-    { startTime = u.startTime,
-      endTime = u.endTime,
-      title = u.title,
-      recurrence = u.recurrence,
-      tzid = u.tzid,
-      mtype = Nothing
-    }
 
 instance ToSchema Recurrence where
   schema =
@@ -561,15 +532,35 @@ fromLegacy tz m =
       invitedEmails = m.invitedEmails,
       createdAt = m.createdAt,
       updatedAt = m.updatedAt,
-      link = Nothing
+      link = Nothing,
+      hasPassword = False
     }
 
--- | Join link for a meeting: the configured code URI with the meeting's
--- UUID appended as final path segment (trailing slashes on the configured
--- base are normalized).
-mkMeetingLink :: HttpsUrl -> MeetingId -> HttpsUrl
-mkMeetingLink (HttpsUrl base) mid =
-  HttpsUrl base {uriPath = BS.dropWhileEnd (== '/') (uriPath base) <> "/" <> toByteString' mid}
+-- | Join link for a meeting: the configured code URI rewritten to the
+-- @meeting-join@ path, with the meeting's stable code key, its live
+-- (rotating) code value and its domain as query parameters — mirroring
+-- conversation join links. The code value is the rotating capability:
+-- refreshing the link replaces it, so URLs carrying a stale value stop
+-- resolving.
+mkMeetingLink :: HttpsUrl -> Domain -> Key -> Value -> HttpsUrl
+mkMeetingLink (HttpsUrl base) domain key value =
+  HttpsUrl $
+    base
+      { uriPath = meetingJoinPath (uriPath base),
+        URI.uriQuery =
+          URI.Query
+            [ ("key", toByteString' key),
+              ("code", toByteString' value),
+              ("domain", toByteString' domain)
+            ]
+      }
+  where
+    meetingJoinPath path =
+      let normalized = BS.dropWhileEnd (== '/') path
+          conversationJoinPath = "/conversation-join"
+       in if conversationJoinPath `BS.isSuffixOf` normalized
+            then BS.take (BS.length normalized - BS.length conversationJoinPath) normalized <> "/meeting-join/"
+            else normalized <> "/"
 
 -- | 'toLegacy' lifted over 'MeetingWithConversation'.
 toLegacyWithConv :: MeetingWithConversation -> MeetingWithConversationV16
@@ -610,7 +601,8 @@ fromLegacyNewMeeting tz nm =
       mtype = Scheduled,
       recurrence = nm.recurrence,
       title = nm.title,
-      invitedEmails = nm.invitedEmails
+      invitedEmails = nm.invitedEmails,
+      password = Nothing
     }
 
 -- | Convert a V17/V18 'NewMeetingV18' to the V19 'NewMeeting', defaulting
@@ -625,7 +617,8 @@ fromLegacyNewMeetingV18 nm =
       mtype = Scheduled,
       recurrence = nm.recurrence,
       title = nm.title,
-      invitedEmails = nm.invitedEmails
+      invitedEmails = nm.invitedEmails,
+      password = Nothing
     }
 
 -- | Request to add/remove invited email
@@ -641,6 +634,49 @@ instance ToSchema MeetingEmailsInvitation where
     objectWithDocModifier (description ?~ "Emails invitation") $
       MeetingEmailsInvitation
         <$> (.emails) .= field "emails" (array schema)
+
+newtype RefreshMeetingLinkRequest = RefreshMeetingLinkRequest
+  { password :: Maybe PlainTextPassword8
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RefreshMeetingLinkRequest)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RefreshMeetingLinkRequest
+
+instance ToSchema RefreshMeetingLinkRequest where
+  schema =
+    objectWithDocModifier
+      (description ?~ "Request body for refreshing a meeting's join link")
+      $ RefreshMeetingLinkRequest
+        <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
+    where
+      desc = description ?~ "Optional password for the join link. Replaces any previously set password; omit or null for a passwordless link."
+
+-- | Unauthenticated preview of a meeting behind a join link
+-- (@GET /meeting/{domain}/{key}/{code}/code-check@): only the metadata a
+-- client needs to decide whether to join. Deliberately omits identifying
+-- fields (id, creator, conversation) that the authenticated meeting
+-- endpoints expose.
+data MeetingCodeCheck = MeetingCodeCheck
+  { title :: Range 1 256 Text,
+    startTime :: UTCTime,
+    endTime :: UTCTime,
+    tzid :: TimeZone,
+    recurrence :: Maybe Recurrence
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MeetingCodeCheck)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MeetingCodeCheck
+
+instance ToSchema MeetingCodeCheck where
+  schema =
+    objectWithDocModifier
+      (description ?~ "Metadata of the meeting behind a join link")
+      $ MeetingCodeCheck
+        <$> (.title) .= field "title" schema
+        <*> (.startTime) .= field "start_time" utcTimeSchema
+        <*> (.endTime) .= field "end_time" utcTimeSchema
+        <*> (.tzid) .= field "tzid" schema
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
 
 instance PostgresMarshall (Maybe Text, Maybe DI.Int32, Maybe UTCTime) (Maybe Recurrence) where
   postgresMarshall Nothing = (Nothing, Nothing, Nothing)

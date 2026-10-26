@@ -233,6 +233,11 @@ deleteFederationVQueues env = do
   (mV2User, mV2Pass) <- readCredsFromEnvWithSuffix "V2"
   fromMaybe (putStrLn "No or incomplete credentials for fed V2 RabbitMQ") $
     deleteFederationQueues testDomains env.gRabbitMQConfigV2 <$> mV2User <*> mV2Pass
+
+  putStrLn "Attempting to delete federation V3 queues..."
+  (mV3User, mV3Pass) <- readCredsFromEnvWithSuffix "V3"
+  fromMaybe (putStrLn "No or incomplete credentials for fed V3 RabbitMQ") $
+    deleteFederationQueues testDomains env.gRabbitMQConfigV3 <$> mV3User <*> mV3Pass
   where
     readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
     readCredsFromEnvWithSuffix suffix =

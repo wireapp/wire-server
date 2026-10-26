@@ -58,8 +58,10 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
+import Wire.API.Pagination
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
+import Wire.API.Routes.Versioned as V
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -205,6 +207,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
       CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+      InternalGetScimUsersPaginated tid maxResults offset ->
+        getScimUsersPaginatedImpl tid maxResults offset
 
 isUsersContactableImpl ::
   forall r.
@@ -495,7 +499,7 @@ getUserProfilesRemotePart ::
   Remote [UserId] ->
   Sem r [UserProfile]
 getUserProfilesRemotePart ruids = do
-  runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
+  runFederated ruids $ fmap V.unVersioned <$> fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
 getUserProfilesLocalPart ::
   forall r any.
@@ -704,6 +708,44 @@ guardLockedHandleField user updateOrigin handle = do
   e2eid <- hasE2EId user
   when ((scimConflict || (e2eid && hasHandle && not updateByScim)) && not idemp) do
     throw UserSubsystemHandleManagedByScim
+
+getScimUsersPaginatedImpl ::
+  ( Member UserStore r,
+    Member (Input (Local any)) r,
+    Member (Input UserSubsystemConfig) r,
+    Member (Error UserSubsystemError) r,
+    Member DeleteQueue r,
+    Member InvitationStore r
+  ) =>
+  TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (OffsetPage User)
+getScimUsersPaginatedImpl tid pageSize mOffset = do
+  pendingUsers <-
+    UserStore.getPendingScimUsers tid
+      >>= note UserSubsystemOffsetPaginationNotSupported
+  -- Read live invitations in team-scoped batches instead of looking up each
+  -- pending user's email separately. Stop once all candidate emails are found.
+  let findExpiredEmails remaining cursor
+        | Set.null remaining = pure remaining
+        | otherwise = do
+            invitationPage <- lookupInvitationsPaginated (Just maxBound) tid cursor
+            let invitations = case invitationPage of
+                  PaginatedResult xs -> xs
+                  PaginatedResultHasMore xs -> xs
+                remaining' = remaining Set.\\ Set.fromList (map (.email) invitations)
+            case (invitationPage, listToMaybe $ reverse invitations) of
+              (PaginatedResultHasMore _, Just lastInvitation) ->
+                findExpiredEmails remaining' (Just lastInvitation.invitationId)
+              _ -> pure remaining'
+  expiredEmails <- findExpiredEmails (Set.fromList $ map snd pendingUsers) Nothing
+  let expiredIds = [uid | (uid, email) <- pendingUsers, Set.member email expiredEmails]
+  storedPage <-
+    UserStore.getScimUsersPaginated tid expiredIds (fromRange pageSize) mOffset
+      >>= note UserSubsystemOffsetPaginationNotSupported
+  -- Queue cleanup only after reading the page and its count.
+  mapM_ enqueueUserDeletion expiredIds
+  localDom <- inputs tDomain
+  locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
+  pure $ mkUserFromStored localDom locale <$> storedPage
 
 updateUserProfileImpl ::
   ( Member UserStore r,
@@ -1125,7 +1167,7 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
   afterGC :: [User] <-
     if includeUsersWithExpiredInvitations
       then pure accsByIds
-      else garbageCollect accsByIds
+      else garbageCollectExpiredScimInvitations accsByIds
 
   pure $ filter weWant afterGC
   where
@@ -1145,27 +1187,32 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
         (_, False, Nothing) -> False
         _ -> True
 
-    -- user invited via scim expires together with its invitation. the UserSubsystem interface
-    -- semantics hides the fact that pending users have no TTL field. we chose to emulate this
-    -- in this convoluted way (by making the invitation expire and then checking if it's still
-    -- there when looking up pending users), because adding TTLs would have been a much bigger
-    -- change in the database schema (`enqueueUserDeletion` would need to happen purely based
-    -- on TTL values in cassandra, and there is too much application logic involved there).
-    --
-    -- we could also delete these users here and run a background process that scans for
-    -- pending users without invitation. we chose not to because enqueuing the user deletion
-    -- here is very cheap, and avoids database traffic if the user is looked up again. if the
-    -- background job is reliably taking care of this, there is no strong reason to keep this
-    -- function.
-    --
-    -- there are certainly other ways to improve this, but they probably involve a non-trivial
-    -- database schema re-design.
-    garbageCollect :: [User] -> Sem r [User]
-    garbageCollect users = do
-      (gcUsers, safeUser) <- partitionM toBeGarbageCollected users
-      mapM_ (enqueueUserDeletion . qUnqualified . userQualifiedId) gcUsers
-      pure safeUser
-
+-- | User invited via scim expires together with its invitation. the UserSubsystem interface
+-- semantics hides the fact that pending users have no TTL field. we chose to emulate this
+-- in this convoluted way (by making the invitation expire and then checking if it's still
+-- there when looking up pending users), because adding TTLs would have been a much bigger
+-- change in the database schema (`enqueueUserDeletion` would need to happen purely based
+-- on TTL values in cassandra, and there is too much application logic involved there).
+--
+-- we could also delete these users here and run a background process that scans for
+-- pending users without invitation. we chose not to because enqueuing the user deletion
+-- here is very cheap, and avoids database traffic if the user is looked up again. if the
+-- background job is reliably taking care of this, there is no strong reason to keep this
+-- function.
+--
+-- there are certainly other ways to improve this, but they probably involve a non-trivial
+-- database schema re-design.
+garbageCollectExpiredScimInvitations ::
+  forall r.
+  ( Member DeleteQueue r,
+    Member InvitationStore r
+  ) =>
+  [User] -> Sem r [User]
+garbageCollectExpiredScimInvitations users = do
+  (gcUsers, safeUser) <- partitionM toBeGarbageCollected users
+  mapM_ (enqueueUserDeletion . qUnqualified . userQualifiedId) gcUsers
+  pure safeUser
+  where
     toBeGarbageCollected :: User -> Sem r Bool
     toBeGarbageCollected user =
       case (emailIdentity =<< user.userIdentity, user.userStatus) of
