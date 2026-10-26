@@ -23,7 +23,9 @@ module Gundeck.React
 where
 
 import Control.Lens (view, (.~), (^.))
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy qualified as BSL
 import Data.Id (ClientId, UserId)
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
@@ -36,8 +38,10 @@ import Gundeck.Aws.Sns
 import Gundeck.Env
 import Gundeck.Instances ()
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Stream
+import Gundeck.Notification.Metrics (observeStored)
+import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options (notificationTTL, settings)
+import Wire.NotificationStore (addNotification)
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native.Types
 import Gundeck.Push.Websocket qualified as Web
@@ -171,7 +175,9 @@ deleteToken u ev tk cl = do
       n = Notification i False p
       r = NonEmpty.singleton (target u & targetClients .~ [cl])
   void $ Web.push n r (Just u) Nothing Set.empty
-  Stream.add i r p =<< view (options . settings . notificationTTL)
+  ttl <- view (options . settings . notificationTTL)
+  runNotificationStore (addNotification i r p ttl)
+    *> observeStored r (BSL.length (Aeson.encode p))
   Push.delete u (t ^. tokenTransport) (t ^. tokenApp) tk
 
 mkPushToken :: Event -> Token -> ClientId -> PushToken

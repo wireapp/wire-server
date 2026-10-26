@@ -432,6 +432,11 @@ library
     Wire.NonceStore.DualWrite
     Wire.NonceStore.Migration
     Wire.NonceStore.Postgres
+    Wire.NotificationStore
+    Wire.NotificationStore.Cassandra
+    Wire.NotificationStore.DualWrite
+    Wire.NotificationStore.Migration
+    Wire.NotificationStore.Postgres
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.Options.Galley
@@ -720,6 +725,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
+    Wire.NotificationStoreSpec
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec

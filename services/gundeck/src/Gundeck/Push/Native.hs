@@ -25,7 +25,9 @@ where
 import Amazonka.Data (toText)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion.To
+import Data.ByteString.Lazy qualified as BSL
 import Data.Id
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
@@ -34,7 +36,9 @@ import Data.UUID qualified as UUID
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Stream
+import Gundeck.Notification.Metrics (observeStored)
+import Gundeck.NotificationStoreBridge (runNotificationStore)
+import Wire.NotificationStore (addNotification)
 import Gundeck.Options
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native.Serialise
@@ -218,7 +222,9 @@ push1 = push1' 0
           let r = NonEmpty.singleton (target (a ^. addrUser) & targetClients .~ [c])
           let t = a ^. addrPushToken
           let p = singletonPayload (PushRemove t)
-          Stream.add i r p =<< view (options . settings . notificationTTL)
+          ttl <- view (options . settings . notificationTTL)
+          runNotificationStore (addNotification i r p ttl)
+            *> observeStored r (BSL.length (Aeson.encode p))
 
 publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do
