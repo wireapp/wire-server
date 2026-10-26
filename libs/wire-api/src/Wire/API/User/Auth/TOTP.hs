@@ -359,13 +359,11 @@ instance ToSchema TOTPCredentialInfo where
             (description ?~ "When enrolment was started.")
             schema
         <*> (.activatedAt)
-          .= fieldWithDocModifier
-            "activated_at"
-            (description ?~ "When the credential was activated.  `null` means enrolment was never finished; such a credential cannot be used and expires.")
-            ( mkSchema
-                (mempty :: SwaggerDoc)
-                (\case A.Null -> pure (Nothing :: Maybe UTCTimeMillis); v -> Just <$> A.parseJSON v)
-                (\case Nothing -> Just A.Null; Just t -> Just (A.toJSON t))
+          .= maybe_
+            ( optFieldWithDocModifier
+                "activated_at"
+                (description ?~ "When the credential was activated.  `null` means enrolment was never finished; such a credential cannot be used and expires.")
+                schema
             )
 
 -- | Body of @POST \/self\/totp@.  Embeds 'ReauthBody' flat.
