@@ -191,6 +191,8 @@ import Wire.TeamMemberStore.Cassandra
   )
 import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
+import Wire.TeamNotificationStore.DualWrite (interpretTeamNotificationStoreToCassandraAndPostgres)
+import Wire.TeamNotificationStore.Postgres (interpretTeamNotificationStoreToPostgres)
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -450,6 +452,11 @@ evalGalley e =
           CassandraStorage -> interpretCustomBackendStoreToCassandra
           MigrationToPostgresql -> interpretCustomBackendStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCustomBackendStoreToPostgres
+      teamNotificationStoreInterpreter =
+        case (e ^. options . postgresMigration).teamNotifications of
+          CassandraStorage -> interpretTeamNotificationStoreToCassandra
+          MigrationToPostgresql -> interpretTeamNotificationStoreToCassandraAndPostgres
+          PostgresqlStorage -> interpretTeamNotificationStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -559,7 +566,7 @@ evalGalley e =
         . teamFeatureStoreInterpreter
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
-        . interpretTeamNotificationStoreToCassandra
+        . teamNotificationStoreInterpreter
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
