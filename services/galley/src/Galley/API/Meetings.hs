@@ -53,7 +53,7 @@ import Wire.MeetingsSubsystem qualified as Meetings
 createMeeting ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   NewMeeting ->
   Sem r MeetingWithConversation
 createMeeting lUser connId newMeeting = Meetings.createMeeting lUser connId newMeeting
