@@ -122,7 +122,10 @@ data BrigError
   | UserGroupManagedByMismatch
   | DuplicateEntry
   | MLSInvalidLeafNodeSignature
-  | TOTPNotFound
+  | -- FUTUREWORK: the TOTP management api is only mocked with arbitrary
+    -- responses.  These errors are not thrown (yet), but they already
+    -- are listed for generating swagger docs.
+    TOTPNotFound
   | TOTPAlreadyActivated
   | TOTPNotActivated
   | TOTPEnrolmentExpired
