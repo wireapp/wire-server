@@ -1285,17 +1285,6 @@ CREATE TABLE public.asset (
 ALTER TABLE public.asset OWNER TO "wire-server";
 
 --
--- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.email_blocklist (
-    email text NOT NULL
-);
-
-
-ALTER TABLE public.email_blocklist OWNER TO "wire-server";
-
---
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1461,6 +1450,42 @@ CREATE TABLE public.domain_registration_challenge (
 
 
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
+
+--
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
+
+--
+-- Name: federation_remote_teams; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.federation_remote_teams (
+    domain text NOT NULL,
+    team uuid NOT NULL
+);
+
+
+ALTER TABLE public.federation_remote_teams OWNER TO "wire-server";
+
+--
+-- Name: federation_remotes; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.federation_remotes (
+    domain text NOT NULL,
+    search_policy integer NOT NULL,
+    restriction integer
+);
+
+
+ALTER TABLE public.federation_remotes OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -1894,13 +1919,6 @@ ALTER TABLE ONLY arbiter.meetings_results
 ALTER TABLE ONLY public.apps
     ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
 
---
--- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.email_blocklist
-    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
-
 
 --
 -- Name: bot_conv bot_conv_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -1980,6 +1998,30 @@ ALTER TABLE ONLY public.domain_registration_challenge
 
 ALTER TABLE ONLY public.domain_registration
     ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
+
+
+--
+-- Name: federation_remote_teams federation_remote_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.federation_remote_teams
+    ADD CONSTRAINT federation_remote_teams_pkey PRIMARY KEY (domain, team);
+
+
+--
+-- Name: federation_remotes federation_remotes_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.federation_remotes
+    ADD CONSTRAINT federation_remotes_pkey PRIMARY KEY (domain);
 
 
 --

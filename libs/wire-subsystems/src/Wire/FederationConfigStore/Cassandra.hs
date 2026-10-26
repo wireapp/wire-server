@@ -19,6 +19,8 @@ module Wire.FederationConfigStore.Cassandra
   ( interpretFederationDomainConfig,
     remotesMapFromCfgFile,
     AddFederationRemoteResult (..),
+    selectAllFederationRemotes,
+    selectFederationRemoteTeams,
   )
 where
 
@@ -196,3 +198,10 @@ fromRestriction (FederationRestrictionByTeam _) = 1
 
 maxKnownNodes :: Int
 maxKnownNodes = 10000
+
+-- | Read-side queries used by the background migration copy loop.
+selectAllFederationRemotes :: PrepQuery R () (Domain, FederatedUserSearchPolicy, Maybe Int32)
+selectAllFederationRemotes = "SELECT domain, search_policy, restriction FROM federation_remotes"
+
+selectFederationRemoteTeams :: PrepQuery R (Identity Domain) (Identity TeamId)
+selectFederationRemoteTeams = "SELECT team FROM federation_remote_teams WHERE domain = ?"

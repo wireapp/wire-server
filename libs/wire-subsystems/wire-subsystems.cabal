@@ -166,6 +166,7 @@ common common-all
     , polysemy-time
     , polysemy-wire-zoo
     , postgresql-connection-string
+    , pqi-ffi
     , profunctors
     , prometheus-client
     , proto-lens
@@ -357,6 +358,9 @@ library
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
+    Wire.FederationConfigStore.DualWrite
+    Wire.FederationConfigStore.Migration
+    Wire.FederationConfigStore.Postgres
     Wire.FederationConfigSubsystem
     Wire.FederationConfigSubsystem.Interpreter
     Wire.FederationSubsystem

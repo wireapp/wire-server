@@ -104,6 +104,8 @@ import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
+import Wire.FederationConfigStore.DualWrite (interpretFederationConfigStoreToCassandraAndPostgres)
+import Wire.FederationConfigStore.Postgres (interpretFederationConfigStoreToPostgres)
 import Wire.FederationConfigSubsystem (FederationConfigSubsystem)
 import Wire.FederationConfigSubsystem.Interpreter (interpretFederationConfigSubsystem)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -457,6 +459,30 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
+      -- Same self-contained-wrapper pattern as passwordResetCodeStoreInterpreter:
+      -- these slots sit above the global Input Pool / Error UsageError providers.
+      -- The Postgres-backed branches therefore supply Input Pool and Error UsageError
+      -- locally (raiseUnder2 + runInputConst + mapError) so they stay self-contained;
+      -- UsageError is mapped to HttpError (handled by rethrowHttpErrorIO further up).
+      -- The MigrationToPostgresql branch takes the shared migration lock around
+      -- mirrored writes (paired with the copy loop's exclusive lock, see
+      -- Wire.FederationConfigStore.Migration); the lock is acquired at the IO
+      -- level in Wire.FederationConfigStore.DualWrite so no extra ambient
+      -- effects are needed at this slot.
+      federationConfigStoreInterpreter =
+        case e.postgresMigration.federationConfig of
+          CassandraStorage -> interpretFederationDomainConfig e.casClient
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretFederationConfigStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretFederationConfigStoreToCassandraAndPostgres e.casClient e.appLogger
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -486,7 +512,7 @@ runBrigToIO e (AppT ma) = do
               . budgetStoreToCassandra @Cas.Client
               . interpretJwtTools
               . interpretJwk
-              . interpretFederationDomainConfig e.casClient
+              . federationConfigStoreInterpreter
               . interpretFederationConfigSubsystem e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
               . runInputConst clientSubsystemConfig

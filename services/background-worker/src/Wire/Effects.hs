@@ -20,7 +20,6 @@ module Wire.Effects
   )
 where
 
-import Arbiter.Core qualified as ArbiterCore
 import Bilge qualified
 import Bilge.Retry
 import Cassandra (ClientState)
@@ -395,7 +394,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
         }
     jobSubsystemConfig =
       JobSubsystemConfig
-        { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+        { jobSubsystemSchemaName = "arbiter"
         }
     backendQueueEnv =
       BackendNotificationQueueAccess.Env

@@ -27,6 +27,7 @@ import Wire.BlockListStore.Migration
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.DomainRegistrationStore.Migration
+import Wire.FederationConfigStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
@@ -163,4 +164,22 @@ passwordReset migOpts = do
   Log.info logger $ Log.msg (Log.val "started password reset migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling password reset migration")
+    cancel migrationLoop
+
+federationConfig :: MigrationOptions -> AppT IO CleanupAction
+federationConfig migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting federation config migration")
+  count <- register $ counter $ Prometheus.Info "wire_federation_config_migrated_to_pg" "Number of federation remotes migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_federation_config_migration_finished" "Whether the federation config migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_federation_config_migration_failed" "Whether the federation config migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_federation_config_migration_duration_seconds" "Duration of federation config migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateFederationConfigsLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started federation config migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling federation config migration")
     cancel migrationLoop

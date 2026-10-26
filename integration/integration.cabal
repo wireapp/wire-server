@@ -181,6 +181,7 @@ library
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
+    Test.Migration.FederationConfig
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
     Test.Migration.User
@@ -305,7 +306,7 @@ library
     , optparse-applicative
     , process
     , proto-lens
-    , QuickCheck               ^>=2.15.0.1
+    , QuickCheck
     , ram
     , random
     , raw-strings-qq

@@ -32,10 +32,12 @@ import Control.Lens.Tuple (_1)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
 import Data.Id
+import Data.Int qualified as DI
 import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.Generics
 import Imports
+import Wire.API.PostgresMarshall (PostgresMarshall (..))
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -44,6 +46,16 @@ data FederationRestriction = FederationRestrictionAllowAll | FederationRestricti
   deriving (Arbitrary) via (GenericUniform FederationRestriction)
 
 makePrisms ''FederationRestriction
+
+-- | Encodes the restriction tag as the same integer used by the Cassandra
+-- @restriction@ column (0 = allow all, 1 = restricted by team).  This encoding
+-- is lossy on the decode side because the team list lives in the separate
+-- @federation_remote_teams@ table, so only a 'PostgresMarshall' instance is
+-- provided; readers must decode the raw int and fetch the teams separately
+-- (mirroring @toRestriction@ in "Wire.FederationConfigStore.Cassandra").
+instance PostgresMarshall DI.Int32 FederationRestriction where
+  postgresMarshall FederationRestrictionAllowAll = 0
+  postgresMarshall (FederationRestrictionByTeam _) = 1
 
 data FederationRestrictionTag = FederationRestrictionAllowAllTag | FederationRestrictionByTeamTag
   deriving (Eq, Enum, Bounded)

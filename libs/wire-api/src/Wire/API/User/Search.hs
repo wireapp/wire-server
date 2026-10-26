@@ -49,6 +49,7 @@ import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion as BS
 import Data.Id (TeamId, UserGroupId, UserId)
+import Data.Int qualified as DI
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
@@ -61,6 +62,7 @@ import Data.Text.Encoding qualified as TE
 import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
+import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy, UserType (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -381,6 +383,19 @@ instance C.Cql FederatedUserSearchPolicy where
   fromCql (C.CqlInt 1) = pure ExactHandleSearch
   fromCql (C.CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+-- | Encodes the search policy as the same integer used by the Cassandra
+-- @search_policy@ column.
+instance PostgresMarshall DI.Int32 FederatedUserSearchPolicy where
+  postgresMarshall NoSearch = 0
+  postgresMarshall ExactHandleSearch = 1
+  postgresMarshall FullSearch = 2
+
+instance PostgresUnmarshall DI.Int32 FederatedUserSearchPolicy where
+  postgresUnmarshall 0 = Right NoSearch
+  postgresUnmarshall 1 = Right ExactHandleSearch
+  postgresUnmarshall 2 = Right FullSearch
+  postgresUnmarshall n = Left $ "Unexpected FederatedUserSearchPolicy value: " <> T.pack (show n)
 
 data EmailVerificationFilter
   = EmailUnverified

@@ -178,6 +178,7 @@ postgresMigration:
   teamFeatures: postgresql
   domainRegistration: postgresql
   passwordReset: postgresql
+  federationConfig: postgresql
   user: postgresql
   blockList: postgresql
 

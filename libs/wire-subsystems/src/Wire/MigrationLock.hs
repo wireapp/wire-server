@@ -36,7 +36,10 @@
 
 module Wire.MigrationLock where
 
+import Control.Concurrent.Async qualified as Async
+import Control.Exception (throwIO)
 import Data.Bits
+import Data.Domain (Domain, domainText)
 import Data.Hashable (hash)
 import Data.Id
 import Data.UUID qualified as UUID
@@ -60,6 +63,7 @@ import Polysemy.Time.Data.TimeUnit
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger.Message qualified as Log
+import System.Timeout qualified as System.Timeout
 import Wire.API.Error
 import Wire.API.PostgresMarshall
 import Wire.Error
@@ -177,6 +181,70 @@ withMigrationLocks lockType maxWait lockables action = do
                                        FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
 
 --------------------------------------------------------------------------------
+-- IO-level variant for interpreters that cannot thread the lock effects (e.g.
+-- dual-write interpreters wired into canonical service stacks).  Mirrors the
+-- acquire/release logic of 'withMigrationLocks'; lock-acquisition failure is
+-- signalled via 'MigrationLockError'.
+--------------------------------------------------------------------------------
+
+data MigrationLockHandle = forall session. MigrationLockHandle
+  { mlockActionCompleted :: MVar (),
+    mlockThread :: Async.Async session
+  }
+
+-- | Acquire shared/exclusive advisory locks for the given lockables on a
+-- dedicated connection.  Throws 'TimedOutAcquiringLock' if not acquired within
+-- @maxWait@.  Always pair with 'releaseLocksPool'.
+acquireLocksPool ::
+  forall x u.
+  (MigrationLockable x, TimeUnit u) =>
+  Hasql.Pool ->
+  LockType ->
+  u ->
+  [x] ->
+  IO MigrationLockHandle
+acquireLocksPool pool lockType maxWait lockables = do
+  lockAcquired <- newEmptyMVar
+  actionCompleted <- newEmptyMVar
+  lockThread <-
+    Async.async . Hasql.use pool $ do
+      -- Sort lockIds to avoid deadlocks
+      let lockIds = sort $ fmap lockKey lockables
+      Session.statement lockIds (lockStatements lockType)
+      liftIO $ putMVar lockAcquired ()
+      liftIO $ takeMVar actionCompleted
+      Session.statement lockIds (lockStatements lockType)
+  mAcquired <-
+    System.Timeout.timeout (fromIntegral (unNanoSeconds (toNanos maxWait))) (takeMVar lockAcquired)
+  case mAcquired of
+    Nothing -> do
+      Async.cancel lockThread
+      throwIO TimedOutAcquiringLock
+    Just () -> pure MigrationLockHandle {mlockActionCompleted = actionCompleted, mlockThread = lockThread}
+
+-- | Release locks previously acquired with 'acquireLocksPool'.  Cleanup errors
+-- are swallowed; the pooled connection is discarded by the pool on failure.
+releaseLocksPool :: MigrationLockHandle -> IO ()
+releaseLocksPool MigrationLockHandle {mlockActionCompleted, mlockThread} = do
+  _ <- tryPutMVar mlockActionCompleted ()
+  -- Give the unlock thread one second to finish; the connection-level
+  -- advisory locks die with the connection regardless.
+  void (System.Timeout.timeout 1000000 (Async.wait mlockThread))
+
+lockStatements :: LockType -> Hasql.Statement [Int64] ()
+lockStatements = \case
+  LockExclusive ->
+    lmapPG @(Vector _) $
+      [resultlessStatement|SELECT (1 :: int)
+                           FROM (SELECT pg_advisory_lock(lockId)
+                                 FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
+  LockShared ->
+    lmapPG @(Vector _) $
+      [resultlessStatement|SELECT (1 :: int)
+                           FROM (SELECT pg_advisory_lock_shared(lockId)
+                                 FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
+
+--------------------------------------------------------------------------------
 -- Combines team id and feature name into one lock key to keep per-feature locks distinct within a team
 -- without introducing a separate lock table; rotate+xor mixes the two hashes to reduce collisions.
 instance MigrationLockable (TeamId, Text) where
@@ -186,6 +254,11 @@ instance MigrationLockable (TeamId, Text) where
      in teamHash `xor` rotateL featureHash 1
   lockScope = "team_feature"
   toText (tid, feat) = idToText tid <> ":" <> feat
+
+instance MigrationLockable Domain where
+  lockKey = fromIntegral . hash . domainText
+  lockScope = "federation_domain"
+  toText = domainText
 
 instance MigrationLockable ConvId where
   lockKey = hashUUID
