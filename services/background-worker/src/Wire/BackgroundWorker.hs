@@ -106,6 +106,12 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-custom-backend" $
             Migrations.customBackend opts.migrationOptions
+  cleanupNotificationsMigration <-
+    if opts.migrateNotifications
+      then
+        runAppT env $
+          withNamedLogger "migrate-notifications" $
+            Migrations.notifications opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
@@ -118,7 +124,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,,)
+            (,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -129,6 +135,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupBlockListMigration
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
+              <*> Concurrently cleanupNotificationsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

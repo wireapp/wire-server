@@ -59,6 +59,7 @@ data Opts = Opts
     migrateBlockList :: !Bool,
     migratePasswordReset :: !Bool,
     migrateCustomBackend :: !Bool,
+    migrateNotifications :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig

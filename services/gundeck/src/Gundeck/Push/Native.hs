@@ -34,7 +34,8 @@ import Data.UUID qualified as UUID
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Stream
+import Gundeck.NotificationStoreBridge (runNotificationStore)
+import Wire.NotificationStore (addNotification)
 import Gundeck.Options
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native.Serialise
@@ -218,7 +219,8 @@ push1 = push1' 0
           let r = NonEmpty.singleton (target (a ^. addrUser) & targetClients .~ [c])
           let t = a ^. addrPushToken
           let p = singletonPayload (PushRemove t)
-          Stream.add i r p =<< view (options . settings . notificationTTL)
+          ttl <- view (options . settings . notificationTTL)
+          runNotificationStore (addNotification i r p ttl)
 
 publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do

@@ -15,13 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Notification.Data
-  ( ResultPage (..),
-    add,
-    fetch,
-    fetchId,
-    fetchLast,
-    deleteAll,
+-- | The original Cassandra implementation of "Gundeck.Notification.Data",
+-- moved here verbatim. The two @MonadReader Env@ config reads are replaced by
+-- the explicit 'NotificationStoreConfig' argument.
+module Wire.NotificationStore.Cassandra
+  ( interpretNotificationStoreToCassandra,
   )
 where
 
@@ -36,29 +34,35 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
-import Gundeck.Env
-import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, settings)
-import Gundeck.Push.Native.Serialise ()
 import Imports
+import Polysemy
+import Polysemy.Input
 import UnliftIO (pooledForConcurrentlyN_)
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Internal.Notification
+import Wire.NotificationStore
+import Wire.Util (embedClientInput)
 
-data ResultPage = ResultPage
-  { -- | A sequence of notifications.
-    resultSeq :: Seq QueuedNotification,
-    -- | Whether there might be more notifications that can be
-    -- obtained through another query, starting the the ID of the
-    -- last notification in 'resultSeq'.
-    resultHasMore :: !Bool,
-    -- | Whether there might be a gap in the 'resultSeq'. This is 'True'
-    -- iff a start ID ('since') has been given which could not be found.
-    resultGap :: !Bool
-  }
-
-data Payload = Payload
-
-type PayloadId = Id 'Payload
+interpretNotificationStoreToCassandra ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member (Input NotificationStoreConfig) r
+  ) =>
+  Sem (NotificationStore ': r) a ->
+  Sem r a
+interpretNotificationStoreToCassandra = interpret $ \case
+  AddNotification n tgts objs ttl ->
+    embedClientInput $ add n tgts objs ttl
+  FetchNotifications u c msince range -> do
+    cfg <- input
+    embedClientInput $ fetch cfg u c msince range
+  FetchNotificationById u n c ->
+    embedClientInput $ fetchId u n c
+  FetchLastNotification u c -> do
+    cfg <- input
+    embedClientInput $ fetchLast cfg u c
+  DeleteAllNotifications u ->
+    embedClientInput $ deleteAll u
 
 add ::
   (MonadClient m, MonadUnliftIO m) =>
@@ -117,9 +121,9 @@ fetchId u n c = runMaybeT $ do
       \FROM notifications \
       \WHERE user = ? AND id = ?"
 
-fetchLast :: (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
-fetchLast u c = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
+fetchLast :: (MonadClient m) => NotificationStoreConfig -> UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchLast cfg u c = do
+  let pageSize = fromMaybe 100 (nscPageSize cfg)
   go (Page True [] (firstPage pageSize))
   where
     go page = case result page of
@@ -170,15 +174,6 @@ fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
     cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
     cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
 
-type NotifRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
-
-payloadSize :: NotifRow -> Int32
-payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
-  case (mbPayload, mbPayloadRefSize) of
-    (Just blob, _) -> fromIntegral $ BSL.length (fromBlob blob)
-    (_, Just size) -> size
-    _ -> 0
-
 data FetchPayloadsResult = FetchPayloadsResult
   { notifications :: Seq QueuedNotification,
     remainingBytes :: Int32,
@@ -205,7 +200,7 @@ fetchPayloads client remainingBytes rows = do
 -- https://docs.datastax.com/en/developer/java-driver/3.2/manual/paging/).
 --
 -- The boolean indicates whether more notifications can be fetched.
-collect :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> Int32 -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
+collect :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> Int32 -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
 collect c acc prevPageHasMore remaining remainingBytes getPage
   -- we have fetched at least the requested size: terminating the recursion
   | remaining <= 0 = pure (acc, prevPageHasMore)
@@ -222,21 +217,13 @@ collect c acc prevPageHasMore remaining remainingBytes getPage
           more' = hasMore page || fetchResult.truncatedByPayloadLimit
       collect c (acc <> fetchResult.notifications) more' remaining' fetchResult.remainingBytes (liftClient (nextPage page))
 
-mkResultPage :: Int -> Bool -> Seq QueuedNotification -> ResultPage
-mkResultPage size more ns =
-  ResultPage
-    { resultSeq = Seq.take size ns,
-      resultHasMore = Seq.length ns > size || more,
-      resultGap = False
-    }
-
-fetch :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
-fetch u c Nothing (fromIntegral . fromRange -> size) = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
+fetch :: (MonadClient m, MonadUnliftIO m) => NotificationStoreConfig -> UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
+fetch cfg u c Nothing (fromIntegral . fromRange -> size) = do
+  let pageSize = fromMaybe 100 (nscPageSize cfg)
   let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
-  maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
+  let maxPayloadSize = fromMaybe (5 * 1024 * 1024) (nscMaxPayloadLoadSize cfg)
   let prevPageHasMore = True
   (ns, more) <- collect c Seq.empty prevPageHasMore (size + 1) maxPayloadSize page1
   -- Drop the extra element at the end if present
@@ -248,13 +235,13 @@ fetch u c Nothing (fromIntegral . fromRange -> size) = do
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id ASC"
-fetch u c (Just since) (fromIntegral . fromRange -> size) = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
+fetch cfg u c (Just since) (fromIntegral . fromRange -> size) = do
+  let pageSize = fromMaybe 100 (nscPageSize cfg)
   sinceFound <- isJust <$> retry x1 (query1 cqlExists (params LocalQuorum (u, TimeUuid (toUUID since))))
   let page1 =
         retry x1 $
           paginate cqlAfterSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
-  maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
+  let maxPayloadSize = fromMaybe (5 * 1024 * 1024) (nscMaxPayloadLoadSize cfg)
   let prevPageHasMore = True
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
@@ -282,26 +269,3 @@ deleteAll u = write cql (params LocalQuorum (Identity u)) & retry x5
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM notifications WHERE user = ?"
-
--------------------------------------------------------------------------------
--- Conversions
-
-toNotifSingle ::
-  Maybe ClientId ->
-  (TimeUuid, Blob, Maybe (C.Set ClientId)) ->
-  Maybe QueuedNotification
-toNotifSingle c (i, b, cs) =
-  let clients = maybe [] fromSet cs
-      notifId = Id (fromTimeUuid i)
-   in case JSON.decode' (fromBlob b) of
-        Nothing -> Nothing
-        Just pl ->
-          -- nb. At some point we should be able to do:
-          -- @@@ if null clients || maybe False (`elem` clients) c @@@
-          -- i.e. not return notifications targeted at specific clients,
-          -- if no client ID is given. We currently return all of them
-          -- in this case for backward compatibility with existing internal
-          -- clients.
-          if null clients || maybe True (`elem` clients) c
-            then Just (queuedNotification notifId pl)
-            else Nothing
