@@ -672,6 +672,7 @@ background-worker:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     enableFederation: true
+    migrateNotifications: false
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
