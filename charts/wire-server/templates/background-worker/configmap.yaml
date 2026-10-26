@@ -87,6 +87,7 @@ data:
     migrateUsers: {{ .migrateUsers }}
     migrateBlockList: {{ .migrateBlockList }}
     migratePasswordReset: {{ .migratePasswordReset }}
+    migrateProposals: {{ .migrateProposals }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 

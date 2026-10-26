@@ -24,6 +24,7 @@ import Cassandra
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.ByteString as B
+import Data.Text qualified as Text
 import GHC.Records
 import Imports
 import Test.QuickCheck
@@ -35,6 +36,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.ProposalTag
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.1-2
@@ -239,7 +241,7 @@ instance SerialiseMLS ProposalOrRef where
 
 newtype ProposalRef = ProposalRef {unProposalRef :: ByteString}
   deriving stock (Eq, Show, Ord, Generic)
-  deriving newtype (Arbitrary)
+  deriving newtype (Arbitrary, PostgresMarshall ByteString, PostgresUnmarshall ByteString)
 
 instance ParseMLS ProposalRef where
   parseMLS = ProposalRef <$> parseMLSBytes @VarInt
@@ -252,7 +254,8 @@ makePrisms ''ProposalOrRef
 data ProposalOrigin
   = ProposalOriginClient
   | ProposalOriginBackend
-  deriving (Eq)
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform ProposalOrigin)
 
 instance Cql ProposalOrigin where
   ctype = Tagged IntColumn
@@ -268,3 +271,15 @@ intToOrigin :: Int32 -> Either String ProposalOrigin
 intToOrigin 0 = pure ProposalOriginClient
 intToOrigin 1 = pure ProposalOriginBackend
 intToOrigin n = Left $ "intToOrigin: unexptected int constant: " <> show n
+
+instance PostgresMarshall Int32 ProposalOrigin where
+  postgresMarshall = originToInt
+
+instance PostgresUnmarshall Int32 ProposalOrigin where
+  postgresUnmarshall = mapLeft Text.pack . intToOrigin
+
+instance PostgresMarshall ByteString (RawMLS Proposal) where
+  postgresMarshall = raw
+
+instance PostgresUnmarshall ByteString (RawMLS Proposal) where
+  postgresUnmarshall = decodeMLS'

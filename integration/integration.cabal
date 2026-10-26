@@ -182,6 +182,7 @@ library
     Test.Migration.ConversationCodes
     Test.Migration.DomainRegistration
     Test.Migration.PasswordReset
+    Test.Migration.ProposalStore
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util
