@@ -20,7 +20,8 @@ module Gundeck.Client where
 import Control.Lens (view)
 import Data.Id
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Notifications
+import Gundeck.NotificationStoreBridge (runNotificationStore)
+import Wire.NotificationStore (deleteAllNotifications)
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native
 import Imports
@@ -39,7 +40,7 @@ removeUser user = do
   toks <- Push.lookup user Push.LocalQuorum
   deleteTokens toks Nothing
   Push.erase user
-  Notifications.deleteAll user
+  runNotificationStore (deleteAllNotifications user)
 
 setupConsumableNotifications ::
   Channel ->

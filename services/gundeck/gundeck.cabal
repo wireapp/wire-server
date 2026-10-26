@@ -28,7 +28,7 @@ library
     Gundeck.Instances
     Gundeck.Monad
     Gundeck.Notification
-    Gundeck.Notification.Data
+    Gundeck.NotificationStoreBridge
     Gundeck.Options
     Gundeck.Presence
     Gundeck.Presence.Data
@@ -133,6 +133,7 @@ library
     , extended
     , extra                                 >=1.1
     , foldl
+    , hasql-resource-pool
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -146,6 +147,7 @@ library
     , metrics-wai
     , mtl                                   >=2.2
     , network-uri                           >=2.6
+    , polysemy
     , prometheus-client
     , psqueues                              >=0.2.2
     , raw-strings-qq
@@ -171,7 +173,6 @@ library
     , wire-api
     , wire-otel
     , wire-subsystems
-    , yaml                                  >=0.8
 
   default-language:   GHC2021
 
@@ -563,6 +564,7 @@ test-suite gundeck-tests
     , tinylog
     , types-common
     , wire-api
+    , wire-subsystems
 
   default-language:   GHC2021
 
