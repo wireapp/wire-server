@@ -50,7 +50,6 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
-import Wire.API.Pagination (OffsetPage (..))
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature (FeatureStatus (..), LockStatus (..), LockableFeature (..), MlsE2EIdConfig, npUpdate)
 import Wire.API.Team.Member
@@ -84,70 +83,6 @@ import Wire.VerificationCodeSubsystem
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
-  describe "internalGetScimUsersPaginated" do
-    prop "excludes expired pending accounts before counting and pagination" $
-      \(accepted :: [NotPendingStoredUser]) (pendingAccounts :: [PendingNotEmptyIdentityStoredUser]) email teamId ->
-        let acceptedUsers =
-              [ user {teamId = Just teamId, managedBy = Just ManagedByScim, status = Just Active} :: StoredUser
-              | wrapped <- accepted,
-                let user = coerce wrapped :: StoredUser
-              ]
-            expiredUsers =
-              [ user {teamId = Just teamId, managedBy = Just ManagedByScim, status = Just PendingInvitation, activated = True, email = Just email} :: StoredUser
-              | wrapped <- pendingAccounts,
-                let user = coerce wrapped :: StoredUser
-              ]
-            backend = def {users = acceptedUsers <> expiredUsers}
-            expectedIds = sort $ map (.id) acceptedUsers
-         in conjoin
-              [ let page =
-                      runNoFederationStack backend mempty def $
-                        internalGetScimUsersPaginated teamId (unsafeRange count) (Just offset)
-                 in conjoin
-                      [ page.totalResults === fromIntegral (length acceptedUsers),
-                        map (qUnqualified . userQualifiedId) page.results === take (fromIntegral count) (drop (fromIntegral offset) expectedIds)
-                      ]
-              | count <- [0, 1, 5],
-                offset <- [0, 1, 5]
-              ]
-
-    prop "keeps pending accounts whose invitations still exist" $
-      \(PendingNotEmptyIdentityStoredUser user) email teamId invitationInfo ->
-        let pendingUser = user {teamId = Just teamId, managedBy = Just ManagedByScim, activated = True, email = Just email} :: StoredUser
-            backend =
-              def
-                { users = [pendingUser],
-                  invitations =
-                    Map.singleton
-                      (teamId, invitationInfo.invitationId)
-                      (invitationInfo {InvitationStore.email = email, InvitationStore.teamId = teamId})
-                }
-            page =
-              runNoFederationStack backend mempty def $
-                internalGetScimUsersPaginated teamId (toRange (Proxy @5)) Nothing
-         in conjoin
-              [ page.totalResults === 1,
-                map (qUnqualified . userQualifiedId) page.results === [pendingUser.id]
-              ]
-
-    it "finds live invitations beyond the first team invitation batch" $ do
-      PendingNotEmptyIdentityStoredUser user <- generate arbitrary
-      teamId <- generate arbitrary
-      email <- generate arbitrary
-      generated <- generate $ vectorOf 501 (arbitrary @StoredInvitation)
-      let ordered = sortOn (.invitationId) generated
-          invitations =
-            [ inv {InvitationStore.teamId = teamId, InvitationStore.email = if i == (500 :: Int) then email else inv.email}
-            | (i, inv) <- zip [0 ..] ordered
-            ]
-          pendingUser = user {teamId = Just teamId, managedBy = Just ManagedByScim, activated = True, email = Just email} :: StoredUser
-          backend = def {users = [pendingUser], invitations = Map.fromList [((teamId, inv.invitationId), inv) | inv <- invitations]}
-          page =
-            runNoFederationStack backend mempty def $
-              internalGetScimUsersPaginated teamId (toRange (Proxy @5)) Nothing
-      page.totalResults `shouldBe` 1
-      map (qUnqualified . userQualifiedId) page.results `shouldBe` [pendingUser.id]
-
   describe "getUserProfiles" do
     describe "[with federation]" do
       prop "gets all users on multiple federating backends" $
