@@ -317,10 +317,11 @@ type MeetingsAPI =
            "code-check-meeting-link"
            ( Summary "Check the meeting behind a join link"
                :> Description
-                    "Unauthenticated: no cookie or token needed. Returns the metadata (title, time, recurrence) of the meeting a join link resolves to. Unlike `GET /meetings/{domain}/{id}` no creator or conversation membership is required. Returns 404 meeting-not-found for unknown code keys, stale code values (e.g. after a link refresh), expired meetings, or keys addressing a conversation code; 403 invalid-meeting-password when the link is password-protected and the `password` query param is missing or wrong."
+                    "Unauthenticated: no cookie or token needed. Returns the metadata (title, time, recurrence) of the meeting a join link resolves to. Unlike `GET /meetings/{domain}/{id}` no creator or conversation membership is required. Returns 404 meeting-not-found for unknown code keys, stale code values (e.g. after a link refresh), expired meetings, or keys addressing a conversation code; 403 invalid-meeting-password when the link is password-protected and the `password` query param is missing or wrong. Returns 403 id-feature-error when the deployment's license does not cover invitation links."
                :> From 'V19
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'InvalidMeetingPassword
+               :> CanThrow MeetingError
                :> Header' [Required, Strict] "X-Forwarded-For" IpAddr
                :> "meeting"
                :> Capture "domain" Domain
@@ -337,7 +338,7 @@ type MeetingsAPI =
            "join-meeting"
            ( Summary "Join a meeting through its join link"
                :> Description
-                    "Authenticated. Resolves the join link and adds the user to the meeting's underlying conversation (as with `POST /conversations/join` via the link's code access), returning the meeting with its conversation view. Re-joining is an idempotent no-op. A password-protected link requires the matching `password` query param (403 invalid-meeting-password otherwise); a stale (pre-refresh) code value yields 404 meeting-not-found."
+                    "Authenticated. Resolves the join link and adds the user to the meeting's underlying conversation (as with `POST /conversations/join` via the link's code access), returning the meeting with its conversation view. Re-joining is an idempotent no-op. A password-protected link requires the matching `password` query param (403 invalid-meeting-password otherwise); a stale (pre-refresh) code value yields 404 meeting-not-found. Returns 403 id-feature-error when the deployment's license does not cover invitation links."
                :> From 'V19
                :> ZLocalUser
                :> ZConn
@@ -349,6 +350,7 @@ type MeetingsAPI =
                :> QueryParam' '[Optional, Strict] "password" PlainTextPassword8
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'InvalidMeetingPassword
+               :> CanThrow MeetingError
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation

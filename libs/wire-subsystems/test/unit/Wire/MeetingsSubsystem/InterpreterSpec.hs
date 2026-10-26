@@ -66,6 +66,9 @@ import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
+import Wire.Licensing.Effect (Licensing)
+import Wire.Licensing.License (License, fullLicense, missingLicense)
+import Wire.Licensing.Mock (runLicenseMocked)
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore qualified as Store
@@ -83,6 +86,7 @@ import Wire.TeamSubsystem.GalleyAPI
 
 type TestStack =
   '[ MeetingsSubsystem,
+     Licensing,
      RateLimit,
      HashPassword,
      Error RateLimitExceeded,
@@ -145,7 +149,7 @@ runTestStack ::
   Sem TestStack a ->
   IO (Either MeetingError a)
 runTestStack now gen teams configs sem = do
-  result <- runTestStackWithURI now gen (Left testCodeURIBase) teams configs sem
+  result <- runTestStackWithURI now gen (Left testCodeURIBase) teams configs fullLicense sem
   case result of
     Left _denied -> error "unexpected CheckDeleteLocalConversation denial"
     Right meetingResult -> pure meetingResult
@@ -159,9 +163,10 @@ runTestStackWithURI ::
   Either HttpsUrl (Map Domain HttpsUrl) ->
   Map TeamId [TeamMember] ->
   AllTeamFeatures ->
+  License ->
   Sem TestStack a ->
   IO (Either (Tagged ('ActionDenied 'DeleteConversation) ()) (Either MeetingError a))
-runTestStackWithURI now gen convCodeURI teams configs =
+runTestStackWithURI now gen convCodeURI teams configs lic =
   runM
     . fmap (either (error . show) (either (error . show) Imports.id))
     . runInputConst convCodeURI
@@ -191,6 +196,7 @@ runTestStackWithURI now gen convCodeURI teams configs =
     . runErrorUnsafe @RateLimitExceeded
     . staticHashPasswordInterpreter
     . noRateLimit
+    . runLicenseMocked lic
     . interpretMeetingsSubsystem
       MeetingSystemConfig
         { legacyTimeZone = API.defaultLegacyTimeZone,
@@ -298,6 +304,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (Right (Map.fromList [(Domain "wire.com", multiBase)]))
         Map.empty
         def
+        fullLicense
         ( do
             meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
             let mid = qUnqualified meeting.meeting.id
@@ -338,6 +345,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (Right (Map.fromList [(Domain "other.example.com", otherBase)]))
         Map.empty
         def
+        fullLicense
         ( do
             meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
             pure (meeting, qUnqualified meeting.meeting.id)
@@ -1634,6 +1642,73 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         check convCode.codeKey convCode.codeValue Nothing
       result `shouldBe` Right CodeCheckNotFound
 
+  describe "invitationLinks licensing" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamConfig =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Licensed Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              password = Nothing,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+        meetingCode mid = do
+          key <- CodeStore.makeKey (CodeReferentMeeting mid)
+          mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+          maybe (error "no meeting code stored") (pure . fst) mCode
+
+    it "returns JoinMeetingPaywall when the license is missing" $ do
+      result <-
+        runTestStackWithURI
+          now
+          gen
+          (Left testCodeURIBase)
+          Map.empty
+          teamConfig
+          missingLicense
+          ( do
+              meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+              code <- meetingCode (qUnqualified meeting.meeting.id)
+              joinMeeting zUser2 (ConnId "test-conn") (Domain "wire.com") code.codeKey code.codeValue Nothing
+          )
+      result `shouldBe` Right (Right JoinMeetingPaywall)
+
+    it "returns CodeCheckPaywall when the license is missing" $ do
+      result <-
+        runTestStackWithURI
+          now
+          gen
+          (Left testCodeURIBase)
+          Map.empty
+          teamConfig
+          missingLicense
+          ( do
+              meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+              code <- meetingCode (qUnqualified meeting.meeting.id)
+              codeCheckMeetingLink (IpAddr (read @IP "10.0.0.1")) (Domain "my-domain") code.codeKey code.codeValue Nothing
+          )
+      result `shouldBe` Right (Right CodeCheckPaywall)
+
+    it "joins when invitation links are licensed" $ do
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
+        code <- meetingCode (qUnqualified meeting.meeting.id)
+        joinMeeting zUser2 (ConnId "test-conn") (Domain "wire.com") code.codeKey code.codeValue Nothing
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (JoinMeetingOk mwc) -> mwc.meeting.title `shouldBe` newMeeting.title
+        Right r -> fail $ "expected JoinMeetingOk, got: " <> show r
+
   describe "addInvitedEmails" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -2435,7 +2510,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       -- conversation.delete-meeting) is asserted end-to-end by the
       -- integration test in integration/test/Test/Meetings.hs.
       result <-
-        runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) teamConfig $ do
+        runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) teamConfig fullLicense $ do
           meeting <- createMeeting zUser1 (ConnId "test-conn") newMeeting
           -- Force the mock to deny the preflight (mock-only semantics: the
           -- creator is not in the conversation members set)

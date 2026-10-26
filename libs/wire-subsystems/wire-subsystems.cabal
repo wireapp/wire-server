@@ -211,6 +211,7 @@ common common-all
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , wire-licensing
     , wire-otel
     , witherable
     , zauth
@@ -623,6 +624,7 @@ library
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , wire-licensing
     , wire-otel
     , witherable
     , zauth

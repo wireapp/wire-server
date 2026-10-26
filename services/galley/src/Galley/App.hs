@@ -1,3 +1,4 @@
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -47,7 +48,7 @@ import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -132,6 +133,9 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.Licensing.Effect (Licensing)
+import Wire.Licensing.Interpreter (runLicense)
+import Wire.Licensing.License qualified as Licensing
 import Wire.ListItems (ListItems)
 import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
@@ -198,6 +202,7 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     Licensing,
      MeetingNotifier,
      JobSubsystem,
      Input RequestId,
@@ -405,9 +410,10 @@ interpretTinyLog e = interpret $ \case
 
 evalGalleyToIO :: Env -> Sem GalleyEffects a -> IO a
 evalGalleyToIO env action = do
+  eval <- evalGalley env
   r <-
     -- log IO exceptions
-    runExceptT (evalGalley env action) `UnliftIO.catch` \(e :: SomeException) -> do
+    runExceptT (eval action) `UnliftIO.catch` \(e :: SomeException) -> do
       Log.err (env ^. applog) $
         Log.msg ("IO Exception occurred" :: ByteString)
           . Log.field "message" (displayException e)
@@ -425,8 +431,8 @@ logAndMapError :: forall e1 e2 r a. (Member TinyLog r, Member (Error e2) r) => (
 logAndMapError fErr fLog logMsg action =
   mapError fErr $ logErrors @_ @e1 fLog logMsg action
 
-evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
-evalGalley e =
+evalGalley :: Env -> IO (Sem GalleyEffects a -> ExceptT JSONResponse IO a)
+evalGalley e = do
   let convStoreInterpreter =
         interpretConversationStoreByMigration (e ^. options . postgresMigration).conversation (e ^. cstate)
       convCodesStoreInterpreter =
@@ -472,113 +478,117 @@ evalGalley e =
             maxConvSize = e._options._settings._maxConvSize,
             listClientsUsingBrig = e._options._settings._intraListing
           }
-   in ExceptT
-        . runFinal @IO
-        . unsafelyPerformConcurrency
-        . resourceToIOFinal
-        . runError
-        . embedToFinal @IO
-        . interpretTinyLog e
-        . failToEmbed @IO
-        . runDelay
-        . asyncToIOFinal
-        . interpretRace
-        . mapError httpErrorToJSONResponse
-        . logAndMapError postgresUsageErrorToHttpError (Text.pack . show) "postgres usage error"
-        . mapError teamCollaboratorsSubsystemErrorToHttpError
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . logAndMapError toResponse (Text.pack . show) "migration error"
-        . mapError mapTeamFeatureStoreError
-        . mapError toResponse
-        . runInputConst conversationSubsystemConfig
-        . runInputConst e
-        . runInputConst (e ^. hasqlPool)
-        . runInputConst (e ^. cstate)
-        . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
-        . mapError toResponse -- ErrorS 'InvalidOperation
-        . mapError toResponse -- ErrorS 'MeetingNotFound
-        . mapError toResponse -- ErrorS 'CodeStoreNotFound
-        . mapError toResponse -- ErrorS 'NotATeamMember
-        . mapError toResponse -- ErrorS 'NotAnMlsConversation
-        . mapError toResponse -- ErrorS 'ChannelsNotEnabled
-        . mapError toResponse -- ErrorS 'ConvNotFound
-        . mapError toResponse -- ErrorS 'InvalidOperation
-        . mapError toResponse -- ErrorS 'TeamNotFound
-        . mapError toResponse -- ErrorS 'NoBindingTeamMembers
-        . mapError toResponse -- ErrorS 'NonBindingTeam
-        . mapError toResponse -- ErrorS 'MissingLegalholdConsent
-        . mapError toResponse -- ErrorS 'MLSNonEmptyMemberList
-        . mapError toResponse -- ErrorS 'MLSNotEnabled
-        . mapError toResponse -- ErrorS 'ConvAccessDenied
-        . mapError toResponse -- ErrorS 'NotATeamMember
-        . mapError toResponse -- ErrorS 'HistoryNotSupported
-        . mapError toResponse -- ErrorS 'TeamMemberNotFound
-        . mapError toResponse -- ErrorS 'AccessDenied
-        . mapError toResponse -- ErrorS OperationDenied
-        . mapError toResponse -- Error ConversationSubsystemError,
-        . mapError rateLimitExceededToHttpError
-        . mapError toResponse -- DynError
-        . mapError toResponse -- Error MeetingError
-        . interpretBoundedQueue (e ^. deleteQueue)
-        . nowToIO
-        . runInputConst (e ^. convCodeURI)
-        . runInputConst (e ^. options)
-        . runInputConst (GroupInfoCheckEnabled <$> e._options._settings._checkGroupInfo)
-        . runInputConst e._mlsKeys
-        . runInputConst e._options._settings._guestLinkTTLSeconds
-        . runInputConst (IntraListing e._options._settings._intraListing)
-        . runInputConst localUnit
-        . interpretTeamFeatureSpecialContext e
-        . runInputConst (currentFanoutLimitOpts (e ^. options))
-        . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
-        . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
-        . interpretInternalTeamListToCassandra
-        . interpretTeamListToCassandra
-        . interpretTeamMemberStoreToCassandraWithPaging lh
-        . interpretTeamMemberStoreToCassandra lh
-        . teamFeatureStoreInterpreter
-        . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
-        . convStoreInterpreter
-        . interpretTeamNotificationStoreToCassandra
-        . interpretServiceStoreToCassandra (e ^. cstate)
-        . interpretUserGroupStoreToPostgres
-        . runInputConst legalHoldEnv
-        . interpretLegalHoldStoreToCassandra lh
-        . interpretTeamJournal (e ^. aEnv)
-        . interpretTeamStoreToCassandra
-        . interpretCustomBackendStoreToCassandra
-        . randomToIO
-        . runHashPassword e._options._settings._passwordHashingOptions
-        . interpretRateLimit e._passwordHashingRateLimitEnv
-        . interpretProposalStoreToCassandra
-        . convCodesStoreInterpreter
-        . interpretUserClientIndexStoreToCassandra (e ^. cstate)
-        . interpretMeetingsStoreToPostgres
-        . interpretTeamCollaboratorsStoreToPostgres
-        . interpretFireAndForget
-        . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
-        . interpretFederationAPIAccess federationAPIAccessConfig
-        . runRpcWithHttp (e ^. manager) (e ^. reqId)
-        . runGundeckAPIAccess (e ^. options . gundeck)
-        . interpretBrigAccess (e ^. brig)
-        . interpretExternalAccess (e ^. extEnv)
-        . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
-        . interpretSparAPIAccessToRpc (e ^. options . spar)
-        . interpretTeamSubsystem teamSubsystemConfig
-        . runFeaturesConfigSubsystem
-        . runInputSem getAllTeamFeaturesForServer
-        . interpretTeamCollaboratorsSubsystem
-        . runFederationSubsystem conversationSubsystemConfig.federationProtocols
-        . runInputConst (e ^. reqId)
-        . interpretJobSubsystem defaultJobSubsystemConfig
-        . interpretMeetingNotifier
-        . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
+  runLicense' <- runLicense (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
+  pure $ \action ->
+    ExceptT
+      . runFinal @IO
+      . unsafelyPerformConcurrency
+      . resourceToIOFinal
+      . runError
+      . embedToFinal @IO
+      . interpretTinyLog e
+      . failToEmbed @IO
+      . runDelay
+      . asyncToIOFinal
+      . interpretRace
+      . mapError httpErrorToJSONResponse
+      . logAndMapError postgresUsageErrorToHttpError (Text.pack . show) "postgres usage error"
+      . mapError teamCollaboratorsSubsystemErrorToHttpError
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . logAndMapError toResponse (Text.pack . show) "migration error"
+      . mapError mapTeamFeatureStoreError
+      . mapError toResponse
+      . runInputConst conversationSubsystemConfig
+      . runInputConst e
+      . runInputConst (e ^. hasqlPool)
+      . runInputConst (e ^. cstate)
+      . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
+      . mapError toResponse -- ErrorS 'InvalidOperation
+      . mapError toResponse -- ErrorS 'MeetingNotFound
+      . mapError toResponse -- ErrorS 'CodeStoreNotFound
+      . mapError toResponse -- ErrorS 'NotATeamMember
+      . mapError toResponse -- ErrorS 'NotAnMlsConversation
+      . mapError toResponse -- ErrorS 'ChannelsNotEnabled
+      . mapError toResponse -- ErrorS 'ConvNotFound
+      . mapError toResponse -- ErrorS 'InvalidOperation
+      . mapError toResponse -- ErrorS 'TeamNotFound
+      . mapError toResponse -- ErrorS 'NoBindingTeamMembers
+      . mapError toResponse -- ErrorS 'NonBindingTeam
+      . mapError toResponse -- ErrorS 'MissingLegalholdConsent
+      . mapError toResponse -- ErrorS 'MLSNonEmptyMemberList
+      . mapError toResponse -- ErrorS 'MLSNotEnabled
+      . mapError toResponse -- ErrorS 'ConvAccessDenied
+      . mapError toResponse -- ErrorS 'NotATeamMember
+      . mapError toResponse -- ErrorS 'HistoryNotSupported
+      . mapError toResponse -- ErrorS 'TeamMemberNotFound
+      . mapError toResponse -- ErrorS 'AccessDenied
+      . mapError toResponse -- ErrorS OperationDenied
+      . mapError toResponse -- Error ConversationSubsystemError,
+      . mapError rateLimitExceededToHttpError
+      . mapError toResponse -- DynError
+      . mapError toResponse -- Error MeetingError
+      . interpretBoundedQueue (e ^. deleteQueue)
+      . nowToIO
+      . runInputConst (e ^. convCodeURI)
+      . runInputConst (e ^. options)
+      . runInputConst (GroupInfoCheckEnabled <$> e._options._settings._checkGroupInfo)
+      . runInputConst e._mlsKeys
+      . runInputConst e._options._settings._guestLinkTTLSeconds
+      . runInputConst (IntraListing e._options._settings._intraListing)
+      . runInputConst localUnit
+      . interpretTeamFeatureSpecialContext e
+      . runInputConst (currentFanoutLimitOpts (e ^. options))
+      . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
+      . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
+      . interpretInternalTeamListToCassandra
+      . interpretTeamListToCassandra
+      . interpretTeamMemberStoreToCassandraWithPaging lh
+      . interpretTeamMemberStoreToCassandra lh
+      . teamFeatureStoreInterpreter
+      . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
+      . convStoreInterpreter
+      . interpretTeamNotificationStoreToCassandra
+      . interpretServiceStoreToCassandra (e ^. cstate)
+      . interpretUserGroupStoreToPostgres
+      . runInputConst legalHoldEnv
+      . interpretLegalHoldStoreToCassandra lh
+      . interpretTeamJournal (e ^. aEnv)
+      . interpretTeamStoreToCassandra
+      . interpretCustomBackendStoreToCassandra
+      . randomToIO
+      . runHashPassword e._options._settings._passwordHashingOptions
+      . interpretRateLimit e._passwordHashingRateLimitEnv
+      . interpretProposalStoreToCassandra
+      . convCodesStoreInterpreter
+      . interpretUserClientIndexStoreToCassandra (e ^. cstate)
+      . interpretMeetingsStoreToPostgres
+      . interpretTeamCollaboratorsStoreToPostgres
+      . interpretFireAndForget
+      . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
+      . interpretFederationAPIAccess federationAPIAccessConfig
+      . runRpcWithHttp (e ^. manager) (e ^. reqId)
+      . runGundeckAPIAccess (e ^. options . gundeck)
+      . interpretBrigAccess (e ^. brig)
+      . interpretExternalAccess (e ^. extEnv)
+      . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+      . interpretSparAPIAccessToRpc (e ^. options . spar)
+      . interpretTeamSubsystem teamSubsystemConfig
+      . runFeaturesConfigSubsystem
+      . runInputSem getAllTeamFeaturesForServer
+      . interpretTeamCollaboratorsSubsystem
+      . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+      . runInputConst (e ^. reqId)
+      . interpretJobSubsystem defaultJobSubsystemConfig
+      . interpretMeetingNotifier
+      $ runLicense'
+        ( interpretConversationSubsystem
+            (Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options)) action)
+        )
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
