@@ -114,6 +114,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-custom-backend" $
             Migrations.customBackend opts.migrationOptions
       else pure $ pure ()
+  cleanupNotificationsMigration <-
+    if opts.migrateNotifications
+      then
+        runAppT env $
+          withNamedLogger "migrate-notifications" $
+            Migrations.notifications opts.migrationOptions
+      else pure $ pure ()
   cleanupConnectionsMigration <-
     if opts.migrateConnections
       then
@@ -145,6 +152,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
+              <*> Concurrently cleanupNotificationsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

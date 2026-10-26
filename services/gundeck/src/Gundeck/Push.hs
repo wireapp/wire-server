@@ -55,6 +55,7 @@ import Control.Monad.Catch
 import Control.Monad.Except (throwError)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Lazy qualified as BSL
 import Data.Id
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -70,9 +71,11 @@ import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Data
+import Gundeck.Notification.Metrics (observeStored)
+import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options
 import Gundeck.Presence.Data qualified as Presence
+import Wire.NotificationStore (NotificationTTL (..), addNotification)
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
@@ -124,7 +127,9 @@ instance MonadPushAll Gundeck where
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
-  mpaStreamAdd = Data.add
+  mpaStreamAdd i t p ttl =
+    runNotificationStore (addNotification i t p ttl)
+      *> observeStored t (BSL.length (Aeson.encode p))
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
@@ -409,7 +414,7 @@ mkCassandraTargets NewNotification {..} =
         case r ^. recipientClients of
           RecipientClientsAll -> Just []
           -- clients are stored in cassandra as a list with a notification.  empty list
-          -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
+          -- is interpreted as "all clients" by 'Wire.NotificationStore.toNotifSingle'.
           RecipientClientsSome cs -> Just $ toList cs
       pure $ target (r ^. recipientId) & targetClients .~ clients
 
