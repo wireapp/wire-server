@@ -24,12 +24,14 @@ import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
 import Wire.API.Routes.Version
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts)
 
 newtype NotificationTTL = NotificationTTL
   {notificationTTLSeconds :: Word32}
@@ -137,6 +139,10 @@ data Opts = Opts
     _cassandra :: !CassandraOpts,
     _redis :: !RedisEndpoint,
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
+    _postgresql :: !(Map Text Text),
+    _postgresqlPassword :: !(Maybe FilePathSecrets),
+    _postgresqlPool :: !PoolConfig,
+    _postgresMigration :: !PostgresMigrationOpts,
     _aws :: !AWSOpts,
     _rabbitmq :: !AmqpEndpoint,
     _discoUrl :: !(Maybe Text),

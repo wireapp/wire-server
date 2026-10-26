@@ -313,6 +313,7 @@ galley:
       customBackend: {{ .Values.customBackendStore }}
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
+      notifications: {{ .Values.notificationsStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -506,6 +507,24 @@ gundeck:
       tlsCaSecretRef:
         name: "redis-certificate"
         key: "ca.crt"
+    postgresql:
+      host: postgresql
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
+    postgresMigration:
+      conversation: {{ .Values.conversationStore }}
+      conversationCodes: {{ .Values.conversationCodesStore }}
+      teamFeatures: {{ .Values.teamFeaturesStore }}
+      domainRegistration: {{ .Values.domainRegistration }}
+      passwordReset: {{ .Values.passwordReset }}
+      user: {{ .Values.userStore }}
+      blockList: {{ .Values.blockListStore }}
+      notifications: {{ .Values.notificationsStore }}
     aws:
       account: "123456789012"
       region: eu-west-1
@@ -522,6 +541,7 @@ gundeck:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
     redisPassword: very-secure-redis-master-password
+    pgPassword: posty-the-gres
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}

@@ -2332,6 +2332,7 @@ galley:
       blockList: postgresql
       passwordReset: postgresql
       customBackend: postgresql
+      notifications: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2376,6 +2377,11 @@ The current settings and their background-worker flags are:
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
 
+`notifications` (gundeck NotificationStore) has no background-worker flag yet; its
+tables and migration arrive with the NotificationStore migration. Gundeck itself now
+requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` block
+(including `notifications`) to boot (strict config parsing).
+
 **Migration pattern per migration setting**
 
 1. Prepare the selected migration setting(s) for migration by setting
@@ -2398,6 +2404,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: cassandra
          customBackend: cassandra
+         notifications: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2471,6 +2478,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: postgresql
          customBackend: postgresql
+         notifications: postgresql
    background-worker:
      config:
        migrateConversations: false
