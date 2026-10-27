@@ -18,6 +18,7 @@
 module Wire.MeetingsSubsystem.Interpreter
   ( MeetingSystemConfig (..),
     interpretMeetingsSubsystem,
+    meetingCodeTimeout,
     startTimeTolerance,
   )
 where
@@ -97,14 +98,17 @@ checkMeetingsEnabled ::
 -- instead of a renewal mechanism. Known trade-off: if the meeting-row
 -- insert fails after the code was created, the orphaned code row is
 -- unreachable forever (its key derives from the unpersisted id) and
--- will live out this TTL.
+-- will live out this TTL. The one-off join-code backfill migration
+-- (postgres-migrations/20261019090000-meeting-join-code-backfill.sql) also
+-- relies on this TTL: an expired row would be conflated with a live one and
+-- never repaired.
 meetingCodeTimeout :: Timeout
 meetingCodeTimeout = Timeout (fromIntegral (maxBound @Int32))
 
 -- | Resolve the join-link base for a domain. 'Nothing' means the deployment
 -- has no join-link URI configured for the user's domain (multi-ingress mode
--- with the domain missing from the map): the @link@ field is omitted for such
--- meetings rather than pointing at an unconfigured endpoint.
+-- with the domain missing from the map): API callers fail with
+-- 'LinkUnavailable' instead of pointing at an unconfigured endpoint.
 codeURIBase :: (Member CodeStore r) => Domain -> Sem r (Maybe HttpsUrl)
 codeURIBase = CodeStore.getConversationCodeURI . Just
 
@@ -204,7 +208,6 @@ createMeetingImpl ::
     Member FeaturesConfigSubsystem r,
     Member MeetingNotifier r,
     Member Now r,
-    Member TinyLog r,
     Member (Error MeetingError) r,
     Member CodeStore r,
     Member Random.Random r,
@@ -263,18 +266,23 @@ createMeetingImpl zUser connId newMeeting = do
             newConvHistory = def
           }
 
+  -- Create the join code BEFORE the conversation and meeting rows: a failed
+  -- create leaves no orphaned meeting or conversation behind (a failure in
+  -- the steps below can strand an unreferenced code row; acceptable — it is
+  -- never served, since no meeting row references it). The URI base is
+  -- checked first:
+  -- deployments without a configured join-link URI fail with
+  -- 'LinkUnavailable' before any side effect. Code-store modes that cannot
+  -- hold meeting codes (Cassandra-only) fail the request the same way
+  -- instead of producing a meeting without a link.
+  base <- codeURIBase (tDomain zUser)
+  when (isNothing base) $ throw LinkUnavailable
+  mJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout mHashedPw
+  unless (isJust mJoinCode) $ throw LinkUnavailable
+
   -- Create and store the conversation via ConversationSubsystem
   storedConv <- ConversationSubsystem.internalCreateGroupConversation zUser Nothing newConv
 
-  -- Create the join code BEFORE the meeting row: a row without a code would
-  -- serve a dead link, while an unreferenced code is harmless. Code-store
-  -- modes that cannot hold meeting codes (Cassandra-only) return False;
-  -- degrade to a meeting without a link instead of failing the request.
-  hasJoinCode <- CodeStore.createMeetingCode mid meetingCodeTimeout mHashedPw
-  unless hasJoinCode $
-    TinyLog.warn $
-      Log.msg ("meeting created without join link" :: ByteString)
-        . Log.field "meetingId" (toByteString' mid)
   -- Store meeting (trial status provided by caller)
   storedMeeting <-
     Store.createMeeting
@@ -293,8 +301,7 @@ createMeetingImpl zUser connId newMeeting = do
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
   notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
-  base <- codeURIBase (tDomain zUser)
-  storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting
+  storedMeetingToMeetingWithConversation (tDomain zUser) zUser storedConv storedMeeting
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -319,7 +326,6 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
   checkMeetingsEnabled maybeTeamId
   when (update == API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing) $
     throw EmptyUpdate
-  base <- codeURIBase (tDomain zUser)
 
   runMaybeT $ do
     meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
@@ -342,6 +348,15 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
     for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
     for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
 
+    -- Render the link capability (URI config + live code) before committing
+    -- any side effect: without this check a 'LinkUnavailable' at render time
+    -- would arrive after the row update and the notification.
+    base <- lift $ codeURIBase (tDomain zUser)
+    mCode <- lift $ CodeStore.getMeetingCode (qUnqualified meetingId)
+    when (isNothing base || isNothing mCode) $ lift $ throw LinkUnavailable
+    -- The render step below re-reads the code: deliberate, it catches a
+    -- concurrent rotation between this check and link rendering.
+
     updatedMeeting <-
       MaybeT $
         Store.updateMeeting
@@ -353,7 +368,7 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
-    lift $ storedMeetingToMeetingWithConversation base zUser conv updatedMeeting
+    lift $ storedMeetingToMeetingWithConversation (tDomain zUser) zUser conv updatedMeeting
 
 -- | V16 update path. The request is delegated to the shared update
 -- implementation and the result is re-shaped to the legacy form.
@@ -462,8 +477,8 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
 -- (single upsert in the code store), the meeting conversation's guest link
 -- is revoked, and the optional password is hashed and stored on the code,
 -- replacing any previously set password; when no password is given the link
--- is passwordless. If the code store cannot hold meeting codes the meeting
--- degrades to the placeholder link, mirroring 'createMeetingImpl'.
+-- is passwordless. If the code store cannot hold meeting codes, or no
+-- join-link URI is configured, the request fails with 'LinkUnavailable'.
 refreshMeetingLinkImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
@@ -487,6 +502,10 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   base <- codeURIBase (tDomain zUser)
+  -- Fail before rotating: replacing the code (and revoking the conversation
+  -- guest code) without a configured URI would destroy the old link without
+  -- producing a new one.
+  when (isNothing base) $ throw LinkUnavailable
   runMaybeT $ do
     meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
     now <- lift Now.get
@@ -497,18 +516,22 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
     conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
     mHashedPw <- lift $ for req.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
     -- Rotation + guest-code revocation are one CodeStore op (see
-    -- 'CodeStore.RotateMeetingCode' for why they must not be split).
-    hasJoinCode <-
+    -- 'CodeStore.RotateMeetingCode' for why they must not be split). The fresh
+    -- code value is the new link's rotating capability: URLs carrying the
+    -- old value stop resolving.
+    mCode <-
       lift $ CodeStore.rotateMeetingCode (qUnqualified meetingId) meeting.conversationId meetingCodeTimeout mHashedPw
-    unless hasJoinCode $
-      lift $
-        TinyLog.warn $
-          Log.msg ("meeting link refreshed without join code" :: ByteString)
-            . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
+    newLink <- case (mCode, base) of
+      (Just code, Just b) -> pure (API.mkMeetingLink b (tDomain zUser) code.codeKey code.codeValue)
+      _ -> lift $ throw LinkUnavailable
     -- The meeting.update event already notifies conversation members, so no
     -- separate conversation event is sent.
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
-    lift $ storedMeetingToMeetingWithConversation base zUser conv meeting
+    pure $
+      API.MeetingWithConversation
+        { API.meeting = mkApiMeeting (tDomain zUser) newLink (isJust mHashedPw) meeting,
+          API.conversation = conversationView zUser (Just zUser) conv
+        }
 
 -- | Check the code's (hashed) password against the presented attempt.
 -- 'Nothing' hashed password: unprotected code, any attempt (or none)
@@ -573,7 +596,8 @@ getMeetingImpl ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member Now r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member (Error MeetingError) r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
@@ -582,7 +606,6 @@ getMeetingImpl ::
 getMeetingImpl zUser meetingId validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   enabled <- meetingsFeatureEnabled maybeTeamId
-  base <- codeURIBase (tDomain zUser)
   if enabled
     then runMaybeT $ do
       storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
@@ -593,12 +616,12 @@ getMeetingImpl zUser meetingId validityPeriod = do
       -- Check authorization: user must be creator OR member of the associated conversation
       let isCreator = storedMeeting.creator == tUnqualified zUser
       if isCreator
-        then lift $ storedMeetingToMeeting base (tDomain zUser) storedMeeting
+        then lift $ storedMeetingToMeeting (tDomain zUser) storedMeeting
         else do
           -- Check if user is a member of the conversation
           let convId = storedMeeting.conversationId
           void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
-          lift $ storedMeetingToMeeting base (tDomain zUser) storedMeeting -- User is a member, authorized
+          lift $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
     else pure Nothing
 
 -- | Unauthenticated check of a meeting join link (WPB-28989). Unlike
@@ -650,9 +673,11 @@ codeCheckMeetingLinkImpl origIp domain key presentedValue mPassword validityPeri
 -- or 'JoinMeetingInvalidPassword' is returned; a password supplied for an
 -- unprotected link is ignored, mirroring the conversation join-by-code
 -- semantics. No @checkMeetingsEnabled@ gate: the joiner's team feature state
--- is irrelevant, matching conversation join-by-code. Errors are returned
--- rather than thrown because a throw from interpreter space is invisible to
--- callers' local error handlers (PR #5571 review lesson).
+-- is irrelevant, matching conversation join-by-code. Lookup failures are
+-- returned as 'JoinMeetingNotFound' rather than thrown because a throw from
+-- interpreter space is invisible to callers' local error handlers (PR #5571
+-- review lesson); only the strict link-production failure ('LinkUnavailable')
+-- is thrown, and the join route declares it.
 joinMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member CodeStore r,
@@ -660,7 +685,8 @@ joinMeetingImpl ::
     Member HashPassword r,
     Member RateLimit r,
     Member ConversationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Error MeetingError) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -677,11 +703,15 @@ joinMeetingImpl zUser connId domain key presentedValue mPassword validityPeriod 
       ok <- verifyCodePassword (RateLimitUser (tUnqualified zUser)) (mHashedPw, mPassword)
       if ok
         then do
+          -- Fail before mutating: without a configured join-link URI the
+          -- joined view cannot be rendered, and the joiner must not be left
+          -- in the conversation with a 500.
           base <- codeURIBase (tDomain zUser)
-          joinMeetingOk base meeting
+          when (isNothing base) $ throw LinkUnavailable
+          joinMeetingOk meeting
         else pure JoinMeetingInvalidPassword
   where
-    joinMeetingOk base meeting = do
+    joinMeetingOk meeting = do
       void $ ConversationSubsystem.joinMeetingConversation zUser connId meeting.conversationId
       -- Re-fetch so the returned view includes the joiner as a member.
       mConv <-
@@ -689,7 +719,7 @@ joinMeetingImpl zUser connId domain key presentedValue mPassword validityPeriod 
           (Qualified meeting.id (tDomain zUser))
           meeting.conversationId
       case mConv of
-        Just conv -> JoinMeetingOk <$> storedMeetingToMeetingWithConversation base zUser conv meeting
+        Just conv -> JoinMeetingOk <$> storedMeetingToMeetingWithConversation (tDomain zUser) zUser conv meeting
         -- Data-integrity anomaly (missing conversation after a
         -- successful join); surface it as 404 rather than a 500.
         Nothing -> pure JoinMeetingNotFound
@@ -716,15 +746,10 @@ getMeetingConversationOrFail meetingId convId = do
           . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
       pure Nothing
 
--- | Pure meeting-record construction given the code-lookup result. Meetings
--- without a live join code omit the link field entirely.
-mkApiMeeting ::
-  Maybe HttpsUrl ->
-  Domain ->
-  Maybe (Code, Maybe Password) ->
-  Store.StoredMeeting ->
-  API.Meeting
-mkApiMeeting mBase domain mCode sm =
+-- | Pure meeting-record construction given the already-produced join link
+-- and the live code's password flag.
+mkApiMeeting :: Domain -> HttpsUrl -> Bool -> Store.StoredMeeting -> API.Meeting
+mkApiMeeting domain link hasPw sm =
   API.Meeting
     { API.id = Qualified sm.id domain,
       API.title = sm.title,
@@ -738,34 +763,61 @@ mkApiMeeting mBase domain mCode sm =
       API.invitedEmails = sm.invitedEmails,
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt,
-      API.link = case (mBase, mCode) of
-        (Just base, Just (code, _)) -> Just (API.mkMeetingLink base domain code.codeKey code.codeValue)
-        _ -> Nothing,
-      API.hasPassword = maybe False (isJust . snd) mCode
+      API.link = link,
+      API.hasPassword = hasPw
     }
 
 -- | Convert a 'Store.StoredMeeting' to an 'API.Meeting'; performs exactly
--- one code-store lookup.
+-- one code-store lookup. Fails with 'LinkUnavailable' when the meeting has
+-- no live join code or the domain has no configured join-link URI: the
+-- @link@ field is mandatory on the V19 shape.
 storedMeetingToMeeting ::
-  (Member CodeStore r) =>
-  Maybe HttpsUrl ->
+  ( Member (Error MeetingError) r,
+    Member CodeStore r
+  ) =>
   Domain ->
   Store.StoredMeeting ->
   Sem r API.Meeting
-storedMeetingToMeeting mBase domain sm =
-  mkApiMeeting mBase domain <$> CodeStore.getMeetingCode sm.id <*> pure sm
+storedMeetingToMeeting domain sm = do
+  mCode <- CodeStore.getMeetingCode sm.id
+  mBase <- codeURIBase domain
+  case (mCode, mBase) of
+    (Just (code, mPw), Just base) ->
+      pure (mkApiMeeting domain (API.mkMeetingLink base domain code.codeKey code.codeValue) (isJust mPw) sm)
+    _ -> throw LinkUnavailable
 
 -- | One 'CodeStore.getMeetingCodes' query for the whole batch instead of
--- one 'getMeetingCode' per meeting.
+-- one 'getMeetingCode' per meeting. Strict like 'storedMeetingToMeeting':
+-- any meeting without a live code (or any missing join-link URI) fails the
+-- whole list with 'LinkUnavailable'.
 storedMeetingsToMeetings ::
-  (Member CodeStore r) =>
-  Maybe HttpsUrl ->
+  ( Member (Error MeetingError) r,
+    Member CodeStore r
+  ) =>
   Domain ->
   [Store.StoredMeeting] ->
   Sem r [API.Meeting]
-storedMeetingsToMeetings mBase domain sms = do
-  codes <- CodeStore.getMeetingCodes (map (.id) sms)
-  pure [mkApiMeeting mBase domain (Map.lookup sm.id codes) sm | sm <- sms]
+storedMeetingsToMeetings domain sms = case sms of
+  -- Listing zero meetings must succeed even when no join-link URI is
+  -- configured: there is nothing to render.
+  [] -> pure []
+  _ -> do
+    codes <- CodeStore.getMeetingCodes (map (.id) sms)
+    mBase <- codeURIBase domain
+    case mBase of
+      Nothing -> throw LinkUnavailable
+      Just base ->
+        forM sms $ \sm ->
+          case Map.lookup sm.id codes of
+            Just (code, mPw) ->
+              pure
+                ( mkApiMeeting
+                    domain
+                    (API.mkMeetingLink base domain code.codeKey code.codeValue)
+                    (isJust mPw)
+                    sm
+                )
+            Nothing -> throw LinkUnavailable
 
 -- | Like 'storedMeetingToMeeting', but additionally carries the full
 -- 'API.Conversation' associated with the meeting.
@@ -775,14 +827,16 @@ storedMeetingsToMeetings mBase domain sms = do
 -- meeting operation guards @qDomain meetingId == tDomain zUser@. The
 -- conversation itself is always created locally.
 storedMeetingToMeetingWithConversation ::
-  (Member CodeStore r) =>
-  Maybe HttpsUrl ->
+  ( Member (Error MeetingError) r,
+    Member CodeStore r
+  ) =>
+  Domain ->
   Local UserId ->
   StoredConversation ->
   Store.StoredMeeting ->
   Sem r API.MeetingWithConversation
-storedMeetingToMeetingWithConversation mBase lUser conv sm = do
-  meeting <- storedMeetingToMeeting mBase (tDomain lUser) sm
+storedMeetingToMeetingWithConversation domain lUser conv sm = do
+  meeting <- storedMeetingToMeeting domain sm
   pure $
     API.MeetingWithConversation
       { API.meeting = meeting,
@@ -795,7 +849,8 @@ listMeetingsImpl ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member Now r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member (Error MeetingError) r
   ) =>
   Local UserId ->
   NominalDiffTime ->
@@ -803,7 +858,6 @@ listMeetingsImpl ::
 listMeetingsImpl zUser validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   enabled <- meetingsFeatureEnabled maybeTeamId
-  base <- codeURIBase (tDomain zUser)
   if enabled
     then do
       now <- Now.get
@@ -811,11 +865,11 @@ listMeetingsImpl zUser validityPeriod = do
       -- List all meetings created by the user
       createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
       -- Loop over local conversations accessible by the user, then filter to only keep meetings.
-      memberMeetings <- getAllMemberMeetings zUser base cutoff
+      memberMeetings <- getAllMemberMeetings zUser cutoff
       -- Combine and deduplicate
       allMeetings <-
         (<> memberMeetings)
-          <$> storedMeetingsToMeetings base (tDomain zUser) createdMeetings
+          <$> storedMeetingsToMeetings (tDomain zUser) createdMeetings
       let uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
       pure uniqueMeetings
     else pure []
@@ -823,20 +877,21 @@ listMeetingsImpl zUser validityPeriod = do
 getAllMemberMeetings ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member (Error MeetingError) r
   ) =>
   Local UserId ->
-  Maybe HttpsUrl ->
   UTCTime ->
   Sem r [API.Meeting]
-getAllMemberMeetings zUser mBase cutoff = do
+getAllMemberMeetings zUser cutoff = do
   -- We process conversations in pages
   processPage Nothing
   where
     processPage ::
       ( Member Store.MeetingsStore r,
         Member ConversationSubsystem r,
-        Member CodeStore r
+        Member CodeStore r,
+        Member (Error MeetingError) r
       ) =>
       Maybe ConversationPagingState -> Sem r [API.Meeting]
     processPage pagingState = do
@@ -856,7 +911,7 @@ getAllMemberMeetings zUser mBase cutoff = do
               -- Fetch meetings for these conversations
               pageMeetings <- forM targetQConvIds $ \qConvId -> do
                 Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
-              currentMeetings <- storedMeetingsToMeetings mBase (tDomain zUser) (concat pageMeetings)
+              currentMeetings <- storedMeetingsToMeetings (tDomain zUser) (concat pageMeetings)
               -- Check if there are more pages
               if hasMore
                 then do

@@ -51,8 +51,7 @@ tests :: TestTree
 tests =
   testGroup
     "Meeting"
-    [ testProperty "toLegacy . fromLegacy === id (V16)" toLegacyFromLegacy,
-      testProperty "toLegacyV18 preserves all meeting fields" toLegacyV18Preserves,
+    [ testProperty "toLegacyV18 preserves all meeting fields" toLegacyV18Preserves,
       testProperty "fromLegacyNewMeetingV18 injects scheduled type" fromLegacyNewMeetingV18Scheduled,
       testCase "update schema does not expose type" updateSchemaHasNoType,
       testCase "recurrence absent/null/obj decode contract" recurrenceDecodeContract
@@ -122,13 +121,3 @@ fromLegacyNewMeetingV18Scheduled nm =
           nm19.title === nm.title,
           nm19.invitedEmails === nm.invitedEmails
         ]
-
--- | V16->V19->V16 round-trips: @end_time@ (the source of truth) is preserved
--- verbatim, so the legacy shape is recovered exactly; legacy meetings carry
--- no join link.
-toLegacyFromLegacy :: TimeZone -> MeetingV16 -> Property
-toLegacyFromLegacy tz lm =
-  conjoin
-    [ toLegacy (fromLegacy tz lm) === lm,
-      (fromLegacy tz lm).link === Nothing
-    ]
