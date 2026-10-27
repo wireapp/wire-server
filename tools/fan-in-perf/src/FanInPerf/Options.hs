@@ -102,7 +102,7 @@ consumeOnlyLabel = \case
   NoAcks -> "consume-only"
   Acks _ -> "consume-only-ack"
 
-data Command = Migrate SchemaShape | DropDb | Reset | Produce ProduceOptions | Consume ConsumeOptions | ConsumeOnly ConsumeOnlyOptions
+data Command = ResetDb SchemaShape | Produce ProduceOptions | Consume ConsumeOptions | ConsumeOnly ConsumeOnlyOptions
   deriving (Eq, Show)
 
 data Options = Options
@@ -121,9 +121,7 @@ optionsParser =
   Options
     <$> globalParser
     <*> hsubparser
-      ( O.command "migrate" (info (Migrate <$> shapeParser) (progDesc "Create the experiment database if missing, with --partitioned configure pg_partman, and create the fan-in notification tables (idempotent)"))
-          <> O.command "drop-db" (info (pure DropDb) (progDesc "Drop the experiment database"))
-          <> O.command "reset" (info (pure Reset) (progDesc "Truncate all fan-in notification tables"))
+      ( O.command "reset-db" (info (ResetDb <$> shapeParser) (progDesc "Create the experiment database if missing, drop the fan-in notification tables and pg_partman if present, and create the tables from scratch (with --partitioned: partitioned, configures pg_partman)"))
           <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
           <> O.command "consume" (info (Consume <$> consumeParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
           <> O.command "consume-ack" (info (Consume <$> consumeParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment C: like consume, but every client acknowledges the notifications it received"))
@@ -135,7 +133,7 @@ globalParser :: Parser GlobalOptions
 globalParser =
   GlobalOptions
     <$> strOption (long "db" <> metavar "CONNSTR" <> help "PostgreSQL connection string")
-    <*> optional (option (positive maxPoolSize) (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset)"))
+    <*> optional (option (positive maxPoolSize) (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset-db)"))
     <*> option port (long "metrics-port" <> metavar "PORT" <> value 9400 <> showDefault <> help "Port of the /metrics endpoint")
     <*> option isolationReader (long "isolation" <> metavar "read-committed|repeatable-read|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
 

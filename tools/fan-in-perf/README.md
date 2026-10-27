@@ -36,8 +36,7 @@ Start PostgreSQL, the OTel collector and Grafana
 ```sh
 DB="postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf"
 
-fan-in-perf --db "$DB" migrate   # create database + tables (idempotent)
-fan-in-perf --db "$DB" reset     # truncate all fan-in tables
+fan-in-perf --db "$DB" reset-db   # create database if missing, (re)create all fan-in tables, empty
 
 # A: writers only
 fan-in-perf --db "$DB" produce --writers 32 --targets user:100000x20,team:10,epoch:1000 --duration 60
@@ -46,12 +45,12 @@ fan-in-perf --db "$DB" produce --writers 32 --targets user:100000x20,team:10,epo
 fan-in-perf --db "$DB" consume --targets user:2000,team:1,epoch:200 --duration 30
 
 # C: like B, readers acknowledge every notification (RFC live path)
-fan-in-perf --db "$DB" reset
+fan-in-perf --db "$DB" reset-db
 fan-in-perf --db "$DB" consume-ack --targets user:1000,clients:1000,team:10,epoch:200 \
   --clients-per-user 2 --clients 2000 --duration 30 --ack-every 1
 
 # E: split B, first only write ...
-fan-in-perf --db "$DB" reset
+fan-in-perf --db "$DB" reset-db
 fan-in-perf --db "$DB" produce --writers 32 --targets user:2000x1 --duration 60 --seed 42
 # ... then only read what is there (same --seed, --targets, --clients-per-user)
 fan-in-perf --db "$DB" consume-only --targets user:2000x1 --seed 42
@@ -70,9 +69,7 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`.
 
 | Command | Experiment | Does |
 |---|---|---|
-| `migrate [--partitioned]` | – | Creates the `--db` database if missing, then the tables of `libs/wire-subsystems/fan-in-sql/` (`fan-in-common.sql` + `fan-in-notifications-plain.sql`) unless they exist. No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman. Aborts if the tables exist with the other shape. |
-| `drop-db` | – | Drops the `--db` database (open sessions are terminated). No confirmation. |
-| `reset` | – | Truncates all fan-in tables (notifications, `last_*`, acks, `epoch_history`). |
+| `reset-db [--partitioned]` | – | Creates the `--db` database if missing, drops all fan-in tables (both shapes) and pg_partman (extension and schema `partman`), then creates the tables of `libs/wire-subsystems/fan-in-sql/` from scratch (`fan-in-common.sql` + `fan-in-notifications-plain.sql`). No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman first. Always ends with empty tables. |
 | `produce` | A | Writers push as fast as possible. |
 | `consume` | B | `produce` writers plus simulated reader clients. |
 | `consume-ack` | C | `consume` where every reader also acknowledges. |
@@ -84,7 +81,7 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`.
 | Flag | Default | Range | Meaning |
 |---|---|---|---|
 | `--db CONNSTR` | required | | PostgreSQL connection string. Never printed. |
-| `--pool-size N` | `--writers` (1 for `migrate`/`reset`) | 1–10000 | Writer connection pool size. |
+| `--pool-size N` | `--writers` (1 for `reset-db`) | 1–10000 | Writer connection pool size. |
 | `--metrics-port PORT` | 9400 | 1–65535 | Port of `/metrics`. |
 | `--isolation LEVEL` | `read-committed` | `read-committed`, `repeatable-read`, `serializable` | Isolation level of push transactions. |
 
@@ -153,7 +150,7 @@ All `consume` flags, plus:
 | `--ack-every N` | 100 | 1–10000 | A client acks after every N-th notification it received, counted over all its streams. |
 
 `user` and `clients` entries must have equal `STREAMS` (one identity per
-reader). Run `reset` before each run: start positions are written as acks.
+reader). Run `reset-db` before each run: start positions are written as acks.
 
 ### `consume-only`, `consume-only-ack`
 
@@ -181,7 +178,7 @@ B and C run writers and readers at once, so the read rate is shared with the
 write load. E and F separate them to show the raw consumption speed:
 
 ```sh
-fan-in-perf --db "$DB" reset
+fan-in-perf --db "$DB" reset-db
 fan-in-perf --db "$DB" produce --targets T --clients-per-user K --seed S --duration D
 psql "$DB" -c 'VACUUM ANALYZE' -c CHECKPOINT      # optional, see below
 fan-in-perf --db "$DB" consume-only --targets T --clients-per-user K --seed S
@@ -246,7 +243,7 @@ six `*_notifications` tables are range-partitioned by UUIDv7 with retention
 partitioning lives in `FanInNotificationsAdmin` (`libs/wire-subsystems`).
 
 Retention timing: `create_parent` premakes 10 past partitions (starting
-10 min ago), so the first bgw tick after `migrate --partitioned` drops about 5
+10 min ago), so the first bgw tick after `reset-db --partitioned` drops about 5
 empty past partitions and "Partitions per parent" steps down before any load.
 The first drop that holds data comes about 6-7 minutes into a run, the oldest
 remaining child is then 6-8 minutes old. Use `--duration` of at least
@@ -275,11 +272,10 @@ Procedure:
    `cd deploy/dockerephemeral && docker compose build postgres && docker compose rm -sfv postgres && docker compose up -d postgres`.
    **This DELETES all local dev DB data in that postgres.** `run.sh` does not
    pass `--build`, hence the explicit build.
-2. `fan-in-perf --db "$DB" migrate --partitioned` (creates `fan_in_perf`).
+2. `fan-in-perf --db "$DB" reset-db --partitioned` (creates `fan_in_perf`).
 3. `fan-in-perf --db "$DB" consume-ack ... --duration 600` (or more), any
    parameters (the constraints of [C](#consume-ack) apply).
-4. Baseline: `fan-in-perf --db "$DB" drop-db`, plain `fan-in-perf --db "$DB"
-   migrate`, identical `consume-ack` parameters and duration.
+4. Baseline: plain `fan-in-perf --db "$DB" reset-db`, identical `consume-ack` parameters and duration.
 5. Compare the `summary:` blocks (rates, latency percentiles) and the
    Grafana "pg_partman" row: do dips line up with partition drops?
 
@@ -295,28 +291,28 @@ Metrics (second exporter, `postgres-exporter-fan-in-perf`, query file
 Notes:
 
 - The exporter (pinned `v0.20.1`) connects to `fan_in_perf`; it shows `up=0`
-  until `migrate` has created that database.
+  until `reset-db` has created that database.
 - The exporter flag `--extend.query-path` is deprecated in that version but
   still works.
 - The bgw settings (`pg_partman_bgw.dbname`, `.interval`, `.role`) are set by
-  `migrate` with `ALTER SYSTEM` plus `pg_reload_conf()`; compose only
+  `reset-db --partitioned` with `ALTER SYSTEM` plus `pg_reload_conf()`; compose only
   preloads `pg_partman_bgw`. A reload is enough: all `pg_partman_bgw` GUCs
   are PGC_SIGHUP, the master worker wakes on SIGHUP and re-reads `dbname`
   each loop (`pg_partman_bgw.c`, v5.5.0).
-- Plain `migrate` does not touch pg_partman; only `migrate --partitioned`
-  does. Server `ALTER SYSTEM` settings from an earlier D run persist, which
+- Plain `reset-db` drops pg_partman but does not set it up; only
+  `reset-db --partitioned` does. Server `ALTER SYSTEM` settings from an earlier D run persist, which
   keeps the baseline server config identical.
-- After `drop-db`, `pg_partman_bgw.dbname` still points at the dropped DB; the
-  bgw logs a connection error every 60 s until the next `migrate
-  --partitioned` (harmless).
+- Every `reset-db --partitioned` premakes 10 past partitions again; wait for
+  the first bgw tick to drop about 5 empty ones before measuring (the run
+  scripts do).
 
 ### Verifying the setup
 
 Checklist for the first run (`DB=postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf`):
 
-1. `fan-in-perf --db "$DB" migrate --partitioned` prints `created database
-   fan_in_perf` and `created fan-in notification tables (partitioned)`.
-   Re-run prints `fan-in notification tables already exist`.
+1. `fan-in-perf --db "$DB" reset-db --partitioned` prints `created database
+   fan_in_perf` and `recreated fan-in notification tables (partitioned)`.
+   Re-run prints only the latter (tables empty again, six `part_config` rows).
 2. `psql "$DB" -c "SELECT parent_table, retention, partition_interval FROM
    partman.part_config"` shows six rows, `5 minutes`, `00:01:00`.
 3. `psql "$DB" -c "SHOW pg_partman_bgw.dbname"` shows `fan_in_perf`. If the
@@ -332,15 +328,13 @@ Checklist for the first run (`DB=postgresql://wire-server:posty-the-gres@localho
    --duration 480`; meanwhile `psql "$DB" -c "SELECT count(*) FROM
    pg_inherits WHERE inhparent='user_notifications'::regclass"` grows, then
    stays flat. The first drop with data comes after about 6-7 minutes (about 5
-   empty premade partitions go right after migrate). Postgres logs
+   empty premade partitions go right after reset-db). Postgres logs
    show no bgw errors; Grafana shows a sawtooth in "Partitions per parent".
-5. Plain `fan-in-perf --db "$DB" migrate` on the partitioned DB aborts with
-   `... exist with other shape (partitioned); run drop-db first`.
-6. With a `psql "$DB"` session open, `fan-in-perf --db "$DB" drop-db` prints
-   `dropped database fan_in_perf`. Then plain `migrate` prints `created
-   fan-in notification tables (plain)`.
-7. With `fan_in_perf%3Bx` as database name in `--db`, `drop-db` is refused
-   (`invalid database name`) and nothing is dropped.
+5. Plain `fan-in-perf --db "$DB" reset-db` on the partitioned DB prints
+   `recreated fan-in notification tables (plain)`; `partman.part_config` no
+   longer exists.
+6. With `fan_in_perf%3Bx` as database name in `--db`, `reset-db` is refused
+   (`invalid database name`) and nothing is created or dropped.
 
 ## Observability
 
@@ -614,7 +608,7 @@ Each stream kind has three tables:
 | local connection | `local_connection_notifications (user_id)` | `last_local_connection_notifications` | `local_connection_acks` (unused) |
 | remote connection | `remote_connection_notifications (user_domain, user_id)` | `last_remote_connection_notifications` | `remote_connection_acks` (unused) |
 
-With `migrate --partitioned`, the six `*_notifications` tables are
+With `reset-db --partitioned`, the six `*_notifications` tables are
 partitioned by range on `notification_id` (pg_partman, UUIDv7 time decoding,
 retention 5 minutes); `last_*`, ack tables and `epoch_history` stay plain.
 
@@ -714,6 +708,8 @@ Safety window (16 writers, `--clients 2000 --targets user:2000,epoch:200
 ## Differences to the RFC
 
 ### Schema and SQL
+
+Each change with RFC and implemented entity side by side: [rfc-schema-changes.md](rfc-schema-changes.md).
 
 | RFC | Implementation | Why |
 |---|---|---|

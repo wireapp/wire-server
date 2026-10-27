@@ -275,7 +275,9 @@ def aggregate(sc, mask):
 def run_tool(ctx, label, args, partman=False, warmup=None):
     """Runs fan-in-perf with metrics and DB sampling; returns the run's result dict."""
     warmup = ctx.warmup if warmup is None else warmup
-    ctx.tool(["reset"])
+    ctx.tool(["reset-db"] + (["--partitioned"] if partman else []))
+    if partman and not ctx.quick:
+        settle_partman(ctx)
     deadlocks0 = ctx.deadlocks()
     ctx.commands[label] = "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in args)
     os.makedirs(ctx.logdir, exist_ok=True)
@@ -393,13 +395,10 @@ def args_bc(ctx, w, dur, ack, pool=READER_POOL):
 
 def setup_mode(ctx, mode):
     log(f"database for mode {mode}")
-    ctx.tool(["drop-db"])
-    ctx.tool(["migrate"] + (["--partitioned"] if mode == "partman" else []))
+    ctx.tool(["reset-db"] + (["--partitioned"] if mode == "partman" else []))
     if mode == "partman":
         ctx.env["partman_version"] = ctx.psql("select extversion from pg_extension where extname = 'pg_partman'")
         ctx.env["partman_config"] = ctx.psql("select distinct retention || ' retention, ' || partition_interval || ' partitions' from partman.part_config")
-        if not ctx.quick:
-            settle_partman(ctx)
 
 
 def settle_partman(ctx):
@@ -632,7 +631,7 @@ def write_report(ctx, state):
           "",
           "Writers run for the duration, then the readers drain the backlog (`drain`). `push/s` counts writer transactions, `cons/s` counts notifications delivered to clients.",
           ""]
-    L += ["Commands (`DB` = connection string of the experiment database). The same `--seed` in every run fixes the stream keys and the sequence of mix choices; throughput still varies between runs. Per mode, once: `fan-in-perf --db \"$DB\" drop-db`, then `fan-in-perf --db \"$DB\" migrate` (`plain`) or `migrate --partitioned` (`partman`); before each run: `fan-in-perf --db \"$DB\" reset`.", "",
+    L += ["Commands (`DB` = connection string of the experiment database). The same `--seed` in every run fixes the stream keys and the sequence of mix choices; throughput still varies between runs. Before each run: `fan-in-perf --db \"$DB\" reset-db` (`plain`) or `reset-db --partitioned` (`partman`).", "",
           "| Run | Seed | Command |", "|---|---|---|"]
     L += [f"| `{k}` | {ctx.seed} | `{v}` |" for k, v in ctx.commands.items()] + [""]
 
@@ -752,8 +751,7 @@ def main():
         sys.exit(f"port {a.metrics_port} is busy")
     except OSError:
         pass
-    ctx.tool(["drop-db"])
-    ctx.tool(["migrate"])  # creates the database for the environment queries
+    ctx.tool(["reset-db"])  # creates the database for the environment queries
     collect_env(ctx)
     state = {"results": {}, "sweeps": {}}
     try:

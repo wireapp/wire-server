@@ -159,8 +159,14 @@ def parse(text):
     return r
 
 
+def reset_db(partman):
+    tool(["reset-db"] + (["--partitioned"] if partman else []))
+    if partman:
+        settle_partman()
+
+
 def run(label, args, partman):
-    tool(["reset"])
+    reset_db(partman)
     psql("checkpoint")
     d0 = deadlocks()
     logpath = os.path.join(LOGDIR, label + ".log")
@@ -251,7 +257,7 @@ def parse_consume_only(text):
 def run_split(label, produce_args, consume_args):
     """reset, produce, VACUUM ANALYZE + CHECKPOINT (else autovacuum and hint-bit
     writes would land in the measured read phase), consume-only."""
-    tool(["reset"])
+    tool(["reset-db"])
     psql("checkpoint")
     d0 = deadlocks()
     ptext, prc = tool_logged(os.path.join(LOGDIR, label + "-produce.log"), produce_args)
@@ -346,11 +352,11 @@ def report(res, env):
          f"- Load: `--targets {TARGETS}`: 2,000 users with one client each; every push writes 1 notification to 1 user stream (plus its `last_user_notifications` upsert) in one transaction, read by 1 client, so cons/s = push/s. B-D: `--clients {CLIENTS}`, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
          f"- Writers A={W_A}, B={W_B}, C/D={W_C}; reader pool B={POOL_B}, C/D={POOL_C}: highest rate in sweeps beforehand at which readers keep up. Seed {SEED}. One run each.",
          f"- Rates are averages over the writer phase incl. {WARMUP} s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
-         f"- E, F (plain only): `reset`, `produce` ({W_SPLIT} writers, {split_dur} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
+         f"- E, F (plain only): `reset-db`, `produce` ({W_SPLIT} writers, {split_dur} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
          *(["- `--quick`: all durations divided by 10 (smoke test), the numbers are not comparable to a full run."] if QUICK > 1 else []),
          "- Only the `user` stream kind is exercised (no client/team/epoch streams, fan-out 1); not comparable to runs with a mixed target set.",
          "",
-         "Per mode: `drop-db`, `migrate` (`--partitioned` for partman), before each run `reset`. Commands:", "", "```"]
+         "Before each run `reset-db` (`--partitioned` for partman; then wait for pg_partman to settle). Commands:", "", "```"]
     L += [r["cmd"] for r in res.values() if r["label"].endswith("plain")]
     L += ["```", *(["(partman: same commands for A-D; E, F run on plain tables only)"] if partman else []), ""]
     for exp in "ABCDEF":
@@ -456,13 +462,11 @@ def main():
         if not runs and not splits:
             continue
         log(f"database for {mode}")
-        tool(["drop-db"])
-        tool(["migrate"] + (["--partitioned"] if mode == "partman" else []))
+        tool(["reset-db"] + (["--partitioned"] if mode == "partman" else []))
         if e is None:
             e = env()
         if mode == "partman":
             e["partman"] = psql("select extversion from pg_extension where extname = 'pg_partman'")
-            settle_partman()
         for exp, a in runs:
             log(f"{exp} {mode}")
             res[f"{exp}-{mode}"] = run(f"{exp}-{mode}", a, mode == "partman")

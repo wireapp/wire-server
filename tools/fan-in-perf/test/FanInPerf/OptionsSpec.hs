@@ -72,17 +72,11 @@ spec = do
     o.command
       `shouldBe` Produce (ProduceOptions 4 (TargetConfig KindUser 100 5 :| []) 2 64 (Just 30) 0 (Just (-42)))
 
-  it "parses migrate" $
-    fmap (.command) (parse ["--db", "x", "migrate"]) `shouldBe` Just (Migrate Plain)
+  it "parses reset-db" $
+    fmap (.command) (parse ["--db", "x", "reset-db"]) `shouldBe` Just (ResetDb Plain)
 
-  it "parses migrate --partitioned" $
-    fmap (.command) (parse ["--db", "x", "migrate", "--partitioned"]) `shouldBe` Just (Migrate Partitioned)
-
-  it "parses drop-db" $
-    fmap (.command) (parse ["--db", "x", "drop-db"]) `shouldBe` Just DropDb
-
-  it "parses reset" $
-    fmap (.command) (parse ["--db", "x", "reset"]) `shouldBe` Just Reset
+  it "parses reset-db --partitioned" $
+    fmap (.command) (parse ["--db", "x", "reset-db", "--partitioned"]) `shouldBe` Just (ResetDb Partitioned)
 
   it "parses consume with defaults" $ do
     o <- parseOk ["--db", "postgresql://u:p@localhost/db", "consume", "--targets", "user:100,team:1"]

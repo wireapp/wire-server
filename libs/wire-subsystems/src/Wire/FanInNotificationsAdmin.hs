@@ -2,16 +2,14 @@
 
 module Wire.FanInNotificationsAdmin
   ( SchemaShape (..),
-    MigrateResult (..),
     FanInNotificationsAdmin (..),
-    migrate,
+    dropTables,
+    createTables,
     currentShape,
-    truncateAll,
     countStreams,
     ping,
     databaseExists,
     createDatabase,
-    dropDatabase,
     setupPartman,
     DbName,
     unDbName,
@@ -28,9 +26,6 @@ import Wire.FanInNotificationsStore (Stream)
 -- | 'Plain' is the production schema; 'Partitioned' replaces the six
 -- @*_notifications@ tables by pg_partman managed partitioned tables.
 data SchemaShape = Plain | Partitioned
-  deriving (Eq, Show)
-
-data MigrateResult = Migrated | AlreadyMigrated | ExistsWithOtherShape SchemaShape
   deriving (Eq, Show)
 
 -- | A validated PostgreSQL database identifier: @^[A-Za-z_][A-Za-z0-9_]{0,62}$@.
@@ -57,11 +52,13 @@ quoteIdent (DbName n) = "\"" <> n <> "\""
 -- | Administrative operations on the fan-in notification tables for tests and
 -- performance tooling. Never wire this into services.
 data FanInNotificationsAdmin m a where
-  -- | Creates the fan-in notification tables; skipped if they already exist.
-  Migrate :: SchemaShape -> FanInNotificationsAdmin m MigrateResult
+  -- | Drops all fan-in notification tables (both shapes) and pg_partman, if present.
+  DropTables :: FanInNotificationsAdmin m ()
+  -- | Creates the fan-in notification tables. Fails if they exist. For
+  -- 'Partitioned', 'SetupPartman' must have run before.
+  CreateTables :: SchemaShape -> FanInNotificationsAdmin m ()
   -- | Shape of the existing tables, @Nothing@ if absent.
   CurrentShape :: FanInNotificationsAdmin m (Maybe SchemaShape)
-  TruncateAll :: FanInNotificationsAdmin m ()
   -- | Number of notifications of every stream with at least one row, for user,
   -- client, team and epoch streams (no connection streams).
   CountStreams :: FanInNotificationsAdmin m [(Stream, Int)]
@@ -70,8 +67,6 @@ data FanInNotificationsAdmin m a where
   DatabaseExists :: DbName -> FanInNotificationsAdmin m Bool
   -- | Run on the admin connection.
   CreateDatabase :: DbName -> FanInNotificationsAdmin m ()
-  -- | Run on the admin connection. @IF EXISTS@, @WITH (FORCE)@.
-  DropDatabase :: DbName -> FanInNotificationsAdmin m ()
   -- | Run on the experiment database; the argument is the database the
   -- pg_partman background worker maintains.
   SetupPartman :: DbName -> FanInNotificationsAdmin m ()

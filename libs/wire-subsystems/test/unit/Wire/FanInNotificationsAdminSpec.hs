@@ -31,8 +31,9 @@ sqlSpec = describe "SQL rendering" $ do
   it "renders CREATE DATABASE" $
     createDatabaseSql n `shouldBe` "CREATE DATABASE \"fan_in_perf\""
 
-  it "renders DROP DATABASE" $
-    dropDatabaseSql n `shouldBe` "DROP DATABASE IF EXISTS \"fan_in_perf\" WITH (FORCE)"
+  it "renders drop of tables and pg_partman" $ do
+    dropTablesSql `shouldSatisfy` T.isInfixOf "DROP TABLE IF EXISTS user_notifications"
+    dropTablesSql `shouldSatisfy` T.isSuffixOf "DROP SCHEMA IF EXISTS partman CASCADE"
 
   it "renders partman setup" $ do
     let stmts = setupPartmanSql n

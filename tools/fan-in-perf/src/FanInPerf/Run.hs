@@ -19,7 +19,7 @@ import Polysemy (Sem)
 import PostgresqlConnectionString qualified
 import System.Exit (die)
 import UnliftIO.Exception (tryAny)
-import Wire.FanInNotificationsAdmin (MigrateResult (..), SchemaShape (..), createDatabase, currentShape, databaseExists, dropDatabase, migrate, ping, setupPartman, truncateAll, unDbName)
+import Wire.FanInNotificationsAdmin (SchemaShape (..), createDatabase, createTables, currentShape, databaseExists, dropTables, ping, setupPartman, unDbName)
 
 run :: Console -> Options -> IO ()
 run console opts = do
@@ -39,7 +39,7 @@ run console opts = do
         adminPool <- initPool fams AdminPool (poolConfig 1) (adminConnStr connStr)
         pure env {pool = adminPool}
   case opts.command of
-    Migrate shape -> do
+    ResetDb shape -> do
       name <- experimentDb connStr & either abort pure
       adminEnv <- mkAdminEnv
       exists <- runOrAbort "database check" adminEnv (databaseExists name)
@@ -47,28 +47,12 @@ run console opts = do
         runOrAbort "create database" adminEnv (createDatabase name)
         printLine console ("created database " <> unDbName name)
       checkDatabase env
-      -- partman first: the partitioned migration needs it. Not on tables of the
-      -- other shape: setup changes instance-wide settings and would be pointless.
-      when (shape == Partitioned) $ do
-        runOrAbort "shape check" env currentShape >>= \case
-          Just other | other /= shape -> abort ("fan-in notification tables exist with other shape (" <> shapeName other <> "); run drop-db first")
-          _ -> pure ()
+      runOrAbort "drop tables" env dropTables
+      -- partman first: the partitioned schema needs it
+      when (shape == Partitioned) $
         runOrAbort "setup partman" env (setupPartman name)
-      runOrAbort "migrate" env (migrate shape) >>= \case
-        Migrated -> printLine console ("created fan-in notification tables (" <> shapeName shape <> ")")
-        AlreadyMigrated -> printLine console "fan-in notification tables already exist"
-        ExistsWithOtherShape other -> abort ("fan-in notification tables exist with other shape (" <> shapeName other <> "); run drop-db first")
-    DropDb -> do
-      name <- experimentDb connStr & either abort pure
-      adminEnv <- mkAdminEnv
-      runOrAbort "drop database" adminEnv (dropDatabase name)
-      printLine console ("dropped database " <> unDbName name)
-    Reset -> do
-      checkDatabase env
-      runStore env truncateAll
-        >>= either
-          (\e -> abort ("reset failed: " <> showT e))
-          (const (printLine console "truncated all fan-in notification tables"))
+      runOrAbort "create tables" env (createTables shape)
+      printLine console ("recreated fan-in notification tables (" <> shapeName shape <> ")")
     Produce p -> do
       checkDatabase env
       withMetricsServer (runProduce console env p)
@@ -101,9 +85,7 @@ checkDatabase env =
 
 defaultPoolSize :: Command -> Int
 defaultPoolSize = \case
-  Migrate _ -> 1
-  DropDb -> 1
-  Reset -> 1
+  ResetDb _ -> 1
   Produce p -> p.writers
   Consume c -> c.writerOptions.writers
   ConsumeOnly _ -> 1

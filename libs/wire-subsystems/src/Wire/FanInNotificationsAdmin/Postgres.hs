@@ -3,7 +3,7 @@
 module Wire.FanInNotificationsAdmin.Postgres
   ( interpretFanInNotificationsAdminToPostgres,
     createDatabaseSql,
-    dropDatabaseSql,
+    dropTablesSql,
     setupPartmanSql,
   )
 where
@@ -29,35 +29,23 @@ import Wire.Postgres
 
 interpretFanInNotificationsAdminToPostgres :: (PGConstraints r) => InterpreterFor FanInNotificationsAdmin r
 interpretFanInNotificationsAdminToPostgres = interpret $ \case
+  DropTables -> runSessionWithRetry $ Session.script dropTablesSql
   -- The script is sent as one multi-statement query, which PostgreSQL runs in
   -- a single implicit transaction: either all tables exist or none.
-  Migrate shape -> runSessionWithRetry $ do
-    existing <- Session.statement () shapeStatement
-    case existing of
-      Nothing -> do
-        Session.script $ case shape of
-          Plain -> commonSchema <> "\n" <> plainNotifications
-          Partitioned -> commonSchema <> "\n" <> partitionedNotifications
-        pure Migrated
-      Just s
-        | s == shape -> pure AlreadyMigrated
-        | otherwise -> pure (ExistsWithOtherShape s)
+  CreateTables shape -> runSessionWithRetry $ Session.script $ case shape of
+    Plain -> commonSchema <> "\n" <> plainNotifications
+    Partitioned -> commonSchema <> "\n" <> partitionedNotifications
   CurrentShape -> runStatement () shapeStatement
-  TruncateAll -> runStatement () truncateAllStatement
   CountStreams -> countStreamsImpl
   Ping -> runStatement () pingStatement
   DatabaseExists n -> runStatement n.unDbName databaseExistsStatement
-  -- CREATE/DROP DATABASE and ALTER SYSTEM cannot run inside a transaction
+  -- CREATE DATABASE and ALTER SYSTEM cannot run inside a transaction
   -- block, so each is sent as its own single-statement script.
   CreateDatabase n -> runSessionWithRetry $ Session.script (createDatabaseSql n)
-  DropDatabase n -> runSessionWithRetry $ Session.script (dropDatabaseSql n)
   SetupPartman n -> runSessionWithRetry $ traverse_ Session.script (setupPartmanSql n)
 
 createDatabaseSql :: DbName -> Text
 createDatabaseSql n = "CREATE DATABASE " <> quoteIdent n
-
-dropDatabaseSql :: DbName -> Text
-dropDatabaseSql n = "DROP DATABASE IF EXISTS " <> quoteIdent n <> " WITH (FORCE)"
 
 -- | Statements to run one by one on the experiment database. The database name
 -- is rendered as a string literal; this is safe because 'DbName' is
@@ -109,20 +97,21 @@ shapeStatement =
   where
     shapeOf k = if k == T.pack "p" then Partitioned else Plain
 
--- | Keep the table list in sync with the @fan-in-sql/*.sql@ files.
-truncateAllStatement :: Statement.Statement () ()
-truncateAllStatement =
-  Statement.unpreparable
-    "TRUNCATE TABLE \
-    \user_notifications, client_notifications, team_notifications, \
-    \epoch_notifications, local_connection_notifications, remote_connection_notifications, \
-    \epoch_history, \
-    \last_user_notifications, last_client_notifications, last_team_notifications, \
-    \last_epoch_notifications, last_local_connection_notifications, last_remote_connection_notifications, \
-    \user_notification_acks, client_notification_acks, team_notification_acks, \
-    \epoch_notification_acks, local_connection_acks, remote_connection_acks"
-    Encoders.noParams
-    Decoders.noResult
+-- | Drops the tables, then pg_partman (extension, config, templates), so that
+-- 'setupPartman' and @create_parent@ start from scratch. Keep the table list in
+-- sync with the @fan-in-sql/*.sql@ files.
+dropTablesSql :: Text
+dropTablesSql =
+  "DROP TABLE IF EXISTS \
+  \user_notifications, client_notifications, team_notifications, \
+  \epoch_notifications, local_connection_notifications, remote_connection_notifications, \
+  \epoch_history, \
+  \last_user_notifications, last_client_notifications, last_team_notifications, \
+  \last_epoch_notifications, last_local_connection_notifications, last_remote_connection_notifications, \
+  \user_notification_acks, client_notification_acks, team_notification_acks, \
+  \epoch_notification_acks, local_connection_acks, remote_connection_acks CASCADE;\n\
+  \DROP EXTENSION IF EXISTS pg_partman CASCADE;\n\
+  \DROP SCHEMA IF EXISTS partman CASCADE"
 
 -- | Rows per stream. Keep the table list in sync with the
 -- @fan-in-sql/*.sql@ files (connection tables are not read by consumers).
