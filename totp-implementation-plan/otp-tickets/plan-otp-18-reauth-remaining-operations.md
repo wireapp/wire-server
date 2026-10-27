@@ -24,12 +24,15 @@ The `SensitiveOperation` enumeration already exists in full; this is wiring, not
 |---|---|---|
 | `DELETE /self` | `DeleteUser` | account self-deletion; also has an email-code path today (`Brig/API/User.hs:1058ff`) |
 | `DELETE /clients/:id` | `RmClient` | |
+| `POST /clients` | `NewClient` | add a new client device; uses `newClientPassword` through `ClientSubsystem.upsertClient` (`ClientSubsystem/Interpreter.hs:209`) |
 | `PUT /self/password` | `PasswordChange` | password verification is hand-rolled here (`Brig/API/User.hs:978ff`), not routed through the subsystem — fix that on the way |
 | email change | | |
 | `POST /oauth/applications/:id/revoke-access` | `PasswordReqBody` | `Brig/API/OAuth.hs:369` |
 | `DELETE /oauth/.../refresh-tokens/:id` | `PasswordReqBody` | `Brig/API/OAuth.hs:382` |
 | `POST /i/users/:uid/reauthenticate` | `ReAuthUser` | internal; galley's delete-team and spar's SCIM-token creation inherit the second factor through it |
 | accept team invitation | | `UserSubsystem/Interpreter.hs:1197` uses `verifyUserPasswordError` directly |
+| create app | | `AppSubsystem/Interpreter.hs:108` uses `verifyUserPasswordError` directly |
+| `POST /password-reset/complete` | `CompletePasswordReset` | password reset via email code; see A6 for the design details |
 
 Each gains an optional `totp_code` field in its existing request body. That is an additive schema change, and enforcement is per-user opt-in by enrolment, so users without TOTP see no change and no new API version is required for the bodies.
 

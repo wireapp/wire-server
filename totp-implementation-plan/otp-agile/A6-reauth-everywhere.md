@@ -8,16 +8,19 @@ Independent of A7. Depends only on A3 (`EnsureReauthenticated` must exist). Can 
 
 A3 defined the full `SensitiveOperation` enumeration and wired three of its constructors. This step wires the rest. `plan-otp-18`, `plan-otp.md` §6.
 
-Each one takes the `Reauthenticated op` evidence A3 introduced, threaded as far as the function that performs the irreversible action — not produced and discarded in the handler prologue. Because A3 built the type rather than deferring it to `plan-otp-26`, this is seven ordinary additions rather than a cross-service refactor, and a handler that forgets the check does not compile.
+Each one takes the `Reauthenticated op` evidence A3 introduced, threaded as far as the function that performs the irreversible action — not produced and discarded in the handler prologue. Because A3 built the type rather than deferring it to `plan-otp-26`, this is ten ordinary additions rather than a cross-service refactor, and a handler that forgets the check does not compile.
 
 | endpoint | operation |
 |---|---|
 | `DELETE /self` | `OpDeleteSelf` |
 | `DELETE /clients/:id` | `OpDeleteClient` |
+| `POST /clients` | `OpAddClient` |
 | `PUT /self/password` | `OpChangePassword` |
 | email change | `OpChangeEmail` |
 | OAuth access revocation | `OpRevokeOAuthAccess` |
 | `GET /i/users/:uid/reauthenticate` | `OpCreateScimToken`, `OpDeleteTeam` — galley and spar call this |
+| accept team invitation | `OpAcceptTeamInvitation` |
+| create app | `OpCreateApp` |
 | `POST /password-reset/complete` | see below |
 
 Two of these have no natural request body today. Add one. **Never a query parameter** — a code in the URL is written to access logs at every proxy hop, and OTPs must not be logged (OWASP). **Never a custom header** — nginz rewrites `Z-*` headers, and a non-`Z-` header is easy to drop in a proxy chain. §6.
