@@ -86,6 +86,23 @@ emailSubsystemInterpreter EmailTemplates {userTemplates = userTpls, teamTemplate
   SendMeetingCancelEmail email hostName hostEmail meeting mLocale ->
     sendMeetingCancelMailImpl meetingTpls branding email hostName hostEmail meeting mLocale
 
+-- | Interpreter for services that send only meeting emails (galley): the
+-- three meeting operations delegate to the shared render+send
+-- implementations; any other operation is a programming error.
+meetingEmailSubsystemInterpreter ::
+  (Member EmailSending r, Member TinyLog r) =>
+  Localised MeetingTemplates ->
+  Map Text Text ->
+  InterpreterFor EmailSubsystem r
+meetingEmailSubsystemInterpreter meetingTpls branding = interpret \case
+  SendMeetingInvitationEmail email hostName hostEmail meeting mLocale ->
+    sendMeetingInvitationMailImpl meetingTpls branding email hostName hostEmail meeting mLocale
+  SendMeetingUpdateEmail email hostName hostEmail meeting changeSummary mLocale ->
+    sendMeetingUpdateMailImpl meetingTpls branding email hostName hostEmail meeting changeSummary mLocale
+  SendMeetingCancelEmail email hostName hostEmail meeting mLocale ->
+    sendMeetingCancelMailImpl meetingTpls branding email hostName hostEmail meeting mLocale
+  _ -> error "meetingEmailSubsystemInterpreter: unsupported email operation"
+
 -------------------------------------------------------------------------------
 -- Verification Email for
 -- - Login
@@ -763,13 +780,16 @@ sendMeetingCancelMailImpl meetingTemplates branding email hostName hostEmail mee
 meetingEmailReplace :: Meeting -> Text -> Text -> Text -> Map Text Text
 meetingEmailReplace meeting hostName hostEmail changeSummary =
   brandingPlaceholders
-    & Map.insert "meeting_title" (fromRange meeting.title)
-    & Map.insert "host_name" hostName
+    -- meeting_title (user-controlled) and host_name flow into the Subject
+    -- header: strip CR/LF so they cannot inject headers.
+    & Map.insert "meeting_title" (noCrLf (fromRange meeting.title))
+    & Map.insert "host_name" (noCrLf hostName)
     & Map.insert "host_email" hostEmail
-    & Map.insert "change_summary" changeSummary
+    & Map.insert "change_summary" (noCrLf changeSummary)
     & Map.insert "join_url" (maybe "" httpsUrlToText meeting.link)
     & Map.insert "ics_url" icsCidUrl
   where
+    noCrLf = T.filter (\c -> c /= '\r' && c /= '\n')
     zone t = timeZoneForUTCTime (timeZoneTZ meeting.tzid) t
     zonedStart = utcToZonedTime (zone meeting.startTime) meeting.startTime
     zonedEnd = utcToZonedTime (zone meeting.endTime) meeting.endTime

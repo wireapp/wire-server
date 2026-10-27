@@ -1,3 +1,5 @@
+{-# LANGUAGE ImpredicativeTypes #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
@@ -22,6 +24,7 @@ module Wire.MeetingsCleanupWorker
 where
 
 import Control.Monad.Catch
+import Data.Domain (domainText)
 import Data.Id (RequestId (RequestId))
 import Data.Text qualified as T
 import Data.Time.Clock
@@ -32,8 +35,12 @@ import System.Logger qualified as Log
 import Wire.API.Error.Galley (MeetingError)
 import Wire.API.Meeting (defaultLegacyTimeZone)
 import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..))
+import Wire.BrigAPIAccess (errorBrigAPIAccess)
 import Wire.Effects
+import Wire.EmailSubsystem (discardEmailSubsystem)
 import Wire.ExternalAccess.External
+import Wire.Licensing.Interpreter (runLicense)
+import Wire.Licensing.License qualified as Licensing
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
@@ -98,16 +105,27 @@ runMeetingsCleanup :: Env -> UTCTime -> NominalDiffTime -> Int -> IO (Either Tex
 runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
   let disableTlsV1 = True
   extEnv <- initExtEnv disableTlsV1
+  runLicense' <- runLicense (Licensing.Domain (domainText env.federationDomain))
   let mergeErrors = either (Left . T.pack . show) Right
   fmap (either Left mergeErrors)
     . runBackgroundWorkerEffects env extEnv (RequestId "meetings-cleanup") Nothing
     . interpretMeetingsStoreToPostgres
     . runError @MeetingError
+    -- Cleanup never runs user-facing meeting operations, so brig access and
+    -- email sending are unavailable by construction.
+    . errorBrigAPIAccess
+    . discardEmailSubsystem
     -- Cleanup performs no meeting updates, so the past-edit period is
     -- unused; pass 0 to keep the (inert) limit as tight as possible.
-    . interpretMeetingsSubsystem
-      MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
-    $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
+    -- Cleanup never sends 'getLicense', so the licensing gate never fires;
+    -- the real interpreter keeps cleanup on the same WIRE_LICENSE semantics
+    -- as galley (missingLicense is still served when the env var is unset
+    -- or unparseable).
+    $ runLicense'
+      ( interpretMeetingsSubsystem
+          MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
+          (Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize)
+      )
 
 data WorkerException = WorkerException Text
   deriving stock (Show)

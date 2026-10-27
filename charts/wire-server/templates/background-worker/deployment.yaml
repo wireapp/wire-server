@@ -119,6 +119,13 @@ spec:
               secretKeyRef:
                 name: background-worker
                 key: rabbitmqPassword
+          {{- if $backgroundWorker.secrets.license }}
+          - name: WIRE_LICENSE
+            valueFrom:
+              secretKeyRef:
+                name: background-worker
+                key: license
+          {{- end }}
           startupProbe:
             httpGet:
               scheme: HTTP

@@ -1,0 +1,1 @@
+Operators must set the `WIRE_LICENSE` environment variable for galley (via the new optional `galley.secrets.license` helm value) or the meeting join-by-link endpoints return `403 id-feature-error`; set `background-worker.secrets.license` to the same payload to keep licensing semantics aligned.

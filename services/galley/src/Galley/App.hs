@@ -1,3 +1,4 @@
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -42,13 +43,19 @@ module Galley.App
   )
 where
 
+import Amazonka qualified
+import Amazonka.SES qualified as SES
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
+import Cassandra.Options qualified
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.Domain (Domain)
+import Data.ByteString.Builder (toLazyByteString)
+import Data.Default (def)
+import Data.Domain (Domain, domainText)
 import Data.Id
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -70,6 +77,7 @@ import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async
+import Polysemy.Async qualified as P
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Fail
@@ -83,6 +91,7 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
+import Util.Options (awsHost, awsPort, awsSecure, initCredentials)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -113,6 +122,14 @@ import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
 import Wire.CustomBackendStore.Cassandra
+import Wire.EmailSending (EmailSending (..), sendMail)
+import Wire.EmailSending qualified as EmailSending
+import Wire.EmailSending.Options qualified as EmailOpt
+import Wire.EmailSending.SES (EmailSendingAWSError, emailViaSESInterpreter)
+import Wire.EmailSending.SMTP qualified as SMTP
+import Wire.EmailSubsystem (EmailSubsystem, discardEmailSubsystem)
+import Wire.EmailSubsystem.Interpreter (meetingEmailSubsystemInterpreter)
+import Wire.EmailSubsystem.Template (loadMeetingTemplates)
 import Wire.Error
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.ExternalAccess.External
@@ -132,6 +149,9 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.Licensing.Effect (Licensing)
+import Wire.Licensing.Interpreter (runLicense)
+import Wire.Licensing.License qualified as Licensing
 import Wire.ListItems (ListItems)
 import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
@@ -197,7 +217,10 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 type GalleyEffects =
   '[ MeetingsSubsystem,
+     EmailSubsystem,
+     EmailSending,
      ConversationSubsystem,
+     Licensing,
      MeetingNotifier,
      JobSubsystem,
      Input RequestId,
@@ -357,6 +380,45 @@ createEnv o l = do
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
     <*> pure codeURIcfg
     <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
+    <*> initMeetingEmailEnv o l mgr
+
+-- | Build the meeting-email environment when @settings.meetings.email@ is
+-- configured; 'Nothing' (the default) disables meeting emails entirely.
+initMeetingEmailEnv :: Opts -> Logger -> Manager -> IO (Maybe MeetingEmailEnv)
+initMeetingEmailEnv o lgr mgr = case o ^. settings . meetings >>= (^. O.email) of
+  Nothing -> pure Nothing
+  Just cfg -> do
+    templates <- loadMeetingTemplates (O._templateDir cfg) def (O._from cfg)
+    let meetingBranding = fromMaybe Map.empty (O._branding cfg)
+    (mSmtp, mAwsEnv) <- case O._transport cfg of
+      EmailOpt.EmailSMTP s -> do
+        let Cassandra.Options.Endpoint {host = h, port = p} = s.smtpEndpoint
+            p' = Just . fromInteger . toInteger $ p
+        smtpCredentials <- case EmailOpt.smtpCredentials s of
+          Just (EmailOpt.EmailSMTPCredentials u pw) ->
+            Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials pw
+          _ -> pure Nothing
+        smtp <- SMTP.initSMTP lgr h p' smtpCredentials (EmailOpt.smtpConnType s)
+        pure (Just smtp, Nothing)
+      EmailOpt.EmailAWS ao -> do
+        -- Mirror brig's SES endpoint construction (Brig.AWS.mkAwsEnv).
+        let svc = Amazonka.setEndpoint (ao.sesEndpoint ^. awsSecure) (ao.sesEndpoint ^. awsHost) (ao.sesEndpoint ^. awsPort) SES.defaultService
+        baseEnv <- Amazonka.newEnv Amazonka.discover <&> Amazonka.configureService svc
+        pure
+          ( Nothing,
+            Just $
+              baseEnv
+                { Amazonka.logger = awsLogger (Log.clone (Just "aws.galley") lgr),
+                  Amazonka.manager = mgr
+                }
+          )
+    pure (Just MeetingEmailEnv {meTemplates = templates, meBranding = meetingBranding, meSmtp = mSmtp, meAwsEnv = mAwsEnv})
+  where
+    awsLogger g l = Log.log g (mapLevel l) . Log.msg . toLazyByteString
+    mapLevel Amazonka.Info = Log.Info
+    mapLevel Amazonka.Debug = Log.Debug
+    mapLevel Amazonka.Trace = Log.Trace
+    mapLevel Amazonka.Error = Log.Error
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l =
@@ -405,9 +467,10 @@ interpretTinyLog e = interpret $ \case
 
 evalGalleyToIO :: Env -> Sem GalleyEffects a -> IO a
 evalGalleyToIO env action = do
+  eval <- evalGalley env
   r <-
     -- log IO exceptions
-    runExceptT (evalGalley env action) `UnliftIO.catch` \(e :: SomeException) -> do
+    runExceptT (eval action) `UnliftIO.catch` \(e :: SomeException) -> do
       Log.err (env ^. applog) $
         Log.msg ("IO Exception occurred" :: ByteString)
           . Log.field "message" (displayException e)
@@ -425,8 +488,8 @@ logAndMapError :: forall e1 e2 r a. (Member TinyLog r, Member (Error e2) r) => (
 logAndMapError fErr fLog logMsg action =
   mapError fErr $ logErrors @_ @e1 fLog logMsg action
 
-evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
-evalGalley e =
+evalGalley :: Env -> IO (Sem GalleyEffects a -> ExceptT JSONResponse IO a)
+evalGalley e = do
   let convStoreInterpreter =
         interpretConversationStoreByMigration (e ^. options . postgresMigration).conversation (e ^. cstate)
       convCodesStoreInterpreter =
@@ -472,113 +535,121 @@ evalGalley e =
             maxConvSize = e._options._settings._maxConvSize,
             listClientsUsingBrig = e._options._settings._intraListing
           }
-   in ExceptT
-        . runFinal @IO
-        . unsafelyPerformConcurrency
-        . resourceToIOFinal
-        . runError
-        . embedToFinal @IO
-        . interpretTinyLog e
-        . failToEmbed @IO
-        . runDelay
-        . asyncToIOFinal
-        . interpretRace
-        . mapError httpErrorToJSONResponse
-        . logAndMapError postgresUsageErrorToHttpError (Text.pack . show) "postgres usage error"
-        . mapError teamCollaboratorsSubsystemErrorToHttpError
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . logAndMapError toResponse (Text.pack . show) "migration error"
-        . mapError mapTeamFeatureStoreError
-        . mapError toResponse
-        . runInputConst conversationSubsystemConfig
-        . runInputConst e
-        . runInputConst (e ^. hasqlPool)
-        . runInputConst (e ^. cstate)
-        . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
-        . mapError toResponse -- ErrorS 'InvalidOperation
-        . mapError toResponse -- ErrorS 'MeetingNotFound
-        . mapError toResponse -- ErrorS 'CodeStoreNotFound
-        . mapError toResponse -- ErrorS 'NotATeamMember
-        . mapError toResponse -- ErrorS 'NotAnMlsConversation
-        . mapError toResponse -- ErrorS 'ChannelsNotEnabled
-        . mapError toResponse -- ErrorS 'ConvNotFound
-        . mapError toResponse -- ErrorS 'InvalidOperation
-        . mapError toResponse -- ErrorS 'TeamNotFound
-        . mapError toResponse -- ErrorS 'NoBindingTeamMembers
-        . mapError toResponse -- ErrorS 'NonBindingTeam
-        . mapError toResponse -- ErrorS 'MissingLegalholdConsent
-        . mapError toResponse -- ErrorS 'MLSNonEmptyMemberList
-        . mapError toResponse -- ErrorS 'MLSNotEnabled
-        . mapError toResponse -- ErrorS 'ConvAccessDenied
-        . mapError toResponse -- ErrorS 'NotATeamMember
-        . mapError toResponse -- ErrorS 'HistoryNotSupported
-        . mapError toResponse -- ErrorS 'TeamMemberNotFound
-        . mapError toResponse -- ErrorS 'AccessDenied
-        . mapError toResponse -- ErrorS OperationDenied
-        . mapError toResponse -- Error ConversationSubsystemError,
-        . mapError rateLimitExceededToHttpError
-        . mapError toResponse -- DynError
-        . mapError toResponse -- Error MeetingError
-        . interpretBoundedQueue (e ^. deleteQueue)
-        . nowToIO
-        . runInputConst (e ^. convCodeURI)
-        . runInputConst (e ^. options)
-        . runInputConst (GroupInfoCheckEnabled <$> e._options._settings._checkGroupInfo)
-        . runInputConst e._mlsKeys
-        . runInputConst e._options._settings._guestLinkTTLSeconds
-        . runInputConst (IntraListing e._options._settings._intraListing)
-        . runInputConst localUnit
-        . interpretTeamFeatureSpecialContext e
-        . runInputConst (currentFanoutLimitOpts (e ^. options))
-        . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
-        . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
-        . interpretInternalTeamListToCassandra
-        . interpretTeamListToCassandra
-        . interpretTeamMemberStoreToCassandraWithPaging lh
-        . interpretTeamMemberStoreToCassandra lh
-        . teamFeatureStoreInterpreter
-        . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
-        . convStoreInterpreter
-        . interpretTeamNotificationStoreToCassandra
-        . interpretServiceStoreToCassandra (e ^. cstate)
-        . interpretUserGroupStoreToPostgres
-        . runInputConst legalHoldEnv
-        . interpretLegalHoldStoreToCassandra lh
-        . interpretTeamJournal (e ^. aEnv)
-        . interpretTeamStoreToCassandra
-        . interpretCustomBackendStoreToCassandra
-        . randomToIO
-        . runHashPassword e._options._settings._passwordHashingOptions
-        . interpretRateLimit e._passwordHashingRateLimitEnv
-        . interpretProposalStoreToCassandra
-        . convCodesStoreInterpreter
-        . interpretUserClientIndexStoreToCassandra (e ^. cstate)
-        . interpretMeetingsStoreToPostgres
-        . interpretTeamCollaboratorsStoreToPostgres
-        . interpretFireAndForget
-        . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
-        . interpretFederationAPIAccess federationAPIAccessConfig
-        . runRpcWithHttp (e ^. manager) (e ^. reqId)
-        . runGundeckAPIAccess (e ^. options . gundeck)
-        . interpretBrigAccess (e ^. brig)
-        . interpretExternalAccess (e ^. extEnv)
-        . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
-        . interpretSparAPIAccessToRpc (e ^. options . spar)
-        . interpretTeamSubsystem teamSubsystemConfig
-        . runFeaturesConfigSubsystem
-        . runInputSem getAllTeamFeaturesForServer
-        . interpretTeamCollaboratorsSubsystem
-        . runFederationSubsystem conversationSubsystemConfig.federationProtocols
-        . runInputConst (e ^. reqId)
-        . interpretJobSubsystem defaultJobSubsystemConfig
-        . interpretMeetingNotifier
-        . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
+  runLicense' <- runLicense (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
+  pure $ \action ->
+    ExceptT
+      . runFinal @IO
+      . unsafelyPerformConcurrency
+      . resourceToIOFinal
+      . runError
+      . embedToFinal @IO
+      . interpretTinyLog e
+      . failToEmbed @IO
+      . runDelay
+      . asyncToIOFinal
+      . interpretRace
+      . mapError httpErrorToJSONResponse
+      . logAndMapError postgresUsageErrorToHttpError (Text.pack . show) "postgres usage error"
+      . mapError teamCollaboratorsSubsystemErrorToHttpError
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . mapError toResponse
+      . logAndMapError toResponse (Text.pack . show) "migration error"
+      . mapError mapTeamFeatureStoreError
+      . mapError toResponse
+      . runInputConst conversationSubsystemConfig
+      . runInputConst e
+      . runInputConst (e ^. hasqlPool)
+      . runInputConst (e ^. cstate)
+      . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
+      . mapError toResponse -- ErrorS 'InvalidOperation
+      . mapError toResponse -- ErrorS 'MeetingNotFound
+      . mapError toResponse -- ErrorS 'CodeStoreNotFound
+      . mapError toResponse -- ErrorS 'NotATeamMember
+      . mapError toResponse -- ErrorS 'NotAnMlsConversation
+      . mapError toResponse -- ErrorS 'ChannelsNotEnabled
+      . mapError toResponse -- ErrorS 'ConvNotFound
+      . mapError toResponse -- ErrorS 'InvalidOperation
+      . mapError toResponse -- ErrorS 'TeamNotFound
+      . mapError toResponse -- ErrorS 'NoBindingTeamMembers
+      . mapError toResponse -- ErrorS 'NonBindingTeam
+      . mapError toResponse -- ErrorS 'MissingLegalholdConsent
+      . mapError toResponse -- ErrorS 'MLSNonEmptyMemberList
+      . mapError toResponse -- ErrorS 'MLSNotEnabled
+      . mapError toResponse -- ErrorS 'ConvAccessDenied
+      . mapError toResponse -- ErrorS 'NotATeamMember
+      . mapError toResponse -- ErrorS 'HistoryNotSupported
+      . mapError toResponse -- ErrorS 'TeamMemberNotFound
+      . mapError toResponse -- ErrorS 'AccessDenied
+      . mapError toResponse -- ErrorS OperationDenied
+      . mapError toResponse -- Error ConversationSubsystemError,
+      . mapError rateLimitExceededToHttpError
+      . mapError toResponse -- DynError
+      . mapError toResponse -- Error MeetingError
+      . interpretBoundedQueue (e ^. deleteQueue)
+      . nowToIO
+      . runInputConst (e ^. convCodeURI)
+      . runInputConst (e ^. options)
+      . runInputConst (GroupInfoCheckEnabled <$> e._options._settings._checkGroupInfo)
+      . runInputConst e._mlsKeys
+      . runInputConst e._options._settings._guestLinkTTLSeconds
+      . runInputConst (IntraListing e._options._settings._intraListing)
+      . runInputConst localUnit
+      . interpretTeamFeatureSpecialContext e
+      . runInputConst (currentFanoutLimitOpts (e ^. options))
+      . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
+      . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
+      . interpretInternalTeamListToCassandra
+      . interpretTeamListToCassandra
+      . interpretTeamMemberStoreToCassandraWithPaging lh
+      . interpretTeamMemberStoreToCassandra lh
+      . teamFeatureStoreInterpreter
+      . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
+      . convStoreInterpreter
+      . interpretTeamNotificationStoreToCassandra
+      . interpretServiceStoreToCassandra (e ^. cstate)
+      . interpretUserGroupStoreToPostgres
+      . runInputConst legalHoldEnv
+      . interpretLegalHoldStoreToCassandra lh
+      . interpretTeamJournal (e ^. aEnv)
+      . interpretTeamStoreToCassandra
+      . interpretCustomBackendStoreToCassandra
+      . randomToIO
+      . runHashPassword e._options._settings._passwordHashingOptions
+      . interpretRateLimit e._passwordHashingRateLimitEnv
+      . interpretProposalStoreToCassandra
+      . convCodesStoreInterpreter
+      . interpretUserClientIndexStoreToCassandra (e ^. cstate)
+      . interpretMeetingsStoreToPostgres
+      . interpretTeamCollaboratorsStoreToPostgres
+      . interpretFireAndForget
+      . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
+      . interpretFederationAPIAccess federationAPIAccessConfig
+      . runRpcWithHttp (e ^. manager) (e ^. reqId)
+      . runGundeckAPIAccess (e ^. options . gundeck)
+      . interpretBrigAccess (e ^. brig)
+      . interpretExternalAccess (e ^. extEnv)
+      . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+      . interpretSparAPIAccessToRpc (e ^. options . spar)
+      . interpretTeamSubsystem teamSubsystemConfig
+      . runFeaturesConfigSubsystem
+      . runInputSem getAllTeamFeaturesForServer
+      . interpretTeamCollaboratorsSubsystem
+      . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+      . runInputConst (e ^. reqId)
+      . interpretJobSubsystem defaultJobSubsystemConfig
+      . interpretMeetingNotifier
+      $ runLicense'
+        ( interpretConversationSubsystem
+            ( bestEffortEmailSending e
+                . meetingEmailsInterpreter e
+                . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
+                $ action
+            )
+        )
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
@@ -593,3 +664,59 @@ interpretTeamFeatureSpecialContext e =
 
 mapTeamFeatureStoreError :: TeamFeatureStoreError -> InternalError
 mapTeamFeatureStoreError (TeamFeatureStoreErrorInternalError msg) = InternalErrorWithDescription msg
+
+-- | Interpret 'EmailSubsystem' for meeting emails only. When
+-- @settings.meetings.email@ is unset, no emails are sent (the config
+-- comment's contract). Otherwise the three meeting operations render and
+-- send via the configured transport, with delivery failures logged and
+-- swallowed so they never surface to the meeting creator.
+meetingEmailsInterpreter ::
+  (Member TinyLog r) =>
+  Env ->
+  InterpreterFor EmailSubsystem (EmailSending ': r)
+meetingEmailsInterpreter e = case e ^. meetingEmail of
+  Nothing -> discardEmailSubsystem
+  Just me -> meetingEmailSubsystemInterpreter me.meTemplates me.meBranding
+
+-- | EmailSending transport whose delivery failures are logged and swallowed,
+-- so a failed email never fails the meeting operation that triggered it
+-- (WPB-25932).
+bestEffortEmailSending ::
+  forall r.
+  ( Member TinyLog r,
+    Member P.Async r,
+    Member (Embed IO) r,
+    Member (Final IO) r
+  ) =>
+  Env ->
+  InterpreterFor EmailSending r
+bestEffortEmailSending e = case e ^. meetingEmail of
+  -- No meeting-email configuration: nothing can reach the transport.
+  Nothing -> interpret \case
+    EmailSending.SendMail _ -> pure ()
+  Just me -> interpret \case
+    -- Fire-and-forget (the 'pushAsyncImpl' idiom): delivery is best-effort, a
+    -- failed or slow send must never delay or fail the meeting operation.
+    -- SES failures surface as typed errors and are logged; SMTP failures are
+    -- plain IO exceptions in the forked thread and die with it.
+    EmailSending.SendMail mail -> void . P.async $ do
+      res <-
+        errorToIOFinal @EmailSendingAWSError
+          (fromExceptionSem @EmailSendingAWSError (runTransport (sendMail mail)))
+      case res of
+        Left err ->
+          P.err $
+            Log.msg (Log.val "Failed to send meeting email")
+              . Log.field "error" (displayException err)
+        Right _ -> pure ()
+    where
+      runTransport ::
+        Sem (EmailSending ': Error EmailSendingAWSError ': r) a ->
+        Sem (Error EmailSendingAWSError ': r) a
+      runTransport = case me.meSmtp of
+        Just smtp -> SMTP.emailViaSMTPInterpreter (e ^. applog) smtp
+        Nothing -> case me.meAwsEnv of
+          Just awsEnv -> emailViaSESInterpreter awsEnv
+          -- Cannot happen: 'initMeetingEmailEnv' always initializes the
+          -- transport matching the configured one.
+          Nothing -> error "meeting emails configured without a transport"

@@ -325,13 +325,10 @@ galley:
         validityPeriod: "5s"
         legacyTimeZone: "Europe/Berlin"
         pastEditPeriod: "5s"
-        email:
-          from: meetings@example.com
-          replyTo: noreply@example.com
-          useSES: true
-          aws:
-            sesQueue: integration-galley-meetings-events
-            sesEndpoint: http://fake-aws-ses:4569
+        # Meeting emails are intentionally NOT enabled here: the galley image
+        # does not ship the email template tree, and a configured templateDir
+        # that cannot be read fails galley at startup. Enable once templates
+        # are mounted into the image (settings.meetings.email).
 
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
