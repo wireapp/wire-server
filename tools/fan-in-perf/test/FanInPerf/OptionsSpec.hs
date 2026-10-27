@@ -28,6 +28,7 @@ spec = do
     o.global.poolSize `shouldBe` Nothing
     o.global.metricsPort `shouldBe` 9400
     o.global.isolation `shouldBe` ReadCommitted
+    o.global.summaryJson `shouldBe` Nothing
     o.command
       `shouldBe` Produce
         ProduceOptions
@@ -236,3 +237,7 @@ spec = do
     ]
     $ \args ->
       it ("rejects " <> unwords args) $ isNothing (parse args) `shouldBe` True
+
+  it "takes the summary file as a global flag" $ do
+    o <- parseOk ["--db", "x", "--summary-json", "out.json", "produce", "--targets", "team:10"]
+    o.global.summaryJson `shouldBe` Just "out.json"

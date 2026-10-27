@@ -84,6 +84,40 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`.
 | `--pool-size N` | `--writers` (1 for `reset-db`) | 1–10000 | Writer connection pool size. |
 | `--metrics-port PORT` | 9400 | 1–65535 | Port of `/metrics`. |
 | `--isolation LEVEL` | `read-committed` | `read-committed`, `repeatable-read`, `serializable` | Isolation level of push transactions. |
+| `--summary-json FILE` | none | | After a `produce`/`consume*` run, writes its summary to FILE as one JSON object (see [Summary JSON](#summary-json)). Checked writable before the run starts; not valid for `reset-db`. |
+
+#### Summary JSON
+
+Durations are numbers in seconds. `{p50, p99}` are histogram bucket upper bounds
+(see [Reading the numbers](#reading-the-numbers)). Anything that does not apply
+to the command (a whole section, or a field such as `fan_out` in `consume-only`), a maximum that was
+never measured and a percentile without observations are `null`. The text
+summary is rendered from the same data. The file is written after the run,
+outside the measured phase.
+
+| Field | Commands | Meaning |
+|---|---|---|
+| `command` | all | `produce`, `consume`, `consume-ack`, `consume-only` or `consume-only-ack`. |
+| `duration` | all | Seconds. `consume`, `consume-ack`: the writer phase (without the drain). `consume-only*`: until the last reader was done. |
+| `pushes.pushes`, `.targets`, `.errors` | `produce`, `consume`, `consume-ack` | Successful pushes, targets written (`clients`: users, not rows), failed pushes. |
+| `pushes.error_ratio` | same | `errors / (pushes + errors)`. |
+| `pushes.rate_avg`, `.rate_max` | same | Pushes/s over `duration` (incl. warmup); max after warmup. |
+| `pushes.latency` | same | `{p50, p99}` of the push store call, cumulative. |
+| `deliveries.delivered`, `.expected` | all but `produce` | Notifications delivered to readers; expected from the pushes (`consume-only*`: from the row counts). |
+| `deliveries.missing`, `.duplicates` | all but `produce` | Net counts: `max(0, expected - delivered)` and `max(0, delivered - expected)`. |
+| `deliveries.rate_avg`, `.rate_max` | all but `produce` | Deliveries/s (cons/s). `consume`, `consume-ack`: over the writer phase; `consume-only*`: over `duration`, incl. warmup and tail. Max after warmup. |
+| `deliveries.fan_out` | `consume`, `consume-ack` | Deliveries per push. |
+| `deliveries.backlog_at_writer_stop` | `consume`, `consume-ack` | Expected minus delivered when the writers stopped. |
+| `deliveries.lag` | `consume`, `consume-ack` | `{p50, p99}` of the delivery lag, cumulative. |
+| `deliveries.milestones` | `consume-only*` | `[{percent, seconds}]`: time until 50, 90, 99 % of the expected deliveries were delivered; `seconds` is `null` if never reached. |
+| `fetch.latency`, `.gate_wait` | all but `produce` | `{p50, p99}` of a fetch call and of the wait for a reader gate slot, cumulative. |
+| `fetch.empty_ratio`, `.errors` | all but `produce` | Share of fetches that returned nothing; failed fetches. |
+| `acks.acks`, `.errors` | `consume-ack`, `consume-only-ack` | Ack upserts, failed acks. |
+| `acks.rate_avg`, `.rate_max` | same | Acks/s (average as for `deliveries.rate_avg`); max after warmup. |
+| `acks.latency` | same | `{p50, p99}` of an ack call, cumulative. |
+| `drain.state`, `.seconds` | `consume`, `consume-ack` | `complete`, `stalled`, `timed_out` or `interrupted`; time the drain took (`null` if interrupted). |
+| `end` | `consume-only*` | `finished` (every reader caught up), `timed_out` or `interrupted`. |
+| `rows_total` | `consume-only*` | Rows in the counted streams (`user`, `client`, `team`, `epoch`) of the database. |
 
 ### `produce`
 

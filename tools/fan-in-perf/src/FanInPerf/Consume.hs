@@ -44,6 +44,7 @@ import FanInPerf.Population qualified as Pop
 import FanInPerf.Produce
 import FanInPerf.Stats
 import FanInPerf.Store
+import FanInPerf.Summary (RunSummary (rowsTotal), consumeOnlySummary, consumeSummary)
 import FanInPerf.Targets
 import FanInPerf.Terminal
 import FanInPerf.Worker
@@ -467,7 +468,7 @@ stopAndDrain label console duration stopWriters writerPhaseEnd runDrain = do
 
 -- | @runConsume console writerEnv readerEnv options@. The environments differ
 -- only in their connection pool.
-runConsume :: Console -> Env -> Env -> ConsumeOptions -> IO ()
+runConsume :: Console -> Env -> Env -> ConsumeOptions -> IO RunSummary
 runConsume console writerEnv readerEnv opts = do
   gate <- newQSem opts.readerPoolSize
   let p = opts.writerOptions
@@ -520,7 +521,9 @@ runConsume console writerEnv readerEnv opts = do
           stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout opts.pollIntervalMs readTotals)
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
-  traverse_ (printLine console) (formatConsumeSummary opts.mode (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)
+  let summary = consumeSummary opts.mode (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport
+  traverse_ (printLine console) (renderSummary summary)
+  pure summary
 
 -- | Experiments E and F: readers only, on the rows an earlier @produce@ run
 -- left. Every reader starts at the nil UUID in both modes (no 'startPositions':
@@ -528,7 +531,7 @@ runConsume console writerEnv readerEnv opts = do
 -- was offline while the rows were written and has acknowledged nothing. The
 -- expected deliveries come from the row counts of the database, so the run
 -- also checks that the readers miss nothing.
-runConsumeOnly :: Console -> Env -> ConsumeOnlyOptions -> IO ()
+runConsumeOnly :: Console -> Env -> ConsumeOnlyOptions -> IO RunSummary
 runConsumeOnly console env opts = do
   let label = consumeOnlyLabel opts.reader.mode
       (entries, populationGen, _) = seededEntries opts.seed opts.clientsPerUser opts.targets
@@ -608,7 +611,9 @@ runConsumeOnly console env opts = do
   report <- doTick
   checkMilestones
   reached <- readIORef milestones
-  traverse_ (printLine console) (formatConsumeOnlySummary opts.reader.mode expected (end - start) result reached report)
+  let summary = (consumeOnlySummary opts.reader.mode expected (end - start) result reached report) {rowsTotal = Just totalRows}
+  traverse_ (printLine console) (renderSummary summary)
+  pure summary
 
 -- | Shares of the expected deliveries 'runConsumeOnly' reports the time to.
 milestonePercents :: [Int]

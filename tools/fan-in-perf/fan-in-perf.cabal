@@ -52,6 +52,7 @@ common common-all
     MultiWayIf
     NamedFieldPuns
     NoImplicitPrelude
+    NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
     OverloadedStrings
@@ -80,6 +81,10 @@ library
     FanInPerf.ConsumeStats
     FanInPerf.Database
     FanInPerf.Metrics
+    FanInPerf.NotificationsAdmin
+    FanInPerf.NotificationsAdmin.Postgres
+    FanInPerf.NotificationsStore
+    FanInPerf.NotificationsStore.Postgres
     FanInPerf.Options
     FanInPerf.Pool
     FanInPerf.Population
@@ -87,6 +92,7 @@ library
     FanInPerf.Run
     FanInPerf.Stats
     FanInPerf.Store
+    FanInPerf.Summary
     FanInPerf.Targets
     FanInPerf.TargetSpecParser
     FanInPerf.Terminal
@@ -99,12 +105,15 @@ library
     , bytestring
     , containers
     , extended
+    , file-embed
     , hasql
     , hasql-resource-pool
+    , hasql-th
     , hasql-transaction
     , http-types
     , imports
     , megaparsec
+    , mmzk-typeid
     , optparse-applicative
     , polysemy
     , postgresql-connection-string
@@ -114,6 +123,7 @@ library
     , time
     , types-common
     , unliftio
+    , uuid
     , uuid-types
     , vector
     , wai
@@ -144,11 +154,14 @@ test-suite fan-in-perf-tests
     FanInPerf.ConsumeStatsSpec
     FanInPerf.DatabaseSpec
     FanInPerf.MetricsSpec
+    FanInPerf.NotificationsAdminSpec
+    FanInPerf.NotificationsStore.PostgresSpec
     FanInPerf.OptionsSpec
     FanInPerf.PoolSpec
     FanInPerf.PopulationSpec
     FanInPerf.ProduceSpec
     FanInPerf.StatsSpec
+    FanInPerf.SummarySpec
     FanInPerf.TargetSpecParserSpec
     FanInPerf.TargetsSpec
     FanInPerf.TerminalSpec
@@ -174,6 +187,7 @@ test-suite fan-in-perf-tests
     , QuickCheck
     , random
     , text
+    , time
     , types-common
     , uuid-types
     , vector

@@ -30,7 +30,9 @@ data GlobalOptions = GlobalOptions
   { db :: Text,
     poolSize :: Maybe Int,
     metricsPort :: Int,
-    isolation :: IsolationLevel
+    isolation :: IsolationLevel,
+    -- | file for the summary of a run as JSON
+    summaryJson :: Maybe FilePath
   }
 
 data ProduceOptions = ProduceOptions
@@ -136,6 +138,7 @@ globalParser =
     <*> optional (option (positive maxPoolSize) (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset-db)"))
     <*> option port (long "metrics-port" <> metavar "PORT" <> value 9400 <> showDefault <> help "Port of the /metrics endpoint")
     <*> option isolationReader (long "isolation" <> metavar "read-committed|repeatable-read|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
+    <*> optional (strOption (long "summary-json" <> metavar "FILE" <> help "Write the summary of the run (produce, consume*) to FILE as JSON"))
 
 produceParser :: Parser ProduceOptions
 produceParser = produceParserWith targetsReader

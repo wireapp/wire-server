@@ -23,6 +23,7 @@ import FanInPerf.NotificationsStore
 import FanInPerf.Options (ProduceOptions (..))
 import FanInPerf.Stats
 import FanInPerf.Store
+import FanInPerf.Summary (RunSummary, produceSummary)
 import FanInPerf.Targets
 import FanInPerf.Terminal
 import FanInPerf.Worker
@@ -119,7 +120,7 @@ writerLoop stop expectedOf doPush payload entries ws reportError = loop
       stopped <- stop
       unless stopped (writerStep expectedOf doPush payload entries ws reportError g >>= loop)
 
-runProduce :: Console -> Env -> ProduceOptions -> IO ()
+runProduce :: Console -> Env -> ProduceOptions -> IO RunSummary
 runProduce console env opts = do
   setup <- prepareWriters opts
   metrics <- newMetrics "produce" opts.writers
@@ -139,7 +140,9 @@ runProduce console env opts = do
   -- leaving 'withAsync' cancelled writers and ticker; the final tick and
   -- summary run on this thread only after the ticker is gone.
   report <- doTick
-  traverse_ (printLine console) (formatSummary report)
+  let summary = produceSummary report
+  traverse_ (printLine console) (renderSummary summary)
+  pure summary
 
 -- | Runs on the ticker thread only (plus once after it stopped): aggregates,
 -- prints, publishes.

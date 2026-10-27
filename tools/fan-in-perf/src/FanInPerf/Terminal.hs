@@ -2,6 +2,7 @@ module FanInPerf.Terminal
   ( groupThousands,
     formatLatency,
     formatStatus,
+    renderSummary,
     formatSummary,
     formatConsumeStatus,
     formatConsumeOnlyStatus,
@@ -22,10 +23,10 @@ where
 
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
-import Data.Vector.Unboxed qualified as VU
 import FanInPerf.ConsumeStats
-import FanInPerf.Options (ReaderMode (..), consumeOnlyLabel, experimentLabel)
+import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Stats
+import FanInPerf.Summary
 import FanInPerf.Targets (TargetKind, kindName)
 import Imports
 import Text.Printf (printf)
@@ -53,18 +54,18 @@ pct label = \case
 maxText :: Double -> Text
 maxText x = if x > 0 then rateText x else "-"
 
-percent :: Double -> Text
-percent x = T.pack (printf "%.2f%%" (x * 100))
+percentText :: Double -> Text
+percentText x = T.pack (printf "%.2f%%" (x * 100))
 
 rateText :: Double -> Text
 rateText = groupThousands . round
 
-seconds :: Double -> Text
-seconds = T.pack . printf "%.1fs"
+secondsText :: Double -> Text
+secondsText = T.pack . printf "%.1fs"
 
 -- | p50 and p99 of a histogram.
-pcts :: VU.Vector Int -> Text
-pcts buckets = pct "p50" (quantileSeconds 0.5 buckets) <> " " <> pct "p99" (quantileSeconds 0.99 buckets)
+pcts :: Percentiles -> Text
+pcts q = pct "p50" q.p50 <> " " <> pct "p99" q.p99
 
 -- | Status line segment shared by produce and consume.
 pushSegment :: TickReport -> Text
@@ -75,51 +76,16 @@ formatStatus r =
   T.intercalate
     " | "
     [ pushSegment r,
-      "err/s cur=" <> rateText r.errorRate <> " (" <> percent r.errorRatio <> ")",
+      "err/s cur=" <> rateText r.errorRate <> " (" <> percentText r.errorRatio <> ")",
       "targets/s cur=" <> rateText r.targetRate,
       pct "push p50" r.p50 <> " " <> pct "p99" r.p99
     ]
 
 formatSummary :: TickReport -> [Text]
-formatSummary r =
-  let pushes = totalPushes r.total
-      errors = totalErrors r.total
-      avgRate = ratio pushes r.elapsed
-   in [ "summary: duration=" <> seconds r.elapsed,
-        "  pushes=" <> groupThousands pushes <> " targets=" <> groupThousands (totalTargets r.total) <> " errors=" <> groupThousands errors <> " (" <> percent (ratio errors (pushes + errors)) <> ")",
-        "  push/s avg=" <> rateText avgRate <> " max=" <> maxText r.maxPushRate <> " (avg incl. warmup, max after warmup)",
-        "  latency (cumulative, incl. warmup) " <> pcts (latencyBuckets r.total)
-      ]
+formatSummary = renderSummary . produceSummary
 
 ackSegment :: ConsumeReport -> Text
 ackSegment c = "ack/s cur=" <> rateText c.ackRate <> " max=" <> maxText c.maxAckRate <> " " <> pct "p99" c.ackP99
-
--- | @label: delivered=.. expected=.. missing=.. duplicates=..@ (net counts).
-deliveryLine :: Text -> Int -> Int -> Text
-deliveryLine label delivered expected =
-  label
-    <> ": delivered="
-    <> groupThousands delivered
-    <> " expected="
-    <> groupThousands expected
-    <> " missing="
-    <> groupThousands (max 0 (expected - delivered))
-    <> " duplicates="
-    <> groupThousands (max 0 (delivered - expected))
-
--- | Summary lines of the acks; the average is over the caller's duration.
-ackSummaryLines :: ConsumeReport -> Double -> [Text]
-ackSummaryLines c avgAckRate =
-  [ "  acks=" <> groupThousands (totalAcks c.readerTotal) <> " errors=" <> groupThousands (totalAckErrors c.readerTotal) <> " ack/s avg=" <> rateText avgAckRate <> " max=" <> maxText c.maxAckRate,
-    "  ack latency (cumulative) " <> pcts (ackLatencyBuckets c.readerTotal)
-  ]
-
--- | Cumulative fetch and gate wait summary lines.
-fetchGateLines :: ConsumeReport -> [Text]
-fetchGateLines c =
-  [ "  fetch (cumulative) " <> pcts (fetchLatencyBuckets c.readerTotal) <> " empty=" <> percent (ratio (totalEmptyFetches c.readerTotal) (totalFetches c.readerTotal)) <> " errors=" <> groupThousands (totalFetchErrors c.readerTotal),
-    "  gate wait (cumulative) " <> pcts (gateWaitBuckets c.readerTotal)
-  ]
 
 formatConsumeStatus :: ReaderMode -> TickReport -> ConsumeReport -> Text
 formatConsumeStatus mode r c =
@@ -149,69 +115,90 @@ formatConsumeOnlyStatus mode elapsed c =
   where
     acking = mode /= NoAcks
 
--- | Seconds from start until the writers stopped, and the notifications
--- delivered by then, and the ack upserts by then.
-data WriterPhase = WriterPhase {duration :: Double, delivered :: Int, acks :: Int}
-
--- | How the drain after the writer phase ended, with its duration in seconds.
--- 'DrainStalled': nothing was delivered for a while, the rest is not coming.
-data Drain = DrainComplete Double | DrainStalled Double | DrainTimedOut Double | DrainInterrupted
-
--- | @formatConsumeSummary expectedDeliveries writerPhase drain pushReport
--- consumeReport@. Duration and averages cover the writer phase only (not the
--- drain); totals, maxima and percentiles cover the whole run.
 formatConsumeSummary :: ReaderMode -> Int -> WriterPhase -> Drain -> TickReport -> ConsumeReport -> [Text]
-formatConsumeSummary mode expected phase drain r c =
-  let delivered = totalDelivered c.readerTotal
-      avgRate = ratio phase.delivered phase.duration
-      pushes = totalPushes r.total
-      backlogAtStop = max 0 (expected - phase.delivered)
-      behind = avgRate > 0 && fromIntegral backlogAtStop > avgRate
-      drainText = case drain of
-        DrainComplete t -> "complete after " <> seconds t
-        DrainStalled t -> "stalled after " <> seconds t <> " (no delivery for several poll intervals: the rest is lost, not in flight)"
-        DrainTimedOut t -> "timed out after " <> seconds t
-        DrainInterrupted -> "interrupted"
-   in formatSummary r {elapsed = phase.duration}
-        <> [ deliveryLine (experimentLabel mode) delivered expected,
-             "  cons/s avg=" <> rateText avgRate <> " max=" <> maxText c.maxConsumeRate <> " (avg incl. warmup, max after warmup, both writer phase)",
-             "  fan-out: " <> T.pack (printf "%.1f" (ratio expected pushes)) <> " deliveries per push (cons/s and push/s differ by this factor)",
-             "  backlog at writer stop: " <> groupThousands backlogAtStop <> (if avgRate > 0 then " (" <> seconds (ratio backlogAtStop avgRate) <> " of delivery)" else ""),
-             "  lag (cumulative) " <> pcts (lagBuckets c.readerTotal)
-           ]
-        <> fetchGateLines c
-        <> [ "  warning: readers fell behind the writers (backlog above 1s of delivery at writer stop); missing then understates the cursor race, as readers stay below the head"
-           | behind
-           ]
-        <> (if mode /= NoAcks then ackSummaryLines c (ratio phase.acks phase.duration) else [])
-        <> ["  drain: " <> drainText]
+formatConsumeSummary mode expected phase drain r c = renderSummary (consumeSummary mode expected phase drain r c)
 
--- | How a consume-only run ended: every reader caught up and stopped (what is
--- still missing then was not delivered, e.g. failed fetches), or not.
-data ConsumeEnd = ConsumeFinished | ConsumeTimedOut | ConsumeInterrupted
-  deriving (Eq, Show)
-
--- | @formatConsumeOnlySummary expectedDeliveries elapsed end milestones consumeReport@.
--- @elapsed@ is the time from the start of the readers until the end of the run;
--- the average over it includes the tail of the slowest readers, which the
--- @milestones@ show: (percent, seconds until that share of the expected
--- deliveries was reached, Nothing if never).
 formatConsumeOnlySummary :: ReaderMode -> Int -> Double -> ConsumeEnd -> [(Int, Maybe Double)] -> ConsumeReport -> [Text]
-formatConsumeOnlySummary mode expected elapsed end milestones c =
-  let delivered = totalDelivered c.readerTotal
-      avgRate = ratio delivered elapsed
-      endText = case end of
-        ConsumeFinished -> "all readers caught up after " <> seconds elapsed
-        ConsumeTimedOut -> "timed out after " <> seconds elapsed
-        ConsumeInterrupted -> "interrupted after " <> seconds elapsed
-   in [ "summary: duration=" <> seconds elapsed,
-        deliveryLine (consumeOnlyLabel mode) delivered expected,
-        "  cons/s avg=" <> rateText avgRate <> " max=" <> maxText c.maxConsumeRate <> " (avg incl. warmup and tail, max after warmup)",
-        "  time to delivered: " <> T.intercalate " " [T.pack (show p) <> "%=" <> maybe "-" seconds t | (p, t) <- milestones]
-      ]
-        <> fetchGateLines c
-        <> (if mode /= NoAcks then ackSummaryLines c (ratio (totalAcks c.readerTotal) elapsed) else [])
-        <> ["  end: " <> endText]
+formatConsumeOnlySummary mode expected elapsed end milestones c = renderSummary (consumeOnlySummary mode expected elapsed end milestones c)
+
+-- | The summary printed at the end of every run.
+renderSummary :: RunSummary -> [Text]
+renderSummary s =
+  ["summary: duration=" <> secondsText s.duration]
+    <> maybe [] pushLines s.pushes
+    <> maybe [] (deliveryLines s.command) s.deliveries
+    <> maybe [] fetchGateLines s.fetch
+    <> maybe [] behindWarning s.deliveries
+    <> maybe [] ackLines s.acks
+    <> ["  drain: " <> drainText d | d <- toList s.drain]
+    <> ["  end: " <> endText s.duration e | e <- toList s.end]
+
+pushLines :: PushSummary -> [Text]
+pushLines p =
+  [ "  pushes=" <> groupThousands p.pushes <> " targets=" <> groupThousands p.targets <> " errors=" <> groupThousands p.errors <> " (" <> percentText p.errorRatio <> ")",
+    "  push/s avg=" <> rateText p.rateAvg <> " max=" <> maybe "-" rateText p.rateMax <> " (avg incl. warmup, max after warmup)",
+    "  latency (cumulative, incl. warmup) " <> pcts p.latency
+  ]
+
+-- | @label: delivered=.. expected=.. missing=.. duplicates=..@ (net counts),
+-- then what differs between the runs: with writers the averages cover the
+-- writer phase, without them the whole run (milestones show its tail).
+deliveryLines :: Text -> DeliverySummary -> [Text]
+deliveryLines command d =
+  ( command
+      <> ": delivered="
+      <> groupThousands d.delivered
+      <> " expected="
+      <> groupThousands d.expected
+      <> " missing="
+      <> groupThousands d.missing
+      <> " duplicates="
+      <> groupThousands d.duplicates
+  )
+    : case d.backlogAtWriterStop of
+      Just backlog ->
+        [ "  cons/s avg=" <> rateText d.rateAvg <> " max=" <> maybe "-" rateText d.rateMax <> " (avg incl. warmup, max after warmup, both writer phase)",
+          "  fan-out: " <> T.pack (printf "%.1f" (fromMaybe 0 d.fanOut)) <> " deliveries per push (cons/s and push/s differ by this factor)",
+          "  backlog at writer stop: " <> groupThousands backlog <> (if d.rateAvg > 0 then " (" <> secondsText (ratio backlog d.rateAvg) <> " of delivery)" else "")
+        ]
+          <> ["  lag (cumulative) " <> pcts q | q <- toList d.lag]
+      Nothing ->
+        [ "  cons/s avg=" <> rateText d.rateAvg <> " max=" <> maybe "-" rateText d.rateMax <> " (avg incl. warmup and tail, max after warmup)",
+          "  time to delivered: " <> T.intercalate " " [T.pack (show m.percent) <> "%=" <> maybe "-" secondsText m.seconds | m <- d.milestones]
+        ]
+
+-- | Cumulative fetch and gate wait summary lines.
+fetchGateLines :: FetchSummary -> [Text]
+fetchGateLines f =
+  [ "  fetch (cumulative) " <> pcts f.latency <> " empty=" <> percentText f.emptyRatio <> " errors=" <> groupThousands f.errors,
+    "  gate wait (cumulative) " <> pcts f.gateWait
+  ]
+
+behindWarning :: DeliverySummary -> [Text]
+behindWarning d =
+  [ "  warning: readers fell behind the writers (backlog above 1s of delivery at writer stop); missing then understates the cursor race, as readers stay below the head"
+  | Just backlog <- [d.backlogAtWriterStop],
+    d.rateAvg > 0 && fromIntegral backlog > d.rateAvg
+  ]
+
+ackLines :: AckSummary -> [Text]
+ackLines a =
+  [ "  acks=" <> groupThousands a.acks <> " errors=" <> groupThousands a.errors <> " ack/s avg=" <> rateText a.rateAvg <> " max=" <> maybe "-" rateText a.rateMax,
+    "  ack latency (cumulative) " <> pcts a.latency
+  ]
+
+drainText :: Drain -> Text
+drainText = \case
+  DrainComplete t -> "complete after " <> secondsText t
+  DrainStalled t -> "stalled after " <> secondsText t <> " (no delivery for several poll intervals: the rest is lost, not in flight)"
+  DrainTimedOut t -> "timed out after " <> secondsText t
+  DrainInterrupted -> "interrupted"
+
+endText :: Double -> ConsumeEnd -> Text
+endText elapsed = \case
+  ConsumeFinished -> "all readers caught up after " <> secondsText elapsed
+  ConsumeTimedOut -> "timed out after " <> secondsText elapsed
+  ConsumeInterrupted -> "interrupted after " <> secondsText elapsed
 
 formatCoverage :: [(TargetKind, Double)] -> [Text]
 formatCoverage = map line
@@ -220,7 +207,7 @@ formatCoverage = map line
       "coverage "
         <> kindName k
         <> ": "
-        <> percent c
+        <> percentText c
         <> " of streams have a reader"
         <> if c < 1 then " (warning: consumed/s will stay below targets/s)" else ""
 

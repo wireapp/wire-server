@@ -1,6 +1,8 @@
 module FanInPerf.Run (run) where
 
 import Control.Concurrent.Async (link, withAsync)
+import Data.Aeson qualified as A
+import Data.ByteString.Lazy qualified as BL
 import Data.Misc (Duration (..), showT)
 import Data.Qualified (toLocalUnsafe)
 import Data.Text qualified as T
@@ -12,6 +14,7 @@ import FanInPerf.Options
 import FanInPerf.Pool
 import FanInPerf.Produce (runProduce)
 import FanInPerf.Store
+import FanInPerf.Summary (RunSummary)
 import FanInPerf.Targets (localDomain)
 import FanInPerf.Terminal
 import Hasql.Pool.Extended (PoolConfig (..))
@@ -38,6 +41,12 @@ run console opts = do
   let mkAdminEnv = do
         adminPool <- initPool fams AdminPool (poolConfig 1) (adminConnStr connStr)
         pure env {pool = adminPool}
+  -- fail now, not after a run of minutes
+  forM_ opts.global.summaryJson $ \file -> do
+    when (isResetDb opts.command) $ abort "--summary-json: reset-db has no summary"
+    BL.writeFile file mempty
+  let writeSummary :: RunSummary -> IO ()
+      writeSummary s = forM_ opts.global.summaryJson $ \file -> BL.writeFile file (A.encode s <> "\n")
   case opts.command of
     ResetDb shape -> do
       name <- experimentDb connStr & either abort pure
@@ -55,13 +64,13 @@ run console opts = do
       printLine console ("recreated fan-in notification tables (" <> shapeName shape <> ")")
     Produce p -> do
       checkDatabase env
-      withMetricsServer (runProduce console env p)
-    Consume c -> withMetricsServer $ do
+      withMetricsServer (runProduce console env p) >>= writeSummary
+    Consume c -> (>>= writeSummary) . withMetricsServer $ do
       checkDatabase env
       -- readers get their own pool so they cannot starve the writers
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
       runConsume console env env {pool = readerPool} c
-    ConsumeOnly c -> withMetricsServer $ do
+    ConsumeOnly c -> (>>= writeSummary) . withMetricsServer $ do
       checkDatabase env
       runOrAbort "shape check" env currentShape >>= \case
         Just Partitioned -> printLine console "warning: partitioned tables: pg_partman retention can drop rows during the run, they then count as missing"
@@ -82,6 +91,11 @@ checkDatabase env =
     Right (Right ()) -> pure ()
     Right (Left e) -> abort ("cannot reach database: " <> showT e)
     Left _ -> abort "cannot reach database"
+
+isResetDb :: Command -> Bool
+isResetDb = \case
+  ResetDb _ -> True
+  _ -> False
 
 defaultPoolSize :: Command -> Int
 defaultPoolSize = \case
