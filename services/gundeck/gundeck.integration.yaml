@@ -64,6 +64,7 @@ postgresMigration:
   passwordReset: postgresql
   customBackend: postgresql
   notifications: postgresql
+  pushTokens: postgresql
 
 settings:
   httpPoolSize: 1024

@@ -89,6 +89,7 @@ data:
     migratePasswordReset: {{ .migratePasswordReset }}
     migrateCustomBackend: {{ .migrateCustomBackend }}
     migrateNotifications: {{ .migrateNotifications }}
+    migratePushTokens: {{ .migratePushTokens }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 

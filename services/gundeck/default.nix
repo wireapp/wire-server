@@ -29,6 +29,7 @@
 , extended
 , extra
 , foldl
+, hasql-resource-pool
 , hedis
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -49,6 +50,7 @@
 , network
 , network-uri
 , optparse-applicative
+, polysemy
 , prometheus-client
 , psqueues
 , QuickCheck
@@ -118,6 +120,7 @@ mkDerivation {
     extended
     extra
     foldl
+    hasql-resource-pool
     hedis
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -131,6 +134,7 @@ mkDerivation {
     metrics-wai
     mtl
     network-uri
+    polysemy
     prometheus-client
     psqueues
     raw-strings-qq
@@ -156,7 +160,6 @@ mkDerivation {
     wire-api
     wire-otel
     wire-subsystems
-    yaml
   ];
   executableHaskellDepends = [
     aeson
@@ -229,6 +232,7 @@ mkDerivation {
     tinylog
     types-common
     wire-api
+    wire-subsystems
   ];
   benchmarkHaskellDepends = [
     amazonka

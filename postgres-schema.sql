@@ -1,13 +1,13 @@
 -- automatically generated with `make postgres-schema`
 
 ------------------------------------------------------------------------------------------
--- Database: backenda
+-- Database: backendA
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict 0bfdefbfbf668c2f830346aaeb145f39102cb40511a96ac2aafcdfee817a748
+\restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
 -- Dumped from database version 17.11
 -- Dumped by pg_dump version 17.11
@@ -1784,6 +1784,23 @@ CREATE TABLE public.user_migration_pending_deletes (
 ALTER TABLE public.user_migration_pending_deletes OWNER TO "wire-server";
 
 --
+-- Name: user_push; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_push (
+    usr uuid NOT NULL,
+    ptoken text NOT NULL,
+    app text NOT NULL,
+    transport integer NOT NULL,
+    arn text,
+    connection text NOT NULL,
+    client text
+);
+
+
+ALTER TABLE public.user_push OWNER TO "wire-server";
+
+--
 -- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2227,6 +2244,14 @@ ALTER TABLE ONLY public.user_group
 
 ALTER TABLE ONLY public.user_migration_pending_deletes
     ADD CONSTRAINT user_migration_pending_deletes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_push user_push_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_push
+    ADD CONSTRAINT user_push_pkey PRIMARY KEY (usr, ptoken, app, transport);
 
 
 --
@@ -2917,4 +2942,4 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 0bfdefbfbf668c2f830346aaeb145f39102cb40511a96ac2aafcdfee817a748
+\unrestrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
