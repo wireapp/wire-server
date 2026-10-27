@@ -1850,7 +1850,10 @@ type AuthAPI =
            "login"
            ( "login"
                :> Summary "Authenticate a user to obtain a cookie and first access token"
-               :> Description "Logins are throttled at the server's discretion"
+               :> Description
+                    "Logins are throttled at the server's discretion.\n\n\
+                    \TOTP second-factor checking is not yet enforced; the totp_code \
+                    \field, if provided, is parsed but ignored."
                :> ReqBody '[JSON] Login
                :> QueryParam'
                     [ Optional,
@@ -1864,6 +1867,8 @@ type AuthAPI =
                :> CanThrow 'AccountPending
                :> CanThrow 'CodeAuthenticationFailed
                :> CanThrow 'CodeAuthenticationRequired
+               :> CanThrow 'TOTPRequired
+               :> CanThrow 'TOTPInvalidCode
                :> MultiVerb1 'POST '[JSON] TokenResponse
            )
     :<|> Named

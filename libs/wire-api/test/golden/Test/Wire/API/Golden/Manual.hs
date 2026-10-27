@@ -420,7 +420,8 @@ tests =
             (testObject_Login_user_2, "testObject_Login_user_2.json"),
             (testObject_Login_user_3, "testObject_Login_user_3.json"),
             (testObject_Login_user_4, "testObject_Login_user_4.json"),
-            (testObject_Login_user_5, "testObject_Login_user_5.json")
+            (testObject_Login_user_5, "testObject_Login_user_5.json"),
+            (testObject_Login_user_6, "testObject_Login_user_6.json")
           ],
       testGroup "CannonId" $
         testObjects

@@ -1,0 +1,2 @@
+`POST /login` now accepts an optional `totp_code` field (TOTP checking
+is not yet enforced).

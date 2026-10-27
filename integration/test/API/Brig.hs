@@ -1048,6 +1048,11 @@ login domain email password = do
   req <- baseRequest domain Brig Versioned "login"
   submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password] & addQueryParams [("persist", "true")]
 
+loginWithTotp :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+loginWithTotp domain email password totpCode = do
+  req <- baseRequest domain Brig Versioned "login"
+  submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password, "totp_code" .= totpCode] & addQueryParams [("persist", "true")]
+
 loginWithSessionCookie :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 loginWithSessionCookie domain email password = do
   req <- baseRequest domain Brig Versioned "login"
