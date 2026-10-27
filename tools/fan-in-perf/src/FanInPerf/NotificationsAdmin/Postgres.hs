@@ -74,7 +74,7 @@ databaseExistsStatement =
     (Encoders.param (Encoders.nonNullable Encoders.text))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
--- | Not a migration: the fan-in SQL files are only used by fan-in-perf. Tables
+-- | Not a migration: perf-tool schema in @sql/@. Tables
 -- shared by both shapes.
 commonSchema :: Text
 commonSchema = Text.decodeUtf8 $(makeRelativeToProject "sql/fan-in-common.sql" >>= embedFile)

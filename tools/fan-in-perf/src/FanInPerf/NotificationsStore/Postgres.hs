@@ -45,8 +45,8 @@ pushViaFanInImpl isolationLevel push = do
   notifId <- embed @IO genNotificationId
   loc <- inputQualifyLocal ()
   let payload = Aeson.toJSON push.json
-  runTransactionWithRetry isolationLevel TxSessions.Write do
-    forM_ (normalizeTargets push.targets) \target -> do
+  runTransactionWithRetry isolationLevel TxSessions.Write $ do
+    forM_ (normalizeTargets push.targets) $ \target -> do
       case target of
         TargetUser uid ->
           pushUserNotification uid.toUUID notifId payload push.origin
