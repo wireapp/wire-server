@@ -3,6 +3,7 @@ module FanInPerf.Terminal
     formatLatency,
     formatStatus,
     renderSummary,
+    formatDatabase,
     formatSummary,
     formatConsumeStatus,
     formatConsumeOnlyStatus,
@@ -132,6 +133,10 @@ renderSummary s =
     <> maybe [] ackLines s.acks
     <> ["  drain: " <> drainText d | d <- toList s.drain]
     <> ["  end: " <> endText s.duration e | e <- toList s.end]
+
+-- | Printed after the summary, once the database has been asked.
+formatDatabase :: DatabaseSummary -> [Text]
+formatDatabase d = ["  database: deadlocks=" <> groupThousands d.deadlocks <> " rows=" <> groupThousands d.rows]
 
 pushLines :: PushSummary -> [Text]
 pushLines p =

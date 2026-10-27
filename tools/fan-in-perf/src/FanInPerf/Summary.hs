@@ -8,6 +8,7 @@ module FanInPerf.Summary
     Milestone (..),
     FetchSummary (..),
     AckSummary (..),
+    DatabaseSummary (..),
     Percentiles (..),
     WriterPhase (..),
     Drain (..),
@@ -115,6 +116,15 @@ data AckSummary = AckSummary
   }
   deriving stock (Eq, Show, Generic)
 
+-- | What the database says about the run; filled in after it, by the caller.
+data DatabaseSummary = DatabaseSummary
+  { -- | deadlocks detected during the run
+    deadlocks :: Int,
+    -- | rows in the notification tables at the end
+    rows :: Int
+  }
+  deriving stock (Eq, Show, Generic)
+
 data RunSummary = RunSummary
   { -- | @produce@, or the label of the reader mode (@consume-ack@, ...)
     command :: Text,
@@ -130,7 +140,8 @@ data RunSummary = RunSummary
     -- | consume-only only
     end :: Maybe ConsumeEnd,
     -- | rows of the counted streams in the database; consume-only only
-    rowsTotal :: Maybe Int
+    rowsTotal :: Maybe Int,
+    database :: Maybe DatabaseSummary
   }
   deriving stock (Generic)
 
@@ -148,6 +159,8 @@ instance ToJSON Milestone where toJSON = genericToJSON jsonOptions
 instance ToJSON FetchSummary where toJSON = genericToJSON jsonOptions
 
 instance ToJSON AckSummary where toJSON = genericToJSON jsonOptions
+
+instance ToJSON DatabaseSummary where toJSON = genericToJSON jsonOptions
 
 instance ToJSON RunSummary where toJSON = genericToJSON jsonOptions
 
@@ -212,7 +225,8 @@ produceSummary r =
       acks = Nothing,
       drain = Nothing,
       end = Nothing,
-      rowsTotal = Nothing
+      rowsTotal = Nothing,
+      database = Nothing
     }
 
 -- | @consumeSummary mode expectedDeliveries writerPhase drain pushReport
@@ -282,5 +296,6 @@ consumeOnlySummary mode expected elapsed end milestones c =
           acks = ackSummaryFor mode c (ratio (totalAcks c.readerTotal) elapsed),
           drain = Nothing,
           end = Just end,
-          rowsTotal = Nothing
+          rowsTotal = Nothing,
+          database = Nothing
         }

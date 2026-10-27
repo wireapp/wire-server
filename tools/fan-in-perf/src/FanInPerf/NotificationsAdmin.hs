@@ -11,6 +11,13 @@ module FanInPerf.NotificationsAdmin
     databaseExists,
     createDatabase,
     setupPartman,
+    checkpoint,
+    vacuumAnalyze,
+    countDeadlocks,
+    countRows,
+    countPartitions,
+    getServerInfo,
+    ServerInfo (..),
     DbName,
     unDbName,
     mkDbName,
@@ -18,6 +25,8 @@ module FanInPerf.NotificationsAdmin
   )
 where
 
+import Data.Aeson (ToJSON (..), object, (.=))
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import FanInPerf.NotificationsStore (Stream)
 import Imports
@@ -49,6 +58,20 @@ mkDbName t = case T.uncons t of
 quoteIdent :: DbName -> Text
 quoteIdent (DbName n) = "\"" <> n <> "\""
 
+-- | What a result should be read together with: the server version and the
+-- settings that matter for the numbers.
+data ServerInfo = ServerInfo
+  { version :: Text,
+    -- | name, value; sorted by name
+    settings :: [(Text, Text)],
+    -- | 'Nothing' without the extension
+    partmanVersion :: Maybe Text
+  }
+  deriving (Eq, Show)
+
+instance ToJSON ServerInfo where
+  toJSON s = object ["version" .= s.version, "settings" .= Map.fromList s.settings, "partman_version" .= s.partmanVersion]
+
 -- | Administrative operations on the fan-in notification tables for tests and
 -- performance tooling. Never wire this into services.
 data FanInNotificationsAdmin m a where
@@ -70,5 +93,27 @@ data FanInNotificationsAdmin m a where
   -- | Run on the experiment database; the argument is the database the
   -- pg_partman background worker maintains.
   SetupPartman :: DbName -> FanInNotificationsAdmin m ()
+  -- | CHECKPOINT: writes all dirty pages to disk. Run before every measured run
+  -- so that each starts at the same point of the checkpoint cycle. Otherwise the
+  -- dirty pages of the previous run or of 'DropTables' / 'CreateTables' would be
+  -- flushed by a checkpoint at a random time inside the measured phase, and so
+  -- would the full-page writes that follow a checkpoint (the first change of a
+  -- page after it logs the whole page, which raises the WAL volume and the push
+  -- latency for a while). Runs become comparable, and the cost (seconds) is paid
+  -- outside the measured phase.
+  Checkpoint :: FanInNotificationsAdmin m ()
+  -- | VACUUM ANALYZE of the whole database: hint bits, visibility map and
+  -- planner statistics are set now and not by the reads of a later run.
+  VacuumAnalyze :: FanInNotificationsAdmin m ()
+  -- | Deadlocks detected in the database since its statistics were reset
+  -- (@pg_stat_database@). Backends report them with a delay of about a second.
+  CountDeadlocks :: FanInNotificationsAdmin m Int
+  -- | Rows in all six @*_notifications@ tables.
+  CountRows :: FanInNotificationsAdmin m Int
+  -- | Number of partitions of all six @*_notifications@ tables together (0 if
+  -- they are not partitioned): it changes while pg_partman still creates or
+  -- drops partitions of any of them.
+  CountPartitions :: FanInNotificationsAdmin m Int
+  GetServerInfo :: FanInNotificationsAdmin m ServerInfo
 
 makeSem ''FanInNotificationsAdmin

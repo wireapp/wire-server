@@ -90,6 +90,7 @@ library
     FanInPerf.Population
     FanInPerf.Produce
     FanInPerf.Run
+    FanInPerf.Settle
     FanInPerf.Stats
     FanInPerf.Store
     FanInPerf.Summary
@@ -160,6 +161,7 @@ test-suite fan-in-perf-tests
     FanInPerf.PoolSpec
     FanInPerf.PopulationSpec
     FanInPerf.ProduceSpec
+    FanInPerf.SettleSpec
     FanInPerf.StatsSpec
     FanInPerf.SummarySpec
     FanInPerf.TargetSpecParserSpec

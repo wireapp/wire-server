@@ -4,6 +4,7 @@ import Data.Text qualified as T
 import FanInPerf.ConsumeStats
 import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Stats
+import FanInPerf.Summary (DatabaseSummary (..))
 import FanInPerf.Targets (TargetKind (..))
 import FanInPerf.Terminal
 import Imports
@@ -99,6 +100,11 @@ spec = do
     it "survives an empty run" $
       formatSummary report {elapsed = 0, p50 = Nothing, p99 = Nothing}
         `shouldSatisfy` (not . any (T.isInfixOf "NaN"))
+
+  describe "formatDatabase" $
+    it "prints the deadlocks and the rows" $
+      formatDatabase DatabaseSummary {deadlocks = 0, rows = 5_211_640}
+        `shouldBe` ["  database: deadlocks=0 rows=5,211,640"]
 
   describe "formatConsumeStatus" $
     it "renders the consume status line" $

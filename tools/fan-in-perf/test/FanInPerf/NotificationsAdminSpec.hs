@@ -1,5 +1,7 @@
 module FanInPerf.NotificationsAdminSpec (spec) where
 
+import Data.Aeson (decode, toJSON)
+import Data.Aeson qualified as A
 import Data.Text qualified as T
 import FanInPerf.NotificationsAdmin
 import FanInPerf.NotificationsAdmin.Postgres
@@ -10,6 +12,7 @@ spec :: Spec
 spec = do
   dbNameSpec
   sqlSpec
+  serverInfoSpec
 
 dbNameSpec :: Spec
 dbNameSpec = describe "DbName" $ do
@@ -41,3 +44,11 @@ sqlSpec = describe "SQL rendering" $ do
     stmts `shouldContain` ["ALTER SYSTEM SET pg_partman_bgw.interval = 60"]
     stmts `shouldContain` ["ALTER SYSTEM SET pg_partman_bgw.role = 'partman_maintainer'"]
     listToMaybe (reverse stmts) `shouldBe` Just "SELECT pg_reload_conf()"
+
+serverInfoSpec :: Spec
+serverInfoSpec = describe "ServerInfo as JSON" $ do
+  it "has the version, the settings by name and the pg_partman version" $
+    Just (toJSON (ServerInfo "PostgreSQL 17.11" [("max_wal_size", "1GB"), ("shared_buffers", "128MB")] (Just "5.5.0")))
+      `shouldBe` decode "{\"version\":\"PostgreSQL 17.11\",\"settings\":{\"max_wal_size\":\"1GB\",\"shared_buffers\":\"128MB\"},\"partman_version\":\"5.5.0\"}"
+  it "has null without the extension" $
+    toJSON (ServerInfo "v" [] Nothing) `shouldBe` A.object ["version" A..= ("v" :: Text), "settings" A..= A.object [], "partman_version" A..= A.Null]

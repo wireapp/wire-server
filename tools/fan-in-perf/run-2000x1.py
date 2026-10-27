@@ -67,13 +67,11 @@ def fip(args, summary_json=None):
 
 
 def tool(args):
+    """Runs a short command of the tool (reset-db, vacuum, db-info); returns its output."""
     r = subprocess.run(fip(args), cwd=REPO, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"fan-in-perf {args[0]} failed: {(r.stdout + r.stderr).strip()[-300:]}")
-
-
-def deadlocks():
-    return int(psql("select deadlocks from pg_stat_database where datname = current_database()"))
+    return r.stdout
 
 
 # Partition count and oldest partition of user_notifications (pg_partman names
@@ -173,7 +171,7 @@ def end_text(e, duration):
 def parse(logpath):
     """The fields the report uses, from the tool's summary JSON of a run (`json`: all of it)."""
     j, text = load(logpath)
-    p, d, f, a = (j[k] or {} for k in ("pushes", "deliveries", "fetch", "acks"))
+    p, d, f, a, db = (j[k] or {} for k in ("pushes", "deliveries", "fetch", "acks", "database"))
     r = {
         "pushes": p.get("pushes"),
         "push_err": p.get("errors"),
@@ -191,6 +189,8 @@ def parse(logpath):
         "ack_err": a.get("errors"),
         "ack_p99": format_latency(a.get("latency", {}).get("p99")),
         "drain": drain_text(j["drain"]),
+        "deadlocks": db.get("deadlocks"),
+        "rows": db.get("rows"),
     }
     r["errors"] = sum(r[k] or 0 for k in ("push_err", "fetch_err", "ack_err"))
     r["summary"] = text
@@ -198,16 +198,8 @@ def parse(logpath):
     return r
 
 
-def reset_db(partman):
-    tool(["reset-db"] + (["--partitioned"] if partman else []))
-    if partman:
-        settle_partman()
-
-
 def run(label, args, partman):
-    reset_db(partman)
-    psql("checkpoint")
-    d0 = deadlocks()
+    tool(["reset-db"] + (["--partitioned"] if partman else []))  # waits for pg_partman to settle
     logpath = os.path.join(LOGDIR, label + ".log")
     dc = DropCounter() if partman and label.startswith("D") else None
     ticks = []  # (wall time, status line), to line them up with the drops
@@ -219,15 +211,13 @@ def run(label, args, partman):
         dc.join()
         if dc.error:
             raise dc.error
-    time.sleep(2)
     try:
         r = parse(logpath)
     except RuntimeError as e:
         raise RuntimeError(f"{label}: {e} (exit {rc})")
-    r.update(label=label, exit=rc, deadlocks=deadlocks() - d0, cmd="fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args))
+    r.update(label=label, exit=rc, cmd="fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args))
     if dc:
-        r.update(drops=len(dc.drops), gc=gc_impact(ticks, dc.drops, args[args.index("--duration") + 1]),
-                 rows=int(psql("select count(*) from user_notifications")))  # pushes - rows = expired by TTL
+        r.update(drops=len(dc.drops), gc=gc_impact(ticks, dc.drops, args[args.index("--duration") + 1]))  # pushes - rows = expired by TTL
     return r
 
 
@@ -296,20 +286,16 @@ def parse_consume_only(logpath):
 
 
 def run_split(label, produce_args, consume_args):
-    """reset, produce, VACUUM ANALYZE + CHECKPOINT (else autovacuum and hint-bit
-    writes would land in the measured read phase), consume-only."""
+    """reset, produce, vacuum (else autovacuum and hint-bit writes would land in
+    the measured read phase; the checkpoint after it is the start of consume-only), consume-only."""
     tool(["reset-db"])
-    psql("checkpoint")
-    d0 = deadlocks()
     plog = os.path.join(LOGDIR, label + "-produce.log")
     _, prc = tool_logged(plog, produce_args)
     try:
         p = parse(plog)
     except RuntimeError as e:
         raise RuntimeError(f"{label}: produce: {e} (exit {prc})")
-    psql("vacuum analyze")
-    psql("checkpoint")
-    rows = int(psql("select count(*) from user_notifications"))
+    tool(["vacuum"])
     clog = os.path.join(LOGDIR, label + "-consume.log")
     _, crc = tool_logged(clog, consume_args)
     try:
@@ -319,26 +305,12 @@ def run_split(label, produce_args, consume_args):
     cmd = lambda a: "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in a)
     return {
         **{k: v for k, v in c.items() if k != "json"},
-        "label": label, "exit": prc or crc, "deadlocks": deadlocks() - d0, "rows": rows, "drain": None,
+        "label": label, "exit": prc or crc, "deadlocks": p["deadlocks"] + c["deadlocks"], "rows": p["rows"], "drain": None,
         "pushes": p["pushes"], "push_s": p["push_s"], "push_p99": p["push_p99"], "push_err": p["push_err"],
         "errors": p["errors"] + c["errors"],
-        "cmd": cmd(produce_args) + "\npsql -c 'VACUUM ANALYZE' -c CHECKPOINT\n" + cmd(consume_args),
+        "cmd": cmd(produce_args) + "\n" + cmd(["vacuum"]) + "\n" + cmd(consume_args),
         "summary": "produce:\n" + p["summary"] + "\n\nconsume:\n" + c["summary"],
     }
-
-
-def settle_partman():
-    """The first maintenance run drops the premade past partitions in bulk; wait until the count is stable for 75 s."""
-    log("waiting for pg_partman to settle")
-    last, since, deadline = None, time.monotonic(), time.monotonic() + 240
-    while time.monotonic() < deadline:
-        n = psql(CHILDREN).split("|")[0]
-        if n != last:
-            last, since = n, time.monotonic()
-        elif time.monotonic() - since >= 75:
-            return
-        time.sleep(5)
-    log("warning: partition count did not settle")
 
 
 # ------------------------------------------------------------ report
@@ -397,11 +369,11 @@ def report(res, env):
          f"- Load: `--targets {TARGETS}`: 2,000 users with one client each; every push writes 1 notification to 1 user stream (plus its `last_user_notifications` upsert) in one transaction, read by 1 client, so cons/s = push/s. B-D: `--clients {CLIENTS}`, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
          f"- Writers A={W_A}, B={W_B}, C/D={W_C}; reader pool B={POOL_B}, C/D={POOL_C}: highest rate in sweeps beforehand at which readers keep up. Seed {SEED}. One run each.",
          f"- Rates are averages over the writer phase incl. {WARMUP} s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
-         f"- E, F (plain only): `reset-db`, `produce` ({W_SPLIT} writers, {split_dur} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
+         f"- E, F (plain only): `reset-db`, `produce` ({W_SPLIT} writers, {split_dur} s), `vacuum` (VACUUM ANALYZE), then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
          *(["- `--quick`: all durations divided by 10 (smoke test), the numbers are not comparable to a full run."] if QUICK > 1 else []),
          "- Only the `user` stream kind is exercised (no client/team/epoch streams, fan-out 1); not comparable to runs with a mixed target set.",
          "",
-         "Before each run `reset-db` (`--partitioned` for partman; then wait for pg_partman to settle). Commands:", "", "```"]
+         "Before each run `reset-db` (`--partitioned` for partman, which waits for pg_partman to settle); every run starts with a CHECKPOINT. Commands:", "", "```"]
     L += [r["cmd"] for r in res.values() if r["label"].endswith("plain")]
     L += ["```", *(["(partman: same commands for A-D; E, F run on plain tables only)"] if partman else []), ""]
     for exp in "ABCDEF":
@@ -450,7 +422,7 @@ def report(res, env):
         if x and not x["end"].startswith("all readers caught up"):
             notes.append(f"- {e}-plain: consume-only ended: {x['end']}")
         if x and x["rows_total"] != x["rows"]:
-            notes.append(f"- {e}-plain: consume-only counted {cell(x['rows_total'])} rows, psql {x['rows']:,}")
+            notes.append(f"- {e}-plain: consume-only counted {cell(x['rows_total'])} rows, the database {x['rows']:,}")
     for r in res.values():
         if r["drain"] and not r["drain"].startswith("complete"):
             notes.append(f"- {r['label']}: drain {r['drain']}")
@@ -468,16 +440,21 @@ def report(res, env):
     return "\n".join(L)
 
 
+def db_info():
+    """The tool's db-info: server version, the settings that matter for the numbers, pg_partman version (None without)."""
+    return json.loads(tool(["db-info"]))
+
+
 def env():
     kb = int(re.search(r"MemTotal:\s+(\d+)", open("/proc/meminfo").read()).group(1))
+    info = db_info()
     return {
         "date": datetime.date.today().isoformat(),
         "commit": subprocess.run(["git", "log", "-1", "--format=%h"], cwd=REPO, capture_output=True, text=True).stdout.strip(),
         "cpus": os.cpu_count(),
         "mem": f"{kb / 1048576:.0f} GiB",
-        "pg": psql("select split_part(version(), ' on ', 1)"),
-        "settings": psql("select string_agg(name || '=' || current_setting(name), ', ' order by name) from pg_settings "
-                         "where name in ('shared_buffers', 'max_wal_size', 'synchronous_commit', 'max_connections')"),
+        "pg": info["version"],
+        "settings": ", ".join(f"{k}={v}" for k, v in sorted(info["settings"].items())),
     }
 
 
@@ -507,11 +484,12 @@ def main():
         if not runs and not splits:
             continue
         log(f"database for {mode}")
-        tool(["reset-db"] + (["--partitioned"] if mode == "partman" else []))
+        # every run resets again (and settles); this one only creates the database to ask
+        tool(["reset-db"] + (["--partitioned", "--no-settle"] if mode == "partman" else []))
         if e is None:
             e = env()
         if mode == "partman":
-            e["partman"] = psql("select extversion from pg_extension where extname = 'pg_partman'")
+            e["partman"] = db_info()["partman_version"]
         for exp, a in runs:
             log(f"{exp} {mode}")
             res[f"{exp}-{mode}"] = run(f"{exp}-{mode}", a, mode == "partman")

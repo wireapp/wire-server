@@ -56,25 +56,27 @@ fan-in-perf --db "$DB" produce --writers 32 --targets user:2000x1 --duration 60 
 fan-in-perf --db "$DB" consume-only --targets user:2000x1 --seed 42
 ```
 
-`run-experiments.py --db "$DB" --out results.md` runs A-D on plain and
-partitioned tables (about 55 min; `--quick` for a smoke test) and writes the
-results as markdown (for the Jira ticket). It drops and recreates the database.
-`run-2000x1.py` does the same for a fixed `user:2000x1` load and also runs the
-split experiments E and F (`--only E,F`: just those).
+`run-2000x1.py` runs A-D on plain and partitioned tables for a fixed
+`user:2000x1` load, plus the split experiments E and F on plain tables
+(`--only E,F`: just those), and writes the results as markdown (for the Jira
+ticket). It takes about 50 minutes (`--quick` for a smoke test) and drops and
+recreates the database. It reads each run's [summary JSON](#summary-json).
 
 Global flags go before the sub-command. The tool prints a status line per
-second and a summary at the end. Ctrl-C stops a run without `--duration`.
+second and a summary at the end. Ctrl-C stops a run without `--duration`. Every `produce` and `consume*` run starts with a `CHECKPOINT` (so each run starts at the same point of the checkpoint cycle, not with the dirty pages of the previous run or of `reset-db`) and ends with the database's deadlock count and row count; both happen outside the measured phase.
 
 ## Commands and parameters
 
 | Command | Experiment | Does |
 |---|---|---|
-| `reset-db [--partitioned]` | – | Creates the `--db` database if missing, drops all fan-in tables (both shapes) and pg_partman (extension and schema `partman`), then creates the tables of `sql/` from scratch (`fan-in-common.sql` + `fan-in-notifications-plain.sql`). No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman first. Always ends with empty tables. |
+| `reset-db [--partitioned]` | – | Creates the `--db` database if missing, drops all fan-in tables (both shapes) and pg_partman (extension and schema `partman`), then creates the tables of `sql/` from scratch (`fan-in-common.sql` + `fan-in-notifications-plain.sql`). No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman first. Always ends with empty tables. With `--partitioned` it then waits until pg_partman's first maintenance run is done (the total partition count of the six `*_notifications` tables unchanged for 75 s, at most 240 s); `--no-settle` skips that. |
 | `produce` | A | Writers push as fast as possible. |
 | `consume` | B | `produce` writers plus simulated reader clients. |
 | `consume-ack` | C | `consume` where every reader also acknowledges. |
 | `consume-only` | E | Readers only: every one fetches what an earlier `produce` run left, once, and stops. |
 | `consume-only-ack` | F | `consume-only` where every reader also acknowledges. |
+| `vacuum` | – | `VACUUM ANALYZE` of the experiment database, e.g. between `produce` and `consume-only`. |
+| `db-info` | – | Prints the server version, the settings that matter for the numbers (`shared_buffers`, `max_wal_size`, `synchronous_commit`, `max_connections`) and the pg_partman version as JSON. |
 
 ### Global
 
@@ -118,6 +120,8 @@ outside the measured phase.
 | `drain.state`, `.seconds` | `consume`, `consume-ack` | `complete`, `stalled`, `timed_out` or `interrupted`; time the drain took (`null` if interrupted). |
 | `end` | `consume-only*` | `finished` (every reader caught up), `timed_out` or `interrupted`. |
 | `rows_total` | `consume-only*` | Rows in the counted streams (`user`, `client`, `team`, `epoch`) of the database. |
+| `database.deadlocks` | `produce`, `consume*` | Deadlocks the database detected during the run. |
+| `database.rows` | `produce`, `consume*` | Rows in the six `*_notifications` tables after the run. |
 
 ### `produce`
 
@@ -214,7 +218,7 @@ write load. E and F separate them to show the raw consumption speed:
 ```sh
 fan-in-perf --db "$DB" reset-db
 fan-in-perf --db "$DB" produce --targets T --clients-per-user K --seed S --duration D
-psql "$DB" -c 'VACUUM ANALYZE' -c CHECKPOINT      # optional, see below
+fan-in-perf --db "$DB" vacuum                           # optional, see below
 fan-in-perf --db "$DB" consume-only --targets T --clients-per-user K --seed S
 ```
 
@@ -253,7 +257,7 @@ Caveats:
 
 - The rows were just written, so caches are warm. Autovacuum, hint-bit
   writes and a pending checkpoint would otherwise happen inside the measured
-  reads: run `VACUUM ANALYZE` and `CHECKPOINT` between the phases.
+  reads: run `vacuum` between the phases (the checkpoint comes with `consume-only`).
 - Use plain tables. The partitioned tables of D delete rows after 5 minutes,
   which would show up as `missing`; `consume-only` warns when it finds them.
 - `produce` ends by cancelling its writers; pushes in flight then may commit
@@ -336,9 +340,9 @@ Notes:
 - Plain `reset-db` drops pg_partman but does not set it up; only
   `reset-db --partitioned` does. Server `ALTER SYSTEM` settings from an earlier D run persist, which
   keeps the baseline server config identical.
-- Every `reset-db --partitioned` premakes 10 past partitions again; wait for
-  the first bgw tick to drop about 5 empty ones before measuring (the run
-  scripts do).
+- Every `reset-db --partitioned` premakes 10 past partitions again; it waits
+  for the first bgw tick to drop about 5 empty ones before returning (unless
+  `--no-settle`), so a run started afterwards is not disturbed.
 
 ### Verifying the setup
 

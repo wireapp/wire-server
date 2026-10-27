@@ -43,7 +43,7 @@ def window(logpath):
 
 
 def check_db(logpath):
-    r = run.parse(open(logpath).read())
+    r = run.parse(logpath)
     q = run.psql
     rows, distinct, users = q("select count(*), count(distinct notification_id), count(distinct user_id) from user_notifications").split("|")
     partitioned = q("select count(*) from pg_partitioned_table where partrelid = 'user_notifications'::regclass") == "1"
@@ -64,7 +64,7 @@ def check_db(logpath):
 
 def check_prom(logdir):
     for logpath in sorted(glob.glob(os.path.join(logdir, "*.log"))):
-        r = run.parse(open(logpath).read())
+        r = run.parse(logpath)
         t0, t1 = window(logpath)
         d = t1 - t0
 
@@ -74,11 +74,9 @@ def check_prom(logdir):
 
         up = prom("query", query=f'min_over_time(up{{job="fan-in-perf"}}[{d - 5}s])', time=t1)
         errs = sum(total(m) for m in ("fanin_perf_errors_total", "fanin_perf_fetch_errors_total", "fanin_perf_ack_errors_total"))
-        delivered = re.search(r"delivered=([\d,]+)", r["summary"])
-        acks = re.search(r"^  acks=([\d,]+)", r["summary"], re.M)
         print(f"{os.path.basename(logpath)}: pushes prom {total('fanin_perf_pushes_total'):,} / tool {r['pushes']:,}"
-              + (f", delivered {total('fanin_perf_consumed_total'):,} / {delivered.group(1)}" if delivered else "")
-              + (f", acks {total('fanin_perf_acks_total'):,} / {acks.group(1)}" if acks else "")
+              + (f", delivered {total('fanin_perf_consumed_total'):,} / {r['delivered']:,}" if r["delivered"] is not None else "")
+              + (f", acks {total('fanin_perf_acks_total'):,} / {r['acks']:,}" if r["acks"] is not None else "")
               + f", errors prom {errs} / tool {r['errors']}, scrape up min {up[0]['value'][1] if up else '-'}")
 
 

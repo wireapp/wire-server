@@ -74,10 +74,10 @@ spec = do
       `shouldBe` Produce (ProduceOptions 4 (TargetConfig KindUser 100 5 :| []) 2 64 (Just 30) 0 (Just (-42)))
 
   it "parses reset-db" $
-    fmap (.command) (parse ["--db", "x", "reset-db"]) `shouldBe` Just (ResetDb Plain)
+    fmap (.command) (parse ["--db", "x", "reset-db"]) `shouldBe` Just (ResetDb (ResetOptions Plain True))
 
   it "parses reset-db --partitioned" $
-    fmap (.command) (parse ["--db", "x", "reset-db", "--partitioned"]) `shouldBe` Just (ResetDb Partitioned)
+    fmap (.command) (parse ["--db", "x", "reset-db", "--partitioned"]) `shouldBe` Just (ResetDb (ResetOptions Partitioned True))
 
   it "parses consume with defaults" $ do
     o <- parseOk ["--db", "postgresql://u:p@localhost/db", "consume", "--targets", "user:100,team:1"]
@@ -241,3 +241,8 @@ spec = do
   it "takes the summary file as a global flag" $ do
     o <- parseOk ["--db", "x", "--summary-json", "out.json", "produce", "--targets", "team:10"]
     o.global.summaryJson `shouldBe` Just "out.json"
+
+  it "parses reset-db --no-settle, vacuum and db-info" $ do
+    fmap (.command) (parse ["--db", "x", "reset-db", "--partitioned", "--no-settle"]) `shouldBe` Just (ResetDb (ResetOptions Partitioned False))
+    fmap (.command) (parse ["--db", "x", "vacuum"]) `shouldBe` Just Vacuum
+    fmap (.command) (parse ["--db", "x", "db-info"]) `shouldBe` Just DbInfo

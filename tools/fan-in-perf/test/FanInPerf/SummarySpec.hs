@@ -79,6 +79,12 @@ spec = do
       let v = toJSON (produceSummary report)
       field ["pushes", "rate_max"] v `shouldBe` Just A.Null
       field ["pushes", "latency", "p50"] v `shouldBe` Just A.Null
+    it "has no database section until the caller adds it, then deadlocks and rows" $ do
+      let s = produceSummary report
+      field ["database"] (toJSON s) `shouldBe` Just A.Null
+      let v = toJSON s {database = Just DatabaseSummary {deadlocks = 2, rows = 1_000}}
+      field ["database", "deadlocks"] v `shouldBe` num 2
+      field ["database", "rows"] v `shouldBe` num 1000
     it "round-trips through JSON text" $
       (decode (encode (produceSummary report)) :: Maybe Value) `shouldSatisfy` isJust
 

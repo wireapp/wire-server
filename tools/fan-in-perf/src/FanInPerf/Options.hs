@@ -5,6 +5,7 @@ module FanInPerf.Options
     ConsumeOnlyOptions (..),
     ReaderOptions (..),
     readerOptions,
+    ResetOptions (..),
     ReaderMode (..),
     experimentLabel,
     consumeOnlyLabel,
@@ -104,7 +105,20 @@ consumeOnlyLabel = \case
   NoAcks -> "consume-only"
   Acks _ -> "consume-only-ack"
 
-data Command = ResetDb SchemaShape | Produce ProduceOptions | Consume ConsumeOptions | ConsumeOnly ConsumeOnlyOptions
+data ResetOptions = ResetOptions
+  { shape :: SchemaShape,
+    -- | wait for pg_partman's first maintenance run ('Partitioned' only)
+    settle :: Bool
+  }
+  deriving (Eq, Show)
+
+data Command
+  = ResetDb ResetOptions
+  | Vacuum
+  | DbInfo
+  | Produce ProduceOptions
+  | Consume ConsumeOptions
+  | ConsumeOnly ConsumeOnlyOptions
   deriving (Eq, Show)
 
 data Options = Options
@@ -123,7 +137,9 @@ optionsParser =
   Options
     <$> globalParser
     <*> hsubparser
-      ( O.command "reset-db" (info (ResetDb <$> shapeParser) (progDesc "Create the experiment database if missing, drop the fan-in notification tables and pg_partman if present, and create the tables from scratch (with --partitioned: partitioned, configures pg_partman)"))
+      ( O.command "reset-db" (info (ResetDb <$> resetParser) (progDesc "Create the experiment database if missing, drop the fan-in notification tables and pg_partman if present, and create the tables from scratch (with --partitioned: partitioned, configures pg_partman and waits until its first maintenance run is done)"))
+          <> O.command "vacuum" (info (pure Vacuum) (progDesc "VACUUM ANALYZE the experiment database, e.g. between 'produce' and 'consume-only'"))
+          <> O.command "db-info" (info (pure DbInfo) (progDesc "Print the server version, the settings that matter for the numbers and the pg_partman version as JSON"))
           <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
           <> O.command "consume" (info (Consume <$> consumeParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
           <> O.command "consume-ack" (info (Consume <$> consumeParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment C: like consume, but every client acknowledges the notifications it received"))
@@ -296,6 +312,8 @@ isolationReader = eitherReader $ \case
 targetsReader :: ReadM (NonEmpty TargetConfig)
 targetsReader = eitherReader (parseTargetSpec . T.pack)
 
-shapeParser :: Parser SchemaShape
-shapeParser =
-  flag Plain Partitioned (long "partitioned" <> help "Use pg_partman partitioned notification tables (experiment D) instead of the plain ones")
+resetParser :: Parser ResetOptions
+resetParser =
+  ResetOptions
+    <$> flag Plain Partitioned (long "partitioned" <> help "Use pg_partman partitioned notification tables (experiment D) instead of the plain ones")
+    <*> (not <$> switch (long "no-settle" <> help "With --partitioned: do not wait for pg_partman's first maintenance run (it drops the premade past partitions in bulk, which would disturb a run started right away)"))

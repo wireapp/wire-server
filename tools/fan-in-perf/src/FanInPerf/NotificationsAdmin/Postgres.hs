@@ -43,6 +43,13 @@ interpretFanInNotificationsAdminToPostgres = interpret $ \case
   -- block, so each is sent as its own single-statement script.
   CreateDatabase n -> runSessionWithRetry $ Session.script (createDatabaseSql n)
   SetupPartman n -> runSessionWithRetry $ traverse_ Session.script (setupPartmanSql n)
+  -- like CREATE DATABASE: not inside a transaction block (VACUUM cannot)
+  Checkpoint -> runSessionWithRetry $ Session.script "CHECKPOINT"
+  VacuumAnalyze -> runSessionWithRetry $ Session.script "VACUUM ANALYZE"
+  CountDeadlocks -> fromIntegral <$> runStatement () deadlocksStatement
+  CountRows -> fromIntegral <$> runStatement () countRowsStatement
+  CountPartitions -> fromIntegral <$> runStatement () countPartitionsStatement
+  GetServerInfo -> serverInfoImpl
 
 createDatabaseSql :: DbName -> Text
 createDatabaseSql n = "CREATE DATABASE " <> quoteIdent n
@@ -152,6 +159,72 @@ countEpochStatement =
   [vectorStatement|
     select group_id :: bytea, epoch :: int8, count(*) :: int8
     from epoch_notifications group by group_id, epoch
+  |]
+
+deadlocksStatement :: Statement.Statement () Int64
+deadlocksStatement =
+  [singletonStatement|
+    select deadlocks :: int8 from pg_stat_database where datname = current_database()
+  |]
+
+-- | Keep the table list in sync with the @sql/*.sql@ files.
+countRowsStatement :: Statement.Statement () Int64
+countRowsStatement =
+  [singletonStatement|
+    select (
+      (select count(*) from user_notifications)
+      + (select count(*) from client_notifications)
+      + (select count(*) from team_notifications)
+      + (select count(*) from epoch_notifications)
+      + (select count(*) from local_connection_notifications)
+      + (select count(*) from remote_connection_notifications)
+    ) :: int8
+  |]
+
+-- | Partitions of all six @*_notifications@ tables (to_regclass is NULL for a
+-- missing table, which IN ignores). Keep the table list in sync with the
+-- @sql/*.sql@ files.
+countPartitionsStatement :: Statement.Statement () Int64
+countPartitionsStatement =
+  [singletonStatement|
+    select count(*) :: int8 from pg_inherits
+    where inhparent in (
+      to_regclass('user_notifications'),
+      to_regclass('client_notifications'),
+      to_regclass('team_notifications'),
+      to_regclass('epoch_notifications'),
+      to_regclass('local_connection_notifications'),
+      to_regclass('remote_connection_notifications')
+    )
+  |]
+
+-- | The settings that matter for the numbers of a run.
+serverInfoImpl :: (PGConstraints r) => Sem r ServerInfo
+serverInfoImpl = do
+  version <- runStatement () versionStatement
+  settings <- V.toList <$> runStatement () settingsStatement
+  partmanVersion <- runStatement () partmanVersionStatement
+  pure ServerInfo {version, settings, partmanVersion}
+
+versionStatement :: Statement.Statement () Text
+versionStatement =
+  [singletonStatement|
+    select split_part(version(), ' on ', 1) :: text
+  |]
+
+settingsStatement :: Statement.Statement () (V.Vector (Text, Text))
+settingsStatement =
+  [vectorStatement|
+    select name :: text, current_setting(name) :: text
+    from pg_settings
+    where name in ('shared_buffers', 'max_wal_size', 'synchronous_commit', 'max_connections')
+    order by name
+  |]
+
+partmanVersionStatement :: Statement.Statement () (Maybe Text)
+partmanVersionStatement =
+  [maybeStatement|
+    select extversion :: text from pg_extension where extname = 'pg_partman'
   |]
 
 pingStatement :: Statement.Statement () ()
