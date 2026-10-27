@@ -188,6 +188,7 @@ library
     Test.Migration.MeetingLinks
     Test.Migration.Nonce
     Test.Migration.PasswordReset
+    Test.Migration.PushTokens
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util
