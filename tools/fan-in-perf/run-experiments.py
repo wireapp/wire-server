@@ -591,7 +591,7 @@ def write_report(ctx, state):
     L.append("# Notification fan-in: PostgreSQL benchmark results (WPB-26288)")
     if ctx.quick:
         L += ["", "**QUICK RUN: durations divided by 10, numbers are not results.**"]
-    L += ["", "Driver: `tools/fan-in-perf/run-experiments.py`, tool: `fan-in-perf` (`libs/wire-subsystems` store, SQL in `libs/wire-subsystems/fan-in-sql/`).", ""]
+    L += ["", "Driver: `tools/fan-in-perf/run-experiments.py`, tool: `fan-in-perf` (own store, SQL in `tools/fan-in-perf/sql/`).", ""]
     L.append("## Setup")
     L += ["", f"- Date: {ctx.env['date']}, commit: {ctx.env['commit']}",
           f"- Host: {ctx.env['cpus']} CPUs, {ctx.env['mem']} RAM; tool and PostgreSQL share it ({ctx.env['pg']})",
