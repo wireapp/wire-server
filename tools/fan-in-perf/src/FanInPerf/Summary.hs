@@ -19,11 +19,10 @@ module FanInPerf.Summary
   )
 where
 
-import Data.Aeson (ToJSON (..), Value, camelTo2, genericToJSON, object, (.=))
-import Data.Aeson qualified as A
+import Data.Aeson (ToJSON (..), Value, genericToJSON, object, (.=))
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.ConsumeStats
-import FanInPerf.GcImpact (GcImpact)
+import FanInPerf.GcImpact (GcImpact, jsonOptions)
 import FanInPerf.Options (ReaderMode (..), consumeOnlyLabel, experimentLabel)
 import FanInPerf.Stats
 import Imports
@@ -147,9 +146,6 @@ data RunSummary = RunSummary
     gc :: Maybe GcImpact
   }
   deriving stock (Generic)
-
-jsonOptions :: A.Options
-jsonOptions = A.defaultOptions {A.fieldLabelModifier = camelTo2 '_'}
 
 instance ToJSON Percentiles where toJSON = genericToJSON jsonOptions
 

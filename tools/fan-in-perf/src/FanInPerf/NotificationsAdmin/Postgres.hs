@@ -48,7 +48,7 @@ interpretFanInNotificationsAdminToPostgres = interpret $ \case
   VacuumAnalyze -> runSessionWithRetry $ Session.script "VACUUM ANALYZE"
   CountDeadlocks -> fromIntegral <$> runStatement () deadlocksStatement
   CountRows -> fromIntegral <$> runStatement () countRowsStatement
-  CountPartitions -> fromIntegral <$> runStatement () countPartitionsStatement
+  CountPartitions -> fromIntegral <$> runStatement (V.fromList notificationTables) countPartitionsStatement
   OldestPartitions -> V.toList <$> runStatement (V.fromList notificationTables) oldestPartitionsStatement
   GetServerInfo -> serverInfoImpl
 
@@ -182,21 +182,14 @@ countRowsStatement =
     ) :: int8
   |]
 
--- | Partitions of all six @*_notifications@ tables (to_regclass is NULL for a
--- missing table, which IN ignores). Keep the table list in sync with the
--- @sql/*.sql@ files.
-countPartitionsStatement :: Statement.Statement () Int64
+-- | Partitions of the given tables (to_regclass is NULL for a missing table,
+-- which matches nothing).
+countPartitionsStatement :: Statement.Statement (V.Vector Text) Int64
 countPartitionsStatement =
   [singletonStatement|
-    select count(*) :: int8 from pg_inherits
-    where inhparent in (
-      to_regclass('user_notifications'),
-      to_regclass('client_notifications'),
-      to_regclass('team_notifications'),
-      to_regclass('epoch_notifications'),
-      to_regclass('local_connection_notifications'),
-      to_regclass('remote_connection_notifications')
-    )
+    select count(*) :: int8
+    from unnest($1 :: text[]) as t(name)
+    join pg_inherits i on i.inhparent = to_regclass(t.name)
   |]
 
 -- | One row per given table, also for one without partitions.

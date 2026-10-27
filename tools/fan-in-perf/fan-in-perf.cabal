@@ -80,6 +80,7 @@ library
     FanInPerf.Consume
     FanInPerf.ConsumeStats
     FanInPerf.Database
+    FanInPerf.GcImpact
     FanInPerf.Metrics
     FanInPerf.NotificationsAdmin
     FanInPerf.NotificationsAdmin.Postgres
@@ -154,6 +155,7 @@ test-suite fan-in-perf-tests
     FanInPerf.ConsumeSpec
     FanInPerf.ConsumeStatsSpec
     FanInPerf.DatabaseSpec
+    FanInPerf.GcImpactSpec
     FanInPerf.MetricsSpec
     FanInPerf.NotificationsAdminSpec
     FanInPerf.NotificationsStore.PostgresSpec

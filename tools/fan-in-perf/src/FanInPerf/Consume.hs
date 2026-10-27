@@ -552,12 +552,10 @@ withDropSampler start (Just env) dropsRef act =
   withAsync (go Nothing) $ \samplerA -> link samplerA >> act
   where
     go previous = do
-      current <- Map.fromList <$> (runStore env oldestPartitions >>= either (fail . ("sampling the partitions failed: " <>) . show) pure)
+      current <- Map.fromList <$> runOrAbort "sampling the partitions" env oldestPartitions
       now <- getMonotonicTime
       for_ previous $ \before ->
-        case detectDrops (now - start) before current of
-          [] -> pure ()
-          events -> atomicModifyIORef' dropsRef (\ds -> (events <> ds, ()))
+        atomicModifyIORef' dropsRef (\ds -> (detectDrops (now - start) before current <> ds, ()))
       threadDelay 1_000_000
       go (Just current)
 
@@ -581,7 +579,7 @@ runConsumeOnly console env opts = do
       <> " seed="
       <> showT opts.seed
   traverse_ (printLine console) (formatCoverage (coverage population.subscribers entries))
-  counts <- runStore env countStreams >>= either (\e -> die ("counting rows failed: " <> show e)) pure
+  counts <- runOrAbort "counting rows" env countStreams
   let totalRows = sum (map snd counts)
       subscribed = subscribedRows population.subscribers counts
       expected = expectedFromCounts population.subscribers counts

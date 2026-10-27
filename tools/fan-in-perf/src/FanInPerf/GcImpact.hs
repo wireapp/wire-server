@@ -11,6 +11,7 @@ module FanInPerf.GcImpact
     gcWindowSeconds,
     sampleOf,
     gcImpact,
+    jsonOptions,
   )
 where
 
@@ -94,6 +95,7 @@ data GcImpact = GcImpact
   }
   deriving stock (Eq, Show, Generic)
 
+-- | snake_case field names, for all summary JSON.
 jsonOptions :: A.Options
 jsonOptions = A.defaultOptions {A.fieldLabelModifier = camelTo2 '_'}
 

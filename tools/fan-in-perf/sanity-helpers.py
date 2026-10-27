@@ -31,7 +31,6 @@ _spec.loader.exec_module(run)
 # Partition count and oldest partition of user_notifications (pg_partman names
 # partitions by start time, so the smallest name is the oldest; '' if unpartitioned).
 CHILDREN = "select count(*), coalesce(min(c.relname), '') from pg_inherits i join pg_class c on c.oid = i.inhrelid where i.inhparent = 'user_notifications'::regclass"
-GC_WINDOW = 5  # seconds around a drop, as the tool's FanInPerf.GcImpact.gcWindowSeconds
 
 
 def psql(sql):
@@ -96,6 +95,10 @@ def check_prom(logdir):
 
 def check_gc(logpath):
     t0, t1 = window(logpath)
+    gc = run.parse(logpath)["gc"]
+    if not gc:
+        sys.exit("no gc section in the summary (not a consume run on partitioned tables)")
+    gc_window = gc["window_seconds"]
     queries = {
         "push/s": "sum(fanin_perf_push_rate_current)",
         "ack/s": "sum(fanin_perf_ack_rate_current)",
@@ -116,12 +119,12 @@ def check_gc(logpath):
     drops = [t for a, t in zip(ts, ts[1:]) if age[t] < age[a] - 30]
     print(f"drops: {len(drops)} at +{[t - t0 for t in drops]} s; oldest partition age {min(age.values()):.0f}-{max(age.values()):.0f} s; "
           f"max seconds since maintenance {max(series('max(fan_in_partman_seconds_since_maintenance)').values(), default=float('nan')):.1f}")
-    near = lambda t: any(abs(t - d) <= GC_WINDOW for d in drops)
+    near = lambda t: any(abs(t - d) <= gc_window for d in drops)
     for name, q in queries.items():
         s = {t: v for t, v in series(q).items() if v == v}
         i, o = [v for t, v in s.items() if near(t)], [v for t, v in s.items() if not near(t)]
         if i and o:
-            print(f"{name}: within {GC_WINDOW} s of a drop median {statistics.median(i):.4g} max {max(i):.4g} (n={len(i)}) | "
+            print(f"{name}: within {gc_window} s of a drop median {statistics.median(i):.4g} max {max(i):.4g} (n={len(i)}) | "
                   f"other median {statistics.median(o):.4g} max {max(o):.4g} (n={len(o)})")
 
 

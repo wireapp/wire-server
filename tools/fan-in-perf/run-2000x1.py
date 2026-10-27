@@ -46,6 +46,7 @@ SPLIT_PRODUCE, SPLIT_WARMUP, SPLIT_TIMEOUT = 300, 2, 1200
 # average; 16, 32 and 48 never did in repeated runs.
 POOL_SPLIT = 32
 QUICK = 1  # --quick: durations divided by this
+BIN = None  # the built fan-in-perf binary, set by main (no `cabal run` check per call)
 
 
 def log(msg):
@@ -53,7 +54,7 @@ def log(msg):
 
 
 def fip(args, summary_json=None):
-    return ["cabal", "run", "exe:fan-in-perf", "--", "--db", DB] + (["--summary-json", summary_json] if summary_json else []) + [str(a) for a in args]
+    return [BIN, "--db", DB] + (["--summary-json", summary_json] if summary_json else []) + [str(a) for a in args]
 
 
 def tool(args):
@@ -126,25 +127,24 @@ def parse(logpath):
         "deadlocks": db.get("deadlocks"),
         "rows": db.get("rows"),  # pushes - rows = expired by TTL
     }
-    if j["gc"]:  # consume runs on partitioned tables: the tool sampled the partition drops
-        gc = j["gc"]
-        window = lambda w: {"seconds": w["seconds"], "push_s": w["push_rate"], "ack_s": w["ack_rate"], "ack_p99": w["ack_p99"],
-                            "ack_p99_max": w["ack_p99_max"], "lag_p99": w["lag_p99"], "backlog": w["backlog"]}
-        r.update(drops=gc["drops"], drops_by_table=gc["drops_by_table"], gc_window=gc["window_seconds"], gc={True: window(gc["within"]), False: window(gc["other"])})
+    r["gc"] = j["gc"]  # consume runs on partitioned tables: the tool sampled the partition drops
     r["errors"] = sum(r[k] or 0 for k in ("push_err", "fetch_err", "ack_err"))
     r["summary"] = text
-    r["json"] = j
     return r
+
+
+def logged_run(label, logpath, args, parser=parse):
+    """Runs the tool with its output logged; -> (parsed summary, exit code)."""
+    _, rc = tool_logged(logpath, args)
+    try:
+        return parser(logpath), rc
+    except RuntimeError as e:
+        raise RuntimeError(f"{label}: {e} (exit {rc})")
 
 
 def run(label, args, partman):
     tool(["reset-db"] + (["--partitioned"] if partman else []))  # waits for pg_partman to settle
-    logpath = os.path.join(LOGDIR, label + ".log")
-    _, rc = tool_logged(logpath, args)
-    try:
-        r = parse(logpath)
-    except RuntimeError as e:
-        raise RuntimeError(f"{label}: {e} (exit {rc})")
+    r, rc = logged_run(label, os.path.join(LOGDIR, label + ".log"), args)
     r.update(label=label, exit=rc, cmd="fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args))
     return r
 
@@ -179,16 +179,14 @@ def split_experiments():
     ]
 
 
-def tool_logged(logpath, args, on_line=None):
-    """Runs the tool, logs its output (and passes each line to on_line); returns (output, exit code)."""
+def tool_logged(logpath, args):
+    """Runs the tool and logs its output; returns (output, exit code)."""
     lines = []
     with open(logpath, "w") as lf:
         p = subprocess.Popen(fip(args, summary_json(logpath)), cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in p.stdout:
             lf.write(line)
             lines.append(line)
-            if on_line:
-                on_line(line)
         rc = p.wait()
     return "".join(lines), rc
 
@@ -196,7 +194,7 @@ def tool_logged(logpath, args, on_line=None):
 def parse_consume_only(logpath):
     """The consume-only log: `parse` for the fields it shares with the others, plus its own."""
     r = parse(logpath)
-    j = r["json"]
+    j, _ = load(logpath)
     d = j["deliveries"]
     milestone = lambda pct: next((f"{m['seconds']:.1f}s" if m["seconds"] is not None else "-" for m in d["milestones"] if m["percent"] == pct), None)
     r.update(
@@ -217,22 +215,12 @@ def run_split(label, produce_args, consume_args):
     """reset, produce, vacuum (else autovacuum and hint-bit writes would land in
     the measured read phase; the checkpoint after it is the start of consume-only), consume-only."""
     tool(["reset-db"])
-    plog = os.path.join(LOGDIR, label + "-produce.log")
-    _, prc = tool_logged(plog, produce_args)
-    try:
-        p = parse(plog)
-    except RuntimeError as e:
-        raise RuntimeError(f"{label}: produce: {e} (exit {prc})")
+    p, prc = logged_run(f"{label}: produce", os.path.join(LOGDIR, label + "-produce.log"), produce_args)
     tool(["vacuum"])
-    clog = os.path.join(LOGDIR, label + "-consume.log")
-    _, crc = tool_logged(clog, consume_args)
-    try:
-        c = parse_consume_only(clog)
-    except RuntimeError as e:
-        raise RuntimeError(f"{label}: consume: {e} (exit {crc})")
+    c, crc = logged_run(f"{label}: consume", os.path.join(LOGDIR, label + "-consume.log"), consume_args, parse_consume_only)
     cmd = lambda a: "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in a)
     return {
-        **{k: v for k, v in c.items() if k != "json"},
+        **c,
         "label": label, "exit": prc or crc, "deadlocks": p["deadlocks"] + c["deadlocks"], "rows": p["rows"], "drain": None,
         "pushes": p["pushes"], "push_s": p["push_s"], "push_p99": p["push_p99"], "push_err": p["push_err"],
         "errors": p["errors"] + c["errors"],
@@ -276,14 +264,16 @@ def gc_section(pm):
     """The TTL GC paragraph and table of D partman (printed right after D's table)."""
     expired = pm["pushes"] - pm["rows"]
     secs_expired = expired / pm["push_s"] if pm["push_s"] else 0
-    i, o = pm["gc"][True], pm["gc"][False]
-    f = lambda x, ms=False: "-" if x is None else (f"{x * 1000:.1f}ms" if x < 1 else f"{x:.2f}s") if ms else f"{x:,.0f}"
-    by_table = ", ".join(f"`{t}` {n}" for t, n in sorted(pm["drops_by_table"].items()))
-    return [f"D partman: {pm['drops']} partition drops over the six tables ({by_table}; each takes an `ACCESS EXCLUSIVE` lock on its table); {expired:,} rows (about {secs_expired:.0f} s of pushes) were expired by TTL, i.e. the later drops held data.", "",
-          f"Impact of the drops: per-second figures within {pm['gc_window']:g} s of a drop vs. all other seconds of D partman (medians):", "",
+    gc = pm["gc"]
+    win = gc["window_seconds"]
+    count = lambda x: cell(None if x is None else round(x))
+    row = lambda name, w: (f"| {name} | {w['seconds']} | {count(w['push_rate'])} | {count(w['ack_rate'])} | {cell(format_latency(w['ack_p99']))} | "
+                           f"{cell(format_latency(w['ack_p99_max']))} | {cell(format_latency(w['lag_p99']))} | {count(w['backlog'])} |")
+    by_table = ", ".join(f"`{t}` {n}" for t, n in sorted(gc["drops_by_table"].items()))
+    return [f"D partman: {gc['drops']} partition drops over the six tables ({by_table}; each takes an `ACCESS EXCLUSIVE` lock on its table); {expired:,} rows (about {secs_expired:.0f} s of pushes) were expired by TTL, i.e. the later drops held data.", "",
+          f"Impact of the drops: per-second figures within {win:g} s of a drop vs. all other seconds of D partman (medians):", "",
           "| Window | seconds | push/s (median) | ack/s (median) | ack p99 (median) | ack p99 max | lag p99 (median) | backlog (median) |", "|---|---|---|---|---|---|---|---|",
-          f"| within {pm['gc_window']:g} s of a drop | {i['seconds']} | {f(i['push_s'])} | {f(i['ack_s'])} | {f(i['ack_p99'], True)} | {f(i['ack_p99_max'], True)} | {f(i['lag_p99'], True)} | {f(i['backlog'])} |",
-          f"| other | {o['seconds']} | {f(o['push_s'])} | {f(o['ack_s'])} | {f(o['ack_p99'], True)} | {f(o['ack_p99_max'], True)} | {f(o['lag_p99'], True)} | {f(o['backlog'])} |", ""]
+          row(f"within {win:g} s of a drop", gc["within"]), row("other", gc["other"]), ""]
 
 
 def report(res, env):
@@ -332,9 +322,10 @@ def report(res, env):
             L.append(f"- c. ({m}) {cell(c.get('push_s'))} added/s (avg), {cell(c.get('cons_s'))} consumed/s (avg) and {cell(c.get('ack_s'))} acknowledged/s (avg), ack p99 {c.get('ack_p99')}, {cell(c.get('missing'))} missing.")
     dp = g("D", "partman")
     if dp:
-        i, o = dp["gc"][True], dp["gc"][False]
+        gc = dp["gc"]
+        i, o = gc["within"], gc["other"]
         r = lambda a, b: f"{a / b:.2f}" if a is not None and b else "-"
-        L.append(f"- d. During TTL GC ({dp['drops']} partition drops over the six tables in {duration_text(dur['D'])}): within {dp['gc_window']:g} s of a drop vs. otherwise, ack/s {r(i['ack_s'], o['ack_s'])} x, "
+        L.append(f"- d. During TTL GC ({gc['drops']} partition drops over the six tables in {duration_text(dur['D'])}): within {gc['window_seconds']:g} s of a drop vs. otherwise, ack/s {r(i['ack_rate'], o['ack_rate'])} x, "
                  f"ack p99 {r(i['ack_p99'], o['ack_p99'])} x, lag p99 {r(i['lag_p99'], o['lag_p99'])} x (medians); {cell(dp['errors'])} errors, {cell(dp['missing'])} missing, {cell(dp['deadlocks'])} deadlocks.")
     for e in "EF":
         x = g(e, "plain")
@@ -384,11 +375,12 @@ def env():
         "mem": f"{kb / 1048576:.0f} GiB",
         "pg": info["version"],
         "settings": ", ".join(f"{k}={v}" for k, v in sorted(info["settings"].items())),
+        "partman": info["partman_version"] or "not run",
     }
 
 
 def main():
-    global DB, QUICK
+    global DB, QUICK, BIN
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("out", nargs="?", default="fan-in-2000x1-results.md")
     ap.add_argument("--only", help="comma-separated experiments to run, e.g. E,F (default: all)")
@@ -405,6 +397,7 @@ def main():
         pass
     log("building fan-in-perf")
     subprocess.run(["cabal", "build", "exe:fan-in-perf"], cwd=REPO, check=True, stdout=subprocess.DEVNULL)
+    BIN = subprocess.run(["cabal", "list-bin", "exe:fan-in-perf"], cwd=REPO, check=True, capture_output=True, text=True).stdout.strip()
     os.makedirs(LOGDIR, exist_ok=True)
     res, e = {}, None
     for mode in MODES:
@@ -415,17 +408,14 @@ def main():
         log(f"database for {mode}")
         # every run resets again (and settles); this one only creates the database to ask
         tool(["reset-db"] + (["--partitioned", "--no-settle"] if mode == "partman" else []))
-        if e is None:
+        if e is None:  # partman comes first, so its version is known if it runs
             e = env()
-        if mode == "partman":
-            e["partman"] = db_info()["partman_version"]
         for exp, a in runs:
             log(f"{exp} {mode}")
             res[f"{exp}-{mode}"] = run(f"{exp}-{mode}", a, mode == "partman")
         for exp, pa, ca in splits:
             log(f"{exp} {mode}")
             res[f"{exp}-{mode}"] = run_split(f"{exp}-{mode}", pa, ca)
-    e.setdefault("partman", "not run")
     md = report(res, e)
     with open(out, "w") as f:
         f.write(md)

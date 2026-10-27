@@ -5,7 +5,6 @@ import Data.Aeson qualified as A
 import Data.ByteString.Lazy qualified as BL
 import Data.Misc (Duration (..), showT)
 import Data.Qualified (toLocalUnsafe)
-import Data.Text qualified as T
 import FanInPerf.Consume (runConsume, runConsumeOnly)
 import FanInPerf.Database
 import FanInPerf.Metrics (runMetricsServer)
@@ -20,9 +19,7 @@ import FanInPerf.Targets (localDomain)
 import FanInPerf.Terminal
 import Hasql.Pool.Extended (PoolConfig (..))
 import Imports
-import Polysemy (Sem)
 import PostgresqlConnectionString qualified
-import System.Exit (die)
 import UnliftIO.Exception (tryAny)
 
 run :: Console -> Options -> IO ()
@@ -48,6 +45,16 @@ run console opts = do
     BL.writeFile file mempty
   let writeSummary :: RunSummary -> IO ()
       writeSummary s = forM_ opts.global.summaryJson $ \file -> BL.writeFile file (A.encode s <> "\n")
+      -- A load command: @prepare@ returns the run, which is measured with the
+      -- metrics server up and the database facts around it.
+      runLoad :: IO (IO RunSummary) -> IO ()
+      runLoad prepare = do
+        checkDatabase env
+        summary <- withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
+          -- e.g. port already in use: fail loudly instead of running unobserved
+          link server
+          prepare >>= withDatabaseFacts console env
+        writeSummary summary
   case opts.command of
     ResetDb reset -> do
       name <- experimentDb connStr & either abort pure
@@ -72,11 +79,8 @@ run console opts = do
       checkDatabase env
       info <- runOrAbort "server info" env getServerInfo
       BL.putStr (A.encode info <> "\n")
-    Produce p -> do
-      checkDatabase env
-      withMetricsServer (withDatabaseFacts console env (runProduce console env p)) >>= writeSummary
-    Consume c -> (>>= writeSummary) . withMetricsServer $ do
-      checkDatabase env
+    Produce p -> runLoad $ pure (runProduce console env p)
+    Consume c -> runLoad $ do
       -- partitioned: the drops are sampled on a connection of their own
       samplerEnv <-
         runOrAbort "shape check" env currentShape >>= \case
@@ -86,21 +90,14 @@ run console opts = do
           _ -> pure Nothing
       -- readers get their own pool so they cannot starve the writers
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
-      withDatabaseFacts console env (runConsume console env env {pool = readerPool} samplerEnv c)
-    ConsumeOnly c -> (>>= writeSummary) . withMetricsServer $ do
-      checkDatabase env
+      pure (runConsume console env env {pool = readerPool} samplerEnv c)
+    ConsumeOnly c -> runLoad $ do
       runOrAbort "shape check" env currentShape >>= \case
         Just Partitioned -> printLine console "warning: partitioned tables: pg_partman retention can drop rows during the run, they then count as missing"
         _ -> pure ()
       -- counting and reading both use the readers' pool (the writer pool stays idle)
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
-      withDatabaseFacts console env (runConsumeOnly console env {pool = readerPool} c)
-  where
-    withMetricsServer act =
-      withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
-        -- e.g. port already in use: fail loudly instead of running unobserved
-        link server
-        act
+      pure (runConsumeOnly console env {pool = readerPool} c)
 
 checkDatabase :: Env -> IO ()
 checkDatabase env =
@@ -168,14 +165,7 @@ settlePartman console env = do
     Just n -> printLine console ("pg_partman settled with " <> showT n <> " partitions in total (six tables)")
     Nothing -> printLine console "warning: partition count did not settle within 240 s"
 
-runOrAbort :: Text -> Env -> Sem StoreEffects a -> IO a
-runOrAbort what env act =
-  runStore env act >>= either (\e -> abort (what <> " failed: " <> showT e)) pure
-
 shapeName :: SchemaShape -> Text
 shapeName = \case
   Plain -> "plain"
   Partitioned -> "partitioned"
-
-abort :: Text -> IO a
-abort = die . T.unpack

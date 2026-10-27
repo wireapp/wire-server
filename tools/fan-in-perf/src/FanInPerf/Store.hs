@@ -2,10 +2,14 @@ module FanInPerf.Store
   ( Env (..),
     StoreEffects,
     runStore,
+    runOrAbort,
+    abort,
   )
 where
 
+import Data.Misc (showT)
 import Data.Qualified
+import Data.Text qualified as T
 import FanInPerf.NotificationsAdmin
 import FanInPerf.NotificationsAdmin.Postgres
 import FanInPerf.NotificationsStore
@@ -17,6 +21,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import System.Exit (die)
 
 data Env = Env
   { pool :: Pool,
@@ -41,3 +46,11 @@ runStore env =
     . runInputConst env.local
     . interpretFanInNotificationsAdminToPostgres
     . interpretFanInNotificationsStoreToPostgres env.isolation
+
+-- | 'runStore', exiting with a message on failure.
+runOrAbort :: Text -> Env -> Sem StoreEffects a -> IO a
+runOrAbort what env act =
+  runStore env act >>= either (\e -> abort (what <> " failed: " <> showT e)) pure
+
+abort :: Text -> IO a
+abort = die . T.unpack
