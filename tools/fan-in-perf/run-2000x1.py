@@ -18,6 +18,7 @@ the database and Prometheus: sanity-helpers.py.
 
 import argparse
 import datetime
+import json
 import os
 import re
 import statistics
@@ -61,8 +62,8 @@ def psql(sql):
     return r.stdout.strip()
 
 
-def fip(args):
-    return ["cabal", "run", "exe:fan-in-perf", "--", "--db", DB] + [str(a) for a in args]
+def fip(args, summary_json=None):
+    return ["cabal", "run", "exe:fan-in-perf", "--", "--db", DB] + (["--summary-json", summary_json] if summary_json else []) + [str(a) for a in args]
 
 
 def tool(args):
@@ -131,31 +132,69 @@ def gc_impact(ticks, drops, duration):
             for k, rs in rows.items()}
 
 
-def num(pat, text, conv=lambda x: int(x.replace(",", ""))):
-    m = re.search(pat, text, re.M)
-    return conv(m.group(1)) if m else None
+def summary_json(logpath):
+    """The tool's --summary-json file of a run, next to its log."""
+    return os.path.splitext(logpath)[0] + ".json"
 
 
-def parse(text):
-    s = text[text.index("\nsummary:"):]
+def load(logpath):
+    """-> (the run's summary as parsed JSON, the text summary of its log). The tool creates the file empty and fills it after the run."""
+    path = summary_json(logpath)
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        raise RuntimeError(f"no summary, see {logpath}")
+    with open(path) as f:
+        j = json.load(f)
+    text = open(logpath).read()
+    return j, text[text.index("\nsummary:"):].strip()
+
+
+def format_latency(seconds):
+    """A latency from the summary (seconds) as the tool's text summary prints it: milliseconds below one second, else seconds
+    (0.0084 -> "8.4ms", 1.07 -> "1.07s"). None (no observations) stays None; the report shows it as "-"."""
+    return None if seconds is None else f"{seconds * 1000:.1f}ms" if seconds < 1 else f"{seconds:.2f}s"
+
+
+def round_rate(per_second):
+    """A rate from the summary as the whole number the tool's text summary prints; None stays None."""
+    return None if per_second is None else round(per_second)
+
+
+def drain_text(d):
+    if d is None:
+        return None
+    word = {"complete": "complete after", "stalled": "stalled after", "timed_out": "timed out after"}.get(d["state"], "interrupted")
+    return word + (f" {d['seconds']:.1f}s" if d["seconds"] is not None else "")
+
+
+def end_text(e, duration):
+    return {"finished": "all readers caught up after", "timed_out": "timed out after", "interrupted": "interrupted after"}[e] + f" {duration:.1f}s"
+
+
+def parse(logpath):
+    """The fields the report uses, from the tool's summary JSON of a run (`json`: all of it)."""
+    j, text = load(logpath)
+    p, d, f, a = (j[k] or {} for k in ("pushes", "deliveries", "fetch", "acks"))
     r = {
-        "pushes": num(r"^  pushes=([\d,]+)", s),
-        "push_err": num(r"^  pushes=.* errors=([\d,]+)", s),
-        "push_s": num(r"push/s avg=([\d,]+)", s),
-        "push_p99": num(r"^  latency .*p99<=(\S+)", s, str),
-        "cons_s": num(r"cons/s avg=([\d,]+)", s),
-        "missing": num(r"missing=([\d,]+)", s),
-        "dup": num(r"duplicates=([\d,]+)", s),
-        "backlog": num(r"backlog at writer stop: ([\d,]+)", s),
-        "lag_p99": num(r"^  lag .*p99<=(\S+)", s, str),
-        "fetch_err": num(r"^  fetch .* errors=([\d,]+)", s),
-        "ack_s": num(r"ack/s avg=([\d,]+)", s),
-        "ack_err": num(r"^  acks=[\d,]+ errors=([\d,]+)", s),
-        "ack_p99": num(r"^  ack latency .*p99<=(\S+)", s, str),
-        "drain": num(r"^  drain: (.*)$", s, str),
+        "pushes": p.get("pushes"),
+        "push_err": p.get("errors"),
+        "push_s": round_rate(p.get("rate_avg")),
+        "push_p99": format_latency(p.get("latency", {}).get("p99")),
+        "cons_s": round_rate(d.get("rate_avg")),
+        "delivered": d.get("delivered"),
+        "missing": d.get("missing"),
+        "dup": d.get("duplicates"),
+        "backlog": d.get("backlog_at_writer_stop"),
+        "lag_p99": format_latency((d.get("lag") or {}).get("p99")),
+        "fetch_err": f.get("errors"),
+        "ack_s": round_rate(a.get("rate_avg")),
+        "acks": a.get("acks"),
+        "ack_err": a.get("errors"),
+        "ack_p99": format_latency(a.get("latency", {}).get("p99")),
+        "drain": drain_text(j["drain"]),
     }
     r["errors"] = sum(r[k] or 0 for k in ("push_err", "fetch_err", "ack_err"))
-    r["summary"] = s.strip()
+    r["summary"] = text
+    r["json"] = j
     return r
 
 
@@ -174,16 +213,17 @@ def run(label, args, partman):
     ticks = []  # (wall time, status line), to line them up with the drops
     if dc:
         dc.start()
-    text, rc = tool_logged(logpath, args, (lambda line: ticks.append((time.time(), line)) if dc and line.startswith("t=") else None))
+    _, rc = tool_logged(logpath, args, (lambda line: ticks.append((time.time(), line)) if dc and line.startswith("t=") else None))
     if dc:
         dc.stop.set()
         dc.join()
         if dc.error:
             raise dc.error
-    if "\nsummary:" not in text:
-        raise RuntimeError(f"{label}: no summary (exit {rc}), see {logpath}")
     time.sleep(2)
-    r = parse(text)
+    try:
+        r = parse(logpath)
+    except RuntimeError as e:
+        raise RuntimeError(f"{label}: {e} (exit {rc})")
     r.update(label=label, exit=rc, deadlocks=deadlocks() - d0, cmd="fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args))
     if dc:
         r.update(drops=len(dc.drops), gc=gc_impact(ticks, dc.drops, args[args.index("--duration") + 1]),
@@ -225,7 +265,7 @@ def tool_logged(logpath, args, on_line=None):
     """Runs the tool, logs its output (and passes each line to on_line); returns (output, exit code)."""
     lines = []
     with open(logpath, "w") as lf:
-        p = subprocess.Popen(fip(args), cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        p = subprocess.Popen(fip(args, summary_json(logpath)), cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in p.stdout:
             lf.write(line)
             lines.append(line)
@@ -235,21 +275,22 @@ def tool_logged(logpath, args, on_line=None):
     return "".join(lines), rc
 
 
-def parse_consume_only(text):
-    """The consume-only log: `parse` for the summary lines it shares with the others, plus its own."""
-    s = text[text.index("\nsummary:"):]
-    r = parse(text)
+def parse_consume_only(logpath):
+    """The consume-only log: `parse` for the fields it shares with the others, plus its own."""
+    r = parse(logpath)
+    j = r["json"]
+    d = j["deliveries"]
+    milestone = lambda pct: next((f"{m['seconds']:.1f}s" if m["seconds"] is not None else "-" for m in d["milestones"] if m["percent"] == pct), None)
     r.update(
-        rows_total=num(r"^consume-only(?:-ack)?: rows total=([\d,]+)", text),
-        expected=num(r"expected=([\d,]+) missing", s),
-        delivered=num(r"delivered=([\d,]+)", s),
-        cons_time=num(r"^summary: duration=([\d.]+)s", s, float),
-        cons_max=num(r"cons/s avg=[\d,]+ max=(\S+)", s, lambda x: x if x == "-" else int(x.replace(",", ""))),
-        fetch_p99=num(r"^  fetch .*p99<=(\S+)", s, str),
-        t50=num(r"^  time to delivered: 50%=(\S+)", s, str),
-        t90=num(r"^  time to delivered: .* 90%=(\S+)", s, str),
-        t99=num(r"^  time to delivered: .* 99%=(\S+)", s, str),
-        end=num(r"^  end: (.*)$", s, str),
+        rows_total=j["rows_total"],
+        expected=d["expected"],
+        cons_time=round(j["duration"], 1),
+        cons_max="-" if d["rate_max"] is None else round(d["rate_max"]),
+        fetch_p99=format_latency(j["fetch"]["latency"]["p99"]),
+        t50=milestone(50),
+        t90=milestone(90),
+        t99=milestone(99),
+        end=end_text(j["end"], j["duration"]),
     )
     return r
 
@@ -260,20 +301,24 @@ def run_split(label, produce_args, consume_args):
     tool(["reset-db"])
     psql("checkpoint")
     d0 = deadlocks()
-    ptext, prc = tool_logged(os.path.join(LOGDIR, label + "-produce.log"), produce_args)
-    if "\nsummary:" not in ptext:
-        raise RuntimeError(f"{label}: no produce summary (exit {prc}), see {LOGDIR}")
-    p = parse(ptext)
+    plog = os.path.join(LOGDIR, label + "-produce.log")
+    _, prc = tool_logged(plog, produce_args)
+    try:
+        p = parse(plog)
+    except RuntimeError as e:
+        raise RuntimeError(f"{label}: produce: {e} (exit {prc})")
     psql("vacuum analyze")
     psql("checkpoint")
     rows = int(psql("select count(*) from user_notifications"))
-    ctext, crc = tool_logged(os.path.join(LOGDIR, label + "-consume.log"), consume_args)
-    if "\nsummary:" not in ctext:
-        raise RuntimeError(f"{label}: no consume summary (exit {crc}), see {LOGDIR}")
-    c = parse_consume_only(ctext)
+    clog = os.path.join(LOGDIR, label + "-consume.log")
+    _, crc = tool_logged(clog, consume_args)
+    try:
+        c = parse_consume_only(clog)
+    except RuntimeError as e:
+        raise RuntimeError(f"{label}: consume: {e} (exit {crc})")
     cmd = lambda a: "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in a)
     return {
-        **c,
+        **{k: v for k, v in c.items() if k != "json"},
         "label": label, "exit": prc or crc, "deadlocks": deadlocks() - d0, "rows": rows, "drain": None,
         "pushes": p["pushes"], "push_s": p["push_s"], "push_p99": p["push_p99"], "push_err": p["push_err"],
         "errors": p["errors"] + c["errors"],
