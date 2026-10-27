@@ -76,6 +76,7 @@ import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Auth
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
@@ -196,7 +197,7 @@ type UserAPI =
                :> "users"
                :> CaptureUserId "uid"
                :> "email"
-               :> ReqBody '[JSON] EmailUpdate
+               :> ReqBody '[JSON] (NoTotpCode EmailUpdate)
                :> Put '[JSON] ()
            )
     :<|> Named
@@ -491,7 +492,8 @@ type SelfAPI =
                \deletion. if the account has no verified identity but a \
                \password, it must be provided. if password is correct, or if neither \
                \a verified identity nor a password exists, account deletion \
-               \is scheduled immediately."
+               \is scheduled immediately.\n\
+               \TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
           :> CanThrow 'InvalidUser
           :> CanThrow 'InvalidCode
           :> CanThrow 'BadCredentials
@@ -572,6 +574,7 @@ type SelfAPI =
     :<|> Named
            "change-password"
            ( Summary "Change your password."
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> ZUser
                :> "self"
                :> "password"
@@ -795,6 +798,7 @@ type AccountAPI =
     :<|> Named
            "post-password-reset-complete"
            ( Summary "Complete a password reset."
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> CanThrow 'InvalidPasswordResetCode
                :> "password-reset"
                :> "complete"
@@ -956,6 +960,7 @@ type UserClientAPI =
   Named
     "add-client@v6"
     ( Summary "Register a new client"
+        :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
         :> Until 'V7
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
@@ -978,6 +983,7 @@ type UserClientAPI =
     :<|> Named
            "add-client@v7"
            ( Summary "Register a new client"
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> From 'V7
                :> Until 'V8
                :> CanThrow 'TooManyClients
@@ -1001,6 +1007,7 @@ type UserClientAPI =
     :<|> Named
            "add-client"
            ( Summary "Register a new client"
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> From 'V8
                :> CanThrow 'TooManyClients
                :> CanThrow 'MissingAuth
@@ -1061,6 +1068,7 @@ type UserClientAPI =
     Named
       "delete-client"
       ( Summary "Delete an existing client"
+          :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
           :> ZUser
           :> ZConn
           :> "clients"
@@ -1850,7 +1858,10 @@ type AuthAPI =
            "login"
            ( "login"
                :> Summary "Authenticate a user to obtain a cookie and first access token"
-               :> Description "Logins are throttled at the server's discretion"
+               :> Description
+                    "Logins are throttled at the server's discretion.\n\n\
+                    \TOTP second-factor checking is not yet enforced; the totp_code \
+                    \field, if provided, is parsed but ignored."
                :> ReqBody '[JSON] Login
                :> QueryParam'
                     [ Optional,
@@ -1864,6 +1875,8 @@ type AuthAPI =
                :> CanThrow 'AccountPending
                :> CanThrow 'CodeAuthenticationFailed
                :> CanThrow 'CodeAuthenticationRequired
+               :> CanThrow 'TOTPRequired
+               :> CanThrow 'TOTPInvalidCode
                :> MultiVerb1 'POST '[JSON] TokenResponse
            )
     :<|> Named
@@ -1886,6 +1899,7 @@ type AuthAPI =
                :> "self"
                :> "email"
                :> Summary "Change your email address"
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> Cookies '["zuid" ::: SomeUserToken]
                :> Bearer SomeAccessToken
                :> ReqBody '[JSON] EmailUpdate
@@ -2121,6 +2135,7 @@ type TeamsAPI =
     :<|> Named
            "accept-team-invitation"
            ( Summary "Accept a team invitation, changing a personal account into a team member account."
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> CanThrow 'PendingInvitationNotFound
                :> CanThrow 'TooManyTeamMembers
                :> CanThrow 'MissingIdentity
@@ -2160,6 +2175,7 @@ type AppsAPI =
   Named
     "create-app@v18"
     ( Summary "Create a new app"
+        :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
         :> From 'V12
         :> ZLocalUser
         :> "teams"
@@ -2171,6 +2187,7 @@ type AppsAPI =
     :<|> Named
            "create-app"
            ( Summary "Create a new app"
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> From 'V12
                :> ZLocalUser
                :> "teams"

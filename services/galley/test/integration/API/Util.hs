@@ -2514,7 +2514,7 @@ deleteTeamMember g tid owner deletee =
         . paths ["teams", toByteString' tid, "members", toByteString' deletee]
         . zUser owner
         . zConn "conn"
-        . json (newTeamMemberDeleteData (Just defPassword))
+        . json (TeamMemberDeleteData (Just defPassword) Nothing)
     )
     !!! do
       const 202 === statusCode
@@ -2527,7 +2527,7 @@ deleteTeam owner tid = do
         . paths ["teams", toByteString' tid]
         . zUser owner
         . zConn "conn"
-        . json (newTeamMemberDeleteData (Just defPassword))
+        . json (TeamMemberDeleteData (Just defPassword) Nothing)
     )
     !!! do
       const 202 === statusCode

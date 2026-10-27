@@ -122,6 +122,7 @@ type TeamAPI =
     :<|> Named
            "delete-team"
            ( Summary "Delete a team"
+               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> ZUser
                :> ZConn
                :> CanThrow 'TeamNotFound

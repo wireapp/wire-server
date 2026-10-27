@@ -519,6 +519,7 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
         mempty
         Nothing
+        Nothing
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
 removeLegalHoldClientFromUser ::
@@ -864,7 +865,7 @@ updateEmail buid email activation = do
             ("validate", Just (fromBool validate)),
             ("activate", Just (fromBool activate))
           ]
-        . json (EmailUpdate email)
+        . json (EmailUpdate email Nothing)
   case statusCode resp of
     204 -> pure ()
     202 -> pure ()

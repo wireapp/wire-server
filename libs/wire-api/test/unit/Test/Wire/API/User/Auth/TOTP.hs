@@ -20,12 +20,18 @@
 module Test.Wire.API.User.Auth.TOTP (tests) where
 
 import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Proxy
 import Data.Text qualified as Text
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (testProperty)
+import Wire.API.Team qualified as Team
+import Wire.API.Team.LegalHold qualified as LegalHold
+import Wire.API.Team.Member qualified as Member
 import Wire.API.User.Auth.TOTP
+import Wire.API.User.Scim qualified as Scim
 -- for 'Arbitrary Text' (via Test.QuickCheck.Instances)
 import Wire.Arbitrary ()
 
@@ -38,8 +44,39 @@ tests =
       testGroup "RecoveryCode" recoveryCodeTests,
       testGroup "SecondFactorCode" secondFactorTests,
       testGroup "otpauthURI" uriTests,
-      testGroup "secrets do not leak through Show" redactionTests
+      testGroup "secrets do not leak through Show" redactionTests,
+      testGroup "reauthentication request bodies" $
+        concat
+          [ requestBodyTests "team deletion" (Proxy @Team.TeamDeleteData) mempty,
+            requestBodyTests "member deletion" (Proxy @Member.TeamMemberDeleteData) mempty,
+            requestBodyTests "remove legal-hold settings" (Proxy @LegalHold.RemoveLegalHoldSettingsRequest) mempty,
+            requestBodyTests "disable legal hold" (Proxy @LegalHold.DisableLegalHoldForUserRequest) mempty,
+            requestBodyTests "approve legal hold" (Proxy @LegalHold.ApproveLegalHoldForUserRequest) mempty,
+            requestBodyTests "SCIM token creation" (Proxy @Scim.CreateScimToken) (KeyMap.singleton "description" (A.String "test"))
+          ]
     ]
+
+-- The mocks must parse and retain the code even though they do not enforce it.
+requestBodyTests :: forall a. (A.FromJSON a, A.ToJSON a) => String -> Proxy a -> A.Object -> [TestTree]
+requestBodyTests label _ baseline =
+  [ testCase (label <> ": code is optional") $
+      case A.fromJSON @a (A.Object baseline) of
+        A.Success _ -> pure ()
+        A.Error err -> assertFailure err,
+    testCase (label <> ": code is retained") $
+      case A.fromJSON @a (body (A.String "totp:123456")) of
+        A.Success value -> case A.toJSON value of
+          A.Object obj -> KeyMap.lookup "totp_code" obj @?= Just (A.String "totp:123456")
+          _ -> assertFailure "Expected a request object"
+        A.Error err -> assertFailure err,
+    testCase (label <> ": malformed codes are rejected") $
+      for_ [A.String "123456", A.String "totp:abc", A.Number 123456, A.Bool True] $ \code ->
+        case A.fromJSON @a (body code) of
+          A.Error _ -> pure ()
+          A.Success _ -> assertFailure "Malformed code was accepted"
+  ]
+  where
+    body code = A.Object (KeyMap.insert "totp_code" code baseline)
 
 --------------------------------------------------------------------------------
 -- TOTPSecret

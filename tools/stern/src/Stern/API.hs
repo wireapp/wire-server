@@ -76,6 +76,7 @@ import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Search
 
 default (ByteString)
@@ -293,7 +294,7 @@ searchOnBehalf
 revokeIdentity :: EmailAddress -> Handler NoContent
 revokeIdentity e = NoContent <$ Intra.revokeIdentity e
 
-changeEmail :: UserId -> EmailUpdate -> Handler NoContent
+changeEmail :: UserId -> NoTotpCode EmailUpdate -> Handler NoContent
 changeEmail uid upd = NoContent <$ Intra.changeEmail uid upd
 
 deleteUser :: UserId -> EmailAddress -> Handler NoContent

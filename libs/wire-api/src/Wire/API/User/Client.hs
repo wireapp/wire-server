@@ -107,6 +107,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.User.Auth
+import Wire.API.User.Auth.TOTP (NoTotpCode (..), SecondFactorCode, totpCodeFieldSchema)
 import Wire.API.User.Client.Prekey as Prekey
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
 
@@ -747,16 +748,28 @@ data NewClient = NewClient
     newClientModel :: Maybe Text,
     newClientCapabilities :: Maybe ClientCapabilityList,
     newClientMLSPublicKeys :: MLSPublicKeys,
-    newClientVerificationCode :: Maybe Code.Value
+    newClientVerificationCode :: Maybe Code.Value,
+    newClientTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema NewClient
 
-newClientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc NewClient
-newClientSchema mVersion =
-  object $
-    NewClient
+-- | Parameterised over the @totp_code@ field: 'totpCodeFieldSchema' for the
+-- public route that takes a code, @pure Nothing@ for the internal one that
+-- does not.
+newClientSchema ::
+  Maybe Version ->
+  ObjectSchemaP SwaggerDoc NewClient (Maybe SecondFactorCode) ->
+  ValueSchema NamedSwaggerDoc NewClient
+newClientSchema mVersion totpCodeSchema =
+  objectWithDocModifier
+    ( description
+        ?~ "When registering a new device immediately after login, clients should \
+           \reuse the TOTP code supplied during login in the `totp_code` field, \
+           \rather than prompting the user a second time."
+    )
+    $ NewClient
       <$> newClientPrekeys
         .= fieldWithDocModifier
           "prekeys"
@@ -821,15 +834,19 @@ newClientSchema mVersion =
           )
       <*> newClientMLSPublicKeys .= mlsPublicKeysFieldSchema
       <*> newClientVerificationCode .= maybe_ (optField "verification_code" schema)
+      <*> totpCodeSchema
 
 instance ToSchema NewClient where
-  schema = newClientSchema Nothing
+  schema = newClientSchema Nothing (newClientTotpCode .= totpCodeFieldSchema)
 
 instance ToSchema (Versioned 'V6 NewClient) where
-  schema = Versioned <$> unVersioned .= newClientSchema (Just V6)
+  schema = Versioned <$> unVersioned .= newClientSchema (Just V6) (newClientTotpCode .= totpCodeFieldSchema)
 
 instance ToSchema (Versioned 'V7 NewClient) where
-  schema = Versioned <$> unVersioned .= newClientSchema (Just V7)
+  schema = Versioned <$> unVersioned .= newClientSchema (Just V7) (newClientTotpCode .= totpCodeFieldSchema)
+
+instance ToSchema (NoTotpCode NewClient) where
+  schema = NoTotpCode <$> unNoTotpCode .= newClientSchema Nothing (pure Nothing)
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -844,7 +861,8 @@ newClient t k =
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
       newClientMLSPublicKeys = mempty,
-      newClientVerificationCode = Nothing
+      newClientVerificationCode = Nothing,
+      newClientTotpCode = Nothing
     }
 
 --------------------------------------------------------------------------------
@@ -918,11 +936,12 @@ instance ToSchema (Versioned 'V7 UpdateClient) where
 --------------------------------------------------------------------------------
 -- RmClient
 
-newtype RmClient = RmClient
-  { rmPassword :: Maybe PlainTextPassword6
+data RmClient = RmClient
+  { rmPassword :: Maybe PlainTextPassword6,
+    rmTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
+  deriving (Arbitrary) via (GenericUniform RmClient)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema RmClient
 
 instance ToSchema RmClient where
@@ -938,3 +957,5 @@ instance ToSchema RmClient where
                    \or if the user has only SAML credentials."
             )
             (maybeWithDefault A.Null schema)
+        <*> rmTotpCode
+          .= totpCodeFieldSchema

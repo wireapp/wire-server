@@ -76,7 +76,38 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "TOTPEnrolment" $
+    [ testGroup "Request bodies with TOTP" $
+        concat
+          [ testObjects [(testObject_PasswordReqBody_totp_1, "testObject_PasswordReqBody_totp.json")],
+            testObjects [(testObject_PasswordChange_totp_1, "testObject_PasswordChange_totp.json")],
+            testObjects [(testObject_EmailUpdate_totp_1, "testObject_EmailUpdate_totp.json")],
+            testObjects [(testObject_DeleteUser_totp_1, "testObject_DeleteUser_totp.json")],
+            testObjects [(testObject_NewApp_totp_1, "testObject_NewApp_totp.json")],
+            testObjects [(testObject_ReAuthUser_totp_1, "testObject_ReAuthUser_totp.json")],
+            testObjects [(testObject_NewClient_totp_1, "testObject_NewClient_totp.json")],
+            testObjects [(testObject_RmClient_totp_1, "testObject_RmClient_totp.json")],
+            testObjects [(testObject_CompletePasswordReset_totp_1, "testObject_CompletePasswordReset_totp.json")],
+            testObjects [(testObject_AcceptTeamInvitation_totp_1, "testObject_AcceptTeamInvitation_totp.json")],
+            testObjects [(testObject_TeamDeleteData_totp_1, "testObject_TeamDeleteData_totp.json")],
+            testObjects [(testObject_TeamMemberDeleteData_totp_1, "testObject_TeamMemberDeleteData_totp.json")],
+            testObjects [(testObject_RemoveLegalHoldSettingsRequest_totp_1, "testObject_RemoveLegalHoldSettingsRequest_totp.json")],
+            testObjects [(testObject_DisableLegalHoldForUserRequest_totp_1, "testObject_DisableLegalHoldForUserRequest_totp.json")],
+            testObjects [(testObject_ApproveLegalHoldForUserRequest_totp_1, "testObject_ApproveLegalHoldForUserRequest_totp.json")],
+            testObjects [(testObject_CreateScimToken_totp_1, "testObject_CreateScimToken_totp.json")]
+          ],
+      testGroup "EmailUpdateWithoutTotpCode" $
+        testObjects
+          [ (testObject_EmailUpdate_withoutTotpCode_1, "testObject_EmailUpdate_withoutTotpCode_1.json"),
+            (testObject_EmailUpdate_withoutTotpCode_2, "testObject_EmailUpdate_withoutTotpCode_2.json")
+          ]
+          <> [ testGroup
+                 "populated code is omitted"
+                 [ testToJSON
+                     testObject_EmailUpdate_withoutTotpCode_populated_1
+                     "testObject_EmailUpdate_withoutTotpCode_1.json"
+                 ]
+             ],
+      testGroup "TOTPEnrolment" $
         testObjects
           [ (testObject_TOTPEnrolment_1, "testObject_TOTPEnrolment_1.json"),
             (testObject_TOTPEnrolment_2, "testObject_TOTPEnrolment_2.json")
@@ -99,7 +130,10 @@ tests =
             (testObject_ReauthBody_4, "testObject_ReauthBody_4.json")
           ],
       testGroup "NewTOTPCredential" $
-        testObjects [(testObject_NewTOTPCredential_1, "testObject_NewTOTPCredential_1.json")],
+        testObjects
+          [ (testObject_NewTOTPCredential_1, "testObject_NewTOTPCredential_1.json"),
+            (testObject_NewTOTPCredential_2, "testObject_NewTOTPCredential_2.json")
+          ],
       testGroup "ActivateTOTPCredential" $
         testObjects [(testObject_ActivateTOTPCredential_1, "testObject_ActivateTOTPCredential_1.json")],
       testGroup "TOTPCredentialName" $
@@ -420,7 +454,8 @@ tests =
             (testObject_Login_user_2, "testObject_Login_user_2.json"),
             (testObject_Login_user_3, "testObject_Login_user_3.json"),
             (testObject_Login_user_4, "testObject_Login_user_4.json"),
-            (testObject_Login_user_5, "testObject_Login_user_5.json")
+            (testObject_Login_user_5, "testObject_Login_user_5.json"),
+            (testObject_Login_user_6, "testObject_Login_user_6.json")
           ],
       testGroup "CannonId" $
         testObjects

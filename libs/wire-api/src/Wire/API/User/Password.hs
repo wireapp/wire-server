@@ -54,6 +54,7 @@ import Data.Tuple.Extra
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.PostgresMarshall (PostgresMarshall (postgresMarshall), PostgresUnmarshall (postgresUnmarshall))
+import Wire.API.User.Auth.TOTP (SecondFactorCode, totpCodeFieldSchema)
 import Wire.API.User.EmailAddress
 import Wire.API.User.Phone
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -110,7 +111,8 @@ instance ToSchema NewPasswordReset where
 data CompletePasswordReset = CompletePasswordReset
   { cpwrIdent :: PasswordResetIdentity,
     cpwrCode :: PasswordResetCode,
-    cpwrPassword :: PlainTextPassword8
+    cpwrPassword :: PlainTextPassword8,
+    cpwrTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
@@ -123,6 +125,7 @@ instance ToSchema CompletePasswordReset where
         <$> (maybePasswordResetIdentityToTuple . cpwrIdent) .= maybePasswordResetIdentityObjectSchema
         <*> cpwrCode .= fieldWithDocModifier "code" codeDocs schema
         <*> cpwrPassword .= fieldWithDocModifier "password" pwDocs schema
+        <*> cpwrTotpCode .= totpCodeFieldSchema
     where
       objectDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
       objectDocs = description ?~ "Data to complete a password reset"

@@ -26,6 +26,7 @@ import Data.Text.Ascii (AsciiChars (validate))
 import Imports
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.User.Auth.TOTP (SecondFactorCode (..), totpCodeFromText)
 
 testObject_Login_user_1 :: Login
 testObject_Login_user_1 =
@@ -35,6 +36,7 @@ testObject_Login_user_1 =
         "\b5Ta\61971\150647\186716fa&\1047748o!ov\SI\1100133i\DC4\ETXY\SOR\991323\1086159Ta^s\ETB\SI[\189068\988899\26508\CAN6\STXp\1069462-9\983823&\NAK\1052068]^\13044;>-Z$Z\NAK\r\1101550a\RS%\NUL:\188721\47674\157548?e]\ETX \142608 C\SOH\SIS%8m\1091987V\147131[\1006262\&6\171610\1011219\164656SX\n%\1061259*>\t+\132427Y\989558\993346\GSU\1067541\&6TU!*\40114\&90\1055516\RSV\162483N\t*\EOT{I<\1084278\SOH\183116!c\\\n\1107501\183146\DC1,-xX\EMV?\t\168648\1054239\DC2\DEL1\SOHu\SOH\63459\53061\SO+h\ACK::\RS\21356_g,\SO*\v\DC4\1093710HFF\188918\1081075fF\ESC2\SOHT\DC1)\fc\35905l\1061547\f#~\STX]\1035086/Or)kY\1031423\SOHNCk\1067954\&5\1083470x=H\NUL\23760\1058646\1099097E/$\DELpbi\137522\FSKi\15676\1018134\t7\"OL\54208\7516\&5\43466\NUL(\1030852\166514\SOH\149343\994835\25513C==\GSTV3\DELl6\999006.Z)$\16723|\172732\1090303J;O\GSbw\vI\1101024I\SYN\DC2^\149630\STX3%i\EMW\138614\DC4\1113619tsL5\147087W\96700(_,\1091179*\1041287rckx\SOH\SIs\SOHJd\140574\SYNev.\DC4\DLE\99082.\1106785\996992\143448\US_\ETBf\STX\SO\DC3\1043748\&6O\DC1Q\SOH'\GS,|]W\SIa\62568\151062.\v\aH&-L\DC2+\147179\1095524\EOTm)\19925\181147\183368!\185223\142946m\DC4\DC3\1034282m\GS\185509>>\"NDw\1076877hY\1033831sFKz^ \1108187\&5Qec\NAK}|\1108194.Q\173114imb\1027220 p;\1089082\SYN\1065748kF\1102854r8o\DC1"
     )
     (Just (CookieLabel {cookieLabelText = "r"}))
+    Nothing
     Nothing
 
 testObject_Login_user_2 :: Login
@@ -46,6 +48,7 @@ testObject_Login_user_2 =
     )
     (Just (CookieLabel {cookieLabelText = "\1082362\66362>XC"}))
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "RcplMOQiGa-JY"))}))
+    (Just (SFTotp (fromRight (error "invalid TOTP code") (totpCodeFromText "123456"))))
 
 testObject_Login_user_3 :: Login
 testObject_Login_user_3 =
@@ -58,6 +61,7 @@ testObject_Login_user_3 =
     )
     (Just (CookieLabel {cookieLabelText = "LGz%\119949j\f\RS/\SOH"}))
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "RcplMOQiGa-JY"))}))
+    Nothing
 
 testObject_Login_user_4 :: Login
 testObject_Login_user_4 =
@@ -68,6 +72,7 @@ testObject_Login_user_4 =
     )
     (Just (CookieLabel {cookieLabelText = "\SO\NAKeC/"}))
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "RcplMOQiGa-JY"))}))
+    Nothing
 
 testObject_Login_user_5 :: Login
 testObject_Login_user_5 =
@@ -78,3 +83,13 @@ testObject_Login_user_5 =
     )
     Nothing
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "RcplMOQiGa-JY"))}))
+    Nothing
+
+testObject_Login_user_6 :: Login
+testObject_Login_user_6 =
+  MkLogin
+    (LoginByEmail (unsafeEmailAddress "user" "host.com"))
+    (plainTextPassword6Unsafe "hunter2")
+    Nothing
+    Nothing
+    (Just (SFTotp (fromRight (error "invalid TOTP code") (totpCodeFromText "014921"))))

@@ -1,0 +1,7 @@
+{
+    "description": "test token",
+    "name": "test",
+    "password": "test-password",
+    "totp_code": "totp:014921",
+    "verification_code": null
+}

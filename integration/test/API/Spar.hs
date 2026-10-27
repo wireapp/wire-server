@@ -62,6 +62,11 @@ createScimToken caller payload = do
   j <- make payload
   submit "POST" $ req & addJSON j
 
+createScimTokenWithBody :: (HasCallStack, MakesValue caller) => caller -> Value -> App Response
+createScimTokenWithBody caller body = do
+  req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
+  submit "POST" $ req & addJSON body
+
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-tokens-delete
 deleteScimToken :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
 deleteScimToken caller token = do

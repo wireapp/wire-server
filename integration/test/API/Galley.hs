@@ -163,6 +163,32 @@ deleteTeamMember tid owner mem = do
   req <- baseRequest owner Galley Versioned path
   submit "DELETE" (addJSONObject ["password" .= defPassword] req)
 
+deleteTeamWithBody :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+deleteTeamWithBody user tid body = do
+  req <- baseRequest user Galley Versioned $ joinHttpPath ["teams", tid]
+  submit "DELETE" $ req & addJSON body
+
+deleteTeamMemberWithBody :: (HasCallStack, MakesValue user) => user -> String -> String -> Value -> App Response
+deleteTeamMemberWithBody user tid uid body = do
+  req <- baseRequest user Galley Versioned $ joinHttpPath ["teams", tid, "members", uid]
+  submit "DELETE" $ req & addJSON body
+
+deleteLegalHoldSettingsWithBody :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+deleteLegalHoldSettingsWithBody user tid body = do
+  req <- baseRequest user Galley Versioned $ joinHttpPath ["teams", tid, "legalhold", "settings"]
+  submit "DELETE" $ req & addJSON body
+
+disableLegalHoldWithBody :: (HasCallStack, MakesValue user) => user -> String -> String -> Value -> App Response
+disableLegalHoldWithBody user tid uid body = do
+  req <- baseRequest user Galley Versioned $ joinHttpPath ["teams", tid, "legalhold", uid]
+  submit "DELETE" $ req & addJSON body
+
+approveLegalHoldWithBody :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+approveLegalHoldWithBody user tid body = do
+  uid <- objId user
+  req <- baseRequest user Galley Versioned $ joinHttpPath ["teams", tid, "legalhold", uid, "approve"]
+  submit "PUT" $ req & addJSON body
+
 data TeamPermissions = Partner | Member | Admin | Owner
 
 instance ToJSON TeamPermissions where

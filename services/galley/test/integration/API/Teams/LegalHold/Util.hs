@@ -316,7 +316,7 @@ deleteSettings mPassword uid tid = do
       . zUser uid
       . zConn "conn"
       . zType "access"
-      . json (RemoveLegalHoldSettingsRequest mPassword)
+      . json (RemoveLegalHoldSettingsRequest mPassword Nothing)
 
 getUserStatusTyped :: (HasCallStack) => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
@@ -357,7 +357,7 @@ approveLegalHoldDevice' g mPassword zusr uid tid = do
       . zUser zusr
       . zConn "conn"
       . zType "access"
-      . json (ApproveLegalHoldForUserRequest mPassword)
+      . json (ApproveLegalHoldForUserRequest mPassword Nothing)
 
 disableLegalHoldForUser ::
   (HasCallStack) =>
@@ -384,7 +384,7 @@ disableLegalHoldForUser' g mPassword tid zusr uid = do
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
       . zUser zusr
       . zType "access"
-      . json (DisableLegalHoldForUserRequest mPassword)
+      . json (DisableLegalHoldForUserRequest mPassword Nothing)
 
 assertExactlyOneLegalHoldDevice :: (HasCallStack) => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do

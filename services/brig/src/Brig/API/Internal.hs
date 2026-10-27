@@ -82,6 +82,7 @@ import Wire.API.Team.Invitation (ResendVerificationEmailResult)
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
@@ -560,10 +561,10 @@ addClientInternalH ::
   (Member ClientSubsystem r) =>
   UserId ->
   Maybe Bool ->
-  NewClient ->
+  NoTotpCode NewClient ->
   Maybe ConnId ->
   (Handler r) Client
-addClientInternalH usr mSkipReAuth new connId = do
+addClientInternalH usr mSkipReAuth (NoTotpCode new) connId = do
   let policy
         | mSkipReAuth == Just True = ReAuthPolicy $ \_ _ -> False
         | otherwise = def
@@ -685,14 +686,14 @@ changeSelfEmailMaybeSendH ::
     Member PasswordResetCodeStore r
   ) =>
   UserId ->
-  EmailUpdate ->
+  NoTotpCode EmailUpdate ->
   Maybe EmailActivation ->
   -- validate if needed? (deprecated, use EmailActivation query param)
   Maybe Bool ->
   -- auto activate email? (deprecated, use EmailActivation query param)
   Maybe Bool ->
   (Handler r) ChangeEmailResponse
-changeSelfEmailMaybeSendH uid body mbEmailActivation (fromMaybe False -> validate) (fromMaybe False -> autoActivate) = do
+changeSelfEmailMaybeSendH uid (NoTotpCode body) mbEmailActivation (fromMaybe False -> validate) (fromMaybe False -> autoActivate) = do
   let email = euEmail body
   luid <- qualifyLocal uid
   needsActivation <-

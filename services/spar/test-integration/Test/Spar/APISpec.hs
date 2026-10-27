@@ -89,7 +89,7 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User.Email as Scim
-import Wire.API.Team.Member (newTeamMemberDeleteData, rolePermissions)
+import Wire.API.Team.Member (TeamMemberDeleteData (..), rolePermissions)
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User
@@ -361,7 +361,7 @@ specFinalizeLogin = do
                   . header "Z-User" (toByteString' ownerid)
                   . header "Z-Connection" "fake"
                   . paths ["teams", toByteString' teamid, "members", toByteString' newUserId]
-                  . Bilge.json (newTeamMemberDeleteData (Just defPassword))
+                  . Bilge.json (TeamMemberDeleteData (Just defPassword) Nothing)
                   . expect2xx
               )
             liftIO $ threadDelay 100000 -- make sure deletion is done.  if we don't want to take

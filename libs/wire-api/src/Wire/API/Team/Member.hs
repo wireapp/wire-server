@@ -60,9 +60,9 @@ module Wire.API.Team.Member
     nInvitation,
 
     -- * TeamMemberDeleteData
-    TeamMemberDeleteData,
-    newTeamMemberDeleteData,
+    TeamMemberDeleteData (..),
     tmdAuthPassword,
+    tmdTotpCode,
 
     -- * Permissions
     isAdminOrOwner,
@@ -98,6 +98,7 @@ import Wire.API.Team.Collaborator qualified as Collaborator
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
+import Wire.API.User.Auth.TOTP (SecondFactorCode, totpCodeFieldSchema)
 import Wire.Arbitrary
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
@@ -435,20 +436,20 @@ instance ToSchema NewTeamMember where
 --------------------------------------------------------------------------------
 -- TeamMemberDeleteData
 
-newtype TeamMemberDeleteData = TeamMemberDeleteData
-  { _tmdAuthPassword :: Maybe PlainTextPassword6
+data TeamMemberDeleteData = TeamMemberDeleteData
+  { _tmdAuthPassword :: Maybe PlainTextPassword6,
+    _tmdTotpCode :: Maybe SecondFactorCode
   }
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamMemberDeleteData)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamMemberDeleteData)
 
 instance ToSchema TeamMemberDeleteData where
   schema =
     objectWithDocModifier (description ?~ "Data for a team member deletion request in case of binding teams.") $
-      TeamMemberDeleteData <$> _tmdAuthPassword .= optFieldWithDocModifier "password" (description ?~ "The account password to authorise the deletion.") (maybeWithDefault Null schema)
-
-newTeamMemberDeleteData :: Maybe PlainTextPassword6 -> TeamMemberDeleteData
-newTeamMemberDeleteData = TeamMemberDeleteData
+      TeamMemberDeleteData
+        <$> _tmdAuthPassword .= optFieldWithDocModifier "password" (description ?~ "The account password to authorise the deletion.") (maybeWithDefault Null schema)
+        <*> _tmdTotpCode .= totpCodeFieldSchema
 
 optionalPermissions :: TeamMemberOptPerms -> Maybe Permissions
 optionalPermissions = _nPermissions . _newTeamMember
