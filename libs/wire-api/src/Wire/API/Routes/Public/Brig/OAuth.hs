@@ -122,10 +122,12 @@ type OAuthAPI =
                     ()
            )
     :<|> Named
-           "revoke-oauth-account-access"
-           ( Summary "Revoke account access from an OAuth application"
-               :> CanThrow 'AccessDenied
-               :> ZLocalUser
+"revoke-oauth-account-access"
+            ( Summary "Revoke account access from an OAuth application"
+                :> Description
+                     "Revoke all active sessions for a given OAuth application. Requires the user's password for verification. TOTP second-factor checking is not yet enforced; the totp_code field, if provided, is parsed but ignored."
+                :> CanThrow 'AccessDenied
+                :> ZLocalUser
                :> From 'V7
                :> "oauth"
                :> "applications"
@@ -139,20 +141,19 @@ type OAuthAPI =
                     ()
            )
     :<|> Named
-           "delete-oauth-refresh-token"
-           ( Summary "Revoke an active OAuth session"
-               :> Description "Revoke an active OAuth session by providing the refresh token ID."
-               :> ZLocalUser
-               :> CanThrow 'AccessDenied
-               :> CanThrow 'OAuthClientNotFound
-               :> "oauth"
-               :> "applications"
-               :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
-               :> "sessions"
-               :> Capture' '[Description "The ID of the refresh token"] "RefreshTokenId" OAuthRefreshTokenId
-               :> ReqBody '[JSON] PasswordReqBody
-               :> Delete '[JSON] ()
-           )
+            "delete-oauth-refresh-token"
+            ( Summary "Revoke an active OAuth session"
+                :> ZLocalUser
+                :> CanThrow 'AccessDenied
+                :> CanThrow 'OAuthClientNotFound
+                :> "oauth"
+                :> "applications"
+                :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
+                :> "sessions"
+                :> Capture' '[Description "The ID of the refresh token"] "RefreshTokenId" OAuthRefreshTokenId
+                :> ReqBody '[JSON] PasswordReqBody
+                :> Delete '[JSON] ()
+            )
 
 type CreateOAuthAuthorizationCodeHeaders = '[Header "Location" RedirectUrl]
 
