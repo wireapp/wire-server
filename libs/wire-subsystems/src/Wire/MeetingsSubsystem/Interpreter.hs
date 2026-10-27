@@ -34,6 +34,7 @@ import Data.Misc (HttpsUrl, IpAddr, PlainTextPassword8)
 import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
+import Data.Text qualified as T
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
 import Imports
 import Polysemy
@@ -46,16 +47,20 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Error.Galley (InvalidTimesReason (..), MeetingError (..))
 import Wire.API.Event.Meeting qualified as MeetingEvent
+import Wire.API.Locale (Locale)
 import Wire.API.Meeting qualified as API
 import Wire.API.Password (Password)
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig)
-import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
+import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress, User (..), fromName)
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess qualified as BrigAPIAccess
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as CodeStore
 import Wire.CodeStore.Code (Code (..), CodeReferent (..))
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
+import Wire.EmailSubsystem (EmailSubsystem, sendMeetingCancelEmail, sendMeetingInvitationEmail, sendMeetingUpdateEmail)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
 import Wire.Licensing.Effect (Licensing, getLicense)
@@ -153,7 +158,9 @@ interpretMeetingsSubsystem ::
     Member Random.Random r,
     Member HashPassword r,
     Member RateLimit r,
-    Member Licensing r
+    Member Licensing r,
+    Member EmailSubsystem r,
+    Member BrigAPIAccess r
   ) =>
   -- | System-wide meeting configuration.
   MeetingSystemConfig ->
@@ -212,7 +219,10 @@ createMeetingImpl ::
     Member CodeStore r,
     Member Random.Random r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -294,9 +304,13 @@ createMeetingImpl zUser connId newMeeting = do
       trial
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
-  notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
   base <- codeURIBase (tDomain zUser)
+  notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
+
+  sendMeetingEmails base (tDomain zUser) storedMeeting storedMeeting.invitedEmails $ \addr hostName hostEmail meeting mLocale ->
+    sendMeetingInvitationEmail addr hostName hostEmail meeting mLocale
+
   storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting
 
 updateMeetingImpl ::
@@ -308,7 +322,10 @@ updateMeetingImpl ::
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -356,6 +373,18 @@ updateMeetingImpl zUser connId meetingId update validityPeriod pastEditPeriod = 
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
+    -- Send update emails only when a stored field actually changed (an update
+    -- that merely repeats current values must not spam invitees).
+    let changes =
+          ["Title changed" | meeting.title /= updatedMeeting.title]
+            <> ["Start time changed" | meeting.startTime /= updatedMeeting.startTime]
+            <> ["End time changed" | meeting.endTime /= updatedMeeting.endTime]
+            <> ["Time zone changed" | meeting.tzid /= updatedMeeting.tzid]
+            <> ["Recurrence changed" | meeting.recurrence /= updatedMeeting.recurrence]
+    unless (null changes) $
+      lift $
+        sendMeetingEmails base (tDomain zUser) updatedMeeting updatedMeeting.invitedEmails $ \addr hostName hostEmail mtg mLocale ->
+          sendMeetingUpdateEmail addr hostName hostEmail mtg (T.intercalate "\n" changes) mLocale
     lift $ storedMeetingToMeetingWithConversation base zUser conv updatedMeeting
 
 -- | V16 update path. The request is delegated to the shared update
@@ -369,7 +398,10 @@ updateMeetingV16Impl ::
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -393,7 +425,10 @@ updateMeetingV18Impl ::
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -415,7 +450,10 @@ deleteMeetingImpl ::
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r,
-    Member CodeStore r
+    Member CodeStore r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -425,6 +463,7 @@ deleteMeetingImpl ::
 deleteMeetingImpl zUser connId meetingId validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
+  base <- codeURIBase (tDomain zUser)
   result <-
     runMaybeT $ do
       meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
@@ -443,6 +482,13 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       -- conversations, matching the deletion below.
       when isMeetingConv $ do
         lift $ ConversationSubsystem.checkDeleteLocalConversation zUser lConvId
+        -- Cancellation emails are external side effects that cannot be
+        -- unsent: they go out only after the fallible preflight accepted the
+        -- deletion. The join code is deleted further down, so the rendered
+        -- join_url is still live here.
+        lift $
+          sendMeetingEmails base (tDomain zUser) meeting meeting.invitedEmails $ \addr hostName hostEmail mtg mLocale ->
+            sendMeetingCancelEmail addr hostName hostEmail mtg mLocale
         -- The meeting.delete event must reach clients before the conversation is
         -- deleted, which emits conversation.delete-meeting (WPB-29046). If
         -- authorization is revoked concurrently between the preflight above and
@@ -478,7 +524,10 @@ refreshMeetingLinkImpl ::
     Member Now r,
     Member CodeStore r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -511,6 +560,12 @@ refreshMeetingLinkImpl zUser connId meetingId req validityPeriod = do
     -- The meeting.update event already notifies conversation members, so no
     -- separate conversation event is sent.
     lift $ notifyMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
+    -- Invitees are told the join link changed; 'storedMeetingToMeeting' inside
+    -- 'sendMeetingEmails' reads the code store after the rotation above, so the
+    -- rendered link is the fresh one.
+    lift $
+      sendMeetingEmails base (tDomain zUser) meeting meeting.invitedEmails $ \addr hostName hostEmail mtg mLocale ->
+        sendMeetingUpdateEmail addr hostName hostEmail mtg "Join link changed" mLocale
     lift $ storedMeetingToMeetingWithConversation base zUser conv meeting
 
 -- | Check the code's (hashed) password against the presented attempt.
@@ -607,6 +662,10 @@ getMeetingImpl zUser meetingId validityPeriod = do
 -- | Whether the deployment's license covers invitation links (WPB-29643).
 invitationLinksLicensed :: (Member Licensing r) => Sem r Bool
 invitationLinksLicensed = (.meetings.invitationLinks) <$> getLicense
+
+-- | Whether the deployment's license covers meeting emails (WPB-25932).
+meetingEmailsLicensed :: (Member Licensing r) => Sem r Bool
+meetingEmailsLicensed = (.meetings.emailsSending) <$> getLicense
 
 -- | Unauthenticated check of a meeting join link (WPB-28989). Unlike
 -- 'getMeetingImpl' no creator/membership check and no meetings-feature gate
@@ -759,6 +818,64 @@ mkApiMeeting mBase domain mCode sm =
       API.hasPassword = maybe False (isJust . snd) mCode
     }
 
+-- | Deduplicate recipient addresses, preserving first-occurrence order.
+dedup :: (Ord a) => [a] -> [a]
+dedup = Set.toList . Set.fromList
+
+-- | Host identity and locale for meeting emails, taken from the creator's
+-- brig profile. 'Nothing' (after a warning) when the creator is unknown or
+-- has no email address: the templates render "${host_name}
+-- (${host_email})", so they cannot be rendered meaningfully.
+meetingHostProfile ::
+  (Member BrigAPIAccess r, Member TinyLog r) =>
+  Store.StoredMeeting ->
+  Sem r (Maybe (Text, EmailAddress, Locale))
+meetingHostProfile meeting = do
+  users <- BrigAPIAccess.getUsers [meeting.creator]
+  case listToMaybe users of
+    Just user
+      | Just email <- user.userEmailUnvalidated ->
+          pure (Just (fromName user.userDisplayName, email, user.userLocale))
+    _ -> do
+      TinyLog.warn $
+        Log.msg ("meeting email skipped: creator unknown or has no email address" :: ByteString)
+          . Log.field "meetingId" (toByteString' meeting.id)
+      pure Nothing
+
+-- | Send one email per address for a scheduled meeting; immediate meetings
+-- send nothing (JIRA decision on WPB-25932/27178/27179). Builds the
+-- 'API.Meeting' once via 'storedMeetingToMeeting' (the code-store lookup
+-- yields the current join link) and resolves the host profile once.
+sendMeetingEmails ::
+  ( Member CodeStore r,
+    Member BrigAPIAccess r,
+    Member Licensing r,
+    Member TinyLog r
+  ) =>
+  -- | Code URI base for rendering the join link.
+  Maybe HttpsUrl ->
+  -- | Local domain.
+  Domain ->
+  Store.StoredMeeting ->
+  -- | Recipient addresses.
+  [EmailAddress] ->
+  -- | Per-address send operation (invitation / update / cancellation).
+  (EmailAddress -> Text -> EmailAddress -> API.Meeting -> Maybe Locale -> Sem r ()) ->
+  Sem r ()
+sendMeetingEmails base domain sm recipients sendKind
+  | sm.meetingType /= API.Scheduled = pure ()
+  -- No recipients: skip the brig RPC and code-store lookup entirely.
+  | null recipients = pure ()
+  -- License gate: unlicensed deployments send no meeting emails even when
+  -- settings.meetings.email is configured (WPB-25932).
+  | otherwise = meetingEmailsLicensed >>= \case
+      False -> pure ()
+      True -> do
+        mHost <- meetingHostProfile sm
+        for_ mHost $ \(hostName, hostEmail, loc) -> do
+          apiMeeting <- storedMeetingToMeeting base domain sm
+          for_ recipients $ \addr -> sendKind addr hostName hostEmail apiMeeting (Just loc)
+
 -- | Convert a 'Store.StoredMeeting' to an 'API.Meeting'; performs exactly
 -- one code-store lookup.
 storedMeetingToMeeting ::
@@ -888,7 +1005,12 @@ addInvitedEmailsImpl ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member (Error MeetingError) r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
@@ -907,6 +1029,12 @@ addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
+      base <- lift $ codeURIBase (tDomain zUser)
+      -- The request's addresses are exactly the newly invited ones; dedup so
+      -- an address listed twice gets a single invitation.
+      lift $
+        sendMeetingEmails base (tDomain zUser) storedMeeting (dedup emails) $ \addr hostName hostEmail mtg mLocale ->
+          sendMeetingInvitationEmail addr hostName hostEmail mtg mLocale
 
   pure $ isJust result
 
@@ -942,7 +1070,12 @@ replaceInvitedEmailsImpl ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member (Error MeetingError) r,
-    Member Now r
+    Member Now r,
+    Member CodeStore r,
+    Member EmailSubsystem r,
+    Member Licensing r,
+    Member BrigAPIAccess r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
@@ -961,6 +1094,13 @@ replaceInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ Store.replaceInvitedEmails (qUnqualified meetingId) emails
+      base <- lift $ codeURIBase (tDomain zUser)
+      -- Only newly-added addresses get an invitation; removed addresses get
+      -- no email (removal emails are a separate ticket, WPB-27179).
+      let added = dedup (emails \\ storedMeeting.invitedEmails)
+      lift $
+        sendMeetingEmails base (tDomain zUser) storedMeeting added $ \addr hostName hostEmail mtg mLocale ->
+          sendMeetingInvitationEmail addr hostName hostEmail mtg mLocale
 
   pure $ isJust result
 

@@ -202,3 +202,9 @@ ensureConnectedToLocals u uids = do
     getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throw ConversationSubsystemErrorNotConnected
+
+-- | Satisfies 'BrigAPIAccess' for stacks that never run user-facing meeting
+-- operations (meetings cleanup worker). Every operation errors if reached.
+errorBrigAPIAccess :: InterpreterFor BrigAPIAccess r
+errorBrigAPIAccess = interpret \case
+  _ -> error "errorBrigAPIAccess: operation not available in this context"

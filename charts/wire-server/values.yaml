@@ -149,18 +149,18 @@ galley:
         legacyTimeZone: "Europe/Berlin"
         pastEditPeriod: "24h"
         # Optional. When set, meeting invitation emails are sent with this
-        # sender over the configured transport (SES xor SMTP). `useSES` selects
-        # the transport; `aws` is used when true, `smtp` when false (mirrors
-        # brig.config.useSES). The ConfigMap renders these into the nested
-        # `transport:` object that Galley parses.
+        # sender over the configured transport (SES xor SMTP). `sesQueue` being
+        # set selects SES; otherwise SMTP is used. The ConfigMap renders these
+        # into the nested `transport:` object that Galley parses.
         # email:
         #   from: meetings@example.com          # required when email present
         #   replyTo: noreply@example.com        # optional
-        #   useSES: true
-        #   aws:                                # used when useSES: true
-        #     sesQueue: wire-meetings-email-feedback
-        #     sesEndpoint: https://email.us-east-1.amazonaws.com
-        #   smtp:                               # used when useSES: false
+        #   templateDir: /www/emails            # required when email present
+        #   branding:                           # optional ${...} substitutions
+        #     brand: Wire
+        #   sesQueue: wire-meetings-email-feedback   # SES transport (xor SMTP)
+        #   sesEndpoint: https://email.us-east-1.amazonaws.com
+        #   smtp:                               # used when sesQueue is unset
         #     host: smtp.example.com
         #     port: 587
         #     connType: tls
