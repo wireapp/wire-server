@@ -114,6 +114,7 @@ library
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.Jobs
+    Wire.API.License
     Wire.API.Locale
     Wire.API.Meeting
     Wire.API.Message
@@ -211,6 +212,7 @@ library
     Wire.API.Routes.Public.Galley.CustomBackend
     Wire.API.Routes.Public.Galley.Feature
     Wire.API.Routes.Public.Galley.LegalHold
+    Wire.API.Routes.Public.Galley.License
     Wire.API.Routes.Public.Galley.Meetings
     Wire.API.Routes.Public.Galley.Messaging
     Wire.API.Routes.Public.Galley.MLS
