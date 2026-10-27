@@ -65,7 +65,23 @@ testBasicFederationAcrossVersions pair = do
         runWithStableDomain stableDomain = do
           localDomain <- resolveDomain pair'.localFedVersion stableDomain
           remoteDomain <- resolveDomain pair'.remoteFedVersion stableDomain
+          case pair'.localFedVersion of
+            FedVersionLegacy _ -> pure ()
+            _ -> warmFederatorIngress localDomain remoteDomain
           action localDomain remoteDomain
+
+        -- Ride out transient federator-ingress unavailability on the remote
+        -- side (remote ingress controller answering 503, surfaced to the test
+        -- as 533), the same way 'warmupFederation' handles the two static
+        -- domains; the legacy fed-v* namespaces are covered by no existing
+        -- warmup.
+        warmFederatorIngress :: (HasCallStack) => Value -> Value -> App ()
+        warmFederatorIngress localVal remoteVal = do
+          localDomain <- asString localVal
+          remoteDomain <- asString remoteVal
+          retryRequestUntil
+            (checkFederationIngress localDomain remoteDomain)
+            ("Federator ingress (" <> localDomain <> " -> " <> remoteDomain <> ")")
 
         resolveDomain :: (HasCallStack) => FedVersion -> Maybe String -> App Value
         resolveDomain (FedVersionLegacy version) _ = make (AnyFedDomain version)
