@@ -194,6 +194,7 @@ library
   build-depends:
     , aeson                                 >=2.0.1.0
     , amazonka                              >=1.4.5
+    , amazonka-ses
     , amqp
     , async                                 >=2.0
     , base                                  >=4.6     && <5

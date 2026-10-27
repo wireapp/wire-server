@@ -99,6 +99,7 @@ settings:
     email:
       from: meetings@integration.example.com
       replyTo: reply@integration.example.com
+      templateDir: ../../libs/wire-subsystems/templates
       transport:
         smtpEndpoint:
           host: localhost

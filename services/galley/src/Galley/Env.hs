@@ -40,9 +40,12 @@ module Galley.Env
     reqIdMsg,
     notificationSubsystemConfig,
     currentFanoutLimitOpts,
+    meetingEmail,
+    MeetingEmailEnv (..),
   )
 where
 
+import Amazonka qualified
 import Cassandra
 import Control.Lens hiding ((.=))
 import Data.Domain (Domain)
@@ -61,6 +64,9 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.FeatureFlags qualified as FeatureFlags
 import Wire.AWS qualified as Aws
 import Wire.BoundedQueue.STM qualified as Q
+import Wire.EmailSending.SMTP (SMTP)
+import Wire.EmailSubsystem.Template (Localised)
+import Wire.EmailSubsystem.Templates.Meeting (MeetingTemplates)
 import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley
@@ -87,7 +93,18 @@ data Env = Env
     _mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
     _convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
-    _passwordHashingRateLimitEnv :: RateLimitEnv
+    _passwordHashingRateLimitEnv :: RateLimitEnv,
+    _meetingEmail :: Maybe MeetingEmailEnv
+  }
+
+-- | Everything needed to send meeting emails (settings.meetings.email).
+data MeetingEmailEnv = MeetingEmailEnv
+  { meTemplates :: Localised MeetingTemplates,
+    meBranding :: Map Text Text,
+    -- | Just when transport = EmailSMTP
+    meSmtp :: Maybe SMTP,
+    -- | Just when transport = EmailAWS
+    meAwsEnv :: Maybe Amazonka.Env
   }
 
 makeLenses ''Env

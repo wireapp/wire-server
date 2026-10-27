@@ -113,7 +113,7 @@ import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
-import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.EmailSubsystem (EmailSubsystem, noopEmailSubsystemInterpreter)
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
