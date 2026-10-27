@@ -61,6 +61,8 @@ data Opts = Opts
     migrateCustomBackend :: !Bool,
     migrateNonce :: !Bool,
     migrateConnections :: !Bool,
+    migrateNotifications :: !Bool,
+    migratePushTokens :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig,
