@@ -22,7 +22,6 @@ module Wire.MeetingsCleanupWorker
 where
 
 import Control.Monad.Catch
-import Data.Domain (domainText)
 import Data.Id (RequestId (RequestId))
 import Data.Text qualified as T
 import Data.Time.Clock
@@ -31,15 +30,11 @@ import Polysemy.Error (runError)
 import Prometheus (incCounter)
 import System.Logger qualified as Log
 import Wire.API.Error.Galley (MeetingError)
-import Wire.API.Meeting (defaultLegacyTimeZone)
 import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..))
 import Wire.Effects
 import Wire.ExternalAccess.External
-import Wire.Licensing.Interpreter (runLicense)
-import Wire.Licensing.License qualified as Licensing
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
-import Wire.MeetingsSubsystem
-import Wire.MeetingsSubsystem.Interpreter
+import Wire.MeetingsSubsystem.Interpreter (cleanupOldMeetingsImpl)
 
 data CleanupConfig = CleanupConfig
   { retentionHours :: Double,
@@ -61,22 +56,21 @@ runCleanupOldMeetings config = do
       . Log.field "retention_hours" config.retentionHours
 
   -- Loop until no more meetings are deleted
-  totalDeleted <- cleanupLoop env cutoffTime validityPeriod config.batchSize 0
+  totalDeleted <- cleanupLoop env cutoffTime config.batchSize 0
 
   Log.info env.logger $
     Log.msg (Log.val "Completed cleanup of old meetings")
       . Log.field "total_deleted" totalDeleted
   liftIO $ incCounter env.meetingsCleanupMetrics.runsCounter
 
-cleanupLoop :: Env -> UTCTime -> NominalDiffTime -> Int -> Int64 -> AppT IO Int64
-cleanupLoop env cutoffTime validityPeriod batchSize totalSoFar = do
+cleanupLoop :: Env -> UTCTime -> Int -> Int64 -> AppT IO Int64
+cleanupLoop env cutoffTime batchSize totalSoFar = do
   when (batchSize <= 0) $ do
     Log.err env.logger $
       Log.msg (Log.val "Invalid batch size: must be greater than 0")
         . Log.field "batch_size" batchSize
     liftIO $ throwM $ WorkerException "Invalid batch size: must be greater than 0"
-  -- Run the subsystem to handle cleanup logic
-  result <- liftIO $ runMeetingsCleanup env cutoffTime validityPeriod batchSize
+  result <- liftIO $ runMeetingsCleanup env cutoffTime batchSize
 
   case result of
     Left err -> do
@@ -93,12 +87,11 @@ cleanupLoop env cutoffTime validityPeriod batchSize totalSoFar = do
           . Log.field "total_deleted" newTotal
       -- Continue if we deleted a full batch (meaning there might be more)
       if deletedCount >= fromIntegral batchSize
-        then cleanupLoop env cutoffTime validityPeriod batchSize newTotal
+        then cleanupLoop env cutoffTime batchSize newTotal
         else pure newTotal
 
--- Run the meetings cleanup using the subsystem
-runMeetingsCleanup :: Env -> UTCTime -> NominalDiffTime -> Int -> IO (Either Text Int64)
-runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
+runMeetingsCleanup :: Env -> UTCTime -> Int -> IO (Either Text Int64)
+runMeetingsCleanup env cutoffTime batchSize = do
   let disableTlsV1 = True
   extEnv <- initExtEnv disableTlsV1
   let mergeErrors = either (Left . T.pack . show) Right
@@ -106,18 +99,7 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
     . runBackgroundWorkerEffects env extEnv (RequestId "meetings-cleanup") Nothing
     . interpretMeetingsStoreToPostgres
     . runError @MeetingError
-    -- Cleanup performs no meeting updates, so the past-edit period is
-    -- unused; pass 0 to keep the (inert) limit as tight as possible.
-    -- Cleanup never sends 'getLicense', so the licensing gate never fires;
-    -- the real interpreter keeps cleanup on the same configured licence
-    -- payload as galley (missingLicense is still served when the payload is
-    -- unset or unparseable).
-    . runLicense
-      (Licensing.Domain (domainText env.federationDomain))
-      env.license
-    . interpretMeetingsSubsystem
-      MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
-    $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
+    $ cleanupOldMeetingsImpl cutoffTime batchSize
 
 data WorkerException = WorkerException Text
   deriving stock (Show)

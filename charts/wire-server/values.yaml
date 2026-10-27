@@ -159,24 +159,22 @@ galley:
         validityPeriod: "48h"
         legacyTimeZone: "Europe/Berlin"
         pastEditPeriod: "24h"
-        # Optional. When set, meeting invitation emails are sent with this
-        # sender over the configured transport (SES xor SMTP). `useSES` selects
-        # the transport; `aws` is used when true, `smtp` when false (mirrors
-        # brig.config.useSES). The ConfigMap renders these into the nested
-        # `transport:` object that Galley parses.
-        # email:
-        #   from: meetings@example.com          # required when email present
-        #   replyTo: noreply@example.com        # optional
-        #   useSES: true
-        #   aws:                                # used when useSES: true
-        #     sesQueue: wire-meetings-email-feedback
-        #     sesEndpoint: https://email.us-east-1.amazonaws.com
-        #   smtp:                               # used when useSES: false
-        #     host: smtp.example.com
-        #     port: 587
-        #     connType: tls
-        #     username: meetings                # optional; enables smtpCredentials
-        #     passwordFile: /etc/wire/galley/secrets/smtp-password.txt
+        # DEPRECATED: the legacy `galley.config.settings.meetings.email` block
+        # is still honored for backward compatibility: its presence enables
+        # meeting emails (overriding `emailsEnabled: false`) and its
+        # `replyTo` feeds brig's `emailSMS.general.meeting.replyTo`. To
+        # disable meeting emails, remove the legacy block and set
+        # `emailsEnabled: false`. All other keys under
+        # the legacy block (`from`,
+        # `useSES`, `aws.*`, `smtp.*`, `templateDir`, `branding`) and
+        # `galley.secrets.smtpPassword` are no longer read: sender, transport
+        # and branding come from brig's `emailSMS` config.
+        # New keys: galley.config.settings.meetings.emailsEnabled and
+        # brig.config.emailSMS.general.meeting.replyTo.
+        #
+        # When true, galley asks brig to send meeting emails; rendering and
+        # transport are brig's (emailSMS, emailSMS.general.meeting.replyTo).
+        emailsEnabled: false
 
       # To disable proteus for new federated conversations:
       # federationProtocols: ["mls"]
@@ -379,10 +377,6 @@ galley:
     annotations: {}
     automountServiceAccountToken: true
 
-  # Optional secret keys (see templates/galley/secret.yaml):
-  #   smtpPassword: <smtp-password>  # mounted at /etc/wire/galley/secrets/smtp-password.txt;
-  #                                 # consumed via settings.meetings.email.smtp.passwordFile
-  #                                 # (mirrors brig's smtp.passwordFile)
   secrets: {}
 
   podSecurityContext:

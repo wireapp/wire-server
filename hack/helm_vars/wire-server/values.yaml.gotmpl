@@ -163,6 +163,8 @@ brig:
       general:
         emailSender: backend-integrationk8s@wire.com
         smsSender: dummy
+        meeting:
+          replyTo: meetings-reply@integration.example.com
       user:
         activationUrl: https://example.com/verify/?key=${key}&code=${code}
         smsActivationUrl: https://example.com/v/${code}
@@ -329,13 +331,7 @@ galley:
         validityPeriod: "5s"
         legacyTimeZone: "Europe/Berlin"
         pastEditPeriod: "5s"
-        email:
-          from: meetings@example.com
-          replyTo: noreply@example.com
-          useSES: true
-          aws:
-            sesQueue: integration-galley-meetings-events
-            sesEndpoint: http://fake-aws-ses:4569
+        emailsEnabled: true
 
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.

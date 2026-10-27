@@ -149,7 +149,10 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     smsSender :: !Text,
     -- | Customizable branding text for
     --   emails/sms/calls
-    templateBranding :: !BrandingOpts
+    templateBranding :: !BrandingOpts,
+    -- | Optional meeting-email settings.  Parsed leniently (optional key) so
+    -- existing configs keep booting.
+    meeting :: !(Maybe MeetingEmailOpts)
   }
   deriving (Show, Generic)
 
@@ -157,6 +160,15 @@ checkedEmailSender :: EmailSMSGeneralOpts -> EmailAddress
 checkedEmailSender = unStricterDomain . emailSender
 
 instance FromJSON EmailSMSGeneralOpts
+
+data MeetingEmailOpts = MeetingEmailOpts
+  { -- | Optional Reply-To address for meeting emails (header on every
+    -- invitation/update/cancel email brig renders).
+    replyTo :: !(Maybe EmailAddress)
+  }
+  deriving (Show, Generic)
+
+instance FromJSON MeetingEmailOpts
 
 data BrandingOpts = BrandingOpts
   { brand :: !Text,

@@ -669,6 +669,7 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.MLS.TargetedMessageSpec
     Wire.ConversationSubsystem.One2OneSpec
     Wire.EmailSending.SESSpec
+    Wire.EmailSubsystem.InterpreterSpec
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec

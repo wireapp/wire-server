@@ -346,14 +346,16 @@ runInterpreters ::
        State [Mail],
        ErrorS 'TeamMemberNotFound,
        ErrorS 'TeamNotFound,
-       Embed IO
+       Embed IO,
+       Final IO
      ]
     a ->
   IO ([Mail], [(Level, LByteString)], a)
 runInterpreters users teamMap emailTemplates action = do
   lr <- newLogRecorder
   (mails, res) <-
-    runM
+    runFinal @IO
+      . embedToFinal @IO
       . fmap (either (error . show) (either (error . show) Imports.id))
       . runError @(Tagged 'TeamNotFound ())
       . runError @(Tagged 'TeamMemberNotFound ())
@@ -364,7 +366,7 @@ runInterpreters users teamMap emailTemplates action = do
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
       . inMemoryUserStoreInterpreter
-      . emailSubsystemInterpreter emailTemplates branding
+      . emailSubsystemInterpreter emailTemplates branding Nothing
       . interpretTeamSubsystemToGalleyAPI
       . samlEmailSubsystemInterpreter
       $ action

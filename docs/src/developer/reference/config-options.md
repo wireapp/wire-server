@@ -258,38 +258,36 @@ settings:
     pastEditPeriod: "24h"
 ```
 
-### Meetings email sender and transport
+### Meetings email triggering
 
-The optional `settings.meetings.email` block enables emailing meeting
-invitations to external addresses. `from` is required; `replyTo` is optional.
-`transport` is an AWS SES or SMTP value (the same shape Brig uses for its
-email transport). When the block is absent, no meeting invitation emails are
-sent.
+Meeting invitation, update and cancellation emails are **rendered and sent by
+brig** using its existing `emailSMS` settings: `emailSMS.general.templateDir`
+(the wire-subsystems templates), `emailSMS.general.emailSender`,
+`emailSMS.general.templateBranding`, and the SES/SMTP transport Brig already
+configures. An optional `emailSMS.general.meeting.replyTo` sets a Reply-To
+header on every meeting email Brig renders.
+
+Galley only *triggers* these emails: the optional
+`settings.meetings.emailsEnabled` flag (default `false`) makes galley hand the
+meeting email job to brig over the internal
+`POST /i/meetings/emails` route. Sending additionally requires the deployment
+license to cover meeting emails; emails are skipped (never an error to the
+meeting operation) when either is missing, the meeting is not scheduled, there
+are no recipients, or the creator has no verified email address.
 
 ```yaml
 # galley.yaml
 settings:
   meetings:
-    email:
-      from: meetings@example.com
-      replyTo: noreply@example.com
-      transport:               # SES:
-        sesQueue: wire-meetings-email-feedback
-        sesEndpoint: https://email.us-east-1.amazonaws.com
-      # transport:             # SMTP (xor SES):
-      #   smtpEndpoint: { host: smtp.example.com, port: 587 }
-      #   smtpConnType: tls
-      #   smtpCredentials:
-      #     smtpUsername: meetings
-      #     smtpPassword: /etc/wire/galley/secrets/smtp-password.txt
-```
+    emailsEnabled: true
 
-For SMTP, the Helm value `galley.config.settings.meetings.email.smtp.passwordFile`
-points at the path where the SMTP password is read, and
-`galley.secrets.smtpPassword` holds the value (mounted at
-`/etc/wire/galley/secrets/smtp-password.txt`). The Galley ConfigMap injects that
-path into `transport.smtpCredentials.smtpPassword`, the same pattern Brig uses
-for `smtp.passwordFile`.
+# brig.yaml
+emailSMS:
+  general:
+    # ... existing emailSMS settings (templateDir, emailSender, transport) ...
+    meeting:
+      replyTo: noreply@example.com   # optional
+```
 
 ### Meetings time settings
 

@@ -103,7 +103,7 @@ import Wire.ClientSubsystem (ClientSubsystem, ReAuthPolicy (ReAuthPolicy))
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ConnectionStore (ConnectionStore)
 import Wire.DomainRegistrationStore hiding (domain)
-import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.EmailSubsystem (EmailSubsystem, sendMeetingCancelEmail, sendMeetingInvitationEmail, sendMeetingUpdateEmail)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemErrorNotFound))
 import Wire.Events (Events)
@@ -311,6 +311,7 @@ accountAPI =
     :<|> Named @"i-update-group" updateGroupInternalH
     :<|> Named @"i-delete-group-managed" deleteGroupManagedInternalH
     :<|> Named @"iResendTeamMemberVerificationEmail" resendTeamMemberVerificationEmailH
+    :<|> Named @"iSendMeetingEmails" sendMeetingEmailsH
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
@@ -766,6 +767,17 @@ resendTeamMemberVerificationEmailH ::
 resendTeamMemberVerificationEmailH tid uid = do
   lusr <- qualifyLocal uid
   lift . liftSem $ UserSubsystem.resendTeamMemberVerificationEmail tid lusr
+
+sendMeetingEmailsH ::
+  (Member EmailSubsystem r) =>
+  SendMeetingEmails ->
+  (Handler r) ()
+sendMeetingEmailsH s = do
+  let changeSummary = fromMaybe "" s.changeSummary
+  lift . liftSem $ for_ s.recipients $ \rcpt -> case s.kind of
+    MeetingEmailInvitation -> sendMeetingInvitationEmail rcpt s.hostName s.hostEmail s.meeting s.locale
+    MeetingEmailUpdate -> sendMeetingUpdateEmail rcpt s.hostName s.hostEmail s.meeting changeSummary s.locale
+    MeetingEmailCancel -> sendMeetingCancelEmail rcpt s.hostName s.hostEmail s.meeting s.locale
 
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This

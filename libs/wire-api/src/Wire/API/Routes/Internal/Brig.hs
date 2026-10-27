@@ -42,6 +42,8 @@ module Wire.API.Routes.Internal.Brig
     getByNoFilters,
     CreateGroupInternalRequest (..),
     UpdateGroupInternalRequest (..),
+    MeetingEmailKind (..),
+    SendMeetingEmails (..),
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
@@ -83,6 +85,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
+import Wire.API.Meeting (Meeting)
 import Wire.API.Pagination
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
@@ -675,6 +678,61 @@ type AccountAPI =
                      ]
                     ResendVerificationEmailResult
            )
+    :<|> Named
+           "iSendMeetingEmails"
+           ( Summary
+               "Render and send meeting emails via brig's email transport."
+               :> "meetings"
+               :> "emails"
+               :> ReqBody '[Servant.JSON] SendMeetingEmails
+               :> MultiVerb 'POST '[Servant.JSON] '[RespondEmpty 202 "Emails accepted for sending."] ()
+           )
+
+-- | Which kind of meeting email brig should render and send.
+data MeetingEmailKind
+  = MeetingEmailInvitation
+  | MeetingEmailUpdate
+  | MeetingEmailCancel
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via GenericUniform MeetingEmailKind
+
+instance ToSchema MeetingEmailKind where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "invitation" MeetingEmailInvitation,
+          element "update" MeetingEmailUpdate,
+          element "cancel" MeetingEmailCancel
+        ]
+
+-- | Internal payload for delegating meeting email rendering and sending to brig.
+data SendMeetingEmails = SendMeetingEmails
+  { kind :: !MeetingEmailKind,
+    -- | Required when kind == MeetingEmailUpdate, ignored otherwise.
+    changeSummary :: !(Maybe Text),
+    meeting :: !Meeting,
+    -- | Display name of the meeting creator (templates render "${host_name} (${host_email})").
+    hostName :: !Text,
+    hostEmail :: !EmailAddress,
+    -- | Locale for template selection; brig falls back to its default locale.
+    locale :: !(Maybe Locale),
+    -- | Deduplicated by galley; brig sends one email per address.
+    recipients :: ![EmailAddress]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema SendMeetingEmails)
+
+instance ToSchema SendMeetingEmails where
+  schema =
+    object $
+      SendMeetingEmails
+        <$> kind .= field "kind" schema
+        <*> changeSummary .= maybe_ (optField "change_summary" schema)
+        <*> meeting .= field "meeting" schema
+        <*> hostName .= field "host_name" schema
+        <*> hostEmail .= field "host_email" schema
+        <*> locale .= maybe_ (optField "locale" schema)
+        <*> recipients .= field "recipients" (array schema)
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef
