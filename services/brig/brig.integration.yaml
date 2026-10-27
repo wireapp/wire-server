@@ -182,6 +182,7 @@ postgresMigration:
   blockList: postgresql
   customBackend: postgresql
   budget: postgresql
+  nonce: postgresql
 
 optSettings:
   setActivationTimeout: 4

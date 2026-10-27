@@ -1635,6 +1635,20 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
+-- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.nonce (
+    user_id uuid NOT NULL,
+    key text NOT NULL,
+    nonce uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.nonce OWNER TO "wire-server";
+
+--
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2128,6 +2142,14 @@ ALTER TABLE ONLY public.mls_group_member_client
 
 ALTER TABLE ONLY public.mls_history_client
     ADD CONSTRAINT mls_history_client_pkey PRIMARY KEY (group_id, id);
+
+
+--
+-- Name: nonce nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.nonce
+    ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 
 
 --

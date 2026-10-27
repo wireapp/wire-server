@@ -72,6 +72,10 @@ import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.BlockListStore.DualWrite
 import Wire.BlockListStore.Postgres
+import Wire.NonceStore
+import Wire.NonceStore.Cassandra
+import Wire.NonceStore.DualWrite
+import Wire.NonceStore.Postgres
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
 import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
@@ -227,6 +231,7 @@ type BrigLowerLevelEffects =
      UserGroupStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
+     NonceStore,
      BlockListStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
@@ -425,6 +430,11 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretBlockListStoreToPostgres
         MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
 
+      nonceStore = case e.postgresMigration.nonce of
+        CassandraStorage -> interpretNonceStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretNonceStoreToPostgres
+        MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -540,6 +550,7 @@ runBrigToIO e (AppT ma) = do
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
               . blockListStore
+              . nonceStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres

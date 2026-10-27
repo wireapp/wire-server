@@ -93,6 +93,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-block-list" $
             Migrations.blockList opts.migrationOptions
       else pure $ pure ()
+  cleanupNonceMigration <-
+    if opts.migrateNonce
+      then
+        runAppT env $
+          withNamedLogger "migrate-nonce" $
+            Migrations.nonce opts.migrationOptions
+      else pure $ pure ()
   cleanupPasswordResetMigration <-
     if opts.migratePasswordReset
       then
@@ -127,6 +134,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupBlockListMigration
+              <*> Concurrently cleanupNonceMigration
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupJobRunner

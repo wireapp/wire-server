@@ -270,6 +270,7 @@ postgresMigration:
   domainRegistration: postgresql
   user: postgresql
   blockList: postgresql
+  nonce: postgresql
   passwordReset: postgresql
   customBackend: postgresql
   budget: postgresql

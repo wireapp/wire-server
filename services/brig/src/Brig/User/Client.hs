@@ -21,7 +21,6 @@ module Brig.User.Client
 where
 
 import Brig.App
-import Brig.Data.Nonce as Nonce
 import Brig.Options qualified as Opt
 import Control.Error
 import Control.Monad.Trans.Except (except)
@@ -44,13 +43,15 @@ import Wire.API.User
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.JwtTools (CertEnrollmentError (..), JwtTools)
 import Wire.JwtTools qualified as JwtTools
+import Wire.NonceStore (NonceStore)
+import Wire.NonceStore qualified as NonceStore
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 
 createClientDPoPAccessToken ::
-  (Member JwtTools r, Member Now r, Member UserSubsystem r) =>
+  (Member JwtTools r, Member Now r, Member UserSubsystem r, Member NonceStore r) =>
   Local UserId ->
   ClientId ->
   StdMethod ->
@@ -76,8 +77,8 @@ createClientDPoPAccessToken luid cid method link proof = do
   nonce <-
     ExceptT $
       note NonceNotFound
-        <$> wrapClient
-          ( Nonce.lookupAndDeleteNonce
+        <$> liftSem
+          ( NonceStore.lookupAndDeleteNonce
               uid
               (T.decodeUtf8With lenientDecode . toStrict $ toByteString cid)
           )

@@ -420,6 +420,11 @@ library
     Wire.MlsKeyPackageStore.Cassandra
     Wire.MlsKeyPackageSubsystem
     Wire.MlsKeyPackageSubsystem.Interpreter
+    Wire.NonceStore
+    Wire.NonceStore.Cassandra
+    Wire.NonceStore.DualWrite
+    Wire.NonceStore.Migration
+    Wire.NonceStore.Postgres
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.Options.Galley
