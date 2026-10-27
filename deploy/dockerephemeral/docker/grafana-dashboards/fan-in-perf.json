@@ -124,35 +124,35 @@
       "id": 15, "type": "timeseries", "title": "Pool sessions/s", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 56, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_count[5s]))", "legendFormat": "{{role}}" }
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
       "id": 16, "type": "timeseries", "title": "Pool session failures/s", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 64, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_failure_count[5s]))", "legendFormat": "{{role}}" }
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_failure_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
       "id": 17, "type": "timeseries", "title": "Pool acquisition timeouts/s", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 64, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_acquisition_timeout_count[5s]))", "legendFormat": "{{role}}" }
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_acquisition_timeout_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
       "id": 18, "type": "timeseries", "title": "Pool connections established/s", "datasource": null, "interval": "1s",
       "gridPos": { "x": 0, "y": 72, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_established_count[5s]))", "legendFormat": "{{role}}" }
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_established_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
       "id": 19, "type": "timeseries", "title": "Pool connection failures/s", "datasource": null, "interval": "1s",
       "gridPos": { "x": 12, "y": 72, "w": 12, "h": 8 },
       "targets": [
-        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_failure_count[5s]))", "legendFormat": "{{role}}" }
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_failure_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
