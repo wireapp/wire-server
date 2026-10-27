@@ -29,8 +29,9 @@ gcWindowSeconds :: Double
 gcWindowSeconds = 5
 
 -- | What one status line of a consume run says, with the time (seconds since
--- the start of the run) it ended. Strict, so that a sample does not keep the
--- reports it was taken from (cumulative snapshots and histograms) alive.
+-- the start of the run) it ended. Strict (also inside the 'Maybe's, see
+-- 'sampleOf'), so that a sample does not keep the reports it was taken from
+-- (cumulative snapshots and histograms) alive.
 data TickSample = TickSample
   { at :: !Double,
     push :: !Double,
@@ -47,10 +48,13 @@ sampleOf r c =
     { at = r.elapsed,
       push = r.pushRate,
       ack = c.ackRate,
-      ackP99 = c.ackP99,
-      lagP99 = c.lagP99,
+      ackP99 = strictly c.ackP99,
+      lagP99 = strictly c.lagP99,
       backlog = c.backlog
     }
+  where
+    -- a strict field forces only the 'Just', not the percentile inside it
+    strictly m = m >>= \x -> x `seq` Just x
 
 -- | Medians (maximum for @ackP99Max@) over the ticks of a group; 'Nothing' where
 -- no tick has a value (a percentile is missing in a second without any).

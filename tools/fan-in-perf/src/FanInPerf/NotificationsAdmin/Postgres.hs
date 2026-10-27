@@ -4,6 +4,7 @@ module FanInPerf.NotificationsAdmin.Postgres
   ( interpretFanInNotificationsAdminToPostgres,
     createDatabaseSql,
     dropTablesSql,
+    resetPartmanWorkerSql,
     setupPartmanSql,
   )
 where
@@ -29,7 +30,10 @@ import Wire.Postgres
 
 interpretFanInNotificationsAdminToPostgres :: (PGConstraints r) => InterpreterFor FanInNotificationsAdmin r
 interpretFanInNotificationsAdminToPostgres = interpret $ \case
-  DropTables -> runSessionWithRetry $ Session.script dropTablesSql
+  -- ALTER SYSTEM cannot run inside a transaction block: one script each
+  DropTables -> runSessionWithRetry $ do
+    Session.script dropTablesSql
+    traverse_ Session.script resetPartmanWorkerSql
   -- The script is sent as one multi-statement query, which PostgreSQL runs in
   -- a single implicit transaction: either all tables exist or none.
   CreateTables shape -> runSessionWithRetry $ Session.script $ case shape of
@@ -120,6 +124,17 @@ dropTablesSql =
   \epoch_notification_acks, local_connection_acks, remote_connection_acks CASCADE;\n\
   \DROP EXTENSION IF EXISTS pg_partman CASCADE;\n\
   \DROP SCHEMA IF EXISTS partman CASCADE"
+
+-- | Undoes the @ALTER SYSTEM@ settings of 'setupPartmanSql': without them the
+-- pg_partman background worker would keep connecting to the database (and fail
+-- without the extension) during runs on plain tables.
+resetPartmanWorkerSql :: [Text]
+resetPartmanWorkerSql =
+  [ "ALTER SYSTEM RESET pg_partman_bgw.dbname",
+    "ALTER SYSTEM RESET pg_partman_bgw.interval",
+    "ALTER SYSTEM RESET pg_partman_bgw.role",
+    "SELECT pg_reload_conf()"
+  ]
 
 -- | Rows per stream. Keep the table list in sync with the
 -- @sql/*.sql@ files (connection tables are not read by consumers).

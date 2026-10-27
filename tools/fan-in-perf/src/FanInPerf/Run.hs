@@ -8,7 +8,7 @@ import Data.Qualified (toLocalUnsafe)
 import FanInPerf.Consume (runConsume, runConsumeOnly)
 import FanInPerf.Database
 import FanInPerf.Metrics (runMetricsServer)
-import FanInPerf.NotificationsAdmin (SchemaShape (..), checkpoint, countDeadlocks, countPartitions, countRows, createDatabase, createTables, currentShape, databaseExists, dropTables, getServerInfo, ping, setupPartman, unDbName, vacuumAnalyze)
+import FanInPerf.NotificationsAdmin (SchemaShape (..), countDeadlocks, countPartitions, countRows, createDatabase, createTables, currentShape, databaseExists, dropTables, getServerInfo, ping, setupPartman, unDbName, vacuumAnalyze)
 import FanInPerf.Options
 import FanInPerf.Pool
 import FanInPerf.Produce (runProduce)
@@ -135,15 +135,11 @@ poolConfig size =
       idlenessTimeout = Duration 600
     }
 
--- | Around a run, on the writers' pool but outside the measured phase:
---
--- * CHECKPOINT first, so that every run starts at the same point of the
---   checkpoint cycle (see 'checkpoint').
--- * The deadlocks of the database during the run and the rows it holds at the
---   end, printed below the summary (@summary.database@ in the JSON).
+-- | Around a run, on the writers' pool but outside the measured phase: the
+-- deadlocks of the database during the run and the rows it holds at the end,
+-- printed below the summary (@summary.database@ in the JSON).
 withDatabaseFacts :: Console -> Env -> IO RunSummary -> IO RunSummary
 withDatabaseFacts console env act = do
-  runOrAbort "checkpoint" env checkpoint
   deadlocksBefore <- runOrAbort "deadlock count" env countDeadlocks
   summary <- act
   -- backends report their statistics (deadlocks) with a delay, and a push that

@@ -3,6 +3,7 @@ module FanInPerf.Store
     StoreEffects,
     runStore,
     runOrAbort,
+    checkpointBeforeRun,
     abort,
   )
 where
@@ -51,6 +52,12 @@ runStore env =
 runOrAbort :: Text -> Env -> Sem StoreEffects a -> IO a
 runOrAbort what env act =
   runStore env act >>= either (\e -> abort (what <> " failed: " <> showT e)) pure
+
+-- | CHECKPOINT right before the measured phase of a run, after its setup
+-- writes, so that every run starts at the same point of the checkpoint cycle
+-- (see 'checkpoint').
+checkpointBeforeRun :: Env -> IO ()
+checkpointBeforeRun env = runOrAbort "checkpoint" env checkpoint
 
 abort :: Text -> IO a
 abort = die . T.unpack

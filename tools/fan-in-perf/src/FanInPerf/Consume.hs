@@ -504,6 +504,8 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
       writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (storePush writerEnv) setup.payload setup.entries ws reportError g
       readerClient (stats, (client, subs)) = readerLoop gate readerEnv (readerOptions opts) opts.pollIntervalMs client stats reportError subs
       readTotals = totals writerStats readerStats
+  -- after the subscriptions, whose acks setup writes
+  checkpointBeforeRun writerEnv
   start <- getMonotonicTime
   writerRef <- newIORef (initialTickState start)
   readerRef <- newIORef (initialConsumeTickState start)
@@ -608,6 +610,8 @@ runConsumeOnly console env opts = do
                 NoAcks -> pure ()
   -- built before the clock starts, not while the readers spawn
   traverse_ evaluate (concat clientSubs)
+  -- after the row count, which can set hint bits (dirty pages)
+  checkpointBeforeRun env
   start <- getMonotonicTime
   readerRef <- newIORef (initialConsumeTickState start)
   milestones <- newIORef [(p, Nothing) | p <- milestonePercents]

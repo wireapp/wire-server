@@ -45,6 +45,10 @@ sqlSpec = describe "SQL rendering" $ do
     stmts `shouldContain` ["ALTER SYSTEM SET pg_partman_bgw.role = 'partman_maintainer'"]
     listToMaybe (reverse stmts) `shouldBe` Just "SELECT pg_reload_conf()"
 
+  it "resets every pg_partman worker setting of the setup" $ do
+    let set = [T.takeWhile (/= ' ') (T.drop (T.length "ALTER SYSTEM SET ") s) | s <- setupPartmanSql n, "ALTER SYSTEM SET " `T.isPrefixOf` s]
+    resetPartmanWorkerSql `shouldBe` map ("ALTER SYSTEM RESET " <>) set <> ["SELECT pg_reload_conf()"]
+
 serverInfoSpec :: Spec
 serverInfoSpec = describe "ServerInfo as JSON" $ do
   it "has the version, the settings by name and the pg_partman version" $

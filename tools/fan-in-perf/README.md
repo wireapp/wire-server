@@ -63,13 +63,13 @@ ticket). It takes about 50 minutes (`--quick` for a smoke test) and drops and
 recreates the database. It reads each run's [summary JSON](#summary-json).
 
 Global flags go before the sub-command. The tool prints a status line per
-second and a summary at the end. Ctrl-C stops a run without `--duration`. Every `produce` and `consume*` run starts with a `CHECKPOINT` (so each run starts at the same point of the checkpoint cycle, not with the dirty pages of the previous run or of `reset-db`) and ends with the database's deadlock count and row count; both happen outside the measured phase.
+second and a summary at the end. Ctrl-C stops a run without `--duration`. Every `produce` and `consume*` run starts its measured phase with a `CHECKPOINT`, after its setup writes (so each run starts at the same point of the checkpoint cycle, not with the dirty pages of the previous run or of `reset-db`) and ends with the database's deadlock count and row count; both happen outside the measured phase.
 
 ## Commands and parameters
 
 | Command | Experiment | Does |
 |---|---|---|
-| `reset-db [--partitioned]` | – | Creates the `--db` database if missing, drops all fan-in tables (both shapes) and pg_partman (extension and schema `partman`), then creates the tables of `sql/` from scratch (`fan-in-common.sql` + `fan-in-notifications-plain.sql`). No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman first. Always ends with empty tables. With `--partitioned` it then waits until pg_partman's first maintenance run is done (the total partition count of the six `*_notifications` tables unchanged for 75 s, at most 240 s); `--no-settle` skips that. |
+| `reset-db [--partitioned]` | – | Creates the `--db` database if missing, drops all fan-in tables (both shapes) and pg_partman (extension, schema `partman` and its background worker settings), then creates the tables of `sql/` from scratch (`fan-in-common.sql` + `fan-in-notifications-plain.sql`). No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman first. Always ends with empty tables. With `--partitioned` it then waits until pg_partman's first maintenance run is done (the total partition count of the six `*_notifications` tables unchanged for 75 s, at most 240 s); `--no-settle` skips that. |
 | `produce` | A | Writers push as fast as possible. |
 | `consume` | B | `produce` writers plus simulated reader clients. |
 | `consume-ack` | C | `consume` where every reader also acknowledges. |

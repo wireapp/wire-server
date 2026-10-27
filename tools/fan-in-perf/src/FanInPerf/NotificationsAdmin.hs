@@ -88,7 +88,8 @@ instance ToJSON ServerInfo where
 -- | Administrative operations on the fan-in notification tables for tests and
 -- performance tooling. Never wire this into services.
 data FanInNotificationsAdmin m a where
-  -- | Drops all fan-in notification tables (both shapes) and pg_partman, if present.
+  -- | Drops all fan-in notification tables (both shapes) and pg_partman, if
+  -- present, and resets the pg_partman background worker settings.
   DropTables :: FanInNotificationsAdmin m ()
   -- | Creates the fan-in notification tables. Fails if they exist. For
   -- 'Partitioned', 'SetupPartman' must have run before.

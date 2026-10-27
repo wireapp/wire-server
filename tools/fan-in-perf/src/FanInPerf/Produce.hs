@@ -127,6 +127,7 @@ runProduce console env opts = do
   stats <- replicateM opts.writers newWriterStats
   (errors, reportError) <- newErrorReporter
   let writer (ws, g) = writerLoop (pure False) (const 0) (storePush env) setup.payload setup.entries ws reportError g
+  checkpointBeforeRun env
   start <- getMonotonicTime
   stateRef <- newIORef (initialTickState start)
   let doTick = tickOnce console metrics (fromIntegral opts.warmup) stats errors stateRef

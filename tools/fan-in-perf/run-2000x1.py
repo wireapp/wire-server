@@ -8,7 +8,8 @@ speed.
   run-2000x1.py [OUT.md] [--only A,E,...] [--quick] [--db CONNSTR]
   (OUT.md default: fan-in-2000x1-results.md)
 
-DESTRUCTIVE: drops and recreates the database (default fan_in_perf). Takes about
+DESTRUCTIVE: drops and recreates the fan-in tables and pg_partman in the
+database (default fan_in_perf; created if missing). Takes about
 40 minutes for A-D plus about 10 for E and F (--only E,F: the latter only,
 --quick: all durations divided by 10, for a smoke test). Settings were tuned on
 the author's machine (22 CPUs, 62 GiB) before.
@@ -385,7 +386,7 @@ def main():
     ap.add_argument("out", nargs="?", default="fan-in-2000x1-results.md")
     ap.add_argument("--only", help="comma-separated experiments to run, e.g. E,F (default: all)")
     ap.add_argument("--quick", action="store_true", help="divide all durations by 10 (smoke test)")
-    ap.add_argument("--db", default=DB, help="connection string; the database is dropped and recreated")
+    ap.add_argument("--db", default=DB, help="connection string; its fan-in tables and pg_partman are dropped and recreated")
     args = ap.parse_args()
     DB, out = args.db, args.out
     QUICK = 10 if args.quick else 1
