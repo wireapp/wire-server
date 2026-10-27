@@ -533,6 +533,12 @@ instance PostgresMarshall UUID BotId where
 instance PostgresMarshall Text ClientId where
   postgresMarshall = clientToText
 
+instance PostgresMarshall Text ConnId where
+  -- ConnId is an opaque ByteString. Arbitrary bytes are not valid UTF-8, so
+  -- map each byte to a code point (bijective and total) instead of assuming
+  -- an encoding.
+  postgresMarshall = Text.pack . map (chr . fromIntegral) . BS.unpack . fromConnId
+
 instance PostgresMarshall Value Object where
   postgresMarshall = Object
 
@@ -1029,6 +1035,9 @@ instance PostgresUnmarshall UUID BotId where
 
 instance PostgresUnmarshall Text ClientId where
   postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
+
+instance PostgresUnmarshall Text ConnId where
+  postgresUnmarshall = Right . ConnId . BS.pack . map (fromIntegral . ord) . Text.unpack
 
 instance PostgresUnmarshall Value Object where
   postgresUnmarshall (Object obj) = Right obj

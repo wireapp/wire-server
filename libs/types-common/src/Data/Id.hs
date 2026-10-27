@@ -354,6 +354,14 @@ newtype ConnId = ConnId
 instance ToSchema ConnId where
   schema = (decodeUtf8 . fromConnId) .= fmap (ConnId . encodeUtf8) (text "ConnId")
 
+instance Cql ConnId where
+  ctype = Tagged BlobColumn
+
+  toCql (ConnId c) = CqlBlob (L.fromStrict c)
+
+  fromCql (CqlBlob b) = pure . ConnId $ L.toStrict b
+  fromCql _ = Left "ConnId: Blob expected"
+
 instance S.ToParamSchema ConnId where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
 

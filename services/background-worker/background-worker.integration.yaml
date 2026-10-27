@@ -65,6 +65,7 @@ migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
 migrateNotifications: false
+migratePushTokens: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:

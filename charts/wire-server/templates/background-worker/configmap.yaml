@@ -91,6 +91,7 @@ data:
     migrateNonce: {{ .migrateNonce }}
     migrateConnections: {{ .migrateConnections }}
     migrateNotifications: {{ .migrateNotifications }}
+    migratePushTokens: {{ .migratePushTokens }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
