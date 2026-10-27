@@ -1,0 +1,1 @@
+New authenticated endpoint `GET /license` (V19) returning the deployment's meetings licensing flags (`invitation_links`, `emails_sending`, `calendars_integration`), all false when the deployment has no valid license.
