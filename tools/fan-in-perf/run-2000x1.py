@@ -39,9 +39,10 @@ CLIENTS = 2000
 W_A, W_B, W_C = 64, 32, 16
 POOL_B, POOL_C = 64, 64
 WARMUP, DRAIN = 5, 30
-# E, F: produce (W_A writers) for SPLIT_PRODUCE s, then consume-only. Long enough
+# E, F: produce (W_SPLIT writers) for SPLIT_PRODUCE s, then consume-only. Long enough
 # for the consume phase to last well past SPLIT_WARMUP (max rate ignores it).
-SPLIT_PRODUCE, SPLIT_WARMUP, SPLIT_TIMEOUT = 120, 2, 1200
+W_SPLIT = 128  # more writers than A: in 300 s runs push/s decays with 64 (WAL-bound), not with 128
+SPLIT_PRODUCE, SPLIT_WARMUP, SPLIT_TIMEOUT = 300, 2, 1200
 # Reader pool of E and F. With 64, the readers sometimes idled for about 5 s
 # (while all connections were idle, cause not found), which dominates the
 # average; 16, 32 and 48 never did in repeated runs.
@@ -206,7 +207,7 @@ def experiments():
 def split_experiments():
     """(label, produce args, consume-only args), run on plain tables only: the 5 min
     retention of the partitioned tables would drop partitions during the consume phase."""
-    produce = common("produce", W_A, None, SPLIT_PRODUCE)
+    produce = common("produce", W_SPLIT, None, SPLIT_PRODUCE)
     consume = ["--targets", TARGETS, "--seed", SEED, "--clients", CLIENTS, "--warmup", SPLIT_WARMUP, "--timeout", SPLIT_TIMEOUT]
     return [
         ("E", produce, ["consume-only", "--reader-pool-size", POOL_SPLIT] + consume),
@@ -345,7 +346,7 @@ def report(res, env):
          f"- Load: `--targets {TARGETS}`: 2,000 users with one client each; every push writes 1 notification to 1 user stream (plus its `last_user_notifications` upsert) in one transaction, read by 1 client, so cons/s = push/s. B-D: `--clients {CLIENTS}`, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
          f"- Writers A={W_A}, B={W_B}, C/D={W_C}; reader pool B={POOL_B}, C/D={POOL_C}: highest rate in sweeps beforehand at which readers keep up. Seed {SEED}. One run each.",
          f"- Rates are averages over the writer phase incl. {WARMUP} s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
-         f"- E, F (plain only): `reset`, `produce` ({W_A} writers, {split_dur} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
+         f"- E, F (plain only): `reset`, `produce` ({W_SPLIT} writers, {split_dur} s), `VACUUM ANALYZE` + `CHECKPOINT`, then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
          *(["- `--quick`: all durations divided by 10 (smoke test), the numbers are not comparable to a full run."] if QUICK > 1 else []),
          "- Only the `user` stream kind is exercised (no client/team/epoch streams, fan-out 1); not comparable to runs with a mixed target set.",
          "",
@@ -392,8 +393,8 @@ def report(res, env):
     for e in ("E", "F"):
         x = res.get(f"{e}-plain")
         # fan-out 1 and one client per user: every push is one row; writers still
-        # in flight when produce ends commit rows that are not counted (at most W_A)
-        if x and not 0 <= x["rows"] - x["pushes"] <= W_A:
+        # in flight when produce ends commit rows that are not counted (at most W_SPLIT)
+        if x and not 0 <= x["rows"] - x["pushes"] <= W_SPLIT:
             notes.append(f"- {e}-plain: produce reported {x['pushes']:,} pushes but the table holds {x['rows']:,} rows")
         if x and not x["end"].startswith("all readers caught up"):
             notes.append(f"- {e}-plain: consume-only ended: {x['end']}")
