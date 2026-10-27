@@ -21,11 +21,8 @@ import datetime
 import json
 import os
 import re
-import statistics
 import subprocess
 import sys
-import threading
-import time
 import urllib.request
 
 DB = "postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf"
@@ -55,13 +52,6 @@ def log(msg):
     print(f"[{datetime.datetime.now():%H:%M:%S}] {msg}", file=sys.stderr, flush=True)
 
 
-def psql(sql):
-    r = subprocess.run(["psql", DB, "-X", "-At", "-F", "|", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError("psql failed: " + r.stderr.strip()[-200:])
-    return r.stdout.strip()
-
-
 def fip(args, summary_json=None):
     return ["cabal", "run", "exe:fan-in-perf", "--", "--db", DB] + (["--summary-json", summary_json] if summary_json else []) + [str(a) for a in args]
 
@@ -72,62 +62,6 @@ def tool(args):
     if r.returncode != 0:
         raise RuntimeError(f"fan-in-perf {args[0]} failed: {(r.stdout + r.stderr).strip()[-300:]}")
     return r.stdout
-
-
-# Partition count and oldest partition of user_notifications (pg_partman names
-# partitions by start time, so the smallest name is the oldest; '' if unpartitioned).
-CHILDREN = "select count(*), coalesce(min(c.relname), '') from pg_inherits i join pg_class c on c.oid = i.inhrelid where i.inhparent = 'user_notifications'::regclass"
-
-
-class DropCounter(threading.Thread):
-    """Records the times of pg_partman drops: changes of the oldest child of user_notifications, polled every second."""
-
-    def __init__(self):
-        super().__init__(daemon=True)
-        self.stop = threading.Event()
-        self.drops = []
-        self.error = None  # a failed poll ends counting; re-raised after join
-
-    def run(self):
-        last = None
-        try:
-            while not self.stop.wait(1):
-                oldest = psql(CHILDREN).split("|")[1]
-                if last is not None and oldest != last:
-                    self.drops.append(time.time())
-                last = oldest
-        except Exception as e:
-            self.error = e
-
-
-# Per-second status line of consume-ack, parsed for the drop impact of D on
-# partman only. Groups: second, push/s, ack/s, ack p99, lag p99, backlog (rates
-# of that second; p99 is "-" in a second without acks/deliveries), e.g.
-#   t=5s push/s cur=4,358 max=- | cons/s cur=4,099 max=- | ack/s cur=4,068 max=- p99<=6.3ms | lag p50<=58.7ms p99<=117.4ms | backlog=259 | ...
-TICK = re.compile(r"^t=(\d+)s push/s cur=([\d,]+) .*\| ack/s cur=([\d,]+) max=\S+ p99<?=(\S+) \| lag p50<?=\S+ p99<?=(\S+) \| backlog=([\d,]+)")
-GC_WINDOW = 5  # seconds around a drop
-
-
-def secs(s):
-    """"6.3ms" / "1.07s" -> seconds; "-" (nothing measured in that second) -> None."""
-    return None if s == "-" else float(s[:-2]) / 1000 if s.endswith("ms") else float(s[:-1])
-
-
-def gc_impact(ticks, drops, duration):
-    """Medians of the per-second status lines within GC_WINDOW s of a drop vs. all other seconds (after warmup)."""
-    rows = {True: [], False: []}
-    for t, line in ticks:
-        m = TICK.match(line)
-        if m and WARMUP < int(m.group(1)) <= duration:
-            rows[any(abs(t - d) <= GC_WINDOW for d in drops)].append(m.groups()[1:])
-    def med(rs, i, f):
-        v = [x for x in (f(r[i]) for r in rs) if x is not None]
-        return statistics.median(v) if v else None
-
-    as_int = lambda x: int(x.replace(",", ""))
-    return {k: {"seconds": len(rs), "push_s": med(rs, 0, as_int), "ack_s": med(rs, 1, as_int), "ack_p99": med(rs, 2, secs),
-                "lag_p99": med(rs, 3, secs), "backlog": med(rs, 4, as_int), "ack_p99_max": max((x for x in (secs(r[2]) for r in rs) if x is not None), default=None)}
-            for k, rs in rows.items()}
 
 
 def summary_json(logpath):
@@ -190,8 +124,13 @@ def parse(logpath):
         "ack_p99": format_latency(a.get("latency", {}).get("p99")),
         "drain": drain_text(j["drain"]),
         "deadlocks": db.get("deadlocks"),
-        "rows": db.get("rows"),
+        "rows": db.get("rows"),  # pushes - rows = expired by TTL
     }
+    if j["gc"]:  # consume runs on partitioned tables: the tool sampled the partition drops
+        gc = j["gc"]
+        window = lambda w: {"seconds": w["seconds"], "push_s": w["push_rate"], "ack_s": w["ack_rate"], "ack_p99": w["ack_p99"],
+                            "ack_p99_max": w["ack_p99_max"], "lag_p99": w["lag_p99"], "backlog": w["backlog"]}
+        r.update(drops=gc["drops"], drops_by_table=gc["drops_by_table"], gc_window=gc["window_seconds"], gc={True: window(gc["within"]), False: window(gc["other"])})
     r["errors"] = sum(r[k] or 0 for k in ("push_err", "fetch_err", "ack_err"))
     r["summary"] = text
     r["json"] = j
@@ -201,23 +140,12 @@ def parse(logpath):
 def run(label, args, partman):
     tool(["reset-db"] + (["--partitioned"] if partman else []))  # waits for pg_partman to settle
     logpath = os.path.join(LOGDIR, label + ".log")
-    dc = DropCounter() if partman and label.startswith("D") else None
-    ticks = []  # (wall time, status line), to line them up with the drops
-    if dc:
-        dc.start()
-    _, rc = tool_logged(logpath, args, (lambda line: ticks.append((time.time(), line)) if dc and line.startswith("t=") else None))
-    if dc:
-        dc.stop.set()
-        dc.join()
-        if dc.error:
-            raise dc.error
+    _, rc = tool_logged(logpath, args)
     try:
         r = parse(logpath)
     except RuntimeError as e:
         raise RuntimeError(f"{label}: {e} (exit {rc})")
     r.update(label=label, exit=rc, cmd="fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args))
-    if dc:
-        r.update(drops=len(dc.drops), gc=gc_impact(ticks, dc.drops, args[args.index("--duration") + 1]))  # pushes - rows = expired by TTL
     return r
 
 
@@ -350,10 +278,11 @@ def gc_section(pm):
     secs_expired = expired / pm["push_s"] if pm["push_s"] else 0
     i, o = pm["gc"][True], pm["gc"][False]
     f = lambda x, ms=False: "-" if x is None else (f"{x * 1000:.1f}ms" if x < 1 else f"{x:.2f}s") if ms else f"{x:,.0f}"
-    return [f"D partman: {pm['drops']} partition drops (each takes an `ACCESS EXCLUSIVE` lock on the parent); {expired:,} rows (about {secs_expired:.0f} s of pushes) were expired by TTL, i.e. the later drops held data.", "",
-          f"Impact of the drops: per-second status lines within {GC_WINDOW} s of a drop vs. all other seconds of D partman (medians):", "",
+    by_table = ", ".join(f"`{t}` {n}" for t, n in sorted(pm["drops_by_table"].items()))
+    return [f"D partman: {pm['drops']} partition drops over the six tables ({by_table}; each takes an `ACCESS EXCLUSIVE` lock on its table); {expired:,} rows (about {secs_expired:.0f} s of pushes) were expired by TTL, i.e. the later drops held data.", "",
+          f"Impact of the drops: per-second figures within {pm['gc_window']:g} s of a drop vs. all other seconds of D partman (medians):", "",
           "| Window | seconds | push/s (median) | ack/s (median) | ack p99 (median) | ack p99 max | lag p99 (median) | backlog (median) |", "|---|---|---|---|---|---|---|---|",
-          f"| within {GC_WINDOW} s of a drop | {i['seconds']} | {f(i['push_s'])} | {f(i['ack_s'])} | {f(i['ack_p99'], True)} | {f(i['ack_p99_max'], True)} | {f(i['lag_p99'], True)} | {f(i['backlog'])} |",
+          f"| within {pm['gc_window']:g} s of a drop | {i['seconds']} | {f(i['push_s'])} | {f(i['ack_s'])} | {f(i['ack_p99'], True)} | {f(i['ack_p99_max'], True)} | {f(i['lag_p99'], True)} | {f(i['backlog'])} |",
           f"| other | {o['seconds']} | {f(o['push_s'])} | {f(o['ack_s'])} | {f(o['ack_p99'], True)} | {f(o['ack_p99_max'], True)} | {f(o['lag_p99'], True)} | {f(o['backlog'])} |", ""]
 
 
@@ -405,7 +334,7 @@ def report(res, env):
     if dp:
         i, o = dp["gc"][True], dp["gc"][False]
         r = lambda a, b: f"{a / b:.2f}" if a is not None and b else "-"
-        L.append(f"- d. During TTL GC ({dp['drops']} partition drops in {duration_text(dur['D'])}): within {GC_WINDOW} s of a drop vs. otherwise, ack/s {r(i['ack_s'], o['ack_s'])} x, "
+        L.append(f"- d. During TTL GC ({dp['drops']} partition drops over the six tables in {duration_text(dur['D'])}): within {dp['gc_window']:g} s of a drop vs. otherwise, ack/s {r(i['ack_s'], o['ack_s'])} x, "
                  f"ack p99 {r(i['ack_p99'], o['ack_p99'])} x, lag p99 {r(i['lag_p99'], o['lag_p99'])} x (medians); {cell(dp['errors'])} errors, {cell(dp['missing'])} missing, {cell(dp['deadlocks'])} deadlocks.")
     for e in "EF":
         x = g(e, "plain")

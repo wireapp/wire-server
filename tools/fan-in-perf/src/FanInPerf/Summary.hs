@@ -23,6 +23,7 @@ import Data.Aeson (ToJSON (..), Value, camelTo2, genericToJSON, object, (.=))
 import Data.Aeson qualified as A
 import Data.Vector.Unboxed qualified as VU
 import FanInPerf.ConsumeStats
+import FanInPerf.GcImpact (GcImpact)
 import FanInPerf.Options (ReaderMode (..), consumeOnlyLabel, experimentLabel)
 import FanInPerf.Stats
 import Imports
@@ -141,7 +142,9 @@ data RunSummary = RunSummary
     end :: Maybe ConsumeEnd,
     -- | rows of the counted streams in the database; consume-only only
     rowsTotal :: Maybe Int,
-    database :: Maybe DatabaseSummary
+    database :: Maybe DatabaseSummary,
+    -- | consume runs on partitioned tables only
+    gc :: Maybe GcImpact
   }
   deriving stock (Generic)
 
@@ -226,7 +229,8 @@ produceSummary r =
       drain = Nothing,
       end = Nothing,
       rowsTotal = Nothing,
-      database = Nothing
+      database = Nothing,
+      gc = Nothing
     }
 
 -- | @consumeSummary mode expectedDeliveries writerPhase drain pushReport
@@ -297,5 +301,6 @@ consumeOnlySummary mode expected elapsed end milestones c =
           drain = Nothing,
           end = Just end,
           rowsTotal = Nothing,
-          database = Nothing
+          database = Nothing,
+          gc = Nothing
         }

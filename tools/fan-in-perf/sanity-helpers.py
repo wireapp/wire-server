@@ -19,6 +19,7 @@ import json
 import os
 import re
 import statistics
+import subprocess
 import sys
 import urllib.parse
 import urllib.request
@@ -26,6 +27,19 @@ import urllib.request
 _spec = importlib.util.spec_from_file_location("run2000x1", os.path.join(os.path.dirname(os.path.abspath(__file__)), "run-2000x1.py"))
 run = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(run)
+
+# Partition count and oldest partition of user_notifications (pg_partman names
+# partitions by start time, so the smallest name is the oldest; '' if unpartitioned).
+CHILDREN = "select count(*), coalesce(min(c.relname), '') from pg_inherits i join pg_class c on c.oid = i.inhrelid where i.inhparent = 'user_notifications'::regclass"
+GC_WINDOW = 5  # seconds around a drop, as the tool's FanInPerf.GcImpact.gcWindowSeconds
+
+
+def psql(sql):
+    r = subprocess.run(["psql", run.DB, "-X", "-At", "-F", "|", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError("psql failed: " + r.stderr.strip()[-200:])
+    return r.stdout.strip()
+
 
 PROM = "http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/"
 
@@ -44,7 +58,7 @@ def window(logpath):
 
 def check_db(logpath):
     r = run.parse(logpath)
-    q = run.psql
+    q = psql
     rows, distinct, users = q("select count(*), count(distinct notification_id), count(distinct user_id) from user_notifications").split("|")
     partitioned = q("select count(*) from pg_partitioned_table where partrelid = 'user_notifications'::regclass") == "1"
     print(f"user_notifications: {rows} rows, {distinct} distinct ids, {users} users; tool pushes {r['pushes']}"
@@ -57,7 +71,7 @@ def check_db(logpath):
     print(f"user_notification_acks: {acks} rows, {mismatched} not at the stream's last id (consume-ack with missing=0: expect {run.CLIENTS} and 0)")
     print("rows in other notification tables:", q("select (select count(*) from client_notifications) + (select count(*) from team_notifications) + (select count(*) from epoch_notifications) + (select count(*) from local_connection_notifications) + (select count(*) from remote_connection_notifications)"))
     if partitioned:
-        print("partitions, oldest:", q(run.CHILDREN).replace("|", ", "), "| rows in the parent itself:", q("select count(*) from only user_notifications"),
+        print("partitions, oldest:", q(CHILDREN).replace("|", ", "), "| rows in the parent itself:", q("select count(*) from only user_notifications"),
               "| default partition:", q("select count(*) from pg_partitioned_table where partrelid = 'user_notifications'::regclass and partdefid <> 0"))
     print("pg_stat_database deadlocks, conflicts, rollbacks:", q("select deadlocks || ', ' || conflicts || ', ' || xact_rollback from pg_stat_database where datname = current_database()"))
 
@@ -102,12 +116,12 @@ def check_gc(logpath):
     drops = [t for a, t in zip(ts, ts[1:]) if age[t] < age[a] - 30]
     print(f"drops: {len(drops)} at +{[t - t0 for t in drops]} s; oldest partition age {min(age.values()):.0f}-{max(age.values()):.0f} s; "
           f"max seconds since maintenance {max(series('max(fan_in_partman_seconds_since_maintenance)').values(), default=float('nan')):.1f}")
-    near = lambda t: any(abs(t - d) <= run.GC_WINDOW for d in drops)
+    near = lambda t: any(abs(t - d) <= GC_WINDOW for d in drops)
     for name, q in queries.items():
         s = {t: v for t, v in series(q).items() if v == v}
         i, o = [v for t, v in s.items() if near(t)], [v for t, v in s.items() if not near(t)]
         if i and o:
-            print(f"{name}: within {run.GC_WINDOW} s of a drop median {statistics.median(i):.4g} max {max(i):.4g} (n={len(i)}) | "
+            print(f"{name}: within {GC_WINDOW} s of a drop median {statistics.median(i):.4g} max {max(i):.4g} (n={len(i)}) | "
                   f"other median {statistics.median(o):.4g} max {max(o):.4g} (n={len(o)})")
 
 

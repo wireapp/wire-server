@@ -1,10 +1,12 @@
 module FanInPerf.TerminalSpec (spec) where
 
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import FanInPerf.ConsumeStats
+import FanInPerf.GcImpact (GcImpact (..), GcWindow (..))
 import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Stats
-import FanInPerf.Summary (DatabaseSummary (..))
+import FanInPerf.Summary (DatabaseSummary (..), RunSummary (gc), produceSummary)
 import FanInPerf.Targets (TargetKind (..))
 import FanInPerf.Terminal
 import Imports
@@ -105,6 +107,17 @@ spec = do
     it "prints the deadlocks and the rows" $
       formatDatabase DatabaseSummary {deadlocks = 0, rows = 5_211_640}
         `shouldBe` ["  database: deadlocks=0 rows=5,211,640"]
+
+  describe "renderSummary with partition drops" $ do
+    it "prints the ticks around a drop and the others" $ do
+      let w = GcWindow {seconds = 11, pushRate = Just 100, ackRate = Just 50, ackP99 = Just 0.004, ackP99Max = Just 0.2, lagP99 = Nothing, backlog = Just 7}
+          g = GcImpact {drops = 3, dropsByTable = Map.fromList [("team_notifications", 1), ("user_notifications", 2)], windowSeconds = 5, within = w, other = w {seconds = 30}}
+          out = renderSummary ((produceSummary report) {gc = Just g})
+      out `shouldSatisfy` any (T.isInfixOf "partition drops: 3 (team_notifications 1, user_notifications 2); per-second figures within 5.0s of a drop")
+      out `shouldSatisfy` any (== "    within: seconds=11 push/s=100 ack/s=50 ack p99<=4.0ms (max 200.0ms) lag p99<=- backlog=7")
+      out `shouldSatisfy` any (T.isInfixOf "other:  seconds=30")
+    it "prints nothing without partition drops" $
+      renderSummary (produceSummary report) `shouldSatisfy` (not . any (T.isInfixOf "partition drops"))
 
   describe "formatConsumeStatus" $
     it "renders the consume status line" $

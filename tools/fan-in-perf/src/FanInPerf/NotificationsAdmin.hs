@@ -16,6 +16,8 @@ module FanInPerf.NotificationsAdmin
     countDeadlocks,
     countRows,
     countPartitions,
+    oldestPartitions,
+    notificationTables,
     getServerInfo,
     ServerInfo (..),
     DbName,
@@ -57,6 +59,17 @@ mkDbName t = case T.uncons t of
 -- | Quotes a validated identifier for use in SQL.
 quoteIdent :: DbName -> Text
 quoteIdent (DbName n) = "\"" <> n <> "\""
+
+-- | The six notification tables. Keep in sync with the @sql/*.sql@ files.
+notificationTables :: [Text]
+notificationTables =
+  [ "user_notifications",
+    "client_notifications",
+    "team_notifications",
+    "epoch_notifications",
+    "local_connection_notifications",
+    "remote_connection_notifications"
+  ]
 
 -- | What a result should be read together with: the server version and the
 -- settings that matter for the numbers.
@@ -114,6 +127,10 @@ data FanInNotificationsAdmin m a where
   -- they are not partitioned): it changes while pg_partman still creates or
   -- drops partitions of any of them.
   CountPartitions :: FanInNotificationsAdmin m Int
+  -- | For each of the 'notificationTables' (sorted by name) the name of its
+  -- oldest partition, empty without any. pg_partman names partitions by their
+  -- start time, so a change of the name is a drop.
+  OldestPartitions :: FanInNotificationsAdmin m [(Text, Text)]
   GetServerInfo :: FanInNotificationsAdmin m ServerInfo
 
 makeSem ''FanInNotificationsAdmin

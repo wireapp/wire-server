@@ -122,6 +122,10 @@ outside the measured phase.
 | `rows_total` | `consume-only*` | Rows in the counted streams (`user`, `client`, `team`, `epoch`) of the database. |
 | `database.deadlocks` | `produce`, `consume*` | Deadlocks the database detected during the run. |
 | `database.rows` | `produce`, `consume*` | Rows in the six `*_notifications` tables after the run. |
+| `gc.drops` | `consume`, `consume-ack` on partitioned tables | Partition drops seen during the run, over all six `*_notifications` tables: a poll (once a second, on a connection of its own) that finds a table's oldest partition changed counts one drop for that table. The six tables normally drop in the same pg_partman run, so each has the same count. |
+| `gc.drops_by_table` | same | Object table name to number of drops; a difference between the tables shows that they did not drop in lockstep. |
+| `gc.window_seconds` | same | A tick counts as "within" a drop if it ended at most this many seconds before or after it (5). |
+| `gc.within`, `gc.other` | same | Medians of the per-second figures of the ticks within a drop window vs. all others, after warmup and while the writers ran: `seconds` (tick count), `push_rate`, `ack_rate`, `ack_p99`, `ack_p99_max` (max), `lag_p99`, `backlog`. `null` where no tick has a value. |
 
 ### `produce`
 
@@ -314,8 +318,11 @@ Procedure:
 3. `fan-in-perf --db "$DB" consume-ack ... --duration 600` (or more), any
    parameters (the constraints of [C](#consume-ack) apply).
 4. Baseline: plain `fan-in-perf --db "$DB" reset-db`, identical `consume-ack` parameters and duration.
-5. Compare the `summary:` blocks (rates, latency percentiles) and the
-   Grafana "pg_partman" row: do dips line up with partition drops?
+5. Compare the `summary:` blocks (rates, latency percentiles). On partitioned
+   tables the summary also lists the partition drops and the median figures of
+   the seconds within 5 s of a drop vs. all others (`partition drops:` lines,
+   `gc` in the JSON). The Grafana "pg_partman" row shows the same over time: do
+   dips line up with partition drops?
 
 Metrics (second exporter, `postgres-exporter-fan-in-perf`, query file
 `deploy/dockerephemeral/docker/postgres-exporter-fan-in-perf/queries.yaml`):

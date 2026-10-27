@@ -49,6 +49,7 @@ interpretFanInNotificationsAdminToPostgres = interpret $ \case
   CountDeadlocks -> fromIntegral <$> runStatement () deadlocksStatement
   CountRows -> fromIntegral <$> runStatement () countRowsStatement
   CountPartitions -> fromIntegral <$> runStatement () countPartitionsStatement
+  OldestPartitions -> V.toList <$> runStatement (V.fromList notificationTables) oldestPartitionsStatement
   GetServerInfo -> serverInfoImpl
 
 createDatabaseSql :: DbName -> Text
@@ -196,6 +197,18 @@ countPartitionsStatement =
       to_regclass('local_connection_notifications'),
       to_regclass('remote_connection_notifications')
     )
+  |]
+
+-- | One row per given table, also for one without partitions.
+oldestPartitionsStatement :: Statement.Statement (V.Vector Text) (V.Vector (Text, Text))
+oldestPartitionsStatement =
+  [vectorStatement|
+    select t.name :: text, coalesce(min(c.relname), '') :: text
+    from unnest($1 :: text[]) as t(name)
+    left join pg_inherits i on i.inhparent = to_regclass(t.name)
+    left join pg_class c on c.oid = i.inhrelid
+    group by t.name
+    order by t.name
   |]
 
 -- | The settings that matter for the numbers of a run.

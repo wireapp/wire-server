@@ -77,9 +77,16 @@ run console opts = do
       withMetricsServer (withDatabaseFacts console env (runProduce console env p)) >>= writeSummary
     Consume c -> (>>= writeSummary) . withMetricsServer $ do
       checkDatabase env
+      -- partitioned: the drops are sampled on a connection of their own
+      samplerEnv <-
+        runOrAbort "shape check" env currentShape >>= \case
+          Just Partitioned -> do
+            samplerPool <- initPool fams SamplerPool (poolConfig 1) connStr
+            pure (Just env {pool = samplerPool})
+          _ -> pure Nothing
       -- readers get their own pool so they cannot starve the writers
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
-      withDatabaseFacts console env (runConsume console env env {pool = readerPool} c)
+      withDatabaseFacts console env (runConsume console env env {pool = readerPool} samplerEnv c)
     ConsumeOnly c -> (>>= writeSummary) . withMetricsServer $ do
       checkDatabase env
       runOrAbort "shape check" env currentShape >>= \case

@@ -26,6 +26,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.QSem (QSem, newQSem, signalQSem, waitQSem)
 import Control.Exception (evaluate, handleJust)
 import Data.Bits (shiftL)
+import Data.Map.Strict qualified as Map
 import Data.Misc (showT)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -34,8 +35,9 @@ import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
 import FanInPerf.Acks
 import FanInPerf.ConsumeStats
+import FanInPerf.GcImpact (DropEvent, detectDrops, gcImpact, sampleOf)
 import FanInPerf.Metrics
-import FanInPerf.NotificationsAdmin (countStreams)
+import FanInPerf.NotificationsAdmin (countStreams, oldestPartitions)
 import FanInPerf.NotificationsStore
 import FanInPerf.NotificationsStore.Postgres (notificationIdMillis)
 import FanInPerf.Options (ConsumeOnlyOptions (..), ConsumeOptions (..), ProduceOptions (..), ReaderMode (..), ReaderOptions (..), consumeOnlyLabel, experimentLabel, readerOptions)
@@ -44,7 +46,7 @@ import FanInPerf.Population qualified as Pop
 import FanInPerf.Produce
 import FanInPerf.Stats
 import FanInPerf.Store
-import FanInPerf.Summary (RunSummary (rowsTotal), consumeOnlySummary, consumeSummary)
+import FanInPerf.Summary (RunSummary (gc, rowsTotal), consumeOnlySummary, consumeSummary)
 import FanInPerf.Targets
 import FanInPerf.Terminal
 import FanInPerf.Worker
@@ -466,10 +468,12 @@ stopAndDrain label console duration stopWriters writerPhaseEnd runDrain = do
     printLine console $ label <> ": writers stopped, draining"
     (phase,) <$> runDrain
 
--- | @runConsume console writerEnv readerEnv options@. The environments differ
--- only in their connection pool.
-runConsume :: Console -> Env -> Env -> ConsumeOptions -> IO RunSummary
-runConsume console writerEnv readerEnv opts = do
+-- | @runConsume console writerEnv readerEnv samplerEnv options@. The
+-- environments differ only in their connection pool. With a @samplerEnv@ (its
+-- own one-connection pool, for partitioned tables) the partition drops are
+-- recorded and their impact is part of the summary.
+runConsume :: Console -> Env -> Env -> Maybe Env -> ConsumeOptions -> IO RunSummary
+runConsume console writerEnv readerEnv samplerEnv opts = do
   gate <- newQSem opts.readerPoolSize
   let p = opts.writerOptions
       label = experimentLabel opts.mode
@@ -503,7 +507,14 @@ runConsume console writerEnv readerEnv opts = do
   start <- getMonotonicTime
   writerRef <- newIORef (initialTickState start)
   readerRef <- newIORef (initialConsumeTickState start)
-  let doTick = consumeTickOnce opts.mode console metrics consumeMetrics ackMetrics (fromIntegral p.warmup) (not <$> readIORef stopWriters) writerStats readerStats errors writerRef readerRef
+  samplesRef <- newIORef []
+  dropsRef <- newIORef []
+  let doTick = do
+        (writerReport, readerReport) <- consumeTickOnce opts.mode console metrics consumeMetrics ackMetrics (fromIntegral p.warmup) (not <$> readIORef stopWriters) writerStats readerStats errors writerRef readerRef
+        -- one small record per second, only for the impact of the drops
+        -- (forced: a lazy sample would keep both reports alive)
+        when (isJust samplerEnv) $ modifyIORef' samplesRef ((:) $! sampleOf writerReport readerReport)
+        pure (writerReport, readerReport)
       -- the writer phase ends when the writers stopped (or at Ctrl-C)
       writerPhaseEnd = do
         now <- getMonotonicTime
@@ -513,17 +524,42 @@ runConsume console writerEnv readerEnv opts = do
   (writerPhase, drainResult) <-
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
-      withAsync (mapConcurrently_ readerClient (zip readerStats (zip (readers population) clientSubs))) $ \readersA -> do
-        link readersA
-        withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
-          link writersA
-          let stop = atomicWriteIORef stopWriters True >> wait writersA
-          stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout opts.pollIntervalMs readTotals)
+      withDropSampler start samplerEnv dropsRef $
+        withAsync (mapConcurrently_ readerClient (zip readerStats (zip (readers population) clientSubs))) $ \readersA -> do
+          link readersA
+          withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
+            link writersA
+            let stop = atomicWriteIORef stopWriters True >> wait writersA
+            stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout opts.pollIntervalMs readTotals)
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
-  let summary = consumeSummary opts.mode (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport
+  drops <- readIORef dropsRef
+  samples <- readIORef samplesRef
+  let summary =
+        (consumeSummary opts.mode (totalExpected writerReport.total) writerPhase drainResult writerReport readerReport)
+          { gc = gcImpact (fromIntegral p.warmup) writerPhase.duration drops samples <$ samplerEnv
+          }
   traverse_ (printLine console) (renderSummary summary)
   pure summary
+
+-- | Polls the oldest partition of every notification table once a second on
+-- the sampler's own connection and records a 'DropEvent' (seconds since
+-- @start@) for each table whose oldest partition changed. A failed poll ends
+-- the run, like a failed metrics server.
+withDropSampler :: Double -> Maybe Env -> IORef [DropEvent] -> IO a -> IO a
+withDropSampler _ Nothing _ act = act
+withDropSampler start (Just env) dropsRef act =
+  withAsync (go Nothing) $ \samplerA -> link samplerA >> act
+  where
+    go previous = do
+      current <- Map.fromList <$> (runStore env oldestPartitions >>= either (fail . ("sampling the partitions failed: " <>) . show) pure)
+      now <- getMonotonicTime
+      for_ previous $ \before ->
+        case detectDrops (now - start) before current of
+          [] -> pure ()
+          events -> atomicModifyIORef' dropsRef (\ds -> (events <> ds, ()))
+      threadDelay 1_000_000
+      go (Just current)
 
 -- | Experiments E and F: readers only, on the rows an earlier @produce@ run
 -- left. Every reader starts at the nil UUID in both modes (no 'startPositions':

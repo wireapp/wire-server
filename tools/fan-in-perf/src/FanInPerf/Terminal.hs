@@ -22,9 +22,11 @@ module FanInPerf.Terminal
   )
 where
 
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import FanInPerf.ConsumeStats
+import FanInPerf.GcImpact (GcImpact (..), GcWindow (..))
 import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Stats
 import FanInPerf.Summary
@@ -131,8 +133,33 @@ renderSummary s =
     <> maybe [] fetchGateLines s.fetch
     <> maybe [] behindWarning s.deliveries
     <> maybe [] ackLines s.acks
+    <> maybe [] gcLines s.gc
     <> ["  drain: " <> drainText d | d <- toList s.drain]
     <> ["  end: " <> endText s.duration e | e <- toList s.end]
+
+-- | The ticks around a partition drop vs. all others (medians).
+gcLines :: GcImpact -> [Text]
+gcLines g =
+  [ "  partition drops: " <> groupThousands g.drops <> " (" <> T.intercalate ", " [table <> " " <> groupThousands n | (table, n) <- Map.toList g.dropsByTable] <> "); per-second figures within " <> secondsText g.windowSeconds <> " of a drop vs. the other seconds (medians)",
+    "    within: " <> window g.within,
+    "    other:  " <> window g.other
+  ]
+  where
+    window w =
+      "seconds="
+        <> groupThousands w.seconds
+        <> " push/s="
+        <> maybe "-" rateText w.pushRate
+        <> " ack/s="
+        <> maybe "-" rateText w.ackRate
+        <> " ack p99<="
+        <> formatLatency w.ackP99
+        <> " (max "
+        <> formatLatency w.ackP99Max
+        <> ") lag p99<="
+        <> formatLatency w.lagP99
+        <> " backlog="
+        <> maybe "-" rateText w.backlog
 
 -- | Printed after the summary, once the database has been asked.
 formatDatabase :: DatabaseSummary -> [Text]

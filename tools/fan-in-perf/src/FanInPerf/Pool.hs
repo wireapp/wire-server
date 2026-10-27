@@ -14,7 +14,7 @@ import Imports
 import PostgresqlConnectionString qualified
 import Prometheus qualified as P
 
-data PoolRole = WriterPool | ReaderPool | AdminPool
+data PoolRole = WriterPool | ReaderPool | AdminPool | SamplerPool
   deriving (Eq, Show)
 
 roleLabel :: PoolRole -> Text
@@ -22,6 +22,7 @@ roleLabel = \case
   WriterPool -> "writer"
   ReaderPool -> "reader"
   AdminPool -> "admin"
+  SamplerPool -> "sampler"
 
 data PoolFamilies = PoolFamilies
   { readyForUse :: P.Vector Text P.Gauge,
