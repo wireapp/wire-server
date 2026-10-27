@@ -6,10 +6,10 @@ module FanInPerf.Database
   )
 where
 
+import FanInPerf.NotificationsAdmin (DbName, mkDbName)
 import Imports
 import PostgresqlConnectionString (ConnectionString)
 import PostgresqlConnectionString qualified
-import Wire.FanInNotificationsAdmin (DbName, mkDbName)
 
 -- | The database named in the connection string, if present and a valid
 -- identifier.

@@ -1,10 +1,10 @@
-module Wire.FanInNotificationsStore.PostgresSpec (spec) where
+module FanInPerf.NotificationsStore.PostgresSpec (spec) where
 
 import Data.Id
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import FanInPerf.NotificationsStore.Postgres (genNotificationId, notificationIdMillis)
 import Imports
 import Test.Hspec
-import Wire.FanInNotificationsStore.Postgres (genNotificationId, notificationIdMillis)
 
 spec :: Spec
 spec = do

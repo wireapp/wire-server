@@ -1,10 +1,10 @@
-module Wire.FanInNotificationsAdminSpec (spec) where
+module FanInPerf.NotificationsAdminSpec (spec) where
 
 import Data.Text qualified as T
+import FanInPerf.NotificationsAdmin
+import FanInPerf.NotificationsAdmin.Postgres
 import Imports
 import Test.Hspec
-import Wire.FanInNotificationsAdmin
-import Wire.FanInNotificationsAdmin.Postgres
 
 spec :: Spec
 spec = do

@@ -1,15 +1,16 @@
-cabal-version: 3.0
-name:          fan-in-perf
-version:       1.0.0
+cabal-version:      3.0
+name:               fan-in-perf
+version:            1.0.0
 synopsis:
   Benchmark the notification fan-in PostgreSQL store (WPB-26288)
 
-category:      Tools
-author:        Wire Swiss GmbH
-maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2023 Wire Swiss GmbH
-license:       AGPL-3.0-only
-build-type:    Simple
+category:           Tools
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2026 Wire Swiss GmbH
+license:            AGPL-3.0-only
+build-type:         Simple
+extra-source-files: sql/*.sql
 
 -- This flags removes build-tool-depends when compiling things in the dev
 -- environment.

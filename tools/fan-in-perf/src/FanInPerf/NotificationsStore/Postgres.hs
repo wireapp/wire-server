@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.FanInNotificationsStore.Postgres where
+module FanInPerf.NotificationsStore.Postgres where
 
 import Data.Aeson (Value)
 import Data.Aeson qualified as Aeson
@@ -13,6 +13,7 @@ import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Data.UUID.V7 qualified as UUIDv7
 import Data.Vector qualified as V
+import FanInPerf.NotificationsStore
 import Hasql.Statement
 import Hasql.TH
 import Hasql.Transaction qualified as Tx
@@ -22,7 +23,6 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.FanInNotificationsStore
 import Wire.Postgres
 
 interpretFanInNotificationsStoreToPostgres ::

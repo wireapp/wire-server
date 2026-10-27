@@ -33,15 +33,15 @@ import Data.Misc (showT)
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Vector qualified as V
+import FanInPerf.NotificationsStore
 import Imports
 import System.Random
 import System.Random.Stateful (runStateGen, uniformByteStringM, uniformRM)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.Push.V2 (Route (RouteAny))
-import Wire.FanInNotificationsStore
 
--- | One kind per 'Wire.FanInNotificationsStore.Target' constructor.
+-- | One kind per 'FanInPerf.NotificationsStore.Target' constructor.
 data TargetKind = KindUser | KindClients | KindTeam | KindEpoch | KindConnections
   deriving (Eq, Ord, Show, Enum, Bounded)
 

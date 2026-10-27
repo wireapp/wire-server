@@ -15,6 +15,8 @@ import Data.Vector.Unboxed qualified as VU
 import FanInPerf.Acks
 import FanInPerf.Consume
 import FanInPerf.ConsumeStats
+import FanInPerf.NotificationsStore
+import FanInPerf.NotificationsStore.Postgres (genNotificationId, notificationIdMillis)
 import FanInPerf.Options (ReaderMode (..))
 import FanInPerf.Population (SimUser (SimUser))
 import FanInPerf.Population qualified as Pop
@@ -26,8 +28,6 @@ import Polysemy
 import Polysemy.Error
 import System.Random (mkStdGen)
 import Test.Hspec
-import Wire.FanInNotificationsStore
-import Wire.FanInNotificationsStore.Postgres (genNotificationId, notificationIdMillis)
 
 type Rows = IORef [(Stream, [(UUID, A.Value)])]
 

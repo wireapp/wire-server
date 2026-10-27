@@ -1,13 +1,13 @@
 module FanInPerf.OptionsSpec (spec) where
 
 import Data.List.NonEmpty (NonEmpty (..))
+import FanInPerf.NotificationsAdmin (SchemaShape (..))
 import FanInPerf.Options
 import FanInPerf.Targets (TargetConfig (..), TargetKind (..))
 import Hasql.Transaction.Sessions (IsolationLevel (..))
 import Imports
 import Options.Applicative
 import Test.Hspec
-import Wire.FanInNotificationsAdmin (SchemaShape (..))
 
 parse :: [String] -> Maybe Options
 parse = getParseResult . execParserPure defaultPrefs optionsInfo

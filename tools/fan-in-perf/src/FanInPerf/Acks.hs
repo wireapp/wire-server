@@ -15,9 +15,9 @@ where
 
 import Data.Map.Strict qualified as Map
 import Data.UUID.Types (UUID)
+import FanInPerf.NotificationsStore (Stream)
 import FanInPerf.Population (Key, streamKey)
 import Imports
-import Wire.FanInNotificationsStore (Stream)
 
 -- | Received, not yet acknowledged notifications of one stream.
 data Pending = Pending

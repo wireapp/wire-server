@@ -9,8 +9,10 @@
 , bytestring
 , containers
 , extended
+, file-embed
 , hasql
 , hasql-resource-pool
+, hasql-th
 , hasql-transaction
 , hspec
 , hspec-discover
@@ -18,6 +20,7 @@
 , imports
 , lib
 , megaparsec
+, mmzk-typeid
 , optparse-applicative
 , polysemy
 , postgresql-connection-string
@@ -28,6 +31,7 @@
 , time
 , types-common
 , unliftio
+, uuid
 , uuid-types
 , vector
 , wai
@@ -48,12 +52,15 @@ mkDerivation {
     bytestring
     containers
     extended
+    file-embed
     hasql
     hasql-resource-pool
+    hasql-th
     hasql-transaction
     http-types
     imports
     megaparsec
+    mmzk-typeid
     optparse-applicative
     polysemy
     postgresql-connection-string
@@ -63,6 +70,7 @@ mkDerivation {
     time
     types-common
     unliftio
+    uuid
     uuid-types
     vector
     wai
@@ -91,6 +99,7 @@ mkDerivation {
     QuickCheck
     random
     text
+    time
     types-common
     uuid-types
     vector

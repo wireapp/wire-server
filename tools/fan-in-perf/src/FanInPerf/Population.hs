@@ -28,12 +28,12 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (showT)
 import Data.Set qualified as Set
 import Data.Vector qualified as V
+import FanInPerf.NotificationsStore
 import FanInPerf.Targets
 import Imports hiding (Reader)
 import System.Random (StdGen)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.FanInNotificationsStore
 
 data SimTeam = SimTeam
   { tid :: !TeamId,

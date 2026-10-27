@@ -3,7 +3,7 @@
 Load generator for the notification fan-in store proposed in the RFC [RFC:
 Notification
 fan-in](https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/2774597689/2026-04-14+RFC+Notification+fan-in).
-It drives `Wire.FanInNotificationsStore` (`libs/wire-subsystems`) against
+It drives `FanInPerf.NotificationsStore` against
 PostgreSQL and measures write throughput, read throughput, delivery lag, ack
 cost and notification loss.
 
@@ -69,7 +69,7 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`.
 
 | Command | Experiment | Does |
 |---|---|---|
-| `reset-db [--partitioned]` | – | Creates the `--db` database if missing, drops all fan-in tables (both shapes) and pg_partman (extension and schema `partman`), then creates the tables of `libs/wire-subsystems/fan-in-sql/` from scratch (`fan-in-common.sql` + `fan-in-notifications-plain.sql`). No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman first. Always ends with empty tables. |
+| `reset-db [--partitioned]` | – | Creates the `--db` database if missing, drops all fan-in tables (both shapes) and pg_partman (extension and schema `partman`), then creates the tables of `sql/` from scratch (`fan-in-common.sql` + `fan-in-notifications-plain.sql`). No migration bookkeeping. `--partitioned` (D) uses `fan-in-notifications-partitioned.sql` instead of the plain one (six `*_notifications` tables partitioned) and configures pg_partman first. Always ends with empty tables. |
 | `produce` | A | Writers push as fast as possible. |
 | `consume` | B | `produce` writers plus simulated reader clients. |
 | `consume-ack` | C | `consume` where every reader also acknowledges. |
@@ -239,8 +239,8 @@ D measures C (`consume-ack`) while pg_partman drops expired partitions: the
 six `*_notifications` tables are range-partitioned by UUIDv7 with retention
 5 minutes, 1 minute partitions (`partman.part_config`: `5 minutes`,
 `00:01:00`). Maintenance runs in the pg_partman background worker (role
-`partman_maintainer`, not a superuser) every 60 s. The tool contains no SQL;
-partitioning lives in `FanInNotificationsAdmin` (`libs/wire-subsystems`).
+`partman_maintainer`, not a superuser) every 60 s. The SQL lives in `sql/` (embedded);
+partitioning is set up by `FanInPerf.NotificationsAdmin`.
 
 Retention timing: `create_parent` premakes 10 past partitions (starting
 10 min ago), so the first bgw tick after `reset-db --partitioned` drops about 5
@@ -419,7 +419,7 @@ flowchart LR
 
 All database access goes through the `FanInNotificationsStore` and
 `FanInNotificationsAdmin` effects with their PostgreSQL interpreters
-(`FanInPerf.Store`). The tool contains no SQL.
+(`FanInPerf.Store`); the SQL is in `sql/`.
 
 **Writers** (`FanInPerf.Produce`) loop: generate a push (`--targets`), call
 `PushViaFanIn`, record latency and outcome. Push latency covers only the
@@ -447,7 +447,7 @@ status line and publishes metrics. Threads never touch Prometheus.
 
 The tool's types fall into three groups: what writers push, what readers
 read, and what everyone counts. The store's own types (`FanInPush`,
-`Target`, `Stream`) come from `Wire.FanInNotificationsStore`.
+`Target`, `Stream`) come from `FanInPerf.NotificationsStore`.
 
 #### Workload (`FanInPerf.Targets`)
 
@@ -595,7 +595,7 @@ than `W` after a higher one was delivered is still lost.
 
 ## Database schema
 
-Schema: `libs/wire-subsystems/fan-in-sql/fan-in-common.sql` + `fan-in-notifications-plain.sql` (or `fan-in-notifications-partitioned.sql` with `--partitioned`, see D; not a production migration).
+Schema: `sql/fan-in-common.sql` + `fan-in-notifications-plain.sql` (or `fan-in-notifications-partitioned.sql` with `--partitioned`, see D; not a production migration).
 
 Each stream kind has three tables:
 

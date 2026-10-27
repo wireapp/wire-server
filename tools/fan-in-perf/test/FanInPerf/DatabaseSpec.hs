@@ -1,10 +1,10 @@
 module FanInPerf.DatabaseSpec (spec) where
 
 import FanInPerf.Database
+import FanInPerf.NotificationsAdmin (unDbName)
 import Imports
 import PostgresqlConnectionString qualified as C
 import Test.Hspec
-import Wire.FanInNotificationsAdmin (unDbName)
 
 parseConn :: Text -> C.ConnectionString
 parseConn t = either (error . ("bad test connection string: " <>) . show) id (C.parse t)

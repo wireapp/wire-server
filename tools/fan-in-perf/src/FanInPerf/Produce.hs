@@ -19,6 +19,7 @@ import Data.Misc (showT)
 import Data.Text qualified as T
 import Data.Vector qualified as V
 import FanInPerf.Metrics
+import FanInPerf.NotificationsStore
 import FanInPerf.Options (ProduceOptions (..))
 import FanInPerf.Stats
 import FanInPerf.Store
@@ -29,7 +30,6 @@ import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
 import Imports
 import System.Random
 import UnliftIO.Exception (tryAny)
-import Wire.FanInNotificationsStore
 
 data PushOutcome = PushOk | PushFailed Text
 

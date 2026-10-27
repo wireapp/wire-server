@@ -6,6 +6,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Data.Vector qualified as V
+import FanInPerf.NotificationsStore (FanInPush (..), Stream (..), Target (..))
 import FanInPerf.Population
 import FanInPerf.Targets hiding (spec)
 import Imports
@@ -13,7 +14,6 @@ import System.Random (mkStdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
-import Wire.FanInNotificationsStore (FanInPush (..), Stream (..), Target (..))
 
 entriesOf :: Int -> [TargetConfig] -> V.Vector Entry
 entriesOf clientsPerUser cfgs = fst (mkEntries clientsPerUser (NE.fromList cfgs) (mkStdGen 7))

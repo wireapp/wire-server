@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.FanInNotificationsAdmin.Postgres
+module FanInPerf.NotificationsAdmin.Postgres
   ( interpretFanInNotificationsAdminToPostgres,
     createDatabaseSql,
     dropTablesSql,
@@ -14,6 +14,8 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
 import Data.UUID (UUID)
 import Data.Vector qualified as V
+import FanInPerf.NotificationsAdmin
+import FanInPerf.NotificationsStore (Stream (..))
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Session qualified as Session
@@ -23,8 +25,6 @@ import Imports
 import Polysemy
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.FanInNotificationsAdmin
-import Wire.FanInNotificationsStore (Stream (..))
 import Wire.Postgres
 
 interpretFanInNotificationsAdminToPostgres :: (PGConstraints r) => InterpreterFor FanInNotificationsAdmin r
@@ -77,15 +77,15 @@ databaseExistsStatement =
 -- | Not a migration: the fan-in SQL files are only used by fan-in-perf. Tables
 -- shared by both shapes.
 commonSchema :: Text
-commonSchema = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-common.sql" >>= embedFile)
+commonSchema = Text.decodeUtf8 $(makeRelativeToProject "sql/fan-in-common.sql" >>= embedFile)
 
 -- | The six @*_notifications@ tables, plain (baseline).
 plainNotifications :: Text
-plainNotifications = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-notifications-plain.sql" >>= embedFile)
+plainNotifications = Text.decodeUtf8 $(makeRelativeToProject "sql/fan-in-notifications-plain.sql" >>= embedFile)
 
 -- | The six @*_notifications@ tables, partitioned and managed by pg_partman.
 partitionedNotifications :: Text
-partitionedNotifications = Text.decodeUtf8 $(makeRelativeToProject "fan-in-sql/fan-in-notifications-partitioned.sql" >>= embedFile)
+partitionedNotifications = Text.decodeUtf8 $(makeRelativeToProject "sql/fan-in-notifications-partitioned.sql" >>= embedFile)
 
 -- | Nothing if the tables are absent, otherwise the shape of @user_notifications@.
 shapeStatement :: Statement.Statement () (Maybe SchemaShape)
@@ -99,7 +99,7 @@ shapeStatement =
 
 -- | Drops the tables, then pg_partman (extension, config, templates), so that
 -- 'setupPartman' and @create_parent@ start from scratch. Keep the table list in
--- sync with the @fan-in-sql/*.sql@ files.
+-- sync with the @sql/*.sql@ files.
 dropTablesSql :: Text
 dropTablesSql =
   "DROP TABLE IF EXISTS \
@@ -114,7 +114,7 @@ dropTablesSql =
   \DROP SCHEMA IF EXISTS partman CASCADE"
 
 -- | Rows per stream. Keep the table list in sync with the
--- @fan-in-sql/*.sql@ files (connection tables are not read by consumers).
+-- @sql/*.sql@ files (connection tables are not read by consumers).
 countStreamsImpl :: (PGConstraints r) => Sem r [(Stream, Int)]
 countStreamsImpl = do
   users <- runStatement () countUserStatement

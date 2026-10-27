@@ -7,6 +7,7 @@ import Data.Text qualified as T
 import FanInPerf.Consume (runConsume, runConsumeOnly)
 import FanInPerf.Database
 import FanInPerf.Metrics (runMetricsServer)
+import FanInPerf.NotificationsAdmin (SchemaShape (..), createDatabase, createTables, currentShape, databaseExists, dropTables, ping, setupPartman, unDbName)
 import FanInPerf.Options
 import FanInPerf.Pool
 import FanInPerf.Produce (runProduce)
@@ -19,7 +20,6 @@ import Polysemy (Sem)
 import PostgresqlConnectionString qualified
 import System.Exit (die)
 import UnliftIO.Exception (tryAny)
-import Wire.FanInNotificationsAdmin (SchemaShape (..), createDatabase, createTables, currentShape, databaseExists, dropTables, ping, setupPartman, unDbName)
 
 run :: Console -> Options -> IO ()
 run console opts = do

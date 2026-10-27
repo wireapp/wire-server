@@ -35,6 +35,9 @@ import Data.UUID.Types qualified as UUID
 import FanInPerf.Acks
 import FanInPerf.ConsumeStats
 import FanInPerf.Metrics
+import FanInPerf.NotificationsAdmin (countStreams)
+import FanInPerf.NotificationsStore
+import FanInPerf.NotificationsStore.Postgres (notificationIdMillis)
 import FanInPerf.Options (ConsumeOnlyOptions (..), ConsumeOptions (..), ProduceOptions (..), ReaderMode (..), ReaderOptions (..), consumeOnlyLabel, experimentLabel, readerOptions)
 import FanInPerf.Population
 import FanInPerf.Population qualified as Pop
@@ -52,9 +55,6 @@ import Polysemy.Error qualified as PE
 import System.Exit (die)
 import System.Timeout qualified
 import UnliftIO.Exception (bracket_, tryAny)
-import Wire.FanInNotificationsAdmin (countStreams)
-import Wire.FanInNotificationsStore
-import Wire.FanInNotificationsStore.Postgres (notificationIdMillis)
 
 -- | A stream a client reads. Ids ascend with their UUIDv7 time, left to right.
 -- With @--safety-window@ W > 0 the next fetch returns ids greater than

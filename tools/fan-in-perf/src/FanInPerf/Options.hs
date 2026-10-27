@@ -16,6 +16,7 @@ where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
+import FanInPerf.NotificationsAdmin (SchemaShape (..))
 import FanInPerf.TargetSpecParser (parseTargetSpec)
 import FanInPerf.Targets
 import Hasql.Transaction.Sessions (IsolationLevel (..))
@@ -23,7 +24,6 @@ import Imports
 import Options.Applicative hiding (command)
 import Options.Applicative qualified as O
 import Options.Applicative.Help (Doc, pretty, vsep)
-import Wire.FanInNotificationsAdmin (SchemaShape (..))
 
 -- | No 'Show' instance: 'db' contains the database password.
 data GlobalOptions = GlobalOptions

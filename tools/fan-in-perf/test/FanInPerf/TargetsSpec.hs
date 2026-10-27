@@ -8,6 +8,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified (qDomain)
 import Data.Vector qualified as V
+import FanInPerf.NotificationsStore (FanInPush (..), Target (..))
 import FanInPerf.TargetSpecParser (parseTargetSpec)
 import FanInPerf.Targets hiding (Entry (..))
 import FanInPerf.Targets qualified as FIP (Entry (..))
@@ -17,7 +18,6 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 import Wire.API.MLS.Group (GroupId (..))
-import Wire.FanInNotificationsStore (FanInPush (..), Target (..))
 
 spec :: Spec
 spec = do

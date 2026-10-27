@@ -4,11 +4,11 @@ import Data.Id
 import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
 import FanInPerf.Acks
+import FanInPerf.NotificationsStore (Stream (..))
 import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
-import Wire.FanInNotificationsStore (Stream (..))
 
 user, team :: Stream
 user = StreamUser (Id (UUID.fromWords 5 6 7 8))

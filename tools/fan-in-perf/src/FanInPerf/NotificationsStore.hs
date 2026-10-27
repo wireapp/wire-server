@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.FanInNotificationsStore where
+module FanInPerf.NotificationsStore where
 
 import Data.Aeson
 import Data.Id

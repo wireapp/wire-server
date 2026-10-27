@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.FanInNotificationsAdmin
+module FanInPerf.NotificationsAdmin
   ( SchemaShape (..),
     FanInNotificationsAdmin (..),
     dropTables,
@@ -19,9 +19,9 @@ module Wire.FanInNotificationsAdmin
 where
 
 import Data.Text qualified as T
+import FanInPerf.NotificationsStore (Stream)
 import Imports
 import Polysemy
-import Wire.FanInNotificationsStore (Stream)
 
 -- | 'Plain' is the production schema; 'Partitioned' replaces the six
 -- @*_notifications@ tables by pg_partman managed partitioned tables.
