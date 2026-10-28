@@ -115,45 +115,36 @@ Live OpenAPI docs: `http://127.0.0.1:8082/api/swagger.json`.
 Note: `./dist/run-services` DOES also start `nginz` (the public reverse proxy
 on port 8080/8443 that validates `Z-Auth` tokens into `Z-User` headers) — it's
 compiled as part of the normal nix devShell, no separate build step needed.
-But on macOS it needs one more env var or it crashes on launch (see below).
-Until that's set, you can still call endpoints directly without nginz: hit
-`/i/...` internal endpoints (no auth), or after `/login` pass the user id
-yourself as `Z-User: <uuid>` instead of a bearer token.
-
-### Making nginz actually start (macOS only)
-
-Symptom in the `run-services` output:
+nginz's compiled-in zauth C module dynamically links the Rust-built
+`libzauth`, and the install name baked in at Nix build time is a relative
+path only valid inside the build sandbox, so on macOS it needs
+`DYLD_LIBRARY_PATH` pointed at the real file in the Nix store or it crashes
+on launch with:
 ```
 [nginz@example.com] dyld[...]: Library not loaded: target/lib/libzauth-<hash>.dylib
 ```
-nginz's compiled-in zauth C module dynamically links the Rust-built
-`libzauth`, and the install name baked in at Nix build time is a relative
-path only valid inside the build sandbox — it doesn't exist at runtime.
 
-Fix: locate the actual `.dylib` in the Nix store and point `DYLD_LIBRARY_PATH`
-at its directory:
+`.envrc` in this repo resolves this automatically (via `otool`/`find` against
+the Nix store, cached so it only reruns when `./.env` is rebuilt) and exports
+`DYLD_LIBRARY_PATH` for you — so as long as you ran `direnv allow`, nginz just
+works with a plain `make cr`:
 ```bash
-find /nix/store -maxdepth 2 -iname '*rust_zauth-c*-lib' 2>/dev/null
-# e.g. /nix/store/5w1cbzzkyrxg9jvk0084aqzg7x8p0rq3-rust_zauth-c-3.0.0-lib
-ls <that path>/lib   # confirm libzauth-<hash>.dylib is in there
+direnv exec . make cr
 ```
-
-Note: `export DYLD_LIBRARY_PATH=...` before `make cr` only works because this
-repo's Makefile sets `SHELL` to a direct `bash` path on Darwin instead of
-`/usr/bin/env bash`. `/usr/bin/env` is a SIP-protected Apple system binary,
-and macOS's dyld strips all `DYLD_*`/`LD_*` env vars at that exec hop — so
-without that Makefile fix, anything you exported would already be gone by the
-time `bash`/`run-services`/`nginx` run, with no error from `make` itself. With
-the fix in place, you can just export the var and run `make cr` normally:
-
-```bash
-direnv exec . bash -c '
-  export DYLD_LIBRARY_PATH="/nix/store/5w1cbzzkyrxg9jvk0084aqzg7x8p0rq3-rust_zauth-c-3.0.0-lib/lib"
-  make cr
-'
-```
+(This only works because the top-level `Makefile` sets `SHELL` to a direct
+`bash` path on Darwin instead of `/usr/bin/env bash`. `/usr/bin/env` is a
+SIP-protected Apple platform binary, and macOS's dyld strips all `DYLD_*`/
+`LD_*` env vars at that exec hop — so without that fix, `.envrc`'s export
+would still get silently dropped before `nginx` ever runs, with no error from
+`make` itself.)
 Confirm: `curl http://127.0.0.1:8080/api/swagger.json` → 200, and
 `ps aux | grep nginx` shows a master + worker processes.
+
+If `direnv exec . bash -c 'echo $DYLD_LIBRARY_PATH'` comes back empty, your
+`.env` may be stale — rerun `direnv allow` to force a rebuild and re-resolve.
+Without it set, you can still call endpoints directly without nginz: hit
+`/i/...` internal endpoints (no auth), or after `/login` pass the user id
+yourself as `Z-User: <uuid>` instead of a bearer token.
 
 If a previous `run-services` crashed (e.g. "timeout waiting for port to be
 free"), it won't have reaped its own children — kill stray `dist/*` processes
