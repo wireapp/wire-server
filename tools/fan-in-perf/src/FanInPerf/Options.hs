@@ -31,9 +31,7 @@ data GlobalOptions = GlobalOptions
   { db :: Text,
     poolSize :: Maybe Int,
     metricsPort :: Int,
-    isolation :: IsolationLevel,
-    -- | file for the summary of a run as JSON
-    summaryJson :: Maybe FilePath
+    isolation :: IsolationLevel
   }
 
 data ProduceOptions = ProduceOptions
@@ -123,7 +121,9 @@ data Command
 
 data Options = Options
   { global :: GlobalOptions,
-    command :: Command
+    command :: Command,
+    -- | file for the summary of a run as JSON; only the load commands take it
+    summaryJson :: Maybe FilePath
   }
 
 optionsInfo :: ParserInfo Options
@@ -134,18 +134,24 @@ optionsInfo =
 
 optionsParser :: Parser Options
 optionsParser =
-  Options
+  (\global (command, summaryJson) -> Options {..})
     <$> globalParser
     <*> hsubparser
-      ( O.command "reset-db" (info (ResetDb <$> resetParser) (progDesc "Create the experiment database if missing, drop the fan-in notification tables and pg_partman if present, and create the tables from scratch (with --partitioned: partitioned, configures pg_partman and waits until its first maintenance run is done)"))
-          <> O.command "vacuum" (info (pure Vacuum) (progDesc "VACUUM ANALYZE the experiment database, e.g. between 'produce' and 'consume-only'"))
-          <> O.command "db-info" (info (pure DbInfo) (progDesc "Print the server version, the settings that matter for the numbers and the pg_partman version as JSON"))
-          <> O.command "produce" (info (Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
-          <> O.command "consume" (info (Consume <$> consumeParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
-          <> O.command "consume-ack" (info (Consume <$> consumeParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment C: like consume, but every client acknowledges the notifications it received"))
-          <> O.command "consume-only" (info (ConsumeOnly <$> consumeOnlyParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment E: consume only, what an earlier 'produce' run (same --seed, --targets, --clients-per-user) left in the database"))
-          <> O.command "consume-only-ack" (info (ConsumeOnly <$> consumeOnlyParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment F: like consume-only, but every client acknowledges the notifications it received"))
+      ( O.command "reset-db" (info (noSummary $ ResetDb <$> resetParser) (progDesc "Create the experiment database if missing, drop the fan-in notification tables and pg_partman if present, and create the tables from scratch (with --partitioned: partitioned, configures pg_partman and waits until its first maintenance run is done)"))
+          <> O.command "vacuum" (info (noSummary $ pure Vacuum) (progDesc "VACUUM ANALYZE the experiment database, e.g. between 'produce' and 'consume-only'"))
+          <> O.command "db-info" (info (noSummary $ pure DbInfo) (progDesc "Print the server version, the settings that matter for the numbers and the pg_partman version as JSON"))
+          <> O.command "produce" (info (withSummary $ Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
+          <> O.command "consume" (info (withSummary $ Consume <$> consumeParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
+          <> O.command "consume-ack" (info (withSummary $ Consume <$> consumeParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment C: like consume, but every client acknowledges the notifications it received"))
+          <> O.command "consume-only" (info (withSummary $ ConsumeOnly <$> consumeOnlyParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment E: consume only, what an earlier 'produce' run (same --seed, --targets, --clients-per-user) left in the database"))
+          <> O.command "consume-only-ack" (info (withSummary $ ConsumeOnly <$> consumeOnlyParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment F: like consume-only, but every client acknowledges the notifications it received"))
       )
+
+-- | Only the commands that run a load take @--summary-json@: for the others
+-- the parser rejects it.
+withSummary, noSummary :: Parser Command -> Parser (Command, Maybe FilePath)
+withSummary p = (,) <$> p <*> optional (strOption (long "summary-json" <> metavar "FILE" <> help "Write the summary of the run to FILE as JSON"))
+noSummary p = (,Nothing) <$> p
 
 globalParser :: Parser GlobalOptions
 globalParser =
@@ -154,7 +160,6 @@ globalParser =
     <*> optional (option (positive maxPoolSize) (long "pool-size" <> metavar "N" <> help "Connection pool size (default: --writers for produce, 1 for reset-db)"))
     <*> option port (long "metrics-port" <> metavar "PORT" <> value 9400 <> showDefault <> help "Port of the /metrics endpoint")
     <*> option isolationReader (long "isolation" <> metavar "read-committed|repeatable-read|serializable" <> value ReadCommitted <> showDefaultWith (const "read-committed") <> help "Isolation level of push transactions")
-    <*> optional (strOption (long "summary-json" <> metavar "FILE" <> help "Write the summary of the run (produce, consume*) to FILE as JSON"))
 
 produceParser :: Parser ProduceOptions
 produceParser = produceParserWith targetsReader

@@ -39,12 +39,10 @@ run console opts = do
   let mkAdminEnv = do
         adminPool <- initPool fams AdminPool (poolConfig 1) (adminConnStr connStr)
         pure env {pool = adminPool}
-  -- fail now, not after a run of minutes
-  forM_ opts.global.summaryJson $ \file -> do
-    unless (hasSummary opts.command) $ abort "--summary-json: only for produce and the consume commands"
-    BL.writeFile file mempty
+  -- fail fast, not after a run of minutes
+  forM_ opts.summaryJson $ \file -> BL.writeFile file mempty
   let writeSummary :: RunSummary -> IO ()
-      writeSummary s = forM_ opts.global.summaryJson $ \file -> BL.writeFile file (A.encode s <> "\n")
+      writeSummary s = forM_ opts.summaryJson $ \file -> BL.writeFile file (A.encode s <> "\n")
       -- A load command: @prepare@ returns the run, which is measured with the
       -- metrics server up and the database facts around it.
       runLoad :: IO (IO RunSummary) -> IO ()
@@ -105,14 +103,6 @@ checkDatabase env =
     Right (Right ()) -> pure ()
     Right (Left e) -> abort ("cannot reach database: " <> showT e)
     Left _ -> abort "cannot reach database"
-
--- | Whether the command runs a load and so has a summary.
-hasSummary :: Command -> Bool
-hasSummary = \case
-  Produce _ -> True
-  Consume _ -> True
-  ConsumeOnly _ -> True
-  _ -> False
 
 defaultPoolSize :: Command -> Int
 defaultPoolSize = \case

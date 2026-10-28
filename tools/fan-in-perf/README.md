@@ -86,7 +86,7 @@ second and a summary at the end. Ctrl-C stops a run without `--duration`. Every 
 | `--pool-size N` | `--writers` (1 for `reset-db`) | 1–10000 | Writer connection pool size. |
 | `--metrics-port PORT` | 9400 | 1–65535 | Port of `/metrics`. |
 | `--isolation LEVEL` | `read-committed` | `read-committed`, `repeatable-read`, `serializable` | Isolation level of push transactions. |
-| `--summary-json FILE` | none | | After a `produce`/`consume*` run, writes its summary to FILE as one JSON object (see [Summary JSON](#summary-json)). Checked writable before the run starts; not valid for `reset-db`. |
+| `--summary-json FILE` | none | | Option of `produce` and the `consume*` commands, given after the command name (`produce … --summary-json FILE`); the other commands reject it. After the run, writes its summary to FILE as one JSON object (see [Summary JSON](#summary-json)). Checked writable before the run starts. |
 
 #### Summary JSON
 

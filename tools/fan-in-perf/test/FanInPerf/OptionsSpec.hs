@@ -28,7 +28,7 @@ spec = do
     o.global.poolSize `shouldBe` Nothing
     o.global.metricsPort `shouldBe` 9400
     o.global.isolation `shouldBe` ReadCommitted
-    o.global.summaryJson `shouldBe` Nothing
+    o.summaryJson `shouldBe` Nothing
     o.command
       `shouldBe` Produce
         ProduceOptions
@@ -238,9 +238,18 @@ spec = do
     $ \args ->
       it ("rejects " <> unwords args) $ isNothing (parse args) `shouldBe` True
 
-  it "takes the summary file as a global flag" $ do
-    o <- parseOk ["--db", "x", "--summary-json", "out.json", "produce", "--targets", "team:10"]
-    o.global.summaryJson `shouldBe` Just "out.json"
+  it "takes the summary file after a load command" $ do
+    o <- parseOk ["--db", "x", "produce", "--targets", "team:10", "--summary-json", "out.json"]
+    o.summaryJson `shouldBe` Just "out.json"
+
+  describe "--summary-json" $
+    mapM_
+      (\args -> it ("is rejected in " <> unwords args) $ isNothing (parse args) `shouldBe` True)
+      [ ["--db", "x", "vacuum", "--summary-json", "f"],
+        ["--db", "x", "db-info", "--summary-json", "f"],
+        ["--db", "x", "reset-db", "--summary-json", "f"],
+        ["--db", "x", "--summary-json", "f", "produce", "--targets", "team:10"]
+      ]
 
   it "parses reset-db --no-settle, vacuum and db-info" $ do
     fmap (.command) (parse ["--db", "x", "reset-db", "--partitioned", "--no-settle"]) `shouldBe` Just (ResetDb (ResetOptions Partitioned False))

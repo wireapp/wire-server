@@ -55,7 +55,8 @@ def log(msg):
 
 
 def fip(args, summary_json=None):
-    return [BIN, "--db", DB] + (["--summary-json", summary_json] if summary_json else []) + [str(a) for a in args]
+    # the flag belongs to the load commands: after the subcommand
+    return [BIN, "--db", DB] + [str(a) for a in args] + (["--summary-json", summary_json] if summary_json else [])
 
 
 def tool(args):
