@@ -105,7 +105,7 @@ def end_text(e, duration):
     return {"finished": "all readers caught up after", "timed_out": "timed out after", "interrupted": "interrupted after"}[e] + f" {duration:.1f}s"
 
 
-def parse(logpath):
+def summary_fields(logpath):
     """The fields the report uses, from the tool's summary JSON of a run (`json`: all of it)."""
     j, text = load(logpath)
     p, d, f, a, db = (j[k] or {} for k in ("pushes", "deliveries", "fetch", "acks", "database"))
@@ -135,7 +135,7 @@ def parse(logpath):
     return r
 
 
-def logged_run(label, logpath, args, parser=parse):
+def logged_run(label, logpath, args, parser=summary_fields):
     """Runs the tool with its output logged; -> (parsed summary, exit code)."""
     _, rc = tool_logged(logpath, args)
     try:
@@ -193,9 +193,9 @@ def tool_logged(logpath, args):
     return "".join(lines), rc
 
 
-def parse_consume_only(logpath):
-    """The consume-only log: `parse` for the fields it shares with the others, plus its own."""
-    r = parse(logpath)
+def summary_fields_consume_only(logpath):
+    """The consume-only log: `summary_fields` for the fields it shares with the others, plus its own."""
+    r = summary_fields(logpath)
     j, _ = load(logpath)
     d = j["deliveries"]
     milestone = lambda pct: next((f"{m['seconds']:.1f}s" if m["seconds"] is not None else "-" for m in d["milestones"] if m["percent"] == pct), None)
@@ -219,7 +219,7 @@ def run_split(label, produce_args, consume_args):
     run_tool(["reset-db"])
     p, prc = logged_run(f"{label}: produce", os.path.join(LOGDIR, label + "-produce.log"), produce_args)
     run_tool(["vacuum"])
-    c, crc = logged_run(f"{label}: consume", os.path.join(LOGDIR, label + "-consume.log"), consume_args, parse_consume_only)
+    c, crc = logged_run(f"{label}: consume", os.path.join(LOGDIR, label + "-consume.log"), consume_args, summary_fields_consume_only)
     cmd = lambda a: "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in a)
     return {
         **c,
