@@ -278,7 +278,7 @@ def gc_section(pm):
           row(f"within {win:g} s of a drop", gc["within"]), row("other", gc["other"]), ""]
 
 
-def report(res, env):
+def render_report(res, env):
     dur = {x: int(a[a.index("--duration") + 1]) for x, a in single_command_experiments()}  # as run (--quick)
     split_dur = int(split_experiments()[0][1][split_experiments()[0][1].index("--duration") + 1])
     partman = any(k.endswith("-partman") for k in res)
@@ -418,7 +418,7 @@ def main():
         for exp, pa, ca in splits:
             log(f"{exp} {mode}")
             res[f"{exp}-{mode}"] = run_split(f"{exp}-{mode}", pa, ca)
-    md = report(res, e)
+    md = render_report(res, e)
     with open(out, "w") as f:
         f.write(md)
     print(md)
