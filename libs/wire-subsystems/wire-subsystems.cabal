@@ -413,6 +413,8 @@ library
     Wire.MigrationLock
     Wire.MlsKeyPackageStore
     Wire.MlsKeyPackageStore.Cassandra
+    Wire.MlsKeyPackageStore.Migration
+    Wire.MlsKeyPackageStore.Postgres
     Wire.MlsKeyPackageSubsystem
     Wire.MlsKeyPackageSubsystem.Interpreter
     Wire.NotificationSubsystem

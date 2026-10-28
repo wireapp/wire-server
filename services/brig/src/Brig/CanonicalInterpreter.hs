@@ -117,6 +117,7 @@ import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
+import Wire.MlsKeyPackageStore.Postgres (interpretMlsKeyPackageStoreToPostgres)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
@@ -434,6 +435,17 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
+      -- MLS key packages deliberately have NO dual-write mode (WPB-29582
+      -- review): they are one-time-use security material — claiming deletes
+      -- them — so an async delete-mirror failure would resurface a claimed
+      -- key package in Postgres. While migrating, brig keeps serving
+      -- Cassandra; the background-worker copy loop fills Postgres; cutover
+      -- is the direct config flip cassandra -> postgresql.
+      mlsKeyPackageStore = case e.postgresMigration.mlsKeyPackages of
+        CassandraStorage -> interpretMlsKeyPackageStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretMlsKeyPackageStoreToPostgres
+        MigrationToPostgresql -> interpretMlsKeyPackageStoreToCassandra e.casClient
+
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between
       -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global
       -- runInputConst e.hasqlPool / mapError postgresUsageErrorToHttpError providers.
@@ -528,7 +540,7 @@ runBrigToIO e (AppT ma) = do
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
-              . interpretMlsKeyPackageStoreToCassandra e.casClient
+              . mlsKeyPackageStore
               . interpretMlsKeyPackageSubsystem e.settings.keyPackageMaximumLifetime e.keyPackageLocalLock
               . interpretUserKeyStoreCassandra e.casClient
               . interpretRateLimit e.rateLimitEnv
