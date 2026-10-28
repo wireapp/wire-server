@@ -59,6 +59,15 @@ def fan_in_perf_cmd(args, summary_json=None):
     return [BIN, "--db", DB] + [str(a) for a in args] + (["--summary-json", summary_json] if summary_json else [])
 
 
+def tool_cmd(args):
+    """A tool invocation as shown in the report (the database as $DB)."""
+    return "fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args)
+
+
+def reset_args(partman):
+    return ["reset-db"] + (["--partitioned"] if partman else [])
+
+
 def run_tool(args):
     """Runs a short command of the tool (reset-db, vacuum, db-info); returns its output."""
     r = subprocess.run(fan_in_perf_cmd(args), cwd=REPO, capture_output=True, text=True)
@@ -145,9 +154,9 @@ def logged_run(label, logpath, args, parser=summary_fields):
 
 
 def run(label, args, partman):
-    run_tool(["reset-db"] + (["--partitioned"] if partman else []))  # waits for pg_partman to settle
+    run_tool(reset_args(partman))  # waits for pg_partman to settle
     r, rc = logged_run(label, os.path.join(LOGDIR, label + ".log"), args)
-    r.update(label=label, exit=rc, cmd="fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args))
+    r.update(label=label, exit=rc, cmd=tool_cmd(reset_args(partman)) + "\n" + tool_cmd(args))
     return r
 
 
@@ -220,13 +229,12 @@ def run_split(label, produce_args, consume_args):
     p, prc = logged_run(f"{label}: produce", os.path.join(LOGDIR, label + "-produce.log"), produce_args)
     run_tool(["vacuum"])
     c, crc = logged_run(f"{label}: consume", os.path.join(LOGDIR, label + "-consume.log"), consume_args, summary_fields_consume_only)
-    cmd = lambda a: "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in a)
     return {
         **c,
         "label": label, "exit": prc or crc, "deadlocks": p["deadlocks"] + c["deadlocks"], "rows": p["rows"], "drain": None,
         "pushes": p["pushes"], "push_s": p["push_s"], "push_p99": p["push_p99"], "push_err": p["push_err"],
         "errors": p["errors"] + c["errors"],
-        "cmd": cmd(produce_args) + "\n" + cmd(["vacuum"]) + "\n" + cmd(consume_args),
+        "cmd": "\n".join(tool_cmd(a) for a in (reset_args(False), produce_args, ["vacuum"], consume_args)),
         "summary": "produce:\n" + p["summary"] + "\n\nconsume:\n" + c["summary"],
     }
 
@@ -294,13 +302,17 @@ def render_report(res, env):
          *(["- `--quick`: all durations divided by 10 (smoke test), the numbers are not comparable to a full run."] if QUICK > 1 else []),
          "- Only the `user` stream kind is exercised (no client/team/epoch streams, fan-out 1); not comparable to runs with a mixed target set.",
          "",
-         "Before each run `reset-db` (`--partitioned` for partman, which waits for pg_partman to settle); every run starts with a CHECKPOINT. Commands:", "", "```"]
-    L += [r["cmd"] for r in res.values() if r["label"].endswith("plain")]
-    L += ["```", *(["(partman: same commands for A-D; E, F run on plain tables only)"] if partman else []), ""]
+         "Each experiment section lists the commands run, starting with `reset-db` (`--partitioned` for partman, which waits for pg_partman to settle). Every run starts with a CHECKPOINT.", ""]
     for exp in "ABCDEF":
         if not any(f"{exp}-{m}" in res for m in MODES):
             continue
-        L += [f"## {TITLES[exp].format(**{k: duration_text(v) for k, v in dur.items()})}", "", "| Mode | " + " | ".join(h for h, _ in COLS[exp]) + " |", "|---" * (len(COLS[exp]) + 1) + "|"]
+        L += [f"## {TITLES[exp].format(**{k: duration_text(v) for k, v in dur.items()})}", ""]
+        for m in MODES:
+            if f"{exp}-{m}" in res:
+                L += [f"Commands ({m}):", "", "```", res[f"{exp}-{m}"]["cmd"], "```", ""]
+        if exp in "EF":
+            L += ["partman: not run (its 5 min retention would drop partitions during the consume phase).", ""]
+        L += ["| Mode | " + " | ".join(h for h, _ in COLS[exp]) + " |", "|---" * (len(COLS[exp]) + 1) + "|"]
         for m in MODES:
             r = res.get(f"{exp}-{m}")
             if r:
