@@ -54,14 +54,14 @@ def log(msg):
     print(f"[{datetime.datetime.now():%H:%M:%S}] {msg}", file=sys.stderr, flush=True)
 
 
-def fip(args, summary_json=None):
+def fan_in_perf_cmd(args, summary_json=None):
     # the flag belongs to the load commands: after the subcommand
     return [BIN, "--db", DB] + [str(a) for a in args] + (["--summary-json", summary_json] if summary_json else [])
 
 
 def tool(args):
     """Runs a short command of the tool (reset-db, vacuum, db-info); returns its output."""
-    r = subprocess.run(fip(args), cwd=REPO, capture_output=True, text=True)
+    r = subprocess.run(fan_in_perf_cmd(args), cwd=REPO, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"fan-in-perf {args[0]} failed: {(r.stdout + r.stderr).strip()[-300:]}")
     return r.stdout
@@ -185,7 +185,7 @@ def tool_logged(logpath, args):
     """Runs the tool and logs its output; returns (output, exit code)."""
     lines = []
     with open(logpath, "w") as lf:
-        p = subprocess.Popen(fip(args, summary_json(logpath)), cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        p = subprocess.Popen(fan_in_perf_cmd(args, summary_json(logpath)), cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in p.stdout:
             lf.write(line)
             lines.append(line)
