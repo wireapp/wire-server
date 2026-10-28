@@ -892,6 +892,34 @@ config:
 ```
 
 
+## License
+
+Wire's licensing uses a licence payload: a base64url-encoded JSON
+`LicenceSpec`, produced by the `wire-licensing` CLI
+(`wire-licensing encode` or `wire-licensing example full --domain <domain>`).
+The payload is unsigned: it is an operator-controlled entitlement whose
+integrity rests entirely on configuration access control.
+
+Two config keys accept the payload:
+
+```yaml
+# galley.yaml
+settings:
+  license: <base64url licence payload>
+
+# background-worker.yaml
+license: <same payload>
+```
+
+Semantics:
+
+- Unset (or invalid / not covering this domain / outside its validity window),
+  the interpreter serves the "missing license"; in particular the meeting
+  join-by-link endpoints return `403 id-feature-error`.
+- In the helm chart, set the single top-level `license` value; it is rendered
+  into both services' config keys above. The `WIRE_LICENSE` environment
+  variable is no longer read.
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only

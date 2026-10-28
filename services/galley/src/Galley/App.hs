@@ -1,4 +1,3 @@
-{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -54,6 +53,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -412,10 +412,9 @@ interpretTinyLog e = interpret $ \case
 
 evalGalleyToIO :: Env -> Sem GalleyEffects a -> IO a
 evalGalleyToIO env action = do
-  eval <- evalGalley env
   r <-
     -- log IO exceptions
-    runExceptT (eval action) `UnliftIO.catch` \(e :: SomeException) -> do
+    runExceptT (evalGalley env action) `UnliftIO.catch` \(e :: SomeException) -> do
       Log.err (env ^. applog) $
         Log.msg ("IO Exception occurred" :: ByteString)
           . Log.field "message" (displayException e)
@@ -433,8 +432,8 @@ logAndMapError :: forall e1 e2 r a. (Member TinyLog r, Member (Error e2) r) => (
 logAndMapError fErr fLog logMsg action =
   mapError fErr $ logErrors @_ @e1 fLog logMsg action
 
-evalGalley :: Env -> IO (Sem GalleyEffects a -> ExceptT JSONResponse IO a)
-evalGalley e = do
+evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
+evalGalley e =
   let convStoreInterpreter =
         interpretConversationStoreByMigration (e ^. options . postgresMigration).conversation (e ^. cstate)
       convCodesStoreInterpreter =
@@ -485,9 +484,11 @@ evalGalley e = do
             maxConvSize = e._options._settings._maxConvSize,
             listClientsUsingBrig = e._options._settings._intraListing
           }
-  runLicense' <- runLicense (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
-  pure $ \action ->
-    ExceptT
+      licenseInterpreter =
+        runLicense
+          (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
+          (fmap encodeUtf8 (e ^. options . settings . license))
+   in ExceptT
         . runFinal @IO
         . unsafelyPerformConcurrency
         . resourceToIOFinal
@@ -592,10 +593,9 @@ evalGalley e = do
         . runInputConst (e ^. reqId)
         . interpretJobSubsystem defaultJobSubsystemConfig
         . interpretMeetingNotifier
-        $ runLicense'
-          ( interpretConversationSubsystem
-              (Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options)) action)
-          )
+        . licenseInterpreter
+        . interpretConversationSubsystem
+        . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
