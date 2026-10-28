@@ -1,0 +1,10 @@
+{
+    "algorithm": "sha1",
+    "credential_id": "0f2e1b9c-6c6c-4a0e-9a3f-17a2cf15a001",
+    "digits": 6,
+    "expires_at": "2026-02-03T11:32:05.021Z",
+    "period": 30,
+    "secret": "JBSWY3DPEHPK3PXP",
+    "server_time": "2026-02-03T11:17:05.021Z",
+    "uri": "otpauth://totp/Wire:alice%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Wire&algorithm=SHA1&digits=6&period=30"
+}

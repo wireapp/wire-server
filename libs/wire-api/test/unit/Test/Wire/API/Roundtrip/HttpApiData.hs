@@ -17,6 +17,7 @@
 
 module Test.Wire.API.Roundtrip.HttpApiData (tests) where
 
+import Data.Id qualified
 import Imports
 import Servant.API
 import Test.Tasty qualified as T
@@ -35,7 +36,8 @@ tests =
       testRoundTrip @Wire.API.User.Search.PagingState,
       testRoundTrip @Wire.API.User.Search.EmailVerificationFilter,
       testRoundTrip @Wire.API.Routes.Version.Version,
-      testRoundTrip @Wire.API.Routes.Version.VersionNumber
+      testRoundTrip @Wire.API.Routes.Version.VersionNumber,
+      testRoundTrip @Data.Id.TOTPCredentialId
     ]
 
 testRoundTrip ::

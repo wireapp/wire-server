@@ -81,6 +81,7 @@ import Wire.API.User qualified as User
 import Wire.API.User.Activation qualified as User.Activation
 import Wire.API.User.Auth qualified as User.Auth
 import Wire.API.User.Auth.ReAuth qualified as User.Auth
+import Wire.API.User.Auth.TOTP qualified as TOTP
 import Wire.API.User.Client qualified as User.Client
 import Wire.API.User.Client.Prekey qualified as User.Client.Prekey
 import Wire.API.User.Handle qualified as User.Handle
@@ -373,6 +374,18 @@ tests =
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamContact,
+      testRoundTrip @TOTP.TOTPSecret,
+      testRoundTrip @TOTP.TOTPCode,
+      testRoundTrip @TOTP.RecoveryCode,
+      testRoundTrip @TOTP.SecondFactorCode,
+      testRoundTrip @TOTP.TOTPHashAlgorithm,
+      testRoundTrip @TOTP.ReauthBody,
+      testRoundTrip @TOTP.TOTPCredentialInfo,
+      testRoundTrip @TOTP.NewTOTPCredential,
+      testRoundTrip @TOTP.TOTPEnrolment,
+      testRoundTrip @TOTP.ActivateTOTPCredential,
+      testRoundTrip @TOTP.TOTPCredentialName,
+      testRoundTrip @TOTP.TOTPRecoveryCodes,
       testRoundTrip @UserGroup.NewUserGroup,
       testRoundTrip @UserGroup.UserGroupUpdate,
       testRoundTrip @(UserGroup.UserGroup),

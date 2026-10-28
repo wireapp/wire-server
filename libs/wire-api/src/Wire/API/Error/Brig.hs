@@ -122,6 +122,19 @@ data BrigError
   | UserGroupManagedByMismatch
   | DuplicateEntry
   | MLSInvalidLeafNodeSignature
+  | -- FUTUREWORK: the TOTP management api is only mocked with arbitrary
+    -- responses.  These errors are not thrown (yet), but they already
+    -- are listed for generating swagger docs.
+    TOTPNotFound
+  | TOTPAlreadyActivated
+  | TOTPNotActivated
+  | TOTPEnrolmentExpired
+  | TOTPInvalidCode
+  | TOTPCodeReused
+  | TOTPClientClockSkew
+  | TOTPTooManyCredentials
+  | TOTPRequired
+  | TOTPDisabled
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -362,3 +375,23 @@ type instance MapError 'UserGroupMemberIsNotInTheSameTeam = 'StaticError 400 "us
 type instance MapError 'DuplicateEntry = 'StaticError 409 "duplicate-entry" "Entry already exists"
 
 type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature in key package"
+
+type instance MapError 'TOTPNotFound = 'StaticError 404 "totp-not-found" "TOTP credential not found"
+
+type instance MapError 'TOTPAlreadyActivated = 'StaticError 409 "totp-already-activated" "TOTP credential has already been activated"
+
+type instance MapError 'TOTPNotActivated = 'StaticError 409 "totp-not-activated" "TOTP credential has not been activated"
+
+type instance MapError 'TOTPEnrolmentExpired = 'StaticError 410 "totp-enrolment-expired" "TOTP enrolment has expired; start over"
+
+type instance MapError 'TOTPInvalidCode = 'StaticError 403 "totp-invalid-code" "Invalid second factor code"
+
+type instance MapError 'TOTPCodeReused = 'StaticError 403 "totp-code-reused" "This second factor code has already been used"
+
+type instance MapError 'TOTPClientClockSkew = 'StaticError 409 "totp-client-clock-skew" "Client clock is skewed; the server time is included in the response body"
+
+type instance MapError 'TOTPTooManyCredentials = 'StaticError 409 "totp-too-many-credentials" "Maximum number of TOTP credentials reached"
+
+type instance MapError 'TOTPRequired = 'StaticError 403 "totp-required" "A second factor code is required for this operation"
+
+type instance MapError 'TOTPDisabled = 'StaticError 403 "totp-disabled" "TOTP is not enabled on this backend"
