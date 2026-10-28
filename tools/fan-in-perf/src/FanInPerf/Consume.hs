@@ -82,12 +82,12 @@ import UnliftIO.Exception (bracket_, tryAny)
 data Subscription = Subscription
   { kind :: !TargetKind,
     stream :: !Stream,
-    -- | highest id delivered (initially the start position)
+    -- | highest id delivered (initially the `start` position)
     cursor :: !UUID,
     -- | start position: the lowest possible fetch bound
     start :: !UUID,
     -- | delivered ids inside the window, not delivered again
-    seen :: !(Set UUID),
+    seenInWindow :: !(Set UUID),
     -- | last id of a full page: the next fetch continues after it instead of
     -- re-reading the page (the window holds more rows than @--fetch-limit@);
     -- a non-full page resets it
@@ -96,7 +96,7 @@ data Subscription = Subscription
 
 newSubscription :: TargetKind -> Stream -> UUID -> Subscription
 newSubscription kind stream cursor =
-  Subscription {start = cursor, seen = mempty, resumeAfter = Nothing, ..}
+  Subscription {start = cursor, seenInWindow = mempty, resumeAfter = Nothing, ..}
 
 -- | Start position of every stream of a reader: B reads the latest
 -- notification id ("start at latest"); C resets the reader's acks to it (RFC
@@ -197,17 +197,17 @@ readerPass render limit windowMs stats subs = do
         embed (recordFetchError stats sub.kind)
         pure (PassResult [sub] False [] [kindName sub.kind <> ": fetch failed: " <> render err])
       Right page -> do
-        let new = filter (`Set.notMember` sub.seen) (map fst page)
+        let new = filter (`Set.notMember` sub.seenInWindow) (map fst page)
             full = length page >= limit
             cursor' = foldl' max sub.cursor new
             sub' = sub {cursor = cursor', resumeAfter = if full then fst <$> listToMaybe (reverse page) else Nothing}
             bound' = lowerBound windowMs sub'
             seen'
               | windowMs == 0 = mempty
-              | otherwise = Set.dropWhileAntitone (<= bound') (foldl' (flip Set.insert) sub.seen new)
+              | otherwise = Set.dropWhileAntitone (<= bound') (foldl' (flip Set.insert) sub.seenInWindow new)
         nowMs <- embed currentMillis
         embed (recordFetch stats sub.kind (t1 - t0) (map (lagNs nowMs) new))
-        pure (PassResult [sub' {seen = seen'}] full [(sub.stream, i) | i <- new] [])
+        pure (PassResult [sub' {seenInWindow = seen'}] full [(sub.stream, i) | i <- new] [])
   pure (mconcat results)
 
 currentMillis :: IO Word64
