@@ -8,7 +8,7 @@
   "templating": { "list": [] },
   "panels": [
     {
-      "id": 1, "type": "timeseries", "title": "Push rate (pushes/s)", "datasource": null, "interval": "1s",
+      "id": 1, "type": "timeseries", "title": "Push rate (pushes/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (experiment) (rate(fanin_perf_pushes_total[5s]))", "legendFormat": "pushes/s (5s avg)" },
@@ -17,14 +17,14 @@
       ]
     },
     {
-      "id": 2, "type": "timeseries", "title": "Push rate by kind", "datasource": null, "interval": "1s",
+      "id": 2, "type": "timeseries", "title": "Push rate by kind", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_pushes_total[5s]))", "legendFormat": "{{kind}}" }
       ]
     },
     {
-      "id": 3, "type": "timeseries", "title": "Error rate (errors/s)", "datasource": null, "interval": "1s",
+      "id": 3, "type": "timeseries", "title": "Error rate (errors/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_errors_total[5s]))", "legendFormat": "errors/s ({{kind}}, 5s avg)" },
@@ -32,7 +32,7 @@
       ]
     },
     {
-      "id": 4, "type": "timeseries", "title": "Error ratio", "datasource": null, "interval": "1s",
+      "id": 4, "type": "timeseries", "title": "Error ratio", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
       "targets": [
@@ -40,7 +40,7 @@
       ]
     },
     {
-      "id": 5, "type": "timeseries", "title": "Push latency", "datasource": null, "interval": "1s",
+      "id": 5, "type": "timeseries", "title": "Push latency", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
@@ -49,14 +49,14 @@
       ]
     },
     {
-      "id": 6, "type": "timeseries", "title": "Targets rate (targets/s)", "datasource": null, "interval": "1s",
+      "id": 6, "type": "timeseries", "title": "Targets rate (targets/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_targets_total[5s]))", "legendFormat": "{{kind}}" }
       ]
     },
     {
-      "id": 7, "type": "timeseries", "title": "Pool connections in use", "datasource": null, "interval": "1s",
+      "id": 7, "type": "timeseries", "title": "Pool connections in use", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "fanin_perf_pool_in_use{job=\"fan-in-perf\"}", "legendFormat": "{{role}} in use" },
@@ -64,7 +64,7 @@
       ]
     },
     {
-      "id": 8, "type": "timeseries", "title": "Consume rate (notifications/s)", "datasource": null, "interval": "1s",
+      "id": 8, "type": "timeseries", "title": "Delivered vs. targets written (notifications/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum(rate(fanin_perf_consumed_total[5s]))", "legendFormat": "delivered/s (5s avg)" },
@@ -74,7 +74,7 @@
       ]
     },
     {
-      "id": 9, "type": "timeseries", "title": "Delivery lag", "datasource": null, "interval": "1s",
+      "id": 9, "type": "timeseries", "title": "Delivery lag", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
@@ -83,14 +83,14 @@
       ]
     },
     {
-      "id": 10, "type": "timeseries", "title": "Backlog (expected - delivered)", "datasource": null, "interval": "1s",
+      "id": 10, "type": "timeseries", "title": "Backlog (expected - delivered)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "fanin_perf_backlog", "legendFormat": "backlog" }
       ]
     },
     {
-      "id": 11, "type": "timeseries", "title": "Fetch latency", "datasource": null, "interval": "1s",
+      "id": 11, "type": "timeseries", "title": "Fetch latency", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
@@ -99,7 +99,7 @@
       ]
     },
     {
-      "id": 12, "type": "timeseries", "title": "Empty fetch ratio / fetch errors", "datasource": null, "interval": "1s",
+      "id": 12, "type": "timeseries", "title": "Empty fetch ratio / fetch errors", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 48, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum(rate(fanin_perf_empty_fetches_total[5s])) / sum(rate(fanin_perf_fetches_total[5s]))", "legendFormat": "empty fetch ratio" },
@@ -107,56 +107,56 @@
       ]
     },
     {
-      "id": 13, "type": "timeseries", "title": "Pool connections idle", "datasource": null, "interval": "1s",
+      "id": 13, "type": "timeseries", "title": "Pool connections idle", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "fanin_perf_pool_ready_for_use{job=\"fan-in-perf\"}", "legendFormat": "{{role}} idle" }
       ]
     },
     {
-      "id": 14, "type": "timeseries", "title": "Pool utilisation (in use / total)", "datasource": null, "interval": "1s",
+      "id": 14, "type": "timeseries", "title": "Pool utilisation (in use / total)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 56, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "fanin_perf_pool_in_use / (fanin_perf_pool_in_use + fanin_perf_pool_ready_for_use)", "legendFormat": "{{role}}" }
       ]
     },
     {
-      "id": 15, "type": "timeseries", "title": "Pool sessions/s", "datasource": null, "interval": "1s",
+      "id": 15, "type": "timeseries", "title": "Pool sessions/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 56, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
-      "id": 16, "type": "timeseries", "title": "Pool session failures/s", "datasource": null, "interval": "1s",
+      "id": 16, "type": "timeseries", "title": "Pool session failures/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 64, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_failure_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
-      "id": 17, "type": "timeseries", "title": "Pool acquisition timeouts/s", "datasource": null, "interval": "1s",
+      "id": 17, "type": "timeseries", "title": "Pool acquisition timeouts/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 64, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_acquisition_timeout_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
-      "id": 18, "type": "timeseries", "title": "Pool connections established/s", "datasource": null, "interval": "1s",
+      "id": 18, "type": "timeseries", "title": "Pool connections established/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 72, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_established_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
-      "id": 19, "type": "timeseries", "title": "Pool connection failures/s", "datasource": null, "interval": "1s",
+      "id": 19, "type": "timeseries", "title": "Pool connection failures/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 72, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_failure_count_total[5s]))", "legendFormat": "{{role}}" }
       ]
     },
     {
-      "id": 20, "type": "timeseries", "title": "Pool session duration", "datasource": null, "interval": "1s",
+      "id": 20, "type": "timeseries", "title": "Pool session duration", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 80, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
@@ -165,7 +165,7 @@
       ]
     },
     {
-      "id": 21, "type": "timeseries", "title": "Pool connection establishment duration", "datasource": null, "interval": "1s",
+      "id": 21, "type": "timeseries", "title": "Pool connection establishment duration", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 80, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
@@ -174,7 +174,7 @@
       ]
     },
     {
-      "id": 22, "type": "timeseries", "title": "Ack upserts/s vs consumed/s", "datasource": null, "interval": "1s",
+      "id": 22, "type": "timeseries", "title": "Ack upserts/s vs consumed/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 88, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "fanin_perf_ack_rate_current", "legendFormat": "acks/s {{experiment}}" },
@@ -182,7 +182,7 @@
       ]
     },
     {
-      "id": 23, "type": "timeseries", "title": "Ack latency", "datasource": null, "interval": "1s",
+      "id": 23, "type": "timeseries", "title": "Ack latency", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 88, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
@@ -191,14 +191,14 @@
       ]
     },
     {
-      "id": 24, "type": "timeseries", "title": "Ack errors/s", "datasource": null, "interval": "1s",
+      "id": 24, "type": "timeseries", "title": "Ack errors/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 96, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_ack_errors_total[5s]))", "legendFormat": "{{kind}}" }
       ]
     },
     {
-      "id": 25, "type": "timeseries", "title": "Reader gate wait", "datasource": null, "interval": "1s",
+      "id": 25, "type": "timeseries", "title": "Reader gate wait", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 96, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
@@ -212,14 +212,14 @@
       "panels": []
     },
     {
-      "id": 27, "type": "timeseries", "title": "Partitions per parent", "datasource": null, "interval": "1s",
+      "id": 27, "type": "timeseries", "title": "Partitions per parent", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 0, "y": 105, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "fan_in_partman_partitions", "legendFormat": "{{parent}}" }
       ]
     },
     {
-      "id": 28, "type": "timeseries", "title": "Oldest partition age per parent", "datasource": null, "interval": "1s",
+      "id": 28, "type": "timeseries", "title": "Oldest partition age per parent", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 105, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [

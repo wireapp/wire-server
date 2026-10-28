@@ -21,7 +21,7 @@
   "panels": [
     {
       "collapsed": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -42,7 +42,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Source: server_version_num",
       "fieldConfig": {
         "defaults": {
@@ -132,7 +132,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Max Replication lag behind master in seconds\n\nOnly available on a standby system.\n\nSource: pg_last_xact_replay_timestamp\n\nUse: pg_stat_replication for Details.",
       "fieldConfig": {
         "defaults": {
@@ -223,7 +223,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Clients executing Statements.\n\nSource: pg_stat_activity",
       "fieldConfig": {
         "defaults": {
@@ -305,7 +305,7 @@
     },
     {
       "cacheTimeout": null,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Shared buffer hits vs reads from disc",
       "fieldConfig": {
         "defaults": {
@@ -376,7 +376,7 @@
     },
     {
       "cacheTimeout": null,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Percentage of max_connections used",
       "fieldConfig": {
         "defaults": {
@@ -447,7 +447,7 @@
     },
     {
       "cacheTimeout": null,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Transaction committed vs rollbacked",
       "fieldConfig": {
         "defaults": {
@@ -525,7 +525,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "decimals": 1,
       "description": "Source: pg_postmaster_start_time()",
       "fieldConfig": {
@@ -616,7 +616,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Transactions committed + roolback per minute\n\nSource: pg_stat_database,xact_commit + xact_rollback",
       "fieldConfig": {
         "defaults": {
@@ -707,7 +707,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Statements executed per Minute.\n\nSource: pg_stat_statements.calls",
       "fieldConfig": {
         "defaults": {
@@ -798,7 +798,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "decimals": 2,
       "description": "Size of all databases in $Instance.\n\nSource: pg_database_size_bytes()",
       "fieldConfig": {
@@ -888,7 +888,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Source: pg_stat_statements.total_time / pg_stat_statements.calls",
       "fieldConfig": {
         "defaults": {
@@ -979,7 +979,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "decimals": 0,
       "description": "Setting: shared_buffers in PostgreSQL.conf",
       "fieldConfig": {
@@ -1069,7 +1069,7 @@
         "rgba(237, 129, 40, 0.89)",
         "#d44a3a"
       ],
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Setting: max_connections in postgreSQL.conf",
       "fieldConfig": {
         "defaults": {
@@ -1154,7 +1154,7 @@
       "bars": true,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "decimals": 0,
       "description": "View: pg_stat_activity",
       "fieldConfig": {
@@ -1263,7 +1263,7 @@
       "bars": true,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "decimals": 0,
       "description": "View: pg_stat_activity",
       "fieldConfig": {
@@ -1372,7 +1372,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "decimals": 2,
       "description": "1 Minute rate of transactions committed or rollback.",
       "fieldConfig": {
@@ -1480,7 +1480,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Source: pg_stat_database",
       "fieldConfig": {
         "defaults": {
@@ -1589,7 +1589,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "* blk_read_time: Time spent reading data file blocks by backends in this database, in milliseconds\n* blk_write_time: Time spent writing data file blocks by backends in this database, in milliseconds\n\ntrack_io_timings needs to be activated",
       "fieldConfig": {
         "defaults": {
@@ -1691,7 +1691,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Source: pg_stat_database\n\n* tup_fetched: rows needed to satisfy queries\n* tup_returned: rows read/scanned",
       "fieldConfig": {
         "defaults": {
@@ -1794,7 +1794,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Source: pg_locks",
       "fieldConfig": {
         "defaults": {
@@ -1895,7 +1895,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Should be 0 \n\nSource: pg_stat_database\n\nWith log_lock_waits turned on, deadlocks will be logged to the PostgreSQL Logfiles.",
       "fieldConfig": {
         "defaults": {
@@ -1999,7 +1999,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Should be 0. If temporary files are created, it can indicate insufficient work_mem. With log_temp_files the creation of temporary files are logged to the PostgreSQL Logfiles.",
       "fieldConfig": {
         "defaults": {
@@ -2103,7 +2103,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "Lag behind master in seconds.\n\nOnly available on a standby System.",
       "fieldConfig": {
         "defaults": {
@@ -2199,7 +2199,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2217,7 +2217,7 @@
             "rgba(237, 129, 40, 0.89)",
             "#d44a3a"
           ],
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "fieldConfig": {
             "defaults": {
               "custom": {}
@@ -2312,7 +2312,7 @@
             "rgba(237, 129, 40, 0.89)",
             "#d44a3a"
           ],
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "decimals": 2,
           "fieldConfig": {
             "defaults": {
@@ -2401,7 +2401,7 @@
         },
         {
           "cacheTimeout": null,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Shared buffer hits vs reads from disc",
           "fieldConfig": {
             "defaults": {
@@ -2479,7 +2479,7 @@
         },
         {
           "cacheTimeout": null,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Transaction committed vs rollbacked",
           "fieldConfig": {
             "defaults": {
@@ -2564,7 +2564,7 @@
             "rgba(237, 129, 40, 0.89)",
             "#d44a3a"
           ],
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Transactions committed + roolback per minute\n\nSource: pg_stat_database,xact_commit + xact_rollback",
           "fieldConfig": {
             "defaults": {
@@ -2658,7 +2658,7 @@
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "decimals": 0,
           "description": "View: pg_stat_activity",
           "fieldConfig": {
@@ -2774,7 +2774,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "decimals": 2,
           "description": "1 Minute rate of transactions committed or rollback.",
           "fieldConfig": {
@@ -2889,7 +2889,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Source: pg_stat_database",
           "fieldConfig": {
             "defaults": {
@@ -3005,7 +3005,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Source: pg_stat_database\n\n* tup_fetched: rows needed to satisfy queries\n* tup_returned: rows read/scanned",
           "fieldConfig": {
             "defaults": {
@@ -3115,7 +3115,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Source: pg_locks",
           "fieldConfig": {
             "defaults": {
@@ -3223,7 +3223,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Should be 0 \n\nSource: pg_stat_database\n\nWith log_lock_waits turned on, deadlocks will be logged to the PostgreSQL Logfiles.",
           "fieldConfig": {
             "defaults": {
@@ -3334,7 +3334,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
           "description": "Should be 0. If temporary files are created, it can indicate insufficient work_mem. With log_temp_files the creation of temporary files are logged to the PostgreSQL Logfiles.",
           "fieldConfig": {
             "defaults": {
@@ -3455,7 +3455,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": null,
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
         "definition": "label_values({job=\"postgres-exporter\"}, instance)",
         "hide": 0,
         "includeAll": false,
@@ -3477,7 +3477,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": null,
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
         "definition": "label_values(datname)",
         "hide": 0,
         "includeAll": true,
