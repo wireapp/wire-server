@@ -20,7 +20,7 @@ module Test.Migration.MlsKeyPackages (testMlsKeyPackagesMigration) where
 import API.Brig
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import MLS.Util (generateKeyPackage)
+import MLS.Util (ciphersuites, createMLSClient, generateKeyPackage)
 import SetupHelpers
 import Test.Migration.Util (waitForMigration)
 import Testlib.Prelude
@@ -56,8 +56,8 @@ testMlsKeyPackagesMigration = do
         assertCount altSuite alice1 1
         pure (alice, alice1, refAlt)
 
-    -- P2 migration-to-postgresql (worker off): writes go to both stores,
-    -- reads still come from Cassandra.
+    -- P2 migration-to-postgresql (worker off): brig keeps serving Cassandra;
+    -- nothing is written to Postgres.
     runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
       (kp, _) <- generateKeyPackage alice1 def
       uploadKeyPackages alice1 [kp] >>= assertStatus 201
@@ -66,7 +66,8 @@ testMlsKeyPackagesMigration = do
       assertCount def alice1 1
       assertCount altSuite alice1 1
 
-    -- P3 migration-to-postgresql (worker on): dual-write while backfilling.
+    -- P3 migration-to-postgresql (worker on): copy loop backfills Postgres;
+    -- brig reads still come from Cassandra.
     runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
       (kp, _) <- generateKeyPackage alice1 def
       uploadKeyPackages alice1 [kp] >>= assertStatus 201

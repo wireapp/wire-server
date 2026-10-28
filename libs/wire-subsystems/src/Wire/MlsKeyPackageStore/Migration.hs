@@ -61,9 +61,24 @@ type EffectStack =
     Final IO
   ]
 
--- | Copy-only migration loop: no Cassandra deletes and no migration locks
--- (key packages have no ownership semantics and copy races are accepted; a
--- final clean pass runs before cutover).
+-- | Copy-only migration loop: no Cassandra deletes and no migration locks.
+--
+-- Deliberately NO dual-write (WPB-29582 review): key packages are
+-- one-time-use security material — claiming deletes them — so a lost or
+-- reordered delete-mirror would resurface a claimed key package in
+-- Postgres after cutover. Writes stay on Cassandra until operators flip
+-- @postgresMigration.mlsKeyPackages@ to @postgresql@.
+--
+-- Cutover requirement: the copy loop never deletes, so key packages
+-- claimed in Cassandra after their row was copied remain in Postgres.
+-- Therefore flip @postgresMigration.mlsKeyPackages@ to @postgresql@ first
+-- (Cassandra is then frozen: post-cutover claims delete only from
+-- Postgres), and immediately afterwards run a reconciliation pass deleting
+-- Postgres rows absent from Cassandra — ignoring rows uploaded after the
+-- flip, which exist only in Postgres. After reconciliation, disable the
+-- background copy loop (@migrateMlsKeyPackages: false@): a worker restart
+-- with the loop still enabled would re-copy stale Cassandra rows over
+-- Postgres state.
 migrateMlsKeyPackagesLoop ::
   MigrationOptions ->
   ClientState ->
