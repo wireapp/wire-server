@@ -42,6 +42,11 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
+import Hasql.Pool qualified as HasqlPool
+import Hasql.Pool.Extended qualified as HasqlPoolExt
+import Hasql.Session qualified as HasqlSession
+import Hasql.Statement qualified as Hasql
+import Hasql.TH
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
@@ -63,6 +68,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
+import Wire.API.PostgresMarshall (dimapPG)
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.Routes.Version
@@ -530,27 +536,52 @@ selectMemberClientRows :: PrepQuery R (Identity GroupId) (Domain, UserId, Client
 selectMemberClientRows =
   "select user_domain, user, client, leaf_node_index, removal_pending from mls_group_member_client where group_id = ?"
 
+-- | Same table read from Postgres, mirroring the statement style of
+-- Wire.ConversationStore.Postgres.  Used when the conversation lives in
+-- Postgres (the isConvInPostgres routing in the Cassandra interpreter decides
+-- which store holds the member rows).
+selectMemberClientRowsPg :: Hasql.Statement GroupId [(Domain, UserId, ClientId, Int32, Bool)]
+selectMemberClientRowsPg =
+  dimapPG
+    [vectorStatement|SELECT (user_domain :: text), ("user" :: uuid), (client :: text), (leaf_node_index :: integer), (removal_pending :: bool)
+                     FROM mls_group_member_client
+                     WHERE group_id = ($1 :: bytea)
+                    |]
+
 -- | Assert the client's row in mls_group_member_client survived a re-join with
 -- exactly one entry carrying the expected leaf index (WPB-29648: a DELETE and
 -- INSERT of the same key within one millisecond used to drop the row).
+--
+-- Assumes single-store deployments (as in CI): the store holding the row is
+-- picked by whether Cassandra returned any matching row, which coincides with
+-- the isConvInPostgres routing there.
 assertClientMemberRow :: (HasCallStack) => GroupId -> ClientIdentity -> LeafIndex -> MLSTest ()
 assertClientMemberRow gid ci expectedIdx = do
   casClient <- liftTest (view tsCass)
-  rows <-
+  pgPool <- liftTest (view tsPgPool)
+  casRows <-
     liftTest . runClient casClient . retry x5 $
       Cassandra.query selectMemberClientRows (params LocalQuorum (Identity gid))
-  let leafIndexes =
+  let memberRows rows =
         [ idx
         | (_, usr, cl, idx, pending) <- rows,
           usr == qUnqualified (cidQualifiedUser ci),
           cl == ciClient ci,
           not pending
         ]
-  liftIO $
-    assertEqual
-      ("expected exactly one member row for client " <> show (ciClient ci))
-      [fromIntegral expectedIdx]
-      leafIndexes
+      msg = "expected exactly one member row for client " <> show (ciClient ci)
+  leafIndexes <- case memberRows casRows of
+    [] -> liftTest $ do
+      -- No row in Cassandra: the conversation lives in Postgres, read the row
+      -- there.  A Postgres error is folded into the assertion message so a
+      -- broken fallback is not mistaken for the WPB-29648 symptom.
+      result <-
+        liftIO $ HasqlPool.use (HasqlPoolExt.rawPool pgPool) (HasqlSession.statement gid selectMemberClientRowsPg)
+      case result of
+        Right pgRows -> pure (memberRows pgRows)
+        Left err -> liftIO (assertFailure ("postgres fallback failed: " <> show err))
+    found -> pure found
+  liftIO $ assertEqual msg [fromIntegral expectedIdx] leafIndexes
 
 testUnknownProposalRefCommit :: (HasCallStack) => TestM ()
 testUnknownProposalRefCommit = do
