@@ -155,7 +155,6 @@ import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore (BlockListStore)
-import Wire.NonceStore (NonceStore, insertNonce)
 import Wire.BudgetStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -179,6 +178,7 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.NonceStore (NonceStore, insertNonce)
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem

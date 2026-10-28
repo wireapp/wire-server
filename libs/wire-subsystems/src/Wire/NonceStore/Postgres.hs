@@ -32,6 +32,11 @@ import Polysemy
 import Wire.NonceStore (NonceStore (..))
 import Wire.Postgres
 
+-- No expires_at index or purge job on the nonce table, matching the
+-- password_reset precedent: expiry is enforced on read (see
+-- lookupAndDeleteNonce, expired = consumed) and rows are consumed on use;
+-- unconsumed rows are bounded by the 5-minute issuance TTL semantics and
+-- are tiny.
 interpretNonceStoreToPostgres ::
   (PGConstraints r) =>
   InterpreterFor NonceStore r

@@ -20,10 +20,10 @@ module Test.Migration.Nonce (testNonceMigration) where
 import API.Brig
 import qualified API.BrigInternal as BrigInternal
 import API.Common
-import qualified Data.ByteString.Char8 as BC
-import qualified Data.CaseInsensitive as CI
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.ByteString.Char8 as BC
+import qualified Data.CaseInsensitive as CI
 import SetupHelpers (createTeam)
 import Test.Migration.Util (waitForMigration)
 import Testlib.Prelude
@@ -56,8 +56,8 @@ testNonceMigration = do
 
           nonceResp <- BrigInternal.newNonce owner cid
           assertStatus 204 nonceResp
-          assertBool "missing Replay-Nonce header" $
-            isJust (findHeader (CI.mk (BC.pack "Replay-Nonce")) nonceResp)
+          assertBool "missing Replay-Nonce header"
+            $ isJust (findHeader (CI.mk (BC.pack "Replay-Nonce")) nonceResp)
 
           -- First access-token attempt: nonce consumed, proof verification fails.
           assertStatus 400 =<< BrigInternal.createDPoPAccessToken owner cid
@@ -68,8 +68,7 @@ testNonceMigration = do
           replayResp.json %. "label" `shouldMatch` "client-token-bad-nonce"
 
     -- Cassandra: issue and consume a nonce.
-    runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ ->
-      checkNonceRoundtrip
+    runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ const checkNonceRoundtrip
 
     -- migration-to-postgresql with the worker running: backfill and confirm
     -- the consume path keeps working.
@@ -78,8 +77,7 @@ testNonceMigration = do
       checkNonceRoundtrip
 
     -- PostgreSQL only: consume works with PostgreSQL as the source of truth.
-    runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ ->
-      checkNonceRoundtrip
+    runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ const checkNonceRoundtrip
   where
     conf :: String -> Bool -> ServiceOverrides
     conf db runMigration =

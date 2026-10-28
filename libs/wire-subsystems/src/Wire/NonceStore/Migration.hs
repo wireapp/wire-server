@@ -21,8 +21,8 @@ import Cassandra hiding (Value)
 import Data.ByteString.Conversion (toByteString')
 import Data.Conduit
 import Data.Conduit.List qualified as C
-import Data.Id (UserId)
 import Data.IORef qualified as IORef
+import Data.Id (UserId)
 import Data.Nonce (Nonce (..), NonceTtlSecs (..))
 import Data.Text qualified as Text
 import Data.Time

@@ -72,10 +72,6 @@ import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.BlockListStore.DualWrite
 import Wire.BlockListStore.Postgres
-import Wire.NonceStore
-import Wire.NonceStore.Cassandra
-import Wire.NonceStore.DualWrite
-import Wire.NonceStore.Postgres
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
 import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
@@ -125,6 +121,10 @@ import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
+import Wire.NonceStore
+import Wire.NonceStore.Cassandra
+import Wire.NonceStore.DualWrite
+import Wire.NonceStore.Postgres
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
