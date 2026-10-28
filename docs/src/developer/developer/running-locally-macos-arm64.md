@@ -138,19 +138,18 @@ find /nix/store -maxdepth 2 -iname '*rust_zauth-c*-lib' 2>/dev/null
 ls <that path>/lib   # confirm libzauth-<hash>.dylib is in there
 ```
 
-**Important**: you can't just `export DYLD_LIBRARY_PATH=...` before `make cr`
-— this repo's Makefile sets `SHELL := /usr/bin/env bash`, and `/usr/bin/env`
-is a SIP-protected Apple system binary. macOS's dyld strips all `DYLD_*`/
-`LD_*` env vars at that exec hop, so anything you exported is already gone by
-the time `bash`/`run-services`/`nginx` run, with no error from `make` itself.
+Note: `export DYLD_LIBRARY_PATH=...` before `make cr` only works because this
+repo's Makefile sets `SHELL` to a direct `bash` path on Darwin instead of
+`/usr/bin/env bash`. `/usr/bin/env` is a SIP-protected Apple system binary,
+and macOS's dyld strips all `DYLD_*`/`LD_*` env vars at that exec hop — so
+without that Makefile fix, anything you exported would already be gone by the
+time `bash`/`run-services`/`nginx` run, with no error from `make` itself. With
+the fix in place, you can just export the var and run `make cr` normally:
 
-Instead, let `make` do the build/migrate, then launch the services binary
-directly yourself (bypassing make's recipe shell) with the var set:
 ```bash
-direnv exec . make c db-migrate   # build + migrate only, no launch
 direnv exec . bash -c '
   export DYLD_LIBRARY_PATH="/nix/store/5w1cbzzkyrxg9jvk0084aqzg7x8p0rq3-rust_zauth-c-3.0.0-lib/lib"
-  exec ./dist/run-services
+  make cr
 '
 ```
 Confirm: `curl http://127.0.0.1:8080/api/swagger.json` → 200, and
@@ -162,16 +161,20 @@ by PID before relaunching rather than just retrying.
 
 ## 6. Running wire-webapp against this local backend
 
+Clone [`wire-webapp`](https://github.com/wireapp/wire-webapp) next to this
+`wire-server` checkout if you haven't already, and `cd` into it. The rest of
+this section assumes your terminal's current directory is the `wire-webapp`
+checkout.
+
 Most frontend devs point `wire-webapp` at a shared dev/staging backend, so its
 `.env` is likely already set up that way — check before editing:
 
 ```bash
-grep BACKEND_REST /Users/osama.salama/Documents/wire/wire-webapp/.env
+grep BACKEND_REST .env
 ```
 
 To point it at the local backend instead (back up first):
 ```bash
-cd /Users/osama.salama/Documents/wire/wire-webapp
 cp .env .env.bak   # restore with `cp .env.bak .env` when done
 ```
 Then edit `.env`:
