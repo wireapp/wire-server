@@ -43,15 +43,15 @@ run console opts = do
   forM_ opts.summaryJson $ \file -> BL.writeFile file mempty
   let writeSummary :: RunSummary -> IO ()
       writeSummary s = forM_ opts.summaryJson $ \file -> BL.writeFile file (A.encode s <> "\n")
-      -- A load command: @prepare@ returns the run, which is measured with the
-      -- metrics server up and the database facts around it.
-      runLoad :: IO (IO RunSummary) -> IO ()
-      runLoad prepare = do
+      -- A load command: @load@ is measured with the metrics server up and the
+      -- database facts around it.
+      runLoad :: IO RunSummary -> IO ()
+      runLoad load = do
         checkDatabase env
         summary <- withAsync (runMetricsServer opts.global.metricsPort) $ \server -> do
-          -- e.g. port already in use: fail loudly instead of running unobserved
+          -- e.g. when port already in use: fail loudly instead of running unobserved
           link server
-          prepare >>= withDatabaseFacts console env
+          withDatabaseFacts console env load
         writeSummary summary
   case opts.command of
     ResetDb reset -> do
@@ -77,7 +77,7 @@ run console opts = do
       checkDatabase env
       info <- runOrAbort "server info" env getServerInfo
       BL.putStr (A.encode info <> "\n")
-    Produce p -> runLoad $ pure (runProduce console env p)
+    Produce p -> runLoad (runProduce console env p)
     Consume c -> runLoad $ do
       -- partitioned: the drops are sampled on a connection of their own
       samplerEnv <-
@@ -88,14 +88,14 @@ run console opts = do
           _ -> pure Nothing
       -- readers get their own pool so they cannot starve the writers
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
-      pure (runConsume console env env {pool = readerPool} samplerEnv c)
+      runConsume console env env {pool = readerPool} samplerEnv c
     ConsumeOnly c -> runLoad $ do
       runOrAbort "shape check" env currentShape >>= \case
         Just Partitioned -> printLine console "warning: partitioned tables: pg_partman retention can drop rows during the run, they then count as missing"
         _ -> pure ()
       -- counting and reading both use the readers' pool (the writer pool stays idle)
       readerPool <- initPool fams ReaderPool (poolConfig c.readerPoolSize) connStr
-      pure (runConsumeOnly console env {pool = readerPool} c)
+      runConsumeOnly console env {pool = readerPool} c
 
 checkDatabase :: Env -> IO ()
 checkDatabase env =
