@@ -160,7 +160,7 @@ def tool_args(exp, w, pool, dur):
     return a
 
 
-def experiments():
+def single_command_experiments():
     """Built at run time: --quick changes the durations."""
     return [
         ("A", tool_args("produce", W_A, None, 60)),
@@ -279,7 +279,7 @@ def gc_section(pm):
 
 
 def report(res, env):
-    dur = {x: int(a[a.index("--duration") + 1]) for x, a in experiments()}  # as run (--quick)
+    dur = {x: int(a[a.index("--duration") + 1]) for x, a in single_command_experiments()}  # as run (--quick)
     split_dur = int(split_experiments()[0][1][split_experiments()[0][1].index("--duration") + 1])
     partman = any(k.endswith("-partman") for k in res)
     L = ["# Notification fan-in: PostgreSQL benchmark, `user:2000x1`, 2,000 clients (WPB-26288)", "",
@@ -403,7 +403,7 @@ def main():
     os.makedirs(LOGDIR, exist_ok=True)
     res, e = {}, None
     for mode in MODES:
-        runs = [(x, a) for x, a in experiments() if x in wanted]
+        runs = [(x, a) for x, a in single_command_experiments() if x in wanted]
         splits = [x for x in split_experiments() if x[0] in wanted] if mode == "plain" else []
         if not runs and not splits:
             continue
