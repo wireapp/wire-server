@@ -114,7 +114,7 @@ spec = do
           g = GcImpact {drops = 3, dropsByTable = Map.fromList [("team_notifications", 1), ("user_notifications", 2)], windowSeconds = 5, within = w, other = w {seconds = 30}}
           out = renderSummary ((produceSummary report) {gc = Just g})
       out `shouldSatisfy` any (T.isInfixOf "partition drops: 3 (team_notifications 1, user_notifications 2); per-second figures within 5.0s of a drop")
-      out `shouldSatisfy` any (== "    within: seconds=11 push/s=100 ack/s=50 ack p99<=4.0ms (max 200.0ms) lag p99<=- backlog=7")
+      out `shouldSatisfy` elem "    within: seconds=11 push/s=100 ack/s=50 ack p99<=4.0ms (max 200.0ms) lag p99<=- backlog=7"
       out `shouldSatisfy` any (T.isInfixOf "other:  seconds=30")
     it "prints nothing without partition drops" $
       renderSummary (produceSummary report) `shouldSatisfy` (not . any (T.isInfixOf "partition drops"))

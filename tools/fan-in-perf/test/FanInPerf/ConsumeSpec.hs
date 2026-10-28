@@ -430,7 +430,7 @@ spec = do
                 StoredButFailed -> append rows i >> pure (PushFailed "timeout")
               push g (p, i) = writerStep (const readerCount) (store (i, p)) (mkPayload 0) entries ws (\_ -> pure ()) g
           foldM_ push (mkStdGen 2) (zip pushes ids)
-          delivered <- for [1 .. readerCount] $ \_ -> do
+          delivered <- replicateM readerCount $ do
             stats <- newReaderStats
             _ <- untilIdle 20 (pass rows failing 10 stats [sub0]) (pass rows failing 10 stats)
             deliveredCount stats
