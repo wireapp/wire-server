@@ -151,7 +151,7 @@ def run(label, args, partman):
     return r
 
 
-def common(exp, w, pool, dur):
+def tool_args(exp, w, pool, dur):
     a = [exp, "--writers", w, "--targets", TARGETS, "--warmup", WARMUP, "--duration", max(1, dur // QUICK), "--seed", SEED]
     if exp != "produce":
         a += ["--clients", CLIENTS, "--reader-pool-size", pool, "--safety-window", 200, "--drain-timeout", DRAIN]
@@ -163,17 +163,17 @@ def common(exp, w, pool, dur):
 def experiments():
     """Built at run time: --quick changes the durations."""
     return [
-        ("A", common("produce", W_A, None, 60)),
-        ("B", common("consume", W_B, POOL_B, 120)),
-        ("C", common("consume-ack", W_C, POOL_C, 120)),
-        ("D", common("consume-ack", W_C, POOL_C, 660)),
+        ("A", tool_args("produce", W_A, None, 60)),
+        ("B", tool_args("consume", W_B, POOL_B, 120)),
+        ("C", tool_args("consume-ack", W_C, POOL_C, 120)),
+        ("D", tool_args("consume-ack", W_C, POOL_C, 660)),
     ]
 
 
 def split_experiments():
     """(label, produce args, consume-only args), run on plain tables only: the 5 min
     retention of the partitioned tables would drop partitions during the consume phase."""
-    produce = common("produce", W_SPLIT, None, SPLIT_PRODUCE)
+    produce = tool_args("produce", W_SPLIT, None, SPLIT_PRODUCE)
     consume = ["--targets", TARGETS, "--seed", SEED, "--clients", CLIENTS, "--warmup", SPLIT_WARMUP, "--timeout", SPLIT_TIMEOUT]
     return [
         ("E", produce, ["consume-only", "--reader-pool-size", POOL_SPLIT] + consume),
