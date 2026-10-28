@@ -59,7 +59,7 @@ def fan_in_perf_cmd(args, summary_json=None):
     return [BIN, "--db", DB] + [str(a) for a in args] + (["--summary-json", summary_json] if summary_json else [])
 
 
-def tool(args):
+def run_tool(args):
     """Runs a short command of the tool (reset-db, vacuum, db-info); returns its output."""
     r = subprocess.run(fan_in_perf_cmd(args), cwd=REPO, capture_output=True, text=True)
     if r.returncode != 0:
@@ -145,7 +145,7 @@ def logged_run(label, logpath, args, parser=parse):
 
 
 def run(label, args, partman):
-    tool(["reset-db"] + (["--partitioned"] if partman else []))  # waits for pg_partman to settle
+    run_tool(["reset-db"] + (["--partitioned"] if partman else []))  # waits for pg_partman to settle
     r, rc = logged_run(label, os.path.join(LOGDIR, label + ".log"), args)
     r.update(label=label, exit=rc, cmd="fan-in-perf --db \"$DB\" " + " ".join(str(a) for a in args))
     return r
@@ -216,9 +216,9 @@ def parse_consume_only(logpath):
 def run_split(label, produce_args, consume_args):
     """reset, produce, vacuum (else autovacuum and hint-bit writes would land in
     the measured read phase; the checkpoint after it is the start of consume-only), consume-only."""
-    tool(["reset-db"])
+    run_tool(["reset-db"])
     p, prc = logged_run(f"{label}: produce", os.path.join(LOGDIR, label + "-produce.log"), produce_args)
-    tool(["vacuum"])
+    run_tool(["vacuum"])
     c, crc = logged_run(f"{label}: consume", os.path.join(LOGDIR, label + "-consume.log"), consume_args, parse_consume_only)
     cmd = lambda a: "fan-in-perf --db \"$DB\" " + " ".join(str(x) for x in a)
     return {
@@ -364,7 +364,7 @@ def report(res, env):
 
 def db_info():
     """The tool's db-info: server version, the settings that matter for the numbers, pg_partman version (None without)."""
-    return json.loads(tool(["db-info"]))
+    return json.loads(run_tool(["db-info"]))
 
 
 def env():
@@ -409,7 +409,7 @@ def main():
             continue
         log(f"database for {mode}")
         # every run resets again (and settles); this one only creates the database to ask
-        tool(["reset-db"] + (["--partitioned", "--no-settle"] if mode == "partman" else []))
+        run_tool(["reset-db"] + (["--partitioned", "--no-settle"] if mode == "partman" else []))
         if e is None:  # partman comes first, so its version is known if it runs
             e = env()
         for exp, a in runs:
