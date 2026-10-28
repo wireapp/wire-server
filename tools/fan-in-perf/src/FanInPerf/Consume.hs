@@ -430,7 +430,9 @@ consumeTickOnce mode metrics rt writing writerStats writerRef = do
   writerReport <- tickWriters rt.warmup now writerStats writerRef
   isWriting <- writing
   readerReport <- tickReaders rt isWriting now (totalExpected writerReport.total)
+  printQueuedErrors rt.console rt.errorQueue
   publish metrics writerReport
+  publishReaders rt readerReport
   drawStatus rt.console (formatConsumeStatus mode writerReport readerReport)
   pure (writerReport, readerReport)
 
@@ -440,20 +442,23 @@ ackMetricsFor mode label = case mode of
   Acks _ -> Just <$> newAckMetrics label
   NoAcks -> pure Nothing
 
--- | The reader half of a tick: aggregates the readers, prints queued errors,
--- publishes the reader metrics. The caller draws the status line.
--- @tickReaders rt counting now expected@: @counting@ says whether peaks count
--- (see 'consumeTick'), @expected@ the deliveries expected so far.
+-- | The reader half of a tick, like 'tickWriters': sums the readers' counters,
+-- advances the tick state. @tickReaders rt counting now expected@: @counting@
+-- says whether peaks count (see 'consumeTick'), @expected@ the deliveries
+-- expected so far.
 tickReaders :: ReaderTick -> Bool -> Double -> Int -> IO ConsumeReport
 tickReaders rt counting now expected = do
   total <- sumReaders rt.readerStats
   readerState <- readIORef rt.readerStateRef
   let (report, readerState') = consumeTick rt.warmup counting now expected total readerState
   writeIORef rt.readerStateRef readerState'
-  printQueuedErrors rt.console rt.errorQueue
+  pure report
+
+-- | Publishes the reader metrics of a tick (the ack metrics in 'Acks' mode).
+publishReaders :: ReaderTick -> ConsumeReport -> IO ()
+publishReaders rt report = do
   publishConsume rt.consumeMetrics report
   traverse_ (`publishAcks` report) rt.ackMetrics
-  pure report
 
 -- | Waits for the end of the run, stops the writers and drains. The first
 -- Ctrl-C while waiting for writers or draining still prints the summary (a
@@ -623,6 +628,8 @@ runConsumeOnly console env opts = do
       doTick = do
         now <- getMonotonicTime
         report <- tickReaders rt True now expected
+        printQueuedErrors console errorQueue
+        publishReaders rt report
         drawStatus console (formatConsumeOnlyStatus opts.reader.mode (now - start) report)
         pure report
   printLine console $ label <> ": running"

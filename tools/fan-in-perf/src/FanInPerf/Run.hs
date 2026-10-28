@@ -79,7 +79,7 @@ run console opts = do
       BL.putStr (A.encode info <> "\n")
     Produce p -> runLoad (runProduce console env p)
     Consume c -> runLoad $ do
-      -- partitioned: the drops are sampled on a connection of their own
+      -- partitioned: the partition drops are sampled on a connection of their own
       samplerEnv <-
         runOrAbort "shape check" env currentShape >>= \case
           Just Partitioned -> do
