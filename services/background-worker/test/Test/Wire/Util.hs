@@ -88,6 +88,7 @@ testEnv = do
       guestLinkTTLSeconds = Nothing
       passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
+      license = Nothing
       arbiterConnStr = secretText ""
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
       featureFlags = def

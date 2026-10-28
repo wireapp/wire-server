@@ -1,5 +1,3 @@
-{-# LANGUAGE ImpredicativeTypes #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
@@ -103,7 +101,6 @@ runMeetingsCleanup :: Env -> UTCTime -> NominalDiffTime -> Int -> IO (Either Tex
 runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
   let disableTlsV1 = True
   extEnv <- initExtEnv disableTlsV1
-  runLicense' <- runLicense (Licensing.Domain (domainText env.federationDomain))
   let mergeErrors = either (Left . T.pack . show) Right
   fmap (either Left mergeErrors)
     . runBackgroundWorkerEffects env extEnv (RequestId "meetings-cleanup") Nothing
@@ -112,10 +109,12 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
     -- Cleanup performs no meeting updates, so the past-edit period is
     -- unused; pass 0 to keep the (inert) limit as tight as possible.
     -- Cleanup never sends 'getLicense', so the licensing gate never fires;
-    -- the real interpreter keeps cleanup on the same WIRE_LICENSE semantics
-    -- as galley (missingLicense is still served when the env var is unset
-    -- or unparseable).
-    $ runLicense'
+    -- the real interpreter keeps cleanup on the same configured licence
+    -- payload as galley (missingLicense is still served when the payload is
+    -- unset or unparseable).
+    $ runLicense
+      (Licensing.Domain (domainText env.federationDomain))
+      env.license
       ( interpretMeetingsSubsystem
           MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
           (Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize)

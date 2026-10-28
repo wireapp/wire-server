@@ -30,6 +30,7 @@ import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
 import Data.Secret (SecretText)
+import Data.Text.Encoding (encodeUtf8)
 import HTTP2.Client.Manager
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
@@ -115,7 +116,8 @@ data Env = Env
     passwordHashingOptions :: !PasswordHashingOptions,
     checkGroupInfo :: !(Maybe Bool),
     convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
-    passwordHashingRateLimitEnv :: RateLimitEnv
+    passwordHashingRateLimitEnv :: RateLimitEnv,
+    license :: Maybe ByteString
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -198,6 +200,7 @@ mkEnv opts galleyOpts = do
       guestLinkTTLSeconds = galleyOpts._settings._guestLinkTTLSeconds
       passwordHashingOptions = galleyOpts._settings._passwordHashingOptions
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
+      license = fmap encodeUtf8 opts.license
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   arbiterConnStr <- mkArbiterConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword

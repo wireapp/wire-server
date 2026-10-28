@@ -31,15 +31,13 @@ import Data.Time.Format.ISO8601 (iso8601ParseM)
 import MLS.Util
 import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
-import System.Environment (lookupEnv, setEnv, unsetEnv)
-import System.IO.Unsafe (unsafePerformIO)
+import System.Environment (lookupEnv)
 import System.Process (readProcess)
 import System.Timeout (timeout)
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
 import Text.Regex.TDFA ((=~))
-import UnliftIO.Concurrent (MVar, newMVar, threadDelay, withMVar)
-import UnliftIO.Exception (finally)
+import UnliftIO.Concurrent (threadDelay)
 
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
@@ -1082,34 +1080,21 @@ testMeetingLinkRefresh = withLicensedBackend $ \dom -> do
 
 -- | Run the body against a dynamic backend whose galley is licensed for
 -- invitation links (WPB-29643): acquires a backend resource, generates a
--- full-license WIRE_LICENSE token with the wire-licensing CLI for the
--- backend's domain, exports it (galley reads WIRE_LICENSE per request via
--- Wire.Licensing.Interpreter.runLicense), starts the backend, and restores
--- the environment afterwards.
---
--- The test runner executes tests concurrently, but the WIRE_LICENSE
--- environment variable is process-global: tests that use this helper are
--- serialized with a lock so a sibling test cannot mutate (set or unset) the
--- variable while the backend's services are spawning. Tests that do not use
--- this helper never touch the variable.
+-- full-license payload with the wire-licensing CLI for the backend's
+-- domain, injects it into galley's config (@settings.license@), and starts
+-- the backend. No process-global state, so no locking is needed.
 withLicensedBackend :: (HasCallStack) => (String -> App a) -> App a
-withLicensedBackend = withMVar licenseLock . const . licensedBackend
-  where
-    licensedBackend k = do
-      resourcePool <- asks (.resourcePool)
-      runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
-        let dom = backend.berDomain
-        cli <- liftIO (fromMaybe "wire-licensing" <$> lookupEnv "WIRE_LICENSING_CLI")
-        token <- liftIO (readProcess cli ["example", "full", "--domain", dom] "")
-        liftIO (setEnv "WIRE_LICENSE" (Text.unpack . Text.strip . Text.pack $ token))
-        runCodensity (startDynamicBackend backend def) $ \_ ->
-          k dom `finally` liftIO (unsetEnv "WIRE_LICENSE")
-
--- | Protects the process-global 'WIRE_LICENSE' environment variable against
--- concurrent mutation by parallel tests (see 'withLicensedBackend').
-licenseLock :: MVar ()
-licenseLock = unsafePerformIO (newMVar ())
-{-# NOINLINE licenseLock #-}
+withLicensedBackend k = do
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
+    let dom = backend.berDomain
+    cli <- liftIO (fromMaybe "wire-licensing" <$> lookupEnv "WIRE_LICENSING_CLI")
+    token <- liftIO (readProcess cli ["example", "full", "--domain", dom] "")
+    let overrides =
+          def
+            { galleyCfg = setField "settings.license" (Text.strip (Text.pack token))
+            }
+    runCodensity (startDynamicBackend backend overrides) $ \_ -> k dom
 
 -- | Extract the (key, code) query parameters from a meeting join link URL
 -- (@…/meeting-join/?key=\<key\>&code=\<code\>&domain=…@). The URL contains

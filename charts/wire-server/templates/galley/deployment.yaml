@@ -127,13 +127,6 @@ spec:
                 name: galley
                 key: rabbitmqPassword
           {{- end }}
-          {{- if .Values.galley.secrets.license }}
-          - name: WIRE_LICENSE
-            valueFrom:
-              secretKeyRef:
-                name: galley
-                key: license
-          {{- end }}
           ports:
             - containerPort: {{ .Values.galley.service.internalPort }}
           livenessProbe:

@@ -89,6 +89,7 @@ meetingsCleanup:
   batchSize: 100
   schedule: "* * * * *"  # Run every minute
 
+# license: <base64url licence payload>  # same payload as galley's settings.license; cleanup itself never consults it
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
