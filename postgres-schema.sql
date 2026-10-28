@@ -1613,7 +1613,7 @@ ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 --
 
 CREATE TABLE public.mls_key_packages (
-    "user" uuid NOT NULL,
+    user_id uuid NOT NULL,
     client text NOT NULL,
     cipher_suite integer NOT NULL,
     ref bytea NOT NULL,
@@ -2108,7 +2108,7 @@ ALTER TABLE ONLY public.mls_history_client
 --
 
 ALTER TABLE ONLY public.mls_key_packages
-    ADD CONSTRAINT mls_key_packages_pkey PRIMARY KEY ("user", client, cipher_suite, ref);
+    ADD CONSTRAINT mls_key_packages_pkey PRIMARY KEY (user_id, client, cipher_suite, ref);
 
 
 --

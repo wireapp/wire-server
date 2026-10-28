@@ -60,9 +60,9 @@ insertKeyPackagesPg u c kps =
 insertStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, KeyPackageData, KeyPackageRef) ()
 insertStatement =
   lmapPG
-    [resultlessStatement|INSERT INTO mls_key_packages ("user", client, cipher_suite, ref, data)
+    [resultlessStatement|INSERT INTO mls_key_packages (user_id, client, cipher_suite, ref, data)
                          VALUES ($1 :: uuid, $2 :: text, $3 :: int4, $4 :: bytea, $5 :: bytea)
-                         ON CONFLICT ("user", client, cipher_suite, ref)
+                         ON CONFLICT (user_id, client, cipher_suite, ref)
                          DO UPDATE SET data = EXCLUDED.data
                         |]
 
@@ -71,7 +71,7 @@ lookupStatement =
   dimapPG
     [vectorStatement|SELECT ref :: bytea, data :: bytea
                      FROM mls_key_packages
-                     WHERE "user" = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4
+                     WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4
                     |]
 
 -- | Look up key packages for many (user, client, cipher suite) triples with a
@@ -96,10 +96,10 @@ lookupBulkStatement ::
     [(UserId, ClientId, CipherSuiteTag, KeyPackageRef, KeyPackageData)]
 lookupBulkStatement =
   dimapPG
-    ( [vectorStatement|SELECT k."user" :: uuid, k.client :: text, k.cipher_suite :: int4, k.ref :: bytea, k.data :: bytea
+    ( [vectorStatement|SELECT k.user_id :: uuid, k.client :: text, k.cipher_suite :: int4, k.ref :: bytea, k.data :: bytea
                        FROM mls_key_packages k
                        JOIN unnest ($1 :: uuid[], $2 :: text[], $3 :: int4[]) AS q(u, c, s)
-                         ON k."user" = q.u AND k.client = q.c AND k.cipher_suite = q.s
+                         ON k.user_id = q.u AND k.client = q.c AND k.cipher_suite = q.s
                       |] ::
         Hasql.Statement
           (Vector UUID, Vector Text, Vector Int32)
@@ -110,7 +110,7 @@ deleteKeyPackagesStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag,
 deleteKeyPackagesStatement =
   lmapPG
     ( [resultlessStatement|DELETE FROM mls_key_packages
-                           WHERE "user" = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4 AND ref = ANY ($4 :: bytea[])
+                           WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4 AND ref = ANY ($4 :: bytea[])
                           |] ::
         Hasql.Statement (UUID, Text, Int32, Vector ByteString) ()
     )
@@ -119,7 +119,7 @@ deleteAllKeyPackagesStatement :: Hasql.Statement (UserId, ClientId, Vector Ciphe
 deleteAllKeyPackagesStatement =
   lmapPG
     ( [resultlessStatement|DELETE FROM mls_key_packages
-                           WHERE "user" = $1 :: uuid AND client = $2 :: text AND cipher_suite = ANY ($3 :: int4[])
+                           WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = ANY ($3 :: int4[])
                           |] ::
         Hasql.Statement (UUID, Text, Vector Int32) ()
     )
@@ -128,5 +128,5 @@ deleteKeyPackageStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, 
 deleteKeyPackageStatement =
   lmapPG
     [resultlessStatement|DELETE FROM mls_key_packages
-                         WHERE "user" = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4 AND ref = $4 :: bytea
+                         WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4 AND ref = $4 :: bytea
                         |]
