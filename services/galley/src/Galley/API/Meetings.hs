@@ -259,7 +259,7 @@ codeCheckMeetingLink ::
   Sem r MeetingCodeCheck
 codeCheckMeetingLink origIp domain key codeValue mPassword =
   Meetings.codeCheckMeetingLink origIp domain key codeValue mPassword >>= \case
-    Meetings.CodeCheckPaywall -> throw MeetingPay
+    Meetings.CodeCheckPaywall -> throw MeetingNotLicensed
     Meetings.CodeCheckNotFound -> throwS @'MeetingNotFound
     Meetings.CodeCheckInvalidPassword -> throwS @'InvalidMeetingPassword
     Meetings.CodeCheckOk meta -> pure meta
@@ -283,7 +283,7 @@ joinMeeting ::
   Sem r MeetingWithConversation
 joinMeeting zUser connId domain key codeValue mPassword =
   Meetings.joinMeeting zUser connId domain key codeValue mPassword >>= \case
-    Meetings.JoinMeetingPaywall -> throw MeetingPay
+    Meetings.JoinMeetingPaywall -> throw MeetingNotLicensed
     Meetings.JoinMeetingNotFound -> throwS @'MeetingNotFound
     Meetings.JoinMeetingInvalidPassword -> throwS @'InvalidMeetingPassword
     Meetings.JoinMeetingOk mwc -> pure mwc

@@ -407,7 +407,7 @@ data MeetingError
   = InvalidTimes InvalidTimesReason
   | EmptyUpdate
   | MeetingsFeatureDisabled
-  | MeetingPay
+  | MeetingNotLicensed
   deriving stock (Eq, Show)
 
 -- | The individual failure modes of meeting time validation.
@@ -430,7 +430,7 @@ meetingErrorToDyn = \case
     DynError 403 "invalid-op" "Meeting times must not be set further into the past than the past-edit window allows"
   EmptyUpdate -> DynError 403 "invalid-op" "Meeting update must set at least one field"
   MeetingsFeatureDisabled -> DynError 403 "invalid-op" "The meetings feature is not enabled"
-  MeetingPay -> DynError 403 "id-feature-error" "Not licensed on this backend"
+  MeetingNotLicensed -> DynError 403 "id-feature-error" "Not licensed on this backend"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
@@ -441,12 +441,12 @@ instance APIError MeetingError where
 -- error (the runtime messages are more detailed but share code and label).
 type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, or meetings feature disabled"
 
-type MeetingPayStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
+type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
 
 instance IsSwaggerError MeetingError where
   addToOpenApi =
     addStaticErrorToSwagger @MeetingErrorStatic
-      . addStaticErrorToSwagger @MeetingPayStatic
+      . addStaticErrorToSwagger @MeetingNotLicensedStatic
 
 instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where
   interpretServerEffect = mapError meetingErrorToDyn
