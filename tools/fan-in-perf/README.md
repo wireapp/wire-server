@@ -31,7 +31,7 @@ Design specs (background, rationale):
 ## Quick start
 
 Start PostgreSQL, the OTel collector and Grafana
-(`./deploy/dockerephemeral/run.sh`), then (`fan-in-perf` = the built executable, or `cabal run fan-in-perf --`):
+(`docker compose -f tools/fan-in-perf/docker-compose.yaml up -d --build`; independent of `deploy/dockerephemeral`, same host ports, so not both at once), then (`fan-in-perf` = the built executable, or `cabal run fan-in-perf --`):
 
 ```sh
 DB="postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf"
@@ -307,13 +307,13 @@ and counts as a push error, instead of landing in a default partition.
 Procedure:
 
 1. One-time after the image change (now `postgres:17.11-trixie` +
-   `postgresql-17-partman` 5.5.0, `deploy/dockerephemeral/docker/postgres/Dockerfile`).
+   `postgresql-17-partman` 5.5.0, `tools/fan-in-perf/docker/postgres/Dockerfile`).
    The image declares an anonymous volume that `docker compose` keeps when
    recreating a container, and the Alpine to Debian switch changes the
-   collation, so the old data directory is unsafe. Recreate, from `deploy/dockerephemeral`:
-   `cd deploy/dockerephemeral && docker compose build postgres && docker compose rm -sfv postgres && docker compose up -d postgres`.
-   **This DELETES all local dev DB data in that postgres.** `run.sh` does not
-   pass `--build`, hence the explicit build.
+   collation, so the old data directory is unsafe. Recreate, from `tools/fan-in-perf`:
+   `cd tools/fan-in-perf && docker compose build postgres && docker compose rm -sfv postgres && docker compose up -d postgres`.
+   **This DELETES all local DB data in that postgres.** `up` without `--build`
+   does not rebuild an existing image, hence the explicit build.
 2. `fan-in-perf --db "$DB" reset-db --partitioned` (creates `fan_in_perf`).
 3. `fan-in-perf --db "$DB" consume-ack ... --duration 600` (or more), any
    parameters (the constraints of [C](#consume-ack) apply).
@@ -325,7 +325,7 @@ Procedure:
    dips line up with partition drops?
 
 Metrics (second exporter, `postgres-exporter-fan-in-perf`, query file
-`deploy/dockerephemeral/docker/postgres-exporter-fan-in-perf/queries.yaml`):
+`tools/fan-in-perf/docker/postgres-exporter-fan-in-perf/queries.yaml`):
 
 | Metric | Meaning |
 |---|---|
@@ -405,7 +405,7 @@ carry only `role`.
 
 ### Grafana (local)
 
-`deploy/dockerephemeral/docker-compose.yaml` runs:
+`tools/fan-in-perf/docker-compose.yaml` runs:
 
 - `otel-collector`: scrapes `host.docker.internal:9400` every second
   (`docker/otel-collector-config.yaml`, job `fan-in-perf`) and the
@@ -425,13 +425,13 @@ The tool runs on the host, so the collector container must reach host port
 
 The scrape arrives on the bridge of the compose network `demo_wire`, not on
 `docker0`. Its name is `br-<random id>` and changes when the network is
-recreated; its subnet is fixed to `172.20.2.0/24`. A rule for `docker0`
+recreated; its subnet is fixed to `172.20.9.0/24`. A rule for `docker0`
 does not match. Allow port 9400 from that subnet:
 
 ```nix
 # nftables backend (networking.nftables.enable = true)
 networking.firewall.extraInputRules = ''
-  ip saddr 172.20.2.0/24 tcp dport 9400 accept
+  ip saddr 172.20.9.0/24 tcp dport 9400 accept
 '';
 
 # iptables backend (default): allow on all Docker bridges

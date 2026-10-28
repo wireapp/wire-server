@@ -1,0 +1,83 @@
+# Standalone environment for fan-in-perf: PostgreSQL (with pg_partman),
+# postgres-exporters, an OTel collector and Grafana. Independent of
+# deploy/dockerephemeral; both use host port 5432, so don't run them in parallel.
+#
+#   docker compose -f tools/fan-in-perf/docker-compose.yaml up -d --build
+name: fan-in-perf
+
+networks:
+  fan_in_perf:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.9.0/24
+
+services:
+  postgres:
+    container_name: fan_in_perf_postgres
+    build: ./docker/postgres
+    ports:
+      - 5432:5432
+    networks:
+      - fan_in_perf
+    volumes:
+      - ./docker/postgres-initdb:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: "posty-the-gres"
+      POSTGRES_USER: "wire-server"
+      POSTGRES_DB: "fan_in_perf"
+    command: postgres -c max_connections=1000 -c shared_preload_libraries=pg_stat_statements,pg_partman_bgw -c pg_stat_statements.track=all
+
+  postgres-exporter:
+    container_name: fan_in_perf_postgres_exporter
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: "postgresql://wire-server:posty-the-gres@postgres:5432/fan_in_perf?sslmode=disable"
+    depends_on:
+      - postgres
+    networks:
+      - fan_in_perf
+
+  postgres-exporter-fan-in-perf:
+    container_name: fan_in_perf_postgres_exporter_fan_in_perf
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    command: ["--extend.query-path=/etc/postgres-exporter/queries.yaml"]
+    environment:
+      DATA_SOURCE_NAME: "postgresql://wire-server:posty-the-gres@postgres:5432/fan_in_perf?sslmode=disable"
+    volumes:
+      - ./docker/postgres-exporter-fan-in-perf/queries.yaml:/etc/postgres-exporter/queries.yaml:ro
+    depends_on:
+      - postgres
+    networks:
+      - fan_in_perf
+
+  grafana-lgtm:
+    container_name: fan_in_perf_grafana_lgtm
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "3000:3000"
+      - "3100:3100"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./docker/grafana-dashboards/postgres-exporter.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/postgres-exporter.json:ro
+      - ./docker/grafana-dashboards/fan-in-perf.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/fan-in-perf.json:ro
+      - ./docker/grafana-dashboards/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+    networks:
+      - fan_in_perf
+
+  otel-collector:
+    container_name: fan_in_perf_otel_collector
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - postgres
+      - postgres-exporter
+      - postgres-exporter-fan-in-perf
+      - grafana-lgtm
+    networks:
+      - fan_in_perf
