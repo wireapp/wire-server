@@ -59,6 +59,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
@@ -525,6 +526,32 @@ testCommitLock = do
               (groupId, epoch)
           )
 
+selectMemberClientRows :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, Int32, Bool)
+selectMemberClientRows =
+  "select user_domain, user, client, leaf_node_index, removal_pending from mls_group_member_client where group_id = ?"
+
+-- | Assert the client's row in mls_group_member_client survived a re-join with
+-- exactly one entry carrying the expected leaf index (WPB-29648: a DELETE and
+-- INSERT of the same key within one millisecond used to drop the row).
+assertClientMemberRow :: (HasCallStack) => GroupId -> ClientIdentity -> LeafIndex -> MLSTest ()
+assertClientMemberRow gid ci expectedIdx = do
+  casClient <- liftTest (view tsCass)
+  rows <-
+    liftTest . runClient casClient . retry x5 $
+      Cassandra.query selectMemberClientRows (params LocalQuorum (Identity gid))
+  let leafIndexes =
+        [ idx
+        | (_, usr, cl, idx, pending) <- rows,
+          usr == qUnqualified (cidQualifiedUser ci),
+          cl == ciClient ci,
+          not pending
+        ]
+  liftIO $
+    assertEqual
+      ("expected exactly one member row for client " <> show (ciClient ci))
+      [fromIntegral expectedIdx]
+      leafIndexes
+
 testUnknownProposalRefCommit :: (HasCallStack) => TestM ()
 testUnknownProposalRefCommit = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -684,7 +711,7 @@ testExternalCommitSameClient = do
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
-    (_, qcnv) <- setupMLSGroup alice1
+    (groupId, qcnv) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     let rejoiner = alice1
@@ -693,6 +720,9 @@ testExternalCommitSameClient = do
         >>= sendAndConsumeCommitBundle
     liftIO $
       assertBool "No events after external commit expected" (null ecEvents)
+
+    Just (_, rejoinerIdx) <- find (\(ci, _) -> ci == rejoiner) <$> getClientsFromGroupState rejoiner alice
+    assertClientMemberRow groupId rejoiner rejoinerIdx
 
     message <- createApplicationMessage bob1 "hello"
     void $ sendAndConsumeMessage message
@@ -1796,6 +1826,8 @@ testExternalCommitSameClientSubConv = do
 
     -- alice1 and bob1 create and join a subconversation, respectively
     qsub <- createSubConv qcnv alice1 subId
+    sub <- liftTest $ responseJsonError =<< getSubConv (qUnqualified alice) qcnv subId
+    let subGroupId = pscGroupId sub
     void $
       createExternalCommit bob1 Nothing qsub
         >>= sendAndConsumeCommitBundle
@@ -1811,6 +1843,9 @@ testExternalCommitSameClientSubConv = do
         createExternalCommit bob1 Nothing qsub
           >>= sendAndConsumeCommitBundle
       WS.assertNoEvent (2 # WS.Second) [wsB]
+
+    Just (_, idxAfterRejoin) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState bob1 bob
+    assertClientMemberRow subGroupId bob1 idxAfterRejoin
 
 testJoinSubNonMemberClient :: (HasCallStack) => TestM ()
 testJoinSubNonMemberClient = do

@@ -1011,6 +1011,8 @@ addMLSClientsImpl gid (Qualified uid domain) clients =
                              (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
                              VALUES
                              ($1 :: bytea, $2 :: text, $3 :: uuid, $4 :: text, $5 :: integer, false)
+                             ON CONFLICT (group_id, user_domain, "user", client)
+                             DO UPDATE SET leaf_node_index = EXCLUDED.leaf_node_index, removal_pending = false
                             |]
 
 addHistoryClientImpl :: (PGConstraints r) => GroupId -> HistoryClientId -> LeafIndex -> Sem r ()
