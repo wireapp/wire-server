@@ -900,6 +900,15 @@ Wire's licensing uses a licence payload: a base64url-encoded JSON
 The payload is unsigned: it is an operator-controlled entitlement whose
 integrity rests entirely on configuration access control.
 
+The payload follows the 2026-10-08 licence RFC: `schema_version` (only `1` is
+accepted), `tenant_id`/`license_id`, `licensed_domains`,
+`valid_from`/`expires_at`/`issued_at`, and `license_content` =
+`{entitlements, meetings, limits}` — `entitlements` is a flat list of RFC
+feature names (parsed and preserved; no gate reads it yet), `meetings` carries
+the per-feature meeting booleans (`invitation_links`, `emails_sending`,
+`calendars_integration`; `invitation_links` gates join-by-link), and `limits`
+is accepted and preserved but unused.
+
 Two config keys accept the payload:
 
 ```yaml
