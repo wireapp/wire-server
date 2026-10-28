@@ -19,6 +19,7 @@ module FanInPerf.Consume
     lagNs,
     runConsume,
     runConsumeOnly,
+    reachMilestones,
   )
 where
 
@@ -33,6 +34,7 @@ import Data.Text qualified as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.UUID.Types (UUID)
 import Data.UUID.Types qualified as UUID
+import Data.Vector qualified as V
 import FanInPerf.Acks
 import FanInPerf.ConsumeStats
 import FanInPerf.GcImpact (DropEvent, detectDrops, gcImpact, sampleOf)
@@ -298,50 +300,63 @@ gateWith onWait gate = bracket_ acquire (signalQSem gate)
       t1 <- getMonotonicTimeNSec
       onWait (t1 - t0)
 
+-- | What a reader client needs for its store calls.
+data ReaderCtx = ReaderCtx
+  { gate :: QSem,
+    env :: Env,
+    client :: Pop.Reader,
+    stats :: ReaderStats,
+    reportError :: Text -> IO ()
+  }
+
+-- | One context per reader client of the population, in its order.
+readerContexts :: QSem -> Env -> (Text -> IO ()) -> Population -> [ReaderStats] -> [ReaderCtx]
+readerContexts gate env reportError population readerStats =
+  [ReaderCtx {gate, env, client, stats, reportError} | (client, stats) <- zip (readers population) readerStats]
+
 -- | One reader client: fetch all streams, re-fetch only those whose page was
 -- full (more is waiting) until none is, then sleep. In 'Acks' mode every
 -- delivered notification goes through 'acknowledge'; due acks are written
 -- before the next fetch. Failures are reported and slow the loop down, never
 -- stop it.
-readerLoop :: QSem -> Env -> ReaderOptions -> Int -> Pop.Reader -> ReaderStats -> (Text -> IO ()) -> [Subscription] -> IO ()
-readerLoop gate env opts pollIntervalMs client stats reportError = go emptyAckState
+readerLoop :: ReaderCtx -> ReaderOptions -> Int -> [Subscription] -> IO ()
+readerLoop ctx opts pollIntervalMs = go emptyAckState
   where
     go acks subs = do
-      (subs', acks') <- readerCatchUp gate env opts client stats reportError acks subs
+      (subs', acks') <- readerCatchUp ctx opts acks subs
       threadDelay (pollIntervalMs * 1000)
       go acks' subs'
 
 -- | One store call of a reader, through the gate.
-gatedStore :: QSem -> Env -> ReaderStats -> Sem StoreEffects a -> IO (Either UsageError a)
-gatedStore gate env stats = throughGate gate stats . runStore env
+gatedStore :: ReaderCtx -> Sem StoreEffects a -> IO (Either UsageError a)
+gatedStore ctx = throughGate ctx.gate ctx.stats . runStore ctx.env
 
 -- | Writes the given acks of a reader; returns the failed ones.
-ackWriter :: QSem -> Env -> ReaderStats -> Pop.Reader -> (Text -> IO ()) -> [Pending] -> IO [Pending]
-ackWriter gate env stats client reportError =
-  ackPending showT stats reportError (gatedStore gate env stats . ackOne stats client)
+ackWriter :: ReaderCtx -> [Pending] -> IO [Pending]
+ackWriter ctx =
+  ackPending showT ctx.stats ctx.reportError (gatedStore ctx . ackOne ctx.stats ctx.client)
 
 -- | Fetches the streams of one client until none returns a full page. A stream
 -- whose fetch failed stays behind (counted as fetch error); 'readerLoop' fetches
 -- it again on its next poll, 'runConsumeOnly' on its next pass.
-readerCatchUp :: QSem -> Env -> ReaderOptions -> Pop.Reader -> ReaderStats -> (Text -> IO ()) -> AckState -> [Subscription] -> IO ([Subscription], AckState)
-readerCatchUp gate env opts client stats reportError acks0 subs0 = catchUp acks0 (map (,True) subs0)
+readerCatchUp :: ReaderCtx -> ReaderOptions -> AckState -> [Subscription] -> IO ([Subscription], AckState)
+readerCatchUp ctx opts acks0 subs0 = catchUp acks0 (map (,True) subs0)
   where
-    fetchOne sub = gatedStore gate env stats (readerPass @UsageError showT opts.fetchLimit (fromIntegral opts.safetyWindowMs) stats [sub])
-    writeAcks = ackWriter gate env stats client reportError
+    fetchOne sub = gatedStore ctx (readerPass @UsageError showT opts.fetchLimit (fromIntegral opts.safetyWindowMs) ctx.stats [sub])
     received acks delivered = case opts.mode of
       NoAcks -> pure acks
-      Acks n -> acknowledge n writeAcks acks delivered
-    -- @(subscription, poll again)@ pairs, collected in reverse
-    pollOne (done, acks) (sub, again)
-      | not again = pure ((sub, False) : done, acks)
+      Acks n -> acknowledge n (ackWriter ctx) acks delivered
+    -- @(subscription, poll again)@: only those whose last page was full
+    pollOne acks (sub, again)
+      | not again = pure (acks, [(sub, False)])
       | otherwise = do
-          r <- readerRound showT stats fetchOne [sub]
-          traverse_ reportError r.errors
+          r <- readerRound showT ctx.stats fetchOne [sub]
+          traverse_ ctx.reportError r.errors
           acks' <- received acks r.delivered
-          pure (reverse (map (,r.more) r.subs) <> done, acks')
+          pure (acks', map (,r.more) r.subs)
     catchUp acks pending = do
-      (polledRev, acks') <- foldM pollOne ([], acks) pending
-      let polled = reverse polledRev
+      (acks', polledLists) <- mapAccumM pollOne acks pending
+      let polled = concat polledLists
       if any snd polled then catchUp acks' polled else pure (map fst polled, acks')
 
 -- | Start positions are read before any writer runs: a push committed in
@@ -361,7 +376,7 @@ loadSubscriptions console gate env mode population = do
 totals :: [WriterStats] -> [ReaderStats] -> IO (Int, Int)
 totals writerStats readerStats = do
   expected <- sum <$> traverse (fmap totalExpected . readSnapshot) writerStats
-  delivered <- sum <$> traverse (fmap totalDelivered . readReaderSnapshot) readerStats
+  delivered <- deliveredSoFar readerStats
   pure (expected, delivered)
 
 -- | Waits until readers caught up, stopped receiving anything for
@@ -388,30 +403,35 @@ drain timeout pollIntervalMs readTotals = do
 drainStallSeconds :: Int -> Double
 drainStallSeconds pollIntervalMs = 2 + 2 * fromIntegral pollIntervalMs / 1000
 
+-- | What the reader half of a tick needs, fixed for the whole run.
+data ReaderTick = ReaderTick
+  { console :: Console,
+    consumeMetrics :: ConsumeMetrics,
+    ackMetrics :: Maybe AckMetrics,
+    warmup :: Double,
+    readerStats :: [ReaderStats],
+    errorQueue :: TBQueue Text,
+    readerStateRef :: IORef ConsumeTickState
+  }
+
 -- | Runs on the ticker thread only (plus once after it stopped): aggregates,
 -- prints, publishes.
 consumeTickOnce ::
   ReaderMode ->
-  Console ->
   Metrics ->
-  ConsumeMetrics ->
-  Maybe AckMetrics ->
-  Double ->
+  ReaderTick ->
   -- | whether the writers still run (peaks ignore the drain)
   IO Bool ->
   [WriterStats] ->
-  [ReaderStats] ->
-  TBQueue Text ->
   IORef TickState ->
-  IORef ConsumeTickState ->
   IO (TickReport, ConsumeReport)
-consumeTickOnce mode console metrics consumeMetrics ackMetrics warmup writing writerStats readerStats errors writerRef readerRef = do
+consumeTickOnce mode metrics rt writing writerStats writerRef = do
   now <- getMonotonicTime
-  writerReport <- tickWriters warmup now writerStats writerRef
+  writerReport <- tickWriters rt.warmup now writerStats writerRef
   isWriting <- writing
-  readerReport <- tickReaders console consumeMetrics ackMetrics warmup isWriting now (totalExpected writerReport.total) readerStats errors readerRef
+  readerReport <- tickReaders rt isWriting now (totalExpected writerReport.total)
   publish metrics writerReport
-  drawStatus console (formatConsumeStatus mode writerReport readerReport)
+  drawStatus rt.console (formatConsumeStatus mode writerReport readerReport)
   pure (writerReport, readerReport)
 
 -- | Ack metrics exist in 'Acks' mode only.
@@ -422,28 +442,17 @@ ackMetricsFor mode label = case mode of
 
 -- | The reader half of a tick: aggregates the readers, prints queued errors,
 -- publishes the reader metrics. The caller draws the status line.
-tickReaders ::
-  Console ->
-  ConsumeMetrics ->
-  Maybe AckMetrics ->
-  Double ->
-  -- | whether peaks count (see 'consumeTick')
-  Bool ->
-  Double ->
-  -- | expected deliveries so far
-  Int ->
-  [ReaderStats] ->
-  TBQueue Text ->
-  IORef ConsumeTickState ->
-  IO ConsumeReport
-tickReaders console consumeMetrics ackMetrics warmup counting now expected readerStats errors readerRef = do
-  readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
-  readerState <- readIORef readerRef
-  let (report, readerState') = consumeTick warmup counting now expected readerTotal readerState
-  writeIORef readerRef readerState'
-  printQueuedErrors console errors
-  publishConsume consumeMetrics report
-  traverse_ (`publishAcks` report) ackMetrics
+-- @tickReaders rt counting now expected@: @counting@ says whether peaks count
+-- (see 'consumeTick'), @expected@ the deliveries expected so far.
+tickReaders :: ReaderTick -> Bool -> Double -> Int -> IO ConsumeReport
+tickReaders rt counting now expected = do
+  total <- sumReaders rt.readerStats
+  readerState <- readIORef rt.readerStateRef
+  let (report, readerState') = consumeTick rt.warmup counting now expected total readerState
+  writeIORef rt.readerStateRef readerState'
+  printQueuedErrors rt.console rt.errorQueue
+  publishConsume rt.consumeMetrics report
+  traverse_ (`publishAcks` report) rt.ackMetrics
   pure report
 
 -- | Waits for the end of the run, stops the writers and drains. The first
@@ -479,17 +488,16 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
       label = experimentLabel opts.mode
   setup <- prepareWriters p
   population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient p.clientsPerUser setup.entries setup.populationGen)
-  printLine console $
+  printRunHeader
+    console
     label
-      <> ": writers="
-      <> showT p.writers
-      <> " clients="
-      <> showT opts.clients
-      <> " targets="
-      <> renderTargetSpec p.targets
-      <> " seed="
-      <> showT setup.seed
-  traverse_ (printLine console) (formatCoverage (coverage population.subscribers setup.entries))
+    [ ("writers", showT p.writers),
+      ("clients", showT opts.clients),
+      ("targets", renderTargetSpec p.targets),
+      ("seed", showT setup.seed)
+    ]
+    setup.entries
+    population
   clientSubs <- loadSubscriptions console gate readerEnv opts.mode population
 
   metrics <- newMetrics label p.writers
@@ -497,22 +505,24 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
   ackMetrics <- ackMetricsFor opts.mode label
   writerStats <- replicateM p.writers newWriterStats
   readerStats <- replicateM opts.clients newReaderStats
-  (errors, reportError) <- newErrorReporter
+  (errorQueue, reportError) <- newErrorReporter
   stopWriters <- newIORef False
   let -- A writer stops between pushes, so every committed push has its
       -- expected deliveries recorded before the drain starts.
       writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (storePush writerEnv) setup.payload setup.entries ws reportError g
-      readerClient (stats, (client, subs)) = readerLoop gate readerEnv (readerOptions opts) opts.pollIntervalMs client stats reportError subs
+      readerClient (ctx, subs) = readerLoop ctx (readerOptions opts) opts.pollIntervalMs subs
+      contexts = readerContexts gate readerEnv reportError population readerStats
       readTotals = totals writerStats readerStats
   -- after the subscriptions, whose acks setup writes
   checkpointBeforeRun writerEnv
   start <- getMonotonicTime
   writerRef <- newIORef (initialTickState start)
-  readerRef <- newIORef (initialConsumeTickState start)
+  readerStateRef <- newIORef (initialConsumeTickState start)
+  let rt = ReaderTick {console, consumeMetrics, ackMetrics, warmup = fromIntegral p.warmup, readerStats, errorQueue, readerStateRef}
   samplesRef <- newIORef []
   dropsRef <- newIORef []
   let doTick = do
-        (writerReport, readerReport) <- consumeTickOnce opts.mode console metrics consumeMetrics ackMetrics (fromIntegral p.warmup) (not <$> readIORef stopWriters) writerStats readerStats errors writerRef readerRef
+        (writerReport, readerReport) <- consumeTickOnce opts.mode metrics rt (not <$> readIORef stopWriters) writerStats writerRef
         -- one small record per second, only for the impact of the drops
         -- (forced: a lazy sample would keep both reports alive)
         when (isJust samplerEnv) $ modifyIORef' samplesRef ((:) $! sampleOf writerReport readerReport)
@@ -520,14 +530,14 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
       -- the writer phase ends when the writers stopped (or at Ctrl-C)
       writerPhaseEnd = do
         now <- getMonotonicTime
-        readerTotal <- sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
-        pure WriterPhase {duration = now - start, delivered = totalDelivered readerTotal, acks = totalAcks readerTotal}
+        total <- sumReaders readerStats
+        pure WriterPhase {duration = now - start, delivered = totalDelivered total, acks = totalAcks total}
   printLine console $ label <> ": running"
   (writerPhase, drainResult) <-
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
       withDropSampler start samplerEnv dropsRef $
-        withAsync (mapConcurrently_ readerClient (zip readerStats (zip (readers population) clientSubs))) $ \readersA -> do
+        withAsync (mapConcurrently_ readerClient (zip contexts clientSubs)) $ \readersA -> do
           link readersA
           withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
             link writersA
@@ -543,6 +553,13 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
           }
   traverse_ (printLine console) (renderSummary summary)
   pure summary
+
+-- | The line announcing a run (@label: k=v ...@) and the coverage of the
+-- streams by the readers.
+printRunHeader :: Console -> Text -> [(Text, Text)] -> V.Vector Entry -> Population -> IO ()
+printRunHeader console label fields entries population = do
+  printLine console (formatRunHeader label fields)
+  traverse_ (printLine console) (formatCoverage (coverage population.subscribers entries))
 
 -- | Polls the oldest partition of every notification table once a second on
 -- the sampler's own connection and records a 'DropEvent' (seconds since
@@ -572,62 +589,40 @@ runConsumeOnly console env opts = do
   let label = consumeOnlyLabel opts.reader.mode
       (entries, populationGen, _) = seededEntries opts.seed opts.clientsPerUser opts.targets
   population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient opts.clientsPerUser entries populationGen)
-  printLine console $
+  printRunHeader
+    console
     label
-      <> ": clients="
-      <> showT opts.clients
-      <> " targets="
-      <> renderTargetSpec opts.targets
-      <> " seed="
-      <> showT opts.seed
-  traverse_ (printLine console) (formatCoverage (coverage population.subscribers entries))
-  counts <- runOrAbort "counting rows" env countStreams
-  let totalRows = sum (map snd counts)
-      subscribed = subscribedRows population.subscribers counts
-      expected = expectedFromCounts population.subscribers counts
-  printLine console $ label <> ": rows total=" <> showT totalRows <> " in subscribed streams=" <> showT subscribed <> " expected=" <> showT expected
-  when (totalRows == 0) $ die "no notifications in the database: run 'produce' first"
-  when (subscribed == 0) $ die "none of the notifications is in a stream the readers subscribe to: are --seed, --targets and --clients-per-user those of the 'produce' run?"
+    [("clients", showT opts.clients), ("targets", renderTargetSpec opts.targets), ("seed", showT opts.seed)]
+    entries
+    population
+  (totalRows, expected) <- expectedRows console label env population
   gate <- newQSem opts.readerPoolSize
   consumeMetrics <- newConsumeMetrics label opts.clients
   ackMetrics <- ackMetricsFor opts.reader.mode label
   readerStats <- replicateM opts.clients newReaderStats
-  (errors, reportError) <- newErrorReporter
+  (errorQueue, reportError) <- newErrorReporter
   let clientSubs = [[newSubscription (streamKind s) s UUID.nil | s <- readerStreams population.kinds r] | r <- readers population]
-      -- A pass with fetch errors leaves streams behind; repeat it after a constant
-      -- pause (until it is clean or --timeout), else their rest would count as missing.
-      readerClient (stats, (client, subs0)) = go emptyAckState subs0
-        where
-          go acks subs = do
-            before <- totalFetchErrors <$> readReaderSnapshot stats
-            (subs', acks') <- readerCatchUp gate env opts.reader client stats reportError acks subs
-            after <- totalFetchErrors <$> readReaderSnapshot stats
-            if after > before
-              then threadDelay 100_000 >> go acks' subs'
-              else case opts.reader.mode of
-                -- a real client acks what it read before it goes idle
-                Acks _ -> void (ackWriter gate env stats client reportError (pendingAcks acks'))
-                NoAcks -> pure ()
+      contexts = readerContexts gate env reportError population readerStats
   -- built before the clock starts, not while the readers spawn
   traverse_ evaluate (concat clientSubs)
   -- after the row count, which can set hint bits (dirty pages)
   checkpointBeforeRun env
   start <- getMonotonicTime
-  readerRef <- newIORef (initialConsumeTickState start)
+  readerStateRef <- newIORef (initialConsumeTickState start)
   milestones <- newIORef [(p, Nothing) | p <- milestonePercents]
-  let -- cheap once all milestones are reached: one read of the ref
+  let rt = ReaderTick {console, consumeMetrics, ackMetrics, warmup = fromIntegral opts.warmup, readerStats, errorQueue, readerStateRef}
+      -- cheap once all milestones are reached: one read of the ref
       checkMilestones = do
         pending <- any (isNothing . snd) <$> readIORef milestones
         when pending $ do
-          total <- sum <$> traverse (fmap totalDelivered . readReaderSnapshot) readerStats
+          delivered <- deliveredSoFar readerStats
           now <- getMonotonicTime
-          let reach p t = let !t' = t <|> (if total * 100 >= expected * p then Just (now - start) else Nothing) in (p, t')
-          modifyIORef' milestones (map (uncurry reach))
+          modifyIORef' milestones (reachMilestones expected delivered (now - start))
       -- polled finer than the ticker: a run can be over in less than a second
       watchMilestones = forever (threadDelay 50_000 >> checkMilestones)
       doTick = do
         now <- getMonotonicTime
-        report <- tickReaders console consumeMetrics ackMetrics (fromIntegral opts.warmup) True now expected readerStats errors readerRef
+        report <- tickReaders rt True now expected
         drawStatus console (formatConsumeOnlyStatus opts.reader.mode (now - start) report)
         pure report
   printLine console $ label <> ": running"
@@ -639,7 +634,7 @@ runConsumeOnly console env opts = do
       link tickerA
       withAsync watchMilestones $ \watcherA -> do
         link watcherA
-        withAsync (mapConcurrently_ readerClient (zip readerStats (zip (readers population) clientSubs))) $ \readersA -> do
+        withAsync (mapConcurrently_ (uncurry (consumeOnlyClient opts.reader)) (zip contexts clientSubs)) $ \readersA -> do
           link readersA
           -- the first Ctrl-C still prints the summary
           handleJust isInterrupt (const (pure ConsumeInterrupted)) $ do
@@ -652,6 +647,44 @@ runConsumeOnly console env opts = do
   let summary = (consumeOnlySummary opts.reader.mode expected (end - start) result reached report) {rowsTotal = Just totalRows}
   traverse_ (printLine console) (renderSummary summary)
   pure summary
+
+-- | @expectedRows console label env population@: the rows of the database and
+-- the deliveries the readers should get from them. Dies when there is nothing
+-- to read.
+expectedRows :: Console -> Text -> Env -> Population -> IO (Int, Int)
+expectedRows console label env population = do
+  counts <- runOrAbort "counting rows" env countStreams
+  let totalRows = sum (map snd counts)
+      subscribed = subscribedRows population.subscribers counts
+      expected = expectedFromCounts population.subscribers counts
+  printLine console $ label <> ": rows total=" <> showT totalRows <> " in subscribed streams=" <> showT subscribed <> " expected=" <> showT expected
+  when (totalRows == 0) $ die "no notifications in the database: run 'produce' first"
+  when (subscribed == 0) $ die "none of the notifications is in a stream the readers subscribe to: are --seed, --targets and --clients-per-user those of the 'produce' run?"
+  pure (totalRows, expected)
+
+-- | A reader client of 'runConsumeOnly'. A pass with fetch errors leaves
+-- streams behind; it is repeated after a constant pause (until it is clean or
+-- --timeout), else their rest would count as missing.
+consumeOnlyClient :: ReaderOptions -> ReaderCtx -> [Subscription] -> IO ()
+consumeOnlyClient opts ctx = go emptyAckState
+  where
+    go acks subs = do
+      before <- totalFetchErrors <$> readReaderSnapshot ctx.stats
+      (subs', acks') <- readerCatchUp ctx opts acks subs
+      after <- totalFetchErrors <$> readReaderSnapshot ctx.stats
+      if after > before
+        then threadDelay 100_000 >> go acks' subs'
+        else case opts.mode of
+          -- a real client acks what it read before it goes idle
+          Acks _ -> void (ackWriter ctx (pendingAcks acks'))
+          NoAcks -> pure ()
+
+-- | @reachMilestones expected delivered elapsed@: stamps the milestones that
+-- @delivered@ of @expected@ reached with @elapsed@ (seconds), keeps the others.
+reachMilestones :: Int -> Int -> Double -> [(Int, Maybe Double)] -> [(Int, Maybe Double)]
+reachMilestones expected delivered elapsed = map reach
+  where
+    reach (p, t) = (p, t <|> (elapsed <$ guard (delivered * 100 >= expected * p)))
 
 -- | Shares of the expected deliveries 'runConsumeOnly' reports the time to.
 milestonePercents :: [Int]

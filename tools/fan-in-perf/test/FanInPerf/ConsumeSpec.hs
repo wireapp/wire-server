@@ -148,6 +148,15 @@ spec = do
       millisLowerBound (ms + 1) > i `shouldBe` True
       millisLowerBound 0 `shouldBe` UUID.nil
 
+  describe "reachMilestones" $ do
+    let open = [(50, Nothing), (90, Nothing)]
+    it "stamps the milestones reached, with the elapsed time" $
+      reachMilestones 100 50 1.5 open `shouldBe` [(50, Just 1.5), (90, Nothing)]
+    it "keeps the time of a milestone reached earlier" $
+      reachMilestones 100 100 3 [(50, Just 1), (90, Nothing)] `shouldBe` [(50, Just 1), (90, Just 3)]
+    it "reaches nothing below the share" $
+      reachMilestones 100 49 1 open `shouldBe` open
+
   describe "lagNs" $ do
     it "is the time since the notification was created" $ do
       [(i, _)] <- newIds 1

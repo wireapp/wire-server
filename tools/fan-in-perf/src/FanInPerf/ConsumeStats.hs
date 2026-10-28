@@ -12,6 +12,8 @@ module FanInPerf.ConsumeStats
     emptyReaderSnapshot,
     readReaderSnapshot,
     sumReaderSnapshots,
+    sumReaders,
+    deliveredSoFar,
     diffReaderSnapshot,
     deliveredOf,
     fetchesOf,
@@ -121,6 +123,16 @@ recordGateWait stats waitNs =
 -- | Plain read, see "FanInPerf.Stats": monitoring never makes a reader retry its CAS.
 readReaderSnapshot :: ReaderStats -> IO ReaderSnapshot
 readReaderSnapshot (ReaderStats r) = readIORef r
+
+-- | The readers' counters added up.
+sumReaders :: [ReaderStats] -> IO ReaderSnapshot
+sumReaders readerStats = sumReaderSnapshots <$> traverse readReaderSnapshot readerStats
+
+-- | Deliveries so far, summed per reader: unlike 'sumReaders' it does not add
+-- up the histograms of all readers, which matters for the polling of the drain
+-- and the milestones.
+deliveredSoFar :: [ReaderStats] -> IO Int
+deliveredSoFar readerStats = sum <$> traverse (fmap totalDelivered . readReaderSnapshot) readerStats
 
 sumReaderSnapshots :: [ReaderSnapshot] -> ReaderSnapshot
 sumReaderSnapshots = foldl' add emptyReaderSnapshot

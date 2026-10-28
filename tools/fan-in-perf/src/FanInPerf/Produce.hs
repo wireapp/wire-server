@@ -132,7 +132,7 @@ runProduce console env opts = do
   stateRef <- newIORef (initialTickState start)
   let doTick = tickOnce console metrics (fromIntegral opts.warmup) stats errors stateRef
   printLine console $
-    "produce: writers=" <> showT opts.writers <> " targets=" <> renderTargetSpec opts.targets <> " seed=" <> showT setup.seed
+    formatRunHeader "produce" [("writers", showT opts.writers), ("targets", renderTargetSpec opts.targets), ("seed", showT setup.seed)]
   withAsync (mapConcurrently_ writer (zip stats setup.gens)) $ \writersA -> do
     link writersA
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do

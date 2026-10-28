@@ -13,6 +13,7 @@ module FanInPerf.Terminal
     Drain (..),
     formatConsumeSummary,
     formatCoverage,
+    formatRunHeader,
     renderStatusLine,
     renderLogLine,
     Console (..),
@@ -231,6 +232,10 @@ endText elapsed = \case
   ConsumeFinished -> "all readers caught up after " <> secondsText elapsed
   ConsumeTimedOut -> "timed out after " <> secondsText elapsed
   ConsumeInterrupted -> "interrupted after " <> secondsText elapsed
+
+-- | @formatRunHeader label fields@: @label: k=v k=v@, the line announcing a run.
+formatRunHeader :: Text -> [(Text, Text)] -> Text
+formatRunHeader label fields = label <> ":" <> foldMap (\(k, v) -> " " <> k <> "=" <> v) fields
 
 formatCoverage :: [(TargetKind, Double)] -> [Text]
 formatCoverage = map line

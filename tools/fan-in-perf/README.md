@@ -764,9 +764,10 @@ Each change with RFC and implemented entity side by side: [rfc-schema-changes.md
 | `last_local_connection_notifications` PK `(userId, notificationId)` | PK `(user_id)` | One last id per stream. |
 | No `last_remote_connection_notifications` | Added | Remote connection streams need a last id too. |
 | `team_notification_acks` PK `(userId, clientId)` | PK `(user_id, client_id, team_id)` | The table has a `teamId` column; the RFC PK allows only one team per client. |
-| DDL typos: `epoch_history` with `{ }`, `timestamtz`; `last_local_connection_notifications` without comma before `PRIMARY KEY`; no `;` after the two connection notification tables | Valid DDL | Typos. |
-| Expiry: partition by days | 1 minute partitions, 5 minutes retention via pg_partman (D) | Short TTL keeps the experiment short; only this one configuration is run. |
+| DDL typos: `epoch_history` with `{ }`, `timestamtz`; `last_local_connection_notifications` without comma before `PRIMARY KEY`; missing `;` after seven statements | Valid DDL | Typos. |
+| Expiry: partition by days, no key | Range partitions on `notification_id` (UUIDv7), 1 minute partitions, 5 minutes retention via pg_partman, no default partition (D) | UUIDv7 carries the time; short TTL keeps the experiment short; only this one configuration is run. Default partition deadlocked (see [D](#d-consume-ack-under-ttl-gc)). |
 | `epoch_history` rows deleted once `supersededAt` is older than 28 days | Not implemented | `epoch_history` is unused by the tool. |
+| `last_*` upsert: `ON CONFLICT DO UPDATE` without target | Explicit conflict targets (`last_*` PKs) | Required by PostgreSQL. |
 | Init-ack SQL: `ON CONFLICT DO UPDATE` without target | Explicit conflict targets (ack PKs) | Required by PostgreSQL. |
 | Team init-ack selects from `team_notifications` with invalid `GROUP BY` | Reads `last_team_notifications` | Holds exactly the wanted id. |
 | Epoch init-ack writes `conversation_notification_acks`, `EXCLUDED.notificationId` | `epoch_notification_acks`, `excluded.last_notification_id` | Table/column did not exist. |
