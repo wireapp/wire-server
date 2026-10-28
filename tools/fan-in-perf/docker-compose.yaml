@@ -31,6 +31,7 @@ services:
   postgres-exporter:
     container_name: fan_in_perf_postgres_exporter
     image: prometheuscommunity/postgres-exporter:latest
+    command: ["--collector.postmaster", "--collector.stat_statements"]
     environment:
       DATA_SOURCE_NAME: "postgresql://wire-server:posty-the-gres@postgres:5432/fan_in_perf?sslmode=disable"
     depends_on:

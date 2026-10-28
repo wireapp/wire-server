@@ -193,7 +193,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "max(pg_replication_lag{instance=\"$Instance\"})",
+          "expr": "max(pg_replication_lag_seconds{instance=\"$Instance\"})",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -365,7 +365,7 @@
       "pluginVersion": "7.0.3",
       "targets": [
         {
-          "expr": "sum(pg_stat_database_blks_hit{instance=~\"$Instance\"})/(sum(pg_stat_database_blks_hit{instance=~\"$Instance\"})+sum(pg_stat_database_blks_read{instance=~\"$Instance\"}))*100",
+          "expr": "sum(pg_stat_database_blks_hit_total{instance=~\"$Instance\"})/(sum(pg_stat_database_blks_hit_total{instance=~\"$Instance\"})+sum(pg_stat_database_blks_read_total{instance=~\"$Instance\"}))*100",
           "refId": "A"
         }
       ],
@@ -436,7 +436,7 @@
       "pluginVersion": "7.0.3",
       "targets": [
         {
-          "expr": "sum(pg_stat_database_numbackends)/max(pg_settings_max_connections)",
+          "expr": "sum(pg_stat_database_numbackends{instance=\"$Instance\"})/max(pg_settings_max_connections{instance=\"$Instance\"})",
           "refId": "A"
         }
       ],
@@ -507,7 +507,7 @@
       "pluginVersion": "7.0.3",
       "targets": [
         {
-          "expr": "sum(pg_stat_database_xact_commit{instance=\"$Instance\"})/(sum(pg_stat_database_xact_commit{instance=\"$Instance\"}) + sum(pg_stat_database_xact_rollback{instance=\"$Instance\"}))",
+          "expr": "sum(pg_stat_database_xact_commit_total{instance=\"$Instance\"})/(sum(pg_stat_database_xact_commit_total{instance=\"$Instance\"}) + sum(pg_stat_database_xact_rollback_total{instance=\"$Instance\"}))",
           "refId": "A"
         }
       ],
@@ -677,7 +677,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum((rate(pg_stat_database_xact_commit{instance=\"$Instance\"}[$Interval])))+sum((rate(pg_stat_database_xact_rollback{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((rate(pg_stat_database_xact_commit_total{instance=\"$Instance\"}[$Interval])))+sum((rate(pg_stat_database_xact_rollback_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -768,7 +768,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum((rate(pg_stat_statements_calls{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((rate(pg_stat_statements_calls_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -800,7 +800,7 @@
       ],
       "datasource": null,
       "decimals": 2,
-      "description": "Size of all databases in $Instance.\n\nSource: pg_database_size()",
+      "description": "Size of all databases in $Instance.\n\nSource: pg_database_size_bytes()",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -860,7 +860,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum(pg_database_size{instance=\"$Instance\"})",
+          "expr": "sum(pg_database_size_bytes{instance=\"$Instance\"})",
           "refId": "A"
         }
       ],
@@ -949,7 +949,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum((delta(pg_stat_statements_total_time_seconds{instance=\"$Instance\"}[$Interval])))/sum((delta(pg_stat_statements_calls{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((delta(pg_stat_statements_seconds_total{instance=\"$Instance\"}[$Interval])))/sum((delta(pg_stat_statements_calls_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -1421,13 +1421,13 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum ((rate(pg_stat_database_xact_commit[$Interval])))",
+          "expr": "sum ((rate(pg_stat_database_xact_commit_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "committed",
           "refId": "A"
         },
         {
-          "expr": "sum ((rate(pg_stat_database_xact_rollback[$Interval])))",
+          "expr": "sum ((rate(pg_stat_database_xact_rollback_total{instance=\"$Instance\"}[$Interval])))",
           "hide": false,
           "interval": "",
           "legendFormat": "rollback",
@@ -1525,19 +1525,19 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum((rate(pg_stat_database_tup_inserted{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((rate(pg_stat_database_tup_inserted_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "Inserts",
           "refId": "A"
         },
         {
-          "expr": "sum((rate(pg_stat_database_tup_updated{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((rate(pg_stat_database_tup_updated_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "Updates",
           "refId": "B"
         },
         {
-          "expr": "sum((rate(pg_stat_database_tup_deleted{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((rate(pg_stat_database_tup_deleted_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "Deletes",
           "refId": "C"
@@ -1633,13 +1633,13 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum ((rate(pg_stat_database_blk_read_time{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum ((rate(pg_stat_database_blk_read_time_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "blk_read_time",
           "refId": "A"
         },
         {
-          "expr": "sum ((rate(pg_stat_database_blk_write_time{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum ((rate(pg_stat_database_blk_write_time_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "blk_read_time",
           "refId": "B"
@@ -1736,13 +1736,13 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum((rate(pg_stat_database_tup_fetched{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((rate(pg_stat_database_tup_fetched_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "Fetched",
           "refId": "A"
         },
         {
-          "expr": "sum((rate(pg_stat_database_tup_returned{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum((rate(pg_stat_database_tup_returned_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "Returned",
           "refId": "B"
@@ -1947,7 +1947,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum by (datname) ((rate(pg_stat_database_deadlocks{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum by (datname) ((rate(pg_stat_database_deadlocks_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "{{datname}}",
           "refId": "A"
@@ -2051,7 +2051,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum by (datname) ((rate(pg_stat_database_temp_files{instance=\"$Instance\"}[$Interval])))",
+          "expr": "sum by (datname) ((rate(pg_stat_database_temp_files_total{instance=\"$Instance\"}[$Interval])))",
           "interval": "",
           "legendFormat": "{{datname}}",
           "refId": "A"
@@ -2149,7 +2149,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "max(pg_replication_lag{instance=\"$Instance\"})",
+          "expr": "max(pg_replication_lag_seconds{instance=\"$Instance\"})",
           "instant": false,
           "intervalFactor": 1,
           "legendFormat": "lag ",
@@ -2377,10 +2377,10 @@
             "ymax": null,
             "ymin": null
           },
-          "tableColumn": "pg_database_size{datname=\"grafana\", instance=\"db01vp-nbg6a.obs.noris.net:9187\", job=\"postgres-exporter\", server=\"213.95.132.73:5432\"}",
+          "tableColumn": "pg_database_size_bytes{datname=\"grafana\", instance=\"db01vp-nbg6a.obs.noris.net:9187\", job=\"postgres-exporter\", server=\"213.95.132.73:5432\"}",
           "targets": [
             {
-              "expr": "pg_database_size{instance=\"$Instance\",datname=\"$Database\"}",
+              "expr": "pg_database_size_bytes{instance=\"$Instance\",datname=\"$Database\"}",
               "refId": "A"
             }
           ],
@@ -2468,7 +2468,7 @@
           },
           "targets": [
             {
-              "expr": "pg_stat_database_blks_hit{instance=~\"$Instance\",datname=~\"$Database\"}/(pg_stat_database_blks_hit{instance=~\"$Instance\",datname=~\"$Database\"}+pg_stat_database_blks_read{instance=~\"$Instance\",datname=~\"$Database\"})",
+              "expr": "pg_stat_database_blks_hit_total{instance=~\"$Instance\",datname=~\"$Database\"}/(pg_stat_database_blks_hit_total{instance=~\"$Instance\",datname=~\"$Database\"}+pg_stat_database_blks_read_total{instance=~\"$Instance\",datname=~\"$Database\"})",
               "refId": "A"
             }
           ],
@@ -2546,7 +2546,7 @@
           },
           "targets": [
             {
-              "expr": "pg_stat_database_xact_commit{instance=\"$Instance\",datname=~\"$Database\"}/(pg_stat_database_xact_commit{instance=\"$Instance\",datname=~\"$Database\"} + pg_stat_database_xact_rollback{instance=\"$Instance\",datname=~\"$Database\"})",
+              "expr": "pg_stat_database_xact_commit_total{instance=\"$Instance\",datname=~\"$Database\"}/(pg_stat_database_xact_commit_total{instance=\"$Instance\",datname=~\"$Database\"} + pg_stat_database_xact_rollback_total{instance=\"$Instance\",datname=~\"$Database\"})",
               "refId": "A"
             }
           ],
@@ -2632,7 +2632,7 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "sum((rate(pg_stat_database_xact_commit{instance=\"$Instance\",datname=\"$Database\"}[$Interval])))+sum((rate(pg_stat_database_xact_rollback{instance=\"$Instance\",datname=\"$Database\"}[$Interval])))",
+              "expr": "sum((rate(pg_stat_database_xact_commit_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])))+sum((rate(pg_stat_database_xact_rollback_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])))",
               "interval": "",
               "legendFormat": "",
               "refId": "A"
@@ -2830,13 +2830,13 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(pg_stat_database_xact_commit{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_xact_commit_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "committed",
               "refId": "A"
             },
             {
-              "expr": "rate(pg_stat_database_xact_rollback{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_xact_rollback_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "hide": false,
               "interval": "",
               "legendFormat": "rollback",
@@ -2941,19 +2941,19 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(pg_stat_database_tup_inserted{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_tup_inserted_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "Inserts",
               "refId": "A"
             },
             {
-              "expr": "rate(pg_stat_database_tup_updated{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_tup_updated_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "Updates",
               "refId": "B"
             },
             {
-              "expr": "rate(pg_stat_database_tup_deleted{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_tup_deleted_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "Deletes",
               "refId": "C"
@@ -3057,13 +3057,13 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(pg_stat_database_tup_fetched{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_tup_fetched_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "Fetched",
               "refId": "A"
             },
             {
-              "expr": "rate(pg_stat_database_tup_returned{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_tup_returned_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "Returned",
               "refId": "B"
@@ -3282,7 +3282,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(pg_stat_database_deadlocks{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_deadlocks_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "deadlocks",
               "refId": "A"
@@ -3393,7 +3393,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(pg_stat_database_temp_files{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
+              "expr": "rate(pg_stat_database_temp_files_total{instance=\"$Instance\",datname=\"$Database\"}[$Interval])",
               "interval": "",
               "legendFormat": "temp_files",
               "refId": "A"
