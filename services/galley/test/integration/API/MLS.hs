@@ -42,12 +42,12 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
+import Federator.MockServer hiding (withTempMockFederator)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Hasql.Session qualified as HasqlSession
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
-import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty
