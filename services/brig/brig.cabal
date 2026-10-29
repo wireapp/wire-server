@@ -245,6 +245,7 @@ library
     , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
+    , pqi-ffi
     , HsOpenSSL                             >=0.10
     , http-client                           >=0.7
     , http-client-openssl                   >=0.2
