@@ -319,14 +319,16 @@ readerContexts gate env reportError population readerStats =
 -- full (more is waiting) until none is, then sleep. In 'Acks' mode every
 -- delivered notification goes through 'acknowledge'; due acks are written
 -- before the next fetch. Failures are reported and slow the loop down, never
--- stop it.
-readerLoop :: ReaderCtx -> ReaderOptions -> Int -> [Subscription] -> IO ()
-readerLoop ctx opts pollIntervalMs = go emptyAckState
+-- stop it; @stop@ does, checked between rounds, so no ack is cut off.
+readerLoop :: IO Bool -> ReaderCtx -> ReaderOptions -> Int -> [Subscription] -> IO ()
+readerLoop stop ctx opts pollIntervalMs = go emptyAckState
   where
     go acks subs = do
-      (subs', acks') <- readerCatchUp ctx opts acks subs
-      threadDelay (pollIntervalMs * 1000)
-      go acks' subs'
+      stopped <- stop
+      unless stopped $ do
+        (subs', acks') <- readerCatchUp ctx opts acks subs
+        threadDelay (pollIntervalMs * 1000)
+        go acks' subs'
 
 -- | One store call of a reader, through the gate.
 gatedStore :: ReaderCtx -> Sem StoreEffects a -> IO (Either UsageError a)
@@ -511,10 +513,11 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
   writerStats <- replicateM p.writers newWriterStats
   (errorQueue, reportError) <- newErrorReporter
   stopWriters <- newIORef False
+  stopReaders <- newIORef False
   let -- A writer stops between pushes, so every committed push has its
       -- expected deliveries recorded before the drain starts.
       writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (storePush writerEnv) setup.payload setup.entries ws reportError g
-      readerClient (ctx, subs) = readerLoop ctx (readerOptions opts) opts.pollIntervalMs subs
+      readerClient (ctx, subs) = readerLoop (readIORef stopReaders) ctx (readerOptions opts) opts.pollIntervalMs subs
       contexts = readerContexts gate readerEnv reportError population readerStats
       readTotals = totals writerStats readerStats
   -- after the subscriptions, whose acks setup writes
@@ -546,7 +549,14 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
           withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
             link writersA
             let stop = atomicWriteIORef stopWriters True >> wait writersA
-            stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout opts.pollIntervalMs readTotals)
+            r <- stopAndDrain label console p.duration stop writerPhaseEnd (drain opts.drainTimeout opts.pollIntervalMs readTotals)
+            -- Cancelling a reader while it writes the acks of its last fetch
+            -- would lose them (acks < delivered, ack rows behind the stream's
+            -- head): let readers finish their round, cancel the ones still
+            -- busy after a poll interval plus a margin (e.g. behind on timeout).
+            atomicWriteIORef stopReaders True
+            _ <- System.Timeout.timeout ((opts.pollIntervalMs + 5_000) * 1000) (waitCatch readersA)
+            pure r
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only
   (writerReport, readerReport) <- doTick
   drops <- readIORef dropsRef
