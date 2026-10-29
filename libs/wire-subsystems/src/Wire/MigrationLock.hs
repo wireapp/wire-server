@@ -187,6 +187,16 @@ instance MigrationLockable (TeamId, Text) where
   lockScope = "team_feature"
   toText (tid, feat) = idToText tid <> ":" <> feat
 
+-- | Per-(team, user) locks for the team-member migration; key combined like
+-- the team-feature locks above.
+instance MigrationLockable (TeamId, UserId) where
+  lockKey (team, user) =
+    let teamHash = hashUUID team
+        userHash = hashUUID user
+     in teamHash `xor` rotateL userHash 1
+  lockScope = "team_member"
+  toText (tid, uid) = idToText tid <> ":" <> idToText uid
+
 instance MigrationLockable ConvId where
   lockKey = hashUUID
   lockScope = "conv"

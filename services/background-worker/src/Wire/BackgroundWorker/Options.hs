@@ -55,6 +55,7 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     migrateTeam :: !Bool,
+    migrateTeamMembers :: !Bool,
     migrateDomainRegistration :: !Bool,
     migrateUsers :: !Bool,
     migrateBlockList :: !Bool,
