@@ -2333,6 +2333,7 @@ galley:
       passwordReset: postgresql
       customBackend: postgresql
       clients: postgresql
+      userClientIndex: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2343,6 +2344,7 @@ background-worker:
     migratePasswordReset: false
     migrateCustomBackend: false
     migrateClients: false
+    migrateUserClientIndex: false
 ```
 
 #### Migration for existing installations
@@ -2378,6 +2380,7 @@ The current settings and their background-worker flags are:
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
 - `clients` -> `migrateClients`
+- `userClientIndex` -> `migrateUserClientIndex`
 
 **Migration pattern per migration setting**
 
@@ -2402,6 +2405,7 @@ The current settings and their background-worker flags are:
          passwordReset: cassandra
          customBackend: cassandra
          clients: cassandra
+         userClientIndex: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2413,6 +2417,7 @@ The current settings and their background-worker flags are:
        migratePasswordReset: false
        migrateCustomBackend: false
        migrateClients: false
+       migrateUserClientIndex: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2432,6 +2437,7 @@ The current settings and their background-worker flags are:
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateClients: true
+       migrateUserClientIndex: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2461,6 +2467,7 @@ The current settings and their background-worker flags are:
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
    - `clients`: `wire_clients_migration_finished`
+   - `userClientIndex`: `wire_user_client_index_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2479,6 +2486,7 @@ The current settings and their background-worker flags are:
          passwordReset: postgresql
          customBackend: postgresql
          clients: postgresql
+         userClientIndex: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2490,6 +2498,7 @@ The current settings and their background-worker flags are:
        migratePasswordReset: false
        migrateCustomBackend: false
        migrateClients: false
+       migrateUserClientIndex: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2582,6 +2591,7 @@ migrateBlockList: false
 migratePasswordReset: false
 migrateCustomBackend: false
 migrateClients: false
+migrateUserClientIndex: false
 
 # migration settings
 migrationOptions:

@@ -60,6 +60,7 @@ data Opts = Opts
     migratePasswordReset :: !Bool,
     migrateCustomBackend :: !Bool,
     migrateClients :: !Bool,
+    migrateUserClientIndex :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig

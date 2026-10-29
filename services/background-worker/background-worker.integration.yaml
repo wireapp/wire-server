@@ -63,6 +63,7 @@ migrateBlockList: false
 migratePasswordReset: false
 migrateCustomBackend: false
 migrateClients: false
+migrateUserClientIndex: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -98,6 +99,7 @@ postgresMigration:
   domainRegistration: postgresql
   passwordReset: postgresql
   clients: postgresql
+  userClientIndex: postgresql
   user: postgresql
   blockList: postgresql
   customBackend: postgresql

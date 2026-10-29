@@ -32,6 +32,7 @@ import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
+import Wire.UserClientIndexStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
@@ -203,4 +204,22 @@ clients migOpts = do
   Log.info logger $ Log.msg (Log.val "started clients migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling clients migration")
+    cancel migrationLoop
+
+userClientIndex :: MigrationOptions -> AppT IO CleanupAction
+userClientIndex migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting user client index migration")
+  count <- register $ counter $ Prometheus.Info "wire_user_client_index_migrated_to_pg" "Number of user client index entries migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_user_client_index_migration_finished" "Whether the user client index migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_user_client_index_migration_failed" "Whether the user client index migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_user_client_index_migration_duration_seconds" "Duration of user client index migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateUserClientIndexLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started user client index migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling user client index migration")
     cancel migrationLoop

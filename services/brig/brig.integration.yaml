@@ -179,6 +179,7 @@ postgresMigration:
   domainRegistration: postgresql
   passwordReset: postgresql
   clients: postgresql
+  userClientIndex: postgresql
   user: postgresql
   blockList: postgresql
   customBackend: postgresql
