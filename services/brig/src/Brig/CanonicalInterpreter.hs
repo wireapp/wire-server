@@ -170,6 +170,8 @@ import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
+import Wire.UserKeyStore.DualWrite (interpretUserKeyStoreToCassandraAndPostgres)
+import Wire.UserKeyStore.Postgres (interpretUserKeyStoreToPostgres)
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Wire.UserStore
@@ -454,6 +456,13 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
+      userKeyStoreInterpreter =
+        case e.postgresMigration.userKey of
+          CassandraStorage -> interpretUserKeyStoreCassandra e.casClient
+          PostgresqlStorage -> interpretUserKeyStoreToPostgres
+          MigrationToPostgresql ->
+            interpretUserKeyStoreToCassandraAndPostgres e.casClient
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -530,7 +539,7 @@ runBrigToIO e (AppT ma) = do
               . userStoreInterpreter
               . interpretMlsKeyPackageStoreToCassandra e.casClient
               . interpretMlsKeyPackageSubsystem e.settings.keyPackageMaximumLifetime e.keyPackageLocalLock
-              . interpretUserKeyStoreCassandra e.casClient
+              . userKeyStoreInterpreter
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
               . interpretBackendNotificationQueueAccess (Just backendNotificationQueueEnv)

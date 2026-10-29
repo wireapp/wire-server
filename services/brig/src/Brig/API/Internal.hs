@@ -211,6 +211,8 @@ servantSitemap =
     :<|> samlIdPApi
     :<|> Named @"i-delete-app" deleteAppH
     :<|> Named @"i-get-app-ids" getAppIdsH
+    :<|> Named @"put-user-key" putUserKeyH
+    :<|> Named @"get-user-key" getUserKeyH
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -1077,3 +1079,10 @@ deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> 
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
+
+-- | The raw key is the normalized (lowercase, plus-stripped) email address.
+putUserKeyH :: (Member UserKeyStore r) => UserId -> Text -> Handler r NoContent
+putUserKeyH uid key = NoContent <$ lift (liftSem $ insertKey uid (mkRawEmailKey key))
+
+getUserKeyH :: (Member UserKeyStore r) => Text -> Handler r (Maybe UserId)
+getUserKeyH key = lift . liftSem $ lookupKey (mkRawEmailKey key)

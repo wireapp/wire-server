@@ -734,7 +734,27 @@ type API =
            :<|> SAMLIdPAPI
            :<|> DeleteApp
            :<|> GetAppIds
+           :<|> UserKeyAPI
        )
+
+type UserKeyAPI =
+  Named
+    "put-user-key"
+    ( Summary "Insert an email lookup key for a user (for migration testing only)"
+        :> "users"
+        :> "keys"
+        :> Capture "uid" Id.UserId
+        :> Servant.ReqBody '[Servant.JSON] Text.Text
+        :> Put '[Servant.JSON] NoContent
+    )
+    :<|> Named
+           "get-user-key"
+           ( Summary "Look up the owner of an email lookup key (for migration testing only)"
+               :> "users"
+               :> "keys"
+               :> Servant.ReqBody '[Servant.JSON] Text.Text
+               :> MultiVerb1 'GET '[Servant.JSON] (Respond 200 "" (Maybe Id.UserId))
+           )
 
 type SAMLIdPAPI =
   "idp"

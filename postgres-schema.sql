@@ -1752,6 +1752,18 @@ CREATE TABLE public.user_migration_pending_deletes (
 ALTER TABLE public.user_migration_pending_deletes OWNER TO "wire-server";
 
 --
+-- Name: user_keys; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_keys (
+    key text NOT NULL,
+    user_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.user_keys OWNER TO "wire-server";
+
+--
 -- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2179,6 +2191,14 @@ ALTER TABLE ONLY public.user_group
 
 ALTER TABLE ONLY public.user_migration_pending_deletes
     ADD CONSTRAINT user_migration_pending_deletes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_keys user_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_keys
+    ADD CONSTRAINT user_keys_pkey PRIMARY KEY (key);
 
 
 --
