@@ -1048,7 +1048,8 @@ defaultTestOpts =
             domainRegistration = CassandraStorage,
             user = CassandraStorage,
             blockList = CassandraStorage,
-            passwordReset = CassandraStorage
+            passwordReset = CassandraStorage,
+            customBackend = CassandraStorage
           },
       postgresqlPassword = Nothing
     }
