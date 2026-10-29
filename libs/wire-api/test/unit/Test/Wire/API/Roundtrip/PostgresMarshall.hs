@@ -40,8 +40,10 @@ import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Aeson as A
 import Data.ByteString.Char8 qualified as BS8
 import Data.Code qualified as Code
+import Data.LegalHold (UserLegalHoldStatus)
 import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Vector (Vector)
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
@@ -53,6 +55,8 @@ import Wire.API.PostgresMarshall
 import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
 import Wire.API.Team (Icon, TeamBinding)
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold ()
+import Wire.API.Team.Permission (Permissions)
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
 import Wire.Arbitrary qualified as Arbitrary ()
@@ -71,6 +75,8 @@ tests =
       testRoundTrip @Bool @TeamBinding,
       testRoundTrip @Int32 @TeamSearchVisibility,
       testRoundTrip @Text @Icon,
+      testRoundTrip @(Vector Int16) @Permissions,
+      testRoundTrip @Int16 @UserLegalHoldStatus,
       testRoundTrip @A.Value @DbConfig
     ]
 

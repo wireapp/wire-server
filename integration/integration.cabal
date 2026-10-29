@@ -185,6 +185,7 @@ library
     Test.Migration.PasswordReset
     Test.Migration.Team
     Test.Migration.TeamFeatures
+    Test.Migration.TeamMembers
     Test.Migration.User
     Test.Migration.Util
     Test.MLS
