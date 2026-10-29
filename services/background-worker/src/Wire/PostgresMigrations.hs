@@ -31,6 +31,7 @@ import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
+import Wire.TeamNotificationStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
@@ -182,4 +183,22 @@ customBackend migOpts = do
   Log.info logger $ Log.msg (Log.val "started custom backend migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
+    cancel migrationLoop
+
+teamNotifications :: MigrationOptions -> AppT IO CleanupAction
+teamNotifications migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting team notifications migration")
+  count <- register $ counter $ Prometheus.Info "wire_team_notifications_migrated_to_pg" "Number of team notifications migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_team_notifications_migration_finished" "Whether the team notifications migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_team_notifications_migration_failed" "Whether the team notifications migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_team_notifications_migration_duration_seconds" "Duration of team notification migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateTeamNotificationsLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started team notifications migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling team notifications migration")
     cancel migrationLoop
