@@ -78,4 +78,3 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "customBackend"
       <*> o .: "clients"
       <*> o .: "userClientIndex"
-      <*> o .: "userClientIndex"
