@@ -65,7 +65,6 @@ import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write))
-import Control.Monad (join)
 import Imports
 import Polysemy
 import Polysemy.TinyLog
