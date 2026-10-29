@@ -48,13 +48,13 @@ import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
-import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
-import Wire.API.Team (Icon, TeamBinding)
-import Wire.API.Team.Permission (Permissions)
-import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
+import Wire.API.Team (Icon, TeamBinding)
 import Wire.API.Team.Feature
+import Wire.API.Team.Permission (Permissions)
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
 import Wire.Arbitrary qualified as Arbitrary ()
 
