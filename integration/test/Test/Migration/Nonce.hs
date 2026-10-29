@@ -49,7 +49,7 @@ testNonceMigration = do
         checkNonceRoundtrip = do
           (owner, _tid, _members) <- createTeam domain 1
           assertSuccess =<< putSelf owner (PutSelf Nothing Nothing (Just "nonce-owner") Nothing)
-          handle <- randomName
+          handle <- randomHandle
           assertSuccess =<< putHandle owner handle
           client <- bindResponse (addClient owner def) $ getJSON 201
           cid <- client %. "id" & asString
