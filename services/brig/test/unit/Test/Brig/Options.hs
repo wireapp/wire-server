@@ -55,5 +55,16 @@ tests =
             case eitherDecode "\"noreply@diana.123\"" :: Either String StricterDomain of
               Left _ -> pure ()
               Right _ -> assertFailure "expected invalid sender domain"
+        ],
+      testGroup
+        "searchBackend"
+        [ testCase "elasticsearch parses" $
+            (eitherDecode "\"elasticsearch\"" :: Either String SearchBackend) @?= Right SearchBackendElasticSearch,
+          testCase "postgres parses" $
+            (eitherDecode "\"postgres\"" :: Either String SearchBackend) @?= Right SearchBackendPostgres,
+          testCase "invalid value fails to parse" $
+            case eitherDecode "\"sqlite\"" :: Either String SearchBackend of
+              Left _ -> pure ()
+              Right _ -> assertFailure "expected invalid searchBackend to fail parsing"
         ]
     ]

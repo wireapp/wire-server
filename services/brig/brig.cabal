@@ -241,6 +241,7 @@ library
     , fsnotify                              >=0.4
     , galley-types                          >=0.75.3
     , hashable                              >=1.2
+    , hasql
     , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -273,6 +274,7 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , pqi-ffi
     , prometheus-client
     , proto-lens                            >=0.1
     , QuickCheck
@@ -330,9 +332,13 @@ executable brig-index
     , base
     , brig
     , extended
+    , hasql
     , imports
     , optparse-applicative
+    , text
     , tinylog
+    , uuid
+    , wire-subsystems
 
 executable brig-integration
   import:         common-all
