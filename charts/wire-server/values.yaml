@@ -94,6 +94,7 @@ galley:
       domainRegistration: cassandra
       user: cassandra
       blockList: cassandra
+      teamStore: cassandra
       passwordReset: cassandra
       customBackend: cassandra
     settings:
@@ -1027,6 +1028,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.teamFeatures` to `migration-to-postgresql`
     # before starting the migration.
     migrateTeamFeatures: false
+    # This will start the migration of the team store (teams and team members).
+    # It's important to set `settings.postgresMigration.teamStore` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateTeamMembers: false
     # This will start the migration of domain registration data.
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.

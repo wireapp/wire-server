@@ -176,6 +176,7 @@ postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
   teamFeatures: postgresql
+  teamStore: postgresql
   domainRegistration: postgresql
   passwordReset: postgresql
   user: postgresql
