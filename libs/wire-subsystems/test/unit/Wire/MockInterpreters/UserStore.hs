@@ -117,17 +117,9 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
     pure $ storedUserToIndexUser <$> mUser
   GetIndexUsersPaginated _pageSize _pagingState ->
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
-  GetPendingScimUsers tid -> do
+  GetScimUsersPaginated tid pageSize mOffset -> do
     users <- get @[StoredUser]
-    pure $ Just $ do
-      user <- users
-      guard $ user.teamId == Just tid && user.managedBy == Just ManagedByScim
-      guard $ user.status == Just PendingInvitation && user.activated
-      email <- maybeToList user.email
-      pure (user.id, email)
-  GetScimUsersPaginated tid excludedIds pageSize mOffset -> do
-    users <- get @[StoredUser]
-    let eligible = sortOn (.id) $ filter (\user -> user.teamId == Just tid && user.managedBy == Just ManagedByScim && user.id `notElem` excludedIds) users
+    let eligible = sortOn (.id) $ filter (\user -> user.teamId == Just tid && user.managedBy == Just ManagedByScim) users
     pure $
       Just
         OffsetPage
