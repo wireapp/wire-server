@@ -1,12 +1,14 @@
 module FanInPerf.TargetsSpec (spec) where
 
 import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Qualified (qDomain)
+import Data.Text qualified as T
 import Data.Vector qualified as V
 import FanInPerf.NotificationsStore (FanInPush (..), Target (..))
 import FanInPerf.TargetSpecParser (parseTargetSpec)
@@ -67,7 +69,7 @@ spec = do
             case V.find ((== k) . (.spec.kind)) entries of
               Nothing -> []
               Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
-          pushes = take 200 (unfoldr (Just . genPush (mkPayload 0) entries) g0)
+          pushes = take 200 (unfoldr (Just . genPush 0 entries) g0)
           ok push =
             let ts = push.targets
                 kind = pushKind push
@@ -83,7 +85,7 @@ spec = do
           poolKeys k = case V.find ((== k) . (.spec.kind)) entries of
             Nothing -> []
             Just e -> [targetKey (targetAt e.pool i) | i <- [0 .. e.spec.streams - 1]]
-          pushes = take 200 (unfoldr (Just . genPush (mkPayload 0) entries) g0)
+          pushes = take 200 (unfoldr (Just . genPush 0 entries) g0)
           ascending push =
             let ts = push.targets
                 kind = pushKind push
@@ -93,7 +95,7 @@ spec = do
 
     it "uses every entry eventually" $
       let (entries, g0) = mkEntries 1 specs (mkStdGen 42)
-          kinds = map pushKind (take 500 (unfoldr (Just . genPush (mkPayload 0) entries) g0))
+          kinds = map pushKind (take 500 (unfoldr (Just . genPush 0 entries) g0))
        in nubOrd kinds `shouldMatchList` allKinds
 
     it "gives clients targets the configured number of client ids" $
@@ -111,7 +113,19 @@ spec = do
           (ts, _) = genTargets entries g0
        in [qDomain q | TargetConnections q <- NE.toList ts] `shouldBe` [localDomain]
 
-  describe "mkPayload" $
-    it "has roughly the requested size" $
-      let size = LBS.length (A.encode (mkPayload 512))
-       in size `shouldSatisfy` (\s -> s >= 512 && s < 600)
+  describe "mkPayload" $ do
+    it "has exactly the requested total size" $
+      LBS.length (A.encode (fst (mkPayload 512 (mkStdGen 1)))) `shouldBe` 512
+
+    it "pads with base64 chars only" $
+      case KM.lookup "pad" (fst (mkPayload 512 (mkStdGen 1))) of
+        Just (A.String pad) -> T.all (\c -> isAlphaNum c || c `elem` ("+/" :: String)) pad `shouldBe` True
+        _ -> expectationFailure "no pad field"
+
+    it "is the bare envelope when the size is too small" $
+      KM.lookup "pad" (fst (mkPayload 0 (mkStdGen 1))) `shouldBe` Just (A.String "")
+
+    it "differs between pushes" $
+      let entries = fst (mkEntries 1 (TargetConfig KindUser 10 1 :| []) (mkStdGen 1))
+          pushes = take 2 (unfoldr (Just . genPush 512 entries) (mkStdGen 2))
+       in length (nubOrd (map (.json) pushes)) `shouldBe` 2

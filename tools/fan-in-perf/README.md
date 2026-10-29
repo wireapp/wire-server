@@ -11,7 +11,9 @@ metrics. The experiments themselves aren't hard-coded, so this `fan-in-perf`
 tool can also be used to run a variety of other experiments (to be invented).
 
 `./run-2000x1.py` is an experiment driver that provides the tool invocation
-order and report rendering for the known experiments.
+order and report rendering for the known experiments. `--payload-bytes 1024`
+runs them with a more realistic payload size (a typical message event: ~400
+bytes of envelope plus the encrypted message).
 
 To have more control over the infrastructure setup, not interfere with existing
 requirements (e.g. integration tests) and provide observability,

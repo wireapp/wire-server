@@ -41,7 +41,7 @@ streamsOf p = map (readerStreams p.kinds) (readers p)
 
 -- the only push a single-entry spec can produce, for any seed
 pushOf :: V.Vector Entry -> FanInPush
-pushOf es = fst (genPush (mkPayload 0) es (mkStdGen 1))
+pushOf es = fst (genPush 0 es (mkStdGen 1))
 
 spec :: Spec
 spec = do
@@ -170,7 +170,7 @@ spec = do
   describe "expectedDeliveries" $
     it "is 0 for a push to a stream nobody reads" $ do
       -- stream pools are fixed, so scan pushes until one hits an unread stream
-      let counts = [expectedDeliveries partialReaders.subscribers (fst (genPush (mkPayload 0) writerEntries (mkStdGen s))) | s <- [1 .. 200]]
+      let counts = [expectedDeliveries partialReaders.subscribers (fst (genPush 0 writerEntries (mkStdGen s))) | s <- [1 .. 200]]
       (0 `elem` counts, all (`elem` [0, 1]) counts) `shouldBe` (True, True)
 
   describe "expectedFromCounts" $ do
@@ -189,7 +189,7 @@ spec = do
       expectedFromCounts p.subscribers [(StreamUser unreadUser, 5)] `shouldBe` 0
       subscribedRows p.subscribers [(StreamUser unreadUser, 5), (StreamUser readUser, 2)] `shouldBe` 2
     it "equals the sum of expectedDeliveries of the pushes that wrote the rows" $ do
-      let pushes = [fst (genPush (mkPayload 0) es (mkStdGen sd)) | sd <- [1 .. 50]]
+      let pushes = [fst (genPush 0 es (mkStdGen sd)) | sd <- [1 .. 50]]
           rows =
             Map.fromListWith
               (\(st, a) (_, b) -> (st, a + b))

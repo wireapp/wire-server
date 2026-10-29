@@ -41,16 +41,17 @@ data PushOutcome = PushOk | PushFailed Text
 writerStep ::
   (FanInPush -> Int) ->
   (FanInPush -> IO PushOutcome) ->
-  A.Object ->
+  Int ->
   V.Vector Entry ->
   WriterStats ->
   (Text -> IO ()) ->
   StdGen ->
   IO StdGen
-writerStep expectedOf doPush payload entries stats reportError g = do
-  let (push, g') = genPush payload entries g
-  -- build the targets before timing so latency covers only the store call
+writerStep expectedOf doPush payloadBytes entries stats reportError g = do
+  let (push, g') = genPush payloadBytes entries g
+  -- build targets and payload before timing so latency covers only the store call
   evaluate (forceTargets push.targets)
+  evaluate (forcePayload push.json)
   t0 <- getMonotonicTimeNSec
   outcome <- either (PushFailed . T.pack . displayException) id <$> tryAny (doPush push)
   t1 <- getMonotonicTimeNSec
@@ -60,6 +61,10 @@ writerStep expectedOf doPush payload entries stats reportError g = do
     -- 'Target' has strict fields, so forcing each element to WHNF is enough.
     forceTargets :: [Target] -> ()
     forceTargets = foldr seq ()
+
+    -- 'mkPayload' values are strings with a strict 'Text', so WHNF is enough.
+    forcePayload :: A.Object -> ()
+    forcePayload = foldr seq ()
 
     recordOutcome push outcome t0 t1 = do
       let kind = pushKind push
@@ -78,7 +83,7 @@ storePush env push =
 data WriterSetup = WriterSetup
   { seed :: Int,
     entries :: V.Vector Entry,
-    payload :: A.Object,
+    payloadBytes :: Int,
     gens :: [StdGen],
     populationGen :: StdGen
   }
@@ -88,7 +93,7 @@ prepareWriters :: ProduceOptions -> IO WriterSetup
 prepareWriters opts = do
   seed <- maybe randomIO pure opts.seed
   let (entries, populationGen, writerGen) = seededEntries seed opts.clientsPerUser opts.targets
-      payload = mkPayload opts.payloadBytes
+      payloadBytes = opts.payloadBytes
       gens = take opts.writers (unfoldr (Just . split) writerGen)
   pure WriterSetup {..}
 
@@ -108,17 +113,17 @@ writerLoop ::
   IO Bool ->
   (FanInPush -> Int) ->
   (FanInPush -> IO PushOutcome) ->
-  A.Object ->
+  Int ->
   V.Vector Entry ->
   WriterStats ->
   (Text -> IO ()) ->
   StdGen ->
   IO ()
-writerLoop stop expectedOf doPush payload entries ws reportError = loop
+writerLoop stop expectedOf doPush payloadBytes entries ws reportError = loop
   where
     loop !g = do
       stopped <- stop
-      unless stopped (writerStep expectedOf doPush payload entries ws reportError g >>= loop)
+      unless stopped (writerStep expectedOf doPush payloadBytes entries ws reportError g >>= loop)
 
 runProduce :: Console -> Env -> ProduceOptions -> IO RunSummary
 runProduce console env opts = do
@@ -126,7 +131,7 @@ runProduce console env opts = do
   metrics <- newMetrics "produce" opts.writers
   stats <- replicateM opts.writers newWriterStats
   (errors, reportError) <- newErrorReporter
-  let writer (ws, g) = writerLoop (pure False) (const 0) (storePush env) setup.payload setup.entries ws reportError g
+  let writer (ws, g) = writerLoop (pure False) (const 0) (storePush env) setup.payloadBytes setup.entries ws reportError g
   checkpointBeforeRun env
   start <- getMonotonicTime
   stateRef <- newIORef (initialTickState start)

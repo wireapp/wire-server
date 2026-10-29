@@ -22,7 +22,7 @@ import FanInPerf.Population (SimUser (SimUser))
 import FanInPerf.Population qualified as Pop
 import FanInPerf.Produce (PushOutcome (..), writerStep)
 import FanInPerf.Stats (bucketIndex, newWriterStats, readSnapshot, totalExpected)
-import FanInPerf.Targets (TargetConfig (..), TargetKind (..), mkEntries, mkPayload)
+import FanInPerf.Targets (TargetConfig (..), TargetKind (..), mkEntries)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -428,7 +428,7 @@ spec = do
                 Stored -> append rows i >> pure PushOk
                 Dropped -> pure PushOk
                 StoredButFailed -> append rows i >> pure (PushFailed "timeout")
-              push g (p, i) = writerStep (const readerCount) (store (i, p)) (mkPayload 0) entries ws (\_ -> pure ()) g
+              push g (p, i) = writerStep (const readerCount) (store (i, p)) 0 entries ws (\_ -> pure ()) g
           foldM_ push (mkStdGen 2) (zip pushes ids)
           delivered <- replicateM readerCount $ do
             stats <- newReaderStats

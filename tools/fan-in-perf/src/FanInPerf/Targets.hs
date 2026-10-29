@@ -24,9 +24,11 @@ where
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KM
 import Data.Bifunctor (first)
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.IntSet qualified as IntSet
+import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NE
 import Data.Misc (showT)
@@ -162,11 +164,12 @@ genTargets entries g0 =
       targets = targetAt e.pool <$> fromMaybe (0 :| []) (nonEmpty idxs)
    in (targets, g2)
 
--- | A random push with the given payload and 'genTargets' targets.
-genPush :: (RandomGen g) => A.Object -> V.Vector Entry -> g -> (FanInPush, g)
-genPush payload entries g =
+-- | A random push with a 'mkPayload' payload of the given size and 'genTargets' targets.
+genPush :: (RandomGen g) => Int -> V.Vector Entry -> g -> (FanInPush, g)
+genPush payloadBytes entries g =
   let (targets, g') = genTargets entries g
-   in (mkPush payload targets, g')
+      (payload, g'') = mkPayload payloadBytes g'
+   in (mkPush payload targets, g'')
 
 targetKind :: Target -> TargetKind
 targetKind = \case
@@ -192,13 +195,22 @@ targetKey = \case
   TargetEpoch (gid, epoch) -> showT gid.unGroupId <> "/" <> showT epoch.epochNumber
   TargetConnections q -> idToText (qUnqualified q) <> "@" <> domainText (qDomain q)
 
--- | JSON payload of roughly @n@ bytes.
-mkPayload :: Int -> A.Object
-mkPayload n =
-  KM.fromList
-    [ ("type", A.String "fanin-perf"),
-      ("pad", A.String (T.replicate n "x"))
-    ]
+-- | JSON payload of @n@ bytes in total (or the bare envelope if @n@ is
+-- smaller): the envelope plus a pad of base64-encoded random bytes, new for
+-- every call. Random like real ciphertext, so Postgres can't compress it.
+mkPayload :: (RandomGen g) => Int -> g -> (A.Object, g)
+mkPayload n g0 =
+  let padLen = max 0 (n - envelopeBytes)
+      -- base64 turns k bytes into >= k chars, so padLen bytes suffice
+      (bytes, g') = runStateGen g0 (uniformByteStringM padLen)
+   in (payloadWith (T.take padLen (toBase64Text bytes)), g')
+
+-- | Encoded size of the payload without pad.
+envelopeBytes :: Int
+envelopeBytes = fromIntegral (LBS.length (A.encode (payloadWith "")))
+
+payloadWith :: Text -> A.Object
+payloadWith pad = KM.fromList [("type", A.String "fanin-perf"), ("pad", A.String pad)]
 
 mkPush :: A.Object -> NonEmpty Target -> FanInPush
 mkPush payload targets =

@@ -516,7 +516,7 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
   stopReaders <- newIORef False
   let -- A writer stops between pushes, so every committed push has its
       -- expected deliveries recorded before the drain starts.
-      writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (storePush writerEnv) setup.payload setup.entries ws reportError g
+      writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (storePush writerEnv) setup.payloadBytes setup.entries ws reportError g
       readerClient (ctx, subs) = readerLoop (readIORef stopReaders) ctx (readerOptions opts) opts.pollIntervalMs subs
       contexts = readerContexts gate readerEnv reportError population readerStats
       readTotals = totals writerStats readerStats
