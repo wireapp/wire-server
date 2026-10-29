@@ -54,6 +54,8 @@ data Opts = Opts
     migrationOptions :: !MigrationOptions,
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
+    migrateTeam :: !Bool,
+    migrateTeamMembers :: !Bool,
     migrateDomainRegistration :: !Bool,
     migrateUsers :: !Bool,
     migrateBlockList :: !Bool,
@@ -63,10 +65,7 @@ data Opts = Opts
     migrateConnections :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
-    backgroundJobs :: BackgroundJobsConfig,
-    -- | Raw licence payload: base64url-encoded JSON 'LicenceSpec' as produced by
-    --   @wire-licensing encode@ / @example@. Unset means unlicensed.
-    license :: !(Maybe Text)
+    backgroundJobs :: BackgroundJobsConfig
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts
