@@ -113,6 +113,8 @@ import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
 import Wire.CustomBackendStore.Cassandra
+import Wire.CustomBackendStore.DualWrite
+import Wire.CustomBackendStore.Postgres
 import Wire.Error
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.ExternalAccess.External
@@ -439,6 +441,11 @@ evalGalley e =
           CassandraStorage -> interpretTeamFeatureStoreToCassandra
           MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
+      customBackendStoreInterpreter =
+        case (e ^. options . postgresMigration).customBackend of
+          CassandraStorage -> interpretCustomBackendStoreToCassandra
+          MigrationToPostgresql -> interpretCustomBackendStoreToCassandraAndPostgres
+          PostgresqlStorage -> interpretCustomBackendStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -551,7 +558,7 @@ evalGalley e =
         . interpretLegalHoldStoreToCassandra lh
         . interpretTeamJournal (e ^. aEnv)
         . interpretTeamStoreToCassandra
-        . interpretCustomBackendStoreToCassandra
+        . customBackendStoreInterpreter
         . randomToIO
         . runHashPassword e._options._settings._passwordHashingOptions
         . interpretRateLimit e._passwordHashingRateLimitEnv
