@@ -337,13 +337,13 @@ The default takes as many pool users as the limit allows (100000 / C).
 Without a `user` / `clients` pool (e.g. `team:10`) there is no pool to take
 users from: `--online-users` is required and the users are synthetic.
 
-| Command line                                                       | Online users | Readers           |
-| ------------------------------------------------------------------ | ------------ | ----------------- |
-| `--targets user:2000x1` (experiments A-F)                          | 2000         | 2000 (1 per user) |
-| `--targets user:1000x1 --clients-per-user 2`                       | 1000         | 2000 (2 per user) |
-| `--targets user:1000000x20 --online-users 2000`                    | 2000         | 2000              |
-| `--targets user:1000000x20 --clients-per-user 2`                   | 50000        | 100000 (limit)    |
-| `--targets team:10 --online-users 2000 --clients-per-user 3`       | 2000         | 6000              |
+| Command line                                                 | Online users | Readers           |
+| ------------------------------------------------------------ | ------------ | ----------------- |
+| `--targets user:2000x1` (experiments A-F)                    | 2000         | 2000 (1 per user) |
+| `--targets user:1000x1 --clients-per-user 2`                 | 1000         | 2000 (2 per user) |
+| `--targets user:1000000x20 --online-users 2000`              | 2000         | 2000              |
+| `--targets user:1000000x20 --clients-per-user 2`             | 50000        | 100000 (limit)    |
+| `--targets team:10 --online-users 2000 --clients-per-user 3` | 2000         | 6000              |
 
 Streams of users that are not online have no reader: the `coverage` line of a
 run shows the share of streams with a reader, and the expected deliveries only
