@@ -186,6 +186,7 @@ library
     Test.Migration.TeamFeatures
     Test.Migration.User
     Test.Migration.Util
+    Test.Migration.VerificationCodes
     Test.MLS
     Test.MLS.Clients
     Test.MLS.History

@@ -530,6 +530,9 @@ library
     Wire.VerificationCodeGen
     Wire.VerificationCodeStore
     Wire.VerificationCodeStore.Cassandra
+    Wire.VerificationCodeStore.DualWrite
+    Wire.VerificationCodeStore.Migration
+    Wire.VerificationCodeStore.Postgres
     Wire.VerificationCodeSubsystem
     Wire.VerificationCodeSubsystem.Interpreter
 
