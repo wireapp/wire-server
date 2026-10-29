@@ -31,6 +31,7 @@ import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
+import Wire.TeamStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
@@ -74,6 +75,24 @@ conversationCodes migOpts = do
   Log.info logger $ Log.msg (Log.val "started conversation codes migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling conversation codes migration")
+    cancel migrationLoop
+
+team :: MigrationOptions -> AppT IO CleanupAction
+team migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting team migration")
+  count <- register $ counter $ Prometheus.Info "wire_team_migrated_to_pg" "Number of teams migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_team_migration_finished" "Whether the team migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_team_migration_failed" "Whether the team migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_team_migration_duration_seconds" "Duration of team migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateTeamLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started team migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling team migration")
     cancel migrationLoop
 
 teamFeatures :: MigrationOptions -> AppT IO CleanupAction
