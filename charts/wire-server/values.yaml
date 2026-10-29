@@ -768,6 +768,7 @@ gundeck:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
+      customBackend: cassandra
       notifications: cassandra
     redis:
       host: redis-ephemeral
