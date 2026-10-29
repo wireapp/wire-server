@@ -313,6 +313,8 @@ galley:
       customBackend: {{ .Values.customBackendStore }}
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -579,6 +581,8 @@ proxy:
 spar:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
+  secrets:
+    pgPassword: posty-the-gres
   resources:
     requests: {}
     limits:
@@ -610,7 +614,9 @@ spar:
       blockList: {{ .Values.blockListStore }}
       passwordReset: {{ .Values.passwordReset }}
       customBackend: {{ .Values.customBackendStore }}
-    logLevel: Debug
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
+      logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
     ssoUri: http://spar:8080/sso

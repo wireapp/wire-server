@@ -501,7 +501,9 @@ spec = do
                 user = CassandraStorage,
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
-                customBackend = CassandraStorage
+                customBackend = CassandraStorage,
+                scimTokens = CassandraStorage,
+                scimExternalIds = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -570,7 +572,9 @@ spec = do
                 user = CassandraStorage,
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
-                customBackend = CassandraStorage
+                customBackend = CassandraStorage,
+                scimTokens = CassandraStorage,
+                scimExternalIds = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

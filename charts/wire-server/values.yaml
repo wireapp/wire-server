@@ -96,6 +96,8 @@ galley:
       blockList: cassandra
       passwordReset: cassandra
       customBackend: cassandra
+      scimTokens: cassandra
+      scimExternalIds: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -841,6 +843,7 @@ spar:
     repository: quay.io/wire/spar
     tag: do-not-use
   imagePullPolicy: ""
+  secrets: {}
   metrics:
     serviceMonitor:
       enabled: false
@@ -885,7 +888,12 @@ spar:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
+<<<<<<<
       customBackend: cassandra
+=======
+      scimTokens: cassandra
+      scimExternalIds: cassandra
+>>>>>>>
     richInfoLimit: 5000
     maxScimTokens: 0
 
@@ -1068,6 +1076,11 @@ background-worker:
     # It's important to set `settings.postgresMigration.passwordReset` to `migration-to-postgresql`
     # before starting the migration.
     migratePasswordReset: false
+    # This will start the migration of spar scim token and scim external id data.
+    # It's important to set `spar.config.postgresMigration.scimTokens` / `scimExternalIds`
+    # to `migration-to-postgresql` before starting the migration.
+    migrateScimTokens: false
+    migrateScimExternalIds: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
