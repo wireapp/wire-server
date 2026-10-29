@@ -221,17 +221,20 @@ connections migOpts = do
   Log.info logger $ Log.msg (Log.val "started connections migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
+    cancel migrationLoop
+
 mlsKeyPackages :: MigrationOptions -> AppT IO CleanupAction
 mlsKeyPackages migOpts = do
   cassClient <- asks (.cassandraBrig)
   pgPool <- asks (.hasqlPool)
   logger <- asks (.logger)
   Log.info logger $ Log.msg (Log.val "starting mls key packages migration")
-  count <- register $ counter $ Prometheus.Info "wire_mls_key_packages_migrated_to_pg" "Number of mls key packages migrated to Postgresql"
+  count <- register $ counter $ Prometheus.Info "wire_mls_key_packages_migrated_to_pg" "Number of users whose mls key packages migrated to Postgresql"
   finished <- register $ counter $ Prometheus.Info "wire_mls_key_packages_migration_finished" "Whether the mls key packages migration to Postgresql is finished successfully"
   failed <- register $ counter $ Prometheus.Info "wire_mls_key_packages_migration_failed" "Whether the mls key packages migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_mls_key_packages_migration_duration_seconds" "Duration of mls key package user migration attempts") defaultBuckets
 
-  migrationLoop <- async . lift $ migrateMlsKeyPackagesLoop migOpts cassClient pgPool logger count finished failed
+  migrationLoop <- async . lift $ migrateMlsKeyPackagesLoop migOpts cassClient pgPool logger count finished failed duration
 
   Log.info logger $ Log.msg (Log.val "started mls key packages migration")
   pure $ do
