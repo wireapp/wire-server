@@ -83,8 +83,8 @@ spec = do
     o <- parseOk ["--db", "postgresql://u:p@localhost/db", "consume", "--targets", "user:100,team:1"]
     case o.command of
       Consume c -> do
-        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
-          `shouldBe` (2000, 3, 100, 100, 32, 10, 0)
+        (c.population, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
+          `shouldBe` (PopulationOptions Nothing 3, 100, 100, 32, 10, 0)
         c.writerOptions.writers `shouldBe` 16
         c.writerOptions.targets `shouldBe` (TargetConfig KindUser 100 1 :| [TargetConfig KindTeam 1 1])
       _ -> expectationFailure "not a consume command"
@@ -97,9 +97,9 @@ spec = do
           "consume",
           "--targets",
           "epoch:50",
-          "--clients",
+          "--online-users",
           "10",
-          "--epochs-per-client",
+          "--epochs-per-user",
           "2",
           "--poll-interval",
           "0",
@@ -118,14 +118,17 @@ spec = do
         ]
     case o.command of
       Consume c -> do
-        (c.clients, c.epochsPerClient, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
-          `shouldBe` (10, 2, 0, 5, 4, 0, 60000)
+        (c.population, c.pollIntervalMs, c.fetchLimit, c.readerPoolSize, c.drainTimeout, c.safetyWindowMs)
+          `shouldBe` (PopulationOptions (Just 10) 2, 0, 5, 4, 0, 60000)
         (c.writerOptions.writers, c.writerOptions.duration) `shouldBe` (3, Just 9)
       _ -> expectationFailure "not a consume command"
 
   it "rejects consume flags out of bounds and the connections kind" $ do
     let consume extra = ["--db", "x", "consume", "--targets", "user:10"] <> extra
-    isNothing (parse (consume ["--clients", "0"])) `shouldBe` True
+    isNothing (parse (consume ["--online-users", "0"])) `shouldBe` True
+    -- replaced by --online-users and --clients-per-user
+    isNothing (parse (consume ["--clients", "5"])) `shouldBe` True
+    isNothing (parse (consume ["--epochs-per-client", "2"])) `shouldBe` True
     isNothing (parse (consume ["--fetch-limit", "0"])) `shouldBe` True
     isNothing (parse (consume ["--poll-interval", "-1"])) `shouldBe` True
     isNothing (parse (consume ["--reader-pool-size", "0"])) `shouldBe` True
@@ -145,7 +148,7 @@ spec = do
   it "parses consume-ack with defaults and --ack-every" $ do
     o <- parseOk ["--db", "x", "consume-ack", "--targets", "user:10,clients:10,team:1"]
     case o.command of
-      Consume c -> (c.mode, c.clients) `shouldBe` (Acks 100, 2000)
+      Consume c -> (c.mode, c.population.onlineUsers) `shouldBe` (Acks 100, Nothing)
       _ -> expectationFailure "not a consume command"
     o1 <- parseOk ["--db", "x", "consume-ack", "--targets", "team:1", "--ack-every", "1"]
     fmap (.mode) (consumeOf o1) `shouldBe` Just (Acks 1)
@@ -159,8 +162,9 @@ spec = do
     -- one identity per reader: user and clients pools must have the same size
     isNothing (parse ["--db", "x", "consume-ack", "--targets", "user:10,clients:5"]) `shouldBe` True
     isNothing (parse ["--db", "x", "consume-ack", "--targets", "connections:5"]) `shouldBe` True
-    -- consume keeps accepting different sizes and has no --ack-every
-    isNothing (parse ["--db", "x", "consume", "--targets", "user:10,clients:5"]) `shouldBe` False
+    -- consume needs the same sizes too and has no --ack-every
+    isNothing (parse ["--db", "x", "consume", "--targets", "user:10,clients:5"]) `shouldBe` True
+    isNothing (parse ["--db", "x", "consume", "--targets", "user:10,clients:10"]) `shouldBe` False
     isNothing (parse ["--db", "x", "consume", "--targets", "user:10", "--ack-every", "5"]) `shouldBe` True
 
   it "labels the experiments" $ do
@@ -180,16 +184,15 @@ spec = do
             { targets = TargetConfig KindUser 10 1 :| [],
               clientsPerUser = 1,
               seed = 7,
-              clients = 2000,
-              epochsPerClient = 3,
+              population = PopulationOptions {onlineUsers = Nothing, epochsPerUser = 3},
               readerPoolSize = 32,
               timeout = 600,
               warmup = 5,
               reader = ReaderOptions {fetchLimit = 100, safetyWindowMs = 0, mode = NoAcks}
             }
     it "parses flags" $ do
-      o <- parseOk (consumeOnly ["--clients", "10", "--clients-per-user", "2", "--timeout", "0", "--fetch-limit", "9", "--reader-pool-size", "4", "--warmup", "0", "--epochs-per-client", "2"])
-      fmap (\c -> (c.clients, c.clientsPerUser, c.timeout, c.readerPoolSize, c.warmup, c.epochsPerClient)) (consumeOnlyOf o) `shouldBe` Just (10, 2, 0, 4, 0, 2)
+      o <- parseOk (consumeOnly ["--online-users", "10", "--clients-per-user", "2", "--timeout", "0", "--fetch-limit", "9", "--reader-pool-size", "4", "--warmup", "0", "--epochs-per-user", "2"])
+      fmap (\c -> (c.population, c.clientsPerUser, c.timeout, c.readerPoolSize, c.warmup)) (consumeOnlyOf o) `shouldBe` Just (PopulationOptions (Just 10) 2, 2, 0, 4, 0)
       fmap (.reader.fetchLimit) (consumeOnlyOf o) `shouldBe` Just 9
     it "needs --seed and --targets" $ do
       isNothing (parse ["--db", "x", "consume-only", "--targets", "user:10"]) `shouldBe` True
@@ -199,7 +202,7 @@ spec = do
         isNothing (parse (consumeOnly extra)) `shouldBe` True
     it "rejects the connections kind and flags out of bounds" $ do
       isNothing (parse ["--db", "x", "consume-only", "--targets", "connections:5", "--seed", "7"]) `shouldBe` True
-      for_ [["--clients", "0"], ["--fetch-limit", "0"], ["--timeout", "-1"], ["--reader-pool-size", "0"]] $ \extra ->
+      for_ [["--online-users", "0"], ["--clients", "5"], ["--fetch-limit", "0"], ["--timeout", "-1"], ["--reader-pool-size", "0"]] $ \extra ->
         isNothing (parse (consumeOnly extra)) `shouldBe` True
     it "parses consume-only-ack with --ack-every" $ do
       o <- parseOk ["--db", "x", "consume-only-ack", "--targets", "user:10,clients:10", "--seed", "1", "--ack-every", "5"]
@@ -232,6 +235,7 @@ spec = do
       ["--db", "x", "produce", "--targets", "team:10", "--clients-per-user", "100001"],
       ["--db", "x", "produce", "--targets", "team:10", "--duration", "9223372036854775807"],
       ["--db", "x", "produce", "--targets", "team:10", "--warmup", "9223372036854775807"],
+      ["--db", "x", "produce", "--targets", "team:10", "--online-users", "5"],
       ["--db", "x", "produce", "--targets", "team:10", "--seed", "abc"],
       ["--db", "x", "produce", "--targets", "team:10", "--seed", "9223372036854775808"]
     ]

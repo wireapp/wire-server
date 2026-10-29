@@ -18,9 +18,20 @@ import Test.QuickCheck
 entriesOf :: Int -> [TargetConfig] -> V.Vector Entry
 entriesOf clientsPerUser cfgs = fst (mkEntries clientsPerUser (NE.fromList cfgs) (mkStdGen 7))
 
--- | @population clients epochsPerClient clientsPerUser entries@
-population :: Int -> Int -> Int -> V.Vector Entry -> Population
-population n e c es = either (error . T.unpack) id (mkPopulation n e c es (mkStdGen 3))
+-- | @populationE onlineUsers epochsPerUser clientsPerUser entries@
+populationE :: Maybe Int -> Int -> Int -> V.Vector Entry -> Either Text Population
+populationE u e c es = mkPopulation u e c es (mkStdGen 3)
+
+population :: Maybe Int -> Int -> Int -> V.Vector Entry -> Population
+population u e c es = either (error . T.unpack) id (populationE u e c es)
+
+-- | The writers' pool of 100 users, of which 20 are online: 80 % of the written
+-- streams have no reader.
+writerEntries :: V.Vector Entry
+writerEntries = entriesOf 1 [TargetConfig KindUser 100 1]
+
+partialReaders :: Population
+partialReaders = population (Just 20) 3 1 writerEntries
 
 allUsers :: Population -> [SimUser]
 allUsers p = [u | t <- p.teams, u <- toList t.members] <> p.personalUsers
@@ -35,68 +46,104 @@ pushOf es = fst (genPush (mkPayload 0) es (mkStdGen 1))
 spec :: Spec
 spec = do
   describe "mkPopulation" $ do
-    it "spreads clients over a user pool; shared streams are allowed" $ do
-      let p = population 25 3 1 (entriesOf 1 [TargetConfig KindUser 10 1])
+    it "makes every user of a user pool a reader with C clients" $ do
+      let p = population Nothing 3 2 (entriesOf 2 [TargetConfig KindUser 10 1])
       all (\ss -> length ss == 1 && all ((== KindUser) . streamKind) ss) (streamsOf p) `shouldBe` True
-      length (readers p) `shouldBe` 25
-      sum (Map.elems p.subscribers) `shouldBe` 25
-      all (`elem` [2, 3]) (Map.elems p.subscribers) `shouldBe` True
+      readerCount p `shouldBe` 20
+      -- both clients of a user read the user's stream
+      Map.elems p.subscribers `shouldBe` replicate 10 2
+
+    it "runs experiments A-F with user:2000x1: 2,000 users, one client (id 1) each, no teams" $ do
+      let p = population Nothing 3 1 (entriesOf 1 [TargetConfig KindUser 2000 1])
+      readerCount p `shouldBe` 2000
+      null p.teams `shouldBe` True
+      all (\u -> toList u.clients == [ClientId 1]) (allUsers p) `shouldBe` True
+      all (== 1) (Map.elems p.subscribers) `shouldBe` True
 
     it "puts every client on the single team of a one-team pool" $ do
       let es = entriesOf 1 [TargetConfig KindTeam 1 1]
-          p = population 25 3 1 es
+          p = population (Just 25) 3 1 es
       expectedDeliveries p.subscribers (pushOf es) `shouldBe` 25
 
     it "gives each user E distinct consecutive epoch streams" $ do
-      let p = population 10 3 1 (entriesOf 1 [TargetConfig KindEpoch 10 1])
+      let p = population (Just 10) 3 1 (entriesOf 1 [TargetConfig KindEpoch 10 1])
       all (\ss -> length (nubOrd (map show ss)) == 3) (streamsOf p) `shouldBe` True
       sum (Map.elems p.subscribers) `shouldBe` 30
 
-    it "rejects more epochs per client than epoch streams" $
-      isLeft (mkPopulation 10 11 1 (entriesOf 1 [TargetConfig KindEpoch 10 1]) (mkStdGen 3)) `shouldBe` True
+    it "rejects more epochs per user than epoch streams" $
+      isLeft (populationE (Just 10) 11 1 (entriesOf 1 [TargetConfig KindEpoch 10 1])) `shouldBe` True
 
-    it "numbers the clients of a user 1..k, and rejects more than --clients-per-user" $ do
+    it "numbers the clients of a user 1..C: every client id of a clients push has a reader" $ do
       let es = entriesOf 2 [TargetConfig KindClients 4 1]
-      -- 4 clients: one per user (client id 1); a push to client ids [1,2] reaches 1 subscriber
-      expectedDeliveries (population 4 3 2 es).subscribers (pushOf es) `shouldBe` 1
-      -- 8 clients: both client ids subscribed
-      expectedDeliveries (population 8 3 2 es).subscribers (pushOf es) `shouldBe` 2
-      isLeft (mkPopulation 9 3 2 es (mkStdGen 3)) `shouldBe` True
+      expectedDeliveries (population Nothing 3 2 es).subscribers (pushOf es) `shouldBe` 2
 
     it "rejects the connections kind" $
-      isLeft (mkPopulation 5 3 1 (entriesOf 1 [TargetConfig KindConnections 5 1]) (mkStdGen 3)) `shouldBe` True
+      isLeft (populationE (Just 5) 3 1 (entriesOf 1 [TargetConfig KindConnections 5 1])) `shouldBe` True
 
     it "combines kinds per client: user, client, team, epochs" $ do
-      let p = population 6 2 1 (entriesOf 1 [TargetConfig KindUser 6 1, TargetConfig KindClients 6 1, TargetConfig KindTeam 2 1, TargetConfig KindEpoch 4 1])
+      let p = population Nothing 2 1 (entriesOf 1 [TargetConfig KindUser 6 1, TargetConfig KindClients 6 1, TargetConfig KindTeam 2 1, TargetConfig KindEpoch 4 1])
       all (\ss -> map streamKind ss == [KindUser, KindClients, KindTeam, KindEpoch, KindEpoch]) (streamsOf p) `shouldBe` True
 
-    it "counts N subscribers per kind and E x N for epochs" $ do
-      let p = population 30 2 3 (entriesOf 3 [TargetConfig KindUser 10 1, TargetConfig KindClients 10 1, TargetConfig KindTeam 4 1, TargetConfig KindEpoch 9 1])
+    it "counts one subscriber per reader and kind, E per reader for epochs" $ do
+      let p = population Nothing 2 3 (entriesOf 3 [TargetConfig KindUser 10 1, TargetConfig KindClients 10 1, TargetConfig KindTeam 4 1, TargetConfig KindEpoch 9 1])
+      readerCount p `shouldBe` 30
       sum (Map.elems p.subscribers) `shouldBe` 30 * (1 + 1 + 1 + 2)
 
     it "puts every user in exactly one team; all its clients share team and epochs" $ do
-      let p = population 40 2 4 (entriesOf 4 [TargetConfig KindUser 10 1, TargetConfig KindTeam 3 1, TargetConfig KindEpoch 7 1])
+      let p = population Nothing 2 4 (entriesOf 4 [TargetConfig KindUser 10 1, TargetConfig KindTeam 3 1, TargetConfig KindEpoch 7 1])
           uids = [u.uid | t <- p.teams, u <- toList t.members]
       (length uids, length (nubOrd uids), null p.personalUsers) `shouldBe` (10, 10, True)
       map (length . (.members)) p.teams `shouldBe` [4, 3, 3]
       all (\u -> length u.clients == 4 && length u.epochs == 2) (allUsers p) `shouldBe` True
 
-    it "creates ceil(N / clients-per-user) unique synthetic users without user or clients targets" $ do
-      let p = population 25 1 2 (entriesOf 2 [TargetConfig KindTeam 2 1, TargetConfig KindEpoch 50 1])
+    it "creates --online-users unique synthetic users with C clients each without user or clients targets" $ do
+      let p = population (Just 13) 1 2 (entriesOf 2 [TargetConfig KindTeam 2 1, TargetConfig KindEpoch 50 1])
       length (allUsers p) `shouldBe` 13
       length (nubOrd (map (.uid) (allUsers p))) `shouldBe` 13
-      length (readers p) `shouldBe` 25
+      readerCount p `shouldBe` 26
 
-    it "accepts user and clients pools of different sizes (consume)" $
-      length (readers (population 10 1 1 (entriesOf 1 [TargetConfig KindUser 10 1, TargetConfig KindClients 5 1]))) `shouldBe` 10
+    it "needs --online-users without a user or clients pool" $ do
+      let es = entriesOf 1 [TargetConfig KindTeam 2 1]
+      isLeft (populationE Nothing 3 1 es) `shouldBe` True
+      isRight (populationE (Just 5) 3 1 es) `shouldBe` True
 
-    prop "identities are unique, 1..k per user, and match the user and client streams" $ \(Positive n0) (Positive s0) (Positive c0) ->
-      let n = min 300 n0
-          s = min 50 s0
+    it "makes the first --online-users users of a pool online (default: the whole pool), with C clients each" $ do
+      let all' = population Nothing 3 2 writerEntries
+          some = population (Just 20) 3 2 writerEntries
+          users p = map (.uid) (allUsers p)
+      readerCount all' `shouldBe` 200
+      readerCount some `shouldBe` 40
+      users some `shouldBe` take 20 (users all')
+      all (== 2) (Map.elems some.subscribers) `shouldBe` True
+
+    it "rejects more online users than the pool has" $ do
+      isRight (populationE (Just 100) 3 1 writerEntries) `shouldBe` True
+      isLeft (populationE (Just 101) 3 1 writerEntries) `shouldBe` True
+
+    it "rejects more than maxReaders readers" $ do
+      let es = entriesOf 1 [TargetConfig KindTeam 2 1]
+      isRight (populationE (Just (maxReaders `div` 2)) 3 2 es) `shouldBe` True
+      isLeft (populationE (Just (maxReaders `div` 2 + 1)) 3 2 es) `shouldBe` True
+      isLeft (populationE (Just maxBound) 3 2 es) `shouldBe` True -- U x C overflows Int
+      -- with a pool: the online users count, not the pool size
+      let c = maxReaders `div` 100
+          pool100 c' = entriesOf c' [TargetConfig KindUser 100 1, TargetConfig KindClients 100 1]
+      isRight (populationE (Just 100) 3 c (pool100 c)) `shouldBe` True
+      isLeft (populationE (Just 100) 3 (c + 1) (pool100 (c + 1))) `shouldBe` True
+
+    it "defaults to as many pool users as maxReaders allows" $ do
+      let c = maxReaders `div` 100 + 1
+      readerCount (population Nothing 3 c (entriesOf c [TargetConfig KindUser 100 1])) `shouldBe` (maxReaders `div` c) * c
+
+    prop "identities are unique, 1..C per user, and match the user and client streams" $ \(Positive s0) (Positive c0) mu0 ->
+      let s = 1 + s0 `mod` 50
           c = 1 + c0 `mod` 4
+          onlineUsers = (\(Positive u0) -> 1 + u0 `mod` s) <$> mu0
+          nOnline = fromMaybe s onlineUsers
           es = entriesOf c [TargetConfig KindUser s 1, TargetConfig KindClients s 1, TargetConfig KindTeam 3 1, TargetConfig KindEpoch 7 1]
-       in case mkPopulation n 2 c es (mkStdGen 3) of
-            Left _ -> n > s * c -- only the capacity check may reject
+          firstPoolUsers = take nOnline (concat [V.toList v | Entry _ (UserPool v) <- V.toList es])
+       in case populationE onlineUsers 2 c es of
+            Left _ -> False
             Right p ->
               let rs = readers p
                   ids = [(r.user.uid, r.cid) | r <- rs]
@@ -104,22 +151,31 @@ spec = do
                     StreamUser u -> u == r.user.uid
                     StreamClient u cid -> (u, cid) == (r.user.uid, r.cid)
                     _ -> True
-               in length rs == n
-                    && length (nubOrd ids) == n
+               in readerCount p == nOnline * c
+                    && length (nubOrd ids) == nOnline * c
+                    && sort (map (.uid) (allUsers p)) == sort firstPoolUsers
                     && all (\r -> all (matches r) (readerStreams p.kinds r)) rs
-                    && all (\u -> toList u.clients == map ClientId [1 .. fromIntegral (length u.clients)]) (allUsers p)
+                    && all (\u -> toList u.clients == map ClientId [1 .. fromIntegral c]) (allUsers p)
+
+    prop "makes U synthetic users with C clients each without a user or clients pool" $ \(Positive u0) (Positive c0) ->
+      let u = 1 + u0 `mod` 50
+          c = 1 + c0 `mod` 4
+       in case populationE (Just u) 2 c (entriesOf c [TargetConfig KindTeam 3 1, TargetConfig KindEpoch 7 1]) of
+            Left _ -> False
+            Right p ->
+              readerCount p == u * c
+                && length (nubOrd (map (.uid) (allUsers p))) == u
+                && length (nubOrd [(r.user.uid, r.cid) | r <- readers p]) == u * c
 
   describe "expectedDeliveries" $
     it "is 0 for a push to a stream nobody reads" $ do
-      let es = entriesOf 1 [TargetConfig KindUser 100 1]
-          p = population 20 3 1 es
-          -- stream pools are fixed, so scan pushes until one hits an unread stream
-          counts = [expectedDeliveries p.subscribers (fst (genPush (mkPayload 0) es (mkStdGen s))) | s <- [1 .. 200]]
+      -- stream pools are fixed, so scan pushes until one hits an unread stream
+      let counts = [expectedDeliveries partialReaders.subscribers (fst (genPush (mkPayload 0) writerEntries (mkStdGen s))) | s <- [1 .. 200]]
       (0 `elem` counts, all (`elem` [0, 1]) counts) `shouldBe` (True, True)
 
   describe "expectedFromCounts" $ do
-    let es = entriesOf 1 [TargetConfig KindUser 100 1]
-        p = population 20 3 1 es
+    let es = writerEntries
+        p = partialReaders
         readUsers = [r.user.uid | r <- readers p]
         readUser = fromMaybe (error "no readers") (listToMaybe readUsers)
         unreadUser = fromMaybe (error "every pool user has a reader") (listToMaybe [u | u <- poolUsers es, u `notElem` readUsers])
@@ -142,8 +198,7 @@ spec = do
 
   describe "coverage" $ do
     it "is the share of pool streams with a reader" $
-      let es = entriesOf 1 [TargetConfig KindUser 100 1]
-       in coverage (population 20 3 1 es).subscribers es `shouldBe` [(KindUser, 0.2)]
+      coverage partialReaders.subscribers writerEntries `shouldBe` [(KindUser, 0.2)]
     it "is 1 when every stream has a reader" $
       let es = entriesOf 1 [TargetConfig KindTeam 1 1, TargetConfig KindUser 10 1]
-       in map snd (coverage (population 10 3 1 es).subscribers es) `shouldBe` [1, 1]
+       in map snd (coverage (population Nothing 3 1 es).subscribers es) `shouldBe` [1, 1]

@@ -3,6 +3,7 @@ module FanInPerf.Options
     ProduceOptions (..),
     ConsumeOptions (..),
     ConsumeOnlyOptions (..),
+    PopulationOptions (..),
     ReaderOptions (..),
     readerOptions,
     ResetOptions (..),
@@ -47,8 +48,7 @@ data ProduceOptions = ProduceOptions
 
 data ConsumeOptions = ConsumeOptions
   { writerOptions :: ProduceOptions,
-    clients :: Int,
-    epochsPerClient :: Int,
+    population :: PopulationOptions,
     pollIntervalMs :: Int,
     fetchLimit :: Int,
     readerPoolSize :: Int,
@@ -64,13 +64,20 @@ data ConsumeOnlyOptions = ConsumeOnlyOptions
   { targets :: NonEmpty TargetConfig,
     clientsPerUser :: Int,
     seed :: Int,
-    clients :: Int,
-    epochsPerClient :: Int,
+    population :: PopulationOptions,
     readerPoolSize :: Int,
     -- | seconds, 0: none
     timeout :: Int,
     warmup :: Int,
     reader :: ReaderOptions
+  }
+  deriving (Eq, Show)
+
+-- | Who reads, shared by 'ConsumeOptions' and 'ConsumeOnlyOptions' (see
+-- 'FanInPerf.Population.mkPopulation').
+data PopulationOptions = PopulationOptions
+  { onlineUsers :: Maybe Int,
+    epochsPerUser :: Int
   }
   deriving (Eq, Show)
 
@@ -141,10 +148,10 @@ optionsParser =
           <> O.command "vacuum" (info (noSummary $ pure Vacuum) (progDesc "VACUUM ANALYZE the experiment database, e.g. between 'produce' and 'consume-only'"))
           <> O.command "db-info" (info (noSummary $ pure DbInfo) (progDesc "Print the server version, the settings that matter for the numbers and the pg_partman version as JSON"))
           <> O.command "produce" (info (withSummary $ Produce <$> produceParser) (progDesc "Experiment A: maximal rate of adding notifications"))
-          <> O.command "consume" (info (withSummary $ Consume <$> consumeParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
-          <> O.command "consume-ack" (info (withSummary $ Consume <$> consumeParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment C: like consume, but every client acknowledges the notifications it received"))
-          <> O.command "consume-only" (info (withSummary $ ConsumeOnly <$> consumeOnlyParserWith consumeTargetsReader (pure NoAcks)) (progDesc "Experiment E: consume only, what an earlier 'produce' run (same --seed, --targets, --clients-per-user) left in the database"))
-          <> O.command "consume-only-ack" (info (withSummary $ ConsumeOnly <$> consumeOnlyParserWith consumeAckTargetsReader ackModeParser) (progDesc "Experiment F: like consume-only, but every client acknowledges the notifications it received"))
+          <> O.command "consume" (info (withSummary $ Consume <$> consumeParserWith (pure NoAcks)) (progDesc "Experiment B: maximal rate of adding and consuming notifications by simulated clients"))
+          <> O.command "consume-ack" (info (withSummary $ Consume <$> consumeParserWith ackModeParser) (progDesc "Experiment C: like consume, but every client acknowledges the notifications it received"))
+          <> O.command "consume-only" (info (withSummary $ ConsumeOnly <$> consumeOnlyParserWith (pure NoAcks)) (progDesc "Experiment E: consume only, what an earlier 'produce' run (same --seed, --targets, --clients-per-user) left in the database"))
+          <> O.command "consume-only-ack" (info (withSummary $ ConsumeOnly <$> consumeOnlyParserWith ackModeParser) (progDesc "Experiment F: like consume-only, but every client acknowledges the notifications it received"))
       )
 
 -- | Only the commands that run a load take @--summary-json@: for the others
@@ -179,16 +186,16 @@ targetsOption :: ReadM (NonEmpty TargetConfig) -> Parser (NonEmpty TargetConfig)
 targetsOption targetsRdr = option targetsRdr (long "targets" <> metavar "SPEC" <> helpDoc (Just targetsHelp))
 
 clientsPerUserOption :: Parser Int
-clientsPerUserOption = option (positive maxClientsPerUser) (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids per user (in consume: users = ceil(--clients / C))")
+clientsPerUserOption = option (positive maxClientsPerUser) (long "clients-per-user" <> metavar "C" <> value 1 <> showDefault <> help "Client ids (devices) per user (a 'clients' push writes K x C rows)")
 
 warmupOption :: Parser Int
 warmupOption = option (nonNegative maxDuration) (long "warmup" <> metavar "SECS" <> value 5 <> showDefault <> help "Seconds ignored for max-rate tracking")
 
-clientsOption :: Parser Int
-clientsOption = option (positive maxClients) (long "clients" <> metavar "N" <> value 2000 <> showDefault <> help "Simulated reader clients")
-
-epochsPerClientOption :: Parser Int
-epochsPerClientOption = option (positive maxEpochsPerClient) (long "epochs-per-client" <> metavar "E" <> value 3 <> showDefault <> help "Epoch streams per client (needs an 'epoch' entry in --targets)")
+populationParser :: Parser PopulationOptions
+populationParser =
+  PopulationOptions
+    <$> optional (option (positive (toInteger (maxBound @Int))) (long "online-users" <> metavar "U" <> help "Users that are online, i.e. have readers (readers = U x --clients-per-user, must stay within the reader limit). Default: all users of the 'user'/'clients' pool, capped to the reader limit; required if --targets has no such entry"))
+    <*> option (positive maxEpochsPerUser) (long "epochs-per-user" <> metavar "E" <> value 3 <> showDefault <> help "Epoch streams per user, shared by its clients (needs an 'epoch' entry in --targets)")
 
 pollIntervalOption :: Parser Int
 pollIntervalOption = option (nonNegative maxPollIntervalMs) (long "poll-interval" <> metavar "MS" <> value 100 <> showDefault <> help "Sleep in milliseconds after a fetch pass without a full page")
@@ -199,12 +206,11 @@ fetchLimitOption = option (positive maxFetchLimit) (long "fetch-limit" <> metava
 readerPoolSizeOption :: Parser Int
 readerPoolSizeOption = option (positive maxPoolSize) (long "reader-pool-size" <> metavar "P" <> value 32 <> showDefault <> help "Connection pool size of the readers (writers: --pool-size)")
 
-consumeParserWith :: ReadM (NonEmpty TargetConfig) -> Parser ReaderMode -> Parser ConsumeOptions
-consumeParserWith targetsRdr modeParser =
+consumeParserWith :: Parser ReaderMode -> Parser ConsumeOptions
+consumeParserWith modeParser =
   ConsumeOptions
-    <$> produceParserWith targetsRdr
-    <*> clientsOption
-    <*> epochsPerClientOption
+    <$> produceParserWith consumeTargetsReader
+    <*> populationParser
     <*> pollIntervalOption
     <*> fetchLimitOption
     <*> readerPoolSizeOption
@@ -214,36 +220,25 @@ consumeParserWith targetsRdr modeParser =
 
 -- | No safety window (nothing is written while the readers run, so there are no
 -- late commits) and no poll interval (every reader catches up once and stops).
-consumeOnlyParserWith :: ReadM (NonEmpty TargetConfig) -> Parser ReaderMode -> Parser ConsumeOnlyOptions
-consumeOnlyParserWith targetsRdr modeParser =
+consumeOnlyParserWith :: Parser ReaderMode -> Parser ConsumeOnlyOptions
+consumeOnlyParserWith modeParser =
   mk
-    <$> targetsOption targetsRdr
+    <$> targetsOption consumeTargetsReader
     <*> clientsPerUserOption
     <*> option anyInt (long "seed" <> metavar "INT" <> help "Seed of the 'produce' run (required: rebuilds its stream keys)")
-    <*> clientsOption
-    <*> epochsPerClientOption
+    <*> populationParser
     <*> readerPoolSizeOption
     <*> option (nonNegative maxDuration) (long "timeout" <> metavar "SECS" <> value 600 <> showDefault <> help "Stop the run after SECS seconds, readers not yet caught up count as missing (0: no timeout)")
     <*> warmupOption
     <*> fetchLimitOption
     <*> modeParser
   where
-    mk targets clientsPerUser seed clients epochsPerClient readerPoolSize timeout warmup fetchLimit mode =
+    mk targets clientsPerUser seed population readerPoolSize timeout warmup fetchLimit mode =
       ConsumeOnlyOptions {reader = ReaderOptions {safetyWindowMs = 0, ..}, ..}
 
 ackModeParser :: Parser ReaderMode
 ackModeParser =
   Acks <$> option (positive maxAckEvery) (long "ack-every" <> metavar "N" <> value 100 <> showDefault <> help "A client acknowledges after every N-th notification it received (counted over all its streams)")
-
--- | A reader fetches and acks as one (user, client): its user and client
--- streams must come from the same users (see "FanInPerf.Population").
-consumeAckTargetsReader :: ReadM (NonEmpty TargetConfig)
-consumeAckTargetsReader = do
-  ts <- consumeTargetsReader
-  let streamsOf k = [t.streams | t <- toList ts, t.kind == k]
-  case (streamsOf KindUser, streamsOf KindClients) of
-    ([u], [c]) | u /= c -> readerError "'consume-ack' needs the same STREAMS for 'user' and 'clients' (one identity per reader)"
-    _ -> pure ts
 
 maxAckEvery :: Integer
 maxAckEvery = 10_000
@@ -254,7 +249,12 @@ consumeTargetsReader = do
   ts <- targetsReader
   when (any ((== KindConnections) . (.kind)) ts) $
     readerError "the 'connections' kind is not supported by 'consume'"
-  pure ts
+  -- a reader fetches and acks as one (user, client): its user and client
+  -- streams must come from the same users (see "FanInPerf.Population")
+  let streamsOf k = [t.streams | t <- toList ts, t.kind == k]
+  case (streamsOf KindUser, streamsOf KindClients) of
+    ([u], [c]) | u /= c -> readerError "'consume' needs the same STREAMS for 'user' and 'clients' (one identity per reader)"
+    _ -> pure ts
 
 targetsHelp :: Doc
 targetsHelp =
@@ -279,9 +279,8 @@ bounded lo hi what = eitherReader $ \s -> case readMaybe @Integer s of
   Just n | n >= lo && n <= hi -> Right (fromInteger n)
   _ -> Left ("expected " <> what <> " between " <> show lo <> " and " <> show hi)
 
-maxClients, maxEpochsPerClient, maxPollIntervalMs, maxFetchLimit, maxSafetyWindowMs :: Integer
-maxClients = 100_000
-maxEpochsPerClient = 10_000
+maxEpochsPerUser, maxPollIntervalMs, maxFetchLimit, maxSafetyWindowMs :: Integer
+maxEpochsPerUser = 10_000
 maxPollIntervalMs = 3_600_000
 maxFetchLimit = 10_000
 maxSafetyWindowMs = 60_000

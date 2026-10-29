@@ -11,7 +11,9 @@ module FanInPerf.Population
     streamKey,
     Population (..),
     mkPopulation,
+    maxReaders,
     readers,
+    readerCount,
     readerStreams,
     streamKind,
     expectedDeliveries,
@@ -44,7 +46,7 @@ data SimUser = SimUser
   { uid :: !UserId,
     -- | [] without 'epoch' in --targets; shared by all clients of the user
     epochs :: ![(GroupId, Epoch)],
-    -- | 1..k, one reader thread each
+    -- | 1..C, one reader thread each
     clients :: !(NonEmpty ClientId)
   }
 
@@ -79,6 +81,10 @@ readers p =
   [Reader (Just t.tid) u c | t <- p.teams, u <- toList t.members, c <- toList u.clients]
     <> [Reader Nothing u c | u <- p.personalUsers, c <- toList u.clients]
 
+-- | Number of readers: users times clients per user.
+readerCount :: Population -> Int
+readerCount = length . readers
+
 -- | The only place reader streams come from.
 readerStreams :: Set TargetKind -> Reader -> [Stream]
 readerStreams kinds r =
@@ -87,53 +93,68 @@ readerStreams kinds r =
     <> [StreamTeam t | Just t <- [r.team]]
     <> [uncurry StreamEpoch e | e <- r.user.epochs]
 
--- | @mkPopulation clients epochsPerClient clientsPerUser entries gen@. Users
--- are the shared uids of the user/clients pools ('mkEntries'), otherwise
--- @ceil (clients / clientsPerUser)@ synthetic ones drawn from @gen@. Clients
--- go round-robin over the users: user @u@ gets client ids @1..k_u@ (counts
--- differ by at most one); users without clients are left out. User @u@ is in
--- team @u mod S_t@ and reads @E@ consecutive epoch streams from @u * E@.
+-- | Upper bound of 'readerCount': every reader is a thread with its own state.
+maxReaders :: Int
+maxReaders = 100_000
+
+-- | @mkPopulation onlineUsers epochsPerUser clientsPerUser entries gen@: the
+-- online users each have @clientsPerUser@ clients (ids @1..C@), each one reader.
+-- With a user/clients pool ('mkEntries') they are its first @onlineUsers@ users
+-- (default: all, but at most 'maxReaders' readers), otherwise @onlineUsers@ (required) synthetic ones drawn from
+-- @gen@. User @u@ is in team @u mod S_t@ and reads @E@ consecutive epoch streams
+-- from @u * E@, shared by all its clients.
 -- 'entries' is never empty (the CLI requires at least one target entry).
-mkPopulation :: Int -> Int -> Int -> V.Vector Entry -> StdGen -> Either Text Population
-mkPopulation n epochs clientsPerUser entries gen = do
+mkPopulation :: Maybe Int -> Int -> Int -> V.Vector Entry -> StdGen -> Either Text Population
+mkPopulation onlineUsers epochs clientsPerUser entries gen = do
   when (any ((== KindConnections) . (.spec.kind)) es) $
     Left "connections targets are not supported by consume"
   let kinds = Set.fromList (map (.spec.kind) es)
-      uids = fromMaybe (V.unfoldrExactN (ceilDiv n clientsPerUser) genId gen) (poolUsers es)
-      s = V.length uids
-  when (KindClients `Set.member` kinds && n > s * clientsPerUser) $
-    Left ("clients: " <> showT n <> " clients need at least that many (user, client id) pairs, the pool has " <> showT (s * clientsPerUser))
+      pool = poolUsers es
+      maxOnline = maxReaders `div` clientsPerUser
+  online <- case (pool, onlineUsers) of
+    (Just (size, _), Nothing) -> Right (min size maxOnline)
+    (Just (size, _), Just u)
+      | u > size -> Left ("--online-users " <> showT u <> " exceeds the " <> showT size <> " users of the user/clients pool")
+      | otherwise -> Right u
+    (Nothing, Just u) -> Right u
+    (Nothing, Nothing) -> Left "--online-users is required: --targets has no user or clients entry"
+  -- compared by division: online * clientsPerUser may overflow
+  when (online > maxOnline) $
+    Left (showT online <> " online users (--online-users) x " <> showT clientsPerUser <> " (--clients-per-user) = " <> showT (toInteger online * toInteger clientsPerUser) <> " readers, at most " <> showT maxReaders <> " are supported")
+  let uids = maybe (V.unfoldrExactN online genId gen) (\(_, firstUsers) -> firstUsers online) pool
   epochsOf <- userEpochs epochs es
-  let users = [(u, SimUser (uids V.! u) (epochsOf u) (clientIdsUpTo (ceilDiv (n - u) s))) | u <- [0 .. min n s - 1]]
+  let clientIds = clientIdsUpTo clientsPerUser
+      simUsers = [SimUser uid (epochsOf u) clientIds | (u, uid) <- zip [0 ..] (V.toList uids)]
       (teams, personalUsers) = case [v | Entry _ (TeamPool v) <- es] of
-        v : _ -> (groupTeams v users, [])
-        [] -> ([], map snd users)
+        v : _ -> (groupTeams v simUsers, [])
+        [] -> ([], simUsers)
       p = Population {teams, personalUsers, kinds, subscribers = mempty}
   pure p {subscribers = Map.fromListWith (+) [(streamKey st, 1) | r <- readers p, st <- readerStreams kinds r]}
   where
     es = V.toList entries
-    ceilDiv a b = (a + b - 1) `div` b
 
--- | The longer of the user and clients pools holds all shared uids (both are
--- prefixes of one vector, see 'mkEntries').
-poolUsers :: [Entry] -> Maybe (V.Vector UserId)
+-- | The user or clients pool (the CLI requires the same size for both, and
+-- both hold the same uids, see 'mkEntries'): its size and its first @n@ uids
+-- (only those are copied out of a clients pool).
+poolUsers :: [Entry] -> Maybe (Int, Int -> V.Vector UserId)
 poolUsers es =
-  listToMaybe . sortOn (Down . V.length) $
-    [v | Entry _ (UserPool v) <- es] <> [V.map fst v | Entry _ (ClientsPool v) <- es]
+  listToMaybe $
+    [(V.length v, (`V.take` v)) | Entry _ (UserPool v) <- es]
+      <> [(V.length v, \n -> V.map fst (V.take n v)) | Entry _ (ClientsPool v) <- es]
 
 -- | @E@ consecutive epoch streams per user index; none without 'epoch'.
 userEpochs :: Int -> [Entry] -> Either Text (Int -> [(GroupId, Epoch)])
 userEpochs e es = case [v | Entry _ (EpochPool v) <- es] of
   [] -> Right (const [])
   v : _
-    | e > V.length v -> Left ("epoch: --epochs-per-client " <> showT e <> " exceeds the " <> showT (V.length v) <> " epoch streams")
+    | e > V.length v -> Left ("epoch: --epochs-per-user " <> showT e <> " exceeds the " <> showT (V.length v) <> " epoch streams")
     | otherwise -> Right (\u -> [v V.! ((u * e + j) `mod` V.length v) | j <- [0 .. e - 1]])
 
 -- | User @u@ joins team @u mod S_t@; teams without members are left out.
-groupTeams :: V.Vector TeamId -> [(Int, SimUser)] -> [SimTeam]
+groupTeams :: V.Vector TeamId -> [SimUser] -> [SimTeam]
 groupTeams v users =
   [ SimTeam (v V.! t) ms
-  | (t, ms) <- Map.toList (Map.fromListWith (flip (<>)) [(u `mod` V.length v, su :| []) | (u, su) <- users])
+  | (t, ms) <- Map.toList (Map.fromListWith (flip (<>)) [(u `mod` V.length v, su :| []) | (u, su) <- zip [0 ..] users])
   ]
 
 streamKey :: Stream -> Key

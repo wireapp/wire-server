@@ -32,7 +32,8 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 LOGDIR = "/tmp/fan-in-2000x1"
 SEED = 42
 TARGETS = "user:2000x1"
-CLIENTS = 2000
+# Not passed to the tool: TARGETS' 2000 pool users are all online, 1 client each.
+READERS = 2000
 # Tuned beforehand on plain (45 s runs, repeated): A max push/s; B, C highest rate
 # whose readers kept up (backlog at writer stop < 1 s, no loss) in every run.
 W_A, W_B, W_C = 64, 32, 16
@@ -163,7 +164,7 @@ def run(label, args, partman):
 def tool_args(exp, w, pool, dur):
     a = [exp, "--writers", w, "--targets", TARGETS, "--warmup", WARMUP, "--duration", max(1, dur // QUICK), "--seed", SEED]
     if exp != "produce":
-        a += ["--clients", CLIENTS, "--reader-pool-size", pool, "--safety-window", 200, "--drain-timeout", DRAIN]
+        a += ["--reader-pool-size", pool, "--safety-window", 200, "--drain-timeout", DRAIN]
     if exp == "consume-ack":
         a += ["--ack-every", 1]
     return a
@@ -183,7 +184,7 @@ def split_experiments():
     """(label, produce args, consume-only args), run on plain tables only: the 5 min
     retention of the partitioned tables would drop partitions during the consume phase."""
     produce = tool_args("produce", W_SPLIT, None, SPLIT_PRODUCE)
-    consume = ["--targets", TARGETS, "--seed", SEED, "--clients", CLIENTS, "--warmup", SPLIT_WARMUP, "--timeout", SPLIT_TIMEOUT]
+    consume = ["--targets", TARGETS, "--seed", SEED, "--warmup", SPLIT_WARMUP, "--timeout", SPLIT_TIMEOUT]
     return [
         ("E", produce, ["consume-only", "--reader-pool-size", POOL_SPLIT] + consume),
         ("F", produce, ["consume-only-ack", "--reader-pool-size", POOL_SPLIT, "--ack-every", 1] + consume),
@@ -295,7 +296,7 @@ def render_report(res, env):
          f"- Date {env['date']}, commit `{env['commit']}`, driver `tools/fan-in-perf/run-2000x1.py`",
          f"- Host: {env['cpus']} CPUs, {env['mem']} RAM; tool and database share it. {env['pg']}; {env['settings']}",
          *([f"- pg_partman {env['partman']}: six `*_notifications` tables range-partitioned by UUIDv7, 1 min partitions, 5 min retention, no default partition, maintenance by the background worker every 60 s. `plain`: unpartitioned, no TTL.",] if partman else []),
-         f"- Load: `--targets {TARGETS}`: 2,000 users with one client each; every push writes 1 notification to 1 user stream (plus its `last_user_notifications` upsert) in one transaction, read by 1 client, so cons/s = push/s. B-D: `--clients {CLIENTS}`, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
+         f"- Load: `--targets {TARGETS}`: 2,000 users with one client each; every push writes 1 notification to 1 user stream (plus its `last_user_notifications` upsert) in one transaction, read by 1 client, so cons/s = push/s. B-D: every client reads, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
          f"- Writers A={W_A}, B={W_B}, C/D={W_C}; reader pool B={POOL_B}, C/D={POOL_C}: highest rate in sweeps beforehand at which readers keep up. Seed {SEED}. One run each.",
          f"- Rates are averages over the writer phase incl. {WARMUP} s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
          f"- E, F (plain only): `reset-db`, `produce` ({W_SPLIT} writers, {split_dur} s), `vacuum` (VACUUM ANALYZE), then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",

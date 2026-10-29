@@ -128,7 +128,7 @@ data ConsumeMetrics = ConsumeMetrics
 
 -- | Registers the consume metrics; call once per process.
 newConsumeMetrics :: Text -> Int -> IO ConsumeMetrics
-newConsumeMetrics experiment clients = do
+newConsumeMetrics experiment readers = do
   consumed <- counterVec "fanin_perf_consumed_total" "Notifications delivered to readers"
   fetchCount <- counterVec "fanin_perf_fetches_total" "Fetches of a stream"
   emptyFetchCount <- counterVec "fanin_perf_empty_fetches_total" "Fetches that returned no notification"
@@ -136,8 +136,8 @@ newConsumeMetrics experiment clients = do
   consumeRateCurrent <- gaugeVec "fanin_perf_consume_rate_current" "Delivered notifications per second during the last tick"
   consumeRateMax <- gaugeVec "fanin_perf_consume_rate_max" "Maximal delivered notifications per second after warmup"
   backlogGauge <- gaugeVec "fanin_perf_backlog" "Expected minus delivered notifications (clamped at 0)"
-  clientsGauge <- gaugeVec "fanin_perf_clients" "Simulated reader clients"
-  P.withLabel clientsGauge experiment (`P.setGauge` fromIntegral clients)
+  clientsGauge <- gaugeVec "fanin_perf_clients" "Simulated readers (users x clients per user)"
+  P.withLabel clientsGauge experiment (`P.setGauge` fromIntegral readers)
   fetchLatencyRef <- newIORef (VU.replicate numBuckets 0)
   lagRef <- newIORef (VU.replicate numBuckets 0)
   gateWaitRef <- newIORef (VU.replicate numBuckets 0)

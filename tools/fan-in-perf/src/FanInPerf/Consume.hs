@@ -42,7 +42,7 @@ import FanInPerf.Metrics
 import FanInPerf.NotificationsAdmin (countStreams, oldestPartitions)
 import FanInPerf.NotificationsStore
 import FanInPerf.NotificationsStore.Postgres (notificationIdMillis)
-import FanInPerf.Options (ConsumeOnlyOptions (..), ConsumeOptions (..), ProduceOptions (..), ReaderMode (..), ReaderOptions (..), consumeOnlyLabel, experimentLabel, readerOptions)
+import FanInPerf.Options (ConsumeOnlyOptions (..), ConsumeOptions (..), PopulationOptions (..), ProduceOptions (..), ReaderMode (..), ReaderOptions (..), consumeOnlyLabel, experimentLabel, readerOptions)
 import FanInPerf.Population
 import FanInPerf.Population qualified as Pop
 import FanInPerf.Produce
@@ -58,6 +58,7 @@ import Imports
 import Polysemy
 import Polysemy.Error qualified as PE
 import System.Exit (die)
+import System.Random (StdGen)
 import System.Timeout qualified
 import UnliftIO.Exception (bracket_, tryAny)
 
@@ -492,12 +493,12 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
   let p = opts.writerOptions
       label = experimentLabel opts.mode
   setup <- prepareWriters p
-  population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient p.clientsPerUser setup.entries setup.populationGen)
+  (population, consumeMetrics, readerStats) <- setupReaders label opts.population p.clientsPerUser setup.entries setup.populationGen
   printRunHeader
     console
     label
     [ ("writers", showT p.writers),
-      ("clients", showT opts.clients),
+      ("readers", showT (length readerStats)),
       ("targets", renderTargetSpec p.targets),
       ("seed", showT setup.seed)
     ]
@@ -506,10 +507,8 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
   clientSubs <- loadSubscriptions console gate readerEnv opts.mode population
 
   metrics <- newMetrics label p.writers
-  consumeMetrics <- newConsumeMetrics label opts.clients
   ackMetrics <- ackMetricsFor opts.mode label
   writerStats <- replicateM p.writers newWriterStats
-  readerStats <- replicateM opts.clients newReaderStats
   (errorQueue, reportError) <- newErrorReporter
   stopWriters <- newIORef False
   let -- A writer stops between pushes, so every committed push has its
@@ -559,6 +558,14 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
   traverse_ (printLine console) (renderSummary summary)
   pure summary
 
+-- | The readers of both consume commands: their population, metrics and one
+-- stats record each. Ends the run if the population is invalid.
+setupReaders :: Text -> PopulationOptions -> Int -> V.Vector Entry -> StdGen -> IO (Population, ConsumeMetrics, [ReaderStats])
+setupReaders label o clientsPerUser entries gen = do
+  population <- either (die . T.unpack) pure (mkPopulation o.onlineUsers o.epochsPerUser clientsPerUser entries gen)
+  let n = readerCount population
+  (population,,) <$> newConsumeMetrics label n <*> replicateM n newReaderStats
+
 -- | The line announcing a run (@label: k=v ...@) and the coverage of the
 -- streams by the readers.
 printRunHeader :: Console -> Text -> [(Text, Text)] -> V.Vector Entry -> Population -> IO ()
@@ -593,18 +600,16 @@ runConsumeOnly :: Console -> Env -> ConsumeOnlyOptions -> IO RunSummary
 runConsumeOnly console env opts = do
   let label = consumeOnlyLabel opts.reader.mode
       (entries, populationGen, _) = seededEntries opts.seed opts.clientsPerUser opts.targets
-  population <- either (die . T.unpack) pure (mkPopulation opts.clients opts.epochsPerClient opts.clientsPerUser entries populationGen)
+  (population, consumeMetrics, readerStats) <- setupReaders label opts.population opts.clientsPerUser entries populationGen
   printRunHeader
     console
     label
-    [("clients", showT opts.clients), ("targets", renderTargetSpec opts.targets), ("seed", showT opts.seed)]
+    [("readers", showT (length readerStats)), ("targets", renderTargetSpec opts.targets), ("seed", showT opts.seed)]
     entries
     population
   (totalRows, expected) <- expectedRows console label env population
   gate <- newQSem opts.readerPoolSize
-  consumeMetrics <- newConsumeMetrics label opts.clients
   ackMetrics <- ackMetricsFor opts.reader.mode label
-  readerStats <- replicateM opts.clients newReaderStats
   (errorQueue, reportError) <- newErrorReporter
   let clientSubs = [[newSubscription (streamKind s) s UUID.nil | s <- readerStreams population.kinds r] | r <- readers population]
       contexts = readerContexts gate env reportError population readerStats

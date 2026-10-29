@@ -67,7 +67,7 @@ def check_db(logpath):
         "from user_notifications order by user_id, notification_id desc) u using (user_id) where l.notification_id <> u.m"))
     acks, mismatched = q("select count(*), count(*) filter (where a.last_notification_id <> l.notification_id) "
                          "from user_notification_acks a join last_user_notifications l using (user_id)").split("|")
-    print(f"user_notification_acks: {acks} rows, {mismatched} not at the stream's last id (consume-ack with missing=0: expect {run.CLIENTS} and 0)")
+    print(f"user_notification_acks: {acks} rows, {mismatched} not at the stream's last id (consume-ack with missing=0: expect {run.READERS} and 0)")
     print("rows in other notification tables:", q("select (select count(*) from client_notifications) + (select count(*) from team_notifications) + (select count(*) from epoch_notifications) + (select count(*) from local_connection_notifications) + (select count(*) from remote_connection_notifications)"))
     if partitioned:
         print("partitions, oldest:", q(CHILDREN).replace("|", ", "), "| rows in the parent itself:", q("select count(*) from only user_notifications"),
