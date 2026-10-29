@@ -609,6 +609,7 @@ spar:
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
       passwordReset: {{ .Values.passwordReset }}
+      customBackend: {{ .Values.customBackendStore }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
