@@ -42,17 +42,17 @@ module Wire.API.Push.V2.Token
   )
 where
 
-import Control.Lens (makeLenses, (?~), (^.))
 import Cassandra qualified as C
+import Control.Lens (makeLenses, (?~), (^.))
 import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.OpenApi (ToParamSchema)
 import Data.OpenApi qualified as S
-import Data.Text qualified as Text
 import Data.SOP
 import Data.Schema
+import Data.Text qualified as Text
 import Generics.SOP qualified as GSOP
 import Imports
 import Servant

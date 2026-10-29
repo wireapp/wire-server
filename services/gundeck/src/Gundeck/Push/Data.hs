@@ -33,7 +33,7 @@ where
 
 import Cassandra
 import Control.Error (hush)
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Conversion (toByteString)
 import Data.Id (ClientId, ConnId, UserId)
@@ -111,59 +111,60 @@ runPushTokenStore sem = do
       -- effect at a time right after the head ('raiseUnder'), building the
       -- rows the store interpreters need.
       cassRow =
-        raiseUnder (raiseUnder sem)
-          :: Sem
-               '[ Store.PushTokenStore,
-                  Input ClientState,
-                  Input HasqlPoolExt.Pool,
-                  Embed IO
-                ]
-               a
+        raiseUnder (raiseUnder sem) ::
+          Sem
+            '[ Store.PushTokenStore,
+               Input ClientState,
+               Input HasqlPoolExt.Pool,
+               Embed IO
+             ]
+            a
       dualRow =
-        raiseUnder cassRow
-          :: Sem
-               '[ Store.PushTokenStore,
-                  Error UsageError,
-                  Input ClientState,
-                  Input HasqlPoolExt.Pool,
-                  Embed IO
-                ]
-               a
+        raiseUnder cassRow ::
+          Sem
+            '[ Store.PushTokenStore,
+               Error UsageError,
+               Input ClientState,
+               Input HasqlPoolExt.Pool,
+               Embed IO
+             ]
+            a
       pgRow =
         raiseUnder
-          ( raiseUnder sem
-              :: Sem
-                   '[ Store.PushTokenStore,
-                      Input HasqlPoolExt.Pool,
-                      Embed IO
-                    ]
-                   a
-          )
-          :: Sem
-               '[ Store.PushTokenStore,
-                  Error UsageError,
-                  Input HasqlPoolExt.Pool,
-                  Embed IO
-                ]
-               a
+          ( raiseUnder sem ::
+              Sem
+                '[ Store.PushTokenStore,
+                   Input HasqlPoolExt.Pool,
+                   Embed IO
+                 ]
+                a
+          ) ::
+          Sem
+            '[ Store.PushTokenStore,
+               Error UsageError,
+               Input HasqlPoolExt.Pool,
+               Embed IO
+             ]
+            a
   liftIO $ do
     result <- runM $ case pushTokens pm of
       CassandraStorage ->
         -- reads and writes from Cassandra only
-        pure . Right
-          =<< runInputConst (view hasqlPool env)
-            ( runInputConst (view cstate env)
-                $ interpretPushTokenStoreToCassandra cassRow
+        Right
+          <$> runInputConst
+            (view hasqlPool env)
+            ( runInputConst (view cstate env) $
+                interpretPushTokenStoreToCassandra cassRow
             )
       MigrationToPostgresql ->
         -- writes mirrored to Postgres, reads from Cassandra
-        runInputConst (view hasqlPool env)
-          $ runInputConst (view cstate env)
-          $ runError
-          $ interpretPushTokenStoreToCassandraAndPostgres dualRow
+        runInputConst (view hasqlPool env) $
+          runInputConst (view cstate env) $
+            runError $
+              interpretPushTokenStoreToCassandraAndPostgres dualRow
       PostgresqlStorage ->
         -- reads and writes from Postgres only
-        runInputConst (view hasqlPool env)
-          $ runError
-          $ interpretPushTokenStoreToPostgres pgRow
+        runInputConst (view hasqlPool env) $
+          runError $
+            interpretPushTokenStoreToPostgres pgRow
     either (throwM . userError . ("push token store: " <>) . show) pure result
