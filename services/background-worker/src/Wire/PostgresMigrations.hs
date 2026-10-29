@@ -183,6 +183,8 @@ customBackend migOpts = do
   Log.info logger $ Log.msg (Log.val "started custom backend migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
+    cancel migrationLoop
+
 notifications :: MigrationOptions -> AppT IO CleanupAction
 notifications migOpts = do
   cassClient <- asks (.cassandra)
