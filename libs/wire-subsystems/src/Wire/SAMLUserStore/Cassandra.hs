@@ -29,6 +29,7 @@ module Wire.SAMLUserStore.Cassandra
 where
 
 import Cassandra as Cas
+import Data.Bifunctor (first)
 import Data.Id
 import Imports
 import Polysemy
