@@ -272,3 +272,4 @@ postgresMigration:
   blockList: postgresql
   passwordReset: postgresql
   customBackend: postgresql
+  proposals: postgresql
