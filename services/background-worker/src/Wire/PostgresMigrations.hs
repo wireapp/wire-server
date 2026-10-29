@@ -30,6 +30,7 @@ import Wire.CustomBackendStore.Migration
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.NotificationStore.Migration
+import Wire.PushTokenStore.Migration
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
@@ -201,4 +202,22 @@ notifications migOpts = do
   Log.info logger $ Log.msg (Log.val "started notifications migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling notifications migration")
+    cancel migrationLoop
+
+pushTokens :: MigrationOptions -> AppT IO CleanupAction
+pushTokens migOpts = do
+  cassClient <- asks (.cassandra)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting push tokens migration")
+  count <- register $ counter $ Prometheus.Info "wire_push_tokens_migrated_to_pg" "Number of push tokens migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_push_tokens_migration_finished" "Whether the push tokens migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_push_tokens_migration_failed" "Whether the push tokens migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_push_tokens_migration_duration_seconds" "Duration of push tokens migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migratePushTokensLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started push tokens migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling push tokens migration")
     cancel migrationLoop

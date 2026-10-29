@@ -114,6 +114,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-notifications" $
             Migrations.notifications opts.migrationOptions
       else pure $ pure ()
+  cleanupPushTokensMigration <-
+    if opts.migratePushTokens
+      then
+        runAppT env $
+          withNamedLogger "migrate-push-tokens" $
+            Migrations.pushTokens opts.migrationOptions
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -125,7 +132,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,,,)
+            (,,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -137,6 +144,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupNotificationsMigration
+              <*> Concurrently cleanupPushTokensMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

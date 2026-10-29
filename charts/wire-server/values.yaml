@@ -97,6 +97,7 @@ galley:
       passwordReset: cassandra
       customBackend: cassandra
       notifications: cassandra
+      pushTokens: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -770,6 +771,7 @@ gundeck:
       passwordReset: cassandra
       customBackend: cassandra
       notifications: cassandra
+      pushTokens: cassandra
     redis:
       host: redis-ephemeral
       port: 6379
@@ -1071,6 +1073,10 @@ background-worker:
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
     migrateCustomBackend: false
+    # This will start the migration of gundeck push token data.
+    # It's important to set `settings.postgresMigration.pushTokens` to `migration-to-postgresql`
+    # before starting the migration.
+    migratePushTokens: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms

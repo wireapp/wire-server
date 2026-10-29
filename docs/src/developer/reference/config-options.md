@@ -2333,6 +2333,7 @@ galley:
       passwordReset: postgresql
       customBackend: postgresql
       notifications: postgresql
+      pushTokens: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2342,6 +2343,7 @@ background-worker:
     migrateBlockList: false
     migratePasswordReset: false
     migrateCustomBackend: false
+    migratePushTokens: false
 ```
 
 #### Migration for existing installations
@@ -2377,6 +2379,7 @@ The current settings and their background-worker flags are:
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
 - `notifications` -> `migrateNotifications`
+- `pushTokens` -> `migratePushTokens`
 
 Gundeck itself now
 requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` block
@@ -2405,6 +2408,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
          passwordReset: cassandra
          customBackend: cassandra
          notifications: cassandra
+         pushTokens: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2415,6 +2419,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
        migrateBlockList: false
        migratePasswordReset: false
        migrateCustomBackend: false
+       migratePushTokens: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2462,6 +2467,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
    - `notifications`: `wire_notifications_migration_finished`
+   - `pushTokens`: `wire_push_tokens_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2480,6 +2486,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
          passwordReset: postgresql
          customBackend: postgresql
          notifications: postgresql
+         pushTokens: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2490,6 +2497,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
        migrateBlockList: false
        migratePasswordReset: false
        migrateCustomBackend: false
+    migratePushTokens: false
    ```
 
 **How to run migrations independently or in batches**

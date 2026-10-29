@@ -63,6 +63,7 @@ migrateBlockList: false
 migratePasswordReset: false
 migrateCustomBackend: false
 migrateNotifications: false
+migratePushTokens: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -101,3 +102,4 @@ postgresMigration:
   blockList: postgresql
   customBackend: postgresql
   notifications: postgresql
+  pushTokens: postgresql
