@@ -4,6 +4,99 @@ A Helm chart for Wire server ingress using the **Kubernetes Gateway API**.
 
 The chart targets **Envoy Gateway** as the Gateway API controller.
 
+## Regression tests
+
+Two independent runners exercise this chart on a real cluster: Python (standard
+library) and Haskell (the `integration:exe:ingress-regression` component). Both use
+Helm, kubectl and OpenSSL 3, and the synthetic upstreams in
+[`tests/backend.yaml`](tests/backend.yaml). They require the controller and CRDs
+described below, including Lua and EnvoyPatchPolicy. No Wire services, database,
+cert-manager issuer, public DNS or external load balancer is needed.
+
+From the repository root, with the development environment loaded:
+
+```sh
+KUBECONFIG="$PWD/tmp/kubeconfig" WIRE_INGRESS_TEST_NAMESPACE=test-wpb-29100-p make p-kube-ingress-test
+KUBECONFIG="$PWD/tmp/kubeconfig" WIRE_INGRESS_TEST_NAMESPACE=test-wpb-29100-h make h-kube-ingress-test
+```
+
+Each runner tests chart-created and externally created Gateways with these
+profiles, on the normal API, federation API, enabled webapp, and extra HTTPS
+listener:
+
+| Profile | Must work | Must be rejected |
+| --- | --- | --- |
+| Default | TLS 1.3, AES-GCM | TLS 1.2 |
+| Custom TLS 1.2 | ECDHE-ECDSA-AES128-GCM-SHA256 | AES256-GCM and TLS 1.3 |
+| FIPS | TLS 1.2 and 1.3, AES-GCM, permitted EC groups | TLS 1.3 ChaCha20 and X25519 |
+
+FIPS additionally tests a cross-namespace companion ListenerSet without its own
+ClientTrafficPolicy: the Gateway patch must cover every TLS filter chain. Every
+positive probe verifies the server certificate and hostname and asserts the
+expected upstream response. Negative probes require a TLS alert; connection
+failures do not count as successful rejection. Federation probes check removal
+of spoofed `X-SSL-Certificate`, forwarding of the actual client certificate, and
+trailing-dot Host routing. The backend fixture deploys three distinct small HTTP
+servers; it tests chart routing, not the Wire API or webapp application's logic.
+
+Both runners repeat the complete Gateway/TLS matrix for multi-ingress: two
+unrelated domains, distinct certificates and Secrets, API and webapp routes on
+each domain, and a custom secondary listener-section name. Each probe trusts
+only its domain's certificate, catching incorrect certificate selection as well
+as routing failures. Federation is disabled for this mode, as required by the
+chart. This gives twelve live scenarios per implementation. FIPS multi-ingress
+also includes the cross-namespace companion listener.
+
+The Python runner also runs local Helm checks for invalid FIPS configurations,
+both xDS naming schemes, all-filter-chain patching, and HA/PDB defaults and
+overrides. The Haskell runner uses closed scenario types, declarative probe
+expectations, and `withModifiedIngress` to scope cluster resources; its unit
+checks verify probe classification before deploying resources.
+Additional render checks reject multi-ingress with federation or a missing
+secondary TLS Secret reference, and verify per-domain team-settings CSP behavior,
+the CSP opt-out, and absence of injected CSP on webapp routes.
+
+After `WIRE_INGRESS_MODE=envoy make kube-integration-setup`, the normal
+`make kube-integration-test` detects the installed wire-ingress release and runs the Python chart suite
+before the application suites and fails if it fails. Select the implementation
+explicitly with `make p-kube-integration-test` or `make h-kube-integration-test`.
+The standalone `p-kube-ingress-test` and `h-kube-ingress-test` targets run only
+chart regressions, so no temporary changes to application test configuration are
+needed. An explicit `WIRE_INGRESS_MODE` overrides detection. Nginx-mode integration runs do not invoke these Envoy-specific tests.
+
+Configuration shared by both runners:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `KUBECONFIG` | kubectl's default | Cluster credentials; never inferred from `tmp/` automatically |
+| `WIRE_INGRESS_TEST_NAMESPACE` | `test-wire-ingress` (Python), `test-wire-ingress-h` (Haskell); `${NAMESPACE}-ingress` in integration flow | Namespace prefix, DNS label up to 28 characters; use a unique prefix for concurrent runs |
+| `WIRE_INGRESS_GATEWAY_CLASS` | `envoy` | Existing dedicated-Gateway class; must not merge Gateways |
+| `ENVOY_GATEWAY_NAMESPACE` | `envoy-gateway-system` | Namespace of generated proxy Services |
+| `WIRE_INGRESS_XDS_NAME_SCHEME_V2` | `false` | Must match controller runtime flags; set `true` for V2 naming (default from Envoy Gateway 1.10) |
+| `WIRE_INGRESS_TEST_IMPLEMENTATION` | `python` | `python` or `haskell` in the normal integration flow |
+
+The runners create fresh namespaces, ClusterIP proxies and temporary test
+certificates, and port-forward through loopback. They refuse existing namespaces
+and request deletion of only namespaces created by the run, including on test
+failure. Namespace deletion is asynchronous; wait for deletion before reusing
+the same prefix. Cleanup is requested after each scenario so completed proxies
+do not accumulate across the matrix. Controller configuration and existing
+Gateways are untouched.
+Failures print resource status before cleanup. Both naming schemes are checked
+at render time; a live run tests the configured controller's naming scheme.
+
+Local checks without a cluster:
+
+```sh
+python3 -m unittest discover -s hack/bin/tests -v
+cabal test integration:ingress-unit --test-show-details=direct 2>&1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'
+```
+
+For a shorter Python live run, pass `--profile default`, `--profile tls12`, or
+`--profile fips` to `python3 hack/bin/wire-ingress-test.py`; both Gateway ownership
+variants and single/multi-domain modes still run. The full matrix is the default
+in both implementations.
+
 ---
 
 ## Prerequisites

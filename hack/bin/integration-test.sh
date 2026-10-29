@@ -8,6 +8,21 @@ HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
 UPLOAD_LOGS=${UPLOAD_LOGS:-0}
 
+# Setup and test are often separate make invocations. Detect the installed chart
+# when the mode was not exported across both; do not silently skip regressions.
+ingress_mode=${WIRE_INGRESS_MODE:-}
+if [[ -z "$ingress_mode" ]]; then
+    releases=$(helm list -n "$NAMESPACE" -o json)
+    if jq -e 'any(.[]; .chart | startswith("wire-ingress-"))' <<<"$releases" >/dev/null; then
+        ingress_mode=envoy
+    fi
+fi
+# nginx-only setups do not require Envoy CRDs.
+if [[ "$ingress_mode" == "envoy" ]]; then
+    WIRE_INGRESS_TEST_NAMESPACE="${WIRE_INGRESS_TEST_NAMESPACE:-${NAMESPACE}-ingress}" \
+        "$DIR/run-wire-ingress-tests.sh"
+fi
+
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server

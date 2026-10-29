@@ -203,5 +203,29 @@ mkDerivation {
     xml-conduit
     yaml
   ];
+  executableHaskellDepends = [
+    aeson
+    base
+    bytestring
+    filepath
+    kan-extensions
+    network-uri
+    process
+    temporary
+    text
+    transformers
+  ];
+  testHaskellDepends = [
+    aeson
+    base
+    bytestring
+    filepath
+    kan-extensions
+    network-uri
+    process
+    temporary
+    text
+    transformers
+  ];
   license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }
