@@ -83,6 +83,33 @@ executable run-services
   ghc-options:   -threaded -with-rtsopts=-N
   build-depends: integration
 
+common ingress-common
+  import:         common-all
+  hs-source-dirs: ingress test
+  other-modules:  Testlib.Ingress
+  build-depends:
+    , aeson
+    , base
+    , bytestring
+    , filepath
+    , kan-extensions
+    , network-uri
+    , process
+    , temporary
+    , text
+    , transformers
+
+executable ingress-regression
+  import:      ingress-common
+  main-is:     Main.hs
+  ghc-options: -threaded
+
+test-suite ingress-unit
+  import:      ingress-common
+  type:        exitcode-stdio-1.0
+  main-is:     Unit.hs
+  ghc-options: -threaded
+
 library
   import:          common-all
   hs-source-dirs:  test
@@ -237,6 +264,7 @@ library
     Testlib.Certs
     Testlib.Env
     Testlib.HTTP
+    Testlib.Ingress
     Testlib.JSON
     Testlib.KleisliXML
     Testlib.Mock
