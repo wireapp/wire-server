@@ -46,7 +46,7 @@ import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
-import Wire.API.Connection qualified as Connection,
+import Wire.API.Connection qualified as Connection
 import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
 import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)

@@ -234,8 +234,11 @@ clients migOpts = do
   Log.info logger $ Log.msg (Log.val "started clients migration")
     Log.info logger $ Log.msg (Log.val "cancelling clients migration")
     cancel migrationLoop
+<<<<<<< HEAD
   cassClient <- asks (.cassandraGalley)
   Log.info logger $ Log.msg (Log.val "starting user client index migration")
   Log.info logger $ Log.msg (Log.val "started user client index migration")
     Log.info logger $ Log.msg (Log.val "cancelling user client index migration")
     cancel migrationLoop
+=======
+>>>>>>> 5a95859ea6 (fix: post-rebuild)
