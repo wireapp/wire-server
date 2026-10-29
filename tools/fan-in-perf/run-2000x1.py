@@ -5,7 +5,7 @@ a markdown report for the Jira ticket. E and F (plain only) split B and C: first
 `produce`, then `consume-only[-ack]` on the rows it left, for the raw consumption
 speed.
 
-  run-2000x1.py [OUT.md] [--only A,E,...] [--quick] [--db CONNSTR]
+  run-2000x1.py [OUT.md] [--only A,E,...] [--quick] [--payload-bytes B] [--db CONNSTR]
   (OUT.md default: fan-in-2000x1-results.md)
 
 DESTRUCTIVE: drops and recreates the fan-in tables and pg_partman in the
@@ -48,6 +48,7 @@ SPLIT_PRODUCE, SPLIT_WARMUP, SPLIT_TIMEOUT = 300, 2, 1200
 # average; 16, 32 and 48 never did in repeated runs.
 POOL_SPLIT = 32
 QUICK = 1  # --quick: durations divided by this
+PAYLOAD = None  # --payload-bytes: passed to the pushing commands; None: the tool's default (512)
 BIN = None  # the built fan-in-perf binary, set by main (no `cabal run` check per call)
 
 
@@ -167,6 +168,8 @@ def tool_args(exp, w, pool, dur):
         a += ["--reader-pool-size", pool, "--safety-window", 200, "--drain-timeout", DRAIN]
     if exp == "consume-ack":
         a += ["--ack-every", 1]
+    if PAYLOAD:
+        a += ["--payload-bytes", PAYLOAD]
     return a
 
 
@@ -291,7 +294,7 @@ def render_report(res, env):
     dur = {x: int(a[a.index("--duration") + 1]) for x, a in single_command_experiments()}  # as run (--quick)
     split_dur = int(split_experiments()[0][1][split_experiments()[0][1].index("--duration") + 1])
     partman = any(k.endswith("-partman") for k in res)
-    L = ["# Notification fan-in: PostgreSQL benchmark, `user:2000x1`, 2,000 clients (WPB-26288)", "",
+    L = [f"# Notification fan-in: PostgreSQL benchmark, `user:2000x1`, 2,000 clients{f', {PAYLOAD:,} B payload' if PAYLOAD else ''} (WPB-26288)", "",
          "## Setup", "",
          f"- Date {env['date']}, commit `{env['commit']}`, driver `tools/fan-in-perf/run-2000x1.py`",
          f"- Host: {env['cpus']} CPUs, {env['mem']} RAM; tool and database share it. {env['pg']}; {env['settings']}",
@@ -300,6 +303,7 @@ def render_report(res, env):
          f"- Writers A={W_A}, B={W_B}, C/D={W_C}; reader pool B={POOL_B}, C/D={POOL_C}: highest rate in sweeps beforehand at which readers keep up. Seed {SEED}. One run each.",
          f"- Rates are averages over the writer phase incl. {WARMUP} s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
          f"- E, F (plain only): `reset-db`, `produce` ({W_SPLIT} writers, {split_dur} s), `vacuum` (VACUUM ANALYZE), then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {SPLIT_WARMUP} s. Every reader fetches its backlog once and stops (no polling). Reader pool {POOL_SPLIT}. `rows`: notifications in the table after produce.",
+         *([f"- Payload: about {PAYLOAD:,} bytes of JSON per notification (random letters); writers and pools as tuned for the default 512 bytes."] if PAYLOAD else []),
          *(["- `--quick`: all durations divided by 10 (smoke test), the numbers are not comparable to a full run."] if QUICK > 1 else []),
          "- Only the `user` stream kind is exercised (no client/team/epoch streams, fan-out 1); not comparable to runs with a mixed target set.",
          "",
@@ -395,15 +399,19 @@ def env():
 
 
 def main():
-    global DB, QUICK, BIN
+    global DB, QUICK, BIN, PAYLOAD, LOGDIR
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("out", nargs="?", default="fan-in-2000x1-results.md")
     ap.add_argument("--only", help="comma-separated experiments to run, e.g. E,F (default: all)")
     ap.add_argument("--quick", action="store_true", help="divide all durations by 10 (smoke test)")
+    ap.add_argument("--payload-bytes", type=int, help="approximate JSON payload size of every push (default: the tool's, 512)")
     ap.add_argument("--db", default=DB, help="connection string; its fan-in tables and pg_partman are dropped and recreated")
     args = ap.parse_args()
     DB, out = args.db, args.out
     QUICK = 10 if args.quick else 1
+    PAYLOAD = args.payload_bytes
+    if PAYLOAD:
+        LOGDIR += f"-p{PAYLOAD}"  # keeps the logs of default runs
     wanted = set(args.only.upper().split(",")) if args.only else set("ABCDEF")
     try:
         urllib.request.urlopen("http://localhost:9400/metrics", timeout=1)
