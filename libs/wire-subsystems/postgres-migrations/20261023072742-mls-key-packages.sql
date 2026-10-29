@@ -6,3 +6,8 @@ CREATE TABLE IF NOT EXISTS mls_key_packages (
   data bytea NOT NULL,
   PRIMARY KEY (user_id, client, cipher_suite, ref)
 );
+
+CREATE TABLE IF NOT EXISTS mls_key_packages_migrated_users (
+  user_id uuid NOT NULL,
+  PRIMARY KEY (user_id)
+);

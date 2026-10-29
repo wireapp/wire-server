@@ -22,7 +22,7 @@ import Control.Monad.Codensity
 import Control.Monad.Reader
 import MLS.Util (ciphersuites, createMLSClient, generateKeyPackage)
 import SetupHelpers
-import Test.Migration.Util (waitForMigration)
+import Test.Migration.Util (assertMigrationSuccessful, waitForMigration)
 import Testlib.Prelude
 import Testlib.ResourcePool
 
@@ -73,6 +73,7 @@ testMlsKeyPackagesMigration = do
       uploadKeyPackages alice1 [kp] >>= assertStatus 201
 
       waitForMigration domain counterName
+      assertMigrationSuccessful domain "wire_mls_key_packages_migration_failed"
 
       claimKeyPackages def alice1 alice >>= assertStatus 200
       assertCount def alice1 1
@@ -87,11 +88,14 @@ testMlsKeyPackagesMigration = do
       assertCount altSuite alice1 0
 
       -- replaceKeyPackages (PUT) exercises deleteAll + insert in Postgres.
-      (kp, _) <- generateKeyPackage alice1 def
+      (kp, ref) <- generateKeyPackage alice1 def
       replaceKeyPackages alice1 [def] [kp] >>= assertStatus 200
-      assertCount def alice1 1
 
-      claimKeyPackages def alice1 alice >>= assertStatus 200
+      -- The claimed key package must be the one just uploaded (same ref).
+      -- This pins the claim path against a ref/data column swap.
+      claimKeyPackages def alice1 alice `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "key_packages.0.key_package_ref" `shouldMatch` ref
       assertCount def alice1 0
   where
     conf db runMigration =
