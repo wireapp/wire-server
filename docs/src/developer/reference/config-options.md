@@ -2332,6 +2332,7 @@ galley:
       blockList: postgresql
       passwordReset: postgresql
       customBackend: postgresql
+      activationKeys: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2341,6 +2342,10 @@ background-worker:
     migrateBlockList: false
     migratePasswordReset: false
     migrateCustomBackend: false
+    migrateActivationKeys: false
+    # Cleanup of expired activation keys in Postgres (nightly)
+    activationKeysCleanup:
+      schedule: "0 3 * * *"
 ```
 
 #### Migration for existing installations
@@ -2375,6 +2380,7 @@ The current settings and their background-worker flags are:
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
+- `activationKeys` -> `migrateActivationKeys`
 
 **Migration pattern per migration setting**
 
@@ -2398,6 +2404,7 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: cassandra
          customBackend: cassandra
+         activationKeys: migration-to-postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2408,6 +2415,7 @@ The current settings and their background-worker flags are:
        migrateBlockList: false
        migratePasswordReset: false
        migrateCustomBackend: false
+       migrateActivationKeys: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2426,6 +2434,7 @@ The current settings and their background-worker flags are:
        migrateBlockList: true
        migratePasswordReset: true
        migrateCustomBackend: true
+       migrateActivationKeys: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2454,6 +2463,7 @@ The current settings and their background-worker flags are:
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
+   - `activationKeys`: `wire_activation_keys_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2494,6 +2504,7 @@ The current settings and their background-worker flags are:
 - Some settings cover multiple Cassandra tables. For example,
   `postgresMigration.domainRegistration` covers `domain_registration`,
   `domain_registration_by_team`, and `domain_registration_challenge`.
+  `postgresMigration.activationKeys` covers the `activation_keys` table.
 
 ## Configure Cells
 

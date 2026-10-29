@@ -311,6 +311,7 @@ galley:
       domainRegistration: {{ .Values.domainRegistration }}
       passwordReset: {{ .Values.passwordReset }}
       customBackend: {{ .Values.customBackendStore }}
+      activationKeys: {{ .Values.activationKeysStore }}
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
     settings:
@@ -680,6 +681,8 @@ background-worker:
     meetingsCleanup:
       cleanOlderThanHours: 0.0014
       batchSize: 100
+      schedule: "* * * * *"
+    activationKeysCleanup:
       schedule: "* * * * *"
     # Cassandra clusters used by background-worker
     cassandra:

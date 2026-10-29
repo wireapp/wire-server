@@ -150,6 +150,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.ActivationCodeVerificationStore (ActivationCodeVerificationStore)
 import Wire.AppSubsystem (AppSubsystem)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
@@ -383,6 +384,7 @@ servantSitemap ::
     Member SFT r,
     Member TinyLog r,
     Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member UserStore r,
     Member (Input InvitationUrlTemplates) r,
@@ -921,6 +923,7 @@ createUser ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member RateLimit r,
     Member AuthenticationSubsystem r
@@ -944,6 +947,7 @@ createUserV16 ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member RateLimit r,
     Member AuthenticationSubsystem r
@@ -1587,7 +1591,8 @@ activate ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1604,13 +1609,14 @@ activateKey ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member UserStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
-      (emailKey, _) <- wrapClientE (API.preverify tgt code) !>> actError
+      (emailKey, _) <- API.preverify tgt code !>> actError
       lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
       pure ActivationRespDryRun
   | otherwise = do
