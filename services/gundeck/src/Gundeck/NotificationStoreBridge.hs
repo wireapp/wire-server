@@ -14,28 +14,27 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Bridge that runs the 'NotificationStore' effect inside the 'Gundeck'
 -- monad (the first polysemy island in gundeck).
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Gundeck.NotificationStoreBridge
   ( runNotificationStore,
   )
 where
 
-import Control.Lens ((^.), view)
+import Cassandra (ClientState)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
-import System.IO.Error (userError)
 import Gundeck.Env
 import Gundeck.Options (internalPageSize, maxPayloadLoadSize, postgresMigration, settings)
-import Cassandra (ClientState)
+import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Polysemy
-import Hasql.Pool (UsageError)
 import Polysemy.Error (Error, runError)
 import Polysemy.Input (Input, runInputConst)
+import System.IO.Error (userError)
 import Wire.NotificationStore
 import Wire.NotificationStore.Cassandra (interpretNotificationStoreToCassandra)
 import Wire.NotificationStore.DualWrite (interpretNotificationStoreToCassandraAndPostgres)
@@ -58,65 +57,67 @@ runNotificationStore sem = do
       -- effect at a time right after the head ('raiseUnder'), building the
       -- rows the store interpreters need.
       cassRow =
-        raiseUnder (raiseUnder (raiseUnder sem))
-          :: Sem
-               '[ NotificationStore,
-                  Input ClientState,
-                  Input NotificationStoreConfig,
-                  Input HasqlPoolExt.Pool,
-                  Embed IO
-                ]
-               a
+        raiseUnder (raiseUnder (raiseUnder sem)) ::
+          Sem
+            '[ NotificationStore,
+               Input ClientState,
+               Input NotificationStoreConfig,
+               Input HasqlPoolExt.Pool,
+               Embed IO
+             ]
+            a
       dualRow =
-        raiseUnder cassRow
-          :: Sem
-               '[ NotificationStore,
-                  Error UsageError,
-                  Input ClientState,
-                  Input NotificationStoreConfig,
-                  Input HasqlPoolExt.Pool,
-                  Embed IO
-                ]
-               a
+        raiseUnder cassRow ::
+          Sem
+            '[ NotificationStore,
+               Error UsageError,
+               Input ClientState,
+               Input NotificationStoreConfig,
+               Input HasqlPoolExt.Pool,
+               Embed IO
+             ]
+            a
       pgRow =
         raiseUnder
-          ( raiseUnder (raiseUnder sem)
-              :: Sem
-                   '[ NotificationStore,
-                      Input NotificationStoreConfig,
-                      Input HasqlPoolExt.Pool,
-                      Embed IO
-                    ]
-                   a
-          )
-          :: Sem
-               '[ NotificationStore,
-                  Error UsageError,
-                  Input NotificationStoreConfig,
-                  Input HasqlPoolExt.Pool,
-                  Embed IO
-                ]
-               a
+          ( raiseUnder (raiseUnder sem) ::
+              Sem
+                '[ NotificationStore,
+                   Input NotificationStoreConfig,
+                   Input HasqlPoolExt.Pool,
+                   Embed IO
+                 ]
+                a
+          ) ::
+          Sem
+            '[ NotificationStore,
+               Error UsageError,
+               Input NotificationStoreConfig,
+               Input HasqlPoolExt.Pool,
+               Embed IO
+             ]
+            a
   liftIO $ do
     result <- runM $ case notifications pm of
       CassandraStorage ->
         -- reads and writes from Cassandra only
-        Right <$> runInputConst (view hasqlPool env)
-            ( runInputConst cfg
-                $ runInputConst (view cstate env)
-                $ interpretNotificationStoreToCassandra cassRow
+        Right
+          <$> runInputConst
+            (view hasqlPool env)
+            ( runInputConst cfg $
+                runInputConst (view cstate env) $
+                  interpretNotificationStoreToCassandra cassRow
             )
       MigrationToPostgresql ->
         -- writes mirrored to Postgres, reads from Cassandra
-        runInputConst (view hasqlPool env)
-          $ runInputConst cfg
-          $ runInputConst (view cstate env)
-          $ runError
-          $ interpretNotificationStoreToCassandraAndPostgres dualRow
+        runInputConst (view hasqlPool env) $
+          runInputConst cfg $
+            runInputConst (view cstate env) $
+              runError $
+                interpretNotificationStoreToCassandraAndPostgres dualRow
       PostgresqlStorage ->
         -- reads and writes from Postgres only
-        runInputConst (view hasqlPool env)
-          $ runInputConst cfg
-          $ runError
-          $ interpretNotificationStoreToPostgres pgRow
+        runInputConst (view hasqlPool env) $
+          runInputConst cfg $
+            runError $
+              interpretNotificationStoreToPostgres pgRow
     either (throwM . userError . ("notification store: " <>) . show) pure result
