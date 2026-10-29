@@ -500,7 +500,7 @@ spec = do
                 user = CassandraStorage,
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
-                customBackend = CassandraStorage
+                customBackend = CassandraStorage,
                 notifications = CassandraStorage
               }
           gundeckEndpoint = undefined
@@ -569,7 +569,7 @@ spec = do
                 user = CassandraStorage,
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
-                customBackend = CassandraStorage
+                customBackend = CassandraStorage,
                 notifications = CassandraStorage
               }
           gundeckEndpoint = undefined
