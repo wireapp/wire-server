@@ -169,7 +169,7 @@ interpretTeamStoreToPostgres = interpret $ \case
     usersTeams uids
   GetOneUserTeam uid -> do
     logEffect "TeamStore.GetOneUserTeam"
-    fmap (fmap Id) $ runStatement (toUUID uid) selectOneUserTeamStatement
+    fmap Id <$> runStatement (toUUID uid) selectOneUserTeamStatement
   GetTeamsBindings tids -> do
     logEffect "TeamStore.GetTeamsBindings"
     pairs <- traverse (\tid -> fmap (tid,) (getTeamBinding tid)) tids
@@ -323,7 +323,7 @@ updateTeam tid u =
 getSearchVisibility :: (PGConstraints r) => TeamId -> Sem r TeamSearchVisibility
 getSearchVisibility tid = do
   mres <- runStatement (toUUID tid) selectSearchVisibilityStatement
-  let mv = mres >>= id
+  let mv = Control.Monad.join mres
   pure $ fromMaybe SearchVisibilityStandard (mv >>= either (const Nothing) Just . teamSearchVisibilityFromText)
 
 -- | The team-table part of 'DeleteTeam' (no conversation deletion); shared by
