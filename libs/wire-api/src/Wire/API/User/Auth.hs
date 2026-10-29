@@ -85,6 +85,7 @@ import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Servant
 import Web.Cookie
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.MultiVerb
 import Wire.API.User.Identity (EmailAddress, Phone)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -283,6 +284,29 @@ instance ToHttpApiData CookieLabel where
   toUrlPiece = cookieLabelText
 
 deriving instance Cql CookieLabel
+
+instance PostgresMarshall Text CookieLabel where
+  postgresMarshall = cookieLabelText
+
+instance PostgresUnmarshall Text CookieLabel where
+  postgresUnmarshall = pure . CookieLabel
+
+instance PostgresMarshall Int64 CookieId where
+  postgresMarshall = fromIntegral . cookieIdNum
+
+instance PostgresUnmarshall Int64 CookieId where
+  postgresUnmarshall = pure . CookieId . fromIntegral
+
+instance PostgresMarshall Int32 CookieType where
+  postgresMarshall = \case
+    SessionCookie -> 0
+    PersistentCookie -> 1
+
+instance PostgresUnmarshall Int32 CookieType where
+  postgresUnmarshall = \case
+    0 -> pure SessionCookie
+    1 -> pure PersistentCookie
+    n -> Left $ "Unexpected CookieType value: " <> T.pack (show n)
 
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}

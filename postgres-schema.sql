@@ -1702,6 +1702,24 @@ CREATE TABLE public.team_features (
 ALTER TABLE public.team_features OWNER TO "wire-server";
 
 --
+-- Name: user_cookies; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_cookies (
+    user_id uuid NOT NULL,
+    id bigint NOT NULL,
+    typ integer NOT NULL,
+    created timestamp with time zone NOT NULL,
+    label text,
+    succ_id bigint,
+    expires_at timestamp with time zone NOT NULL,
+    invalid_after timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.user_cookies OWNER TO "wire-server";
+
+--
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2139,6 +2157,14 @@ ALTER TABLE ONLY public.subconversation
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: user_cookies user_cookies_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_cookies
+    ADD CONSTRAINT user_cookies_pkey PRIMARY KEY (user_id, id);
 
 
 --
@@ -2643,6 +2669,13 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: user_cookies_expires_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_cookies_expires_idx ON public.user_cookies USING btree (user_id, expires_at);
 
 
 --

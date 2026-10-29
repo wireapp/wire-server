@@ -88,6 +88,7 @@ data:
     migrateBlockList: {{ .migrateBlockList }}
     migratePasswordReset: {{ .migratePasswordReset }}
     migrateCustomBackend: {{ .migrateCustomBackend }}
+    migrateSessions: {{ .migrateSessions }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 

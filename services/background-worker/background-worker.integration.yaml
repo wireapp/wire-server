@@ -62,6 +62,7 @@ migrateUsers: false
 migrateBlockList: false
 migratePasswordReset: false
 migrateCustomBackend: false
+migrateSessions: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -99,3 +100,4 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   customBackend: postgresql
+  sessions: postgresql

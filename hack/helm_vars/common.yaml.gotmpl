@@ -22,6 +22,7 @@ passwordReset: {{ $preferredStore }}
 customBackendStore: {{ $preferredStore }}
 userStore: {{ $preferredStore }}
 blockListStore: {{ $preferredStore }}
+sessionsStore: {{ $preferredStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}
