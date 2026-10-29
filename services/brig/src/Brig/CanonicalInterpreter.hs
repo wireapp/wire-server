@@ -117,6 +117,7 @@ import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
+import Wire.MlsKeyPackageStore.Migrating (interpretMlsKeyPackageStoreToCassandraAndPostgres)
 import Wire.MlsKeyPackageStore.Postgres (interpretMlsKeyPackageStoreToPostgres)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
@@ -435,16 +436,16 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
-      -- MLS key packages deliberately have NO dual-write mode (WPB-29582
-      -- review): they are one-time-use security material — claiming deletes
-      -- them — so an async delete-mirror failure would resurface a claimed
-      -- key package in Postgres. While migrating, brig keeps serving
-      -- Cassandra; the background-worker copy loop fills Postgres; cutover
-      -- is the direct config flip cassandra -> postgresql.
+      -- In migration mode, every store effect takes the per-user shared
+      -- migration lock and routes by the mls_key_packages_migrated_users
+      -- marker: migrated users are served by Postgres, the rest by
+      -- Cassandra (single backend per user, no cross-store writes). The
+      -- background-worker copy loop fills Postgres under the matching
+      -- exclusive lock.
       mlsKeyPackageStore = case e.postgresMigration.mlsKeyPackages of
         CassandraStorage -> interpretMlsKeyPackageStoreToCassandra e.casClient
         PostgresqlStorage -> interpretMlsKeyPackageStoreToPostgres
-        MigrationToPostgresql -> interpretMlsKeyPackageStoreToCassandra e.casClient
+        MigrationToPostgresql -> interpretMlsKeyPackageStoreToCassandraAndPostgres e.casClient
 
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between
       -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global

@@ -411,6 +411,7 @@ library
     Wire.MigrationLock
     Wire.MlsKeyPackageStore
     Wire.MlsKeyPackageStore.Cassandra
+    Wire.MlsKeyPackageStore.Migrating
     Wire.MlsKeyPackageStore.Migration
     Wire.MlsKeyPackageStore.Postgres
     Wire.MlsKeyPackageSubsystem

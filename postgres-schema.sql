@@ -1624,6 +1624,17 @@ CREATE TABLE public.mls_key_packages (
 ALTER TABLE public.mls_key_packages OWNER TO "wire-server";
 
 --
+-- Name: mls_key_packages_migrated_users; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.mls_key_packages_migrated_users (
+    user_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.mls_key_packages_migrated_users OWNER TO "wire-server";
+
+--
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2101,6 +2112,14 @@ ALTER TABLE ONLY public.mls_group_member_client
 
 ALTER TABLE ONLY public.mls_history_client
     ADD CONSTRAINT mls_history_client_pkey PRIMARY KEY (group_id, id);
+
+
+--
+-- Name: mls_key_packages_migrated_users mls_key_packages_migrated_users_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.mls_key_packages_migrated_users
+    ADD CONSTRAINT mls_key_packages_migrated_users_pkey PRIMARY KEY (user_id);
 
 
 --
