@@ -62,6 +62,7 @@ data Opts = Opts
     migrateCustomBackend :: !Bool,
     migrateScimTokens :: !Bool,
     migrateScimExternalIds :: !Bool,
+    migrateSamlUsers :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig

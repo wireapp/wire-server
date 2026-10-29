@@ -98,6 +98,7 @@ galley:
       customBackend: cassandra
       scimTokens: cassandra
       scimExternalIds: cassandra
+      samlUsers: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -888,13 +889,11 @@ spar:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
-<<<<<<<
       customBackend: cassandra
-=======
       scimTokens: cassandra
       scimExternalIds: cassandra
->>>>>>>
-    richInfoLimit: 5000
+      samlUsers: cassandra
+      richInfoLimit: 5000
     maxScimTokens: 0
 
     # Enables the `/sso/get-by-email` endpoint which returns the matching IdP for
@@ -1081,6 +1080,10 @@ background-worker:
     # to `migration-to-postgresql` before starting the migration.
     migrateScimTokens: false
     migrateScimExternalIds: false
+    # This will start the migration of spar saml user data.
+    # It's important to set `spar.config.postgresMigration.samlUsers`
+    # to `migration-to-postgresql` before starting the migration.
+    migrateSamlUsers: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.

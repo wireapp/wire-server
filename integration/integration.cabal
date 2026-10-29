@@ -183,6 +183,7 @@ library
     Test.Migration.CustomBackend
     Test.Migration.DomainRegistration
     Test.Migration.PasswordReset
+    Test.Migration.SamlUsers
     Test.Migration.ScimStores
     Test.Migration.TeamFeatures
     Test.Migration.User

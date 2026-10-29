@@ -61,7 +61,8 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     passwordReset :: StorageLocation,
     customBackend :: StorageLocation,
     scimTokens :: StorageLocation,
-    scimExternalIds :: StorageLocation
+    scimExternalIds :: StorageLocation,
+    samlUsers :: StorageLocation
   }
   deriving (Show)
 
@@ -78,3 +79,4 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "customBackend"
       <*> o .: "scimTokens"
       <*> o .: "scimExternalIds"
+      <*> o .: "samlUsers"
