@@ -24,6 +24,7 @@ import UnliftIO
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.BlockListStore.Migration
+import Wire.ClientStore.Migration
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.CustomBackendStore.Migration
@@ -182,4 +183,24 @@ customBackend migOpts = do
   Log.info logger $ Log.msg (Log.val "started custom backend migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
+    cancel migrationLoop
+
+-- | The clients/prekeys/mls_public_keys tables live in brig's keyspace, so
+-- unlike the galley-based migrations this reads from @cassandraBrig@.
+clients :: MigrationOptions -> AppT IO CleanupAction
+clients migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting clients migration")
+  count <- register $ counter $ Prometheus.Info "wire_clients_migrated_to_pg" "Number of clients migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_clients_migration_finished" "Whether the clients migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_clients_migration_failed" "Whether the clients migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_clients_migration_duration_seconds" "Duration of clients migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateClientsLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started clients migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling clients migration")
     cancel migrationLoop
