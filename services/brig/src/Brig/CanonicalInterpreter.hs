@@ -74,6 +74,8 @@ import Wire.BlockListStore.DualWrite
 import Wire.BlockListStore.Postgres
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
+import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
+import Wire.BudgetStore.Postgres (interpretBudgetStoreToPostgres)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
@@ -454,6 +456,20 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
+      budgetStoreInterpreter =
+        case e.postgresMigration.budget of
+          CassandraStorage -> budgetStoreToCassandra @Cas.Client
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretBudgetStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretBudgetStoreToCassandraAndPostgres @Cas.Client
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -480,7 +496,7 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
-              . budgetStoreToCassandra @Cas.Client
+              . budgetStoreInterpreter
               . interpretJwtTools
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
