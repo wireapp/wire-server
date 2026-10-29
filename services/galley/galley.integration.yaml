@@ -277,3 +277,4 @@ postgresMigration:
   budget: postgresql
   connections: postgresql
   notifications: postgresql
+  pushTokens: postgresql
