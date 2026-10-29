@@ -71,7 +71,7 @@ spec = do
       out `shouldContain` "fanin_perf_empty_fetches_total{experiment=\"specc\",kind=\"team\"} 1"
       out `shouldContain` "fanin_perf_consume_rate_current{experiment=\"specc\"} 3"
       out `shouldContain` "fanin_perf_backlog{experiment=\"specc\"} 7"
-      out `shouldContain` "fanin_perf_clients{experiment=\"specc\"} 7"
+      out `shouldContain` "fanin_perf_readers{experiment=\"specc\"} 7"
       out `shouldContain` "fanin_perf_delivery_lag_seconds_count{experiment=\"specc\"} 3"
       out `shouldContain` "fanin_perf_fetch_duration_seconds_count{experiment=\"specc\"} 4"
       out `shouldContain` "fanin_perf_gate_wait_seconds_count{experiment=\"specc\"} 5"

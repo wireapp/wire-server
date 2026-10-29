@@ -44,6 +44,7 @@ newMetrics experimentName writers = do
   pushes <- counterVec "fanin_perf_pushes_total" "Successful pushes"
   targets <- counterVec "fanin_perf_targets_total" "Targets of successful pushes (clients kind counts users, not user x client rows)"
   errors <- counterVec "fanin_perf_errors_total" "Failed pushes"
+  zeroPerKind experimentName errors
   pushRateCurrent <- gaugeVec "fanin_perf_push_rate_current" "Pushes per second during the last tick"
   pushRateMax <- gaugeVec "fanin_perf_push_rate_max" "Maximal pushes per second after warmup"
   errorRateCurrent <- gaugeVec "fanin_perf_error_rate_current" "Errors per second during the last tick"
@@ -72,6 +73,11 @@ addCounter v lbl n = when (n > 0) $ P.withLabel v lbl (void . (`P.addCounter` fr
 
 setGauge :: Text -> P.Vector P.Label1 P.Gauge -> Double -> IO ()
 setGauge experiment g x = P.withLabel g experiment (`P.setGauge` x)
+
+-- | Creates the series of every kind at 0, so error panels show 0, not "No
+-- data", while nothing fails ('addCounter' skips zero deltas).
+zeroPerKind :: Text -> P.Vector P.Label2 P.Counter -> IO ()
+zeroPerKind experiment v = for_ allKinds $ \k -> P.withLabel v (experiment, kindName k) (void . (`P.addCounter` 0))
 
 counterVec :: Text -> Text -> IO (P.Vector P.Label2 P.Counter)
 counterVec name help = P.register $ P.vector ("experiment", "kind") $ P.counter (P.Info name help)
@@ -133,11 +139,12 @@ newConsumeMetrics experiment readers = do
   fetchCount <- counterVec "fanin_perf_fetches_total" "Fetches of a stream"
   emptyFetchCount <- counterVec "fanin_perf_empty_fetches_total" "Fetches that returned no notification"
   fetchErrorCount <- counterVec "fanin_perf_fetch_errors_total" "Failed fetches"
+  zeroPerKind experiment fetchErrorCount
   consumeRateCurrent <- gaugeVec "fanin_perf_consume_rate_current" "Delivered notifications per second during the last tick"
   consumeRateMax <- gaugeVec "fanin_perf_consume_rate_max" "Maximal delivered notifications per second after warmup"
   backlogGauge <- gaugeVec "fanin_perf_backlog" "Expected minus delivered notifications (clamped at 0)"
-  clientsGauge <- gaugeVec "fanin_perf_clients" "Simulated readers (users x clients per user)"
-  P.withLabel clientsGauge experiment (`P.setGauge` fromIntegral readers)
+  readersGauge <- gaugeVec "fanin_perf_readers" "Simulated readers (users x clients per user)"
+  P.withLabel readersGauge experiment (`P.setGauge` fromIntegral readers)
   fetchLatencyRef <- newIORef (VU.replicate numBuckets 0)
   lagRef <- newIORef (VU.replicate numBuckets 0)
   gateWaitRef <- newIORef (VU.replicate numBuckets 0)
@@ -177,6 +184,7 @@ newAckMetrics :: Text -> IO AckMetrics
 newAckMetrics experiment = do
   ackCount <- counterVec "fanin_perf_acks_total" "Ack upserts (one per stream at an ack point)"
   ackErrorCount <- counterVec "fanin_perf_ack_errors_total" "Failed ack upserts"
+  zeroPerKind experiment ackErrorCount
   ackRateCurrent <- gaugeVec "fanin_perf_ack_rate_current" "Ack upserts per second during the last tick"
   ackRateMax <- gaugeVec "fanin_perf_ack_rate_max" "Maximal ack upserts per second after warmup"
   ackLatencyRef <- newIORef (VU.replicate numBuckets 0)

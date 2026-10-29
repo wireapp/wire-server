@@ -34,7 +34,7 @@
     {
       "id": 4, "type": "timeseries", "title": "Error ratio", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
-      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "fanin_perf_error_ratio_current", "legendFormat": "errors / (pushes + errors), last tick" }
       ]
@@ -44,8 +44,8 @@
       "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[30s])))", "legendFormat": "p50 push latency (30s window)" },
-        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[30s])))", "legendFormat": "p99 push latency (30s window)" }
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[10s])))", "legendFormat": "p50 push latency (10s window)" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[10s])))", "legendFormat": "p99 push latency (10s window)" }
       ]
     },
     {
@@ -65,6 +65,7 @@
     },
     {
       "id": 8, "type": "timeseries", "title": "Delivered vs. targets written (notifications/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "description": "Equal only with one reader per stream. Delivered = targets x fan-out (readers per stream: clients per user, team members, epoch members; 0 for streams of offline users), see the run's fan-out line.",
       "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
       "targets": [
         { "refId": "A", "expr": "sum(rate(fanin_perf_consumed_total[5s]))", "legendFormat": "delivered/s (5s avg)" },
@@ -78,8 +79,8 @@
       "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[30s])))", "legendFormat": "p50" },
-        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[30s])))", "legendFormat": "p99" }
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[10s])))", "legendFormat": "p99" }
       ]
     },
     {
@@ -94,8 +95,8 @@
       "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[30s])))", "legendFormat": "p50" },
-        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[30s])))", "legendFormat": "p99" }
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[10s])))", "legendFormat": "p99" }
       ]
     },
     {
@@ -186,8 +187,8 @@
       "gridPos": { "x": 12, "y": 88, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[30s])))", "legendFormat": "p50" },
-        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[30s])))", "legendFormat": "p99" }
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[10s])))", "legendFormat": "p99" }
       ]
     },
     {
@@ -198,12 +199,20 @@
       ]
     },
     {
+      "id": 29, "type": "timeseries", "title": "Writers and readers", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 48, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_writers", "legendFormat": "writers (--writers)" },
+        { "refId": "B", "expr": "fanin_perf_readers", "legendFormat": "readers (online users x clients per user)" }
+      ]
+    },
+    {
       "id": 25, "type": "timeseries", "title": "Reader gate wait", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
       "gridPos": { "x": 12, "y": 96, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p50" },
-        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[30s])))", "legendFormat": "p99" }
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[10s])))", "legendFormat": "p99" }
       ]
     },
     {
