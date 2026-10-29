@@ -180,6 +180,7 @@ import Wire.InvitationStore
 import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
+import Wire.OAuthAuthCodeStore (OAuthAuthCodeStore)
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
@@ -413,7 +414,8 @@ servantSitemap ::
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     HasBrigFederationAccess m r,
-    Member BudgetStore r
+    Member BudgetStore r,
+    Member OAuthAuthCodeStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
