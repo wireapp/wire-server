@@ -62,7 +62,7 @@ import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
 import Data.String.Conversions
 import Gundeck.Aws.Arn as Aws
-import Gundeck.Options
+import Wire.NotificationStore (NotificationTTL (..))
 import Gundeck.Push
 import Gundeck.Push.Native as Native
 import Gundeck.Push.Websocket as Web
@@ -549,7 +549,7 @@ handlePushCass Push {..} = do
             case consumableNotifClients of
               [] ->
                 -- clients are stored in cassandra as a list with a notification.  empty list is
-                -- intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.  (here, we just
+                -- intepreted as "all clients" by 'Wire.NotificationStore.toNotifSingle'.  (here, we just
                 -- store a specific 'ClientId' that signifies "no client".)
                 [ClientId 0]
               _ ->

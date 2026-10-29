@@ -2376,9 +2376,9 @@ The current settings and their background-worker flags are:
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
+- `notifications` -> `migrateNotifications`
 
-`notifications` (gundeck NotificationStore) has no background-worker flag yet; its
-tables and migration arrive with the NotificationStore migration. Gundeck itself now
+Gundeck itself now
 requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` block
 (including `notifications`) to boot (strict config parsing).
 
@@ -2461,6 +2461,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
+   - `notifications`: `wire_notifications_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
