@@ -44,6 +44,7 @@ import Data.UUID (UUID)
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Hasql.Connection qualified as HasqlConn
+import Pqi.Ffi qualified as Pqi (adapter)
 import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -291,7 +292,7 @@ instance Exception ReindexFromAnotherIndexError
 runBackfillNormalizedNames :: Text -> Int32 -> IO ()
 runBackfillNormalizedNames pgSettings batchSize = do
   conn <- do
-    r <- HasqlConn.acquire (HasqlConnSettings.connectionString pgSettings)
+    r <- HasqlConn.acquire Pqi.adapter (HasqlConnSettings.connectionString pgSettings)
     either failWith' pure r
   let loop total = do
         rows <- runSession conn (Session.statement batchSize selectBatch)
