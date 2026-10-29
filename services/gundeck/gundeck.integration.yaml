@@ -62,6 +62,7 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   passwordReset: postgresql
+  customBackend: postgresql
   notifications: postgresql
 
 settings:
