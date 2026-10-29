@@ -206,7 +206,6 @@ clients migOpts = do
     Log.info logger $ Log.msg (Log.val "cancelling clients migration")
     cancel migrationLoop
 
-
 userClientIndex :: MigrationOptions -> AppT IO CleanupAction
 userClientIndex migOpts = do
   cassClient <- asks (.cassandraGalley)
