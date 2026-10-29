@@ -88,7 +88,8 @@ testSessionsMigration = do
     -- at least one cookie for the user afterwards.
     checkCookies :: (HasCallStack, MakesValue user, MakesValue domain) => domain -> user -> App ()
     checkCookies domain u = do
-      login domain (u %. "email") defPassword >>= assertSuccess
+      email <- asString (u %. "email")
+      login domain email defPassword >>= assertSuccess
       resp <- getCookies u [] >>= getJSON 200
       cookies <- resp & asList
       assertBool "expected at least one session cookie" (not (null cookies))
