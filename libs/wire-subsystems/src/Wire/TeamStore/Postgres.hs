@@ -65,6 +65,7 @@ import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write))
+import Control.Monad (join)
 import Imports
 import Polysemy
 import Polysemy.TinyLog
@@ -323,7 +324,7 @@ updateTeam tid u =
 getSearchVisibility :: (PGConstraints r) => TeamId -> Sem r TeamSearchVisibility
 getSearchVisibility tid = do
   mres <- runStatement (toUUID tid) selectSearchVisibilityStatement
-  let mv = Control.Monad.join mres
+  let mv = join mres
   pure $ fromMaybe SearchVisibilityStandard (mv >>= either (const Nothing) Just . teamSearchVisibilityFromText)
 
 -- | The team-table part of 'DeleteTeam' (no conversation deletion); shared by
