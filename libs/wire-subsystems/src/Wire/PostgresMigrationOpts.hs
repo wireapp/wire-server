@@ -60,7 +60,7 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     blockList :: StorageLocation,
     passwordReset :: StorageLocation,
     customBackend :: StorageLocation,
-    invitations :: StorageLocation,
+    invitations :: StorageLocation
   }
   deriving (Show)
 
