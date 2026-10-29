@@ -1,0 +1,38 @@
+receivers:
+  postgresql:
+    endpoint: postgres:5432
+    username: wire-server
+    password: posty-the-gres
+    databases:
+      - fan_in_perf
+    collection_interval: 15s
+    tls:
+      insecure: true
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'postgres-exporter'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['postgres-exporter:9187']
+        - job_name: 'postgres-exporter-fan-in-perf'
+          scrape_interval: 1s
+          static_configs:
+            - targets: ['postgres-exporter-fan-in-perf:9187']
+        - job_name: 'fan-in-perf'
+          scrape_interval: 1s
+          static_configs:
+            - targets: ['host.docker.internal:9400']
+
+exporters:
+  otlp:
+    endpoint: grafana-lgtm:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [postgresql, prometheus]
+      exporters: [otlp]

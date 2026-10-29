@@ -1,0 +1,240 @@
+{
+  "title": "fan-in-perf",
+  "uid": "fan-in-perf",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Push rate (pushes/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (experiment) (rate(fanin_perf_pushes_total[5s]))", "legendFormat": "pushes/s (5s avg)" },
+        { "refId": "B", "expr": "fanin_perf_push_rate_current", "legendFormat": "pushes/s (last tick)" },
+        { "refId": "C", "expr": "fanin_perf_push_rate_max", "legendFormat": "peak pushes/s (after warmup)" }
+      ]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Push rate by kind", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_pushes_total[5s]))", "legendFormat": "{{kind}}" }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Error rate (errors/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_errors_total[5s]))", "legendFormat": "errors/s ({{kind}}, 5s avg)" },
+        { "refId": "B", "expr": "fanin_perf_error_rate_current", "legendFormat": "errors/s (last tick)" }
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Error ratio", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_error_ratio_current", "legendFormat": "errors / (pushes + errors), last tick" }
+      ]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Push latency", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[10s])))", "legendFormat": "p50 push latency (10s window)" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_push_duration_seconds_bucket[10s])))", "legendFormat": "p99 push latency (10s window)" }
+      ]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Targets rate (targets/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_targets_total[5s]))", "legendFormat": "{{kind}}" }
+      ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Pool connections in use", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_pool_in_use{job=\"fan-in-perf\"}", "legendFormat": "{{role}} in use" },
+        { "refId": "B", "expr": "fanin_perf_writers", "legendFormat": "writer threads (--writers)" }
+      ]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Delivered vs. targets written (notifications/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "description": "Equal only with one reader per stream. Delivered = targets x fan-out (readers per stream: clients per user, team members, epoch members; 0 for streams of offline users), see the run's fan-out line.",
+      "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(fanin_perf_consumed_total[5s]))", "legendFormat": "delivered/s (5s avg)" },
+        { "refId": "B", "expr": "fanin_perf_consume_rate_current", "legendFormat": "delivered/s (last tick)" },
+        { "refId": "C", "expr": "fanin_perf_consume_rate_max", "legendFormat": "peak delivered/s (after warmup)" },
+        { "refId": "D", "expr": "sum(rate(fanin_perf_targets_total[5s]))", "legendFormat": "targets/s (writers)" }
+      ]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Delivery lag", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_delivery_lag_seconds_bucket[10s])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Backlog (expected - delivered)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_backlog", "legendFormat": "backlog" }
+      ]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Fetch latency", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_fetch_duration_seconds_bucket[10s])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Empty fetch ratio / fetch errors", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 48, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(fanin_perf_empty_fetches_total[5s])) / sum(rate(fanin_perf_fetches_total[5s]))", "legendFormat": "empty fetch ratio" },
+        { "refId": "B", "expr": "sum(rate(fanin_perf_fetch_errors_total[5s]))", "legendFormat": "fetch errors/s" }
+      ]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Pool connections idle", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_pool_ready_for_use{job=\"fan-in-perf\"}", "legendFormat": "{{role}} idle" }
+      ]
+    },
+    {
+      "id": 14, "type": "timeseries", "title": "Pool utilisation (in use / total)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 56, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_pool_in_use / (fanin_perf_pool_in_use + fanin_perf_pool_ready_for_use)", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 15, "type": "timeseries", "title": "Pool sessions/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 56, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_count_total[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 16, "type": "timeseries", "title": "Pool session failures/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 64, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_session_failure_count_total[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 17, "type": "timeseries", "title": "Pool acquisition timeouts/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 64, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_acquisition_timeout_count_total[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 18, "type": "timeseries", "title": "Pool connections established/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 72, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_established_count_total[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 19, "type": "timeseries", "title": "Pool connection failures/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 72, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (role) (rate(fanin_perf_pool_connection_failure_count_total[5s]))", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Pool session duration", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 80, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (role, le) (rate(fanin_perf_pool_session_seconds_bucket[5s])))", "legendFormat": "{{role}} p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (role, le) (rate(fanin_perf_pool_session_seconds_bucket[5s])))", "legendFormat": "{{role}} p99" }
+      ]
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Pool connection establishment duration", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 80, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (role, le) (rate(fanin_perf_pool_connection_acquisition_seconds_bucket[5s])))", "legendFormat": "{{role}} p99" }
+      ]
+    },
+    {
+      "id": 22, "type": "timeseries", "title": "Ack upserts/s vs consumed/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 88, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_ack_rate_current", "legendFormat": "acks/s {{experiment}}" },
+        { "refId": "B", "expr": "fanin_perf_consume_rate_current", "legendFormat": "consumed/s {{experiment}}" }
+      ]
+    },
+    {
+      "id": 23, "type": "timeseries", "title": "Ack latency", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 88, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_ack_duration_seconds_bucket[10s])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 24, "type": "timeseries", "title": "Ack errors/s", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 96, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (kind) (rate(fanin_perf_ack_errors_total[5s]))", "legendFormat": "{{kind}}" }
+      ]
+    },
+    {
+      "id": 29, "type": "timeseries", "title": "Writers and readers", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 48, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fanin_perf_writers", "legendFormat": "writers (--writers)" },
+        { "refId": "B", "expr": "fanin_perf_readers", "legendFormat": "readers (online users x clients per user)" }
+      ]
+    },
+    {
+      "id": 25, "type": "timeseries", "title": "Reader gate wait", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 96, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[10s])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le) (rate(fanin_perf_gate_wait_seconds_bucket[10s])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 26, "type": "row", "title": "pg_partman", "collapsed": false,
+      "gridPos": { "x": 0, "y": 104, "w": 24, "h": 1 },
+      "panels": []
+    },
+    {
+      "id": 27, "type": "timeseries", "title": "Partitions per parent", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 0, "y": 105, "w": 12, "h": 8 },
+      "targets": [
+        { "refId": "A", "expr": "fan_in_partman_partitions", "legendFormat": "{{parent}}" }
+      ]
+    },
+    {
+      "id": 28, "type": "timeseries", "title": "Oldest partition age per parent", "datasource": {"type": "prometheus", "uid": "prometheus"}, "interval": "1s",
+      "gridPos": { "x": 12, "y": 105, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "fan_in_partman_oldest_partition_age_seconds", "legendFormat": "{{parent}}" },
+        { "refId": "B", "expr": "fan_in_partman_seconds_since_maintenance", "legendFormat": "since maintenance ({{parent}})" }
+      ]
+    }
+  ]
+}
