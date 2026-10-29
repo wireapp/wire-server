@@ -146,7 +146,11 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
+<<<<<<< HEAD
             (,,,,,,,,,,,,,,)
+=======
+            (,,,,,,,,,,,,)
+>>>>>>> 680d8233c5 (fix: post-rebuild)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration

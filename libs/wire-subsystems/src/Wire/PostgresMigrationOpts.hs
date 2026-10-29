@@ -84,4 +84,3 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "connections"
       <*> o .: "clients"
       <*> o .: "userClientIndex"
-      <*> o .: "userClientIndex"
