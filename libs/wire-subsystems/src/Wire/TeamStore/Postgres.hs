@@ -45,7 +45,7 @@ module Wire.TeamStore.Postgres
   )
 where
 
-import Control.Lens ((.~), (^.), (^?), _Just, _1, _2)
+import Control.Lens ((.~), (^.), (^?), _1, _2, _Just)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LegalHold

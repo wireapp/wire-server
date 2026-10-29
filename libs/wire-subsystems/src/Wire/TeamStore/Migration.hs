@@ -23,11 +23,11 @@ import Cassandra hiding (Value)
 import Cassandra.Util (Writetime (..), writetimeToUTC)
 import Data.Conduit
 import Data.Conduit.List qualified as C
+import Data.IORef qualified as IORef
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (..), fromUTCTimeMillis)
-import Data.Text.Encoding (decodeUtf8)
-import Data.Text.Encoding (encodeUtf8)
-import Data.IORef qualified as IORef
+import Data.LegalHold
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time
 import Hasql.Pool.Extended qualified as Hasql
 import Imports
@@ -44,13 +44,12 @@ import Prometheus qualified
 import System.Logger qualified as Log
 import UnliftIO qualified
 import Wire.API.PostgresMarshall (PostgresMarshall (..))
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Permission (Permissions)
 import Wire.API.Team.SearchVisibility
-import Wire.API.Routes.Internal.Galley.TeamsIntra
-import Data.LegalHold
-import Wire.Migration
 import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.Migration
 import Wire.Postgres (PGConstraints)
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
@@ -139,7 +138,11 @@ migrateTeams migOpts migCounter migDuration =
     .| C.mapM_
       ( traverse_ $ \(tid, creator, name, icon, iconKey, deleted, status, statusWT, binding, bindingWT, splashScreen, searchVisibility) ->
           handleErrors (encodeUtf8 (idToText tid)) $
-            migrateRowWithMetrics migOpts migCounter migDuration (encodeUtf8 (idToText tid))
+            migrateRowWithMetrics
+              migOpts
+              migCounter
+              migDuration
+              (encodeUtf8 (idToText tid))
               ( Postgres.migrateTeamRow
                   Postgres.TeamRow
                     { Postgres.trCreator = toUUID creator,
@@ -172,7 +175,11 @@ migrateTeamMembers migOpts migCounter migDuration =
     .| C.mapM_
       ( traverse_ $ \(tid, uid, perms, minvu, minvt, mlh) ->
           handleErrors (encodeUtf8 (idToText tid)) $
-            migrateRowWithMetrics migOpts migCounter migDuration (encodeUtf8 (idToText tid))
+            migrateRowWithMetrics
+              migOpts
+              migCounter
+              migDuration
+              (encodeUtf8 (idToText tid))
               ( let (permsSelf, permsCopy) = postgresMarshall perms :: (Int64, Int64)
                  in Postgres.migrateTeamMemberRow
                       (toUUID tid)
