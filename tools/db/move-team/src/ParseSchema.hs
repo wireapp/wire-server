@@ -427,7 +427,6 @@ main = do
                        -- gundeck.user_push
                        -- spar.authreq
                        -- spar.authresp
-                       -- spar.bind_cookie
                        -- spar.default_idp
                        -- spar.idp
                        -- spar.idp_raw_metadata
