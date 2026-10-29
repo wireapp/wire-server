@@ -62,19 +62,19 @@ import Wire.Network.DNS.SRV
 data RemoteError
   = -- | This means that an error occurred while trying to make a request to a
     -- remote federator.
-    RemoteError SrvTarget Text FederatorClientHTTP2Error
+    RemoteError Domain SrvTarget Text FederatorClientHTTP2Error
   | -- | This means that a request to a remote federator returned an error
     -- response. The error response could be due to an error in the remote
     -- federator itself, or in the services it proxied to.
-    RemoteErrorResponse SrvTarget Text HTTP.Status LByteString
+    RemoteErrorResponse Domain SrvTarget Text HTTP.Status LByteString
   deriving (Show)
 
 instance AsWai RemoteError where
   errorLogLevel _ = Log.Error
-  toWai (RemoteError target msg err) =
-    federationRemoteHTTP2Error target msg err
-  toWai (RemoteErrorResponse target msg status body) =
-    federationRemoteResponseError target msg status body
+  toWai (RemoteError remoteDomain target msg err) =
+    federationRemoteHTTP2Error target remoteDomain msg err
+  toWai (RemoteErrorResponse remoteDomain target msg status body) =
+    federationRemoteResponseError target remoteDomain msg status body
 
 data Remote m a where
   DiscoverAndCall ::
@@ -113,7 +113,7 @@ interpretRemote = interpret $ \case
 
     mgr <- input
     ipRef <- embed @(Codensity IO) . liftIO $ IORef.newIORef Nothing
-    resp <- mapError (RemoteError target pathT) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
+    resp <- mapError (RemoteError domain target pathT) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
         E.catches
           ( H2Manager.withHTTP2RequestOnSingleUseConnWithHook
@@ -136,6 +136,7 @@ interpretRemote = interpret $ \case
       bdy <- embed @(Codensity IO) . liftIO $ streamingResponseStrictBody resp
       throw $
         RemoteErrorResponse
+          domain
           target
           pathT
           (responseStatusCode resp)
