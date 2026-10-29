@@ -885,6 +885,7 @@ spar:
       user: cassandra
       blockList: cassandra
       passwordReset: cassandra
+      customBackend: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
 
