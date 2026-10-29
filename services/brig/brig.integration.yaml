@@ -182,6 +182,7 @@ postgresMigration:
   blockList: postgresql
   customBackend: postgresql
   notifications: postgresql
+  pushTokens: postgresql
 
 optSettings:
   setActivationTimeout: 4
