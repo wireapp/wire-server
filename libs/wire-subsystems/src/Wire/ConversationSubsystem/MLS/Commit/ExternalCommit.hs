@@ -31,7 +31,6 @@ import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Resource (Resource)
 import Polysemy.State
 import Wire.API.Conversation.Protocol
 import Wire.API.Error.Galley
@@ -130,7 +129,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 processExternalCommit ::
   forall r.
   ( Member (Error FederationError) r,
-    Member Resource r,
+
     HasProposalActionEffects r,
     Member MLSCommitLockStore r
   ) =>
