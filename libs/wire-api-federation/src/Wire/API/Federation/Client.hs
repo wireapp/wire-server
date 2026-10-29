@@ -281,7 +281,7 @@ mkFailureResponse status domain path body
             Just
               Wai.FederationErrorData
                 { Wai.federrDomain =
-                    fromMaybe (Just domain) (Wai.federrDomain <$> remoteError.errorData),
+                    maybe (Just domain) Wai.federrDomain remoteError.errorData,
                   Wai.federrPath =
                     "/federation"
                       <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path),
