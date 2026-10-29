@@ -65,6 +65,8 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Credential (ClientIdentity (..))
+import Wire.API.MLS.Group (MLSMemberClient (..), MLSMemberClientList (..))
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -113,6 +115,7 @@ internalAPI =
       <@> mkNamedAPI @"delete-user" rmUser
       <@> mkNamedAPI @"connect" createConnectConversation
       <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
+      <@> mkNamedAPI @"get-conversation-member-clients" iGetMLSMemberClients
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -535,3 +538,22 @@ iGetMLSClientListForConv ::
 iGetMLSClientListForConv gid = do
   cm <- ConversationStore.lookupMLSClients gid
   pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs (unClientMap cm)))
+
+-- | Get the member client rows of an MLS group, including leaf indices.
+-- Clients with a pending removal are excluded.
+iGetMLSMemberClients ::
+  forall r.
+  (Member ConversationStore r) =>
+  GroupId ->
+  Sem r MLSMemberClientList
+iGetMLSMemberClients gid = do
+  cm <- ConversationStore.lookupMLSClients gid
+  pure $
+    MLSMemberClientList
+      [ MLSMemberClient
+          { mmcClient = ClientIdentity (qDomain quid) (qUnqualified quid) cid,
+            mmcLeafIndex = idx
+          }
+      | (quid, clients) <- Map.assocs (unClientMap cm),
+        (cid, idx) <- Map.assocs clients
+      ]

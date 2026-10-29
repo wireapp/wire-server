@@ -368,15 +368,11 @@ executable galley-integration
     , data-timeout
     , errors
     , exceptions
-    , extended
     , extra                  >=1.3
     , federator
     , filepath
     , galley
     , galley-types
-    , hasql
-    , hasql-resource-pool
-    , hasql-th
     , HsOpenSSL
     , http-api-data
     , http-client

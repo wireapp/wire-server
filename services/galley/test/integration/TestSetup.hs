@@ -34,7 +34,6 @@ module TestSetup
     tsAwsEnv,
     tsMaxConvSize,
     tsCass,
-    tsPgPool,
     tsFedGalleyClient,
     tsTeamEventWatcher,
     TestM (..),
@@ -56,7 +55,6 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Proxy
 import Data.Text qualified as Text
-import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Proto.TeamEvents (TeamEvent)
@@ -127,10 +125,6 @@ data TestSetup = TestSetup
     _tsAwsEnv :: Maybe Aws.Env,
     _tsMaxConvSize :: Word16,
     _tsCass :: Cql.ClientState,
-    -- | Connection pool to the same Postgres instance galley is configured
-    -- with; lets tests inspect store state for conversations that live in
-    -- Postgres (see the isConvInPostgres routing in the Cassandra interpreter).
-    _tsPgPool :: HasqlPoolExt.Pool,
     _tsFedGalleyClient :: FedClient 'Galley,
     _tsTeamEventWatcher :: Maybe (SQS.SQSWatcher TeamEvent)
   }

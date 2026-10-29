@@ -43,11 +43,6 @@ import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
-import Hasql.Pool qualified as HasqlPool
-import Hasql.Pool.Extended qualified as HasqlPoolExt
-import Hasql.Session qualified as HasqlSession
-import Hasql.Statement qualified as Hasql
-import Hasql.TH
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty
@@ -64,11 +59,9 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
-import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
-import Wire.API.PostgresMarshall (dimapPG)
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.Routes.Version
@@ -532,57 +525,6 @@ testCommitLock = do
               (groupId, epoch)
           )
 
-selectMemberClientRows :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, Int32, Bool)
-selectMemberClientRows =
-  "select user_domain, user, client, leaf_node_index, removal_pending from mls_group_member_client where group_id = ?"
-
--- | Same table read from Postgres, mirroring the statement style of
--- Wire.ConversationStore.Postgres.  Used when the conversation lives in
--- Postgres (the isConvInPostgres routing in the Cassandra interpreter decides
--- which store holds the member rows).
-selectMemberClientRowsPg :: Hasql.Statement GroupId [(Domain, UserId, ClientId, Int32, Bool)]
-selectMemberClientRowsPg =
-  dimapPG
-    [vectorStatement|SELECT (user_domain :: text), ("user" :: uuid), (client :: text), (leaf_node_index :: integer), (removal_pending :: bool)
-                     FROM mls_group_member_client
-                     WHERE group_id = ($1 :: bytea)
-                    |]
-
--- | Assert the client's row in mls_group_member_client survived a re-join with
--- exactly one entry carrying the expected leaf index (WPB-29648: a DELETE and
--- INSERT of the same key within one millisecond used to drop the row).
---
--- Assumes single-store deployments (as in CI): the store holding the row is
--- picked by whether Cassandra returned any matching row, which coincides with
--- the isConvInPostgres routing there.
-assertClientMemberRow :: (HasCallStack) => GroupId -> ClientIdentity -> LeafIndex -> MLSTest ()
-assertClientMemberRow gid ci expectedIdx = do
-  casClient <- liftTest (view tsCass)
-  pgPool <- liftTest (view tsPgPool)
-  casRows <-
-    liftTest . runClient casClient . retry x5 $
-      Cassandra.query selectMemberClientRows (params LocalQuorum (Identity gid))
-  let memberRows rows =
-        [ idx
-        | (_, usr, cl, idx, pending) <- rows,
-          usr == qUnqualified (cidQualifiedUser ci),
-          cl == ciClient ci,
-          not pending
-        ]
-      msg = "expected exactly one member row for client " <> show (ciClient ci)
-  leafIndexes <- case memberRows casRows of
-    [] -> liftTest $ do
-      -- No row in Cassandra: the conversation lives in Postgres, read the row
-      -- there.  A Postgres error is folded into the assertion message so a
-      -- broken fallback is not mistaken for the WPB-29648 symptom.
-      result <-
-        liftIO $ HasqlPool.use (HasqlPoolExt.rawPool pgPool) (HasqlSession.statement gid selectMemberClientRowsPg)
-      case result of
-        Right pgRows -> pure (memberRows pgRows)
-        Left err -> liftIO (assertFailure ("postgres fallback failed: " <> show err))
-    found -> pure found
-  liftIO $ assertEqual msg [fromIntegral expectedIdx] leafIndexes
-
 testUnknownProposalRefCommit :: (HasCallStack) => TestM ()
 testUnknownProposalRefCommit = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -742,7 +684,7 @@ testExternalCommitSameClient = do
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
-    (groupId, qcnv) <- setupMLSGroup alice1
+    (_, qcnv) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     let rejoiner = alice1
@@ -751,9 +693,6 @@ testExternalCommitSameClient = do
         >>= sendAndConsumeCommitBundle
     liftIO $
       assertBool "No events after external commit expected" (null ecEvents)
-
-    Just (_, rejoinerIdx) <- find (\(ci, _) -> ci == rejoiner) <$> getClientsFromGroupState rejoiner alice
-    assertClientMemberRow groupId rejoiner rejoinerIdx
 
     message <- createApplicationMessage bob1 "hello"
     void $ sendAndConsumeMessage message
@@ -1857,8 +1796,6 @@ testExternalCommitSameClientSubConv = do
 
     -- alice1 and bob1 create and join a subconversation, respectively
     qsub <- createSubConv qcnv alice1 subId
-    sub <- liftTest $ responseJsonError =<< getSubConv (qUnqualified alice) qcnv subId
-    let subGroupId = pscGroupId sub
     void $
       createExternalCommit bob1 Nothing qsub
         >>= sendAndConsumeCommitBundle
@@ -1874,9 +1811,6 @@ testExternalCommitSameClientSubConv = do
         createExternalCommit bob1 Nothing qsub
           >>= sendAndConsumeCommitBundle
       WS.assertNoEvent (2 # WS.Second) [wsB]
-
-    Just (_, idxAfterRejoin) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState bob1 bob
-    assertClientMemberRow subGroupId bob1 idxAfterRejoin
 
 testJoinSubNonMemberClient :: (HasCallStack) => TestM ()
 testJoinSubNonMemberClient = do

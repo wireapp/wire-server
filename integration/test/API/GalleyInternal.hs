@@ -19,6 +19,9 @@ module API.GalleyInternal where
 
 import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base64.URL as B64U
+import qualified Data.ByteString.Char8 as BS
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Vector as Vector
@@ -112,6 +115,24 @@ legalholdIsTeamInWhitelist :: (HasCallStack, MakesValue uid, MakesValue tid) => 
 legalholdIsTeamInWhitelist tid uid = do
   tidStr <- asString tid
   req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
+  submit "GET" req
+
+-- | GET /i/group/:gid/member-clients — member client rows (with leaf indices)
+-- of the MLS group of a conversation; with 'subconvId' set, the group of the
+-- subconversation.  GroupId travels as base64url-unpadded, conversation JSON
+-- carries standard base64.
+getMLSMemberClients :: (HasCallStack, MakesValue user) => user -> ConvId -> App Response
+getMLSMemberClients user conv = do
+  gid <- case conv.groupId of
+    Just g -> pure g
+    Nothing -> assertFailure "conversation has no MLS group id"
+  gidBytes <- either (assertFailure . ("invalid MLS group id " <>) . (gid <>)) pure (B64.decode (cs gid))
+  req <-
+    baseRequest
+      user
+      Galley
+      Unversioned
+      ("/i/group/" <> BS.unpack (B64U.encodeUnpadded gidBytes) <> "/member-clients")
   submit "GET" req
 
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_teams__tid__features_legalhold

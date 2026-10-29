@@ -34,7 +34,6 @@ import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Federation
-import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -117,15 +116,8 @@ main = withOpenSSL $ runTests go
       -- Initialize cassandra
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra (fromJust gConf ^. cassandra) lg
-      -- Same Postgres instance galley is configured with, for tests that
-      -- inspect store state of conversations living in Postgres.
-      pg <-
-        HasqlPoolExt.initPostgresPool
-          (fromJust gConf ^. postgresqlPool)
-          (fromJust gConf ^. postgresql)
-          (fromJust gConf ^. postgresqlPassword)
       teamEventWatcher <- sequence $ SQS.watchSQSQueue <$> ((^. Aws.awsEnv) <$> awsEnv) <*> q
-      pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db pg (FedClient m galleyEndpoint) teamEventWatcher
+      pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint) teamEventWatcher
     queueName' = fmap (view queueName) . view journal
     endpoint' = fmap (view O.endpoint) . view journal
     maxSize = view (settings . maxConvSize)

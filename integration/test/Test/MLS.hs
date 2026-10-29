@@ -998,6 +998,33 @@ testExternalCommitDuplicateClient = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
 
+testExternalCommitSameClient :: (HasCallStack) => App ()
+testExternalCommitSameClient = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- alice1 rejoins the group with the same client via external commit.
+  void $ createExternalCommit convId alice1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- WPB-29648: the member row must have survived the re-join, exactly once,
+  -- with the rejoiner's current leaf index.
+  gs <- getClientGroupState alice1
+  groupData <- assertJust "no MLS group state for alice1" (Map.lookup convId gs.groups)
+  members <- readGroupState groupData
+  idx <- assertJust "rejoined client missing from group state" $
+    listToMaybe [idx | (RegularClient c, idx) <- members, c == alice1]
+  rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
+  idxs <- for rows $ \r -> do
+    ci <- r %. "client"
+    uid <- ci %. "user_id" & asString
+    client <- ci %. "client_id" & asString
+    idx' <- r %. "leaf_index" & asIntegral @Word32
+    pure (uid, client, idx')
+  [idx' | (u, c, idx') <- idxs, u == alice1.user, c == alice1.client] `shouldMatch` [idx]
+
 testInternalCommitDuplicateClient :: (HasCallStack) => App ()
 testInternalCommitDuplicateClient = do
   alice <- randomUser OwnDomain def
