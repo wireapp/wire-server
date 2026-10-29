@@ -181,6 +181,7 @@ postgresMigration:
   user: postgresql
   blockList: postgresql
   customBackend: postgresql
+  userPendingActivation: postgresql
 
 optSettings:
   setActivationTimeout: 4

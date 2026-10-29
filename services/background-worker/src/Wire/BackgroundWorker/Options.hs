@@ -57,6 +57,7 @@ data Opts = Opts
     migrateDomainRegistration :: !Bool,
     migrateUsers :: !Bool,
     migrateBlockList :: !Bool,
+    migrateUsersPendingActivation :: !Bool,
     migratePasswordReset :: !Bool,
     migrateCustomBackend :: !Bool,
     jobs :: JobConfig,
