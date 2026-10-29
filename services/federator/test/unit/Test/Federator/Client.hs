@@ -89,6 +89,7 @@ tests =
         [ testCase "testClientSuccess" testClientSuccess,
           testCase "testClientStreaming" testClientStreaming,
           testCase "testClientFailure" testClientFailure,
+          testCase "testClientPreservesSrvMetadata" testClientPreservesSrvMetadata,
           testCase "testFederatorFailure" testFederatorFailure,
           testCase "testClientException" testClientExceptions,
           testCase "testClientConnectionError" testClientConnectionError
@@ -184,6 +185,46 @@ testClientFailure = do
     Left (ResponseFailure werr) -> do
       Wai.code werr @?= HTTP.status422
       Wai.message werr @?= "wrong domain"
+
+testClientPreservesSrvMetadata :: IO ()
+testClientPreservesSrvMetadata = do
+  handle <- generate arbitrary
+  let srvTargetDomain = Domain "srv.internal.example.com"
+      srvTarget = "srv.internal.example.com:443"
+      remoteError =
+        (Wai.mkError HTTP.status422 "remote-error" "failure")
+          { Wai.errorData =
+              Just $
+                Wai.FederationErrorData
+                  { Wai.federrDomain = targetDomain,
+                    Wai.federrPath = "/federation/remote/path",
+                    Wai.federrSrvTargetDomain = Just srvTargetDomain,
+                    Wai.federrSrvTarget = Just srvTarget
+                  }
+          }
+
+  (actualResponse, _) <-
+    withMockFederatorClient
+      def
+        { handler =
+            const $
+              pure
+                def
+                  { status = HTTP.status422,
+                    body = Aeson.encode remoteError
+                  }
+        }
+      $ fedClient @'Brig @"get-user-by-handle" handle
+
+  case actualResponse of
+    Right _ -> assertFailure "unexpected success"
+    Left (ResponseFailure werr) -> do
+      case Wai.errorData werr of
+        Nothing -> assertFailure "expected federation error data"
+        Just errorData -> do
+          Wai.federrDomain errorData @?= targetDomain
+          Wai.federrSrvTargetDomain errorData @?= Just srvTargetDomain
+          Wai.federrSrvTarget errorData @?= Just srvTarget
 
 testFederatorFailure :: IO ()
 testFederatorFailure = do

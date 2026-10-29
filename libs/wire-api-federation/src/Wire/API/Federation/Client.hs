@@ -276,7 +276,7 @@ mkFailureResponse status domain path body
   -- Any other error is interpreted as a correctly formatted wai error, and
   -- returned to the client.
   | otherwise =
-      (fromMaybe defaultError (Aeson.decode body))
+      remoteError
         { Wai.errorData =
             Just
               Wai.FederationErrorData
@@ -284,11 +284,14 @@ mkFailureResponse status domain path body
                   Wai.federrPath =
                     "/federation"
                       <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path),
-                  Wai.federrSrvTargetDomain = Nothing,
-                  Wai.federrSrvTarget = Nothing
+                  Wai.federrSrvTargetDomain =
+                    remoteError.errorData >>= Wai.federrSrvTargetDomain,
+                  Wai.federrSrvTarget =
+                    remoteError.errorData >>= Wai.federrSrvTarget
                 }
         }
   where
+    remoteError = fromMaybe defaultError (Aeson.decode body)
     defaultError =
       Wai.mkError
         status
