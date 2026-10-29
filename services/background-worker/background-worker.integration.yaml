@@ -57,6 +57,8 @@ migrationOptions:
   timeout: 5s
 migrateConversationCodes: false
 migrateTeamFeatures: false
+migrateTeam: false
+migrateTeamMembers: false
 migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
@@ -92,7 +94,6 @@ meetingsCleanup:
   batchSize: 100
   schedule: "* * * * *"  # Run every minute
 
-# license: <base64url licence payload>  # same payload as galley's settings.license
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
