@@ -109,3 +109,4 @@ postgresMigration:
   connections: postgresql
   sessions: postgresql
   notifications: postgresql
+  pushTokens: postgresql
