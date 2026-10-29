@@ -105,6 +105,7 @@ data:
     migrateScimTokens: {{ .migrateScimTokens }}
     migrateScimExternalIds: {{ .migrateScimExternalIds }}
     migrateSamlUsers: {{ .migrateSamlUsers }}
+    migrateScimUserMeta: {{ .migrateScimUserMeta }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 

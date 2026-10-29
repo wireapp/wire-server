@@ -33,6 +33,7 @@ import Wire.PasswordResetCodeStore.Migration
 import Wire.SAMLUserStore.Migration qualified as SAMLUserStore
 import Wire.ScimExternalIdStore.Migration qualified as ScimExternalIdStore
 import Wire.ScimTokenStore.Migration qualified as ScimTokenStore
+import Wire.ScimUserMetaStore.Migration qualified as ScimUserMetaStore
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
@@ -239,4 +240,22 @@ samlUsers migOpts = do
   Log.info logger $ Log.msg (Log.val "started saml users migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling saml users migration")
+    cancel migrationLoop
+
+scimUserMeta :: MigrationOptions -> AppT IO CleanupAction
+scimUserMeta migOpts = do
+  cassClient <- asks (.cassandraSpar)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting scim user meta migration")
+  count <- register $ counter $ Prometheus.Info "wire_scim_user_meta_migrated_to_pg" "Number of scim user meta rows migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_scim_user_meta_migration_finished" "Whether the scim user meta migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_scim_user_meta_migration_failed" "Whether the scim user meta migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_scim_user_meta_migration_duration_seconds" "Duration of scim user meta migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ ScimUserMetaStore.migrateScimUserMetaLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started scim user meta migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling scim user meta migration")
     cancel migrationLoop
