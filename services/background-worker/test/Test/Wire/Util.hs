@@ -55,7 +55,7 @@ testEnv = do
             user = CassandraStorage,
             blockList = CassandraStorage,
             passwordReset = CassandraStorage,
-            customBackend = CassandraStorage
+            customBackend = CassandraStorage,
             scimTokens = CassandraStorage,
             scimExternalIds = CassandraStorage
           }
