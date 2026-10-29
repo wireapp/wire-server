@@ -1014,8 +1014,9 @@ testExternalCommitSameClient = do
   gs <- getClientGroupState alice1
   groupData <- assertJust "no MLS group state for alice1" (Map.lookup convId gs.groups)
   members <- readGroupState groupData
-  idx <- assertJust "rejoined client missing from group state" $
-    listToMaybe [idx | (RegularClient c, idx) <- members, c == alice1]
+  idx <-
+    assertJust "rejoined client missing from group state"
+      $ listToMaybe [idx | (RegularClient c, idx) <- members, c == alice1]
   rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
   idxs <- for rows $ \r -> do
     ci <- r %. "client"
