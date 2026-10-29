@@ -196,8 +196,9 @@ testClientPreservesSrvMetadata = do
           { Wai.errorData =
               Just $
                 Wai.FederationErrorData
-                  { Wai.federrDomain = targetDomain,
+                  { Wai.federrDomain = Just srvTargetDomain,
                     Wai.federrPath = "/federation/remote/path",
+                    Wai.federrFederationDomain = Just targetDomain,
                     Wai.federrSrvTargetDomain = Just srvTargetDomain,
                     Wai.federrSrvTarget = Just srvTarget
                   }
@@ -222,7 +223,8 @@ testClientPreservesSrvMetadata = do
       case Wai.errorData werr of
         Nothing -> assertFailure "expected federation error data"
         Just errorData -> do
-          Wai.federrDomain errorData @?= targetDomain
+          Wai.federrDomain errorData @?= Just srvTargetDomain
+          Wai.federrFederationDomain errorData @?= Just targetDomain
           Wai.federrSrvTargetDomain errorData @?= Just srvTargetDomain
           Wai.federrSrvTarget errorData @?= Just srvTarget
 

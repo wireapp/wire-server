@@ -248,22 +248,8 @@ federationRemoteHTTP2Error target remoteDomain path = \case
   where
     addErrData err =
       err
-        { Wai.errorData = mkErrorData
+        { Wai.errorData = Just (federationErrorData target remoteDomain path)
         }
-    mkErrorData =
-      Just $
-        Wai.FederationErrorData
-          remoteDomain
-          path
-          (either (const Nothing) Just legacyDomain)
-          (Just srvTargetText)
-    legacyDomain =
-      (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
-        Either String Domain
-    srvTargetText =
-      T.decodeUtf8With T.lenientDecode (srvTargetDomain target)
-        <> ":"
-        <> T.pack (show (srvTargetPort target))
 
 federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationClientHTTP2Error (FederatorClientConnectionError e) =
@@ -286,7 +272,7 @@ federationRemoteResponseError target remoteDomain path status body =
           <> LT.pack (show (HTTP.statusCode status))
       )
   )
-    { Wai.errorData = mkErrorData,
+    { Wai.errorData = Just (federationErrorData target remoteDomain path),
       Wai.innerError =
         Just $
           fromMaybe
@@ -297,17 +283,24 @@ federationRemoteResponseError target remoteDomain path status body =
             )
             (Aeson.decode body)
     }
+
+federationErrorData :: SrvTarget -> Domain -> Text -> Wai.ErrorData
+federationErrorData target remoteDomain path =
+  Wai.FederationErrorData
+    { Wai.federrDomain = parsedTargetDomain,
+      Wai.federrPath = path,
+      Wai.federrFederationDomain = Just remoteDomain,
+      Wai.federrSrvTargetDomain = parsedTargetDomain,
+      Wai.federrSrvTarget = Just srvTargetText
+    }
   where
-    mkErrorData =
-      Just $
-        Wai.FederationErrorData
-          remoteDomain
-          path
-          (either (const Nothing) Just legacyDomain)
-          (Just srvTargetText)
-    legacyDomain =
-      (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
-        Either String Domain
+    parsedTargetDomain =
+      ( either (const Nothing) Just
+          . mkDomain
+          . T.decodeUtf8With T.lenientDecode
+          . srvTargetDomain
+      )
+        target
     srvTargetText =
       T.decodeUtf8With T.lenientDecode (srvTargetDomain target)
         <> ":"

@@ -180,10 +180,12 @@ testRemoteErrorsContainRequestedDomain =
         expectedData =
           Just $
             Wai.FederationErrorData
-              remoteDomain
-              path
-              (Just $ Domain "srv.internal.example.com")
-              (Just "srv.internal.example.com:443")
+              { Wai.federrDomain = Just $ Domain "srv.internal.example.com",
+                Wai.federrPath = path,
+                Wai.federrFederationDomain = Just remoteDomain,
+                Wai.federrSrvTargetDomain = Just $ Domain "srv.internal.example.com",
+                Wai.federrSrvTarget = Just "srv.internal.example.com:443"
+              }
         unparseableTargetError =
           toWai $
             RemoteError
@@ -194,10 +196,12 @@ testRemoteErrorsContainRequestedDomain =
         expectedDataWithoutParsedSrvDomain =
           Just $
             Wai.FederationErrorData
-              remoteDomain
-              path
-              Nothing
-              (Just "unqualified:443")
+              { Wai.federrDomain = Nothing,
+                Wai.federrPath = path,
+                Wai.federrFederationDomain = Just remoteDomain,
+                Wai.federrSrvTargetDomain = Nothing,
+                Wai.federrSrvTarget = Just "unqualified:443"
+              }
         networkError =
           toWai $
             RemoteError remoteDomain discoveredTarget path FederatorClientNoStatusCode
@@ -207,11 +211,13 @@ testRemoteErrorsContainRequestedDomain =
     Wai.errorData networkError @?= expectedData
     Wai.errorData responseError @?= expectedData
     Wai.errorData unparseableTargetError @?= expectedDataWithoutParsedSrvDomain
+    Aeson.decode (Aeson.encode (fromJust expectedDataWithoutParsedSrvDomain))
+      @?= expectedDataWithoutParsedSrvDomain
     case Aeson.toJSON (fromJust $ Wai.errorData networkError) of
       Aeson.Object fields -> do
         KeyMap.member "domain" fields @?= True
         KeyMap.member "path" fields @?= True
-        KeyMap.lookup "domain" fields @?= Just (Aeson.toJSON remoteDomain)
+        KeyMap.lookup "domain" fields @?= Just (Aeson.toJSON (Domain "srv.internal.example.com"))
         KeyMap.lookup "federation_domain" fields @?= Just (Aeson.toJSON remoteDomain)
         KeyMap.lookup "srv_target_domain" fields @?= Just (Aeson.toJSON (Domain "srv.internal.example.com"))
         KeyMap.lookup "srv_target" fields @?= Just (Aeson.toJSON ("srv.internal.example.com:443" :: Text))
