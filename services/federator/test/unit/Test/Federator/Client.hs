@@ -185,6 +185,7 @@ testClientFailure = do
     Left (ResponseFailure werr) -> do
       Wai.code werr @?= HTTP.status422
       Wai.message werr @?= "wrong domain"
+      (Wai.errorData werr >>= Wai.federrDomain) @?= Just targetDomain
 
 testClientPreservesSrvMetadata :: IO ()
 testClientPreservesSrvMetadata = do
