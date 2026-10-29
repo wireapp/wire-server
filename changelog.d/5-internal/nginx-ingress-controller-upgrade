@@ -1,1 +1,3 @@
 Upgrade nginx-ingress-controller from 4.11.5 to 4.13.5 (k8s 1.29 - 1.33 officially supported - other version may also work)
+
+Note: since controller v1.12, ingress-nginx defaults to `annotations-risk-level: High` and silently rejects the federator ingress, which uses a `configuration-snippet` (risk "Critical"). Federation then fails with `certificate verify failed`. The `ingress-nginx-controller` chart now sets `annotations-risk-level: Critical`; if you run your own ingress-nginx >= v1.12, set it in the controller ConfigMap yourself.
