@@ -204,13 +204,3 @@ clients migOpts = do
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling clients migration")
     cancel migrationLoop
-
-  cassClient <- asks (.cassandraGalley)
-  pgPool <- asks (.hasqlPool)
-  logger <- asks (.logger)
-  Log.info logger $ Log.msg (Log.val "starting user client index migration")
-
-  Log.info logger $ Log.msg (Log.val "started user client index migration")
-  pure $ do
-    Log.info logger $ Log.msg (Log.val "cancelling user client index migration")
-    cancel migrationLoop
