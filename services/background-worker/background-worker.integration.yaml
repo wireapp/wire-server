@@ -58,6 +58,7 @@ migrationOptions:
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateTeam: false
+migrateTeamMembers: false
 migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false

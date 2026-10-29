@@ -1358,6 +1358,25 @@ CREATE TABLE public.asset (
 ALTER TABLE public.asset OWNER TO "wire-server";
 
 --
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
+
+-- Name: billing_team_member; Type: TABLE; Schema: public; Owner: wire-server
+
+CREATE TABLE public.billing_team_member (
+    team uuid NOT NULL,
+    "user" uuid NOT NULL
+
+
+ALTER TABLE public.billing_team_member OWNER TO "wire-server";
+
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1708,6 +1727,18 @@ CREATE TABLE public.team (
 ALTER TABLE public.team OWNER TO "wire-server";
 
 --
+-- Name: team_admin; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_admin (
+    team uuid NOT NULL,
+    "user" uuid NOT NULL
+);
+
+
+ALTER TABLE public.team_admin OWNER TO "wire-server";
+
+--
 -- Name: team_features; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1721,6 +1752,22 @@ CREATE TABLE public.team_features (
 
 
 ALTER TABLE public.team_features OWNER TO "wire-server";
+
+--
+-- Name: team_member; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_member (
+    team uuid NOT NULL,
+    "user" uuid NOT NULL,
+    perms smallint[] NOT NULL,
+    invited_by uuid,
+    invited_at timestamp with time zone,
+    legalhold_status smallint
+);
+
+
+ALTER TABLE public.team_member OWNER TO "wire-server";
 
 --
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
@@ -1771,6 +1818,18 @@ CREATE TABLE public.user_migration_pending_deletes (
 
 
 ALTER TABLE public.user_migration_pending_deletes OWNER TO "wire-server";
+
+--
+-- Name: user_team; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_team (
+    "user" uuid NOT NULL,
+    team uuid NOT NULL
+);
+
+
+ALTER TABLE public.user_team OWNER TO "wire-server";
 
 --
 -- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
@@ -2003,6 +2062,14 @@ ALTER TABLE ONLY public.apps
 
 
 --
+-- Name: billing_team_member billing_team_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.billing_team_member
+    ADD CONSTRAINT billing_team_member_pkey PRIMARY KEY (team, "user");
+
+
+--
 -- Name: bot_conv bot_conv_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -2155,11 +2222,27 @@ ALTER TABLE ONLY public.subconversation
 
 
 --
+-- Name: team_admin team_admin_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_admin
+    ADD CONSTRAINT team_admin_pkey PRIMARY KEY (team, "user");
+
+
+--
 -- Name: team_features team_features_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: team_member team_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_member
+    ADD CONSTRAINT team_member_pkey PRIMARY KEY (team, "user");
 
 
 --
@@ -2208,6 +2291,14 @@ ALTER TABLE ONLY public.user_group
 
 ALTER TABLE ONLY public.user_migration_pending_deletes
     ADD CONSTRAINT user_migration_pending_deletes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_team user_team_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_team
+    ADD CONSTRAINT user_team_pkey PRIMARY KEY ("user", team);
 
 
 --

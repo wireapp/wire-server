@@ -95,6 +95,24 @@ team migOpts = do
     Log.info logger $ Log.msg (Log.val "cancelling team migration")
     cancel migrationLoop
 
+teamMembers :: MigrationOptions -> AppT IO CleanupAction
+teamMembers migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting team members migration")
+  count <- register $ counter $ Prometheus.Info "wire_team_members_migrated_to_pg" "Number of team members migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_team_members_migration_finished" "Whether the team members migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_team_members_migration_failed" "Whether the team members migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_team_members_migration_duration_seconds" "Duration of team member migration attempts") defaultBuckets
+
+  migrationLoop <- async . lift $ migrateTeamMembersLoop migOpts cassClient pgPool logger count finished failed duration
+
+  Log.info logger $ Log.msg (Log.val "started team members migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling team members migration")
+    cancel migrationLoop
+
 teamFeatures :: MigrationOptions -> AppT IO CleanupAction
 teamFeatures migOpts = do
   cassClient <- asks (.cassandraGalley)

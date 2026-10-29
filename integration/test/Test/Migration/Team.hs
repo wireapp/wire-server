@@ -32,33 +32,35 @@ testTeamMigration = do
     let domain = backend.berDomain
 
     -- cassandra: team metadata is written to and read from Cassandra
-    (admin, tid1) <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
-      (admin, tid1, _) <- createTeam domain 2
-      checkTeamRoundtrip admin tid1
-      pure (admin, tid1)
+    (admin1, tid1) <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
+      (admin1, tid1, _) <- createTeam domain 2
+      checkTeamRoundtrip admin1 tid1
+      pure (admin1, tid1)
 
     -- migration-to-postgresql (worker off): new teams are mirrored to Postgres
-    tid2 <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
-      checkTeamRoundtrip admin tid1
-      (_, tid2, _) <- createTeam domain 1
-      pure tid2
+    (admin2, tid2) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
+      checkTeamRoundtrip admin1 tid1
+      (admin2, tid2, _) <- createTeam domain 2
+      checkTeamRoundtrip admin2 tid2
+      pure (admin2, tid2)
 
     -- migration-to-postgresql (worker on): the copy loop backfills the team
     -- table, including teams that predate the migration setting
-    tid3 <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
-      checkTeamRoundtrip admin tid1
-      checkTeamRoundtrip admin tid2
+    (admin3, tid3) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
+      checkTeamRoundtrip admin1 tid1
+      checkTeamRoundtrip admin2 tid2
       waitForMigration domain counterName
-      (_, tid3, _) <- createTeam domain 1
-      pure tid3
+      (admin3, tid3, _) <- createTeam domain 2
+      checkTeamRoundtrip admin3 tid3
+      pure (admin3, tid3)
 
     -- postgresql: reads come from Postgres for all teams, old and new
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
-      checkTeamRoundtrip admin tid1
-      checkTeamRoundtrip admin tid2
-      checkTeamRoundtrip admin tid3
-      (_, tid4, _) <- createTeam domain 1
-      checkTeamRoundtrip admin tid4
+      checkTeamRoundtrip admin1 tid1
+      checkTeamRoundtrip admin2 tid2
+      checkTeamRoundtrip admin3 tid3
+      (admin4, tid4, _) <- createTeam domain 2
+      checkTeamRoundtrip admin4 tid4
   where
     checkTeamRoundtrip admin tid =
       bindResponse (getTeam admin tid) $ \res -> do

@@ -50,8 +50,11 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
+import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Imports
 import Test.QuickCheck (oneof)
+import Wire.API.PostgresMarshall
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -214,6 +217,21 @@ instance Cql.Cql Permissions where
     d <- Err.note "missing 'copy' permissions" ("copy" `lookup` p) >>= Cql.fromCql
     Err.note "invalid permissions" (newPermissions (f s) (f d))
   fromCql _ = Left "permissions: udt expected"
+
+-- | Stored as a 2-element @smallint[]@: the @self@ and @copy@ permission
+-- bitmasks, mirroring the Cassandra UDT representation.
+instance PostgresMarshall (Vector Int16) Permissions where
+  postgresMarshall (Permissions s c) =
+    V.fromList [fromIntegral (permsToInt s), fromIntegral (permsToInt c)]
+
+instance PostgresUnmarshall (Vector Int16) Permissions where
+  postgresUnmarshall v = case V.toList v of
+    [s, c] ->
+      maybe
+        (Left "invalid permissions")
+        Right
+        (newPermissions (intToPerms (fromIntegral s)) (intToPerms (fromIntegral c)))
+    _ -> Left "permissions: expected a 2-element smallint[]"
 
 $(genSingletons [''Perm])
 
