@@ -107,8 +107,8 @@ testNotificationsMigration = do
 
     recipient u = do
       uid <- u %. "id" & asString
-      pure $
-        object
+      pure
+        $ object
           [ "user_id" .= uid,
             "route" .= ("any" :: String),
             "clients" .= ([] :: [String])
@@ -118,4 +118,3 @@ testNotificationsMigration = do
       resp <- getNotifications user def {since = Nothing, size = Just 10000, client = Nothing}
       resp.status `shouldMatchInt` 200
       length <$> (resp.json %. "notifications" >>= asList)
-

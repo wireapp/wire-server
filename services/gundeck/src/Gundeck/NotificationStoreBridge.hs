@@ -101,8 +101,7 @@ runNotificationStore sem = do
     result <- runM $ case notifications pm of
       CassandraStorage ->
         -- reads and writes from Cassandra only
-        pure . Right
-          =<< runInputConst (view hasqlPool env)
+        Right <$> runInputConst (view hasqlPool env)
             ( runInputConst cfg
                 $ runInputConst (view cstate env)
                 $ interpretNotificationStoreToCassandra cassRow
