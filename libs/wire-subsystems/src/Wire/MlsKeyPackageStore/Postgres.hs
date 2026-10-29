@@ -18,6 +18,9 @@
 module Wire.MlsKeyPackageStore.Postgres
   ( interpretMlsKeyPackageStoreToPostgres,
     insertKeyPackagesPg,
+    insertKeyPackagesTx,
+    isUserKeyPackagesMigrated,
+    markUserKeyPackagesMigratedTx,
   )
 where
 
@@ -54,10 +57,16 @@ interpretMlsKeyPackageStoreToPostgres = interpret $ \case
 insertKeyPackagesPg :: (PGConstraints r) => UserId -> ClientId -> [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] -> Sem r ()
 insertKeyPackagesPg u c kps =
   runTransactionWithRetry ReadCommitted Write $
-    for_ kps $ \(ref, suite, kpData) ->
-      Transaction.statement (u, c, suite, kpData, ref) insertStatement
+    insertKeyPackagesTx u c kps
 
-insertStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, KeyPackageData, KeyPackageRef) ()
+-- | Transaction-level insert, so that callers (the migration copy loop) can
+-- combine the insert with the per-user migrated marker in a single transaction.
+insertKeyPackagesTx :: UserId -> ClientId -> [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] -> Transaction.Transaction ()
+insertKeyPackagesTx u c kps =
+  for_ kps $ \(ref, suite, kpData) ->
+    Transaction.statement (u, c, suite, ref, kpData) insertStatement
+
+insertStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, KeyPackageRef, KeyPackageData) ()
 insertStatement =
   lmapPG
     [resultlessStatement|INSERT INTO mls_key_packages (user_id, client, cipher_suite, ref, data)
@@ -130,3 +139,23 @@ deleteKeyPackageStatement =
     [resultlessStatement|DELETE FROM mls_key_packages
                          WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4 AND ref = $4 :: bytea
                         |]
+
+-- | Marks a user's key packages as migrated to Postgres. Routing during the
+-- migration phase is keyed on this marker, so a user with zero key packages
+-- is still marked migrated (row presence in @mls_key_packages@ cannot
+-- distinguish "migrated, empty" from "not yet migrated").
+markUserKeyPackagesMigratedTx :: UserId -> Transaction.Transaction ()
+markUserKeyPackagesMigratedTx u =
+  Transaction.statement u markUserKeyPackagesMigratedStatement
+
+markUserKeyPackagesMigratedStatement :: Hasql.Statement UserId ()
+markUserKeyPackagesMigratedStatement =
+  lmapPG
+    [resultlessStatement|INSERT INTO mls_key_packages_migrated_users (user_id)
+                         VALUES ($1 :: uuid)
+                         ON CONFLICT (user_id) DO NOTHING
+                        |]
+
+isUserKeyPackagesMigrated :: (PGConstraints r) => UserId -> Sem r Bool
+isUserKeyPackagesMigrated u =
+  runStatement u (lmapPG [singletonStatement|SELECT EXISTS (SELECT 1 FROM mls_key_packages_migrated_users WHERE user_id = ($1 :: uuid)) :: bool|])
