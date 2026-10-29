@@ -106,6 +106,7 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-custom-backend" $
             Migrations.customBackend opts.migrationOptions
+      else pure $ pure ()
   cleanupNotificationsMigration <-
     if opts.migrateNotifications
       then
