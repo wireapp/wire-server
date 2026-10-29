@@ -57,6 +57,7 @@ packages:
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/rabbitmq-consumer
+  , tools/fan-in-perf
   , tools/stern/
   , tools/mlsstats/
   , tools/test-stats/
@@ -92,6 +93,8 @@ package metrics-wai
 package wire-server-enterprise
   flags: +nix-dev-env
 package spar
+  flags: +nix-dev-env
+package fan-in-perf
   flags: +nix-dev-env
 package wire-message-proto-lens
   flags: +nix-dev-env

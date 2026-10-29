@@ -91,6 +91,7 @@ let
     wire-server-enterprise = [ "wire-server-enterprise" ];
     migrate-features = [ "migrate-features" ];
     mlsstats = [ "mlsstats" ];
+    fan-in-perf = [ "fan-in-perf" ];
   };
 
   inherit (lib) attrsets;
