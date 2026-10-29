@@ -121,6 +121,7 @@ import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
+import Wire.PasswordStore (PasswordStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Rpc
@@ -173,6 +174,7 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (Polysemy.Error UserSubsystemError) r,
     Member HashPassword r,
+    Member PasswordStore r,
     Member (Embed IO) r,
     Member ActivationCodeStore r,
     Member (Input UserSubsystemConfig) r,
