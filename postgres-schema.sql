@@ -1638,19 +1638,6 @@ CREATE TABLE public.password_reset (
 ALTER TABLE public.password_reset OWNER TO "wire-server";
 
 --
--- Name: properties; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.properties (
-    user_id uuid NOT NULL,
-    key text NOT NULL,
-    value bytea NOT NULL
-);
-
-
-ALTER TABLE public.properties OWNER TO "wire-server";
-
---
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2146,14 +2133,6 @@ ALTER TABLE ONLY public.mls_history_client
 
 ALTER TABLE ONLY public.password_reset
     ADD CONSTRAINT password_reset_pkey PRIMARY KEY (key);
-
-
---
--- Name: properties properties_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.properties
-    ADD CONSTRAINT properties_pkey PRIMARY KEY (user_id, key);
 
 
 --
