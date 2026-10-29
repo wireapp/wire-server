@@ -96,6 +96,7 @@ galley:
       blockList: cassandra
       passwordReset: cassandra
       customBackend: cassandra
+      notifications: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -750,6 +751,25 @@ gundeck:
       # tlsCaSecretRef:
       #   name: <secret-name>
       #   key: <ca-attribute>
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
+    postgresMigration:
+      conversation: cassandra
+      conversationCodes: cassandra
+      teamFeatures: cassandra
+      domainRegistration: cassandra
+      user: cassandra
+      blockList: cassandra
+      passwordReset: cassandra
+      customBackend: cassandra
+      notifications: cassandra
     redis:
       host: redis-ephemeral
       port: 6379

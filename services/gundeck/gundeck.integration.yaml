@@ -42,6 +42,29 @@ rabbitmq:
   caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  user: wire-server
+  dbname: backendA
+  password: posty-the-gres
+
+postgresqlPool:
+  size: 20
+  acquisitionTimeout: 10s
+  idlenessTimeout: 10m
+
+postgresMigration:
+  conversation: postgresql
+  conversationCodes: postgresql
+  teamFeatures: postgresql
+  domainRegistration: postgresql
+  user: postgresql
+  blockList: postgresql
+  passwordReset: postgresql
+  customBackend: postgresql
+  notifications: postgresql
+
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200

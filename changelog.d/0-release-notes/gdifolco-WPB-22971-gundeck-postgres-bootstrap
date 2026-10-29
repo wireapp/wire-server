@@ -1,0 +1,1 @@
+gundeck now requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` block (all 8 store keys, including `notifications`; strict config parsing fails to boot without them). Chart values ship defaults; custom charts must add these keys.
