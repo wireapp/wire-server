@@ -36,10 +36,6 @@ data:
       host: {{ .spar.host }}
       port: {{ .spar.port }}
 
-    {{- if $.Values.license }}
-    license: {{ $.Values.license | quote }}
-    {{- end }}
-
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
 
     cassandra:
@@ -87,6 +83,8 @@ data:
     migrateConversations: {{ .migrateConversations }}
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
+    migrateTeam: {{ .migrateTeam }}
+    migrateTeamMembers: {{ .migrateTeamMembers }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
     migrateUsers: {{ .migrateUsers }}
     migrateBlockList: {{ .migrateBlockList }}

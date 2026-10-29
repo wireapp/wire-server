@@ -606,30 +606,6 @@ Default values:
 - `config.allowed_to_create_channels`: `team-members`
 - `config.allowed_to_open_channels`: `team-members`
 
-### TOTP
-
-TOTP (Time-based One-Time Password) MFA team settings are controlled per team
-as a "team feature". The configuration exposes two boolean switches that the
-frontend uses to render the MFA section in Team Settings. The backend persists
-and returns the values without enforcing any behaviour — enforcement is a
-future concern.
-
-Configuration example (in Galley's config):
-
-```yaml
-settings:
-  featureFlags:
-    mfa-totp:
-      defaults:
-        status: disabled
-        lockStatus: locked
-        config:
-          require_for_all_members: false
-          compulsory_for_owners_and_admins: false
-```
-
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/mfa-totp/(un)?locked`).
-
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator
@@ -947,43 +923,6 @@ config:
           lockStatus: unlocked
 ```
 
-
-## License
-
-Wire's licensing uses a licence payload: a base64url-encoded JSON
-`LicenceSpec`, produced by the `wire-licensing` CLI
-(`wire-licensing encode` or `wire-licensing example full --domain <domain>`).
-The payload is unsigned: it is an operator-controlled entitlement whose
-integrity rests entirely on configuration access control.
-
-The payload follows the 2026-10-08 licence RFC: `schema_version` (only `1` is
-accepted), `tenant_id`/`license_id`, `licensed_domains`,
-`valid_from`/`expires_at`/`issued_at`, and `license_content` =
-`{entitlements, meetings, limits}` — `entitlements` is a flat list of RFC
-feature names (parsed and preserved; no gate reads it yet), `meetings` carries
-the per-feature meeting booleans (`invitation_links`, `emails_sending`,
-`calendars_integration`; `invitation_links` gates join-by-link), and `limits`
-is accepted and preserved but unused.
-
-Two config keys accept the payload:
-
-```yaml
-# galley.yaml
-settings:
-  license: <base64url licence payload>
-
-# background-worker.yaml
-license: <same payload>
-```
-
-Semantics:
-
-- Unset (or invalid / not covering this domain / outside its validity window),
-  the interpreter serves the "missing license"; in particular the meeting
-  join-by-link endpoints return `403 id-feature-error`.
-- In the helm chart, set the single top-level `license` value; it is rendered
-  into both services' config keys above. The `WIRE_LICENSE` environment
-  variable is no longer read.
 
 ## Settings in brig
 
@@ -2443,6 +2382,8 @@ background-worker:
     migrateConversations: false
     migrateConversationCodes: false
     migrateTeamFeatures: false
+    migrateTeam: false
+    migrateTeamMembers: false
     migrateDomainRegistration: false
     migrateBlockList: false
     migratePasswordReset: false
@@ -2478,6 +2419,7 @@ The current settings and their background-worker flags are:
 - `conversation` -> `migrateConversations`
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
+- `team` -> `migrateTeam`
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
@@ -2517,6 +2459,8 @@ The current settings and their background-worker flags are:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
+       migrateTeam: false
+       migrateTeamMembers: false
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
@@ -2557,6 +2501,8 @@ The current settings and their background-worker flags are:
      `wire_user_remote_convs_migration_finished`
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
+   - `team`: `wire_team_migration_finished`
+   - `migrateTeamMembers` (worker flag): `wire_team_members_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
    - `user`: `wire_user_migration_finished`
 
@@ -2600,6 +2546,8 @@ The current settings and their background-worker flags are:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
+       migrateTeam: false
+       migrateTeamMembers: false
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
@@ -2694,6 +2642,8 @@ postgresqlPool:
 migrateConversations: false
 migrateConversationCodes: false
 migrateTeamFeatures: false
+migrateTeam: false
+migrateTeamMembers: false
 migrateDomainRegistration: false
 migrateBlockList: false
 migratePasswordReset: false
