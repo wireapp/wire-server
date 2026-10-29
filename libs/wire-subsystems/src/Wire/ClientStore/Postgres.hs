@@ -262,7 +262,7 @@ lookupPubClientsBulkImpl uids = do
   rows <- V.toList <$> runStatement uids selectPubClientsBulkStatement
   pure . UserMap $
     Map.fromList
-      [ (u, Set.fromList [uncurry PubClient (c, cl) | (u', c, cl) <- rows, u' == u])
+      [ (u, Set.fromList [PubClient c cl | (u', c, cl) <- rows, u' == u])
       | u <- uids
       ]
 
@@ -296,7 +296,7 @@ mkClient keys (_uid, cid, cty, tme, lbl, cls, cok, mdl, cps, lastActive) =
       clientLabel = lbl,
       clientCookie = cok,
       clientModel = mdl,
-      clientCapabilities = ClientCapabilityList (maybe Set.empty (either (const Set.empty) id . postgresUnmarshall) cps),
+      clientCapabilities = ClientCapabilityList (maybe Set.empty (fromRight Set.empty . postgresUnmarshall) cps),
       clientMLSPublicKeys = Map.fromList keys,
       clientLastActive = lastActive
     }
