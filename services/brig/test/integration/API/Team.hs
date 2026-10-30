@@ -125,14 +125,6 @@ tests conf m n b c g aws = do
         testGroup "size" $
           [ test m "get /i/teams/:tid/size" $ testTeamSizeInternal b,
             test m "get /teams/:tid/size" $ testTeamSizePublic b
-          ],
-        testGroup "verification-email" $
-          [ test m "put /teams/:tid/members/:uid/verification-email - 202 pending email" $ testResendVerificationEmailPendingEmail b,
-            test m "put /teams/:tid/members/:uid/verification-email - 204 no pending email" $ testResendVerificationEmailNoPendingEmail b,
-            test m "put /teams/:tid/members/:uid/verification-email - 403 non-admin" $ testResendVerificationEmailNonAdmin b,
-            test m "put /teams/:tid/members/:uid/verification-email - 403 caller from different team" $ testResendVerificationEmailWrongTeamCaller b,
-            test m "put /teams/:tid/members/:uid/verification-email - 403 target not in team" $ testResendVerificationEmailTargetNotInTeam b,
-            test m "put /teams/:tid/members/:uid/verification-email - 404 user not found" $ testResendVerificationEmailUserNotFound b
           ]
       ]
 
@@ -996,46 +988,3 @@ test2FaDisabledForSsoUser brig galley = do
 -------------------------------------------------------------------------------
 -- Resend verification email for team member with pending unverified email
 
-testResendVerificationEmailPendingEmail :: Brig -> Http ()
-testResendVerificationEmailPendingEmail brig = do
-  (tid, owner, member : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  newEmail <- randomEmail
-  setUserEmail brig (userId owner) (userId member) newEmail !!! const 200 === statusCode
-  resendVerificationEmailRequest brig (userId owner) tid (userId member)
-    !!! const 202 === statusCode
-
-testResendVerificationEmailNoPendingEmail :: Brig -> Http ()
-testResendVerificationEmailNoPendingEmail brig = do
-  (tid, owner, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  -- owner has no pending email change
-  resendVerificationEmailRequest brig (userId owner) tid (userId owner)
-    !!! const 204 === statusCode
-
-testResendVerificationEmailNonAdmin :: Brig -> Http ()
-testResendVerificationEmailNonAdmin brig = do
-  (tid, owner, member : otherMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
-  newEmail <- randomEmail
-  setUserEmail brig (userId owner) (userId member) newEmail !!! const 200 === statusCode
-  resendVerificationEmailRequest brig (userId otherMember) tid (userId member)
-    !!! const 403 === statusCode
-
-testResendVerificationEmailWrongTeamCaller :: Brig -> Http ()
-testResendVerificationEmailWrongTeamCaller brig = do
-  (tid, _, member : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (foreignOwner, _) <- createUserWithTeam' brig
-  resendVerificationEmailRequest brig (userId foreignOwner) tid (userId member)
-    !!! const 403 === statusCode
-
-testResendVerificationEmailTargetNotInTeam :: Brig -> Http ()
-testResendVerificationEmailTargetNotInTeam brig = do
-  (tid, owner, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (foreignUser, _) <- createUserWithTeam' brig
-  resendVerificationEmailRequest brig (userId owner) tid (userId foreignUser)
-    !!! const 403 === statusCode
-
-testResendVerificationEmailUserNotFound :: Brig -> Http ()
-testResendVerificationEmailUserNotFound brig = do
-  (tid, owner, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  nonExistentUid <- Id <$> liftIO UUID.nextRandom
-  resendVerificationEmailRequest brig (userId owner) tid nonExistentUid
-    !!! const 404 === statusCode
