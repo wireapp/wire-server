@@ -155,7 +155,7 @@ testAddGetClientVerificationCode db brig galley = do
   let k = mkKey email
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
-    MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+    MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue Nothing
   c :: Client <- addClient' codeValue
   getClient brig uid c.clientId !!! do
     const 200 === statusCode
@@ -217,7 +217,7 @@ testAddGetClientCodeExpired db opts brig galley = do
   let k = mkKey email
   codeValue <- (.codeValue) <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
-    MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+    MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue Nothing
   let timeout = round (verificationTimeout opts.settings)
   threadDelay $ ((timeout + 1) * 1000_000)
   addClient' codeValue !!! do

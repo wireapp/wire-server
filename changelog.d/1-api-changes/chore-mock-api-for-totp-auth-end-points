@@ -1,0 +1,7 @@
+`POST /login` now accepts an optional `totp_code` field (TOTP checking
+is not yet enforced).
+
+`POST /oauth/applications/:id/sessions` (revoke account access) and
+`DELETE /oauth/applications/:id/sessions/:tokenId` (delete OAuth refresh
+token) now accept an optional `totp_code` field in their request body
+(TOTP checking is not yet enforced).

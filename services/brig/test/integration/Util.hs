@@ -885,7 +885,7 @@ defEmailLogin :: EmailAddress -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
 emailLogin :: EmailAddress -> PlainTextPassword6 -> Maybe CookieLabel -> Login
-emailLogin e pw cl = MkLogin (LoginByEmail e) pw cl Nothing
+emailLogin e pw cl = MkLogin (LoginByEmail e) pw cl Nothing Nothing
 
 somePrekeys :: [UncheckedPrekeyBundle]
 somePrekeys =

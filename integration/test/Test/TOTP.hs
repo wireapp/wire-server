@@ -50,6 +50,9 @@ mockRenameBody = object ["name" .= ("private phone" :: String)]
 mockDeleteBody :: Value
 mockDeleteBody = object ["password" .= defPassword]
 
+mockLoginTotpCode :: String
+mockLoginTotpCode = "totp:014921"
+
 --------------------------------------------------------------------------------
 -- POST /self/totp
 
@@ -207,6 +210,34 @@ testTotpThroughNginz = do
       assertBool
         ("unauthenticated request was not rejected: " <> show resp.status)
         (resp.status >= 400 && resp.status < 500)
+
+--------------------------------------------------------------------------------
+-- mock login with TOTP code
+
+-- | Login with a totp_code field succeeds: the mock parses the field and
+-- ignores it.
+testA0LoginWithValidTotpCode :: (HasCallStack) => App ()
+testA0LoginWithValidTotpCode = do
+  alice <- randomUser OwnDomain def
+  email <- asString (alice %. "email")
+  bindResponse (Brig.loginWithTotp alice email defPassword mockLoginTotpCode) $ \resp ->
+    resp.status `shouldMatchInt` 200
+
+-- | Login with a malformed totp_code value (not a valid SecondFactorCode
+-- format) returns 400 — parsing is real even though enforcement is not.
+testA0LoginWithInvalidTotpCode :: (HasCallStack) => App ()
+testA0LoginWithInvalidTotpCode = do
+  alice <- randomUser OwnDomain def
+  email <- asString (alice %. "email")
+  req <- baseRequest alice Brig Versioned "login"
+  bindResponse
+    ( submit "POST"
+        $ req
+        & addJSONObject ["email" .= email, "password" .= defPassword, "totp_code" .= ("not-a-valid-totp-code" :: String)]
+        & addQueryParams [("persist", "true")]
+    )
+    $ \resp ->
+      resp.status `shouldMatchInt` 400
 
 --------------------------------------------------------------------------------
 -- helpers

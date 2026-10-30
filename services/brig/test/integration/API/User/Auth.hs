@@ -325,7 +325,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = MkLogin (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing
+  let l = MkLogin (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing Nothing
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
@@ -351,14 +351,14 @@ testLoginFailure brig = do
   let badpw = plainTextPassword6Unsafe "wrongpassword"
   login
     brig
-    (MkLogin (LoginByEmail email) badpw Nothing Nothing)
+    (MkLogin (LoginByEmail email) badpw Nothing Nothing Nothing)
     PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
   let badmail = unsafeEmailAddress "wrong" "wire.com"
   login
     brig
-    (MkLogin (LoginByEmail badmail) defPassword Nothing Nothing)
+    (MkLogin (LoginByEmail badmail) defPassword Nothing Nothing Nothing)
     PersistentCookie
     !!! const 403 === statusCode
 

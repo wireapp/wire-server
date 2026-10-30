@@ -43,6 +43,7 @@ import OpenSSL.Random (randBytes)
 import Wire.API.Password.Argon2id
 import Wire.API.Password.Scrypt
 import Wire.API.PostgresMarshall
+import Wire.API.User.Auth.TOTP (SecondFactorCode)
 
 -- | A derived, stretched password that can be safely stored.
 data Password
@@ -103,9 +104,11 @@ parsePassword expected =
 --------------------------------------------------------------------------------
 -- Type that can be used to pass a plaintext password as a request body
 
-newtype PasswordReqBody = PasswordReqBody
-  {fromPasswordReqBody :: Maybe PlainTextPassword6}
-  deriving stock (Eq, Show)
+data PasswordReqBody = PasswordReqBody
+  { fromPasswordReqBody :: Maybe PlainTextPassword6,
+    prbTotpCode :: Maybe SecondFactorCode
+  }
+  deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema PasswordReqBody
 
 instance ToSchema PasswordReqBody where
@@ -113,6 +116,7 @@ instance ToSchema PasswordReqBody where
     object $
       PasswordReqBody
         <$> fromPasswordReqBody .= maybe_ (optField "password" schema)
+        <*> prbTotpCode .= maybe_ (optField "totp_code" schema)
 
 --------------------------------------------------------------------------------
 
