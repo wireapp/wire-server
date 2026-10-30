@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS mls_proposal_refs (
 );
 
 -- index for lookups like `WHERE group_id = ? AND epoch = ? AND expires_at > now()`
-CREATE INDEX mls_proposal_refs_group_epoch_expires_at_idx
+CREATE INDEX IF NOT EXISTS mls_proposal_refs_group_epoch_expires_at_idx
   ON mls_proposal_refs (group_id, epoch, expires_at);
