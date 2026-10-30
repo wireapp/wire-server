@@ -25,15 +25,15 @@ import Data.Range
 import Data.UUID as UUID
 import Data.UUID.Util qualified as UUID
 import Gundeck.Monad
-import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Notification qualified as Notification
+import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Push qualified as Push
 import Imports
 import Servant (HasServer (..), (:<|>) (..))
 import Wire.API.Notification qualified as Public
-import Wire.NotificationStore (fetchLastNotification, fetchNotificationById)
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Gundeck
+import Wire.NotificationStore (fetchLastNotification, fetchNotificationById)
 
 -------------------------------------------------------------------------------
 -- Servant API

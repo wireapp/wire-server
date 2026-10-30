@@ -62,7 +62,6 @@ import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
 import Data.String.Conversions
 import Gundeck.Aws.Arn as Aws
-import Wire.NotificationStore (NotificationTTL (..))
 import Gundeck.Push
 import Gundeck.Push.Native as Native
 import Gundeck.Push.Websocket as Web
@@ -78,6 +77,7 @@ import Wire.API.Notification
 import Wire.API.Presence
 import Wire.API.Push.V2 hiding (recipient)
 import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
+import Wire.NotificationStore (NotificationTTL (..))
 
 ----------------------------------------------------------------------
 -- env
