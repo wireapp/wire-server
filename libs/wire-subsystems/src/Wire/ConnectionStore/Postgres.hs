@@ -126,11 +126,11 @@ interpretConnectionStoreToPostgres = interpret $ \case
       Nothing -> runStatement (tUnqualified lfrom, size + 1) selectLocalConnections
     pure $ trimLocalPage lfrom size rows
   LookupLocalConnectionsPage self pagingState (fromRange -> size) -> do
-    let mStart = pagingState >>= fromByteString . LBS.toStrict . unPagingState
+    let mStart = pagingState >>= decodeLocalMarker . LBS.toStrict . unPagingState
     rows <- case mStart of
       Just u -> runStatement (tUnqualified self, u, size) selectLocalConnectionsFrom
       Nothing -> runStatement (tUnqualified self, size) selectLocalConnections
-    pure $ buildPageWithState (localRowToUserConnectionByRight self) (\(_, rid, _, _) -> toByteString' rid) size rows
+    pure $ buildPageWithState (localRowToUserConnectionByRight self) (\(rid, _, _, _) -> UUID.toASCIIBytes rid) size rows
   LookupRemoteConnectionsPage self pagingState size -> do
     let mStart = pagingState >>= decodeRemoteMarker . LBS.toStrict . unPagingState
     rows <- case mStart of
@@ -321,8 +321,14 @@ trimLocalPage lfrom size rows =
 --------------------------------------------------------------------------------
 -- Paging-state markers
 
--- | Remote page marker: utf8-encoded domain bytes followed by the 16-byte
--- user id.
+-- | Local page marker: the 36-char ASCII encoding of the last connection's
+-- @right@ user id. The inverse of the 'UUID.toASCIIBytes' marker built in
+-- 'LookupLocalConnectionsPage'.
+decodeLocalMarker :: ByteString -> Maybe UserId
+decodeLocalMarker = fmap Id . UUID.fromASCIIBytes
+
+-- | Remote page marker: utf8-encoded domain bytes followed by the 36-char
+-- ASCII encoding of the user id.
 encodeRemoteMarker :: Domain -> UUID -> ByteString
 encodeRemoteMarker domain uid = toByteString' domain <> UUID.toASCIIBytes uid
 
@@ -331,7 +337,7 @@ decodeRemoteMarker :: ByteString -> Maybe (Domain, UserId)
 decodeRemoteMarker bs = do
   guard (BS.length bs >= 36)
   let (domainPart, uidPart) = BS.splitAt (BS.length bs - 36) bs
-  (,) <$> fromByteString domainPart <*> (Id <$> UUID.fromASCIIBytes uidPart)
+  (,) <$> fromByteString domainPart <*> decodeLocalMarker uidPart
 
 --------------------------------------------------------------------------------
 -- Statements
