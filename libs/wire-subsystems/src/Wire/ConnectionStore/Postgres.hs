@@ -17,12 +17,14 @@
 
 module Wire.ConnectionStore.Postgres
   ( interpretConnectionStoreToPostgres,
+    insertRemoteConnectionRaw,
   )
 where
 
 import Cassandra (Page (..), PageWithState (..), PagingState (..), emptyPage)
 import Cassandra qualified as Cas
 import Cassandra.Exec (GeneralPaginationState (..))
+import Control.Exception (ErrorCall (..), throwIO)
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
@@ -36,6 +38,8 @@ import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Data.Vector qualified as Vector
+import Hasql.Pool.Extended qualified as HasqlPoolExt
+import Hasql.Session (statement)
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
@@ -342,6 +346,22 @@ insertLocal =
                          ON CONFLICT ("left", "right") DO UPDATE
                          SET status = ($3 :: int4), last_update = ($4 :: timestamptz), conv = ($5 :: uuid)
                         |]
+
+-- | Insert a remote connection row directly, bypassing the 'ConnectionStore'
+-- effect (which cannot create a connection to an arbitrary remote domain).
+-- Exposed for the brig integration suite, mirroring the raw Cassandra insert
+-- via 'Wire.ConnectionStore.Cassandra.remoteConnectionInsert'. 'Hasql.UsageError'
+-- has no 'Exception' instance in this hasql version, so failures surface as
+-- an 'ErrorCall'.
+insertRemoteConnectionRaw ::
+  HasqlPoolExt.Pool ->
+  (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ->
+  IO ()
+insertRemoteConnectionRaw pool (l, rdom, r, rel, now, cdom, cnv) =
+  useWithResetAndRetry
+    pool
+    (statement (l, rdom, r, postgresMarshall rel, fromUTCTimeMillis now, cdom, cnv) insertRemote)
+    >>= either (throwIO . ErrorCall . show) pure
 
 insertRemote :: Hasql.Statement (UserId, Domain, UserId, Int32, UTCTime, Domain, ConvId) ()
 insertRemote =

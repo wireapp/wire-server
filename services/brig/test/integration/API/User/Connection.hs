@@ -25,6 +25,7 @@ where
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
+import Brig.Options qualified as Opt
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
@@ -33,6 +34,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
 import Data.UUID.V4 qualified as UUID
+import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
 import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty hiding (Timeout)
@@ -47,10 +49,13 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User as User
 import Wire.ConnectionStore.Cassandra (remoteConnectionInsert)
+import Wire.ConnectionStore.Postgres (insertRemoteConnectionRaw)
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (connections), StorageLocation (..))
 
 tests ::
   ConnectionLimit ->
   Timeout ->
+  Opt.Opts ->
   Manager ->
   Brig ->
   Cannon ->
@@ -58,7 +63,7 @@ tests ::
   FedClient 'Brig ->
   DB.ClientState ->
   TestTree
-tests cl _at p b _c g fedBrigClient db =
+tests cl _at conf p b _c g fedBrigClient db =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
@@ -88,7 +93,7 @@ tests cl _at p b _c g fedBrigClient db =
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
       test p "put /connections/:domain/:id noop" $ testUpdateConnectionNoopQualified b,
       test p "get /connections - 200 (paging)" $ testLocalConnectionsPaging b,
-      test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging b db,
+      test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging conf b db,
       test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl,
       test p "post /connections/:domain/:id - 400 (max conns)" $ testConnectionLimitQualified b cl,
       test p "Remote connections: connect with no federation" (testConnectFederationNotAvailable b),
@@ -611,49 +616,63 @@ testLocalConnectionsPaging b = do
       liftIO $ assertEqual "has more" (Just (count' < total)) more
       pure (count', conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
 
-testAllConnectionsPaging :: Brig -> DB.ClientState -> Http ()
-testAllConnectionsPaging b db = do
-  quid <- userQualifiedId <$> randomUser b
-  let uid = qUnqualified quid
-  replicateM_ totalLocal $ do
-    qOther <- userQualifiedId <$> randomUser b
-    postConnectionQualified b uid qOther !!! const 201 === statusCode
-
-  -- FUTUREWORK: For now, because we do not support creating remote connections
-  -- yet (as of Oct 1, 2021), we write some made-up remote connections directly
-  -- to the database such that querying works.
-  now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  replicateM_ totalRemote $ createRemoteConnection uid now
-
-  -- get all connections at once
-  resAll :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing Nothing
-  liftIO $ assertEqual "all: size" total (length . mtpResults $ resAll)
-  liftIO $ assertEqual "all: has_more" False (mtpHasMore resAll)
-
-  -- paginate by passing the pagingState
-  resFirst :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid (Just size) Nothing
-  liftIO $ assertEqual "first: size" size (length . mtpResults $ resFirst)
-  liftIO $ assertEqual "first: has_more" True (mtpHasMore resFirst)
-
-  resNext :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing (Just $ mtpPagingState resFirst)
-  liftIO $ assertEqual "next: size" (total - size) (length . mtpResults $ resNext)
-  liftIO $ assertEqual "next: has_more" False (mtpHasMore resNext)
+-- | The made-up remote connections must be seeded into the store the brig
+-- under test reads from: 'PostgresqlStorage' reads (and the raw seeding) go
+-- to Postgres, every other storage location reads Cassandra.
+testAllConnectionsPaging :: Opt.Opts -> Brig -> DB.ClientState -> Http ()
+testAllConnectionsPaging conf b db = case conf.postgresMigration.connections of
+  PostgresqlStorage -> do
+    pool <- liftIO $ HasqlPool.initPostgresPool conf.postgresqlPool conf.postgresql conf.postgresqlPassword
+    run (createPostgresRemoteConnection pool)
+  _ ->
+    run createCassandraRemoteConnection
   where
+    run :: (UserId -> UTCTimeMillis -> Http ()) -> Http ()
+    run createRemoteConnection = do
+      quid <- userQualifiedId <$> randomUser b
+      let uid = qUnqualified quid
+      replicateM_ totalLocal $ do
+        qOther <- userQualifiedId <$> randomUser b
+        postConnectionQualified b uid qOther !!! const 201 === statusCode
+
+      -- FUTUREWORK: For now, because we do not support creating remote connections
+      -- yet (as of Oct 1, 2021), we write some made-up remote connections directly
+      -- to the database such that querying works.
+      now <- toUTCTimeMillis <$> liftIO getCurrentTime
+      replicateM_ totalRemote $ createRemoteConnection uid now
+
+      -- get all connections at once
+      resAll :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing Nothing
+      liftIO $ assertEqual "all: size" total (length . mtpResults $ resAll)
+      liftIO $ assertEqual "all: has_more" False (mtpHasMore resAll)
+
+      -- paginate by passing the pagingState
+      resFirst :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid (Just size) Nothing
+      liftIO $ assertEqual "first: size" size (length . mtpResults $ resFirst)
+      liftIO $ assertEqual "first: has_more" True (mtpHasMore resFirst)
+
+      resNext :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing (Just $ mtpPagingState resFirst)
+      liftIO $ assertEqual "next: size" (total - size) (length . mtpResults $ resNext)
+      liftIO $ assertEqual "next: has_more" False (mtpHasMore resNext)
+
     size = 2
     totalLocal = 5
     totalRemote = 3
     total = totalLocal + totalRemote
     remoteDomain = Domain "faraway.example.com"
-    createRemoteConnection :: UserId -> UTCTimeMillis -> Http ()
-    createRemoteConnection self now = do
+    madeUpRemoteRow ::
+      UserId -> UTCTimeMillis -> Http (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId)
+    madeUpRemoteRow self now = do
       qOther <- (`Qualified` remoteDomain) <$> randomId
       qConv <- (`Qualified` remoteDomain) <$> randomId
-      liftIO . DB.runClient db $
-        DB.retry DB.x5 $
-          DB.write remoteConnectionInsert $
-            DB.params
-              DB.LocalQuorum
-              (self, remoteDomain, qUnqualified qOther, SentWithHistory, now, qDomain qConv, qUnqualified qConv)
+      pure (self, remoteDomain, qUnqualified qOther, SentWithHistory, now, qDomain qConv, qUnqualified qConv)
+    createPostgresRemoteConnection :: HasqlPool.Pool -> UserId -> UTCTimeMillis -> Http ()
+    createPostgresRemoteConnection pool self now =
+      liftIO . insertRemoteConnectionRaw pool =<< madeUpRemoteRow self now
+    createCassandraRemoteConnection :: UserId -> UTCTimeMillis -> Http ()
+    createCassandraRemoteConnection self now =
+      liftIO . DB.runClient db . DB.retry DB.x5 . DB.write remoteConnectionInsert . DB.params DB.LocalQuorum
+        =<< madeUpRemoteRow self now
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()
 testConnectionLimit brig (ConnectionLimit l) = do
