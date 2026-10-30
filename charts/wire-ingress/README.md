@@ -7,8 +7,11 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 ## Regression tests
 
 Two independent runners exercise this chart on a real cluster: Python (standard
-library) and Haskell (the `integration:exe:ingress-regression` component). Both use
-Helm, kubectl and OpenSSL 3, and the synthetic upstreams in
+library) and Haskell (the `integration:exe:ingress-regression` component). Python uses
+Helm, kubectl and OpenSSL 3. Haskell uses `tls` and `crypton` for TLS and certificate
+generation, and a native Kubernetes API client built on `http-client-tls` and
+`websockets` for resource lifecycle and port-forwarding. Its only subprocess is
+`helm template`, to render the chart. Both use the synthetic upstreams in
 [`tests/backend.yaml`](tests/backend.yaml). They require the controller and CRDs
 described below, including Lua and EnvoyPatchPolicy. No Wire services, database,
 cert-manager issuer, public DNS or external load balancer is needed.
@@ -51,7 +54,14 @@ The Python runner also runs local Helm checks for invalid FIPS configurations,
 both xDS naming schemes, all-filter-chain patching, and HA/PDB defaults and
 overrides. The Haskell runner uses closed scenario types, declarative probe
 expectations, and `withModifiedIngress` to scope cluster resources; its unit
-checks verify probe classification before deploying resources.
+checks verify alert classification, port-forward framing and certificate serialization
+before deploying resources. The Haskell client accepts a single kubeconfig file
+(default `~/.kube/config`) with CA-verified HTTPS and client-certificate or bearer-token
+authentication. Embedded credentials and relative certificate/key paths are supported;
+exec/auth-provider plugins, proxy-url and tls-server-name overrides are rejected explicitly.
+The Haskell build requires `tls >= 2.4.4` (pinned in the Nix environment), which
+fixes interrupted TLS 1.3 client-authentication reads. Reload the development
+environment after updating this dependency.
 Additional render checks reject multi-ingress with federation or a missing
 secondary TLS Secret reference, and verify per-domain team-settings CSP behavior,
 the CSP opt-out, and absence of injected CSP on webapp routes.
@@ -76,7 +86,8 @@ Configuration shared by both runners:
 | `WIRE_INGRESS_TEST_IMPLEMENTATION` | `python` | `python` or `haskell` in the normal integration flow |
 
 The runners create fresh namespaces, ClusterIP proxies and temporary test
-certificates, and port-forward through loopback. They refuse existing namespaces
+certificates, and port-forward through the Kubernetes API. Python uses a loopback
+listener; Haskell feeds the WebSocket stream directly into the TLS backend. They refuse existing namespaces
 and request deletion of only namespaces created by the run, including on test
 failure. Namespace deletion is asynchronous; wait for deletion before reusing
 the same prefix. Cleanup is requested after each scenario so completed proxies
