@@ -55,6 +55,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.FederationStatus
+import Wire.API.MLS.Group (MLSMemberClientList)
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.CSV
 import Wire.API.Routes.Features
@@ -183,6 +184,19 @@ type InternalAPIBase =
                     'GET
                     '[JSON]
                     (Respond 200 "Clients" ClientList)
+           )
+    -- Like "get-conversation-clients", but includes per-client leaf indices;
+    -- used to assert backend store state in integration tests.
+    :<|> Named
+           "get-conversation-member-clients"
+           ( Summary "Get MLS conversation member client rows with leaf indices"
+               :> "group"
+               :> Capture "gid" GroupId
+               :> "member-clients"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "MLS member clients" MLSMemberClientList)
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"
