@@ -21,6 +21,13 @@ module Wire.SessionStore.Postgres
   )
 where
 
+-- TTL/purge note: unlike the Cassandra interpreter, where row TTLs delete
+-- expired cookies physically, Postgres rows survive their @invalid_after@
+-- boundary and are only filtered by the read predicates (@invalid_after >
+-- now()@).  No purge job is provisioned: expired session rows are harmless
+-- (unreachable on every read path) and bounded by user cookie rotation,
+-- following the accepted no-purge precedent of the password_reset migration.
+
 import Data.Id
 import Data.Time.Clock
 import Data.UUID (UUID)
@@ -125,7 +132,7 @@ listImpl u =
       Hasql.refineResult (traverse decodeRow . Vector.toList) $
         [vectorStatement|SELECT id :: int8, created :: timestamptz, expires_at :: timestamptz, typ :: int4, label :: text?, succ_id :: int8?
                           FROM user_cookies
-                          WHERE user_id = ($1 :: uuid) AND expires_at > now()
+                          WHERE user_id = ($1 :: uuid) AND expires_at > now() AND invalid_after > now()
                           ORDER BY expires_at ASC|]
 
 deleteImpl :: (PGConstraints r) => UserId -> [Cookie ()] -> Sem r ()
