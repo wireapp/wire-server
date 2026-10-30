@@ -31,6 +31,7 @@ module Wire.TeamStore.Postgres
     updateTeamMemberPg,
     removeTeamMemberPg,
     removeTeamMemberRowsPg,
+    userLegalHoldStatusToText,
   )
 where
 
@@ -46,7 +47,7 @@ nds)
 import Control.Lens ((.~), (^.), (^?), _1, _2, _Just)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
-import Data.LegalHold (defUserLegalHoldStatus)
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Map.Strict qualified as Map
 import Data.Range (Range, fromRange, unsafeRange)
 import Data.Set qualified as Set
@@ -515,16 +516,17 @@ resetSearchVisibilityPg tid = setSearchVisibilityPg tid SearchVisibilityStandard
 --------------------------------------------------------------------------------
 -- Team members (WPB-22957)
 
--- | A @team_member@ row minus the primary key: permissions (@smallint[]@
--- holding the self and copy masks), invited_by, invited_at, legalhold status.
-type MemberColumns = (Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16)
+-- | A @team_member@ row minus the primary key: permissions (two int8 masks,
+-- @self@ and @copy@, mirroring the Cassandra UDT), invited_by, invited_at,
+-- legalhold status.
+type MemberColumns = (Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text)
 
 -- | Invited-by and invited-at are both-or-neither (enforced at read time, as
 -- in Cassandra); rows with incomplete invitation metadata are dropped.
 teamMemberFromRow :: UserId -> MemberColumns -> Maybe TeamMember
-teamMemberFromRow uid (perms, minvu, minvt, mlh) = do
-  perms' <- either (const Nothing) Just (postgresUnmarshall perms)
-  mlh' <- traverse (either (const Nothing) Just . postgresUnmarshall @Int16) mlh
+teamMemberFromRow uid (ps, pc, minvu, minvt, mlh) = do
+  perms' <- either (const Nothing) Just (pairToPermissions (ps, pc))
+  mlh' <- traverse (either (const Nothing) Just . userLegalHoldStatusFromText) mlh
   let minvu' = Id <$> minvu
       minvt' = toUTCTimeMillis <$> minvt
   pure $ mkTeamMember uid perms' ((,) <$> minvu' <*> minvt') (fromMaybe defUserLegalHoldStatus mlh')
@@ -532,10 +534,12 @@ teamMemberFromRow uid (perms, minvu, minvt, mlh) = do
 addTeamMemberPg :: (PGConstraints r) => TeamId -> TeamMember -> Sem r ()
 addTeamMemberPg t m =
   runTransactionWithRetry ReadCommitted Write $ do
+    let (ps, pc) = permissionsToPair (m ^. permissions)
     Transaction.statement
       ( toUUID t,
         toUUID (m ^. userId),
-        postgresMarshall (m ^. permissions),
+        ps,
+        pc,
         toUUID <$> (m ^? invitation . _Just . _1),
         fromUTCTimeMillis <$> (m ^? invitation . _Just . _2)
       )
@@ -548,11 +552,12 @@ addTeamMemberPg t m =
 
 updateTeamMemberPg :: (PGConstraints r) => Permissions -> TeamId -> UserId -> Permissions -> Sem r ()
 updateTeamMemberPg oldPerms tid uid newPerms = do
-  let permDiff = Set.difference `on` self
+  let (nps, npc) = permissionsToPair newPerms
+      permDiff = Set.difference `on` self
       acquiredPerms = newPerms `permDiff` oldPerms
       lostPerms = oldPerms `permDiff` newPerms
   runTransactionWithRetry ReadCommitted Write $ do
-    Transaction.statement (postgresMarshall newPerms, toUUID tid, toUUID uid) updatePermissionsStatement
+    Transaction.statement (nps, npc, toUUID tid, toUUID uid) updatePermissionsStatement
     when (SetBilling `Set.member` acquiredPerms) $
       Transaction.statement (toUUID tid, toUUID uid) insertBillingTeamMemberStatement
     when (SetBilling `Set.member` lostPerms) $
@@ -599,7 +604,7 @@ teamMemberPage tid start maxMembers = do
   rows <- case start of
     Just u -> runStatement (toUUID tid, toUUID u, fromRange maxMembers) selectTeamMembersFromStatement
     Nothing -> runStatement (toUUID tid, fromRange maxMembers) selectTeamMembersStatement
-  pure (map (\(u, p, i, t, l) -> (Id u, (p, i, t, l))) (V.toList rows))
+  pure (map (\(u, ps, pc, i, t, l) -> (Id u, (ps, pc, i, t, l))) (V.toList rows))
 
 teamMembersCollectedPg :: (PGConstraints r) => TeamId -> Sem r [TeamMember]
 teamMembersCollectedPg tid = go Nothing []
@@ -626,23 +631,23 @@ teamMembersWithLimitPg t maxMembers = do
 teamMembersLimitedPg :: (PGConstraints r) => TeamId -> [UserId] -> Sem r [TeamMember]
 teamMembersLimitedPg t uids = do
   rows <- runStatement (toUUID t, V.fromList (map toUUID uids)) selectTeamMembersInStatement
-  pure (mapMaybe (\(u, p, i, ti, l) -> teamMemberFromRow (Id u) (p, i, ti, l)) (V.toList rows))
+  pure (mapMaybe (\(u, ps, pc, i, ti, l, _) -> teamMemberFromRow (Id u) (ps, pc, i, ti, l)) (V.toList rows))
 
 -- | Mirrors the Cassandra @selectTeamMembers'@ row: the permissions write
--- time is not reproducible in Postgres and is taken from the current time.
+-- time comes from the maintained @perms_write_time@ column (Cassandra's
+-- @writetime(perms)@ carried over by the copy loop, now() on direct writes).
 teamMemberInfosPg :: (PGConstraints r) => TeamId -> [UserId] -> Sem r [Info.TeamMemberInfo]
 teamMemberInfosPg t uids = do
-  now <- embed @IO getCurrentTime
   rows <- runStatement (toUUID t, V.fromList (map toUUID uids)) selectTeamMembersInStatement
   pure $
     mapMaybe
-      ( \(u, p, i, ti, l) ->
-          teamMemberFromRow (Id u) (p, i, ti, l)
+      ( \(u, ps, pc, i, ti, l, wt) ->
+          teamMemberFromRow (Id u) (ps, pc, i, ti, l)
             <&> ( \m ->
                     Info.TeamMemberInfo
                       { Info.userId = m ^. userId,
                         Info.permissions = m ^. permissions,
-                        Info.permissionsWriteTime = toUTCTimeMillis now
+                        Info.permissionsWriteTime = toUTCTimeMillis wt
                       }
                 )
       )
@@ -658,10 +663,10 @@ usersTeamsPg uids = do
 selectOneUserTeamsStatement :: Hasql.Statement (Vector UUID) (Vector (UUID, UUID))
 selectOneUserTeamsStatement =
   [vectorStatement|
-    select distinct on ("user") "user" :: uuid, team :: uuid
+    select distinct on (user_id) user_id :: uuid, team :: uuid
       from user_team
-     where "user" = any($1 :: uuid[])
-     order by "user", team
+     where user_id = any($1 :: uuid[])
+     order by user_id, team
   |]
 
 --------------------------------------------------------------------------------
@@ -670,61 +675,63 @@ selectOneUserTeamsStatement =
 selectTeamMemberStatement :: Hasql.Statement (UUID, UUID) (Maybe MemberColumns)
 selectTeamMemberStatement =
   [maybeStatement|
-    select perms :: smallint[], invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: smallint?
+    select perms_self :: int8, perms_copy :: int8, invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: text?
       from team_member
-     where team = $1 :: uuid and "user" = $2 :: uuid
+     where team = $1 :: uuid and user_id = $2 :: uuid
   |]
 
-selectTeamMembersStatement :: Hasql.Statement (UUID, Int32) (Vector (UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16))
+selectTeamMembersStatement :: Hasql.Statement (UUID, Int32) (Vector (UUID, Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text))
 selectTeamMembersStatement =
   [vectorStatement|
-    select "user" :: uuid, perms :: smallint[], invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: smallint?
+    select user_id :: uuid, perms_self :: int8, perms_copy :: int8, invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: text?
       from team_member
      where team = $1 :: uuid
-     order by "user"
+     order by user_id
      limit $2 :: int
   |]
 
-selectTeamMembersFromStatement :: Hasql.Statement (UUID, UUID, Int32) (Vector (UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16))
+selectTeamMembersFromStatement :: Hasql.Statement (UUID, UUID, Int32) (Vector (UUID, Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text))
 selectTeamMembersFromStatement =
   [vectorStatement|
-    select "user" :: uuid, perms :: smallint[], invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: smallint?
+    select user_id :: uuid, perms_self :: int8, perms_copy :: int8, invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: text?
       from team_member
-     where team = $1 :: uuid and "user" > $2 :: uuid
-     order by "user"
+     where team = $1 :: uuid and user_id > $2 :: uuid
+     order by user_id
      limit $3 :: int
   |]
 
-selectTeamMembersInStatement :: Hasql.Statement (UUID, Vector UUID) (Vector (UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16))
+selectTeamMembersInStatement :: Hasql.Statement (UUID, Vector UUID) (Vector (UUID, Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text, UTCTime))
 selectTeamMembersInStatement =
   [vectorStatement|
-    select "user" :: uuid, perms :: smallint[], invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: smallint?
+    select user_id :: uuid, perms_self :: int8, perms_copy :: int8, invited_by :: uuid?, invited_at :: timestamptz?, legalhold_status :: text?, perms_write_time :: timestamptz
       from team_member
-     where team = $1 :: uuid and "user" = any($2 :: uuid[])
-     order by "user"
+     where team = $1 :: uuid and user_id = any($2 :: uuid[])
+     order by user_id
   |]
 
-insertTeamMemberStatement :: Hasql.Statement (UUID, UUID, Vector Int16, Maybe UUID, Maybe UTCTime) ()
+insertTeamMemberStatement :: Hasql.Statement (UUID, UUID, Int64, Int64, Maybe UUID, Maybe UTCTime) ()
 insertTeamMemberStatement =
   [resultlessStatement|
-    insert into team_member (team, "user", perms, invited_by, invited_at)
-    values ($1 :: uuid, $2 :: uuid, $3 :: smallint[], $4 :: uuid?, $5 :: timestamptz?)
-    on conflict (team, "user") do update set
-      perms = excluded.perms,
+    insert into team_member (team, user_id, perms_self, perms_copy, invited_by, invited_at)
+    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: uuid?, $6 :: timestamptz?)
+    on conflict (team, user_id) do update set
+      perms_self = excluded.perms_self,
+      perms_copy = excluded.perms_copy,
       invited_by = excluded.invited_by,
-      invited_at = excluded.invited_at
+      invited_at = excluded.invited_at,
+      perms_write_time = now()
   |]
 
-updatePermissionsStatement :: Hasql.Statement (Vector Int16, UUID, UUID) ()
+updatePermissionsStatement :: Hasql.Statement (Int64, Int64, UUID, UUID) ()
 updatePermissionsStatement =
   [resultlessStatement|
-    update team_member set perms = $1 :: smallint[] where team = $2 :: uuid and "user" = $3 :: uuid
+    update team_member set perms_self = $1 :: int8, perms_copy = $2 :: int8, perms_write_time = now() where team = $3 :: uuid and user_id = $4 :: uuid
   |]
 
 deleteTeamMemberStatement :: Hasql.Statement (UUID, UUID) ()
 deleteTeamMemberStatement =
   [resultlessStatement|
-    delete from team_member where team = $1 :: uuid and "user" = $2 :: uuid
+    delete from team_member where team = $1 :: uuid and user_id = $2 :: uuid
   |]
 
 deleteTeamMembersByTeamStatement :: Hasql.Statement UUID ()
@@ -757,68 +764,68 @@ deleteTeamAdminsByTeamStatement =
 insertUserTeamStatement :: Hasql.Statement (UUID, UUID) ()
 insertUserTeamStatement =
   [resultlessStatement|
-    insert into user_team ("user", team) values ($1 :: uuid, $2 :: uuid)
-    on conflict ("user", team) do update set team = excluded.team
+    insert into user_team (user_id, team) values ($1 :: uuid, $2 :: uuid)
+    on conflict (user_id, team) do nothing
   |]
 
 deleteUserTeamStatement :: Hasql.Statement (UUID, UUID) ()
 deleteUserTeamStatement =
   [resultlessStatement|
-    delete from user_team where "user" = $1 :: uuid and team = $2 :: uuid
+    delete from user_team where user_id = $1 :: uuid and team = $2 :: uuid
   |]
 
 selectUserTeamsStatement :: Hasql.Statement UUID (Vector UUID)
 selectUserTeamsStatement =
   [vectorStatement|
-    select team :: uuid from user_team where "user" = $1 :: uuid order by team
+    select team :: uuid from user_team where user_id = $1 :: uuid order by team
   |]
 
 selectOneUserTeamStatement :: Hasql.Statement UUID (Maybe UUID)
 selectOneUserTeamStatement =
   [maybeStatement|
-    select team :: uuid from user_team where "user" = $1 :: uuid order by team limit 1
+    select team :: uuid from user_team where user_id = $1 :: uuid order by team limit 1
   |]
 
 selectUserTeamsInStatement :: Hasql.Statement (UUID, Vector UUID) (Vector UUID)
 selectUserTeamsInStatement =
   [vectorStatement|
-    select team :: uuid from user_team where "user" = $1 :: uuid and team = any($2 :: uuid[]) order by team
+    select team :: uuid from user_team where user_id = $1 :: uuid and team = any($2 :: uuid[]) order by team
   |]
 
 insertBillingTeamMemberStatement :: Hasql.Statement (UUID, UUID) ()
 insertBillingTeamMemberStatement =
   [resultlessStatement|
-    insert into billing_team_member (team, "user") values ($1 :: uuid, $2 :: uuid)
-    on conflict (team, "user") do update set "user" = excluded."user"
+    insert into billing_team_member (team, user_id) values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, user_id) do nothing
   |]
 
 deleteBillingTeamMemberStatement :: Hasql.Statement (UUID, UUID) ()
 deleteBillingTeamMemberStatement =
   [resultlessStatement|
-    delete from billing_team_member where team = $1 :: uuid and "user" = $2 :: uuid
+    delete from billing_team_member where team = $1 :: uuid and user_id = $2 :: uuid
   |]
 
 listBillingTeamMembersStatement :: Hasql.Statement UUID (Vector UUID)
 listBillingTeamMembersStatement =
   [vectorStatement|
-    select "user" :: uuid from billing_team_member where team = $1 :: uuid
+    select user_id :: uuid from billing_team_member where team = $1 :: uuid
   |]
 
 insertTeamAdminStatement :: Hasql.Statement (UUID, UUID) ()
 insertTeamAdminStatement =
   [resultlessStatement|
-    insert into team_admin (team, "user") values ($1 :: uuid, $2 :: uuid)
-    on conflict (team, "user") do update set "user" = excluded."user"
+    insert into team_admin (team, user_id) values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, user_id) do nothing
   |]
 
 deleteTeamAdminStatement :: Hasql.Statement (UUID, UUID) ()
 deleteTeamAdminStatement =
   [resultlessStatement|
-    delete from team_admin where team = $1 :: uuid and "user" = $2 :: uuid
+    delete from team_admin where team = $1 :: uuid and user_id = $2 :: uuid
   |]
 
 listTeamAdminsStatement :: Hasql.Statement UUID (Vector UUID)
 listTeamAdminsStatement =
   [vectorStatement|
-    select "user" :: uuid from team_admin where team = $1 :: uuid
+    select user_id :: uuid from team_admin where team = $1 :: uuid
   |]

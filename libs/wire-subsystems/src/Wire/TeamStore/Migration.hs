@@ -46,7 +46,6 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.UUID (UUID)
-import Data.Vector (Vector)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended qualified as Hasql
 import Imports

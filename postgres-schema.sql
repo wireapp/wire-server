@@ -1372,8 +1372,8 @@ ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 CREATE TABLE public.billing_team_member (
     team uuid NOT NULL,
-    "user" uuid NOT NULL
-
+    user_id uuid NOT NULL
+);
 
 ALTER TABLE public.billing_team_member OWNER TO "wire-server";
 
@@ -1797,7 +1797,7 @@ ALTER TABLE public.team OWNER TO "wire-server";
 
 CREATE TABLE public.team_admin (
     team uuid NOT NULL,
-    "user" uuid NOT NULL
+    user_id uuid NOT NULL
 );
 
 
@@ -1824,11 +1824,13 @@ ALTER TABLE public.team_features OWNER TO "wire-server";
 
 CREATE TABLE public.team_member (
     team uuid NOT NULL,
-    "user" uuid NOT NULL,
-    perms smallint[] NOT NULL,
+    user_id uuid NOT NULL,
+    perms_self bigint NOT NULL,
+    perms_copy bigint NOT NULL,
     invited_by uuid,
     invited_at timestamp with time zone,
-    legalhold_status smallint
+    legalhold_status text,
+    perms_write_time timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1889,7 +1891,7 @@ ALTER TABLE public.user_migration_pending_deletes OWNER TO "wire-server";
 --
 
 CREATE TABLE public.user_team (
-    "user" uuid NOT NULL,
+    user_id uuid NOT NULL,
     team uuid NOT NULL
 );
 
@@ -2874,6 +2876,20 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: team_member_user_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_member_user_idx ON public.team_member USING btree (user_id);
+
+
+--
+-- Name: user_team_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_team_team_idx ON public.user_team USING btree (team);
 
 
 --
