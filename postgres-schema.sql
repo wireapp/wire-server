@@ -2863,6 +2863,26 @@ ALTER TABLE ONLY public.subconversation
 
 
 --
+-- Name: activation_keys_deletions; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.activation_keys_deletions (
+    key text NOT NULL,
+    deleted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.activation_keys_deletions OWNER TO "wire-server";
+
+--
+-- Name: activation_keys_deletions activation_keys_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.activation_keys_deletions
+    ADD CONSTRAINT activation_keys_deletions_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: wire-server
 --
 
