@@ -1,1 +1,3 @@
 Migration of team invitations from cassandra to postgres
+
+Expired team invitations are deleted daily by the new pg_cron job expire-team-invitations; requires the pg_cron extension in shared_preload_libraries (the migration warns if absent)

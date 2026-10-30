@@ -26,15 +26,15 @@
 -- denormalized @team_invitation_info@ and @team_invitation_email@ Cassandra
 -- tables become plain indexes on @code@ and @email@.
 --
--- Unlike Cassandra's TTL garbage collection, expired rows are retained but
--- hidden by the @expires_at@ guard (same accepted precedent as
--- @vcodes@/@password_reset@); purging is left to a future cleanup job.
+-- Expired rows stay invisible to all reads via the @expires_at > now()@
+-- predicates and are deleted by the daily pg_cron job @expire-team-invitations@
+-- (garbage collection only), per ADR 0005.
 -- Cassandra's @team_invitation_email@ index deletes hid newer invitations of
 -- an (email, team) pair; the Postgres port intentionally keeps them visible.
 module Wire.InvitationStore.Postgres
   ( interpretInvitationStoreToPostgres,
-    insertInvitationQ,
-    insertPendingScimUserQ,
+    insertInvitationImpl,
+    insertPendingScimUserImpl,
     InvitationRow,
   )
 where
@@ -90,28 +90,28 @@ interpretInvitationStoreToPostgres ::
   InterpreterFor InvitationStore r
 interpretInvitationStoreToPostgres = interpret $ \case
   InsertInvitation inv timeout -> do
-    insertInvitationQ (invitationTuple inv (round timeout))
+    insertInvitationImpl (invitationTuple inv (round timeout))
     pure (insertInvToStoredInv inv)
   LookupInvitation tid iid ->
-    lookupInvitationQ (toUUID tid, toUUID iid)
+    lookupInvitationImpl (toUUID tid, toUUID iid)
   LookupInvitationByCode code ->
-    lookupInvitationByCodeQ code
+    lookupInvitationByCodeImpl code
   LookupInvitationsByEmail email ->
-    lookupInvitationsByEmailQ email
+    lookupInvitationsByEmailImpl email
   InsertPendingScimUser tid email uid ->
-    insertPendingScimUserQ (toUUID tid, postgresMarshall email, toUUID uid)
+    insertPendingScimUserImpl (toUUID tid, postgresMarshall email, toUUID uid)
   LookupPendingScimUsers tid email ->
-    lookupPendingScimUsersQ (toUUID tid, postgresMarshall email)
+    lookupPendingScimUsersImpl (toUUID tid, postgresMarshall email)
   DeletePendingScimUser tid email uid ->
-    deletePendingScimUserQ (toUUID tid, postgresMarshall email, toUUID uid)
+    deletePendingScimUserImpl (toUUID tid, postgresMarshall email, toUUID uid)
   LookupInvitationsPaginated mSize tid miid ->
-    lookupInvitationsPaginatedQ mSize tid miid
+    lookupInvitationsPaginatedImpl mSize tid miid
   CountInvitations tid ->
-    countInvitationsQ tid
+    countInvitationImpl tid
   DeleteInvitation tid invId ->
-    deleteInvitationQ (toUUID tid, toUUID invId)
+    deleteInvitationImpl (toUUID tid, toUUID invId)
   DeleteAllTeamInvitations tid ->
-    deleteAllTeamInvitationsQ tid
+    deleteInvitationsImpl tid
 
 -- | Flatten an 'InsertInvitation' (plus the code timeout in seconds) into the
 -- canonical row tuple.
@@ -146,11 +146,11 @@ toStoredInvitation (team, role, invId, createdAt, createdBy, email, name, code) 
 decodeOrDie :: (Member (Embed IO) r) => Either Text StoredInvitation -> Sem r StoredInvitation
 decodeOrDie = either (embed . fail . Text.unpack) pure
 
-insertInvitationQ :: (PGConstraints r) => InvitationRow -> Sem r ()
-insertInvitationQ = flip runStatement insertInvitationQStatement
+insertInvitationImpl :: (PGConstraints r) => InvitationRow -> Sem r ()
+insertInvitationImpl = flip runStatement insertInvitationStatement
 
-insertInvitationQStatement :: Hasql.Statement InvitationRow ()
-insertInvitationQStatement =
+insertInvitationStatement :: Hasql.Statement InvitationRow ()
+insertInvitationStatement =
   [resultlessStatement|INSERT INTO team_invitation
                          (team, invitation_id, role, created_at, created_by, email, name, code, expires_at)
                        VALUES
@@ -165,8 +165,8 @@ insertInvitationQStatement =
                            expires_at = now() + make_interval(secs => $9 :: int4)
      |]
 
-lookupInvitationQ :: (PGConstraints r) => (UUID, UUID) -> Sem r (Maybe StoredInvitation)
-lookupInvitationQ key = do
+lookupInvitationImpl :: (PGConstraints r) => (UUID, UUID) -> Sem r (Maybe StoredInvitation)
+lookupInvitationImpl key = do
   mRow <- runStatement key selectInvitationStatement
   traverse (decodeOrDie . toStoredInvitation) mRow
 
@@ -177,8 +177,8 @@ selectInvitationStatement =
                   WHERE team = ($1 :: uuid) AND invitation_id = ($2 :: uuid) AND expires_at > now()
                  |]
 
-lookupInvitationByCodeQ :: (PGConstraints r) => InvitationCode -> Sem r (Maybe StoredInvitation)
-lookupInvitationByCodeQ code = do
+lookupInvitationByCodeImpl :: (PGConstraints r) => InvitationCode -> Sem r (Maybe StoredInvitation)
+lookupInvitationByCodeImpl code = do
   mRow <- runStatement (postgresMarshall code) selectInvitationByCodeStatement
   traverse (decodeOrDie . toStoredInvitation) mRow
 
@@ -191,8 +191,8 @@ selectInvitationByCodeStatement =
                   LIMIT 1
                  |]
 
-lookupInvitationsByEmailQ :: (PGConstraints r) => EmailAddress -> Sem r [StoredInvitation]
-lookupInvitationsByEmailQ email = do
+lookupInvitationsByEmailImpl :: (PGConstraints r) => EmailAddress -> Sem r [StoredInvitation]
+lookupInvitationsByEmailImpl email = do
   rows <- runStatement (postgresMarshall email) selectInvitationsByEmailStatement
   traverse (decodeOrDie . toStoredInvitation) (toList rows)
 
@@ -206,13 +206,13 @@ selectInvitationsByEmailStatement =
                    ORDER BY email, team, created_at DESC, invitation_id DESC
                   |]
 
-lookupInvitationsPaginatedQ ::
+lookupInvitationsPaginatedImpl ::
   (PGConstraints r) =>
   Maybe (Range 1 500 Int32) ->
   TeamId ->
   Maybe InvitationId ->
   Sem r (PaginatedResult [StoredInvitation])
-lookupInvitationsPaginatedQ mSize tid miid = do
+lookupInvitationsPaginatedImpl mSize tid miid = do
   let pageSize = maybe 100 fromRange mSize
       fetchLimit = pageSize + 1
   rows <- case miid of
@@ -248,34 +248,34 @@ selectInvitationsPaginatedFromStatement =
                    LIMIT ($3 :: int4)
                   |]
 
-countInvitationsQ :: (PGConstraints r) => TeamId -> Sem r Int64
-countInvitationsQ = flip runStatement countInvitationsStatement
+countInvitationImpl :: (PGConstraints r) => TeamId -> Sem r Int64
+countInvitationImpl = flip runStatement countInvitationStatement
 
-countInvitationsStatement :: Hasql.Statement TeamId Int64
-countInvitationsStatement =
+countInvitationStatement :: Hasql.Statement TeamId Int64
+countInvitationStatement =
   lmapPG
     [singletonStatement|SELECT count(*) :: int8 FROM team_invitation WHERE team = ($1 :: uuid) AND expires_at > now()
        |]
 
-deleteInvitationQ :: (PGConstraints r) => (UUID, UUID) -> Sem r ()
-deleteInvitationQ = flip runStatement deleteInvitationStatement
+deleteInvitationImpl :: (PGConstraints r) => (UUID, UUID) -> Sem r ()
+deleteInvitationImpl = flip runStatement deleteInvitationStatement
 
 deleteInvitationStatement :: Hasql.Statement (UUID, UUID) ()
 deleteInvitationStatement =
   [resultlessStatement|DELETE FROM team_invitation WHERE team = ($1 :: uuid) AND invitation_id = ($2 :: uuid)
      |]
 
-deleteAllTeamInvitationsQ :: (PGConstraints r) => TeamId -> Sem r ()
-deleteAllTeamInvitationsQ = flip runStatement deleteAllTeamInvitationsStatement
+deleteInvitationsImpl :: (PGConstraints r) => TeamId -> Sem r ()
+deleteInvitationsImpl = flip runStatement deleteInvitationsStatement
 
-deleteAllTeamInvitationsStatement :: Hasql.Statement TeamId ()
-deleteAllTeamInvitationsStatement =
+deleteInvitationsStatement :: Hasql.Statement TeamId ()
+deleteInvitationsStatement =
   lmapPG
     [resultlessStatement|DELETE FROM team_invitation WHERE team = ($1 :: uuid)
      |]
 
-insertPendingScimUserQ :: (PGConstraints r) => (UUID, Text, UUID) -> Sem r ()
-insertPendingScimUserQ = flip runStatement insertPendingScimUserStatement
+insertPendingScimUserImpl :: (PGConstraints r) => (UUID, Text, UUID) -> Sem r ()
+insertPendingScimUserImpl = flip runStatement insertPendingScimUserStatement
 
 insertPendingScimUserStatement :: Hasql.Statement (UUID, Text, UUID) ()
 insertPendingScimUserStatement =
@@ -284,8 +284,8 @@ insertPendingScimUserStatement =
                        ON CONFLICT (team, email, user_id) DO NOTHING
      |]
 
-lookupPendingScimUsersQ :: (PGConstraints r) => (UUID, Text) -> Sem r [UserId]
-lookupPendingScimUsersQ key = map Id . toList <$> runStatement key lookupPendingScimUsersStatement
+lookupPendingScimUsersImpl :: (PGConstraints r) => (UUID, Text) -> Sem r [UserId]
+lookupPendingScimUsersImpl key = map Id . toList <$> runStatement key lookupPendingScimUsersStatement
 
 lookupPendingScimUsersStatement :: Hasql.Statement (UUID, Text) (Vector UUID)
 lookupPendingScimUsersStatement =
@@ -295,8 +295,8 @@ lookupPendingScimUsersStatement =
                      ORDER BY user_id ASC
                     |]
 
-deletePendingScimUserQ :: (PGConstraints r) => (UUID, Text, UUID) -> Sem r ()
-deletePendingScimUserQ = flip runStatement deletePendingScimUserStatement
+deletePendingScimUserImpl :: (PGConstraints r) => (UUID, Text, UUID) -> Sem r ()
+deletePendingScimUserImpl = flip runStatement deletePendingScimUserStatement
 
 deletePendingScimUserStatement :: Hasql.Statement (UUID, Text, UUID) ()
 deletePendingScimUserStatement =
