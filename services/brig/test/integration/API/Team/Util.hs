@@ -484,4 +484,3 @@ setUserEmail brig from uid email = do
         . contentJson
         . body (RequestBodyLBS . encode $ Public.EmailUpdate email)
     )
-

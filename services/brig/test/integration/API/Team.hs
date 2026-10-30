@@ -984,7 +984,3 @@ test2FaDisabledForSsoUser brig galley = do
 -- if the mock sso service disagrees with the deletion: 403 "sso-not-allowed" or something
 -- if user is last remaining owner: 403 "no-other-owner" (as above).
 -- otherwise: 2xx.
-
--------------------------------------------------------------------------------
--- Resend verification email for team member with pending unverified email
-
