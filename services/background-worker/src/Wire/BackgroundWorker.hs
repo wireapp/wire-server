@@ -127,6 +127,7 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-connections" $
             Migrations.connections opts.migrationOptions
+      else pure $ pure ()
   cleanupPushTokensMigration <-
     if opts.migratePushTokens
       then
@@ -145,7 +146,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,,,,,)
+            (,,,,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration

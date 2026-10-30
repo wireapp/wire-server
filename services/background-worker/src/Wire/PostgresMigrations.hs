@@ -32,8 +32,8 @@ import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.NonceStore.Migration
 import Wire.NotificationStore.Migration
-import Wire.PushTokenStore.Migration
 import Wire.PasswordResetCodeStore.Migration
+import Wire.PushTokenStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
@@ -240,6 +240,7 @@ connections migOpts = do
   Log.info logger $ Log.msg (Log.val "started connections migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
+    cancel migrationLoop
 pushTokens :: MigrationOptions -> AppT IO CleanupAction
 pushTokens migOpts = do
   cassClient <- asks (.cassandra)

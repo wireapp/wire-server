@@ -23,6 +23,7 @@
 module Wire.PushTokenStore.Postgres
   ( interpretPushTokenStoreToPostgres,
     insertPushTokenRow,
+    insertPushTokenRowCopy,
   )
 where
 
@@ -54,10 +55,12 @@ interpretPushTokenStoreToPostgres = interpret $ \case
   InsertPushToken u t a p arn conn client ->
     insertPushTokenRow u t a p (Just arn) conn (Just client)
   UpdatePushTokenArn u t a p arn ->
-    runStatement (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn)
+    runStatement
+      (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn)
       updateArnStatement
   DeletePushToken u t a p ->
-    runStatement (toUUID u, postgresMarshall t, appNameText a, tokenText p)
+    runStatement
+      (toUUID u, postgresMarshall t, appNameText a, tokenText p)
       deleteStatement
   ErasePushTokens u ->
     runStatement (toUUID u) eraseStatement
@@ -79,6 +82,27 @@ insertPushTokenRow u t a p arn conn client =
   runStatement
     (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn, postgresMarshall conn, postgresMarshall <$> client)
     insertStatement
+
+-- | Insert one @user_push@ row without overwriting an existing row. Used
+-- only by the migration copy loop: Cassandra is the source of truth during
+-- migration, so a re-copied row must not clobber a newer ARN/connection
+-- written to Postgres after the row was copied (and must not resurrect a
+-- row deleted on the Postgres side). The runtime upsert above keeps its
+-- overwrite semantics, matching the Cassandra primary-key upsert.
+insertPushTokenRowCopy ::
+  (PGConstraints r) =>
+  UserId ->
+  Transport ->
+  AppName ->
+  Token ->
+  Maybe Text ->
+  ConnId ->
+  Maybe ClientId ->
+  Sem r ()
+insertPushTokenRowCopy u t a p arn conn client =
+  runStatement
+    (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn, postgresMarshall conn, postgresMarshall <$> client)
+    insertNoOverwriteStatement
 
 pgLookup ::
   (PGConstraints r) =>
@@ -136,6 +160,16 @@ insertStatement =
         arn = EXCLUDED.arn,
         connection = EXCLUDED.connection,
         client = EXCLUDED.client
+    |]
+
+insertNoOverwriteStatement :: Hasql.Statement (UUID, Int32, Text, Text, Maybe Text, Text, Maybe Text) ()
+insertNoOverwriteStatement =
+  [resultlessStatement|
+      INSERT INTO user_push
+        (usr, transport, app, ptoken, arn, connection, client)
+      VALUES
+        ($1 :: uuid, $2 :: int4, $3 :: text, $4 :: text, $5 :: text?, $6 :: text, $7 :: text?)
+      ON CONFLICT (usr, ptoken, app, transport) DO NOTHING
     |]
 
 updateArnStatement :: Hasql.Statement (UUID, Int32, Text, Text, Text) ()

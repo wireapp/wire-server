@@ -19,11 +19,11 @@ module Wire.PushTokenStore.Migration (migratePushTokensLoop) where
 
 import Cassandra hiding (Value)
 import Data.ByteString.Conversion (fromByteString)
+import Data.ByteString.Lazy qualified as LBS
 import Data.Conduit
 import Data.Conduit.List qualified as C
-import Data.ByteString.Lazy qualified as LBS
-import Data.Id
 import Data.IORef qualified as IORef
+import Data.Id
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Time (diffUTCTime, getCurrentTime)
@@ -155,7 +155,7 @@ migratePushTokenRow migOpts migCounter migDuration (usr, trp, app, tok, arn, blo
           . Log.field "error" terr
     Right transport ->
       withTimeoutAndMetrics migOpts migCounter migDuration (rowKeyText (usr, trp, app, tok)) $
-        Postgres.insertPushTokenRow
+        Postgres.insertPushTokenRowCopy
           (Id usr)
           transport
           (AppName app)
