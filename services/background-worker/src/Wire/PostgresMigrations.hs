@@ -207,42 +207,6 @@ customBackend migOpts = do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
     cancel migrationLoop
 
-scimTokens :: MigrationOptions -> AppT IO CleanupAction
-scimTokens migOpts = do
-  cassClient <- asks (.cassandraSpar)
-  pgPool <- asks (.hasqlPool)
-  logger <- asks (.logger)
-  Log.info logger $ Log.msg (Log.val "starting scim tokens migration")
-  count <- register $ counter $ Prometheus.Info "wire_scim_tokens_migrated_to_pg" "Number of scim tokens migrated to Postgresql"
-  finished <- register $ counter $ Prometheus.Info "wire_scim_tokens_migration_finished" "Whether the scim tokens migration to Postgresql is finished successfully"
-  failed <- register $ counter $ Prometheus.Info "wire_scim_tokens_migration_failed" "Whether the scim tokens migration to Postgresql has failed"
-  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_scim_tokens_migration_duration_seconds" "Duration of scim tokens migration attempts") defaultBuckets
-
-  migrationLoop <- async . lift $ ScimTokenStore.migrateScimTokensLoop migOpts cassClient pgPool logger count finished failed duration
-
-  Log.info logger $ Log.msg (Log.val "started scim tokens migration")
-  pure $ do
-    Log.info logger $ Log.msg (Log.val "cancelling scim tokens migration")
-    cancel migrationLoop
-
-scimExternalIds :: MigrationOptions -> AppT IO CleanupAction
-scimExternalIds migOpts = do
-  cassClient <- asks (.cassandraSpar)
-  pgPool <- asks (.hasqlPool)
-  logger <- asks (.logger)
-  Log.info logger $ Log.msg (Log.val "starting scim external ids migration")
-  count <- register $ counter $ Prometheus.Info "wire_scim_external_ids_migrated_to_pg" "Number of scim external ids migrated to Postgresql"
-  finished <- register $ counter $ Prometheus.Info "wire_scim_external_ids_migration_finished" "Whether the scim external ids migration to Postgresql is finished successfully"
-  failed <- register $ counter $ Prometheus.Info "wire_scim_external_ids_migration_failed" "Whether the scim external ids migration to Postgresql has failed"
-  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_scim_external_ids_migration_duration_seconds" "Duration of scim external ids migration attempts") defaultBuckets
-
-  migrationLoop <- async . lift $ ScimExternalIdStore.migrateScimExternalIdsLoop migOpts cassClient pgPool logger count finished failed duration
-
-  Log.info logger $ Log.msg (Log.val "started scim external ids migration")
-  pure $ do
-    Log.info logger $ Log.msg (Log.val "cancelling scim external ids migration")
-    cancel migrationLoop
-
 connections :: MigrationOptions -> AppT IO CleanupAction
 connections migOpts = do
   cassClient <- asks (.cassandraBrig)
