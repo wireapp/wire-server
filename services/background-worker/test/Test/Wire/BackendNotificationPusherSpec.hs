@@ -30,6 +30,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.List.NonEmpty qualified as NE
 import Data.Misc
 import Data.Range
 import Data.Secret (secretText)
@@ -54,6 +55,7 @@ import Servant.Client.Internal.HttpClient (mkFailureResponse)
 import Servant.Server.Generic
 import Servant.Types.SourceT
 import System.Logger.Class qualified as Logger
+import System.Timeout qualified as Timeout
 import Test.Hspec
 import Test.QuickCheck
 import Test.Wire.Util
@@ -89,7 +91,76 @@ spec = do
           dropBundle = testBundle DropIfUnsupported (rangeFromVersion V1)
       (keepQueuedBundle <> dropBundle).unsupportedVersionPolicy `shouldBe` KeepQueued
 
+  describe "untilChannelClosed" $ do
+    it "cancels an in-flight action and runs its cleanup on channel closure" $ do
+      closed <- newEmptyTMVarIO
+      started <- newEmptyMVar
+      cleanedUp <- newEmptyMVar
+      blocked <- newEmptyMVar @_ @()
+      withAsync
+        (untilChannelClosed closed $ (putMVar started () >> takeMVar blocked) `finally` putMVar cleanedUp ())
+        $ \task -> do
+          Timeout.timeout 1_000_000 (takeMVar started) `shouldReturn` Just ()
+          atomically $ putTMVar closed ()
+          Timeout.timeout 1_000_000 (wait task) `shouldReturn` Just ()
+          tryTakeMVar cleanedUp `shouldReturn` Just ()
+
+    it "interrupts a retry delay on channel closure" $ do
+      closed <- newEmptyTMVarIO
+      started <- newEmptyMVar
+      withAsync
+        (untilChannelClosed closed $ putMVar started () >> threadDelay 300_000_000)
+        $ \task -> do
+          Timeout.timeout 1_000_000 (takeMVar started) `shouldReturn` Just ()
+          atomically $ putTMVar closed ()
+          Timeout.timeout 1_000_000 (wait task) `shouldReturn` Just ()
+
+    it "does not start deliveries on a closed channel" $ do
+      closed <- newTMVarIO ()
+      calls <- newIORef (0 :: Int)
+      untilChannelClosed closed $ modifyIORef' calls (+ 1)
+      readIORef calls `shouldReturn` 0
+
+    it "keeps replacement-channel tasks alive when the old channel closes" $ do
+      oldClosed <- newEmptyTMVarIO
+      newClosed <- newEmptyTMVarIO
+      started <- newEmptyMVar
+      finish <- newEmptyMVar
+      oldStarted <- newEmptyMVar
+      oldBlocked <- newEmptyMVar
+      withAsync (untilChannelClosed oldClosed $ putMVar oldStarted () >> takeMVar oldBlocked) $ \oldTask ->
+        withAsync (untilChannelClosed newClosed $ putMVar started () >> takeMVar finish) $ \task -> do
+          Timeout.timeout 1_000_000 (takeMVar started) `shouldReturn` Just ()
+          Timeout.timeout 1_000_000 (takeMVar oldStarted) `shouldReturn` Just ()
+          atomically $ putTMVar oldClosed ()
+          Timeout.timeout 1_000_000 (wait oldTask) `shouldReturn` Just ()
+          poll task >>= (`shouldSatisfy` isNothing)
+          putMVar finish ()
+          Timeout.timeout 1_000_000 (wait task) `shouldReturn` Just ()
+
   describe "pushNotification" $ do
+    forM_
+      [ Q.ConnectionClosedException Q.Abnormal "connection lost",
+        Q.ChannelClosedException Q.Abnormal "channel lost"
+      ]
+      $ \closedException ->
+        it ("does not resend a delivered notification after " <> show closedException) $ do
+          attempts <- newIORef 0
+          let envelope = ClosedEnvelope closedException attempts
+              notification = (testBundle KeepQueued (rangeFromVersion V1)).notifications
+              msg = Q.newMsg {Q.msgBody = Aeson.encode (NE.head notification)}
+          runningFlag <- newMVar ()
+          ((), requests) <- withTempMockFederator def . runTestAppT $ do
+            task <- pushNotification runningFlag (Domain "target.example.com") (msg, envelope)
+            liftIO $ flip finally (cancel task) $ do
+              result <- Timeout.timeout 1_000_000 (waitCatch task)
+              case result of
+                Just (Left err) -> fromException err `shouldBe` Just closedException
+                _ -> expectationFailure "Expected processing to terminate with the closed AMQP exception"
+          readIORef attempts `shouldReturn` 1
+          length requests `shouldBe` 1
+          tryTakeMVar runningFlag `shouldReturn` Just ()
+
     it "should push notifications" $ do
       let origDomain = Domain "origin.example.com"
           targetDomain = Domain "target.example.com"
@@ -785,3 +856,12 @@ waiResponseToServant res = do
         responseHttpVersion = http11,
         responseBody = body
       }
+
+-- Models a successful remote delivery whose AMQP acknowledgement cannot succeed.
+data ClosedEnvelope = ClosedEnvelope Q.AMQPException (IORef Int)
+
+instance RabbitMQEnvelope ClosedEnvelope where
+  ack (ClosedEnvelope err attempts) = do
+    modifyIORef' attempts (+ 1)
+    throwIO err
+  reject (ClosedEnvelope err _) _ = throwIO err
