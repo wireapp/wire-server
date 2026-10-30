@@ -276,5 +276,3 @@ postgresMigration:
   budget: postgresql
   connections: postgresql
   providerPassword: postgresql
-
-optSettings:
