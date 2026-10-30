@@ -185,7 +185,13 @@ migrateVCodesRow migOpts migCounter migDuration row@(key, _, _, _, _, _, ttl) =
       migDuration
       "verification code"
       (toByteString' key)
-      (Postgres.insertCodeRow row)
+      -- The insert is guarded by the @vcodes_deletions@ marker table: rows
+      -- deleted via the dual-write delete after a copy pass are skipped, so
+      -- re-running the loop cannot resurrect a deleted code. The residual race
+      -- is bounded by the statement composition of the dual-write delete
+      -- (marker insert and mirrored delete in the same Postgres statement
+      -- sequence); nonce (DPoP replay) precedent, PR #5675.
+      (Postgres.insertCodeRowIfNotDeleted row)
 
 migrateAllVCodesThrottle ::
   ( Member (Input Hasql.Pool) r,

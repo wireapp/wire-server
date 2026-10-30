@@ -2897,6 +2897,27 @@ ALTER TABLE ONLY public.subconversation
 
 
 --
+-- Name: vcodes_deletions; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.vcodes_deletions (
+    key text NOT NULL,
+    scope integer NOT NULL,
+    deleted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.vcodes_deletions OWNER TO "wire-server";
+
+--
+-- Name: vcodes_deletions vcodes_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.vcodes_deletions
+    ADD CONSTRAINT vcodes_deletions_pkey PRIMARY KEY (key, scope);
+
+
+--
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: wire-server
 --
 
