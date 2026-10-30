@@ -35,7 +35,6 @@ import Gundeck.Notification.Metrics
 import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options (brig)
 import Imports hiding (getLast)
-import Wire.NotificationStore (fetchNotifications, resultGap, resultHasMore, resultSeq)
 import Network.HTTP.Types (status400)
 import Network.HTTP.Types.Method
 import Network.Wai.Utilities.Error
@@ -44,6 +43,7 @@ import System.Logger.Class qualified as Log
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Internal.Notification
 import Wire.API.Notification
+import Wire.NotificationStore (fetchNotifications, resultGap, resultHasMore, resultSeq)
 
 data PaginateResult = PaginateResult
   { paginateResultGap :: Bool,

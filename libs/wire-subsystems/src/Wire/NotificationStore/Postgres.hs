@@ -45,10 +45,10 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Range (Range, fromRange)
 import Data.Ratio ((%))
-import Data.Text.Encoding qualified as Text
 import Data.Sequence (Seq)
-import Data.Set qualified as Set
 import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
 import Data.Time
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
@@ -80,7 +80,6 @@ interpretNotificationStoreToPostgres = interpret $ \case
 -- | Note: like the Cassandra implementation, 'DeleteAllNotifications' does
 -- not touch @notification_payload@; unreferenced payload rows expire via
 -- TTL / pg_cron.
-
 pgAddNotification ::
   (PGConstraints r) =>
   NotificationId ->

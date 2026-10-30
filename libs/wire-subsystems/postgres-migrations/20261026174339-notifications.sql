@@ -42,20 +42,8 @@ CREATE TABLE notification_payload (
 CREATE INDEX notification_payload_expires_at_idx
   ON notification_payload (expires_at);
 
--- TTL garbage collection per ADR-0005. Hourly: notification TTLs are 28 days
--- and, like team_notifications, the volume is far below the batching
--- threshold of ADR-0005. Requires pg_cron: CREATE EXTENSION pg_cron
--- (superuser + shared_preload_libraries) is an operator/DBA prerequisite,
--- NOT part of this migration — no migration on develop creates extensions;
--- they are provisioned externally.
-SELECT cron.schedule(
-  'expire-notifications',
-  '0 * * * *',
-  $$DELETE FROM notifications WHERE expires_at < now()$$
-);
-
-SELECT cron.schedule(
-  'expire-notification-payload',
-  '0 * * * *',
-  $$DELETE FROM notification_payload WHERE expires_at < now()$$
-);
+-- Purge job per ADR-0005 is provisioned externally (pg_cron, proposed)
+-- outside transactional migrations: DELETE FROM notifications / notification_payload
+-- WHERE expires_at < now(), scheduled hourly. Requires pg_cron
+-- (superuser + shared_preload_libraries) as an operator/DBA prerequisite —
+-- no migration on develop creates extensions; they are provisioned externally.

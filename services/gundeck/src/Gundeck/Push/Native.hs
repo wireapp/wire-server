@@ -38,7 +38,6 @@ import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Notification.Metrics (observeStored)
 import Gundeck.NotificationStoreBridge (runNotificationStore)
-import Wire.NotificationStore (addNotification)
 import Gundeck.Options
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native.Serialise
@@ -52,6 +51,7 @@ import Wire.API.Event.Gundeck
 import Wire.API.Internal.Notification
 import Wire.API.Notification (mkNotificationId)
 import Wire.API.Push.V2
+import Wire.NotificationStore (addNotification)
 
 push :: NativePush -> [Address] -> Gundeck ()
 push _ [] = pure ()

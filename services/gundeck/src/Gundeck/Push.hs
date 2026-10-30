@@ -75,7 +75,6 @@ import Gundeck.Notification.Metrics (observeStored)
 import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options
 import Gundeck.Presence.Data qualified as Presence
-import Wire.NotificationStore (NotificationTTL (..), addNotification)
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
@@ -98,6 +97,7 @@ import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
 import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
+import Wire.NotificationStore (NotificationTTL (..), addNotification)
 
 push :: [Push] -> Gundeck ()
 push ps = do
