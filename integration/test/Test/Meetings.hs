@@ -19,9 +19,9 @@
 
 module Test.Meetings where
 
+import qualified API.BrigInternal as BrigI
 import API.Galley
 import qualified API.GalleyInternal as I
-import qualified API.BrigInternal as BrigI
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader (ask, asks)
 import qualified Data.Text as Text
@@ -1325,14 +1325,36 @@ testMeetingJoinByLinkPaywalled = do
   -- A format-valid but unknown key hits the gate before resolution too.
   getMeetingCodeCheck bob domain unkKey unkCode Nothing >>= assertLabel 403 "id-feature-error"
   postMeetingJoin bob domain unkKey unkCode Nothing >>= assertLabel 403 "id-feature-error"
+
+-- | WPB-XXXX: on a deployment whose license does not cover calendar
+-- integration (the default, unlicensed static backend), calendar-managed
+-- meeting creation returns 403 id-feature-error even with the Z-Client
+-- header and both calendar fields present.
+testMeetingCalendarPaywalled :: (HasCallStack) => App ()
+testMeetingCalendarPaywalled = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      uri = "https://example.com"
+  cid <- BrigI.createOAuthClient owner "google-calendar" uri >>= getJSON 200 >>= flip (%.) "client_id" >>= asString
+  token <- generateAccessToken owner cid ["write:meetings"] uri >>= flip (%.) "access_token" >>= asString
+  forM_ ["google_calendar", "outlook"] $ \mgr -> do
+    body <-
+      setField "managed_by" mgr
+        =<< setField "calendar_id" ("cal-1" :: String)
+        =<< setField "calendar_event_id" ("evt-1" :: String)
+        =<< pure (defaultMeetingJson "Paywalled Calendar Meeting" startTime endTime [])
+    postMeetingsOAuth owner token body >>= assertLabel 403 "id-feature-error"
+
 -- | Google-Calendar add-on flows: an OAuth bearer caller (no cookie, hence no
 -- @Z-Connection@ header) creates a @google_calendar@-managed meeting and can
 -- update it, while Wire clients (ZAuth with a connection) get @403
 -- managed-by-calendar@ on every mutation of it. @wire@-managed meetings keep
 -- the previous behavior for both caller kinds.
 testMeetingGoogleCalendarManaged :: (HasCallStack) => App ()
-testMeetingGoogleCalendarManaged = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+testMeetingGoogleCalendarManaged = withLicensedBackend $ \dom -> do
+  (owner, _tid, _members) <- createTeam dom 1
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -1359,10 +1381,6 @@ testMeetingGoogleCalendarManaged = do
   postMeetingInvitation owner domain meetingId (object ["emails" .= (["someone@example.com" :: String])]) >>= assertLabel 403 "managed-by-calendar"
   deleteMeeting owner domain meetingId >>= assertLabel 403 "managed-by-calendar"
 
-  -- ... nor create a google_calendar-managed meeting through a Wire session.
-  calendarViaWire <- setField "managed_by" ("google_calendar" :: String) (defaultMeetingJson "Calendar via Wire" startTime endTime [])
-  postMeetings owner calendarViaWire >>= assertLabel 403 "managed-by-calendar"
-
   -- A wire-managed meeting (default for cookie sessions) keeps the old rules:
   -- the owner mutates it with a session ...
   wireCreated <- postMeetings owner (defaultMeetingJson "Wire Meeting" startTime endTime [])
@@ -1373,20 +1391,65 @@ testMeetingGoogleCalendarManaged = do
   putMeeting owner wireDomain wireId (object ["title" .= ("Updated by Wire" :: String)]) >>= assertSuccess
   deleteMeeting owner wireDomain wireId >>= assertSuccess
 
-  -- ... and an OAuth bearer client can mutate it too (no manager guard).
+  -- ... and an OAuth bearer client (without the Z-Client header) can mutate
+  -- it too; presenting the calendar header on a wire-managed meeting is a
+  -- pairing violation (400 invalid-op).
   wireCreated2 <- postMeetings owner (defaultMeetingJson "Wire Meeting 2" startTime endTime [])
   wireMeeting2 <- getJSON 201 wireCreated2
   (wireId2, wireDomain2) <- getMeetingIdAndDomain wireMeeting2
-  putMeetingOAuth owner token wireDomain2 wireId2 (object ["title" .= ("Updated by Calendar on Wire meeting" :: String)]) >>= assertSuccess
+  putMeetingOAuth' owner token wireDomain2 wireId2 (object ["title" .= ("Updated by Calendar on Wire meeting" :: String)]) >>= assertSuccess
+  putMeetingOAuth owner token wireDomain2 wireId2 (object ["title" .= ("Hijacked" :: String)]) >>= assertLabel 400 "invalid-op"
+
+  -- Calendar-managed creates without the Z-Client header: 400 invalid-op.
+  postMeetingsOAuth' owner token calendarMeeting >>= assertLabel 400 "invalid-op"
+
+  -- Wire-session creates must not carry calendar fields: 400 invalid-op.
+  wireWithCalendarField <-
+    setField "managed_by" ("wire" :: String)
+      =<< setField "calendar_event_id" ("evt-from-wire" :: String)
+      =<< pure (defaultMeetingJson "Wire with calendar field" startTime endTime [])
+  postMeetings owner wireWithCalendarField >>= assertLabel 400 "invalid-op"
+
+  -- ... nor create a google_calendar-managed meeting through a Wire session
+  -- (403 managed-by-calendar takes precedence).
+  calendarViaWire <- setField "managed_by" ("google_calendar" :: String) (defaultMeetingJson "Calendar via Wire" startTime endTime [])
+  postMeetings owner calendarViaWire >>= assertLabel 403 "managed-by-calendar"
+
+  -- An outlook-managed meeting behaves like a google_calendar one: 201 with
+  -- managed_by and calendar_id echoed.
+  outlookMeeting <- setField "managed_by" ("outlook" :: String) (defaultMeetingJson "Outlook Meeting" startTime endTime [])
+  outlookWithCalendar <-
+    setField "calendar_id" ("outlook-cal-1" :: String)
+      =<< setField "calendar_event_id" ("outlook-evt-1" :: String)
+      =<< pure outlookMeeting
+  outlookCreated <- postMeetingsOAuth owner token outlookWithCalendar
+  assertSuccess outlookCreated
+  outlookJson <- getJSON 201 outlookCreated
+  outlookJson %. "managed_by" `shouldMatch` ("outlook" :: String)
+  outlookJson %. "calendar_id" `shouldMatch` ("outlook-cal-1" :: String)
 
   -- Finally the calendar integration deletes its own meeting.
   deleteMeetingOAuth owner token domain meetingId >>= assertSuccess
 
 -- | Send a galley meeting request authenticated only by an OAuth bearer token
--- (no cookie, hence no @Z-Connection@ header) — the calendar integration's
--- calling pattern through nginz.
+-- (no cookie, hence no @Z-Connection@ header) and presenting the
+-- @Z-Client: Calendar@ header — the calendar integration's calling pattern
+-- through nginz.
 meetingOAuthRequest :: (HasCallStack, MakesValue user) => String -> user -> String -> String -> Maybe Value -> App Response
 meetingOAuthRequest method user token path mBody = do
+  req <- rawBaseRequest user Galley Versioned path
+  let req' =
+        addHeader "Z-Client" ("Calendar" :: String)
+          . addHeader "Authorization" ("Bearer " <> token)
+          $ req
+  submit method $ case mBody of
+    Just body -> addJSON body req'
+    Nothing -> req'
+
+-- | Like 'meetingOAuthRequest' but without the @Z-Client@ header, for the
+-- negative (400 invalid-op) pairing cases.
+meetingOAuthRequest' :: (HasCallStack, MakesValue user) => String -> user -> String -> String -> Maybe Value -> App Response
+meetingOAuthRequest' method user token path mBody = do
   req <- rawBaseRequest user Galley Versioned path
   let req' = addHeader "Authorization" ("Bearer " <> token) req
   submit method $ case mBody of
@@ -1396,9 +1459,16 @@ meetingOAuthRequest method user token path mBody = do
 postMeetingsOAuth :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
 postMeetingsOAuth user token body = meetingOAuthRequest "POST" user token "/meetings" (Just body)
 
+postMeetingsOAuth' :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+postMeetingsOAuth' user token body = meetingOAuthRequest' "POST" user token "/meetings" (Just body)
+
 putMeetingOAuth :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> Value -> App Response
 putMeetingOAuth user token domain meetingId body =
   meetingOAuthRequest "PUT" user token (joinHttpPath ["meetings", domain, meetingId]) (Just body)
+
+putMeetingOAuth' :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> Value -> App Response
+putMeetingOAuth' user token domain meetingId body =
+  meetingOAuthRequest' "PUT" user token (joinHttpPath ["meetings", domain, meetingId]) (Just body)
 
 deleteMeetingOAuth :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
 deleteMeetingOAuth user token domain meetingId =

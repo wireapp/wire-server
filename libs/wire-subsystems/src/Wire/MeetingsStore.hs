@@ -64,6 +64,9 @@ data StoredMeeting = StoredMeeting
     -- | lifecycle owner; @GoogleCalendar@ meetings are only mutable via the
     -- calendar integration (OAuth callers)
     managedBy :: Manager,
+    -- | external calendar references; set iff @managedBy /= Wire@
+    calendarEventId :: Maybe Text,
+    calendarId :: Maybe Text,
     -- | optional recurrence pattern
     recurrence :: Maybe Recurrence,
     -- | conversation where the meeting belongs
@@ -109,7 +112,9 @@ type StoredMeetingTuple =
     Bool, -- trial
     UTCTime, -- created_at
     UTCTime, -- updated_at
-    Text -- managed_by
+    Text, -- managed_by
+    Maybe Text, -- calendar_event_id
+    Maybe Text -- calendar_id
   )
 
 instance PostgresMarshall StoredMeetingTuple StoredMeeting where
@@ -130,7 +135,9 @@ instance PostgresMarshall StoredMeetingTuple StoredMeeting where
           storedMeeting.trial,
           storedMeeting.createdAt,
           storedMeeting.updatedAt,
-          renderManager storedMeeting.managedBy
+          renderManager storedMeeting.managedBy,
+          storedMeeting.calendarEventId,
+          storedMeeting.calendarId
         )
 
 instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
@@ -150,7 +157,9 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       trial',
       createdAt',
       updateAt',
-      mb'
+      mb',
+      ceid',
+      cid'
       ) = do
       rTitle <- first T.pack $ checkedEither title'
       recurrence' <- postgresUnmarshall (rFreq, rInterval, rUntil)
@@ -167,6 +176,8 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
             tzid = tzid'',
             meetingType = meetingType',
             managedBy = managedBy',
+            calendarEventId = ceid',
+            calendarId = cid',
             recurrence = recurrence',
             conversationId = Id conversationId',
             invitedEmails = mapMaybe emailAddressText (V.toList invitedEmails'),
@@ -193,6 +204,10 @@ data MeetingsStore m a where
     -- | Lifecycle owner; @GoogleCalendar@ meetings are only mutable via the
     -- calendar integration (OAuth callers).
     Manager ->
+    -- | External calendar references (@calendar_event_id@, @calendar_id@);
+    -- set iff the manager is not 'Wire'.
+    Maybe Text ->
+    Maybe Text ->
     MeetingsStore m StoredMeeting
   UpdateMeeting ::
     MeetingId ->

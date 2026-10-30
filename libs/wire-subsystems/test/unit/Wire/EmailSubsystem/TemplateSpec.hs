@@ -40,7 +40,7 @@ import Polysemy.Output
 import Test.Hspec
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Locale
-import Wire.API.Meeting (Meeting (..), MeetingType (..), TimeZone (..))
+import Wire.API.Meeting (Manager (..), Meeting (..), MeetingType (..), TimeZone (..))
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
 import Wire.API.User.Activation
 import Wire.API.User.Client (Client (..), ClientCapabilityList (..), ClientType (..))
@@ -104,6 +104,8 @@ meetingFixture =
       endTime = UTCTime (fromGregorian 2026 10 12) (secondsToDiffTime (10 * 3600)),
       tzid = TimeZone Europe__Berlin,
       mtype = Scheduled,
+      managedBy = Wire,
+      calendarId = Nothing,
       recurrence = Nothing,
       conversationId = Qualified (Id (fromJust (UUID.fromString "323e4567-e89b-12d3-a456-426614174002"))) (Domain "example.com"),
       invitedEmails = [fromJust (emailAddressText "invitee@example.com")],

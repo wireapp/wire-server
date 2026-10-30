@@ -409,6 +409,10 @@ data MeetingError
   | MeetingsFeatureDisabled
   | MeetingNotLicensed
   | ManagedByCalendar
+  | -- | The managed_by / Z-Client header / calendar field pairing is
+    -- inconsistent (e.g. a calendar-managed create without the
+    -- @Z-Client: Calendar@ header, or calendar fields on a wire-managed one).
+    InvalidCalendarFields
   deriving stock (Eq, Show)
 
 -- | The individual failure modes of meeting time validation.
@@ -433,6 +437,8 @@ meetingErrorToDyn = \case
   MeetingsFeatureDisabled -> DynError 403 "invalid-op" "The meetings feature is not enabled"
   MeetingNotLicensed -> DynError 403 "id-feature-error" "Not licensed on this backend"
   ManagedByCalendar -> DynError 403 "managed-by-calendar" "This meeting is managed by an external calendar integration"
+  InvalidCalendarFields ->
+    DynError 400 "invalid-op" "Calendar-managed meetings require the Z-Client: Calendar header plus calendar_event_id and calendar_id; wire-managed meetings must not set them"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
@@ -445,10 +451,13 @@ type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, 
 
 type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
 
+type InvalidCalendarFieldsStatic = 'StaticError 400 "invalid-op" "Calendar-managed meetings require the Z-Client: Calendar header and calendar fields; wire-managed meetings must not set them"
+
 instance IsSwaggerError MeetingError where
   addToOpenApi =
     addStaticErrorToSwagger @MeetingErrorStatic
       . addStaticErrorToSwagger @MeetingNotLicensedStatic
+      . addStaticErrorToSwagger @InvalidCalendarFieldsStatic
 
 instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where
   interpretServerEffect = mapError meetingErrorToDyn

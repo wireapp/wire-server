@@ -55,9 +55,10 @@ createMeeting ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
+  Maybe Text ->
   NewMeeting ->
   Sem r MeetingWithConversation
-createMeeting lUser connId newMeeting = Meetings.createMeeting lUser connId newMeeting
+createMeeting lUser connId mClient newMeeting = Meetings.createMeeting lUser connId mClient newMeeting
 
 updateMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
@@ -65,13 +66,14 @@ updateMeeting ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  Maybe Text ->
   Domain ->
   MeetingId ->
   UpdateMeeting ->
   Sem r MeetingWithConversation
-updateMeeting zUser connId domain meetingId update = do
+updateMeeting zUser connId mClient domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
-  noteS @'MeetingNotFound =<< Meetings.updateMeeting zUser connId qMeetingId update
+  noteS @'MeetingNotFound =<< Meetings.updateMeeting zUser connId mClient qMeetingId update
 
 deleteMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
@@ -79,12 +81,13 @@ deleteMeeting ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  Maybe Text ->
   Domain ->
   MeetingId ->
   Sem r ()
-deleteMeeting zUser connId domain meetingId = do
+deleteMeeting zUser connId mClient domain meetingId = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.deleteMeeting zUser connId qMeetingId
+  success <- Meetings.deleteMeeting zUser connId mClient qMeetingId
   unless success $ throwS @'MeetingNotFound
 
 getMeeting ::
@@ -191,13 +194,14 @@ addMeetingInvitation ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  Maybe Text ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-addMeetingInvitation zUser mConn domain meetingId (MeetingEmailsInvitation emails) = do
+addMeetingInvitation zUser mConn mClient domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.addInvitedEmails zUser mConn qMeetingId emails
+  success <- Meetings.addInvitedEmails zUser mConn mClient qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 removeMeetingInvitation ::
@@ -206,13 +210,14 @@ removeMeetingInvitation ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  Maybe Text ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-removeMeetingInvitation zUser mConn domain meetingId (MeetingEmailsInvitation emails) = do
+removeMeetingInvitation zUser mConn mClient domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.removeInvitedEmails zUser mConn qMeetingId emails
+  success <- Meetings.removeInvitedEmails zUser mConn mClient qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 replaceMeetingInvitation ::
@@ -221,13 +226,14 @@ replaceMeetingInvitation ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  Maybe Text ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-replaceMeetingInvitation zUser mConn domain meetingId (MeetingEmailsInvitation emails) = do
+replaceMeetingInvitation zUser mConn mClient domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.replaceInvitedEmails zUser mConn qMeetingId emails
+  success <- Meetings.replaceInvitedEmails zUser mConn mClient qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 refreshMeetingLink ::
@@ -236,13 +242,14 @@ refreshMeetingLink ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  Maybe Text ->
   Domain ->
   MeetingId ->
   RefreshMeetingLinkRequest ->
   Sem r MeetingWithConversation
-refreshMeetingLink zUser connId domain meetingId req =
+refreshMeetingLink zUser connId mClient domain meetingId req =
   noteS @'MeetingNotFound
-    =<< Meetings.refreshMeetingLink zUser connId (Qualified meetingId domain) req
+    =<< Meetings.refreshMeetingLink zUser connId mClient (Qualified meetingId domain) req
 
 -- | WPB-28989: check a meeting join link unauthenticated. No creator or
 -- conversation membership is required; anything that does not resolve to a

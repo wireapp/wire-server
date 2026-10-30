@@ -31,7 +31,7 @@ inMemoryMeetingsStoreInterpreter ::
   (Member (State (Map MeetingId StoredMeeting)) r, Member Now r) =>
   InterpreterFor MeetingsStore r
 inMemoryMeetingsStoreInterpreter = interpret $ \case
-  CreateMeeting mid title creator startTime endTime tzid mtype recurrence conversationId invitedEmails trial managedBy -> do
+  CreateMeeting mid title creator startTime endTime tzid mtype recurrence conversationId invitedEmails trial managedBy calendarEventId calendarId -> do
     now <- Now.get
     let sm =
           StoredMeeting
@@ -43,6 +43,8 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
               tzid = tzid,
               meetingType = mtype,
               managedBy = managedBy,
+              calendarEventId = calendarEventId,
+              calendarId = calendarId,
               recurrence = recurrence,
               conversationId = conversationId,
               invitedEmails = invitedEmails,

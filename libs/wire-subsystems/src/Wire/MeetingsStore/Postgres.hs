@@ -47,8 +47,8 @@ interpretMeetingsStoreToPostgres ::
   InterpreterFor MeetingsStore r
 interpretMeetingsStoreToPostgres =
   interpret $ \case
-    CreateMeeting mid title creator startTime endTime tzid mtype recurrence convId emails trial managedBy ->
-      createMeetingImpl mid title creator startTime endTime tzid mtype recurrence convId emails trial managedBy
+    CreateMeeting mid title creator startTime endTime tzid mtype recurrence convId emails trial managedBy ceid cid ->
+      createMeetingImpl mid title creator startTime endTime tzid mtype recurrence convId emails trial managedBy ceid cid
     UpdateMeeting meetingId title startDate endTime tzid schedule ->
       updateMeetingImpl meetingId title startDate endTime tzid schedule
     DeleteMeeting meetingId ->
@@ -84,8 +84,10 @@ createMeetingImpl ::
   [EmailAddress] ->
   Bool ->
   Manager ->
+  Maybe Text ->
+  Maybe Text ->
   Sem r StoredMeeting
-createMeetingImpl mid title creator startTime endTime tzid mtype recurrence convId emails trial managedBy = do
+createMeetingImpl mid title creator startTime endTime tzid mtype recurrence convId emails trial managedBy ceid cid = do
   now <- liftIO getCurrentTime
   let sm =
         StoredMeeting
@@ -97,6 +99,8 @@ createMeetingImpl mid title creator startTime endTime tzid mtype recurrence conv
             tzid = tzid,
             meetingType = mtype,
             managedBy = managedBy,
+            calendarEventId = ceid,
+            calendarId = cid,
             recurrence = recurrence,
             conversationId = convId,
             invitedEmails = emails,
@@ -116,14 +120,14 @@ insertStatement =
         (id, title, creator, start_time, end_time, tzid, mtype,
          recurrence_frequency, recurrence_interval, recurrence_until,
          conversation_id, invited_emails, trial, created_at, updated_at,
-         managed_by)
+         managed_by, calendar_event_id, calendar_id)
         VALUES
         ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: timestamptz, $5 :: timestamptz, $6 :: text,
          $7 :: text :: meeting_type,
          $8 :: text? :: recurrence_frequency, $9 :: int4?, $10 :: timestamptz?,
          $11 :: uuid, $12 :: text[], $13 :: boolean,
          $14 :: timestamptz, $15 :: timestamptz,
-         $16 :: text :: meeting_manager)
+         $16 :: text :: meeting_manager, $17 :: text?, $18 :: text?)
         RETURNING
           id :: uuid, title :: text, creator :: uuid,
           start_time :: timestamptz, end_time :: timestamptz, tzid :: text,
@@ -131,7 +135,8 @@ insertStatement =
           recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
           conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
           created_at :: timestamptz, updated_at :: timestamptz,
-          managed_by :: text
+          managed_by :: text,
+          calendar_event_id :: text?, calendar_id :: text?
       |]
 
 -- * Update
@@ -235,7 +240,8 @@ updateMeetingImpl meetingId mTitle mStartDate mEndTime mTzid mRecurrence = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz,
-            managed_by :: text
+            managed_by :: text,
+            calendar_event_id :: text?, calendar_id :: text?
         |]
 
     updateWithoutRecurrenceStatement :: Statement UpdateMeetingWithoutRecurrenceTuple (Maybe StoredMeeting)
@@ -260,7 +266,8 @@ updateMeetingImpl meetingId mTitle mStartDate mEndTime mTzid mRecurrence = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz,
-            managed_by :: text
+            managed_by :: text,
+            calendar_event_id :: text?, calendar_id :: text?
         |]
 
 -- * Delete
@@ -300,7 +307,8 @@ getMeetingStatement =
         recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
         conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
         created_at :: timestamptz, updated_at :: timestamptz,
-            managed_by :: text
+            managed_by :: text,
+            calendar_event_id :: text?, calendar_id :: text?
       FROM meetings
       WHERE id = $1 :: uuid
     |]
@@ -327,7 +335,8 @@ listMeetingsByUserImpl userId cutoffTime = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz,
-            managed_by :: text
+            managed_by :: text,
+            calendar_event_id :: text?, calendar_id :: text?
           FROM meetings
           WHERE creator = ($1 :: uuid)
             AND (
@@ -361,7 +370,8 @@ listMeetingsByConversationImpl convId cutoffTime = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz,
-            managed_by :: text
+            managed_by :: text,
+            calendar_event_id :: text?, calendar_id :: text?
           FROM meetings
           WHERE conversation_id = ($1 :: uuid)
             AND (
@@ -461,7 +471,8 @@ getOldMeetingsImpl cutoffTime batchSize = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz,
-            managed_by :: text
+            managed_by :: text,
+            calendar_event_id :: text?, calendar_id :: text?
           FROM meetings
           WHERE recurrence_frequency IS NULL
             AND end_time < ($1 :: timestamptz)
@@ -480,7 +491,8 @@ getOldMeetingsImpl cutoffTime batchSize = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz,
-            managed_by :: text
+            managed_by :: text,
+            calendar_event_id :: text?, calendar_id :: text?
           FROM meetings
           WHERE recurrence_frequency IS NOT NULL
             AND recurrence_interval IS NOT NULL
