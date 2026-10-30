@@ -1357,17 +1357,6 @@ CREATE TABLE public.asset (
 
 ALTER TABLE public.asset OWNER TO "wire-server";
 
---
--- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.email_blocklist (
-    email text NOT NULL
-);
-
-
-ALTER TABLE public.email_blocklist OWNER TO "wire-server";
-
 -- Name: billing_team_member; Type: TABLE; Schema: public; Owner: wire-server
 
 CREATE TABLE public.billing_team_member (
@@ -1555,17 +1544,6 @@ CREATE TABLE public.domain_registration_challenge (
 
 
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
-
---
--- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.email_blocklist (
-    email text NOT NULL
-);
-
-
-ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -2068,7 +2046,7 @@ ALTER TABLE ONLY public.apps
 --
 
 ALTER TABLE ONLY public.billing_team_member
-    ADD CONSTRAINT billing_team_member_pkey PRIMARY KEY (team, "user");
+    ADD CONSTRAINT billing_team_member_pkey PRIMARY KEY (team, user_id);
 
 
 --
@@ -2160,14 +2138,6 @@ ALTER TABLE ONLY public.domain_registration
 
 
 --
--- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.email_blocklist
-    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
-
-
---
 -- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -2244,7 +2214,7 @@ ALTER TABLE ONLY public.team_features
 --
 
 ALTER TABLE ONLY public.team_member
-    ADD CONSTRAINT team_member_pkey PRIMARY KEY (team, "user");
+    ADD CONSTRAINT team_member_pkey PRIMARY KEY (team, user_id);
 
 
 --
@@ -2300,7 +2270,7 @@ ALTER TABLE ONLY public.user_migration_pending_deletes
 --
 
 ALTER TABLE ONLY public.user_team
-    ADD CONSTRAINT user_team_pkey PRIMARY KEY ("user", team);
+    ADD CONSTRAINT user_team_pkey PRIMARY KEY (user_id, team);
 
 
 --
