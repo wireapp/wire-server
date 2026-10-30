@@ -42,7 +42,9 @@ interpretVerificationCodeStoreToCassandraAndPostgres casClient = interpret $ \ca
     Cassandra.interpretVerificationCodeStoreCassandra casClient $ lookupCode key scope
   DeleteCode key scope -> do
     Cassandra.interpretVerificationCodeStoreCassandra casClient $ deleteCode key scope
-    Postgres.interpretVerificationCodeStoreToPostgres $ deleteCode key scope
+    Postgres.interpretVerificationCodeStoreToPostgres $ do
+      Postgres.insertCodeDeletionMarker key scope
+      deleteCode key scope
   InsertThrottle key scope t -> do
     Cassandra.interpretVerificationCodeStoreCassandra casClient $ insertThrottle key scope t
     Postgres.interpretVerificationCodeStoreToPostgres $ insertThrottle key scope t
