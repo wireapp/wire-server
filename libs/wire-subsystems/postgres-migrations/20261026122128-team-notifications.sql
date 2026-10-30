@@ -26,12 +26,7 @@ CREATE INDEX team_notifications_expires_at_idx
 -- TTL garbage collection per ADR-0005. Hourly: 28d TTL and low write volume
 -- (member-join events only) — no need for the 5-minute cadence of short-lived
 -- data, and volume is far below the batching threshold of ADR-0005.
--- Requires pg_cron: CREATE EXTENSION pg_cron (superuser +
+-- The purge job is provisioned per ADR-0005 (pg_cron, proposed) outside
+-- transactional migrations: CREATE EXTENSION pg_cron (superuser +
 -- shared_preload_libraries) is an operator/DBA prerequisite, NOT part of this
--- migration — no migration on develop creates extensions; they are
--- provisioned externally.
-SELECT cron.schedule(
-  'expire-team-notifications',
-  '0 * * * *',
-  $$DELETE FROM team_notifications WHERE expires_at < now()$$
-);
+-- migration — no migration on develop creates extensions.
