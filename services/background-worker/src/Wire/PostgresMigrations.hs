@@ -221,6 +221,8 @@ connections migOpts = do
   Log.info logger $ Log.msg (Log.val "started connections migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
+    cancel migrationLoop
+
 verificationCodes :: MigrationOptions -> AppT IO CleanupAction
 verificationCodes migOpts = do
   cassClient <- asks (.cassandraBrig)
