@@ -62,7 +62,7 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     customBackend :: StorageLocation,
     budget :: StorageLocation,
     nonce :: StorageLocation,
-    connections :: StorageLocation
+    connections :: StorageLocation,
     properties :: StorageLocation
   }
   deriving (Show)
