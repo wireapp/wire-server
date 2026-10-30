@@ -2309,7 +2309,8 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
+The `postgresqlPassword` file is read by `brig`, `galley`, `spar`, and
+`background-worker`. Its content is
 used as `password` field.
 
 ### Using PostgreSQL for storing Cassandra-backed data
@@ -2332,6 +2333,8 @@ galley:
       blockList: postgresql
       passwordReset: postgresql
       customBackend: postgresql
+      scimTokens: postgresql
+      scimExternalIds: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2341,6 +2344,8 @@ background-worker:
     migrateBlockList: false
     migratePasswordReset: false
     migrateCustomBackend: false
+    migrateScimTokens: false
+    migrateScimExternalIds: false
 ```
 
 `spar` additionally exposes its own `spar.config.postgresMigration` block, using the
@@ -2380,6 +2385,8 @@ The current settings and their background-worker flags are:
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
+- `scimTokens` -> `migrateScimTokens`
+- `scimExternalIds` -> `migrateScimExternalIds`
 
 **Migration pattern per migration setting**
 
@@ -2413,9 +2420,11 @@ The current settings and their background-worker flags are:
        migrateBlockList: false
        migratePasswordReset: false
        migrateCustomBackend: false
+       migrateScimTokens: false
+       migrateScimExternalIds: false
    ```
 
-   This change should restart the affected pods, and new writes will follow the
+    This change should restart the affected pods, and new writes will follow the
    migration interpreter.
 
 2. Run the backfill for the selected migration setting(s) via background-worker.
@@ -2459,6 +2468,8 @@ The current settings and their background-worker flags are:
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
+   - `scimTokens`: `wire_scim_tokens_migration_finished`
+   - `scimExternalIds`: `wire_scim_external_ids_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2476,6 +2487,8 @@ The current settings and their background-worker flags are:
          blockList: cassandra
          passwordReset: postgresql
          customBackend: postgresql
+         scimTokens: cassandra
+         scimExternalIds: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2486,6 +2499,8 @@ The current settings and their background-worker flags are:
        migrateBlockList: false
        migratePasswordReset: false
        migrateCustomBackend: false
+       migrateScimTokens: false
+       migrateScimExternalIds: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2577,6 +2592,8 @@ migrateDomainRegistration: false
 migrateBlockList: false
 migratePasswordReset: false
 migrateCustomBackend: false
+migrateScimTokens: false
+migrateScimExternalIds: false
 
 # migration settings
 migrationOptions:

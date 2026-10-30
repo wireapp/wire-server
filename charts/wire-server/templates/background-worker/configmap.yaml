@@ -102,6 +102,8 @@ data:
     migrateBlockList: {{ .migrateBlockList }}
     migratePasswordReset: {{ .migratePasswordReset }}
     migrateCustomBackend: {{ .migrateCustomBackend }}
+    migrateScimTokens: {{ .migrateScimTokens }}
+    migrateScimExternalIds: {{ .migrateScimExternalIds }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 

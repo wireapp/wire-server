@@ -86,8 +86,6 @@ import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified System.Logger as TinyLog
@@ -110,6 +108,8 @@ import qualified Wire.Reporter as Reporter
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 import Wire.ScimSubsystem.Interpreter
+import Wire.ScimTokenStore (ScimTokenStore)
+import qualified Wire.ScimTokenStore as ScimTokenStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)

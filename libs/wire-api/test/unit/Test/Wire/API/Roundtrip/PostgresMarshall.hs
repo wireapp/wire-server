@@ -52,6 +52,7 @@ import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
+import Wire.API.User.Scim
 import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree
@@ -64,7 +65,11 @@ tests =
       testRoundTrip @ByteString @Password.Password,
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
-      testRoundTrip @A.Value @DbConfig
+      testRoundTrip @A.Value @DbConfig,
+      testRoundTrip @Text @ScimToken,
+      testRoundTrip @Text @ScimTokenHash,
+      testRoundTrip @Text @ScimTokenLookupKey,
+      testRoundTrip @Int32 @ScimUserCreationStatus
     ]
 
 testRoundTrip ::
