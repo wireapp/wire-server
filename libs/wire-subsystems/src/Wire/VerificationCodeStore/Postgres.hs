@@ -21,9 +21,16 @@
 -- @ttl(...)@ on read. Here rows carry an @expires_at@ column; the remaining
 -- lifetime is computed as @expires_at - now()@, and the
 -- @expires_at > now()@ guard reproduces Cassandra's vanished-row semantics.
+--
+-- Accepted trade-off (nonce/DPoP-replay precedent, PR #5675): expired rows are
+-- not purged and @expires_at@ has no purge job or index — reads are guarded by
+-- @expires_at > now()@, which reproduces the TTL semantics exactly; the dead
+-- rows remain until a dedicated cleanup is provisioned per ADR-0005.
 module Wire.VerificationCodeStore.Postgres
   ( interpretVerificationCodeStoreToPostgres,
     insertCodeRow,
+    insertCodeRowIfNotDeleted,
+    insertCodeDeletionMarker,
     insertThrottleRow,
   )
 where
@@ -70,8 +77,7 @@ insertCodeRow ::
   Sem r ()
 insertCodeRow row = runStatement row insertCodeRowStatement
 
-insertCodeRowStatement ::
-  Hasql.Statement (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ()
+insertCodeRowStatement :: Hasql.Statement (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ()
 insertCodeRowStatement =
   lmapPG
     [resultlessStatement|INSERT INTO vcodes (key, scope, value, retries, email, account, expires_at)
@@ -83,6 +89,43 @@ insertCodeRowStatement =
                              email = ($5 :: text),
                              account = ($6 :: uuid?),
                              expires_at = now() + make_interval(secs => $7 :: int4)
+       |]
+
+-- | Used by the copy loop: like @insertCodeRow@, but skips the insert when the
+-- row was deleted after a previous pass (recorded in @vcodes_deletions@ by the
+-- dual-write delete), so re-running the migration cannot resurrect a deleted
+-- code.
+insertCodeRowIfNotDeleted ::
+  (PGConstraints r) =>
+  (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ->
+  Sem r ()
+insertCodeRowIfNotDeleted row = runStatement row insertCodeIfNotDeletedStatement
+
+-- | Record a verification code as deleted in the @vcodes_deletions@ marker
+-- table; called by the dual-write delete so the copy loop can filter it out.
+insertCodeDeletionMarker :: (PGConstraints r) => Key -> Scope -> Sem r ()
+insertCodeDeletionMarker key scope = runStatement (key, scope) insertCodeDeletionMarkerStatement
+
+insertCodeIfNotDeletedStatement ::
+  Hasql.Statement (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ()
+insertCodeIfNotDeletedStatement =
+  lmapPG
+    [resultlessStatement|INSERT INTO vcodes (key, scope, value, retries, email, account, expires_at)
+                         SELECT ($1 :: text), ($2 :: int4), ($3 :: text), ($4 :: int4), ($5 :: text), ($6 :: uuid?), now() + make_interval(secs => $7 :: int4)
+                         WHERE NOT EXISTS (SELECT 1 FROM vcodes_deletions WHERE key = ($1 :: text) AND scope = ($2 :: int4))
+                         ON CONFLICT (key, scope) DO UPDATE
+                         SET value = ($3 :: text),
+                             retries = ($4 :: int4),
+                             email = ($5 :: text),
+                             account = ($6 :: uuid?),
+                             expires_at = now() + make_interval(secs => $7 :: int4)
+       |]
+
+insertCodeDeletionMarkerStatement :: Hasql.Statement (Key, Scope) ()
+insertCodeDeletionMarkerStatement =
+  lmapPG
+    [resultlessStatement|INSERT INTO vcodes_deletions (key, scope) VALUES (($1 :: text), ($2 :: int4))
+                         ON CONFLICT (key, scope) DO NOTHING
        |]
 
 lookupCode ::
