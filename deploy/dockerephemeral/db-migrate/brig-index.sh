@@ -6,4 +6,4 @@ until_ready() {
     return 0
 }
 
-until_ready "brig-index reset --elasticsearch-server http://elasticsearch:9200"
+until_ready "brig-index reset --elasticsearch-server https://localhost:9200 --elasticsearch-insecure-skip-tls-verify"
