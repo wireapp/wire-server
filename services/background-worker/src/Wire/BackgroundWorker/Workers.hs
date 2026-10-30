@@ -238,6 +238,13 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           runnerConfig.jobRunnerSettings
           conversationsWorkerConfig
       activationKeysWorkerConfig' =
+        -- NOTE: Deviation from ADR-0005 ("use pg_cron for TTL deletions"):
+        -- expired-activation-key cleanup runs as an Arbiter cron job instead of
+        -- a pg_cron-scheduled statement. Rationale: the cleanup is a batched,
+        -- retryable loop (deleteExpiredActivationKeys deletes in bounded
+        -- batches and the Arbiter job retries with maxAttempts 3), which a bare
+        -- pg_cron statement cannot express. Revisit if ADR-0005 gains a
+        -- batch/procedural story; accepted for now by the migration review.
         applyExplicitDefaults
           runnerConfig.jobRunnerSettings
           activationKeysWorkerConfig
