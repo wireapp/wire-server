@@ -202,7 +202,7 @@ executeExternalCommitAction lconvOrSub senderIdentity action = do
   -- re-insert the same key here: two server-timestamped Cassandra batches can collide
   -- within the same millisecond and the tombstone wins, dropping the member row
   -- (WPB-29648).
-  addMLSClients
+  upsertMLSClient
     (cnvmlsGroupId mlsMeta)
-    (cidQualifiedUser senderIdentity)
-    (Set.singleton (ciClient senderIdentity, action.add))
+    senderIdentity
+    action.add

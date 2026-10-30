@@ -1006,8 +1006,16 @@ testExternalCommitSameClient = do
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
-  -- alice1 rejoins the group with the same client via external commit.
-  void $ createExternalCommit convId alice1 Nothing >>= sendAndConsumeCommitBundle
+  -- The CLI automatically includes a Remove of alice1's old leaf (index 0)
+  -- when it finds the same credential in GroupInfo. No separate removal is
+  -- needed: that would test joining after removal rather than an atomic re-join.
+  mp <- createExternalCommit convId alice1 Nothing
+  parsed <- showMessage def alice1 mp.message
+  proposals <- parsed %. "message.content.body.Commit.proposals" & asList
+  removes <- filterM (\p -> isJust <$> lookupField (p %. "Proposal") "Remove") proposals
+  removal <- assertOne removes
+  removal %. "Proposal.Remove.removed" `shouldMatchInt` 0
+  void $ sendAndConsumeCommitBundle mp
 
   -- WPB-29648: the member row must have survived the re-join, exactly once,
   -- with the rejoiner's current leaf index.
