@@ -36,14 +36,14 @@ testNotificationsMigration = do
     -- Phase 1: cassandra. Two users receive pushes; one multi-recipient push
     -- shares a payload between both users (exercises the notification_payload
     -- fan-out path).
-    _count1 <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
+    (alice1, count1) <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
       alice <- randomUser domain def
       bob <- randomUser domain def
       _ <- randomClientId
       seed alice bob
       count <- countNotifications alice
       assertBool "notification count did not grow" (count > 0)
-      pure count
+      pure (alice, count)
 
     -- Phase 2: migration-to-postgresql, worker off. Writes are mirrored to
     -- Postgres; reads still come from Cassandra.
@@ -68,7 +68,11 @@ testNotificationsMigration = do
 
     -- Phase 4: postgresql. Notifications come from Postgres alone (mirrored
     -- and copied); the last-notification read returns the newest payload.
+    -- The copy-replicated rows of the phase-1 (cassandra) user are read back
+    -- through the Postgres path to verify the copy loop.
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
+      copied <- countNotifications alice1
+      assertBool "copied phase-1 notifications missing from Postgres" (copied >= count1)
       alice <- randomUser domain def
       bob <- randomUser domain def
       seed alice bob
