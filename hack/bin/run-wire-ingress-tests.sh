@@ -11,7 +11,7 @@ case "${WIRE_INGRESS_TEST_IMPLEMENTATION:-python}" in
         ;;
     haskell)
         # This component is independent of the application integration library.
-        # Run pure checks before deploying any cluster resources.
+        # Run local checks before deploying any cluster resources.
         cabal build integration:exe:ingress-regression integration:test:ingress-unit 2>&1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'
         cabal test integration:ingress-unit --test-show-details=direct 2>&1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'
         binary=$(cabal list-bin integration:exe:ingress-regression)
