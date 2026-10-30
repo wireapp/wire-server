@@ -67,7 +67,6 @@ tests =
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
       testRoundTrip @Int32 @Connection.RelationWithHistory,
-      testRoundTrip @A.Value @DbConfig
       testRoundTrip @A.Value @DbConfig,
       testRoundTrip @Text @ScimToken,
       testRoundTrip @Text @ScimTokenHash,

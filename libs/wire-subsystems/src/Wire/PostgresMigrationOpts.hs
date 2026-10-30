@@ -60,6 +60,9 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     blockList :: StorageLocation,
     passwordReset :: StorageLocation,
     customBackend :: StorageLocation,
+    budget :: StorageLocation,
+    nonce :: StorageLocation,
+    connections :: StorageLocation,
     scimTokens :: StorageLocation,
     scimExternalIds :: StorageLocation
   }

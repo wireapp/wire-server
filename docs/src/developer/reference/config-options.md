@@ -2434,7 +2434,7 @@ The current settings and their background-worker flags are:
        migrateConnections: false
        migrateScimTokens: false
        migrateScimExternalIds: false
-    ```
+   ```
 
     This change should restart the affected pods, and new writes will follow the
    migration interpreter.
