@@ -27,7 +27,6 @@ where
 
 import Brig.API.Types
 import Brig.App
-import Brig.Data.Connection qualified as Data
 import Brig.Options (Settings (userMaxConnections))
 import Control.Error (MaybeT, noteT)
 import Control.Monad.Trans.Except
@@ -38,7 +37,9 @@ import Imports
 import Polysemy
 import Wire.API.Connection (Relation (..))
 import Wire.API.User
+import Wire.ConnectionStore (ConnectionStore, countConnections)
 import Wire.GalleyAPIAccess
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserStore
 import Wire.UserSubsystem
 
@@ -46,9 +47,13 @@ type ConnectionM r = ExceptT ConnectionError (AppT r)
 
 -- Helpers
 
-checkLimit :: Local UserId -> ExceptT ConnectionError (AppT r) ()
+checkLimit ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  Local UserId ->
+  ExceptT ConnectionError (AppT r) ()
 checkLimit u = noteT (TooManyConnections (tUnqualified u)) $ do
-  n <- lift . wrapClient $ Data.countConnections u [Accepted, Sent]
+  n <- lift . liftSem $ countConnections u [Accepted, Sent]
   l <- asks (.settings.userMaxConnections)
   guard (n < l)
 

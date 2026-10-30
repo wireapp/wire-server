@@ -70,6 +70,7 @@ import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
 import Wire.ClientStore (ClientStore)
+import Wire.ConnectionStore (ConnectionStore)
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.Error
 import Wire.Events (Events)
@@ -81,6 +82,7 @@ import Wire.InvitationStore qualified as Store
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.PropertySubsystem (PropertySubsystem)
 import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess qualified as SparAPIAccess
 import Wire.TeamInvitationSubsystem
@@ -117,7 +119,8 @@ servantAPI ::
     Member AuthenticationSubsystem r,
     Member UserStore r,
     Member UserKeyStore r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -223,6 +226,7 @@ logInvitationRequest context action =
 deleteInvitation ::
   forall p r.
   ( Member InvitationStore r,
+    Member (ConnectionStore InternalPaging) r,
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r,
     Member SparAPIAccess r,

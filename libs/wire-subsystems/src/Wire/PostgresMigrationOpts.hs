@@ -61,7 +61,8 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     passwordReset :: StorageLocation,
     customBackend :: StorageLocation,
     budget :: StorageLocation,
-    nonce :: StorageLocation
+    nonce :: StorageLocation,
+    connections :: StorageLocation
   }
   deriving (Show)
 
@@ -78,3 +79,4 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "customBackend"
       <*> o .: "budget"
       <*> o .: "nonce"
+      <*> o .: "connections"

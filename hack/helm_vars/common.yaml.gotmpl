@@ -24,6 +24,7 @@ userStore: {{ $preferredStore }}
 blockListStore: {{ $preferredStore }}
 budgetStore: {{ $preferredStore }}
 nonceStore: {{ $preferredStore }}
+connectionsStore: {{ $preferredStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

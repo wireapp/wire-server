@@ -63,6 +63,7 @@ import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
 import System.IO
@@ -693,6 +694,18 @@ warmupFederation = do
             (uncurry checkFederationIngress)
             [(env.domain1, env.domain2), (env.domain2, env.domain1)]
   retryRequestUntil checkBoth "Static federator ingress (domain1 <-> domain2)"
+
+  -- The legacy fed-v* backends (ENABLE_FEDERATION_V0..V3) are static
+  -- deployments not covered by the warmup above; the first test burst against
+  -- them can fail with transient federator-transport errors (521 connection
+  -- refused, 525 SSL, 533 unreachable backend). Warm them from the local
+  -- domain before the pool starts, same doctrine as the static warmup above.
+  for_ (zip [0 :: Int ..] [env.federationV0Domain, env.federationV1Domain, env.federationV2Domain, env.federationV3Domain]) $ \(n, fedDomain) -> do
+    enabled <- liftIO (lookupEnv ("ENABLE_FEDERATION_V" <> show n))
+    when (enabled == Just "1") $
+      retryRequestUntil
+        (checkFederationIngress env.domain1 fedDomain)
+        ("Legacy federator ingress (domain1 -> fed-v" <> show n <> ")")
 
 retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
 retryRequestUntil = retryRequestUntilDebug federatorIngressDelay Nothing

@@ -68,10 +68,8 @@ import Brig.API.Util
 import Brig.App as App
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import Brig.Data.Activation qualified as Data
-import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
-import Brig.Effects.ConnectionStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
 import Brig.User.Auth.Cookie qualified as Auth
@@ -124,6 +122,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.ConnectionStore
 import Wire.DeleteQueue
 import Wire.EmailSubsystem
 import Wire.Error
@@ -1026,7 +1025,8 @@ deleteSelfUser ::
     Member RateLimit r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -1101,7 +1101,8 @@ verifyDeleteUser ::
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -1132,7 +1133,8 @@ ensureAccountDeleted ::
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
   AppT r DeleteUserResult
@@ -1146,7 +1148,7 @@ ensureAccountDeleted luid@(tUnqualified -> uid) = do
       clients <- liftSem $ ClientStore.lookupClients uid
 
       localUid <- qualifyLocal uid
-      conCount <- wrapClient $ countConnections localUid [(minBound @Relation) .. maxBound]
+      conCount <- liftSem $ countConnections localUid [(minBound @Relation) .. maxBound]
       cookies <- wrapClient $ Auth.listCookies uid []
 
       if notNull probs
@@ -1184,7 +1186,8 @@ deleteAccount ::
     Member Events r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   User ->
   Sem r ()
@@ -1210,10 +1213,9 @@ deleteAccount user = do
   luid <- embed $ qualifyLocal uid
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))
-  embed do
-    -- Note: Connections can only be deleted afterwards, since
-    --       they need to be notified.
-    Data.deleteConnections uid
+  -- Note: Connections can only be deleted afterwards, since
+  --       they need to be notified.
+  Data.deleteConnections uid
   Auth.revokeAllCookies uid
 
 -------------------------------------------------------------------------------
