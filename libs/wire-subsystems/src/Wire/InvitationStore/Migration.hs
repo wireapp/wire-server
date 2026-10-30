@@ -28,8 +28,7 @@ where
 import Cassandra hiding (Value)
 import Data.Conduit
 import Data.Conduit.List qualified as C
-import Data.IORef qualified as IORef
-import Data.Text qualified as T
+import Data.Id (Id (..), TeamId)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time
 import Data.UUID (UUID)
@@ -40,22 +39,23 @@ import Polysemy
 import Polysemy.Async
 import Polysemy.AtomicState
 import Polysemy.Conc (interpretRace)
-import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
+import Polysemy.Error (Error)
 import Polysemy.Input
-import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
-import UnliftIO qualified
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Role (Role)
 import Wire.API.User (EmailAddress)
 import Wire.InvitationStore.Postgres qualified as Postgres
 import Wire.Migration
+import Wire.MigrationLock
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.Util (embedClient)
 
 type EffectStack =
   [ AtomicState Int,
@@ -110,6 +110,7 @@ migrateAllInvitations ::
     Member (Embed IO) r,
     Member TinyLog r,
     Member (AtomicState Int) r,
+    Member Async r,
     Member Resource r,
     Member Race r
   ) =>
@@ -121,43 +122,36 @@ migrateAllInvitations migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllInvitations")
   withCount (paginateSem selectAllInvitations (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(team, _, _, _, _, _, _, _, _) -> handleErrors (encodeUtf8 (Data.UUID.toText team)) (migrateInvitationRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row@(team, _, invId, _, _, _, _, _, _) -> handleLockAndDBErrors (encodeUtf8 (Data.UUID.toText team <> "/" <> Data.UUID.toText invId)) (migrateInvitationRow migOpts migCounter migDuration row)))
 
 migrateInvitationRow ::
   ( PGConstraints r,
+    Member (Input ClientState) r,
     Member TinyLog r,
-    Member Resource r,
-    Member Race r
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r,
+    Member Resource r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   (UUID, Maybe Role, UUID, UTCTime, Maybe UUID, EmailAddress, Maybe Text, Text, Int32) ->
   Sem r ()
-migrateInvitationRow migOpts migCounter migDuration row@(team, _, invId, _, _, _, _, _, ttl) =
-  -- Rows with an expired or missing TTL have already vanished or will vanish
-  -- from Cassandra on their own; skip them.
-  when (ttl > 0) $
-    migrateRowWithTimeout
-      migOpts
-      migCounter
-      migDuration
-      "invitation"
-      (rowKey (team, invId))
-      (Postgres.insertInvitationQ (rowToInvitationRow row))
-  where
-    rowKey (t, i) = encodeUtf8 (Data.UUID.toText t <> "/" <> Data.UUID.toText i)
-    rowToInvitationRow (t, role, i, createdAt, createdBy, email, name, code, ttlSecs) =
-      ( t,
-        i,
-        postgresMarshall <$> role,
-        createdAt,
-        createdBy,
-        postgresMarshall email,
-        name,
-        code,
-        ttlSecs
-      )
+migrateInvitationRow migOpts migCounter migDuration (team, _, invId, _, _, _, _, _, _) =
+  -- The payload is re-read from Cassandra inside the exclusive lock: the
+  -- snapshot row this function was called with may have been deleted
+  -- concurrently, and copying it would resurrect it in Postgres.
+  void . withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [Id team :: TeamId] $ do
+    client <- input @ClientState
+    mRow <-
+      embedClient client $
+        retry x1 (query1 selectInvitationForMigration (params LocalQuorum (team, invId)))
+    for_ mRow $ \(teamId, role, rowId, createdAt, createdBy, email, name, code, ttlSecs) ->
+      -- Expired rows have already vanished from Cassandra; skip them.
+      when (ttlSecs > 0) $ do
+        Postgres.insertInvitationImpl (teamId, rowId, postgresMarshall <$> role, createdAt, createdBy, postgresMarshall email, name, code, ttlSecs)
+        liftIO $ Prometheus.incCounter migCounter
 
 migrateAllPendingScimUsers ::
   ( Member (Input Hasql.Pool) r,
@@ -165,6 +159,7 @@ migrateAllPendingScimUsers ::
     Member (Embed IO) r,
     Member TinyLog r,
     Member (AtomicState Int) r,
+    Member Async r,
     Member Resource r,
     Member Race r
   ) =>
@@ -176,75 +171,33 @@ migrateAllPendingScimUsers migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllPendingScimUsers")
   withCount (paginateSem selectAllPendingScimUsers (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(team, _, _) -> handleErrors (encodeUtf8 (Data.UUID.toText team)) (migratePendingScimUserRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row@(team, _, _) -> handleLockAndDBErrors (encodeUtf8 (Data.UUID.toText team)) (migratePendingScimUserRow migOpts migCounter migDuration row)))
 
 migratePendingScimUserRow ::
   ( PGConstraints r,
+    Member (Input ClientState) r,
     Member TinyLog r,
-    Member Resource r,
-    Member Race r
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r,
+    Member Resource r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   (UUID, Text, UUID) ->
   Sem r ()
-migratePendingScimUserRow migOpts migCounter migDuration row@(team, _, _) =
-  migrateRowWithTimeout
-    migOpts
-    migCounter
-    migDuration
-    "pending scim user"
-    ((encodeUtf8 (Data.UUID.toText team)))
-    (Postgres.insertPendingScimUserQ row)
-
--- | Copy one row to Postgres under the per-row migration timeout, recording
--- the outcome in the duration histogram and incrementing the migrated counter
--- on success.
-migrateRowWithTimeout ::
-  ( PGConstraints r,
-    Member TinyLog r,
-    Member Resource r,
-    Member Race r
-  ) =>
-  MigrationOptions ->
-  Prometheus.Counter ->
-  Prometheus.Vector Text Prometheus.Histogram ->
-  -- | Human-readable row name for the timeout log line.
-  Text ->
-  -- | Key identifying the row, for logs and timeout errors.
-  ByteString ->
-  -- | The Postgres insert to perform.
-  Sem r () ->
-  Sem r ()
-migrateRowWithTimeout migOpts migCounter migDuration what keyTextKey insert = do
-  let keyText = T.pack (show keyTextKey)
-  outcomeRef <- liftIO $ IORef.newIORef @Text "error"
-  bracket
-    (liftIO getCurrentTime)
-    (observeDuration migDuration outcomeRef)
-    ( const $ do
-        timeoutResult <-
-          Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout insert
-        case timeoutResult of
-          Left timedOutAfter -> do
-            markOutcome outcomeRef "timeout"
-            liftIO . UnliftIO.throwIO $ MigrationTimedOut keyText timedOutAfter
-          Right () -> do
-            markOutcome outcomeRef "success"
-            liftIO $ Prometheus.incCounter migCounter
-    )
-  where
-    handleTimeout =
-      err $
-        Log.msg (Log.val (encodeUtf8 (what <> " migration timed out")))
-          . Log.field "key" (show keyTextKey)
-          . Log.field "timeout" (show migOpts.timeout)
-    markOutcome ref outcome = liftIO $ IORef.writeIORef ref outcome
-    observeDuration metric outcomeRef start = do
-      outcome <- liftIO $ IORef.readIORef outcomeRef
-      end <- liftIO getCurrentTime
-      liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
+migratePendingScimUserRow migOpts migCounter migDuration (team, email, _) =
+  -- Re-read inside the lock so a pending user deleted mid-migration is not
+  -- copied to Postgres.
+  void . withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [(Id team :: TeamId, postgresMarshall email)] $ do
+    client <- input @ClientState
+    rows <-
+      embedClient client $
+        retry x1 (query selectPendingScimUserForMigration (params LocalQuorum (team, email)))
+    for_ rows $ \(_, email', user) -> do
+      Postgres.insertPendingScimUserImpl (team, email', user)
+      liftIO $ Prometheus.incCounter migCounter
 
 selectAllInvitations ::
   PrepQuery
@@ -253,6 +206,22 @@ selectAllInvitations ::
     (UUID, Maybe Role, UUID, UTCTime, Maybe UUID, EmailAddress, Maybe Text, Text, Int32)
 selectAllInvitations =
   "SELECT team, role, id, created_at, created_by, email, name, code, ttl(created_at) FROM team_invitation"
+
+selectInvitationForMigration ::
+  PrepQuery
+    R
+    (UUID, UUID)
+    (UUID, Maybe Role, UUID, UTCTime, Maybe UUID, EmailAddress, Maybe Text, Text, Int32)
+selectInvitationForMigration =
+  "SELECT team, role, id, created_at, created_by, email, name, code, ttl(created_at) FROM team_invitation WHERE team = ? AND id = ?"
+
+selectPendingScimUserForMigration ::
+  PrepQuery
+    R
+    (UUID, Text)
+    (UUID, Text, UUID)
+selectPendingScimUserForMigration =
+  "SELECT team, email, user FROM team_scim_pending_user_email WHERE team = ? AND email = ?"
 
 selectAllPendingScimUsers ::
   PrepQuery

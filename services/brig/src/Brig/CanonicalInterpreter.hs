@@ -456,23 +456,10 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
-      -- Same reasoning as passwordResetCodeStore above: InvitationStore must
-      -- be peeled at this slot, before the global Pool/UsageError providers,
-      -- so the Postgres-backed branches supply them locally (raiseUnder2 +
-      -- runInputConst + mapError).
-      invitationStoreInterpreter =
-        case e.postgresMigration.invitations of
-          CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
-          PostgresqlStorage ->
-            runInputConst e.hasqlPool
-              . mapError postgresUsageErrorToHttpError
-              . interpretInvitationStoreToPostgres
-              . raiseUnder2
-          MigrationToPostgresql ->
-            runInputConst e.hasqlPool
-              . mapError postgresUsageErrorToHttpError
-              . interpretInvitationStoreToCassandraAndPostgres e.casClient
-              . raiseUnder2
+  -- Same reasoning as passwordResetCodeStore above: InvitationStore must
+  -- be peeled at this slot, before the global Pool/UsageError providers,
+  -- so the Postgres-backed branch supplies them locally (raiseUnder2 +
+  -- runInputConst + mapError); see the inlined case below for details.
 
   ( either throwM pure
       <=< ( runFinal
@@ -517,7 +504,25 @@ runBrigToIO e (AppT ma) = do
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
-              . invitationStoreInterpreter
+              . ( case e.postgresMigration.invitations of
+                    CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
+                    PostgresqlStorage ->
+                      runInputConst e.hasqlPool
+                        . mapError postgresUsageErrorToHttpError
+                        . interpretInvitationStoreToPostgres
+                        . raiseUnder2
+                    -- The locked dual-write additionally needs Error
+                    -- MigrationLockError (mapped to HttpError here); Input
+                    -- Pool and Error UsageError are supplied locally like the
+                    -- PostgresqlStorage branch.  TinyLog, Async, Race and
+                    -- Resource come from the surrounding stack.
+                    MigrationToPostgresql ->
+                      runInputConst e.hasqlPool
+                        . mapError postgresUsageErrorToHttpError
+                        . mapError migrationLockErrorToHttpError
+                        . interpretInvitationStoreToCassandraAndPostgres e.casClient
+                        . raiseUnder3
+                )
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
