@@ -19,16 +19,16 @@ module Wire.NotificationStore.Migration (migrateNotificationsLoop) where
 
 import Cassandra hiding (Value)
 import Cassandra qualified as Cql
-import Data.Set qualified as Set
+import Data.ByteString.Lazy qualified as LBS
 import Data.Conduit
 import Data.Conduit.List qualified as C
 import Data.IORef qualified as IORef
 import Data.Id
-import Data.UUID (UUID)
+import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.ByteString.Lazy qualified as LBS
 import Data.Text.Encoding qualified as TE
 import Data.Time
+import Data.UUID (UUID)
 import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy

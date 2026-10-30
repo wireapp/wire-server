@@ -41,7 +41,6 @@ import Gundeck.Monad
 import Gundeck.Notification.Metrics (observeStored)
 import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options (notificationTTL, settings)
-import Wire.NotificationStore (addNotification)
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native.Types
 import Gundeck.Push.Websocket qualified as Web
@@ -52,6 +51,7 @@ import Wire.API.Event.Gundeck
 import Wire.API.Internal.Notification
 import Wire.API.Notification (mkNotificationId)
 import Wire.API.Push.V2
+import Wire.NotificationStore (addNotification)
 
 onEvent :: Event -> Gundeck ()
 onEvent ev = case ev ^. evType of
