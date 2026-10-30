@@ -139,7 +139,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,,,,)
+            (,,,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -151,7 +151,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupNonceMigration
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
-              <*> Concurrently cleanupConnectionsMigration,
+              <*> Concurrently cleanupConnectionsMigration
               <*> Concurrently cleanupInvitationsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
