@@ -1,0 +1,870 @@
+#!/usr/bin/env python3
+"""CLI to interact with Jira Cloud from markdown files."""
+
+import csv
+import glob
+import json
+import os
+import re
+import sys
+import urllib.request
+import urllib.error
+import urllib.parse
+
+DOMAIN = os.environ.get("JIRA_DOMAIN", "")
+EMAIL = os.environ.get("JIRA_EMAIL", "")
+API_KEY = os.environ.get("JIRA_API_KEY", "")
+PROJECT = os.environ.get("JIRA_PROJECT", "")
+
+if not all([DOMAIN, EMAIL, API_KEY]):
+    print("Required env vars: JIRA_DOMAIN, JIRA_EMAIL, JIRA_API_KEY", file=sys.stderr)
+    sys.exit(1)
+
+BASE = f"https://{DOMAIN}.atlassian.net"
+AUTH = f"{EMAIL}:{API_KEY}"
+DEBUG = False
+
+
+def _basic_auth():
+    import base64
+    return base64.b64encode(AUTH.encode()).decode()
+
+
+def _dump_response(resp, body):
+    if DEBUG:
+        print(f"  [debug] {resp.code} {resp.geturl()}", file=sys.stderr)
+        print(f"  [debug] {body.decode(errors='replace')[:2000]}", file=sys.stderr)
+
+
+def _handle_error(e):
+    body = e.read().decode(errors="replace")
+    print(f"Error {e.code}: {body}", file=sys.stderr)
+    if e.code in (401, 403):
+        print(
+            "  Hint: authentication failed. Check JIRA_EMAIL and JIRA_API_KEY — "
+            "generate a token at https://id.atlassian.com/manage/api-tokens "
+            "(24-char alphanumeric, tied to your Atlassian account email).",
+            file=sys.stderr,
+        )
+    sys.exit(1)
+
+
+def check_auth():
+    jira_get("/rest/api/3/myself")
+
+
+def jira_get(path):
+    creds = _basic_auth()
+    req = urllib.request.Request(
+        f"{BASE}{path}",
+        headers={"Authorization": f"Basic {creds}", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            body = resp.read()
+            _dump_response(resp, body)
+            return json.loads(body)
+    except urllib.error.HTTPError as e:
+        _handle_error(e)
+
+
+def jira_post(path, data):
+    import base64
+    creds = base64.b64encode(AUTH.encode()).decode()
+    req = urllib.request.Request(
+        f"{BASE}{path}",
+        data=json.dumps(data).encode(),
+        headers={
+            "Authorization": f"Basic {creds}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            body = resp.read()
+            _dump_response(resp, body)
+            # Some endpoints (e.g. issueLink) answer 201 with an empty body.
+            return json.loads(body) if body.strip() else {}
+    except urllib.error.HTTPError as e:
+        _handle_error(e)
+
+
+def jira_post_attachment(issue_key, file_paths):
+    import base64
+    creds = base64.b64encode(AUTH.encode()).decode()
+    boundary = "----Boundary" + os.urandom(16).hex()
+    body = b""
+    for fp in file_paths:
+        with open(fp, "rb") as f:
+            data = f.read()
+        filename = os.path.basename(fp)
+        body += f"--{boundary}\r\n".encode()
+        body += f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode()
+        body += b"Content-Type: application/octet-stream\r\n\r\n"
+        body += data + b"\r\n"
+    body += f"--{boundary}--\r\n".encode()
+    req = urllib.request.Request(
+        f"{BASE}/rest/api/3/issue/{issue_key}/attachments",
+        data=body,
+        headers={
+            "Authorization": f"Basic {creds}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "X-Atlassian-Token": "no-check",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        _handle_error(e)
+
+
+def resolve_component_ids(project_key, component_names):
+    if not component_names:
+        return []
+    comps = jira_get(f"/rest/api/3/project/{project_key}/components")
+    ids = []
+    for name in component_names.split(","):
+        name = name.strip()
+        if not name:
+            continue
+        found = False
+        for c in comps:
+            if c["name"] == name:
+                ids.append(c["id"])
+                found = True
+                break
+        if not found:
+            print(f"Component '{name}' not found in project", file=sys.stderr)
+            sys.exit(1)
+    return ids
+
+def resolve_project_key(raw):
+    if not raw:
+        return None
+    projects = jira_get("/rest/api/3/project")
+    raw_lower = raw.lower()
+    for p in projects:
+        if p["key"].lower() == raw_lower or p.get("name", "").lower() == raw_lower:
+            return p["key"]
+    return None
+
+
+def parse_inlines(text):
+    """Parse inline markdown (bold, italic, code, link) into ADF inline content."""
+    # Order matters: code, link, bold, italic (so ** inside code is ignored)
+    pattern = re.compile(
+        r"`(.+?)`"
+        r"|\[(.+?)\]\((.+?)\)"
+        r"|\*\*(.+?)\*\*"
+        r"|\*(.+?)\*"
+        r"|(?P<text>[^`*\[+]+)"
+    )
+    parts = []
+    for m in pattern.finditer(text):
+        if m.group(1):  # `code`
+            parts.append({"type": "text", "marks": [{"type": "code"}], "text": m.group(1)})
+        elif m.group(2):  # [link](url)
+            parts.append({
+                "type": "text",
+                "marks": [{"type": "link", "attrs": {"href": m.group(3)}}],
+                "text": m.group(2),
+            })
+        elif m.group(4):  # **bold**
+            parts.append({"type": "text", "marks": [{"type": "strong"}], "text": m.group(4)})
+        elif m.group(5):  # *italic*
+            parts.append({"type": "text", "marks": [{"type": "em"}], "text": m.group(5)})
+        elif m.group("text") and m.group("text").strip():
+            parts.append({"type": "text", "text": m.group("text")})
+    return parts if parts else [{"type": "text", "text": text}]
+
+
+# Helpers for nested list parsing
+_RE_UL_ITEM = re.compile(r"^(\s*)[\-*+]\s+(.*)$")
+_RE_OL_ITEM = re.compile(r"^(\s*)(\d+)\.\s+(.*)$")
+
+
+def _is_list_line(line):
+    return bool(_RE_UL_ITEM.match(line)) or bool(_RE_OL_ITEM.match(line))
+
+
+def _parse_list_items(lines, i, indent, ordered):
+    """Parse consecutive list items at the same indentation level.
+
+    Returns (list of listItem blocks, next_i).
+    """
+    items = []
+    pattern = _RE_OL_ITEM if ordered else _RE_UL_ITEM
+    while i < len(lines):
+        m = pattern.match(lines[i])
+        if not m or len(m.group(1)) != indent:
+            break
+        item, i = _parse_one_list_item(lines, i, indent, ordered)
+        if item:
+            items.append(item)
+    return items, i
+
+
+def _parse_one_list_item(lines, i, indent, ordered):
+    """Parse one list item including continuation paragraphs and nested lists.
+
+    Returns (listItem block, next_i).
+    """
+    pattern = _RE_OL_ITEM if ordered else _RE_UL_ITEM
+    m = pattern.match(lines[i])
+    if not m:
+        return None, i
+    item_text = m.group(3) if ordered else m.group(2)
+    content = [{"type": "paragraph", "content": parse_inlines(item_text)}]
+    i += 1
+
+    while i < len(lines):
+        nl = lines[i]
+        if not nl.strip():
+            break
+
+        # Nested unordered list?
+        nm = _RE_UL_ITEM.match(nl)
+        if nm:
+            nest_indent = len(nm.group(1))
+            if nest_indent > indent:
+                nested_items, i = _parse_list_items(lines, i, nest_indent, ordered=False)
+                if nested_items:
+                    content.append({"type": "bulletList", "content": nested_items})
+                continue
+            elif nest_indent == indent:
+                break  # Same-level item — done
+
+        # Nested ordered list?
+        nm = _RE_OL_ITEM.match(nl)
+        if nm:
+            nest_indent = len(nm.group(1))
+            if nest_indent > indent:
+                nested_items, i = _parse_list_items(lines, i, nest_indent, ordered=True)
+                if nested_items:
+                    content.append({"type": "orderedList", "content": nested_items})
+                continue
+            elif nest_indent == indent:
+                break  # Same-level item — done
+
+        # Continuation paragraph (indented text that is not a list marker)
+        if nl.startswith(" ") and nl.strip():
+            content.append({"type": "paragraph", "content": parse_inlines(nl.strip())})
+            i += 1
+        else:
+            break
+
+    return {"type": "listItem", "content": content}, i
+
+
+def parse_blocks(md):
+    """Parse markdown blocks into ADF document content."""
+    lines = md.split("\n")
+    blocks = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        # Blank line
+        if not line.strip():
+            i += 1
+            continue
+
+        # Code block
+        if line.startswith("```"):
+            lang = line[3:].strip()
+            code_lines = []
+            i += 1
+            while i < len(lines) and not lines[i].startswith("```"):
+                code_lines.append(lines[i])
+                i += 1
+            i += 1
+            code_text = "\n".join(code_lines).strip("\n")
+            attrs = {"language": lang} if lang else {}
+            blocks.append({
+                "type": "codeBlock",
+                "attrs": attrs,
+                "content": [{"type": "text", "text": code_text}],
+            })
+            continue
+
+        # Heading
+        hm = re.match(r"^(#{1,6})\s+(.+)$", line)
+        if hm:
+            level = len(hm.group(1))
+            text = hm.group(2)
+            blocks.append({
+                "type": "heading",
+                "attrs": {"level": level},
+                "content": [{"type": "text", "text": text}],
+            })
+            i += 1
+            continue
+
+        # Blockquote
+        if line.startswith(">"):
+            quote_lines = []
+            while i < len(lines) and lines[i].startswith(">"):
+                quote_lines.append(lines[i].lstrip("> ").strip())
+                i += 1
+            blocks.append({
+                "type": "blockquote",
+                "content": [{
+                    "type": "paragraph",
+                    "content": parse_inlines(" ".join(quote_lines)),
+                }],
+            })
+            continue
+
+        # Unordered list (- or * or +)
+        ulm = re.match(r"^(\s*)[\-*+]\s+(.+)$", line)
+        if ulm:
+            indent = len(ulm.group(1))
+            items, i = _parse_list_items(lines, i, indent, ordered=False)
+            if items:
+                blocks.append({"type": "bulletList", "content": items})
+            continue
+
+        # Ordered list (1. item)
+        olm = re.match(r"^(\s*)(\d+)\.\s+(.+)$", line)
+        if olm:
+            indent = len(olm.group(1))
+            first_num = int(olm.group(2))
+            items, i = _parse_list_items(lines, i, indent, ordered=True)
+            if items:
+                block = {"type": "orderedList", "content": items}
+                if first_num != 1:
+                    block["attrs"] = {"order": first_num}
+                blocks.append(block)
+            continue
+
+        # Paragraph (collect consecutive non-blank non-special lines)
+        para_lines = []
+        while i < len(lines) and lines[i].strip():
+            nl = lines[i]
+            if (nl.startswith("```")
+                    or re.match(r"^#{1,6}\s", nl)
+                    or re.match(r"^\s*[-*+]\s", nl)
+                    or re.match(r"^\s*\d+\.\s", nl)
+                    or nl.startswith(">")):
+                break
+            para_lines.append(nl)
+            i += 1
+        text = " ".join(para_lines)
+        if text.strip():
+            blocks.append({
+                "type": "paragraph",
+                "content": parse_inlines(text),
+            })
+
+    return blocks if blocks else [{"type": "paragraph", "content": [{"type": "text", "text": ""}]}]
+
+
+def md_to_adf(md_text):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": parse_blocks(md_text),
+    }
+
+
+# --- Commands ---
+
+BLOCKERS_CSV = "BLOCKERS.csv"
+TICKET_IDS_CSV = "TICKET_IDS.csv"
+
+
+def _append_csv(path, headers, row):
+    write_header = not os.path.isfile(path)
+    with open(path, "a") as f:
+        if write_header:
+            f.write(",".join(headers) + "\n")
+        f.write(",".join(row) + "\n")
+
+
+def parse_ticket_file(path):
+    with open(path) as f:
+        raw = f.read()
+
+    lines = raw.split("\n")
+
+    summary = ""
+    i = 0
+    while i < len(lines):
+        m = re.match(r"^#\s+(.+)$", lines[i])
+        if m:
+            summary = m.group(1).strip()
+            i += 1
+            break
+        i += 1
+    if not summary:
+        summary = os.path.basename(path).removesuffix(".md").removesuffix(".txt")
+
+    # Extract metadata code block
+    assigned_to = None
+    links = []
+    blocked_by = []
+    context_files = []
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i < len(lines) and re.match(r"^```\w*$", lines[i].strip()):
+        i += 1
+        meta_lines = []
+        while i < len(lines) and lines[i].strip() != "```":
+            meta_lines.append(lines[i])
+            i += 1
+        i += 1
+        list_key = None
+        for line in meta_lines:
+            s = line.strip()
+            if line.startswith("assignedTo:"):
+                assigned_to = line[11:].strip()
+                list_key = None
+            elif line.startswith("links:"):
+                list_key = "links"
+            elif line.startswith("blockedBy:"):
+                list_key = "blockedBy"
+            elif line.startswith("context:"):
+                list_key = "context"
+            elif s.startswith("- "):
+                val = s[2:].strip()
+                if list_key == "links":
+                    links.append(val)
+                elif list_key == "blockedBy":
+                    blocked_by.append(val)
+                elif list_key == "context":
+                    context_files.append(val)
+            elif s:
+                list_key = None
+
+    # Skip blank lines after code block
+
+    # Skip blank lines after code block
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+
+    # Everything from here is description
+    desc_text = "\n".join(lines[i:]).strip()
+    if not desc_text:
+        desc_text = summary
+
+    return summary, desc_text, assigned_to, links, blocked_by, context_files
+
+    return summary, desc_text, assigned_to, links, blocked_by, context_files
+
+
+def resolve_assignee(project_key, display_name):
+    if not display_name:
+        return None
+    users = jira_get(
+        f"/rest/api/3/user/assignable/search?"
+        f"project={project_key}&query={urllib.parse.quote(display_name)}&maxResults=30"
+    )
+    for u in users:
+        if u.get("displayName", "").lower() == display_name.lower():
+            return u["accountId"]
+    for u in users:
+        if display_name.lower() in u.get("displayName", "").lower():
+            return u["accountId"]
+    print(f"Assignee '{display_name}' not found among assignable users", file=sys.stderr)
+    return None
+
+
+def create_remote_link(issue_key, url):
+    jira_post(f"/rest/api/3/issue/{issue_key}/remotelink", {
+        "object": {"url": url, "title": url},
+    })
+
+
+def save_ticket_id(path, key, url):
+    _append_csv(TICKET_IDS_CSV, ["file", "key", "url"], [path, key, url])
+
+
+def save_blocker(source_file, blocker_file):
+    _append_csv(BLOCKERS_CSV, ["source_file", "blocker_file"], [source_file, blocker_file])
+
+def generate_blockers(ticket_files):
+    """Scan markdown files for blockedBy: in metadata and produce BLOCKERS.md."""
+    blockers = []
+    for f in sorted(ticket_files):
+        if not os.path.isfile(f):
+            continue
+        _, _, _, _, blocked, _ = parse_ticket_file(f)
+        for bf in blocked:
+            blockers.append((f, bf))
+
+    with open("BLOCKERS.md", "w") as fh:
+        fh.write("# Blockers\n\n")
+        if not blockers:
+            fh.write("No blocking relationships found.\n")
+        else:
+            for source, target in blockers:
+                fh.write(f"- `{source}` is blocked by `{target}`\n")
+
+    print(f"Wrote {len(blockers)} blocker(s) to BLOCKERS.md")
+    return blockers
+
+
+BLOCKERS_MD = "BLOCKERS.md"
+_RE_BLOCKER_LINE = re.compile(r"^\s*[-*+]\s+`(.+?)`\s+is blocked by\s+`(.+?)`\s*$")
+
+
+def load_ticket_ids(path):
+    """Read TICKET_IDS.csv into {file name: issue key}.
+
+    Both the recorded path and its basename are registered as keys, so
+    BLOCKERS.md may refer to tickets either way.
+    """
+    mapping = {}
+    with open(path, newline="") as fh:
+        for row in csv.DictReader(fh):
+            name = (row.get("file") or "").strip()
+            key = (row.get("key") or "").strip()
+            if not name or not key:
+                continue
+            for alias in {name, os.path.basename(name)}:
+                if mapping.get(alias, key) != key:
+                    print(
+                        f"  Warning: {alias} maps to both {mapping[alias]} and {key}; "
+                        f"using {key}",
+                        file=sys.stderr,
+                    )
+                mapping[alias] = key
+    return mapping
+
+
+def load_blockers(path):
+    """Read blocker relationships as [(source_file, blocker_file)].
+
+    Accepts BLOCKERS.md (the `x` is blocked by `y` bullet list) or the
+    BLOCKERS.csv written by create-task.
+    """
+    if path.endswith(".csv"):
+        with open(path, newline="") as fh:
+            return [
+                (r["source_file"].strip(), r["blocker_file"].strip())
+                for r in csv.DictReader(fh)
+                if (r.get("source_file") or "").strip()
+            ]
+
+    relations = []
+    with open(path) as fh:
+        for lineno, line in enumerate(fh, 1):
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            m = _RE_BLOCKER_LINE.match(line)
+            if m:
+                relations.append((m.group(1), m.group(2)))
+            elif line.lstrip()[:1] in "-*+":
+                print(f"  Warning: {path}:{lineno}: unrecognised line, skipped",
+                      file=sys.stderr)
+    return relations
+
+
+def resolve_blocks_link_type():
+    """Name of the issue link type whose outward direction means 'blocks'."""
+    types = jira_get("/rest/api/3/issueLinkType").get("issueLinkTypes", [])
+    for t in types:
+        if t.get("name", "").lower() == "blocks":
+            return t["name"]
+    for t in types:
+        if "block" in t.get("outward", "").lower():
+            return t["name"]
+    names = ", ".join(t.get("name", "") for t in types)
+    print(f"No 'Blocks' issue link type in this Jira (have: {names})", file=sys.stderr)
+    sys.exit(1)
+
+
+def existing_blockers(issue_key, link_type_name):
+    """Keys of issues already linked as blockers of issue_key."""
+    data = jira_get(f"/rest/api/3/issue/{issue_key}?fields=issuelinks")
+    keys = set()
+    for link in data.get("fields", {}).get("issuelinks", []):
+        if link.get("type", {}).get("name") != link_type_name:
+            continue
+        # The other end is reported as outwardIssue exactly when it is the
+        # one doing the blocking.
+        other = link.get("outwardIssue")
+        if other:
+            keys.add(other["key"])
+    return keys
+
+
+def cmd_link_blockers(blockers_path, ids_path, dry_run=False):
+    for p in (blockers_path, ids_path):
+        if not os.path.isfile(p):
+            print(f"{p} not found", file=sys.stderr)
+            sys.exit(1)
+
+    ids = load_ticket_ids(ids_path)
+    relations = load_blockers(blockers_path)
+    if not relations:
+        print(f"No blocker relationships in {blockers_path}")
+        return
+
+    link_type = "Blocks" if dry_run else resolve_blocks_link_type()
+    cache = {}
+    created = skipped = unresolved = 0
+
+    for source, blocker in relations:
+        source_key = ids.get(source) or ids.get(os.path.basename(source))
+        blocker_key = ids.get(blocker) or ids.get(os.path.basename(blocker))
+        missing = [f for f, k in ((source, source_key), (blocker, blocker_key)) if not k]
+        if missing:
+            print(f"Skip: {source} ← {blocker} — no ticket id for "
+                  f"{', '.join(sorted(set(missing)))}", file=sys.stderr)
+            unresolved += 1
+            continue
+
+        if dry_run:
+            print(f"{blocker_key} blocks {source_key}   "
+                  f"({blocker} → {source})")
+            created += 1
+            continue
+
+        if source_key not in cache:
+            cache[source_key] = existing_blockers(source_key, link_type)
+        if blocker_key in cache[source_key]:
+            print(f"Exists: {blocker_key} already blocks {source_key}")
+            skipped += 1
+            continue
+
+        print(f"Linking: {blocker_key} blocks {source_key}")
+        jira_post("/rest/api/3/issueLink", {
+            "type": {"name": link_type},
+            "outwardIssue": {"key": blocker_key},
+            "inwardIssue": {"key": source_key},
+        })
+        cache[source_key].add(blocker_key)
+        created += 1
+
+    verb = "would link" if dry_run else "linked"
+    print(f"\n{created} {verb}, {skipped} already present, {unresolved} unresolved "
+          f"(of {len(relations)} relationship(s))")
+    if unresolved:
+        sys.exit(1)
+
+
+def cmd_me():
+    me = jira_get("/rest/api/3/myself")
+    print(f"Display name: {me.get('displayName', '')}")
+    print(f"Account ID:   {me.get('accountId', '')}")
+
+
+def cmd_projects():
+    projects = jira_get("/rest/api/3/project")
+    print("Projects:")
+    for p in sorted(projects, key=lambda x: x["key"]):
+        print(f"  {p['key']:<12} {p.get('name', '')}")
+    return projects
+
+
+def cmd_users(project_key):
+    users = jira_get(f"/rest/api/3/user/assignable/search?project={project_key}&maxResults=100")
+    print("Assignable users:")
+    for u in sorted(users, key=lambda x: x.get("displayName", "")):
+        account_id = u.get("accountId", "")
+        name = u.get("displayName", "")
+        print(f"  {account_id:<40} {name}")
+    return users
+
+
+def cmd_info(project_raw):
+    me = jira_get("/rest/api/3/myself")
+    print(
+        f"Authenticated as: {me.get('displayName', '')} "
+        f"<{me.get('emailAddress', '')}> ({me.get('accountId', '')})"
+    )
+
+    projects = cmd_projects()
+    print()
+
+    project_key = resolve_project_key(project_raw)
+    if not project_key:
+        if project_raw:
+            print(f"Project '{project_raw}' not found (tried key and name)", file=sys.stderr)
+        sys.exit(1)
+
+    p = next((x for x in projects if x["key"] == project_key), None)
+    if p is None:
+        p = jira_get(f"/rest/api/3/project/{project_key}")
+
+    print(f"Project: {p['key']} — {p.get('name', '')}")
+    print(f"Lead:    {p.get('lead', {}).get('displayName', 'N/A')}")
+    print(f"URL:     {BASE}/browse/{p['key']}")
+    print()
+
+    comps = jira_get(f"/rest/api/3/project/{project_key}/components")
+    if comps:
+        print("Components:")
+        for c in comps:
+            lead = c.get("lead", {}).get("displayName", "")
+            print(f"  {c['id']:>8}  {c['name']:<20}  {lead}")
+    else:
+        print("No components defined.")
+
+    types = jira_get(f"/rest/api/3/project/{project_key}/statuses")
+    issuetypes = set()
+    for t in types:
+        issuetypes.add(t.get("name", ""))
+    if issuetypes:
+        print(f"\nIssue types: {', '.join(sorted(issuetypes))}")
+    print()
+
+    cmd_users(project_key)
+
+
+def cmd_create_task(md_files, project_key, dry_run=False):
+    component_names = os.environ.get("JIRA_COMPONENTS", "")
+
+    for md in md_files:
+        if not os.path.isfile(md):
+            print(f"Skip: {md} — not a file", file=sys.stderr)
+            continue
+
+        summary, desc_text, assigned_to, links, blocked_by, files_to_attach = parse_ticket_file(md)
+        adf = md_to_adf(desc_text)
+
+        if dry_run:
+            print(f"=== {md} ===")
+            print(f"Summary: {summary}")
+            if component_names:
+                names = [n.strip() for n in component_names.split(",") if n.strip()]
+                print(f"Components: {', '.join(names)}")
+            if assigned_to:
+                print(f"Assignee: {assigned_to}")
+            if links:
+                print(f"Links: {', '.join(links)}")
+            if files_to_attach:
+                print(f"Attachments: {', '.join(files_to_attach)}")
+            if blocked_by:
+                print(f"Blocked by: {', '.join(blocked_by)}")
+            print(f"Description (ADF):")
+            print(json.dumps(adf, indent=2))
+            print()
+            continue
+
+        payload = {
+            "fields": {
+                "project": {"key": project_key},
+                "summary": summary,
+                "issuetype": {"name": "Task"},
+                "description": adf,
+            }
+        }
+        comp_ids = resolve_component_ids(project_key, component_names)
+        if comp_ids:
+            payload["fields"]["components"] = [{"id": cid} for cid in comp_ids]
+
+        if assigned_to:
+            account_id = resolve_assignee(project_key, assigned_to)
+            if account_id:
+                payload["fields"]["assignee"] = {"accountId": account_id}
+
+        print(f"Creating: {summary}")
+        result = jira_post("/rest/api/3/issue", payload)
+        key = result["key"]
+        url = f"{BASE}/browse/{key}"
+        print(f"  → {url}")
+
+        if files_to_attach:
+            print(f"  Attaching: {', '.join(files_to_attach)}")
+            jira_post_attachment(key, files_to_attach)
+            print("  Attachments uploaded.")
+
+        for link_url in links:
+            print(f"  Adding link: {link_url}")
+            create_remote_link(key, link_url)
+
+        save_ticket_id(md, key, url)
+
+        for bf in blocked_by:
+            save_blocker(md, bf)
+
+
+def main():
+    global DEBUG
+    if "--debug" in sys.argv:
+        DEBUG = True
+        sys.argv.remove("--debug")
+    args = sys.argv
+
+    if len(args) < 2:
+        print("Jira ticket creator — create Jira issues from markdown files.",
+              file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Ticket format:", file=sys.stderr)
+        print("  # Summary line", file=sys.stderr)
+        print("  ```", file=sys.stderr)
+        print("  assignedTo: Display Name", file=sys.stderr)
+        print("  links:", file=sys.stderr)
+        print("  - https://...", file=sys.stderr)
+        print("  blockedBy:", file=sys.stderr)
+        print("  - other-ticket.md", file=sys.stderr)
+        print("  context:", file=sys.stderr)
+        print("  - file-to-attach.md", file=sys.stderr)
+        print("  ```", file=sys.stderr)
+        print("  ## Section", file=sys.stderr)
+        print("  description (markdown → ADF)", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Side effects:", file=sys.stderr)
+        print("  - TICKET_IDS.csv: logs every created ticket (file,key,url)", file=sys.stderr)
+        print("  - BLOCKERS.csv: logs blocker relationships from blockedBy:", file=sys.stderr)
+        print("  - context files attached to the Jira issue.", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Commands:", file=sys.stderr)
+        print("  jira [--debug] me            — show authenticated user", file=sys.stderr)
+        print("  jira [--debug] info           — show projects, current project details, users", file=sys.stderr)
+        print("  jira [--debug] create-task [--dry-run] <file.md> ...", file=sys.stderr)
+        print("  jira [--debug] blockers [file.md ...]      — generate BLOCKERS.md", file=sys.stderr)
+        print("  jira [--debug] link-blockers [--dry-run] [BLOCKERS.md [TICKET_IDS.csv]]", file=sys.stderr)
+        print("                                — register 'Blocks' links in Jira", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Env vars: JIRA_DOMAIN, JIRA_EMAIL, JIRA_API_KEY, JIRA_PROJECT, JIRA_COMPONENTS", file=sys.stderr)
+        sys.exit(1)
+
+    check_auth()
+
+    cmd = args[1]
+
+    if cmd == "info":
+        cmd_info(PROJECT)
+
+    elif cmd == "me":
+        cmd_me()
+
+    elif cmd == "blockers":
+        files = args[2:] or sorted(glob.glob("*.md"))
+        generate_blockers(files)
+
+    elif cmd == "link-blockers":
+        dry_run = "--dry-run" in args
+        rest = [a for a in args[2:] if a != "--dry-run"]
+        blockers_path = rest[0] if rest else BLOCKERS_MD
+        ids_path = rest[1] if len(rest) > 1 else TICKET_IDS_CSV
+        cmd_link_blockers(blockers_path, ids_path, dry_run)
+
+    elif cmd == "create-task":
+        if not PROJECT:
+            print("Set JIRA_PROJECT", file=sys.stderr)
+            sys.exit(1)
+        project_key = resolve_project_key(PROJECT)
+        if not project_key:
+            print(f"Project '{PROJECT}' not found (tried key and name)", file=sys.stderr)
+            sys.exit(1)
+        dry_run = "--dry-run" in args
+        files = [a for a in args[2:] if a != "--dry-run"]
+        if not files:
+            print("Provide markdown file(s) to create tickets from", file=sys.stderr)
+            sys.exit(1)
+        cmd_create_task(files, project_key, dry_run)
+
+    else:
+        print(f"Unknown command: {cmd}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
