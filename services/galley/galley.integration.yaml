@@ -275,4 +275,4 @@ postgresMigration:
   customBackend: postgresql
   budget: postgresql
   connections: postgresql
- oauthAuthCode: postgresql
+  oauthAuthCode: postgresql

@@ -57,7 +57,7 @@ testEnv = do
             customBackend = CassandraStorage,
             budget = CassandraStorage,
             nonce = CassandraStorage,
-            connections = CassandraStorage
+            connections = CassandraStorage,
             oauthAuthCode = CassandraStorage
           }
   statuses <- newIORef mempty
