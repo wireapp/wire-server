@@ -101,7 +101,14 @@ deleteConversationCode user conv t = do
   req <- rawBaseNginzRequest user Versioned (joinHttpPath ["conversations", convId, "code"])
   submit "DELETE" (req & addHeader "Authorization" ("Bearer " <> token))
 
-uploadProviderAsset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+postMeeting :: (HasCallStack, MakesValue user, MakesValue meeting, MakesValue token) => user -> meeting -> token -> App Response
+postMeeting user meeting t = do
+  token <- make t & asString
+  body <- make meeting
+  req <- rawBaseNginzRequest user Versioned "/meetings"
+  submit "POST" (req & addJSON body & addHeader "Authorization" ("Bearer " <> token))
+
+uploadProviderAsset ::(HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 uploadProviderAsset domain cookie payload = do
   req <- rawBaseNginzRequest domain Versioned $ joinHttpPath ["provider", "assets"]
   bdy <- txtAsset payload

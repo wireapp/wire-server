@@ -173,7 +173,7 @@ interpretMeetingsSubsystem cfg = interpret $ \case
   ListMeetings zUser ->
     listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV16 zUser connId newMeeting ->
-    API.toLegacyWithConv <$> createMeetingImpl zUser connId (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting)
+    API.toLegacyWithConv <$> createMeetingImpl zUser (Just connId) (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting)
   UpdateMeetingV16 zUser connId meetingId update ->
     updateMeetingV16Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   GetMeetingV16 zUser meetingId ->
@@ -181,7 +181,7 @@ interpretMeetingsSubsystem cfg = interpret $ \case
   ListMeetingsV16 zUser ->
     map API.toLegacy <$> listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV18 zUser connId nm ->
-    API.toLegacyWithConvV18 <$> createMeetingImpl zUser connId (API.fromLegacyNewMeetingV18 nm)
+    API.toLegacyWithConvV18 <$> createMeetingImpl zUser (Just connId) (API.fromLegacyNewMeetingV18 nm)
   UpdateMeetingV18 zUser connId meetingId update ->
     updateMeetingV18Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod
   GetMeetingV18 zUser meetingId ->
@@ -212,7 +212,7 @@ createMeetingImpl ::
     Member RateLimit r
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   API.NewMeeting ->
   Sem r API.MeetingWithConversation
 createMeetingImpl zUser connId newMeeting = do
@@ -291,7 +291,7 @@ createMeetingImpl zUser connId newMeeting = do
       trial
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
-  notifyMeetingEvent zUser (Just connId) storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
+  notifyMeetingEvent zUser connId storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
   base <- codeURIBase (tDomain zUser)
   storedMeetingToMeetingWithConversation base zUser storedConv storedMeeting
