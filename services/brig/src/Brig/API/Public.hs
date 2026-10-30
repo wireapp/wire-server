@@ -170,7 +170,7 @@ import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationAPIAccess
-import Wire.FederationConfigStore (FederationConfigStore)
+import Wire.FederationConfigSubsystem (FederationConfigSubsystem)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
@@ -371,7 +371,7 @@ servantSitemap ::
     Member EmailSending r,
     Member EmailSubsystem r,
     Member Events r,
-    Member FederationConfigStore r,
+    Member FederationConfigSubsystem r,
     Member GalleyAPIAccess r,
     Member InvitationStore r,
     Member Jwk r,
@@ -1382,7 +1382,7 @@ createConnectionUnqualified self conn cr = do
   API.createConnectionToLocalUser lself conn target !>> connError
 
 createConnection ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserStore r,
@@ -1419,7 +1419,7 @@ updateLocalConnection self conn other (Public.cuStatus -> newStatus) = do
     <$> API.updateConnectionToLocalUser lself lother newStatus (Just conn) !>> connError
 
 updateConnection ::
-  ( Member FederationConfigStore r,
+  ( Member FederationConfigSubsystem r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
