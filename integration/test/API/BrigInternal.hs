@@ -456,3 +456,20 @@ getAccountStatus user = do
   userId <- objId user
   req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", userId, "status"]
   submit "GET" req
+
+-- | Get a new DPoP replay nonce for a client CSR. The nonce is returned in the
+-- @Replay-Nonce@ response header.
+newNonce :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
+newNonce user cid = do
+  cidStr <- objId cid
+  req <- baseRequest user Brig Versioned $ "/clients/" <> cidStr <> "/nonce"
+  submit "GET" req
+
+-- | Try to create a DPoP access token with a garbage proof. The nonce is
+-- consumed before the proof is verified, so this is sufficient to exercise
+-- nonce consumption; token generation fails with 400.
+createDPoPAccessToken :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
+createDPoPAccessToken user cid = do
+  cidStr <- objId cid
+  req <- baseRequest user Brig Versioned $ "/clients/" <> cidStr <> "/access-token"
+  submit "POST" (req & addHeader "DPoP" "garbage")

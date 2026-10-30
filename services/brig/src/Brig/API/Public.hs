@@ -44,7 +44,6 @@ import Brig.API.Util
 import Brig.App
 import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
-import Brig.Data.Nonce as Nonce
 import Brig.Effects.ConnectionStore
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
@@ -179,6 +178,7 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.NonceStore (NonceStore, insertNonce)
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
@@ -391,6 +391,7 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
+    Member NonceStore r,
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
@@ -859,17 +860,18 @@ setUserSearchableH zusr uid searchable = lift $ liftSem $ User.setUserSearchable
 getClientPrekeys :: (Member ClientStore r) => UserId -> ClientId -> Handler r [Public.PrekeyId]
 getClientPrekeys usr clt = lift . liftSem $ ClientStore.lookupPrekeyIds usr clt
 
-newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
+newNonce :: (Member NonceStore r) => UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
   ttl <- nonceTtlSecs <$> asks (.settings)
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
+  lift $ liftSem $ insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)
 
 createClientDPoPAccessToken ::
   forall api endpoint r.
   ( Member JwtTools r,
     Member Now r,
+    Member NonceStore r,
     IsElem endpoint api,
     HasLink endpoint,
     MkLink endpoint Link ~ (ClientId -> Link),

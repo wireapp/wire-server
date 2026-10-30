@@ -97,6 +97,7 @@ galley:
       passwordReset: cassandra
       customBackend: cassandra
       budget: cassandra
+      nonce: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1044,6 +1045,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.passwordReset` to `migration-to-postgresql`
     # before starting the migration.
     migratePasswordReset: false
+    # This will start the migration of nonce (DPoP replay) data.
+    # It's important to set `settings.postgresMigration.nonce` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateNonce: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
