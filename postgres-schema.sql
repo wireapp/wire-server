@@ -1702,6 +1702,25 @@ CREATE TABLE public.team_features (
 ALTER TABLE public.team_features OWNER TO "wire-server";
 
 --
+-- Name: team_search_visibility; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_search_visibility (
+    team uuid NOT NULL,
+    search_visibility_inbound integer NOT NULL
+);
+
+
+ALTER TABLE public.team_search_visibility OWNER TO "wire-server";
+
+--
+-- Name: team_search_visibility team_search_visibility_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_search_visibility
+    ADD CONSTRAINT team_search_visibility_pkey PRIMARY KEY (team);
+
+--
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
 --
 
