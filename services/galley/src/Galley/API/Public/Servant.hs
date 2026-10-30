@@ -22,6 +22,7 @@ import Galley.API.Public.Conversation
 import Galley.API.Public.CustomBackend
 import Galley.API.Public.Feature
 import Galley.API.Public.LegalHold
+import Galley.API.Public.License
 import Galley.API.Public.MLS
 import Galley.API.Public.Meetings
 import Galley.API.Public.Messaging
@@ -43,6 +44,7 @@ servantSitemap =
     <@> featureAPI
     <@> mlsAPI
     <@> meetingsAPI
+    <@> licenseAPI
     <@> customBackendAPI
     <@> legalHoldAPI
     <@> teamMemberAPI

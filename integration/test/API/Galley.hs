@@ -1166,3 +1166,9 @@ postMeetingJoin ::
 postMeetingJoin user domain key code mPw = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meeting", domain, key, code, "join"])
   submit "POST" $ req & addClientIP & addQueryParams (maybe [] (\pw -> [("password", pw)]) mPw)
+
+-- | Authenticated: @GET /license@.
+getLicense :: (HasCallStack, MakesValue user) => user -> App Response
+getLicense user = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["license"])
+  submit "GET" req
