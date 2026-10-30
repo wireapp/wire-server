@@ -129,9 +129,9 @@ createTeamPg mtid uid (fromRange -> n) i k b = do
 -- | Insert a fully specified team row.  Shared by the direct-create path
 -- ('createTeamPg') and the DualWrite path (which must reuse the
 -- Cassandra-generated team id).  The status is derived from the binding flag
--- exactly like the Cassandra implementation does at creation time, and
--- @created_at@ is stamped with the insert time (the copy loop reconciles it
--- with Cassandra's @writetime(binding)@ during migration).
+-- exactly like the Cassandra implementation does at creation time; the
+-- maintained writetime columns (@status_time@, @binding_time@) default to
+-- now() on insert and are refreshed on conflict.
 insertTeamPg :: (PGConstraints r) => Team -> Sem r ()
 insertTeamPg t =
   runStatement
@@ -149,11 +149,20 @@ initialTeamStatus :: TeamBinding -> TeamStatus
 initialTeamStatus Binding = PendingActive
 initialTeamStatus NonBinding = Active
 
-insertTeamStatement :: Hasql.Statement (UUID, UUID, Text, Text, Maybe Text, Int32, Bool) ()
+insertTeamStatement :: Hasql.Statement (UUID, UUID, Text, Text, Maybe Text, Text, Text) ()
 insertTeamStatement =
   [resultlessStatement|
-    insert into team (team, creator, name, icon, icon_key, deleted, status, binding, created_at)
-    values ($1 :: uuid, $2 :: uuid, $3 :: text, $4 :: text, $5 :: text?, false, $6 :: int, $7 :: bool, now())
+    insert into team (team, creator, name, icon, icon_key, deleted, status, binding)
+    values ($1 :: uuid, $2 :: uuid, $3 :: text, $4 :: text, $5 :: text?, false, $6 :: text, $7 :: text)
+    on conflict (team) do update
+      set creator = ($2 :: uuid),
+          name = ($3 :: text),
+          icon = ($4 :: text),
+          icon_key = ($5 :: text?),
+          status = ($6 :: text),
+          status_time = now(),
+          binding = ($7 :: text),
+          binding_time = now()
   |]
 
 --------------------------------------------------------------------------------
@@ -163,32 +172,37 @@ getTeamPg :: (PGConstraints r) => TeamId -> Sem r (Maybe TeamData)
 getTeamPg tid = runStatement (toUUID tid) selectTeamStatement
 
 -- | Mirrors the row decoding of the Cassandra implementation: a deleted row
--- reports @PendingDelete@, missing status/binding/splash-screen fields fall
--- back to their defaults, and there is no status writetime in Postgres.
+-- reports @PendingDelete@, missing status/splash-screen fields fall back to
+-- their defaults, and the status time comes from the maintained
+-- @status_time@ column (Cassandra's @writetime(status)@ carried over by the
+-- copy loop).
 selectTeamStatement :: Hasql.Statement UUID (Maybe TeamData)
 selectTeamStatement =
   Hasql.refineResult
     (traverse toTeamData)
     [maybeStatement|
       select team :: uuid, creator :: uuid, name :: text, icon :: text, icon_key :: text?,
-             deleted :: bool, status :: int, binding :: bool, splash_screen :: text?
+             deleted :: bool, status :: text?, status_time :: timestamptz,
+             binding :: text?, splash_screen :: text?
         from team
        where team = $1 :: uuid
     |]
 
 toTeamData ::
-  (UUID, UUID, Text, Text, Maybe Text, Bool, Int32, Bool, Maybe Text) ->
+  (UUID, UUID, Text, Text, Maybe Text, Bool, Maybe Text, UTCTime, Maybe Text, Maybe Text) ->
   Either Text TeamData
-toTeamData (tid, creator, name, icon, iconKey, deleted, status, binding, splash) = do
+toTeamData (tid, creator, name, icon, iconKey, deleted, status, statusTime, binding, splash) = do
   i <- postgresUnmarshall icon
-  s <- postgresUnmarshall status
-  b <- postgresUnmarshall binding
+  s <- traverse (postgresUnmarshall @Text) status
+  b' <- traverse (postgresUnmarshall @Text) binding
   ss <- traverse (postgresUnmarshall @Text) splash
-  let t =
+  let st = fromMaybe Active s
+      b = fromMaybe NonBinding b'
+      t =
         newTeam (Id tid) (Id creator) name i b
           & teamIconKey .~ iconKey
           & teamSplashScreen .~ fromMaybe DefaultIcon ss
-  pure (TeamData t (if deleted then PendingDelete else s) Nothing)
+  pure (TeamData t (if deleted then PendingDelete else st) (Just statusTime))
 
 getTeamNamePg :: (PGConstraints r) => TeamId -> Sem r (Maybe Text)
 getTeamNamePg tid = runStatement (toUUID tid) selectTeamNameStatement
@@ -211,10 +225,10 @@ selectTeamBindingsStatement =
   Hasql.refineResult
     (traverse toBinding . V.toList)
     [vectorStatement|
-      select binding :: bool? from team where team = any($1 :: uuid[])
+      select binding :: text? from team where team = any($1 :: uuid[])
     |]
   where
-    toBinding :: Maybe Bool -> Either Text TeamBinding
+    toBinding :: Maybe Text -> Either Text TeamBinding
     toBinding Nothing = Right NonBinding
     toBinding (Just b) = postgresUnmarshall b
 
@@ -228,29 +242,29 @@ selectTeamBindingStatement =
   Hasql.refineResult
     (traverse toBinding)
     [maybeStatement|
-      select binding :: bool? from team where team = $1 :: uuid
+      select binding :: text? from team where team = $1 :: uuid
     |]
   where
-    toBinding :: Maybe Bool -> Either Text TeamBinding
+    toBinding :: Maybe Text -> Either Text TeamBinding
     toBinding Nothing = Right NonBinding
     toBinding (Just b) = postgresUnmarshall b
 
 getTeamCreationTimePg :: (PGConstraints r) => TeamId -> Sem r (Maybe TeamCreationTime)
 getTeamCreationTimePg tid = do
   v <- runStatement (toUUID tid) selectTeamCreationTimeStatement
-  pure (toCreationTime <$> join v)
+  pure (toCreationTime <$> v)
 
 toCreationTime :: UTCTime -> TeamCreationTime
 toCreationTime t =
   TeamCreationTime (floor ((1e6 :: Double) * realToFrac (utcTimeToPOSIXSeconds t)))
 
--- | The @created_at@ column is backfilled from Cassandra's
--- @writetime(binding)@, which is microseconds since the epoch; a missing
--- timestamp (very old rows) maps to 'Nothing'.
-selectTeamCreationTimeStatement :: Hasql.Statement UUID (Maybe (Maybe UTCTime))
+-- | The @binding_time@ column carries over Cassandra's @writetime(binding)@,
+-- which is microseconds since the epoch; it is maintained (NOT NULL with a
+-- now() default), so a missing team row is the only 'Nothing' case.
+selectTeamCreationTimeStatement :: Hasql.Statement UUID (Maybe UTCTime)
 selectTeamCreationTimeStatement =
   [maybeStatement|
-    select created_at :: timestamptz? from team where team = $1 :: uuid
+    select binding_time :: timestamptz from team where team = $1 :: uuid
   |]
 
 getSearchVisibilityPg :: (PGConstraints r) => TeamId -> Sem r TeamSearchVisibility
@@ -261,10 +275,10 @@ selectSearchVisibilityStatement =
   Hasql.refineResult
     toSearchVisibility
     [maybeStatement|
-      select search_visibility :: int? from team where team = $1 :: uuid
+      select search_visibility :: text? from team where team = $1 :: uuid
     |]
 
-toSearchVisibility :: Maybe (Maybe Int32) -> Either Text TeamSearchVisibility
+toSearchVisibility :: Maybe (Maybe Text) -> Either Text TeamSearchVisibility
 toSearchVisibility mv = maybe (Right SearchVisibilityStandard) postgresUnmarshall (join mv)
 
 --------------------------------------------------------------------------------
@@ -277,10 +291,10 @@ deleteTeamPg :: (PGConstraints r) => TeamId -> Sem r ()
 deleteTeamPg tid =
   runStatement (postgresMarshall Deleted, toUUID tid) deleteTeamStatement
 
-deleteTeamStatement :: Hasql.Statement (Int32, UUID) ()
+deleteTeamStatement :: Hasql.Statement (Text, UUID) ()
 deleteTeamStatement =
   [resultlessStatement|
-    update team set name = 'default', icon = 'default', status = $1 :: int where team = $2 :: uuid
+    update team set name = 'default', icon = 'default', status = $1 :: text, status_time = now() where team = $2 :: uuid
   |]
 
 -- | Replaces the Cassandra logged batch of per-column updates with a single
@@ -311,20 +325,20 @@ updateTeamStatusPg :: (PGConstraints r) => TeamId -> TeamStatus -> Sem r ()
 updateTeamStatusPg tid st =
   runStatement (postgresMarshall st, toUUID tid) updateTeamStatusStatement
 
-updateTeamStatusStatement :: Hasql.Statement (Int32, UUID) ()
+updateTeamStatusStatement :: Hasql.Statement (Text, UUID) ()
 updateTeamStatusStatement =
   [resultlessStatement|
-    update team set status = $1 :: int where team = $2 :: uuid
+    update team set status = $1 :: text, status_time = now() where team = $2 :: uuid
   |]
 
 setSearchVisibilityPg :: (PGConstraints r) => TeamId -> TeamSearchVisibility -> Sem r ()
 setSearchVisibilityPg tid v =
   runStatement (postgresMarshall v, toUUID tid) setSearchVisibilityStatement
 
-setSearchVisibilityStatement :: Hasql.Statement (Int32, UUID) ()
+setSearchVisibilityStatement :: Hasql.Statement (Text, UUID) ()
 setSearchVisibilityStatement =
   [resultlessStatement|
-    update team set search_visibility = $1 :: int where team = $2 :: uuid
+    update team set search_visibility = $1 :: text where team = $2 :: uuid
   |]
 
 resetSearchVisibilityPg :: (PGConstraints r) => TeamId -> Sem r ()
