@@ -136,6 +136,7 @@ import Wire.PasswordResetCodeStore.DualWrite (interpretPasswordResetCodeStoreToC
 import Wire.PasswordResetCodeStore.Postgres (interpretPasswordResetCodeStoreToPostgres)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
+import Wire.PasswordStore.DualWrite (interpretPasswordStoreToCassandraAndPostgres)
 import Wire.PasswordStore.Postgres (interpretPasswordStoreToPostgres)
 import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
@@ -444,7 +445,11 @@ runBrigToIO e (AppT ma) = do
       -- writes), and the background worker copies rows to PostgreSQL.
       passwordStoreInterpreter = case e.postgresMigration.providerPassword of
         CassandraStorage -> interpretPasswordStore e.casClient
-        MigrationToPostgresql -> interpretPasswordStore e.casClient
+        MigrationToPostgresql ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretPasswordStoreToCassandraAndPostgres e.casClient
+            . raiseUnder2
         PostgresqlStorage ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError

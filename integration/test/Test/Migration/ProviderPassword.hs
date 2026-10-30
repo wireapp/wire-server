@@ -21,8 +21,8 @@ import qualified API.BrigInternal as BrigInternal
 import API.Common
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Test.Migration.Util (waitForMigration)
 import SetupHelpers (randomId)
+import Test.Migration.Util (waitForMigration)
 import Testlib.Prelude
 import Testlib.ResourcePool
 
@@ -60,7 +60,6 @@ testProviderPasswordMigration = do
       assertSuccess =<< BrigInternal.putProviderPassword domain pid password2
       assertSuccess =<< BrigInternal.checkProviderPassword domain pid password2
       assertStatus 404 =<< BrigInternal.checkProviderPassword domain pid password
-
   where
     conf :: String -> Bool -> ServiceOverrides
     conf db runMigration =
