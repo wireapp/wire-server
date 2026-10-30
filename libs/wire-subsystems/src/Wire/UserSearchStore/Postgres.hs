@@ -722,6 +722,12 @@ analyzeTerm = map (Text.dropWhile (== '@')) . Text.words . normalized
 -- only for team browse: matching email in contact search would enable
 -- email-based user enumeration on those broader surfaces, which the
 -- former ES contact-search queries did not do either.
+--
+-- Note: the mid-word arm (@% tok%@ on @name_normalized@) cannot be served
+-- by the prefix btree/LIKE index; those queries fall back to a sequential
+-- scan over the candidate set.  A trigram (pg_trgm GIN) index on
+-- @name_normalized@ would make it index-servable — pending load-test
+-- results before adding it (see WPB-28655).
 tokenMatchCondition :: Bool -> Text -> QueryFragment
 tokenMatchCondition matchEmail tok =
   literal "("
