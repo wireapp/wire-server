@@ -195,9 +195,6 @@ migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, 
       end <- liftIO getCurrentTime
       liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
 
-currentTimeStamp :: UTCTime
-currentTimeStamp = UTCTime (ModifiedJulianDay 0) 0
-
 -- | Upserts one copied team row.  Missing Cassandra columns fall back to the
 -- same defaults the read paths use (status @active@, binding @nonBinding@),
 -- and Cassandra's writetimes are carried over into the maintained
@@ -229,9 +226,9 @@ upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, mwStatus, bin
       iconKey,
       deleted,
       postgresMarshall (fromMaybe Active status),
-      maybe currentTimeStamp writetimeToUTC mwStatus,
+      writetimeToUTC <$> mwStatus,
       postgresMarshall (fromMaybe NonBinding binding),
-      maybe currentTimeStamp writetimeToUTC mwBinding,
+      writetimeToUTC <$> mwBinding,
       postgresMarshall <$> splash,
       postgresMarshall <$> searchVis
     )
@@ -239,12 +236,12 @@ upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, mwStatus, bin
 
 upsertTeamStatement ::
   Hasql.Statement
-    (UUID, Maybe UUID, Text, Text, Maybe Text, Bool, Text, UTCTime, Text, UTCTime, Maybe Text, Maybe Text)
+    (UUID, Maybe UUID, Text, Text, Maybe Text, Bool, Text, Maybe UTCTime, Text, Maybe UTCTime, Maybe Text, Maybe Text)
     ()
 upsertTeamStatement =
   [resultlessStatement|
     insert into team (team, creator, name, icon, icon_key, deleted, status, status_time, binding, binding_time, splash_screen, search_visibility)
-    values ($1 :: uuid, $2 :: uuid?, $3 :: text, $4 :: text, $5 :: text?, $6 :: bool, $7 :: text, $8 :: timestamptz, $9 :: text, $10 :: timestamptz, $11 :: text?, $12 :: text?)
+    values ($1 :: uuid, $2 :: uuid?, $3 :: text, $4 :: text, $5 :: text?, $6 :: bool, $7 :: text, coalesce($8 :: timestamptz?, now()), $9 :: text, coalesce($10 :: timestamptz?, now()), $11 :: text?, $12 :: text?)
     on conflict (team) do update set
       creator = excluded.creator,
       name = excluded.name,
@@ -260,14 +257,12 @@ upsertTeamStatement =
   |]
 
 --------------------------------------------------------------------------------
--- Team members (WPB-22957): copy + delete-after-copy
+-- Team members (WPB-22957): copy-only
 
--- | Copies the member tables (Cassandra -> Postgres) and deletes the
--- Cassandra rows after each member (plus its auxiliary rows) has been
--- written to Postgres, under a per-(team, user) advisory lock so concurrent
--- writes and the copy do not race.  Rows mutate (permissions, legalhold
--- status) and disappear (members leave, team deletion sweeps members), so
--- delete-after-copy is what eventually empties Cassandra.
+-- | Copies the member tables (Cassandra -> Postgres).  Cassandra rows are
+-- NOT deleted: like the other stores, deletion is deferred to the final
+-- cutover, and the copy loop is idempotent (Cassandra is the source of
+-- truth while migrating).
 migrateTeamMembersLoop ::
   MigrationOptions ->
   ClientState ->

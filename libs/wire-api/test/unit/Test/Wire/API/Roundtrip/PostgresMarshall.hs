@@ -40,7 +40,6 @@ import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Aeson as A
 import Data.ByteString.Char8 qualified as BS8
 import Data.Code qualified as Code
-import Data.LegalHold (UserLegalHoldStatus)
 import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
@@ -70,12 +69,11 @@ tests =
       testRoundTrip @ByteString @Password.Password,
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
-      testRoundTrip @Int32 @TeamStatus,
-      testRoundTrip @Bool @TeamBinding,
-      testRoundTrip @Int32 @TeamSearchVisibility,
+      testRoundTrip @Text @TeamStatus,
+      testRoundTrip @Text @TeamBinding,
+      testRoundTrip @Text @TeamSearchVisibility,
       testRoundTrip @Text @Icon,
       testRoundTrip @(Int64, Int64) @Permissions,
-      testRoundTrip @Int16 @UserLegalHoldStatus,
       testRoundTrip @A.Value @DbConfig
     ]
 

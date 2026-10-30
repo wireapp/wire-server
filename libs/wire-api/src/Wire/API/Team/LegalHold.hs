@@ -39,10 +39,8 @@ import Data.Misc
 import Data.OpenApi qualified as S hiding (info)
 import Data.Proxy
 import Data.Schema
-import Data.Text qualified as Text
 import Deriving.Aeson
 import Imports
-import Wire.API.PostgresMarshall
 import Wire.API.Provider
 import Wire.API.Provider.Service (ServiceKeyPEM)
 import Wire.API.User.Client.Prekey
@@ -279,21 +277,3 @@ instance ToSchema LegalholdProtectee where
                       & S.description
                         ?~ "A UserId for ProtectedUser, otherwise empty / null."
                   )
-
--- | Orphaned here rather than in @Data.LegalHold@ because @types-common@
--- does not depend on @wire-api@ (same situation as 'Data.Misc' orphans).
--- Encodings mirror the Cassandra @Cql@ instance (smallint enum).
-instance PostgresMarshall Int16 UserLegalHoldStatus where
-  postgresMarshall = \case
-    UserLegalHoldDisabled -> 0
-    UserLegalHoldPending -> 1
-    UserLegalHoldEnabled -> 2
-    UserLegalHoldNoConsent -> 3
-
-instance PostgresUnmarshall Int16 UserLegalHoldStatus where
-  postgresUnmarshall = \case
-    0 -> Right UserLegalHoldDisabled
-    1 -> Right UserLegalHoldPending
-    2 -> Right UserLegalHoldEnabled
-    3 -> Right UserLegalHoldNoConsent
-    n -> Left $ "unexpected legal hold status: " <> Text.pack (show n)
