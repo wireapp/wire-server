@@ -107,7 +107,7 @@ import Wire.Events
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
+import Wire.FederationConfigStore.Cassandra (interpretFederationConfigStoreCassandra, remotesMapFromCfgFile)
 import Wire.FederationConfigSubsystem (FederationConfigSubsystem)
 import Wire.FederationConfigSubsystem.Interpreter (interpretFederationConfigSubsystem)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -532,7 +532,7 @@ runBrigToIO e (AppT ma) = do
               . budgetStoreInterpreter
               . interpretJwtTools
               . interpretJwk
-              . interpretFederationDomainConfig e.casClient
+              . interpretFederationConfigStoreCassandra e.casClient
               . interpretFederationConfigSubsystem e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
               . runInputConst clientSubsystemConfig
