@@ -45,7 +45,6 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.UUID (UUID)
-import Data.Vector (Vector)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended qualified as Hasql
 import Hasql.Statement qualified as Hasql
@@ -76,6 +75,7 @@ import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
+import Wire.TeamStore.Postgres qualified as Postgres
 import Wire.Util (embedClientInput)
 
 type EffectStack =
@@ -140,7 +140,7 @@ migrateAllTeams migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllTeams")
   withCount (paginateSem Cql.selectAllTeams (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(tid, _, _, _, _, _, _, _, _, _, _) -> handleErrors (T.encodeUtf8 (T.pack (show tid))) (migrateTeamRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row@(tid, _, _, _, _, _, _, _, _, _, _, _) -> handleErrors (T.encodeUtf8 (T.pack (show tid))) (migrateTeamRow migOpts migCounter migDuration row)))
 
 migrateTeamRow ::
   ( PGConstraints r,
@@ -158,13 +158,14 @@ migrateTeamRow ::
     Maybe Text,
     Bool,
     Maybe TeamStatus,
+    Maybe (Writetime TeamStatus),
     Maybe TeamBinding,
+    Maybe (Writetime TeamBinding),
     Maybe Icon,
-    Maybe TeamSearchVisibility,
-    Maybe (Writetime TeamBinding)
+    Maybe TeamSearchVisibility
   ) ->
   Sem r ()
-migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, _, _) = do
+migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, _, _, _) = do
   let keyText = T.pack (show tid)
   outcomeRef <- liftIO $ IORef.newIORef @Text "error"
   bracket
@@ -194,12 +195,15 @@ migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, 
       end <- liftIO getCurrentTime
       liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
 
+currentTimeStamp :: UTCTime
+currentTimeStamp = UTCTime (ModifiedJulianDay 0) 0
+
 -- | Upserts one copied team row.  Missing Cassandra columns fall back to the
 -- same defaults the read paths use (status @active@, binding @nonBinding@),
--- and @created_at@ is carried over from @writetime(binding)@ so that
--- 'GetTeamCreationTime' survives the migration.  On conflict the Cassandra
--- row (source of truth) wins, except for a @created_at@ already present from
--- an earlier copy.
+-- and Cassandra's writetimes are carried over into the maintained
+-- @status_time@/@binding_time@ columns so that @tdStatusTime@ and
+-- 'GetTeamCreationTime' survive the migration.  On conflict the Cassandra
+-- row (source of truth) wins.
 upsertTeamRow ::
   (PGConstraints r) =>
   ( UUID,
@@ -209,13 +213,14 @@ upsertTeamRow ::
     Maybe Text,
     Bool,
     Maybe TeamStatus,
+    Maybe (Writetime TeamStatus),
     Maybe TeamBinding,
+    Maybe (Writetime TeamBinding),
     Maybe Icon,
-    Maybe TeamSearchVisibility,
-    Maybe (Writetime TeamBinding)
+    Maybe TeamSearchVisibility
   ) ->
   Sem r ()
-upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, binding, splash, searchVis, mwBinding) =
+upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, mwStatus, binding, mwBinding, splash, searchVis) =
   runStatement
     ( tid,
       Just (toUUID creator),
@@ -224,21 +229,22 @@ upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, binding, spla
       iconKey,
       deleted,
       postgresMarshall (fromMaybe Active status),
+      maybe currentTimeStamp writetimeToUTC mwStatus,
       postgresMarshall (fromMaybe NonBinding binding),
+      maybe currentTimeStamp writetimeToUTC mwBinding,
       postgresMarshall <$> splash,
-      postgresMarshall <$> searchVis,
-      writetimeToUTC <$> mwBinding
+      postgresMarshall <$> searchVis
     )
     upsertTeamStatement
 
 upsertTeamStatement ::
   Hasql.Statement
-    (UUID, Maybe UUID, Text, Text, Maybe Text, Bool, Int32, Bool, Maybe Text, Maybe Int32, Maybe UTCTime)
+    (UUID, Maybe UUID, Text, Text, Maybe Text, Bool, Text, UTCTime, Text, UTCTime, Maybe Text, Maybe Text)
     ()
 upsertTeamStatement =
   [resultlessStatement|
-    insert into team (team, creator, name, icon, icon_key, deleted, status, binding, splash_screen, search_visibility, created_at)
-    values ($1 :: uuid, $2 :: uuid?, $3 :: text, $4 :: text, $5 :: text?, $6 :: bool, $7 :: int, $8 :: bool, $9 :: text?, $10 :: int?, $11 :: timestamptz?)
+    insert into team (team, creator, name, icon, icon_key, deleted, status, status_time, binding, binding_time, splash_screen, search_visibility)
+    values ($1 :: uuid, $2 :: uuid?, $3 :: text, $4 :: text, $5 :: text?, $6 :: bool, $7 :: text, $8 :: timestamptz, $9 :: text, $10 :: timestamptz, $11 :: text?, $12 :: text?)
     on conflict (team) do update set
       creator = excluded.creator,
       name = excluded.name,
@@ -246,10 +252,11 @@ upsertTeamStatement =
       icon_key = excluded.icon_key,
       deleted = excluded.deleted,
       status = excluded.status,
+      status_time = excluded.status_time,
       binding = excluded.binding,
+      binding_time = excluded.binding_time,
       splash_screen = excluded.splash_screen,
-      search_visibility = excluded.search_visibility,
-      created_at = coalesce(excluded.created_at, team.created_at)
+      search_visibility = excluded.search_visibility
   |]
 
 --------------------------------------------------------------------------------
@@ -290,7 +297,7 @@ migrateAllTeamMembers migOpts migCounter migDuration = do
   withCount (paginateSem selectAllTeamMembers (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_
-      ( traverse_ $ \(tid, uid, perms, minvu, minvt, mlh) -> do
+      ( traverse_ $ \(tid, uid, perms, mwPerms, minvu, minvt, mlh) -> do
           eith <-
             runError @HasqlPool.UsageError
               ( runError @MigrationLockError
@@ -301,9 +308,10 @@ migrateAllTeamMembers migOpts migCounter migDuration = do
                       ( toUUID tid,
                         toUUID uid,
                         postgresMarshall perms,
+                        writetimeToUTC mwPerms,
                         toUUID <$> minvu,
                         fromUTCTimeMillis <$> minvt,
-                        postgresMarshall <$> mlh
+                        Postgres.userLegalHoldStatusToText <$> mlh
                       )
                   )
               )
@@ -339,13 +347,14 @@ migrateTeamMemberRow ::
   Prometheus.Vector Text Prometheus.Histogram ->
   ( UUID,
     UUID,
-    Vector Int16,
+    (Int64, Int64),
+    UTCTime,
     Maybe UUID,
     Maybe UTCTime,
-    Maybe Int16
+    Maybe Text
   ) ->
   Sem r ()
-migrateTeamMemberRow migOpts migCounter migDuration row@(tid, uid, _, _, _, _) =
+migrateTeamMemberRow migOpts migCounter migDuration row@(tid, uid, _, _, _, _, _) =
   withExclusiveMigrationLockAndTimeout
     migOpts.timeout
     migDuration
@@ -378,16 +387,21 @@ copyAuxiliaryTeamMemberRows tid uid = do
       retry x1 (query1 selectTeamAdminExact (params LocalQuorum (tid, uid)))
   for_ mAdmin $ \_ -> runStatement (toUUID tid, toUUID uid) upsertTeamAdminStatement
 
--- | Upserts exactly what Cassandra had for this member row.
+-- | Upserts exactly what Cassandra had for this member row; the Cassandra
+-- @writetime(perms)@ is carried over into the maintained @perms_write_time@
+-- column so 'teamMemberInfosPg' keeps serving the original permissions write
+-- time after the copy.
 upsertTeamMemberRow ::
   (PGConstraints r) =>
-  (UUID, UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16) ->
+  (UUID, UUID, (Int64, Int64), UTCTime, Maybe UUID, Maybe UTCTime, Maybe Text) ->
   Sem r ()
-upsertTeamMemberRow (tid, uid, perms, minvu, minvt, mlh) =
+upsertTeamMemberRow (tid, uid, (ps, pc), mwPerms, minvu, minvt, mlh) =
   runStatement
     ( tid,
       uid,
-      perms,
+      ps,
+      pc,
+      mwPerms,
       minvu,
       minvt,
       mlh
@@ -396,14 +410,16 @@ upsertTeamMemberRow (tid, uid, perms, minvu, minvt, mlh) =
 
 upsertTeamMemberStatement ::
   Hasql.Statement
-    (UUID, UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16)
+    (UUID, UUID, Int64, Int64, UTCTime, Maybe UUID, Maybe UTCTime, Maybe Text)
     ()
 upsertTeamMemberStatement =
   [resultlessStatement|
-    insert into team_member (team, "user", perms, invited_by, invited_at, legalhold_status)
-    values ($1 :: uuid, $2 :: uuid, $3 :: smallint[], $4 :: uuid?, $5 :: timestamptz?, $6 :: smallint?)
-    on conflict (team, "user") do update set
-      perms = excluded.perms,
+    insert into team_member (team, user_id, perms_self, perms_copy, perms_write_time, invited_by, invited_at, legalhold_status)
+    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: timestamptz, $6 :: uuid?, $7 :: timestamptz?, $8 :: text?)
+    on conflict (team, user_id) do update set
+      perms_self = excluded.perms_self,
+      perms_copy = excluded.perms_copy,
+      perms_write_time = excluded.perms_write_time,
       invited_by = excluded.invited_by,
       invited_at = excluded.invited_at,
       legalhold_status = excluded.legalhold_status
@@ -412,30 +428,30 @@ upsertTeamMemberStatement =
 upsertUserTeamStatement :: Hasql.Statement (UUID, UUID) ()
 upsertUserTeamStatement =
   [resultlessStatement|
-    insert into user_team ("user", team) values ($1 :: uuid, $2 :: uuid)
-    on conflict ("user", team) do update set team = excluded.team
+    insert into user_team (user_id, team) values ($1 :: uuid, $2 :: uuid)
+    on conflict (user_id, team) do nothing
   |]
 
 upsertBillingTeamMemberStatement :: Hasql.Statement (UUID, UUID) ()
 upsertBillingTeamMemberStatement =
   [resultlessStatement|
-    insert into billing_team_member (team, "user") values ($1 :: uuid, $2 :: uuid)
-    on conflict (team, "user") do update set "user" = excluded."user"
+    insert into billing_team_member (team, user_id) values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, user_id) do nothing
   |]
 
 upsertTeamAdminStatement :: Hasql.Statement (UUID, UUID) ()
 upsertTeamAdminStatement =
   [resultlessStatement|
-    insert into team_admin (team, "user") values ($1 :: uuid, $2 :: uuid)
-    on conflict (team, "user") do update set "user" = excluded."user"
+    insert into team_admin (team, user_id) values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, user_id) do nothing
   |]
 
 --------------------------------------------------------------------------------
 -- local scan queries (bound at use site so the Cql/Tuple instances resolve,
 -- mirroring Wire.ConversationStore.Migration)
 
-selectAllTeamMembers :: PrepQuery R () (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
-selectAllTeamMembers = "select team, user, perms, invited_by, invited_at, legalhold_status from team_member"
+selectAllTeamMembers :: PrepQuery R () (TeamId, UserId, Permissions, Writetime Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+selectAllTeamMembers = "select team, user, perms, writetime(perms), invited_by, invited_at, legalhold_status from team_member"
 
 selectUserTeamExact :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamExact = "select team from user_team where user = ? and team = ?"

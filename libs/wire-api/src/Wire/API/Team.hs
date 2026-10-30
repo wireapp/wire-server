@@ -153,14 +153,14 @@ instance ToSchema TeamBinding where
       enum @Bool $
         mconcat [element True Binding, element False NonBinding]
 
-instance PostgresMarshall Bool TeamBinding where
-  postgresMarshall Binding = True
-  postgresMarshall NonBinding = False
+instance PostgresMarshall Text TeamBinding where
+  postgresMarshall Binding = "binding"
+  postgresMarshall NonBinding = "non_binding"
 
-instance PostgresUnmarshall Bool TeamBinding where
-  postgresUnmarshall = \case
-    True -> Right Binding
-    False -> Right NonBinding
+instance PostgresUnmarshall Text TeamBinding where
+  postgresUnmarshall "binding" = Right Binding
+  postgresUnmarshall "non_binding" = Right NonBinding
+  postgresUnmarshall t = Left ("invalid team binding: " <> t)
 
 --------------------------------------------------------------------------------
 -- TeamList
