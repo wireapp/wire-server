@@ -18,7 +18,7 @@ fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
 ingress-nginx-controller nginx-ingress-services reaper \
-k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise \
+k8ssandra-test-cluster wire-server-enterprise \
 wire-ingress
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
