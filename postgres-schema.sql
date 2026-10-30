@@ -1,7 +1,7 @@
 -- automatically generated with `make postgres-schema`
 
 ------------------------------------------------------------------------------------------
--- Database: backenda
+-- Database: backendA
 
 --
 -- PostgreSQL database dump
