@@ -146,7 +146,16 @@ hself: hsuper: {
   crypton-x509-store = hsuper.crypton-x509-store_1_9_0;
   crypton-x509-system = hsuper.crypton-x509-system_1_9_0;
   crypto-token = hsuper.crypto-token_0_2_0;
-  tls = hsuper.tls_2_4_1;
+  # TLS 1.3 client-auth reads must survive the handshake's alert timeout.
+  # https://github.com/haskell-tls/hs-tls/pull/530
+  tls = hlib.overrideCabal hsuper.tls_2_4_1 (_: {
+    version = "2.4.4";
+    src = fetchurl {
+      url = "https://hackage-content.haskell.org/package/tls-2.4.4.tar.gz";
+      hash = "sha256-8tK6muygOER/tJtf4NegXvMe+XvKjZ4TgluW6RNhtvw=";
+    };
+    editedCabalFile = null;
+  });
   hpke = hsuper.hpke_0_1_0;
   mlkem = hlib.dontCheck (hlib.markUnbroken hsuper.mlkem);
   crypton-connection = hsuper.crypton-connection_0_4_6;

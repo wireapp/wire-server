@@ -86,18 +86,40 @@ executable run-services
 common ingress-common
   import:         common-all
   hs-source-dirs: ingress test
-  other-modules:  Testlib.Ingress
+  other-modules:
+    Testlib.Ingress
+    Testlib.Ingress.Kubernetes
+    Testlib.Ingress.TLS
+
   build-depends:
     , aeson
     , base
+    , base64-bytestring
     , bytestring
+    , crypton
+    , crypton-asn1-encoding
+    , crypton-asn1-types
+    , crypton-connection
+    , crypton-x509
+    , crypton-x509-store
+    , cryptostore
+    , directory
     , filepath
+    , http-client
+    , http-client-tls
+    , http-types
     , kan-extensions
+    , network
     , network-uri
     , process
     , temporary
     , text
+    , time
+    , time-hourglass
+    , tls                    >=2.4.4
     , transformers
+    , websockets
+    , yaml
 
 executable ingress-regression
   import:      ingress-common
@@ -105,10 +127,11 @@ executable ingress-regression
   ghc-options: -threaded
 
 test-suite ingress-unit
-  import:      ingress-common
-  type:        exitcode-stdio-1.0
-  main-is:     Unit.hs
-  ghc-options: -threaded
+  import:        ingress-common
+  build-depends: crypton-x509-validation
+  type:          exitcode-stdio-1.0
+  main-is:       Unit.hs
+  ghc-options:   -threaded
 
 library
   import:          common-all
@@ -265,6 +288,8 @@ library
     Testlib.Env
     Testlib.HTTP
     Testlib.Ingress
+    Testlib.Ingress.Kubernetes
+    Testlib.Ingress.TLS
     Testlib.JSON
     Testlib.KleisliXML
     Testlib.Mock
@@ -307,8 +332,10 @@ library
     , crypton
     , crypton-asn1-encoding
     , crypton-asn1-types
+    , crypton-connection
     , crypton-pem
     , crypton-x509
+    , crypton-x509-store
     , cryptostore
     , data-default
     , data-timeout
@@ -323,6 +350,7 @@ library
     , hex
     , HsOpenSSL
     , http-client
+    , http-client-tls
     , http-types
     , interpolate
     , kan-extensions
@@ -359,6 +387,7 @@ library
     , text
     , time
     , time-hourglass
+    , tls                      >=2.4.4
     , transformers
     , transformers-base
     , unix

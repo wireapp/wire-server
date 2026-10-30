@@ -26,8 +26,11 @@
 , crypton
 , crypton-asn1-encoding
 , crypton-asn1-types
+, crypton-connection
 , crypton-pem
 , crypton-x509
+, crypton-x509-store
+, crypton-x509-validation
 , cryptostore
 , data-default
 , data-timeout
@@ -43,6 +46,7 @@
 , hex
 , HsOpenSSL
 , http-client
+, http-client-tls
 , http-types
 , interpolate
 , kan-extensions
@@ -80,6 +84,7 @@
 , text
 , time
 , time-hourglass
+, tls
 , transformers
 , transformers-base
 , unix
@@ -134,8 +139,10 @@ mkDerivation {
     crypton
     crypton-asn1-encoding
     crypton-asn1-types
+    crypton-connection
     crypton-pem
     crypton-x509
+    crypton-x509-store
     cryptostore
     data-default
     data-timeout
@@ -150,6 +157,7 @@ mkDerivation {
     hex
     HsOpenSSL
     http-client
+    http-client-tls
     http-types
     interpolate
     kan-extensions
@@ -186,6 +194,7 @@ mkDerivation {
     text
     time
     time-hourglass
+    tls
     transformers
     transformers-base
     unix
@@ -206,26 +215,63 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     base
+    base64-bytestring
     bytestring
+    crypton
+    crypton-asn1-encoding
+    crypton-asn1-types
+    crypton-connection
+    crypton-x509
+    crypton-x509-store
+    cryptostore
+    directory
     filepath
+    http-client
+    http-client-tls
+    http-types
     kan-extensions
+    network
     network-uri
     process
     temporary
     text
+    time
+    time-hourglass
+    tls
     transformers
+    websockets
+    yaml
   ];
   testHaskellDepends = [
     aeson
     base
+    base64-bytestring
     bytestring
+    crypton
+    crypton-asn1-encoding
+    crypton-asn1-types
+    crypton-connection
+    crypton-x509
+    crypton-x509-store
+    crypton-x509-validation
+    cryptostore
+    directory
     filepath
+    http-client
+    http-client-tls
+    http-types
     kan-extensions
+    network
     network-uri
     process
     temporary
     text
+    time
+    time-hourglass
+    tls
     transformers
+    websockets
+    yaml
   ];
   license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }
