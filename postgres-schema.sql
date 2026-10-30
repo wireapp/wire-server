@@ -2316,7 +2316,7 @@ ALTER TABLE ONLY public.subconversation
 --
 
 ALTER TABLE ONLY public.team_admin
-    ADD CONSTRAINT team_admin_pkey PRIMARY KEY (team, "user");
+    ADD CONSTRAINT team_admin_pkey PRIMARY KEY (team, user_id);
 
 
 --
