@@ -30,8 +30,8 @@ import Wire.CustomBackendStore.Migration
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.NotificationStore.Migration
-import Wire.PushTokenStore.Migration
 import Wire.PasswordResetCodeStore.Migration
+import Wire.PushTokenStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
