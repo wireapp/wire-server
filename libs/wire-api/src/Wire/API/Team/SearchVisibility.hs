@@ -26,7 +26,6 @@ where
 import Control.Lens ((?~))
 import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Text qualified as Text
 import Deriving.Aeson
 import Imports
 import Wire.API.PostgresMarshall
@@ -71,16 +70,16 @@ instance ToSchema TeamSearchVisibility where
           element "no-name-outside-team" SearchVisibilityNoNameOutsideTeam
         ]
 
-instance PostgresMarshall Int32 TeamSearchVisibility where
+instance PostgresMarshall Text TeamSearchVisibility where
   postgresMarshall = \case
-    SearchVisibilityStandard -> 0
-    SearchVisibilityNoNameOutsideTeam -> 1
+    SearchVisibilityStandard -> "standard"
+    SearchVisibilityNoNameOutsideTeam -> "no-name-outside-team"
 
-instance PostgresUnmarshall Int32 TeamSearchVisibility where
+instance PostgresUnmarshall Text TeamSearchVisibility where
   postgresUnmarshall = \case
-    0 -> Right SearchVisibilityStandard
-    1 -> Right SearchVisibilityNoNameOutsideTeam
-    n -> Left $ "unexpected search visibility: " <> Text.pack (show n)
+    "standard" -> Right SearchVisibilityStandard
+    "no-name-outside-team" -> Right SearchVisibilityNoNameOutsideTeam
+    t -> Left ("invalid team search visibility: " <> t)
 
 --------------------------------------------------------------------------------
 -- TeamSearchVisibilityView

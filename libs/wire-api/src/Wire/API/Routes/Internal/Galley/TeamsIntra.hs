@@ -49,7 +49,6 @@ import Data.Currency qualified as Currency
 import Data.Json.Util
 import Data.OpenApi qualified as Swagger
 import Data.Schema qualified as S
-import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
@@ -80,22 +79,22 @@ instance S.ToSchema TeamStatus where
           S.element "pending_active" PendingActive
         ]
 
-instance PostgresMarshall Int32 TeamStatus where
+instance PostgresMarshall Text TeamStatus where
   postgresMarshall = \case
-    Active -> 0
-    PendingDelete -> 1
-    Deleted -> 2
-    Suspended -> 3
-    PendingActive -> 4
+    Active -> "active"
+    PendingDelete -> "pending_delete"
+    Deleted -> "deleted"
+    Suspended -> "suspended"
+    PendingActive -> "pending_active"
 
-instance PostgresUnmarshall Int32 TeamStatus where
+instance PostgresUnmarshall Text TeamStatus where
   postgresUnmarshall = \case
-    0 -> Right Active
-    1 -> Right PendingDelete
-    2 -> Right Deleted
-    3 -> Right Suspended
-    4 -> Right PendingActive
-    n -> Left $ "unexpected team status: " <> Text.pack (show n)
+    "active" -> Right Active
+    "pending_delete" -> Right PendingDelete
+    "deleted" -> Right Deleted
+    "suspended" -> Right Suspended
+    "pending_active" -> Right PendingActive
+    t -> Left ("invalid team status: " <> t)
 
 data TeamData = TeamData
   { tdTeam :: !Team,
