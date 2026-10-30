@@ -126,13 +126,19 @@ migrateUsersPendingActivationRow ::
   Prometheus.Vector Text Prometheus.Histogram ->
   (UserId, UTCTime) ->
   Sem r ()
+-- The upsert is guarded by the @users_pending_activation_deletions@ marker
+-- table: users removed via the dual-write delete after a copy pass are skipped,
+-- so re-running the loop cannot resurrect a removed row. The residual race is
+-- bounded by the statement composition of the dual-write delete (marker insert
+-- and mirrored delete in the same Postgres statement sequence); nonce (DPoP
+-- replay) precedent, PR #5675.
 migrateUsersPendingActivationRow migOpts migCounter migDuration (uid, expiresAt) = do
   outcomeRef <- liftIO $ IORef.newIORef @Text "error"
   bracket
     (liftIO getCurrentTime)
     (observeDuration migDuration outcomeRef)
     ( const $ do
-        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.upsertUserPendingActivation uid expiresAt
+        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.upsertUserPendingActivationIfNotDeleted uid expiresAt
         case timeoutResult of
           Left timedOutAfter -> do
             markOutcome outcomeRef "timeout"
