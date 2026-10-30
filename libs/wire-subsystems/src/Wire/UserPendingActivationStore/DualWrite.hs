@@ -43,4 +43,6 @@ interpretUserPendingActivationStoreToCassandraAndPostgres = interpret $ \case
     Cassandra.userPendingActivationStoreToCassandra UserPendingActivationStore.list
   RemoveMultiple uids -> do
     Cassandra.userPendingActivationStoreToCassandra $ UserPendingActivationStore.removeMultiple uids
-    Postgres.interpretUserPendingActivationStoreToPostgres $ UserPendingActivationStore.removeMultiple uids
+    Postgres.interpretUserPendingActivationStoreToPostgres $ do
+      Postgres.insertPendingActivationDeletionMarkers uids
+      UserPendingActivationStore.removeMultiple uids

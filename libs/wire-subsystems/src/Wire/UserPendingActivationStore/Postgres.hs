@@ -18,6 +18,8 @@
 module Wire.UserPendingActivationStore.Postgres
   ( interpretUserPendingActivationStoreToPostgres,
     upsertUserPendingActivation,
+    upsertUserPendingActivationIfNotDeleted,
+    insertPendingActivationDeletionMarkers,
   )
 where
 
@@ -52,7 +54,41 @@ upsertUserPendingActivation uid expiresAt =
                              VALUES ($1 :: uuid, $2 :: timestamptz)
                              ON CONFLICT (user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at|]
 
-listImpl :: (PGConstraints r) => Sem r [UserPendingActivation]
+-- | Used by the copy loop: like @upsertUserPendingActivation@, but skips the
+-- insert when the user was removed after a previous pass (recorded in
+-- @users_pending_activation_deletions@ by the dual-write delete), so re-running
+-- the migration cannot resurrect a removed row.
+upsertUserPendingActivationIfNotDeleted :: (PGConstraints r) => UserId -> UTCTime -> Sem r ()
+upsertUserPendingActivationIfNotDeleted uid expiresAt =
+  runStatement (uid, expiresAt) insertIfNotDeletedStatement
+  where
+    insertIfNotDeletedStatement :: Hasql.Statement (UserId, UTCTime) ()
+    insertIfNotDeletedStatement =
+      lmapPG
+        [resultlessStatement|INSERT INTO users_pending_activation (user_id, expires_at)
+                             SELECT ($1 :: uuid), ($2 :: timestamptz)
+                             WHERE NOT EXISTS (SELECT 1 FROM users_pending_activation_deletions WHERE user_id = ($1 :: uuid))
+                             ON CONFLICT (user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at|]
+
+-- | Record users as removed in the @users_pending_activation_deletions@ marker
+-- table; called by the dual-write @RemoveMultiple@ so the copy loop can filter
+-- them out.
+insertPendingActivationDeletionMarkers :: (PGConstraints r) => [UserId] -> Sem r ()
+insertPendingActivationDeletionMarkers uids =
+  runStatement (postgresMarshall uids) insertMarkersStatement
+  where
+    insertMarkersStatement :: Hasql.Statement (Vector UUID) ()
+    insertMarkersStatement =
+      [resultlessStatement|INSERT INTO users_pending_activation_deletions (user_id)
+                           SELECT u FROM unnest (($1 :: uuid[])) AS t(u)
+                           ON CONFLICT (user_id) DO NOTHING|]
+
+listImpl ::
+  -- \| Deliberately unfiltered — parity with Cassandra, which returns every row
+  -- in the store regardless of @expires_at@; TTL filtering is not part of this
+  -- store's contract.
+  (PGConstraints r) =>
+  Sem r [UserPendingActivation]
 listImpl =
   fmap (uncurry UserPendingActivation) <$> runStatement () listStatement
   where

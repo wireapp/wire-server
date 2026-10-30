@@ -2851,6 +2851,26 @@ ALTER TABLE ONLY public.subconversation
 
 
 --
+-- Name: users_pending_activation_deletions; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.users_pending_activation_deletions (
+    user_id uuid NOT NULL,
+    deleted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.users_pending_activation_deletions OWNER TO "wire-server";
+
+--
+-- Name: users_pending_activation_deletions users_pending_activation_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.users_pending_activation_deletions
+    ADD CONSTRAINT users_pending_activation_deletions_pkey PRIMARY KEY (user_id);
+
+
+--
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: wire-server
 --
 
