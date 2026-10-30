@@ -33,6 +33,11 @@ import Wire.API.PostgresMarshall
 import Wire.OAuthAuthCodeStore
 import Wire.Postgres
 
+-- TTL/purge note: auth code rows carry @expires_at@ and are filtered by read
+-- predicates; expired rows are not physically purged.  No purge job is
+-- provisioned: expired codes are unusable (unreachable on every read path)
+-- and bounded by code issuance volume, following the accepted no-purge
+-- precedent of the password_reset migration.
 interpretOAuthAuthCodeStoreToPostgres ::
   (PGConstraints r) =>
   InterpreterFor OAuthAuthCodeStore r
