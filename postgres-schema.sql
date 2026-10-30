@@ -1692,16 +1692,17 @@ ALTER TABLE public.subconversation OWNER TO "wire-server";
 
 CREATE TABLE public.team (
     team uuid NOT NULL,
-    creator uuid,
-    name text,
-    icon text,
+    creator uuid NOT NULL,
+    name text NOT NULL,
+    icon text NOT NULL,
     icon_key text,
     splash_screen text,
-    binding boolean NOT NULL,
-    status integer NOT NULL,
-    search_visibility integer,
     deleted boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone
+    status text NOT NULL,
+    status_time timestamp with time zone DEFAULT now() NOT NULL,
+    binding text NOT NULL,
+    binding_time timestamp with time zone DEFAULT now() NOT NULL,
+    search_visibility text
 );
 
 

@@ -67,9 +67,9 @@ tests =
       testRoundTrip @ByteString @Password.Password,
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
-      testRoundTrip @Int32 @TeamStatus,
-      testRoundTrip @Bool @TeamBinding,
-      testRoundTrip @Int32 @TeamSearchVisibility,
+      testRoundTrip @Text @TeamStatus,
+      testRoundTrip @Text @TeamBinding,
+      testRoundTrip @Text @TeamSearchVisibility,
       testRoundTrip @Text @Icon,
       testRoundTrip @A.Value @DbConfig
     ]

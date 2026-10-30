@@ -120,7 +120,7 @@ migrateAllTeams migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllTeams")
   withCount (paginateSem Cql.selectAllTeams (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(tid, _, _, _, _, _, _, _, _, _, _) -> handleErrors (T.encodeUtf8 (T.pack (show tid))) (migrateTeamRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row@(tid, _, _, _, _, _, _, _, _, _, _, _) -> handleErrors (T.encodeUtf8 (T.pack (show tid))) (migrateTeamRow migOpts migCounter migDuration row)))
 
 migrateTeamRow ::
   ( PGConstraints r,
@@ -138,13 +138,14 @@ migrateTeamRow ::
     Maybe Text,
     Bool,
     Maybe TeamStatus,
+    Maybe (Writetime TeamStatus),
     Maybe TeamBinding,
+    Maybe (Writetime TeamBinding),
     Maybe Icon,
-    Maybe TeamSearchVisibility,
-    Maybe (Writetime TeamBinding)
+    Maybe TeamSearchVisibility
   ) ->
   Sem r ()
-migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, _, _) = do
+migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, _, _, _) = do
   let keyText = T.pack (show tid)
   outcomeRef <- liftIO $ IORef.newIORef @Text "error"
   bracket
@@ -174,12 +175,15 @@ migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, 
       end <- liftIO getCurrentTime
       liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
 
+currentTimeStamp :: UTCTime
+currentTimeStamp = UTCTime (ModifiedJulianDay 0) 0
+
 -- | Upserts one copied team row.  Missing Cassandra columns fall back to the
 -- same defaults the read paths use (status @active@, binding @nonBinding@),
--- and @created_at@ is carried over from @writetime(binding)@ so that
--- 'GetTeamCreationTime' survives the migration.  On conflict the Cassandra
--- row (source of truth) wins, except for a @created_at@ already present from
--- an earlier copy.
+-- and Cassandra's writetimes are carried over into the maintained
+-- @status_time@/@binding_time@ columns so that @tdStatusTime@ and
+-- 'GetTeamCreationTime' survive the migration.  On conflict the Cassandra
+-- row (source of truth) wins.
 upsertTeamRow ::
   (PGConstraints r) =>
   ( UUID,
@@ -189,13 +193,14 @@ upsertTeamRow ::
     Maybe Text,
     Bool,
     Maybe TeamStatus,
+    Maybe (Writetime TeamStatus),
     Maybe TeamBinding,
+    Maybe (Writetime TeamBinding),
     Maybe Icon,
-    Maybe TeamSearchVisibility,
-    Maybe (Writetime TeamBinding)
+    Maybe TeamSearchVisibility
   ) ->
   Sem r ()
-upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, binding, splash, searchVis, mwBinding) =
+upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, mwStatus, binding, mwBinding, splash, searchVis) =
   runStatement
     ( tid,
       Just (toUUID creator),
@@ -204,21 +209,22 @@ upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, binding, spla
       iconKey,
       deleted,
       postgresMarshall (fromMaybe Active status),
+      maybe currentTimeStamp writetimeToUTC mwStatus,
       postgresMarshall (fromMaybe NonBinding binding),
+      maybe currentTimeStamp writetimeToUTC mwBinding,
       postgresMarshall <$> splash,
-      postgresMarshall <$> searchVis,
-      writetimeToUTC <$> mwBinding
+      postgresMarshall <$> searchVis
     )
     upsertTeamStatement
 
 upsertTeamStatement ::
   Hasql.Statement
-    (UUID, Maybe UUID, Text, Text, Maybe Text, Bool, Int32, Bool, Maybe Text, Maybe Int32, Maybe UTCTime)
+    (UUID, Maybe UUID, Text, Text, Maybe Text, Bool, Text, UTCTime, Text, UTCTime, Maybe Text, Maybe Text)
     ()
 upsertTeamStatement =
   [resultlessStatement|
-    insert into team (team, creator, name, icon, icon_key, deleted, status, binding, splash_screen, search_visibility, created_at)
-    values ($1 :: uuid, $2 :: uuid?, $3 :: text, $4 :: text, $5 :: text?, $6 :: bool, $7 :: int, $8 :: bool, $9 :: text?, $10 :: int?, $11 :: timestamptz?)
+    insert into team (team, creator, name, icon, icon_key, deleted, status, status_time, binding, binding_time, splash_screen, search_visibility)
+    values ($1 :: uuid, $2 :: uuid?, $3 :: text, $4 :: text, $5 :: text?, $6 :: bool, $7 :: text, $8 :: timestamptz, $9 :: text, $10 :: timestamptz, $11 :: text?, $12 :: text?)
     on conflict (team) do update set
       creator = excluded.creator,
       name = excluded.name,
@@ -226,8 +232,9 @@ upsertTeamStatement =
       icon_key = excluded.icon_key,
       deleted = excluded.deleted,
       status = excluded.status,
+      status_time = excluded.status_time,
       binding = excluded.binding,
+      binding_time = excluded.binding_time,
       splash_screen = excluded.splash_screen,
-      search_visibility = excluded.search_visibility,
-      created_at = coalesce(excluded.created_at, team.created_at)
+      search_visibility = excluded.search_visibility
   |]
