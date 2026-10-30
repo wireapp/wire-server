@@ -1649,6 +1649,16 @@ CREATE TABLE public.provider_password (
 
 ALTER TABLE public.provider_password OWNER TO "wire-server";
 
+-- Name: provider_passwords_deletions; Type: TABLE; Schema: public; Owner: wire-server
+
+CREATE TABLE public.provider_passwords_deletions (
+    id uuid NOT NULL,
+    deleted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.provider_passwords_deletions OWNER TO "wire-server";
+
 --
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
@@ -2135,6 +2145,13 @@ ALTER TABLE ONLY public.password_reset
 
 ALTER TABLE ONLY public.provider_password
     ADD CONSTRAINT provider_password_pkey PRIMARY KEY (id);
+
+--
+-- Name: provider_passwords_deletions provider_passwords_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.provider_passwords_deletions
+    ADD CONSTRAINT provider_passwords_deletions_pkey PRIMARY KEY (id);
 
 
 --
