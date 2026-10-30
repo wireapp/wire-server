@@ -44,12 +44,20 @@ readServiceConfig' :: String -> App Value
 readServiceConfig' srvName = do
   cfgFile <- asks \env -> case env.servicesCwdBase of
     Nothing -> "/etc/wire" </> srvName </> "conf" </> (srvName <> ".yaml")
-    Just p -> p </> srvName </> (srvName <> ".integration.yaml")
+    Just p -> localServiceDirectory p srvName </> (srvName <> ".integration.yaml")
 
   eith <- liftIO (Yaml.decodeFileEither cfgFile)
   case eith of
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
     Right value -> pure value
+
+-- | Resolve a service's source directory relative to the local services root.
+-- Enterprise sources are provided by the protected submodule.
+localServiceDirectory :: FilePath -> String -> FilePath
+localServiceDirectory servicesRoot srvName
+  | srvName == "wire-server-enterprise" =
+      takeDirectory (dropTrailingPathSeparator servicesRoot) </> "protected" </> "services" </> srvName
+  | otherwise = servicesRoot </> srvName
 
 data Domain = OwnDomain | OtherDomain
   deriving stock (Eq, Show, Generic)

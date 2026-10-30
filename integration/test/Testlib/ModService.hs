@@ -552,7 +552,9 @@ withProcess artifacts resource service = do
       (cwd, exe) = case env.servicesCwdBase of
         Nothing -> (Nothing, execName)
         Just dir ->
-          (Just (dir </> execName), "../../dist" </> execName)
+          ( Just (localServiceDirectory dir execName),
+            takeDirectory (dropTrailingPathSeparator dir) </> "dist" </> execName
+          )
 
   stdOut <- liftIO $ newIORef []
   stdErr <- liftIO $ newIORef []
