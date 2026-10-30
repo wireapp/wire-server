@@ -1049,7 +1049,10 @@ defaultTestOpts =
             user = CassandraStorage,
             blockList = CassandraStorage,
             passwordReset = CassandraStorage,
-5: @ours
+            customBackend = CassandraStorage,
+            budget = CassandraStorage,
+            nonce = CassandraStorage,
+            connections = CassandraStorage
           },
       postgresqlPassword = Nothing
     }
