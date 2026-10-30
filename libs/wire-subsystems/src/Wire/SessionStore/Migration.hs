@@ -44,6 +44,7 @@ import Wire.Migration
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.SessionStore (TTL (..))
 import Wire.SessionStore.Cassandra qualified as Cql
 import Wire.SessionStore.Postgres qualified as Postgres
 
@@ -119,8 +120,8 @@ migrateAllSessions migOpts migCounter migDuration = do
           )
       )
 
-rowKey :: (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId) -> Text
-rowKey (uid, cid, _, _, _, _, _) =
+rowKey :: (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32) -> Text
+rowKey (uid, cid, _, _, _, _, _, _) =
   Text.pack (show (uid, cookieIdNum cid))
 
 migrateSessionRow ::
@@ -132,9 +133,9 @@ migrateSessionRow ::
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
-  (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId) ->
+  (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32) ->
   Sem r ()
-migrateSessionRow migOpts migCounter migDuration (uid, cid, created, expires, typ, label, csucc) = do
+migrateSessionRow migOpts migCounter migDuration (uid, cid, created, expires, typ, label, csucc, mttl) = do
   outcomeRef <- liftIO $ IORef.newIORef @Text "error"
   let cookie =
         Cookie
@@ -146,26 +147,32 @@ migrateSessionRow migOpts migCounter migDuration (uid, cid, created, expires, ty
             cookieSucc = csucc,
             cookieValue = ()
           }
-  bracket
-    (liftIO getCurrentTime)
-    (observeDuration migDuration outcomeRef)
-    ( const $ do
-        timeoutResult <-
-          Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $
-            Postgres.insertCookie uid cookie Nothing
-        case timeoutResult of
-          Left timedOutAfter -> do
-            markOutcome outcomeRef "timeout"
-            liftIO . UnliftIO.throwIO $ MigrationTimedOut (rowKey (uid, cid, created, expires, typ, label, csucc)) timedOutAfter
-          Right () -> do
-            markOutcome outcomeRef "success"
-            liftIO $ Prometheus.incCounter migCounter
-    )
+  -- Carry the row's remaining Cassandra TTL over into the Postgres
+  -- @invalid_after@ boundary (@invalid_after = now() + remaining@), matching
+  -- what renewCookie does for superseded cookies; inserting with the full
+  -- @expires_at@ would resurrect sessions Cassandra is about to expire.  Rows
+  -- with a missing or exhausted TTL are skipped.
+  when (maybe False (> 0) mttl) $
+    bracket
+      (liftIO getCurrentTime)
+      (observeDuration migDuration outcomeRef)
+      ( const $ do
+          timeoutResult <-
+            Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $
+              Postgres.insertCookie uid cookie (TTL <$> mttl)
+          case timeoutResult of
+            Left timedOutAfter -> do
+              markOutcome outcomeRef "timeout"
+              liftIO . UnliftIO.throwIO $ MigrationTimedOut (rowKey (uid, cid, created, expires, typ, label, csucc, mttl)) timedOutAfter
+            Right () -> do
+              markOutcome outcomeRef "success"
+              liftIO $ Prometheus.incCounter migCounter
+      )
   where
     handleTimeout =
       err $
         Log.msg (Log.val "sessions migration timed out")
-          . Log.field "key" (rowKey (uid, cid, created, expires, typ, label, csucc))
+          . Log.field "key" (rowKey (uid, cid, created, expires, typ, label, csucc, mttl))
           . Log.field "timeout" (show migOpts.timeout)
 
     markOutcome ref outcome = liftIO $ IORef.writeIORef ref outcome
