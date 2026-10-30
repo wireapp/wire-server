@@ -624,6 +624,9 @@ nginx_conf:
     - path: /user-groups/check-name$
       envs:
         - all
+    - path: /teams/([^/]*)/members/([^/]*)/verification-email$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true

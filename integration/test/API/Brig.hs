@@ -1398,3 +1398,8 @@ deleteTotp :: (HasCallStack, MakesValue user) => user -> String -> Value -> App 
 deleteTotp user cid body = do
   req <- baseRequest user Brig Versioned (joinHttpPath ["self", "totp", cid])
   submit "DELETE" $ req & addJSON body
+
+putResendVerificationEmail :: (HasCallStack, MakesValue caller) => caller -> String -> String -> App Response
+putResendVerificationEmail caller tid uid = do
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["teams", tid, "members", uid, "verification-email"]
+  submit "PUT" req
