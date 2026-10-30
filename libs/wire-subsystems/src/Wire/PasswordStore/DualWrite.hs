@@ -45,4 +45,6 @@ interpretPasswordStoreToCassandraAndPostgres cas = interpret $ \case
     Postgres.interpretPasswordStoreToPostgres $ PasswordStore.insertHashedProviderPassword pid pw
   DeleteHashedProviderPassword pid -> do
     Cassandra.interpretPasswordStore cas $ PasswordStore.deleteHashedProviderPassword pid
-    Postgres.interpretPasswordStoreToPostgres $ PasswordStore.deleteHashedProviderPassword pid
+    Postgres.interpretPasswordStoreToPostgres $ do
+      Postgres.insertProviderPasswordDeletionMarker pid
+      PasswordStore.deleteHashedProviderPassword pid
