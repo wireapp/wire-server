@@ -6,7 +6,7 @@
                                  (each run starts with reset, so only the last
                                  run can be checked, normally D-plain.log)
   sanity-helpers.py prom [DIR]   per run: Prometheus totals vs. tool summary
-                                 (default DIR: run-2000x1.py's LOGDIR)
+                                 (default DIR: run-2000x1.py's log directory)
   sanity-helpers.py gc LOG       partition drops (oldest partition age resets)
                                  and metrics near them vs. otherwise (D-partman.log)
 
@@ -14,7 +14,7 @@ Run windows come from the log files: end = mtime, length = last status tick.
 """
 
 import glob
-import importlib.util
+import importlib
 import json
 import os
 import re
@@ -24,9 +24,10 @@ import sys
 import urllib.parse
 import urllib.request
 
-_spec = importlib.util.spec_from_file_location("run2000x1", os.path.join(os.path.dirname(os.path.abspath(__file__)), "run-2000x1.py"))
-run = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(run)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+lib = importlib.import_module("drivers-lib")
+run = importlib.import_module("run-2000x1")  # its CFG: log directory
+READERS = 2000  # clients of run-2000x1.py's targets
 
 # Partition count and oldest partition of user_notifications (pg_partman names
 # partitions by start time, so the smallest name is the oldest; '' if unpartitioned).
@@ -34,7 +35,7 @@ CHILDREN = "select count(*), coalesce(min(c.relname), '') from pg_inherits i joi
 
 
 def psql(sql):
-    r = subprocess.run(["psql", run.DB, "-X", "-At", "-F", "|", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql], capture_output=True, text=True)
+    r = subprocess.run(["psql", lib.DB, "-X", "-At", "-F", "|", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError("psql failed: " + r.stderr.strip()[-200:])
     return r.stdout.strip()
@@ -56,7 +57,7 @@ def window(logpath):
 
 
 def check_db(logpath):
-    r = run.summary_fields(logpath)
+    r = lib.summary_fields(logpath)
     q = psql
     rows, distinct, users = q("select count(*), count(distinct notification_id), count(distinct user_id) from user_notifications").split("|")
     partitioned = q("select count(*) from pg_partitioned_table where partrelid = 'user_notifications'::regclass") == "1"
@@ -67,7 +68,7 @@ def check_db(logpath):
         "from user_notifications order by user_id, notification_id desc) u using (user_id) where l.notification_id <> u.m"))
     acks, mismatched = q("select count(*), count(*) filter (where a.last_notification_id <> l.notification_id) "
                          "from user_notification_acks a join last_user_notifications l using (user_id)").split("|")
-    print(f"user_notification_acks: {acks} rows, {mismatched} not at the stream's last id (consume-ack with missing=0: expect {run.READERS} and 0)")
+    print(f"user_notification_acks: {acks} rows, {mismatched} not at the stream's last id (consume-ack with missing=0: expect {READERS} and 0)")
     print("rows in other notification tables:", q("select (select count(*) from client_notifications) + (select count(*) from team_notifications) + (select count(*) from epoch_notifications) + (select count(*) from local_connection_notifications) + (select count(*) from remote_connection_notifications)"))
     if partitioned:
         print("partitions, oldest:", q(CHILDREN).replace("|", ", "), "| rows in the parent itself:", q("select count(*) from only user_notifications"),
@@ -77,7 +78,7 @@ def check_db(logpath):
 
 def check_prom(logdir):
     for logpath in sorted(glob.glob(os.path.join(logdir, "*.log"))):
-        r = run.summary_fields(logpath)
+        r = lib.summary_fields(logpath)
         t0, t1 = window(logpath)
         d = t1 - t0
 
@@ -99,7 +100,7 @@ def check_prom(logdir):
 
 def check_gc(logpath):
     t0, t1 = window(logpath)
-    gc = run.summary_fields(logpath)["gc"]
+    gc = lib.summary_fields(logpath)["gc"]
     if not gc:
         sys.exit("no gc section in the summary (not a consume run on partitioned tables)")
     gc_window = gc["window_seconds"]
@@ -113,7 +114,7 @@ def check_gc(logpath):
     }
 
     def series(q, step=1):
-        res = prom("query_range", query=q, start=t0 + run.WARMUP, end=t1, step=step)
+        res = prom("query_range", query=q, start=t0 + lib.WARMUP, end=t1, step=step)
         return {int(t): float(v) for t, v in res[0]["values"]} if res else {}
 
     age = series('max(fan_in_partman_oldest_partition_age_seconds{parent=~".*user_notifications"})')
@@ -137,7 +138,7 @@ def main():
     if cmd == "db" and arg:
         check_db(arg)
     elif cmd == "prom":
-        check_prom(arg or run.LOGDIR)
+        check_prom(arg or run.CFG.logdir)
     elif cmd == "gc" and arg:
         check_gc(arg)
     else:
