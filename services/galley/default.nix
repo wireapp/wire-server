@@ -106,6 +106,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-licensing
 , wire-otel
 , wire-subsystems
 , yaml
@@ -177,6 +178,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-licensing
     wire-otel
     wire-subsystems
   ];

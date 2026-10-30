@@ -16,6 +16,13 @@ tags:
 apiVersions:
   disabledFederationAPIVersions: [development]
 
+# Optional licence payload (base64url-encoded LicenceSpec, produced by the
+# `wire-licensing` CLI). Applied deployment-wide: rendered into galley's
+# `settings.license` and background-worker's `license` config keys. Leave
+# empty for an unlicensed deployment (meeting join-by-link endpoints then
+# return 403 id-feature-error).
+license: ""
+
 galley:
   replicaCount: 3
   image:
@@ -379,8 +386,7 @@ galley:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
@@ -1102,6 +1108,7 @@ background-worker:
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
 
+  # Optional secret keys (see templates/background-worker/secret.yaml):
   secrets: {}
 
   podSecurityContext:
@@ -1351,8 +1358,7 @@ brig:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 

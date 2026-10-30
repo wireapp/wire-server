@@ -45,6 +45,7 @@ import Data.Misc (IpAddr, PlainTextPassword8)
 import Data.Qualified
 import Imports
 import Polysemy
+import Polysemy.Error (Error, throw)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Meeting
@@ -247,7 +248,8 @@ refreshMeetingLink zUser connId domain meetingId req =
 codeCheckMeetingLink ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r,
-    Member (ErrorS 'InvalidMeetingPassword) r
+    Member (ErrorS 'InvalidMeetingPassword) r,
+    Member (Error MeetingError) r
   ) =>
   IpAddr ->
   Domain ->
@@ -257,6 +259,7 @@ codeCheckMeetingLink ::
   Sem r MeetingCodeCheck
 codeCheckMeetingLink origIp domain key codeValue mPassword =
   Meetings.codeCheckMeetingLink origIp domain key codeValue mPassword >>= \case
+    Meetings.CodeCheckPaywall -> throw MeetingNotLicensed
     Meetings.CodeCheckNotFound -> throwS @'MeetingNotFound
     Meetings.CodeCheckInvalidPassword -> throwS @'InvalidMeetingPassword
     Meetings.CodeCheckOk meta -> pure meta
@@ -268,7 +271,8 @@ codeCheckMeetingLink origIp domain key codeValue mPassword =
 joinMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r,
-    Member (ErrorS 'InvalidMeetingPassword) r
+    Member (ErrorS 'InvalidMeetingPassword) r,
+    Member (Error MeetingError) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -279,6 +283,7 @@ joinMeeting ::
   Sem r MeetingWithConversation
 joinMeeting zUser connId domain key codeValue mPassword =
   Meetings.joinMeeting zUser connId domain key codeValue mPassword >>= \case
+    Meetings.JoinMeetingPaywall -> throw MeetingNotLicensed
     Meetings.JoinMeetingNotFound -> throwS @'MeetingNotFound
     Meetings.JoinMeetingInvalidPassword -> throwS @'InvalidMeetingPassword
     Meetings.JoinMeetingOk mwc -> pure mwc

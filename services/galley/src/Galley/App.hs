@@ -47,12 +47,13 @@ import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -134,6 +135,9 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.Licensing.Effect (Licensing)
+import Wire.Licensing.Interpreter (runLicense)
+import Wire.Licensing.License qualified as Licensing
 import Wire.ListItems (ListItems)
 import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
@@ -200,6 +204,7 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     Licensing,
      MeetingNotifier,
      JobSubsystem,
      Input RequestId,
@@ -428,7 +433,7 @@ logAndMapError fErr fLog logMsg action =
   mapError fErr $ logErrors @_ @e1 fLog logMsg action
 
 evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
-evalGalley e =
+evalGalley e action =
   let convStoreInterpreter =
         interpretConversationStoreByMigration (e ^. options . postgresMigration).conversation (e ^. cstate)
       convCodesStoreInterpreter =
@@ -479,6 +484,10 @@ evalGalley e =
             maxConvSize = e._options._settings._maxConvSize,
             listClientsUsingBrig = e._options._settings._intraListing
           }
+      licenseInterpreter =
+        runLicense
+          (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
+          (fmap encodeUtf8 (e ^. options . settings . license))
    in ExceptT
         . runFinal @IO
         . unsafelyPerformConcurrency
@@ -584,8 +593,10 @@ evalGalley e =
         . runInputConst (e ^. reqId)
         . interpretJobSubsystem defaultJobSubsystemConfig
         . interpretMeetingNotifier
-        . interpretConversationSubsystem
-        . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
+        $ licenseInterpreter
+          ( interpretConversationSubsystem
+              (Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options)) action)
+          )
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =

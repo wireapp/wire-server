@@ -91,6 +91,9 @@ data:
       {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
       federationDomain: {{ $.Values.galley.config.settings.federationDomain }}
+      {{- if $.Values.license }}
+      license: {{ $.Values.license | quote }}
+      {{- end }}
       {{- if .settings.federationProtocols }}
       federationProtocols: {{ .settings.federationProtocols }}
       {{- end }}

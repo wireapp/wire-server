@@ -89,6 +89,7 @@ let
     test-stats = [ "test-stats" ];
     team-info = [ "team-info" ];
     wire-server-enterprise = [ "wire-server-enterprise" ];
+    wire-licensing = [ "wire-licensing" ];
     migrate-features = [ "migrate-features" ];
     mlsstats = [ "mlsstats" ];
   };
@@ -307,6 +308,7 @@ let
       brig-templates
       background-worker
       wire-server-enterprise
+      wire-licensing
       pkgs.nginz
       pkgs.mls-test-cli
       pkgs.awscli2

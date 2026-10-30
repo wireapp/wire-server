@@ -33,6 +33,7 @@ packages:
   , libs/wire-message-proto-lens/
   , libs/wire-subsystems/
   , libs/zauth/
+  , protected/libs/wire-licensing
   , protected/services/wire-server-enterprise
   , services/background-worker/
   , services/brig/
