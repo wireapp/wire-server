@@ -221,6 +221,7 @@ connections migOpts = do
   Log.info logger $ Log.msg (Log.val "started connections migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
+    cancel migrationLoop
 teamNotifications :: MigrationOptions -> AppT IO CleanupAction
 teamNotifications migOpts = do
   cassClient <- asks (.cassandraGalley)
