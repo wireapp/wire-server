@@ -184,8 +184,8 @@ data ResendVerificationEmailResult
   | NoVerificationEmailPending
 
 type ResendVerificationEmailResponses =
-  '[ RespondEmpty 202 "Verification email sent."
-   , RespondEmpty 204 "No pending email verification."
+  '[ RespondEmpty 202 "Verification email sent.",
+     RespondEmpty 204 "No pending email verification."
    ]
 
 instance AsUnion ResendVerificationEmailResponses ResendVerificationEmailResult where

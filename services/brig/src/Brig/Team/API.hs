@@ -67,12 +67,12 @@ import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
-import Wire.AuthenticationSubsystem
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
+import Wire.ClientStore (ClientStore)
 import Wire.DomainRegistrationStore
 import Wire.EmailSubsystem
-import Wire.ClientStore (ClientStore)
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.Error
 import Wire.Events (Events)

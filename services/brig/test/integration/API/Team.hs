@@ -985,6 +985,3 @@ test2FaDisabledForSsoUser brig galley = do
 -- if user is last remaining owner: 403 "no-other-owner" (as above).
 -- otherwise: 2xx.
 
--------------------------------------------------------------------------------
--- Resend verification email for team member with pending unverified email
-
