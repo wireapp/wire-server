@@ -45,7 +45,6 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.UUID (UUID)
-import Data.Vector (Vector)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended qualified as Hasql
 import Hasql.Statement qualified as Hasql
@@ -76,6 +75,7 @@ import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
+import Wire.TeamStore.Postgres qualified as Postgres
 import Wire.Util (embedClientInput)
 
 type EffectStack =
@@ -297,7 +297,7 @@ migrateAllTeamMembers migOpts migCounter migDuration = do
   withCount (paginateSem selectAllTeamMembers (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_
-      ( traverse_ $ \(tid, uid, perms, minvu, minvt, mlh) -> do
+      ( traverse_ $ \(tid, uid, perms, mwPerms, minvu, minvt, mlh) -> do
           eith <-
             runError @HasqlPool.UsageError
               ( runError @MigrationLockError
@@ -308,9 +308,10 @@ migrateAllTeamMembers migOpts migCounter migDuration = do
                       ( toUUID tid,
                         toUUID uid,
                         postgresMarshall perms,
+                        writetimeToUTC mwPerms,
                         toUUID <$> minvu,
                         fromUTCTimeMillis <$> minvt,
-                        postgresMarshall <$> mlh
+                        Postgres.userLegalHoldStatusToText <$> mlh
                       )
                   )
               )
@@ -346,13 +347,14 @@ migrateTeamMemberRow ::
   Prometheus.Vector Text Prometheus.Histogram ->
   ( UUID,
     UUID,
-    Vector Int16,
+    (Int64, Int64),
+    UTCTime,
     Maybe UUID,
     Maybe UTCTime,
-    Maybe Int16
+    Maybe Text
   ) ->
   Sem r ()
-migrateTeamMemberRow migOpts migCounter migDuration row@(tid, uid, _, _, _, _) =
+migrateTeamMemberRow migOpts migCounter migDuration row@(tid, uid, _, _, _, _, _) =
   withExclusiveMigrationLockAndTimeout
     migOpts.timeout
     migDuration
@@ -385,16 +387,21 @@ copyAuxiliaryTeamMemberRows tid uid = do
       retry x1 (query1 selectTeamAdminExact (params LocalQuorum (tid, uid)))
   for_ mAdmin $ \_ -> runStatement (toUUID tid, toUUID uid) upsertTeamAdminStatement
 
--- | Upserts exactly what Cassandra had for this member row.
+-- | Upserts exactly what Cassandra had for this member row; the Cassandra
+-- @writetime(perms)@ is carried over into the maintained @perms_write_time@
+-- column so 'teamMemberInfosPg' keeps serving the original permissions write
+-- time after the copy.
 upsertTeamMemberRow ::
   (PGConstraints r) =>
-  (UUID, UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16) ->
+  (UUID, UUID, (Int64, Int64), UTCTime, Maybe UUID, Maybe UTCTime, Maybe Text) ->
   Sem r ()
-upsertTeamMemberRow (tid, uid, perms, minvu, minvt, mlh) =
+upsertTeamMemberRow (tid, uid, (ps, pc), mwPerms, minvu, minvt, mlh) =
   runStatement
     ( tid,
       uid,
-      perms,
+      ps,
+      pc,
+      mwPerms,
       minvu,
       minvt,
       mlh
@@ -403,14 +410,16 @@ upsertTeamMemberRow (tid, uid, perms, minvu, minvt, mlh) =
 
 upsertTeamMemberStatement ::
   Hasql.Statement
-    (UUID, UUID, Vector Int16, Maybe UUID, Maybe UTCTime, Maybe Int16)
+    (UUID, UUID, Int64, Int64, UTCTime, Maybe UUID, Maybe UTCTime, Maybe Text)
     ()
 upsertTeamMemberStatement =
   [resultlessStatement|
-    insert into team_member (team, "user", perms, invited_by, invited_at, legalhold_status)
-    values ($1 :: uuid, $2 :: uuid, $3 :: smallint[], $4 :: uuid?, $5 :: timestamptz?, $6 :: smallint?)
-    on conflict (team, "user") do update set
-      perms = excluded.perms,
+    insert into team_member (team, user_id, perms_self, perms_copy, perms_write_time, invited_by, invited_at, legalhold_status)
+    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: timestamptz, $6 :: uuid?, $7 :: timestamptz?, $8 :: text?)
+    on conflict (team, user_id) do update set
+      perms_self = excluded.perms_self,
+      perms_copy = excluded.perms_copy,
+      perms_write_time = excluded.perms_write_time,
       invited_by = excluded.invited_by,
       invited_at = excluded.invited_at,
       legalhold_status = excluded.legalhold_status
@@ -419,30 +428,30 @@ upsertTeamMemberStatement =
 upsertUserTeamStatement :: Hasql.Statement (UUID, UUID) ()
 upsertUserTeamStatement =
   [resultlessStatement|
-    insert into user_team ("user", team) values ($1 :: uuid, $2 :: uuid)
-    on conflict ("user", team) do update set team = excluded.team
+    insert into user_team (user_id, team) values ($1 :: uuid, $2 :: uuid)
+    on conflict (user_id, team) do nothing
   |]
 
 upsertBillingTeamMemberStatement :: Hasql.Statement (UUID, UUID) ()
 upsertBillingTeamMemberStatement =
   [resultlessStatement|
-    insert into billing_team_member (team, "user") values ($1 :: uuid, $2 :: uuid)
-    on conflict (team, "user") do update set "user" = excluded."user"
+    insert into billing_team_member (team, user_id) values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, user_id) do nothing
   |]
 
 upsertTeamAdminStatement :: Hasql.Statement (UUID, UUID) ()
 upsertTeamAdminStatement =
   [resultlessStatement|
-    insert into team_admin (team, "user") values ($1 :: uuid, $2 :: uuid)
-    on conflict (team, "user") do update set "user" = excluded."user"
+    insert into team_admin (team, user_id) values ($1 :: uuid, $2 :: uuid)
+    on conflict (team, user_id) do nothing
   |]
 
 --------------------------------------------------------------------------------
 -- local scan queries (bound at use site so the Cql/Tuple instances resolve,
 -- mirroring Wire.ConversationStore.Migration)
 
-selectAllTeamMembers :: PrepQuery R () (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
-selectAllTeamMembers = "select team, user, perms, invited_by, invited_at, legalhold_status from team_member"
+selectAllTeamMembers :: PrepQuery R () (TeamId, UserId, Permissions, Writetime Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+selectAllTeamMembers = "select team, user, perms, writetime(perms), invited_by, invited_at, legalhold_status from team_member"
 
 selectUserTeamExact :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamExact = "select team from user_team where user = ? and team = ?"
