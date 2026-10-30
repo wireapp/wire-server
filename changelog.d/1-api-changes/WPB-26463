@@ -1,0 +1,1 @@
+Add `PUT /teams/{tid}/members/{uid}/verification-email` endpoint allowing team admins to resend the email verification for members with a pending unverified email address.

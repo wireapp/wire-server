@@ -2135,6 +2135,28 @@ type TeamsAPI =
                :> ReqBody '[JSON] AcceptTeamInvitation
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Team invitation accepted."] ()
            )
+    :<|> Named
+           "put-team-member-verification-email"
+           ( Summary "Resend verification email for a team member with a pending unverified email."
+               :> Description
+                    "If the target user has a pending (unverified) email address, a new \
+                    \verification email is sent. Returns 202 if the email was sent, 204 if \
+                    \the user has no pending verification (already verified or email validation \
+                    \is not enabled for the team). Requires the caller to be a team admin."
+               :> CanThrow 'InsufficientTeamPermissions
+               :> CanThrow 'UserNotFound
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> "verification-email"
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    ResendVerificationEmailResponses
+                    ResendVerificationEmailResult
+           )
 
 type SystemSettingsAPI =
   Named

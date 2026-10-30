@@ -67,9 +67,12 @@ import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
+import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
 import Wire.ClientStore (ClientStore)
+import Wire.DomainRegistrationStore
+import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.Error
 import Wire.Events (Events)
@@ -94,6 +97,7 @@ import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 
 servantAPI ::
   forall p r.
@@ -117,7 +121,12 @@ servantAPI ::
     Member AuthenticationSubsystem r,
     Member UserStore r,
     Member UserKeyStore r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member EmailSubsystem r,
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member BlockListStore r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -130,6 +139,37 @@ servantAPI =
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
+    :<|> Named @"put-team-member-verification-email" (\luid tid uid -> lift . liftSem $ resendVerificationEmail luid tid uid)
+
+resendVerificationEmail ::
+  ( Member (Error UserSubsystemError) r,
+    Member UserSubsystem r,
+    Member TeamSubsystem r,
+    Member BlockListStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r,
+    Member (Input (Local ())) r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r ResendVerificationEmailResult
+resendVerificationEmail luid tid uid = do
+  ensurePermissions (tUnqualified luid) tid [AddTeamMember]
+  lUid <- qualifyLocal' uid
+  account <- getAccountNoFilter lUid >>= note UserSubsystemProfileNotFound
+  when (account.userTeam /= Just tid) $ throw UserSubsystemInsufficientPermissions
+  case account.userEmailUnvalidated of
+    Nothing -> pure NoVerificationEmailPending
+    Just email -> do
+      _ <- requestEmailChange lUid email UpdateOriginScim
+      pure VerificationEmailSent
 
 teamSizePublic ::
   ( Member (Error UserSubsystemError) r,

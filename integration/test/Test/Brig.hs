@@ -391,3 +391,45 @@ testDeleteEmail = do
   associateUsrWithSSO
   deleteSelfEmail usr >>= assertSuccess
   searchShouldBe "empty"
+
+testResendVerificationEmailPendingEmail :: (HasCallStack) => App ()
+testResendVerificationEmailPendingEmail = do
+  (owner, tid, member : _) <- createTeam OwnDomain 1
+  newEmail <- randomEmail
+  BrigP.putUserEmail owner member newEmail >>= assertStatus 200
+  uid <- asString $ member %. "id"
+  BrigP.putResendVerificationEmail owner tid uid >>= assertStatus 202
+
+testResendVerificationEmailNoPendingEmail :: (HasCallStack) => App ()
+testResendVerificationEmailNoPendingEmail = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  ownerUid <- asString $ owner %. "id"
+  BrigP.putResendVerificationEmail owner tid ownerUid >>= assertStatus 204
+
+testResendVerificationEmailNonAdmin :: (HasCallStack) => App ()
+testResendVerificationEmailNonAdmin = do
+  (owner, tid, member : otherMember : _) <- createTeam OwnDomain 2
+  newEmail <- randomEmail
+  BrigP.putUserEmail owner member newEmail >>= assertStatus 200
+  memberUid <- asString $ member %. "id"
+  BrigP.putResendVerificationEmail otherMember tid memberUid >>= assertStatus 403
+
+testResendVerificationEmailWrongTeamCaller :: (HasCallStack) => App ()
+testResendVerificationEmailWrongTeamCaller = do
+  (_, tid, member : _) <- createTeam OwnDomain 1
+  (foreignOwner, _, _) <- createTeam OwnDomain 0
+  memberUid <- asString $ member %. "id"
+  BrigP.putResendVerificationEmail foreignOwner tid memberUid >>= assertStatus 403
+
+testResendVerificationEmailTargetNotInTeam :: (HasCallStack) => App ()
+testResendVerificationEmailTargetNotInTeam = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  (foreignUser, _, _) <- createTeam OwnDomain 0
+  foreignUid <- asString $ foreignUser %. "id"
+  BrigP.putResendVerificationEmail owner tid foreignUid >>= assertStatus 403
+
+testResendVerificationEmailUserNotFound :: (HasCallStack) => App ()
+testResendVerificationEmailUserNotFound = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  nonExistentUid <- liftIO (UUID.toString <$> UUID.nextRandom)
+  BrigP.putResendVerificationEmail owner tid nonExistentUid >>= assertStatus 404
