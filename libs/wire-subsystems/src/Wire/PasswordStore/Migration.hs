@@ -116,6 +116,14 @@ migrateAllProviderPasswords migOpts migCounter migDuration = do
               handleErrors (toByteString' pid) (migrateProviderPasswordRow migOpts migCounter migDuration pid password)
       )
 
+-- | Copies one provider-password row. The insert is guarded by the
+-- @provider_passwords_deletions@ marker table: dual-write deletes record the
+-- deleted provider there, so a copy pass cannot resurrect a credential that
+-- was deleted after the pass read its Cassandra page. The remaining race
+-- (a delete committing between the guard check and the insert, within one
+-- statement) is bounded and matches the accepted nonce/DPoP precedent
+-- (PR #5675): full serialization exists only under the Migrating interpreter
+-- lock.
 migrateProviderPasswordRow ::
   ( PGConstraints r,
     Member TinyLog r,
@@ -134,7 +142,7 @@ migrateProviderPasswordRow migOpts migCounter migDuration pid password = do
     (liftIO getCurrentTime)
     (observeDuration migDuration outcomeRef)
     ( const $ do
-        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.upsertProviderPassword pid password
+        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.insertProviderPasswordRowIfNotDeleted (pid, password)
         case timeoutResult of
           Left timedOutAfter -> do
             markOutcome outcomeRef "timeout"
