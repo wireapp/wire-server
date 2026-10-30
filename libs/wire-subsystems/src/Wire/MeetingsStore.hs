@@ -30,11 +30,14 @@ import Data.Vector qualified as V
 import Imports
 import Polysemy
 import Wire.API.Meeting
-  ( MeetingType,
+  ( Manager (..),
+    MeetingType,
     Recurrence (..),
     TimeZone,
+    parseManager,
     parseMeetingType,
     parseTimeZone,
+    renderManager,
     renderMeetingType,
     renderTimeZone,
   )
@@ -58,6 +61,12 @@ data StoredMeeting = StoredMeeting
     tzid :: TimeZone,
     -- | immediate or scheduled; pre-V19 rows are 'scheduled'
     meetingType :: MeetingType,
+    -- | lifecycle owner; @GoogleCalendar@ meetings are only mutable via the
+    -- calendar integration (OAuth callers)
+    managedBy :: Manager,
+    -- | external calendar references; set iff @managedBy /= Wire@
+    calendarEventId :: Maybe Text,
+    calendarId :: Maybe Text,
     -- | optional recurrence pattern
     recurrence :: Maybe Recurrence,
     -- | conversation where the meeting belongs
@@ -102,7 +111,10 @@ type StoredMeetingTuple =
     Data.Vector.Vector Text, -- invited_emails
     Bool, -- trial
     UTCTime, -- created_at
-    UTCTime -- updated_at
+    UTCTime, -- updated_at
+    Text, -- managed_by
+    Maybe Text, -- calendar_event_id
+    Maybe Text -- calendar_id
   )
 
 instance PostgresMarshall StoredMeetingTuple StoredMeeting where
@@ -122,7 +134,10 @@ instance PostgresMarshall StoredMeetingTuple StoredMeeting where
           V.fromList (map fromEmail storedMeeting.invitedEmails),
           storedMeeting.trial,
           storedMeeting.createdAt,
-          storedMeeting.updatedAt
+          storedMeeting.updatedAt,
+          renderManager storedMeeting.managedBy,
+          storedMeeting.calendarEventId,
+          storedMeeting.calendarId
         )
 
 instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
@@ -141,12 +156,16 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       invitedEmails',
       trial',
       createdAt',
-      updateAt'
+      updateAt',
+      mb',
+      ceid',
+      cid'
       ) = do
       rTitle <- first T.pack $ checkedEither title'
       recurrence' <- postgresUnmarshall (rFreq, rInterval, rUntil)
       tzid'' <- maybe (Left "invalid tzid") Right (parseTimeZone tzid')
       meetingType' <- maybe (Left "invalid mtype") Right (parseMeetingType mt')
+      managedBy' <- maybe (Left "invalid managed_by") Right (parseManager mb')
       pure
         StoredMeeting
           { id = Id id',
@@ -156,6 +175,9 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
             endTime = endTime',
             tzid = tzid'',
             meetingType = meetingType',
+            managedBy = managedBy',
+            calendarEventId = ceid',
+            calendarId = cid',
             recurrence = recurrence',
             conversationId = Id conversationId',
             invitedEmails = mapMaybe emailAddressText (V.toList invitedEmails'),
@@ -179,6 +201,13 @@ data MeetingsStore m a where
     ConvId ->
     [EmailAddress] ->
     Bool ->
+    -- | Lifecycle owner; @GoogleCalendar@ meetings are only mutable via the
+    -- calendar integration (OAuth callers).
+    Manager ->
+    -- | External calendar references (@calendar_event_id@, @calendar_id@);
+    -- set iff the manager is not 'Wire'.
+    Maybe Text ->
+    Maybe Text ->
     MeetingsStore m StoredMeeting
   UpdateMeeting ::
     MeetingId ->

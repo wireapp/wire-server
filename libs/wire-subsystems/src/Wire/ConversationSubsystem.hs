@@ -385,7 +385,7 @@ data ConversationSubsystem m a where
     ConversationSubsystem m (PostOtrResponse MessageSendingStatus)
   DeleteLocalConversation ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
     Local ConvId ->
     ConversationSubsystem m (UpdateResult Event)
   InternalDeleteLocalConversation ::

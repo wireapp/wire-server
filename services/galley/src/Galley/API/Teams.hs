@@ -915,7 +915,7 @@ deleteTeamConversation ::
   Sem r ()
 deleteTeamConversation lusr zcon _tid cid = do
   let lconv = qualifyAs lusr cid
-  void $ deleteLocalConversation lusr zcon lconv
+  void $ deleteLocalConversation lusr (Just zcon) lconv
 
 getSearchVisibility ::
   ( Member TeamStore r,

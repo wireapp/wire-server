@@ -408,6 +408,11 @@ data MeetingError
   | EmptyUpdate
   | MeetingsFeatureDisabled
   | MeetingNotLicensed
+  | ManagedByCalendar
+  | -- | The managed_by / Z-Client header / calendar field pairing is
+    -- inconsistent (e.g. a calendar-managed create without the
+    -- @Z-Client: Calendar@ header, or calendar fields on a wire-managed one).
+    InvalidCalendarFields
   deriving stock (Eq, Show)
 
 -- | The individual failure modes of meeting time validation.
@@ -431,6 +436,9 @@ meetingErrorToDyn = \case
   EmptyUpdate -> DynError 403 "invalid-op" "Meeting update must set at least one field"
   MeetingsFeatureDisabled -> DynError 403 "invalid-op" "The meetings feature is not enabled"
   MeetingNotLicensed -> DynError 403 "id-feature-error" "Not licensed on this backend"
+  ManagedByCalendar -> DynError 403 "managed-by-calendar" "This meeting is managed by an external calendar integration"
+  InvalidCalendarFields ->
+    DynError 400 "invalid-op" "Calendar-managed meetings require the Z-Client: Calendar header plus calendar_event_id and calendar_id; wire-managed meetings must not set them"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
@@ -439,14 +447,17 @@ instance APIError MeetingError where
 
 -- | The swagger documentation for 'MeetingError': one representative static
 -- error (the runtime messages are more detailed but share code and label).
-type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, or meetings feature disabled"
+type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, meetings feature disabled, or meeting managed by an external calendar integration"
 
 type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
+
+type InvalidCalendarFieldsStatic = 'StaticError 400 "invalid-op" "Calendar-managed meetings require the Z-Client: Calendar header and calendar fields; wire-managed meetings must not set them"
 
 instance IsSwaggerError MeetingError where
   addToOpenApi =
     addStaticErrorToSwagger @MeetingErrorStatic
       . addStaticErrorToSwagger @MeetingNotLicensedStatic
+      . addStaticErrorToSwagger @InvalidCalendarFieldsStatic
 
 instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where
   interpretServerEffect = mapError meetingErrorToDyn
