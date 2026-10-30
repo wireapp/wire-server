@@ -43,7 +43,6 @@ import Data.Code qualified as Code
 import Data.LegalHold (UserLegalHoldStatus)
 import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Vector (Vector)
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
@@ -77,7 +76,7 @@ tests =
       testRoundTrip @Text @TeamBinding,
       testRoundTrip @Text @TeamSearchVisibility,
       testRoundTrip @Text @Icon,
-      testRoundTrip @(Vector Int16) @Permissions,
+      testRoundTrip @(Int64, Int64) @Permissions,
       testRoundTrip @Int16 @UserLegalHoldStatus,
       testRoundTrip @A.Value @DbConfig
     ]
