@@ -893,7 +893,7 @@ spar:
       scimTokens: cassandra
       scimExternalIds: cassandra
       samlUsers: cassandra
-      richInfoLimit: 5000
+    richInfoLimit: 5000
     maxScimTokens: 0
 
     # Enables the `/sso/get-by-email` endpoint which returns the matching IdP for
