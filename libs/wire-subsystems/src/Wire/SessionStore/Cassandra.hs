@@ -108,6 +108,8 @@ deleteAllCookiesImpl u = retry x5 (write cql (params LocalQuorum (Identity u)))
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM user_cookies WHERE user = ?"
 
--- | Full-table scan used by the Postgres migration copy loop.
-selectAllSessions :: PrepQuery R () (Identity (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId))
-selectAllSessions = "SELECT user, id, created, expires, type, label, succ_id FROM user_cookies"
+-- | Full-table scan used by the Postgres migration copy loop.  @ttl(created)@
+-- yields the row's remaining Cassandra TTL (seconds); cookies are always
+-- written with a row TTL, so it is only 'Nothing' for anomalous rows.
+selectAllSessions :: PrepQuery R () (Identity (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32))
+selectAllSessions = "SELECT user, id, created, expires, type, label, succ_id, ttl(created) FROM user_cookies"
