@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.FederationConfigStore.Cassandra
-  ( interpretFederationDomainConfig,
+  ( interpretFederationConfigStoreCassandra,
     remotesMapFromCfgFile,
     AddFederationRemoteResult (..),
   )
@@ -37,20 +37,15 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
 import Wire.FederationConfigStore
 
--- | Interpreter for getting the federation config from the database and the config file.
--- The config file is injected into the interpreter and has precedence over the database.
--- The config file is static and can only be changed by restarting the service.
--- If a domain is configured in the config file, it is not allowed to add it to the database.
--- If a domain is configured in the config file, it is not allowed to update it in the database.
--- If a domain is configured in the config file, it is not allowed to add a team restriction to it in the database.
--- In the future the config file will be removed and the database will be the only source of truth.
-interpretFederationDomainConfig ::
+-- | Interpreter for the federation config store (Cassandra database only).
+-- Config-file precedence and strategy merging live in Wire.FederationConfigSubsystem.Interpreter.
+interpretFederationConfigStoreCassandra ::
   forall r a.
   (Member (Embed IO) r) =>
   ClientState ->
   Sem (FederationConfigStore ': r) a ->
   Sem r a
-interpretFederationDomainConfig casClient =
+interpretFederationConfigStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . embed . \case
       GetFederationConfig d -> getFederationConfigImpl d
