@@ -43,13 +43,14 @@ selectAllTeams ::
       Maybe Text,
       Bool,
       Maybe TeamStatus,
+      Maybe (Writetime TeamStatus),
       Maybe TeamBinding,
+      Maybe (Writetime TeamBinding),
       Maybe Icon,
-      Maybe TeamSearchVisibility,
-      Maybe (Writetime TeamBinding)
+      Maybe TeamSearchVisibility
     )
 selectAllTeams =
-  "select team, creator, name, icon, icon_key, deleted, status, binding, splash_screen, search_visibility, writetime(binding) from team"
+  "select team, creator, name, icon, icon_key, deleted, status, writetime(status), binding, writetime(binding), splash_screen, search_visibility from team"
 
 selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe Icon)
 selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding, splash_screen from team where team = ?"
