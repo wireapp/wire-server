@@ -104,6 +104,15 @@ migrateAllActivationKeys migOpts migCounter migDuration = do
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_ (traverse_ (\row@(key, _, _, _, _, _) -> handleErrors (toByteString' key) (migrateActivationKeyRow migCounter migDuration row)))
 
+-- | Copy one activation-key row to Postgres.
+--
+-- The insert is guarded by the @activation_keys_deletions@ marker table: keys
+-- deleted via the dual-write delete after a copy pass are skipped, so re-running
+-- the loop cannot resurrect a consumed key. This is bounded by the statement
+-- composition of the dual-write delete (marker insert and mirrored delete run in
+-- the same Postgres statement sequence); full serialization of copy vs. runtime
+-- traffic exists only where a Migrating-interpreter lock does, which is why the
+-- nonce (DPoP replay) migration accepted the same residual race (see PR #5675).
 migrateActivationKeyRow ::
   (PGConstraints r) =>
   Prometheus.Counter ->
@@ -114,7 +123,7 @@ migrateActivationKeyRow migCounter migDuration (key, keyText, code, mUser, retri
   when (ttl > 0) $ do
     start <- liftIO getCurrentTime
     Postgres.interpretActivationCodeStoreToPostgres $
-      Postgres.insertActivationKeyRow (key, "email", keyText, code, mUser, retries, ttl)
+      Postgres.insertActivationKeyRowIfNotDeleted (key, "email", keyText, code, mUser, retries, ttl)
     end <- liftIO getCurrentTime
     liftIO $ Prometheus.withLabel migDuration "success" (`Prometheus.observe` realToFrac (diffUTCTime end start))
     liftIO $ Prometheus.incCounter migCounter

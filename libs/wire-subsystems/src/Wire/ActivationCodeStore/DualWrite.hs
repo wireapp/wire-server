@@ -56,7 +56,10 @@ interpretActivationCodeStoreToCassandraAndPostgres cs = interpret $ \case
     pure activation
   DeleteActivationCode ek -> do
     Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.deleteActivationCode ek
-    Postgres.interpretActivationCodeStoreToPostgres $ ActivationCodeStore.deleteActivationCode ek
+    key <- embed (mkActivationKey ek)
+    Postgres.interpretActivationCodeStoreToPostgres $ do
+      Postgres.insertActivationKeyDeletionMarker key
+      ActivationCodeStore.deleteActivationCode ek
   LookupActivationKey key ->
     -- Cassandra is the source of truth for reads.
     Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.lookupActivationKey key
@@ -65,4 +68,6 @@ interpretActivationCodeStoreToCassandraAndPostgres cs = interpret $ \case
     Postgres.interpretActivationCodeStoreToPostgres $ ActivationCodeStore.decrementActivationRetries key
   DeleteActivationKey key -> do
     Cassandra.interpretActivationCodeStoreToCassandra cs $ ActivationCodeStore.deleteActivationKey key
-    Postgres.interpretActivationCodeStoreToPostgres $ ActivationCodeStore.deleteActivationKey key
+    Postgres.interpretActivationCodeStoreToPostgres $ do
+      Postgres.insertActivationKeyDeletionMarker key
+      ActivationCodeStore.deleteActivationKey key
