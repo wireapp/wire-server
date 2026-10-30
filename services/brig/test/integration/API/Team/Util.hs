@@ -484,3 +484,12 @@ setUserEmail brig from uid email = do
         . contentJson
         . body (RequestBodyLBS . encode $ Public.EmailUpdate email)
     )
+
+resendVerificationEmailRequest :: Brig -> UserId -> TeamId -> UserId -> Http ResponseLBS
+resendVerificationEmailRequest brig caller tid target =
+  put
+    ( brig
+        . paths ["teams", toByteString' tid, "members", toByteString' target, "verification-email"]
+        . zUser caller
+        . zConn "conn"
+    )
