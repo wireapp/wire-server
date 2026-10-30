@@ -431,6 +431,7 @@ library
     Wire.PasswordResetCodeStore.Postgres
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.PasswordStore.DualWrite
     Wire.PasswordStore.Migration
     Wire.PasswordStore.Postgres
     Wire.Postgres

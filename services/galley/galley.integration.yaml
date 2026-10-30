@@ -273,5 +273,3 @@ postgresMigration:
   passwordReset: postgresql
   customBackend: postgresql
   providerPassword: postgresql
-
-optSettings:

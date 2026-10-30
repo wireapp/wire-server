@@ -2462,11 +2462,11 @@ The current settings and their background-worker flags are:
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
 
-   > ℹ️ The provider-password migration is copy-only: while
-   > `providerPassword: migration-to-postgresql` is set, Cassandra remains the
-   > source of truth for reads and writes. The worker can be re-run at any
-   > time; it re-scans Cassandra and upserts rows idempotently, healing any
-   > provider passwords written after a completed pass before the cutover.
+   > ℹ️ While `providerPassword: migration-to-postgresql` is set, Cassandra
+   > remains the source of truth for reads, and writes are mirrored to
+   > PostgreSQL (dual-write). The background worker can be re-run at any time;
+   > it re-scans Cassandra and upserts rows idempotently, healing any provider
+   > passwords written after a completed pass before the cutover.
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
