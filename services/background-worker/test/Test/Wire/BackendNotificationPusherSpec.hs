@@ -502,6 +502,9 @@ spec = do
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
                 customBackend = CassandraStorage,
+                budget = CassandraStorage,
+                nonce = CassandraStorage,
+                connections = CassandraStorage,
                 scimTokens = CassandraStorage,
                 scimExternalIds = CassandraStorage
               }
@@ -574,6 +577,9 @@ spec = do
                 blockList = CassandraStorage,
                 passwordReset = CassandraStorage,
                 customBackend = CassandraStorage,
+                budget = CassandraStorage,
+                nonce = CassandraStorage,
+                connections = CassandraStorage,
                 scimTokens = CassandraStorage,
                 scimExternalIds = CassandraStorage
               }
