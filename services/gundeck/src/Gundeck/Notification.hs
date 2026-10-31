@@ -32,6 +32,7 @@ import Data.Range
 import Data.UUID qualified as UUID
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Data
+import Gundeck.Notification.Metrics
 import Gundeck.Options (brig)
 import Imports hiding (getLast)
 import Network.HTTP.Types (status400)
@@ -55,6 +56,14 @@ paginate uid since mclt size = do
 
   time <- posixTime
   rs <- Data.fetch uid mclt since size
+  observeFetch
+    FetchStats
+      { hasClient = isJust mclt,
+        hasSince = isJust since,
+        gap = Data.resultGap rs,
+        hasMore = Data.resultHasMore rs,
+        returned = length (Data.resultSeq rs)
+      }
   pure $ PaginateResult (Data.resultGap rs) (resultList time rs)
   where
     resultList time rs =

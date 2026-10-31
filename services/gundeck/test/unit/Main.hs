@@ -24,6 +24,7 @@ import Aws.Arn qualified
 import DelayQueue qualified
 import Imports
 import Json qualified
+import Metrics qualified
 import Native qualified
 import OpenSSL (withOpenSSL)
 import ParseExistsError qualified
@@ -38,6 +39,7 @@ main =
       "Main"
       [ DelayQueue.tests,
         Json.tests,
+        Metrics.tests,
         Native.tests,
         Push.tests,
         ThreadBudget.tests,

@@ -62,12 +62,16 @@ class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
   mbpMapConcurrently :: (Traversable t) => (a -> m b) -> t a -> m (t b)
   mbpMonitorBadCannons :: (URI, (SomeException, [Presence])) -> m ()
 
+  -- | Notifications pushed, and the successful deliveries.
+  mbpMonitorDelivered :: [(Notification, [Presence])] -> [(NotificationId, Presence)] -> m ()
+
 instance MonadBulkPush Gundeck where
   mbpBulkSend = bulkSend
   mbpDeleteAllPresences = runWithAdditionalRedis . Presence.deleteAll
   mbpPosixTime = posixTime
   mbpMapConcurrently = mapConcurrently
   mbpMonitorBadCannons = monitorBadCannons
+  mbpMonitorDelivered = monitorDelivered
 
 -- | Send a 'Notification's to associated 'Presence's.  Send at most one request to each Cannon.
 -- Return the lists of 'Presence's successfully reached for each resp. 'Notification'.
@@ -89,6 +93,7 @@ bulkPush notifs = do
   successes :: [(NotificationId, Presence)] <-
     (\(nid, trgt) -> (nid,) <$> presenceByPushTarget trgt) `mapM` flowBackDelivered flbck
   (\info -> mbpMonitorBadCannons info >> logBadCannons info) `mapM_` badCannons
+  mbpMonitorDelivered notifs successes
   logPrcsGone `mapM_` prcsGone
   logSuccesses `mapM_` successes
   mbpDeleteAllPresences =<< do
@@ -106,6 +111,36 @@ monitorBadCannons ::
   m ()
 monitorBadCannons (_uri, (_err, prcs)) =
   void $ Prom.addCounter pushWsUnreachableCounter (fromIntegral $ length prcs)
+
+-- | Count successful deliveries, and how many of them were for transient notifications.
+monitorDelivered :: (Prom.MonadMonitor m) => [(Notification, [Presence])] -> [(NotificationId, Presence)] -> m ()
+monitorDelivered notifs successes = do
+  void $ Prom.addCounter pushWsDeliveredPresencesCounter (fromIntegral delivered)
+  void $ Prom.addCounter pushWsDeliveredPresencesTransientCounter (fromIntegral transient)
+  where
+    delivered = length successes
+    transient = length (filter ((`Set.member` transientIds) . fst) successes)
+    transientIds = Set.fromList [ntfId n | (n, _) <- notifs, ntfTransient n]
+
+{-# NOINLINE pushWsDeliveredPresencesCounter #-}
+pushWsDeliveredPresencesCounter :: Prom.Counter
+pushWsDeliveredPresencesCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push_ws_delivered_presences",
+          Prom.metricHelp = "Number of websocket presences that were successfully pushed to (including transient pushes)"
+        }
+
+{-# NOINLINE pushWsDeliveredPresencesTransientCounter #-}
+pushWsDeliveredPresencesTransientCounter :: Prom.Counter
+pushWsDeliveredPresencesTransientCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push_ws_delivered_presences_transient",
+          Prom.metricHelp = "Number of websocket presences that were successfully pushed to with a transient push"
+        }
 
 {-# NOINLINE pushWsUnreachableCounter #-}
 pushWsUnreachableCounter :: Prom.Counter

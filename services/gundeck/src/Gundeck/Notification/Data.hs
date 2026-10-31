@@ -37,6 +37,7 @@ import Data.Range (Range, fromRange)
 import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
 import Gundeck.Env
+import Gundeck.Notification.Metrics (observeStored)
 import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, settings)
 import Gundeck.Push.Native.Serialise ()
 import Imports
@@ -85,6 +86,7 @@ add n tgts (JSON.encode -> payload) (notificationTTLSeconds -> t) = do
         let u = tgt ^. targetUser
             cs = C.Set (tgt ^. targetClients)
          in retry x5 $ write cqlInsertReference (params LocalQuorum (u, n, payloadId, payloadRefSize, cs, fromIntegral t))
+  observeStored tgts (BSL.length payload)
   where
     cqlInsertInline :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
     cqlInsertInline =
