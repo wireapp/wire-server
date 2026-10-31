@@ -41,6 +41,7 @@ import Data.Set qualified as Set
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import Gundeck.Presence.Data qualified as Presence
+import Gundeck.Push.Metrics
 import Gundeck.Util
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
@@ -103,54 +104,6 @@ bulkPush notifs = do
         posixDay = Ms (round (1000 * posixDayLength))
     pure deletions
   pure (groupAssoc successes)
-
--- | log all cannons with response status @/= 200@.
-monitorBadCannons ::
-  (Prom.MonadMonitor m) =>
-  (uri, (error, [Presence])) ->
-  m ()
-monitorBadCannons (_uri, (_err, prcs)) =
-  void $ Prom.addCounter pushWsUnreachableCounter (fromIntegral $ length prcs)
-
--- | Count successful deliveries, and how many of them were for transient notifications.
-monitorDelivered :: (Prom.MonadMonitor m) => [(Notification, [Presence])] -> [(NotificationId, Presence)] -> m ()
-monitorDelivered notifs successes = do
-  void $ Prom.addCounter pushWsDeliveredPresencesCounter (fromIntegral delivered)
-  void $ Prom.addCounter pushWsDeliveredPresencesTransientCounter (fromIntegral transient)
-  where
-    delivered = length successes
-    transient = length (filter ((`Set.member` transientIds) . fst) successes)
-    transientIds = Set.fromList [ntfId n | (n, _) <- notifs, ntfTransient n]
-
-{-# NOINLINE pushWsDeliveredPresencesCounter #-}
-pushWsDeliveredPresencesCounter :: Prom.Counter
-pushWsDeliveredPresencesCounter =
-  Prom.unsafeRegister $
-    Prom.counter
-      Prom.Info
-        { Prom.metricName = "push_ws_delivered_presences",
-          Prom.metricHelp = "Number of websocket presences that were successfully pushed to (including transient pushes)"
-        }
-
-{-# NOINLINE pushWsDeliveredPresencesTransientCounter #-}
-pushWsDeliveredPresencesTransientCounter :: Prom.Counter
-pushWsDeliveredPresencesTransientCounter =
-  Prom.unsafeRegister $
-    Prom.counter
-      Prom.Info
-        { Prom.metricName = "push_ws_delivered_presences_transient",
-          Prom.metricHelp = "Number of websocket presences that were successfully pushed to with a transient push"
-        }
-
-{-# NOINLINE pushWsUnreachableCounter #-}
-pushWsUnreachableCounter :: Prom.Counter
-pushWsUnreachableCounter =
-  Prom.unsafeRegister $
-    Prom.counter
-      Prom.Info
-        { Prom.metricName = "push_ws_unreachable",
-          Prom.metricHelp = "Number of times websocket pushes were not pushed due cannon being unreachable"
-        }
 
 logBadCannons :: (Log.MonadLogger m) => (URI, (SomeException, [Presence])) -> m ()
 logBadCannons (uri, (err, prcs)) = do
