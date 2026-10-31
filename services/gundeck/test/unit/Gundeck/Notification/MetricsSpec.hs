@@ -51,8 +51,6 @@ someClientsTarget n = do
   t <- allClientsTarget
   pure (t & targetClients .~ map (ClientId . fromIntegral) [1 .. n])
 
--- TODO: Consider to intialize the counters
-
 -- | Store a push with one target for all clients, and two for some clients (3
 -- and 1) with a payload of the given size.
 storeMixed :: Int64 -> IO ()
