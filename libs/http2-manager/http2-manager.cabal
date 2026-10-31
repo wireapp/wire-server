@@ -71,7 +71,7 @@ test-suite http2-manager-tests
     -with-rtsopts=-N
 
   if flag(test-trailing-dot)
-    cpp-options: -DENABLE-TRAILING-DOT-TEST
+    cpp-options: -DENABLE_TRAILING_DOT_TEST
 
   -- cabal-fmt: expand test
   other-modules:
