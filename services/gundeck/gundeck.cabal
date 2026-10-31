@@ -475,8 +475,8 @@ test-suite gundeck-tests
   other-modules:
     Aws.Arn
     DelayQueue
+    Gundeck.Notification.MetricsSpec
     Json
-    Metrics
     MockGundeck
     Native
     ParseExistsError

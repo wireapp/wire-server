@@ -22,9 +22,9 @@ where
 
 import Aws.Arn qualified
 import DelayQueue qualified
+import Gundeck.Notification.MetricsSpec qualified
 import Imports
 import Json qualified
-import Metrics qualified
 import Native qualified
 import OpenSSL (withOpenSSL)
 import ParseExistsError qualified
@@ -38,8 +38,8 @@ main =
     testGroup
       "Main"
       [ DelayQueue.tests,
+        Gundeck.Notification.MetricsSpec.tests,
         Json.tests,
-        Metrics.tests,
         Native.tests,
         Push.tests,
         ThreadBudget.tests,

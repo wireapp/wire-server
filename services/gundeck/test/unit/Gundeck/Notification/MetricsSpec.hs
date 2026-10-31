@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Metrics (tests) where
+module Gundeck.Notification.MetricsSpec (tests) where
 
 import Control.Lens ((.~))
 import Data.Id
@@ -56,7 +56,6 @@ sample name = do
 -- TODO: Split this test function up.
 -- TODO: Consider to intialize the counters
 -- TODO: WebSocket metrics untested
--- TODO: Reflect the modules structure of prod code
 
 -- | All assertions are in one test case, because the metrics are global and
 -- the test cases could otherwise run in parallel and disturb each other's
