@@ -23,6 +23,7 @@ where
 import Aws.Arn qualified
 import DelayQueue qualified
 import Gundeck.Notification.MetricsSpec qualified
+import Gundeck.Push.MetricsSpec qualified
 import Imports
 import Json qualified
 import Native qualified
@@ -39,6 +40,7 @@ main =
       "Main"
       [ DelayQueue.tests,
         Gundeck.Notification.MetricsSpec.tests,
+        Gundeck.Push.MetricsSpec.tests,
         Json.tests,
         Native.tests,
         Push.tests,

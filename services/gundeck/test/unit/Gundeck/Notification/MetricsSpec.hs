@@ -20,10 +20,9 @@ module Gundeck.Notification.MetricsSpec (tests) where
 import Control.Lens ((.~))
 import Data.Id
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.String.Conversions (cs)
 import Gundeck.Notification.Metrics
 import Imports
-import Prometheus qualified as Prom
+import MetricsHelper
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Internal.Notification
@@ -53,26 +52,6 @@ someClientsTarget n = do
   pure (t & targetClients .~ map (ClientId . fromIntegral) [1 .. n])
 
 -- TODO: Consider to intialize the counters
--- TODO: WebSocket metrics untested
-
--- | Value of a sample (e.g. @push_stored_targets_sum@) in the exported
--- metrics. A metric is only registered when first used, so a missing sample
--- counts as 0.
-sample :: String -> IO Double
-sample name = do
-  exported <- cs <$> Prom.exportMetricsAsText
-  case [read v | l <- lines exported, [k, v] <- [words l], k == name] of
-    [] -> pure 0
-    [v] -> pure v
-    vs -> assertFailure ("expected exactly one sample for " <> name <> ", got " <> show (length vs))
-
--- | How much the samples change while running the action.
-deltas :: [String] -> IO () -> IO [(String, Double)]
-deltas names action = do
-  beforeVals <- traverse sample names
-  action
-  afterVals <- traverse sample names
-  pure (zip names (zipWith (-) afterVals beforeVals))
 
 -- | Store a push with one target for all clients, and two for some clients (3
 -- and 1) with a payload of the given size.
