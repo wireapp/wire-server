@@ -1,0 +1,15 @@
+Gundeck: new Prometheus metrics about stored notifications, notification fetches and websocket deliveries.
+
+- push_stored_targets: histogram of the number of targets of each stored push
+- push_stored_targets_all_clients: stored push targets that address all clients of a user
+- push_stored_targets_some_clients: stored push targets that address specific clients of a user
+- push_stored_target_clients: histogram of the number of clients of each stored push target that addresses specific clients
+- push_stored_payload_bytes: histogram of the size of the encoded payload of each stored push
+- notification_fetch: notification fetches
+- notification_fetch_without_client: notification fetches without a client
+- notification_fetch_without_since: notification fetches without a starting notification id
+- notification_fetch_gap: notification fetches whose starting notification id was not found
+- notification_fetch_has_more: notification fetches that have more notifications to fetch
+- notification_fetch_returned: histogram of the number of notifications returned by each fetch
+- push_ws_delivered_presences: websocket presences that were successfully pushed to (including transient pushes)
+- push_ws_delivered_presences_transient: websocket presences that were successfully pushed to with a transient push
