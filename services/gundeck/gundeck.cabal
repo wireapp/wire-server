@@ -35,6 +35,7 @@ library
     Gundeck.Presence.Data
     Gundeck.Push
     Gundeck.Push.Data
+    Gundeck.Push.Metrics
     Gundeck.Push.Native
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
@@ -476,7 +477,10 @@ test-suite gundeck-tests
     Aws.Arn
     DelayQueue
     Gundeck.Notification.MetricsSpec
+    Gundeck.Push.MetricsSpec
+    Gundeck.Push.WebsocketSpec
     Json
+    MetricsHelper
     MockGundeck
     Native
     ParseExistsError
