@@ -29,20 +29,19 @@ module Gundeck.Notification.Metrics
 where
 
 import Control.Lens ((^.))
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Imports
 import Prometheus qualified as Prom
 import Wire.API.Internal.Notification
 
 -- | Observe a push that is stored, with the size of its encoded payload.
-observeStored :: (MonadIO m) => NonEmpty NotificationTarget -> Int64 -> m ()
+observeStored :: (MonadIO m) => NonEmpty.NonEmpty NotificationTarget -> Int64 -> m ()
 observeStored tgts payloadBytes = liftIO $ do
   -- An empty `targetClients` list means that all clients should be targeted,
   -- non-empty selects the listed.
-  let clientCounts = length . (^. targetClients) <$> toList tgts
-      someClientCounts = filter (> 0) clientCounts
-  Prom.observe pushStoredTargets (fromIntegral (length clientCounts))
-  void $ Prom.addCounter pushStoredTargetsAllClients (fromIntegral (length clientCounts - length someClientCounts))
+  let (allClientCounts, someClientCounts) = NonEmpty.partition (== 0) (length . (^. targetClients) <$> tgts)
+  Prom.observe pushStoredTargets (fromIntegral (length tgts))
+  void $ Prom.addCounter pushStoredTargetsAllClients (fromIntegral (length allClientCounts))
   void $ Prom.addCounter pushStoredTargetsSomeClients (fromIntegral (length someClientCounts))
   traverse_ (Prom.observe pushStoredTargetClients . fromIntegral) someClientCounts
   Prom.observe pushStoredPayloadBytes (fromIntegral payloadBytes)
