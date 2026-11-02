@@ -1,7 +1,7 @@
-"""Shared code of the experiment drivers (run-2000x1.py, run-team-1.py): runs
+"""Shared code of the experiment drivers (run-*.py): runs
 fan-in-perf experiments A-F (WPB-26288) on pg_partman (partitioned) and plain
 tables and renders a markdown report. A driver defines its scenario as a
-`Config` and calls `main(cfg)`; the drivers' docstrings describe the usage.
+`Config` and calls `main(cfg, __doc__)`; the drivers' docstrings describe the usage.
 The tool's output of every run goes to the driver's log directory.
 """
 
@@ -52,6 +52,7 @@ class Config:
     split_timeout: int
     pool_split: int  # reader pool of E and F
     tuning_text: str  # how w_*/pool_* were chosen, for the Setup bullet
+    payload_bytes: int = None  # --payload-bytes default of the script (None: the tool's)
 
 
 def log(msg):
@@ -406,7 +407,7 @@ def main(cfg, doc):
     ap.add_argument("out", nargs="?", default=cfg.default_out)
     ap.add_argument("--only", help="comma-separated experiments to run, e.g. E,F (default: all)")
     ap.add_argument("--quick", action="store_true", help="divide all durations by 10 (smoke test)")
-    ap.add_argument("--payload-bytes", type=int, help="approximate JSON payload size of every push (default: the tool's, 512)")
+    ap.add_argument("--payload-bytes", type=int, default=cfg.payload_bytes, help="approximate JSON payload size of every push (default: the script's, else the tool's 512)")
     ap.add_argument("--db", default=DB, help="connection string; its fan-in tables and pg_partman are dropped and recreated")
     args = ap.parse_args()
     DB, out = args.db, args.out

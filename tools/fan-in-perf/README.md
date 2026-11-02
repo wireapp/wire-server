@@ -15,7 +15,10 @@ order and report rendering for the known experiments. `--payload-bytes 1024`
 runs them with a more realistic payload size (a typical message event: ~400
 bytes of envelope plus the encrypted message). `./run-team-1.py` runs the same
 experiments with `--targets team:1`: 2000 users with 2 clients each read one
-team stream (4000 readers). Both share `./drivers-lib.py`.
+team stream (4000 readers). `./run-team-1-1-client.py` does the same with 1
+client per user (2000 readers). `./run-2000x1-2-clients-1kb.py` runs `user:2000x1` with
+2 clients per user (4000 readers) and 1 KB payload. All share
+`./drivers-lib.py`.
 
 To have more control over the infrastructure setup, not interfere with existing
 requirements (e.g. integration tests) and provide observability,
