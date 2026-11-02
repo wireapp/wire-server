@@ -18,11 +18,14 @@
 
 module Wire.ConnectionStore.Cassandra
   ( connectionStoreToCassandra,
+    deleteIncomingConnections,
 
     -- * Raw queries (used by the integration test and the migration loop)
     connectionsSelect,
     remoteConnectionInsert,
     remoteConnectionSelect,
+    connectionClear,
+    remoteConnectionClear,
   )
 where
 
@@ -273,6 +276,16 @@ deleteRemoteConnections ::
 deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
     write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
+
+-- | Delete the reverse rows (@left = contact, right = u@) of the given
+-- contacts. Unlike 'deleteConnections' this takes the contact list as an
+-- argument: the dual-write interpreter uses it when u's own Cassandra
+-- partitions are already cleared (u migrated), so the contact list can only
+-- come from Postgres.
+deleteIncomingConnections :: (MonadClient m, MonadUnliftIO m) => UserId -> [UserId] -> m ()
+deleteIncomingConnections u contacts =
+  pooledForConcurrentlyN_ 16 contacts $ \other ->
+    write connectionDelete $ params LocalQuorum (other, u)
 
 connectionStoreToCassandra ::
   forall r.

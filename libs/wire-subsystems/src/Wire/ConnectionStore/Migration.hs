@@ -43,14 +43,20 @@ import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
+import UnliftIO.Exception (try)
 import Wire.API.Connection (RelationWithHistory)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), lmapPG)
 import Wire.ConnectionStore.Cassandra
-  ( connectionsSelect,
+  ( connectionClear,
+    connectionsSelect,
+    remoteConnectionClear,
     remoteConnectionSelect,
   )
 import Wire.Migration
+import Wire.MigrationLock (MigrationLockError)
 import Wire.Postgres
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
@@ -63,12 +69,18 @@ type EffectStack =
     Race,
     TinyLog,
     Embed IO,
+    Concurrency 'Unsafe,
     Final IO
   ]
 
--- | Copy-only migration of the @connection@ and @connection_remote@ tables
--- from Cassandra to Postgres. Two sequential sub-loops share one
--- @finished@ counter; the loop reports 1.0 once both tables are copied.
+-- | Migration of the @connection@ and @connection_remote@ tables from
+-- Cassandra to Postgres. Entities are copied per @left@ user under an
+-- exclusive migration lock, and the copied Cassandra partitions are deleted
+-- in the same locked section once both tables for that user are fully copied
+-- (the @UserStore@ pattern). Two sequential scans share one @finished@
+-- counter; the loop reports 1.0 once both scans are done. Remote-only users
+-- exist, so both scans run; visiting a user twice is a no-op because the
+-- per-user action is idempotent.
 migrateConnectionsLoop ::
   MigrationOptions ->
   ClientState ->
@@ -86,11 +98,12 @@ migrateConnectionsLoop migOpts cassClient pgPool logger migCounter migFinished m
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "connections")
-    (migrateAllConnections migOpts migCounter migFailed migDuration)
+    (migrateAllConnections migOpts migCounter migDuration)
 
 interpreter :: ClientState -> HasqlPoolExt.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
   runFinal
+    . unsafelyPerformConcurrency
     . embedToFinal
     . loggerToTinyLog logger
     . mapLogger (Log.field "migration" (Log.val name) .)
@@ -103,29 +116,79 @@ interpreter cassClient pgPool logger name =
     . atomicStateToIO 0
 
 migrateAllConnections ::
-  ( Member (Input HasqlPoolExt.Pool) r,
+  ( Member TinyLog r,
+    Member (Input HasqlPoolExt.Pool) r,
     Member (Input ClientState) r,
     Member (Embed IO) r,
-    Member TinyLog r,
-    Member (AtomicState Int) r
+    Member (AtomicState Int) r,
+    Member (Concurrency Unsafe) r,
+    Member Async r,
+    Member Race r,
+    Member Resource r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
-  Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllConnections migOpts migCounter migFailed migDuration = do
+migrateAllConnections migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrating connection table")
-  copyTable migOpts migCounter migFailed migDuration selectConnectionLefts connectionsSelect upsertConnection
+  scanLefts selectConnectionLefts
   lift $ info $ Log.msg (Log.val "migrating connection_remote table")
-  copyTable migOpts migCounter migFailed migDuration selectRemoteConnectionLefts remoteConnectionSelect upsertRemoteConnection
+  scanLefts selectRemoteConnectionLefts
+  where
+    scanLefts select =
+      withCount (paginateSem select (paramsP LocalQuorum () migOpts.pageSize) x5)
+        .| logRetrievedPage migOpts.pageSize runIdentity
+        .| C.mapM_
+          ( unsafePooledMapConcurrentlyN_
+              migOpts.parallelism
+              ( \uid ->
+                  handleLockAndDBErrors "connection" (migrateConnectionsForUser migOpts migCounter migDuration uid)
+              )
+          )
 
--- | For every partition key (left user) page all rows out of Cassandra and
--- upsert them into Postgres, preserving the original @last_update@.
-copyTable ::
-  forall row r.
-  ( Member (Input HasqlPoolExt.Pool) r,
+-- | Migrate one @left@ user's @connection@ and @connection_remote@
+-- partitions into Postgres, then delete the Cassandra partitions. All of this
+-- happens under an exclusive per-user lock, so it is serialized against the
+-- dual-write interpreter's shared-locked reads and deletes: a partition is
+-- only removed from Cassandra after every row is in Postgres and readers have
+-- moved to Postgres for this user.
+--
+-- The Cassandra partitions are deleted only if both tables were copied
+-- without a single row error; otherwise the user is left untouched and the
+-- migration loop retries it on the next pass (the timestamp-guarded upserts
+-- make re-copying a no-op). The re-scan of @SELECT DISTINCT left@ is the
+-- crash recovery — a worker restart picks up half-migrated users from zero.
+--
+-- A per-user 'MigrationTimedOut' aborts the whole loop, exactly as for users
+-- and conversations; the ops lever is the shared @migrationOptions.timeout@.
+migrateConnectionsForUser ::
+  ( PGConstraints r,
+    Member TinyLog r,
     Member (Input ClientState) r,
+    Member (AtomicState Int) r,
+    Member (Error MigrationLockError) r,
+    Member Async r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  MigrationOptions ->
+  Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  UserId ->
+  Sem r ()
+migrateConnectionsForUser migOpts migCounter migDuration left =
+  withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [left] $ do
+    localCopied <- copyPartition migOpts migCounter migDuration connectionsSelect upsertConnection left
+    remoteCopied <- copyPartition migOpts migCounter migDuration remoteConnectionSelect upsertRemoteConnection left
+    when (localCopied && remoteCopied) $ clearCassandraPartitions left
+
+-- | Page all rows of one partition out of Cassandra and upsert them into
+-- Postgres, preserving the original @last_update@. Returns whether every row
+-- copied without error.
+copyPartition ::
+  forall row r.
+  ( Member (Input ClientState) r,
     Member (Embed IO) r,
     Member TinyLog r,
     Member (AtomicState Int) r,
@@ -133,26 +196,31 @@ copyTable ::
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
-  Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
-  PrepQuery R () (Identity UserId) ->
   PrepQuery R (Identity UserId) row ->
-  ( forall r2.
-    (Member (Input HasqlPoolExt.Pool) r2, Member (Embed IO) r2) =>
-    UserId -> row -> Sem (Error Hasql.UsageError ': r2) ()
+  ( UserId ->
+    row ->
+    Sem (Error Hasql.UsageError ': r) ()
   ) ->
-  ConduitM () Void (Sem r) ()
-copyTable migOpts migCounter migFailed migDuration selectLefts selectRows upsertRow =
-  withCount (paginateSem selectLefts (paramsP LocalQuorum () migOpts.pageSize) x5)
-    .| logRetrievedPage migOpts.pageSize runIdentity
-    .| C.mapM_ (traverse_ copyPartition)
+  UserId ->
+  Sem (Error MigrationLockError ': r) Bool
+copyPartition migOpts migCounter migDuration selectRows upsertRow left = do
+  cleanRef <- embed @IO (newIORef True)
+  runConduit $
+    paginateSem selectRows (paramsP LocalQuorum (Identity left) migOpts.pageSize) x1
+      .| C.mapM_ (traverse_ (copyRow cleanRef))
+  embed @IO (readIORef cleanRef)
   where
-    copyPartition :: UserId -> Sem r ()
-    copyPartition left =
-      runConduit $
-        paginateSem selectRows (paramsP LocalQuorum (Identity left) migOpts.pageSize) x1
-          .| C.mapM_ (traverse_ (migrateRow left migCounter migFailed migDuration . upsertRow left))
+    copyRow :: IORef Bool -> row -> Sem (Error MigrationLockError ': r) ()
+    copyRow cleanRef row = do
+      let rowAction :: Sem (Error Hasql.UsageError ': Error MigrationLockError ': r) ()
+          rowAction = raiseUnder (upsertRow left row)
+      ok <- migrateRow left migCounter migDuration rowAction
+      unless ok $ embed @IO (writeIORef cleanRef False)
 
+-- | Copy one row and observe the duration histogram and copied-rows counter.
+-- On failure, warn and bump the atomic count (which makes migrationLoop retry
+-- the pass) and report failure to the caller.
 migrateRow ::
   ( Member (Embed IO) r,
     Member TinyLog r,
@@ -160,11 +228,10 @@ migrateRow ::
   ) =>
   UserId ->
   Prometheus.Counter ->
-  Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   Sem (Error Hasql.UsageError ': r) () ->
-  Sem r ()
-migrateRow left migCounter _migFailed migDuration action = do
+  Sem r Bool
+migrateRow left migCounter migDuration action = do
   start <- embed @IO getCurrentTime
   result <- runError action
   end <- embed @IO getCurrentTime
@@ -172,8 +239,9 @@ migrateRow left migCounter _migFailed migDuration action = do
   liftIO $
     Prometheus.withLabel migDuration outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
   case result of
-    Right () ->
+    Right () -> do
       liftIO $ Prometheus.incCounter migCounter
+      pure True
     Left failure -> do
       warn $
         Log.msg (Log.val "connection row migration failed")
@@ -182,6 +250,36 @@ migrateRow left migCounter _migFailed migDuration action = do
       -- NOTE: unlike the Prometheus counter, the AtomicState count is what
       -- makes migrationLoop retry the failed rows; the counter is reserved for
       -- fatal errors (see Wire.Migration.migrationLoop).
+      atomicModify (+ 1)
+      pure False
+
+-- | Delete the migrated @connection@ and @connection_remote@ partitions of
+-- one user from Cassandra. Must only run under the exclusive per-user
+-- migration lock after both partitions are fully copied. On failure the
+-- atomic count is bumped so the loop retries the user.
+clearCassandraPartitions ::
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r,
+    Member TinyLog r,
+    Member (AtomicState Int) r
+  ) =>
+  UserId ->
+  Sem r ()
+clearCassandraPartitions left = do
+  client <- input
+  outcome <- embed @IO $
+    try @IO @SomeException $
+      runClient client $
+        retry x5 $ do
+          write connectionClear (params LocalQuorum (Identity left))
+          write remoteConnectionClear (params LocalQuorum (Identity left))
+  case outcome of
+    Right () -> pure ()
+    Left e -> do
+      warn $
+        Log.msg (Log.val "failed to clear migrated cassandra connection partitions")
+          . Log.field "left" (show left)
+          . Log.field "error" (show e)
       atomicModify (+ 1)
 
 selectConnectionLefts :: PrepQuery R () (Identity UserId)
