@@ -494,10 +494,15 @@ runBrigToIO e (AppT ma) = do
               . interpretConnectionStoreToPostgres
               . raiseUnder2
           MigrationToPostgresql ->
+            -- Unlike the pure-PG branches this interpreter needs
+            -- Error MigrationLockError (per-user locks); it is supplied
+            -- locally here and mapped to the same 500 the global
+            -- migrationLockErrorToHttpError mapping produces below.
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
+              . mapError migrationLockErrorToHttpError
               . interpretConnectionStoreToCassandraAndPostgres
-              . raiseUnder2
+              . raiseUnder3
 
   ( either throwM pure
       <=< ( runFinal
