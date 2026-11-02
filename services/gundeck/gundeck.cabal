@@ -477,6 +477,8 @@ test-suite gundeck-tests
     Aws.Arn
     DelayQueue
     Gundeck.Notification.MetricsSpec
+    Gundeck.Push.MetricsSpec
+    Gundeck.Push.WebsocketSpec
     Json
     MetricsHelper
     MockGundeck
