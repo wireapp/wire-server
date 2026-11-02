@@ -580,7 +580,7 @@ testGetTeamsInvitationInfo = do
 
 testResendVerificationEmailPendingEmail :: (HasCallStack) => App ()
 testResendVerificationEmailPendingEmail = do
-  (owner, tid, tmem : _) <- createTeam OwnDomain 1
+  (owner, tid, tmem : _) <- createTeam OwnDomain 2
   newEmail <- randomEmail
   putUserEmail owner tmem newEmail >>= assertStatus 200
   uid <- asString $ tmem %. "id"
@@ -594,7 +594,7 @@ testResendVerificationEmailNoPendingEmail = do
 
 testResendVerificationEmailNonAdmin :: (HasCallStack) => App ()
 testResendVerificationEmailNonAdmin = do
-  (owner, tid, tmem : otherMember : _) <- createTeam OwnDomain 2
+  (owner, tid, tmem : otherMember : _) <- createTeam OwnDomain 3
   newEmail <- randomEmail
   putUserEmail owner tmem newEmail >>= assertStatus 200
   memberUid <- asString $ tmem %. "id"
@@ -602,7 +602,7 @@ testResendVerificationEmailNonAdmin = do
 
 testResendVerificationEmailWrongTeamCaller :: (HasCallStack) => App ()
 testResendVerificationEmailWrongTeamCaller = do
-  (_, tid, tmem : _) <- createTeam OwnDomain 1
+  (_, tid, tmem : _) <- createTeam OwnDomain 2
   (foreignOwner, _, _) <- createTeam OwnDomain 0
   memberUid <- asString $ tmem %. "id"
   putResendTeamMemberVerificationEmail foreignOwner tid memberUid >>= assertStatus 403
@@ -626,4 +626,4 @@ testResendVerificationEmailScimUser = do
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
   scimUser <- randomScimUser
   uid <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-  putResendTeamMemberVerificationEmail owner tid uid >>= assertStatus 202
+  putResendTeamMemberVerificationEmail owner tid uid >>= assertStatus 204
