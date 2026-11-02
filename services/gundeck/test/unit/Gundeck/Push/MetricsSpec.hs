@@ -64,7 +64,7 @@ monitorMixed = do
     [(ntfId transient, p1), (ntfId persistent, p2), (ntfId persistent, p3)]
 
 deliveredTest :: Assertion
-deliveredTest = assertIncreasedAtLeast [("push_ws_delivered_presences", 3)] monitorMixed
+deliveredTest = assertIncreasedAtLeast [("wire_push_ws_delivered_presences", 3)] monitorMixed
 
 deliveredTransientTest :: Assertion
-deliveredTransientTest = assertIncreasedAtLeast [("push_ws_delivered_presences_transient", 1)] monitorMixed
+deliveredTransientTest = assertIncreasedAtLeast [("wire_push_ws_delivered_presences_transient", 1)] monitorMixed

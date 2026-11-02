@@ -71,7 +71,7 @@ pushStoredTargets =
   Prom.unsafeRegister $
     Prom.histogram
       Prom.Info
-        { Prom.metricName = "push_stored_targets",
+        { Prom.metricName = "wire_push_stored_targets",
           Prom.metricHelp = "Number of targets (fan-in) of each stored push"
         }
       [1, 2, 3, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]
@@ -82,7 +82,7 @@ pushStoredTargetsAllClients =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push_stored_targets_all_clients",
+        { Prom.metricName = "wire_push_stored_targets_all_clients",
           Prom.metricHelp = "Number of stored push targets that address all clients of a user"
         }
 
@@ -92,7 +92,7 @@ pushStoredTargetsSomeClients =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push_stored_targets_some_clients",
+        { Prom.metricName = "wire_push_stored_targets_some_clients",
           Prom.metricHelp = "Number of stored push targets that address specific clients of a user"
         }
 
@@ -102,7 +102,7 @@ pushStoredTargetClients =
   Prom.unsafeRegister $
     Prom.histogram
       Prom.Info
-        { Prom.metricName = "push_stored_target_clients",
+        { Prom.metricName = "wire_push_stored_target_clients",
           Prom.metricHelp = "Number of clients of each stored push target that addresses specific clients"
         }
       -- `defUserMaxPermClients` is 7, but operators can override this value
@@ -115,7 +115,7 @@ pushStoredPayloadBytes =
   Prom.unsafeRegister $
     Prom.histogram
       Prom.Info
-        { Prom.metricName = "push_stored_payload_bytes",
+        { Prom.metricName = "wire_push_stored_payload_bytes",
           Prom.metricHelp = "Size of the encoded payload of each stored push in bytes"
         }
       [128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 262144, 1048576, 5242880]
@@ -126,7 +126,7 @@ notificationFetch =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "notification_fetch",
+        { Prom.metricName = "wire_notification_fetch",
           Prom.metricHelp = "Number of notification fetches"
         }
 
@@ -136,7 +136,7 @@ notificationFetchWithoutClient =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "notification_fetch_without_client",
+        { Prom.metricName = "wire_notification_fetch_without_client",
           Prom.metricHelp = "Number of notification fetches without a client"
         }
 
@@ -146,7 +146,7 @@ notificationFetchWithoutSince =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "notification_fetch_without_since",
+        { Prom.metricName = "wire_notification_fetch_without_since",
           Prom.metricHelp = "Number of notification fetches without a starting notification id"
         }
 
@@ -156,7 +156,7 @@ notificationFetchGap =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "notification_fetch_gap",
+        { Prom.metricName = "wire_notification_fetch_gap",
           Prom.metricHelp = "Number of notification fetches whose starting notification id was not found"
         }
 
@@ -166,7 +166,7 @@ notificationFetchHasMore =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "notification_fetch_has_more",
+        { Prom.metricName = "wire_notification_fetch_has_more",
           Prom.metricHelp = "Number of notification fetches that have more notifications to fetch"
         }
 
@@ -176,7 +176,7 @@ notificationFetchReturned =
   Prom.unsafeRegister $
     Prom.histogram
       Prom.Info
-        { Prom.metricName = "notification_fetch_returned",
+        { Prom.metricName = "wire_notification_fetch_returned",
           Prom.metricHelp = "Number of notifications returned by each fetch"
         }
       [0, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]

@@ -62,47 +62,47 @@ plainFetch = FetchStats {hasClient = True, hasSince = True, gap = False, hasMore
 storedTargetsTest :: Assertion
 storedTargetsTest =
   assertIncreasedAtLeast
-    [("push_stored_targets_count", 1), ("push_stored_targets_sum", 3)]
+    [("wire_push_stored_targets_count", 1), ("wire_push_stored_targets_sum", 3)]
     (storeMixed 0)
 
 storedClientsTest :: Assertion
 storedClientsTest =
   assertIncreasedAtLeast
-    [ ("push_stored_targets_all_clients", 1),
-      ("push_stored_targets_some_clients", 2),
-      ("push_stored_target_clients_sum", 4)
+    [ ("wire_push_stored_targets_all_clients", 1),
+      ("wire_push_stored_targets_some_clients", 2),
+      ("wire_push_stored_target_clients_sum", 4)
     ]
     (storeMixed 0)
 
 storedPayloadTest :: Assertion
 storedPayloadTest =
   assertIncreasedAtLeast
-    [("push_stored_payload_bytes_sum", 100)]
+    [("wire_push_stored_payload_bytes_sum", 100)]
     (storeMixed 100)
 
 fetchWithoutTest :: Assertion
 fetchWithoutTest =
   assertIncreasedAtLeast
-    [ ("notification_fetch", 1),
-      ("notification_fetch_without_client", 1),
-      ("notification_fetch_without_since", 1)
+    [ ("wire_notification_fetch", 1),
+      ("wire_notification_fetch_without_client", 1),
+      ("wire_notification_fetch_without_since", 1)
     ]
     (observeFetch plainFetch {hasClient = False, hasSince = False})
 
 fetchGapTest :: Assertion
 fetchGapTest =
   assertIncreasedAtLeast
-    [("notification_fetch_gap", 1)]
+    [("wire_notification_fetch_gap", 1)]
     (observeFetch plainFetch {gap = True})
 
 fetchHasMoreTest :: Assertion
 fetchHasMoreTest =
   assertIncreasedAtLeast
-    [("notification_fetch_has_more", 1)]
+    [("wire_notification_fetch_has_more", 1)]
     (observeFetch plainFetch {hasMore = True})
 
 fetchReturnedTest :: Assertion
 fetchReturnedTest =
   assertIncreasedAtLeast
-    [("notification_fetch_returned_sum", 7)]
+    [("wire_notification_fetch_returned_sum", 7)]
     (observeFetch plainFetch {returned = 7})

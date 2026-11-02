@@ -53,7 +53,7 @@ pushWsDeliveredPresencesCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push_ws_delivered_presences",
+        { Prom.metricName = "wire_push_ws_delivered_presences",
           Prom.metricHelp = "Number of websocket presences that were successfully pushed to (including transient pushes)"
         }
 
@@ -63,7 +63,7 @@ pushWsDeliveredPresencesTransientCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push_ws_delivered_presences_transient",
+        { Prom.metricName = "wire_push_ws_delivered_presences_transient",
           Prom.metricHelp = "Number of websocket presences that were successfully pushed to with a transient push"
         }
 
