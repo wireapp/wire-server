@@ -29,6 +29,7 @@ library
     Gundeck.Monad
     Gundeck.Notification
     Gundeck.Notification.Data
+    Gundeck.Notification.Metrics
     Gundeck.Options
     Gundeck.Presence
     Gundeck.Presence.Data
