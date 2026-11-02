@@ -1,1 +1,1 @@
-Upgrade nginx-ingress-controller from 4.11.5 to 4.13.9 (k8s 1.29 - 1.33 officially supported - other version may also work)
+Upgrade nginx-ingress-controller from 4.11.5 to 4.15.1 (k8s 1.31 - 1.35 officially supported - other version may also work)
