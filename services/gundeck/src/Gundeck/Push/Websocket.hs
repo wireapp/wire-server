@@ -41,6 +41,7 @@ import Data.Set qualified as Set
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import Gundeck.Presence.Data qualified as Presence
+import Gundeck.Push.Metrics
 import Gundeck.Util
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
@@ -62,12 +63,16 @@ class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
   mbpMapConcurrently :: (Traversable t) => (a -> m b) -> t a -> m (t b)
   mbpMonitorBadCannons :: (URI, (SomeException, [Presence])) -> m ()
 
+  -- | Notifications pushed, and the successful deliveries.
+  mbpMonitorDelivered :: [(Notification, [Presence])] -> [(NotificationId, Presence)] -> m ()
+
 instance MonadBulkPush Gundeck where
   mbpBulkSend = bulkSend
   mbpDeleteAllPresences = runWithAdditionalRedis . Presence.deleteAll
   mbpPosixTime = posixTime
   mbpMapConcurrently = mapConcurrently
   mbpMonitorBadCannons = monitorBadCannons
+  mbpMonitorDelivered = monitorDelivered
 
 -- | Send a 'Notification's to associated 'Presence's.  Send at most one request to each Cannon.
 -- Return the lists of 'Presence's successfully reached for each resp. 'Notification'.
@@ -89,6 +94,7 @@ bulkPush notifs = do
   successes :: [(NotificationId, Presence)] <-
     (\(nid, trgt) -> (nid,) <$> presenceByPushTarget trgt) `mapM` flowBackDelivered flbck
   (\info -> mbpMonitorBadCannons info >> logBadCannons info) `mapM_` badCannons
+  mbpMonitorDelivered notifs successes
   logPrcsGone `mapM_` prcsGone
   logSuccesses `mapM_` successes
   mbpDeleteAllPresences =<< do
@@ -98,24 +104,6 @@ bulkPush notifs = do
         posixDay = Ms (round (1000 * posixDayLength))
     pure deletions
   pure (groupAssoc successes)
-
--- | log all cannons with response status @/= 200@.
-monitorBadCannons ::
-  (Prom.MonadMonitor m) =>
-  (uri, (error, [Presence])) ->
-  m ()
-monitorBadCannons (_uri, (_err, prcs)) =
-  void $ Prom.addCounter pushWsUnreachableCounter (fromIntegral $ length prcs)
-
-{-# NOINLINE pushWsUnreachableCounter #-}
-pushWsUnreachableCounter :: Prom.Counter
-pushWsUnreachableCounter =
-  Prom.unsafeRegister $
-    Prom.counter
-      Prom.Info
-        { Prom.metricName = "push_ws_unreachable",
-          Prom.metricHelp = "Number of times websocket pushes were not pushed due cannon being unreachable"
-        }
 
 logBadCannons :: (Log.MonadLogger m) => (URI, (SomeException, [Presence])) -> m ()
 logBadCannons (uri, (err, prcs)) = do
