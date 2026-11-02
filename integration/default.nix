@@ -45,6 +45,7 @@
 , haskell-src-exts
 , hex
 , HsOpenSSL
+, hspec
 , http-client
 , http-client-tls
 , http-types
@@ -233,7 +234,6 @@ mkDerivation {
     network
     network-uri
     process
-    temporary
     text
     time
     time-hourglass
@@ -257,6 +257,7 @@ mkDerivation {
     cryptostore
     directory
     filepath
+    hspec
     http-client
     http-client-tls
     http-types
@@ -264,7 +265,7 @@ mkDerivation {
     network
     network-uri
     process
-    temporary
+    QuickCheck
     text
     time
     time-hourglass

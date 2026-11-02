@@ -88,7 +88,10 @@ common ingress-common
   hs-source-dirs: ingress test
   other-modules:
     Testlib.Ingress
+    Testlib.Ingress.Kubeconfig
     Testlib.Ingress.Kubernetes
+    Testlib.Ingress.Manifests
+    Testlib.Ingress.Model
     Testlib.Ingress.TLS
 
   build-depends:
@@ -112,7 +115,6 @@ common ingress-common
     , network
     , network-uri
     , process
-    , temporary
     , text
     , time
     , time-hourglass
@@ -128,7 +130,11 @@ executable ingress-regression
 
 test-suite ingress-unit
   import:        ingress-common
-  build-depends: crypton-x509-validation
+  build-depends:
+    , crypton-x509-validation
+    , hspec
+    , QuickCheck
+
   type:          exitcode-stdio-1.0
   main-is:       Unit.hs
   ghc-options:   -threaded
@@ -292,7 +298,10 @@ library
     Testlib.Env
     Testlib.HTTP
     Testlib.Ingress
+    Testlib.Ingress.Kubeconfig
     Testlib.Ingress.Kubernetes
+    Testlib.Ingress.Manifests
+    Testlib.Ingress.Model
     Testlib.Ingress.TLS
     Testlib.JSON
     Testlib.KleisliXML
