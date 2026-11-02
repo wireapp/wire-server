@@ -475,7 +475,9 @@ test-suite gundeck-tests
   other-modules:
     Aws.Arn
     DelayQueue
+    Gundeck.Notification.MetricsSpec
     Json
+    MetricsHelper
     MockGundeck
     Native
     ParseExistsError
@@ -550,6 +552,7 @@ test-suite gundeck-tests
     , mtl
     , multiset
     , network-uri
+    , prometheus-client
     , QuickCheck
     , quickcheck-instances
     , quickcheck-state-machine
