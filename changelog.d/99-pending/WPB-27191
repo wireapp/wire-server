@@ -1,0 +1,1 @@
+Meeting join links now admit temporary guests: meeting conversations store `GuestAccessRole`.

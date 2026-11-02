@@ -62,6 +62,8 @@ testMeetingCreate = do
   assertConversationMatchesLegacy meeting
 
   meeting %. "conversation" %. "access" `shouldMatchSet` ["invite", "code"]
+  roles <- meeting %. "conversation" %. "access_role" & asList >>= traverse asString
+  roles `shouldMatchSet` ["team_member", "non_team_member", "guest", "service"]
 
   -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting

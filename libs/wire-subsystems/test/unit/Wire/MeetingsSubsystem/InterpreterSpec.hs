@@ -47,7 +47,7 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
 import URI.ByteString (parseURI, strictURIParserOptions)
-import Wire.API.Conversation (Access (CodeAccess, InviteAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
+import Wire.API.Conversation (Access (CodeAccess, InviteAccess), AccessRole (GuestAccessRole), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess, cnvmAccessRoles), defRole)
 import Wire.API.Conversation.Role (pattern DeleteConversation)
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..), pattern ActionDenied)
@@ -522,12 +522,13 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
     result <- runTestStack now gen Map.empty def $ do
       meeting <- createMeeting zUser (ConnId "test-conn") newMeeting
-      pure meeting.conversation.metadata.cnvmAccess
+      pure (meeting.conversation.metadata.cnvmAccess, meeting.conversation.metadata.cnvmAccessRoles)
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right access -> do
+      Right (access, roles) -> do
         access `shouldBe` [InviteAccess, CodeAccess]
+        roles `shouldBe` Set.insert GuestAccessRole defRole
 
   it "fails to create a meeting if end_time is not after start_time" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
