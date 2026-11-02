@@ -38,7 +38,7 @@ sample name = do
 -- may increase them concurrently.
 assertIncreasedAtLeast :: [(String, Double)] -> IO () -> Assertion
 assertIncreasedAtLeast expected action = do
-  befores <- for expected $ \(name, minDelta) -> (name, minDelta,) <$> sample name
+  befores <- for expected $ \(name, minDelta) -> (name,minDelta,) <$> sample name
   action
   for_ befores $ \(name, minDelta, before) -> do
     delta <- subtract before <$> sample name
