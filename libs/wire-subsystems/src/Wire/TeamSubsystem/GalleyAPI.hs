@@ -53,3 +53,5 @@ interpretTeamSubsystemToGalleyAPI = interpret $ \case
     unless found $ throwS @'TeamNotFound
   GetLHStatusForUsers uids -> GalleyAPIAccess.getUsersLHStatus uids
   GetLHStatus mtid uid -> GalleyAPIAccess.getUserLHStatus mtid uid
+  ResendMemberVerificationEmail _ _ ->
+    error "ResendMemberVerificationEmail: only available via the direct TeamSubsystem interpreter in galley"

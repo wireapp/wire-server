@@ -29,6 +29,7 @@ import Imports
 import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Team.Invitation (ResendVerificationEmailResult)
 import Wire.API.Team.LegalHold (UserLegalHoldStatusResponse)
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Error
@@ -70,6 +71,10 @@ data TeamSubsystem m a where
     Maybe TeamId ->
     UserId ->
     TeamSubsystem m UserLegalHoldStatus
+  ResendMemberVerificationEmail ::
+    TeamId ->
+    UserId ->
+    TeamSubsystem m ResendVerificationEmailResult
 
 makeSem ''TeamSubsystem
 

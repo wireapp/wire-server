@@ -40,3 +40,4 @@ teamMemberAPI =
     <@> mkNamedAPI @"get-team-collaborators" getAllTeamCollaborators
     <@> mkNamedAPI @"update-team-collaborator" updateTeamCollaborator
     <@> mkNamedAPI @"remove-team-collaborator" removeTeamCollaborator
+    <@> mkNamedAPI @"resend-team-member-verification-email" resendTeamMemberVerificationEmail

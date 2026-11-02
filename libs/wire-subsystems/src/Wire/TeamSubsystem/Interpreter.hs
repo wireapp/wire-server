@@ -20,6 +20,7 @@ module Wire.TeamSubsystem.Interpreter where
 import Control.Lens (view, (%~), (^.))
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
+import Data.HavePendingInvitations (HavePendingInvitations (WithPendingInvitations))
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -41,10 +42,12 @@ import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.Team
 import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.HardTruncationLimit
+import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (TeamMemberInfoList))
+import Wire.API.User qualified as U
 import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.BrigAPIAccess qualified as Brig
@@ -138,6 +141,8 @@ interpretTeamSubsystemWithInputConfig =
       getLHStatusImpl teamOfUser other
     GetLHStatusForUsers uids ->
       getLHStatusForUsersImpl uids
+    ResendMemberVerificationEmail tid uid ->
+      resendMemberVerificationEmailImpl tid uid
 
 adjustMembersForImplicitConsent :: (Member LegalHoldStore r) => TeamId -> [TeamMember] -> Sem r [TeamMember]
 adjustMembersForImplicitConsent tid ms = do
@@ -309,6 +314,22 @@ assertTeamExistsImpl tid = do
   if teamExists
     then pure ()
     else throwS @'TeamNotFound
+
+resendMemberVerificationEmailImpl ::
+  ( Member BrigAPIAccess r,
+    Member (ErrorS 'TeamMemberNotFound) r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r ResendVerificationEmailResult
+resendMemberVerificationEmailImpl tid uid = do
+  account <- Brig.getAccount WithPendingInvitations uid >>= noteS @'TeamMemberNotFound
+  when (U.userTeam account /= Just tid) $ throwS @'TeamMemberNotFound
+  case U.userEmailUnvalidated account of
+    Nothing -> pure NoVerificationEmailPending
+    Just email -> do
+      Brig.updateEmail uid email U.SendActivationEmail
+      pure VerificationEmailSent
 
 getTeamMembersForFanoutImpl ::
   ( Member TeamStore r,

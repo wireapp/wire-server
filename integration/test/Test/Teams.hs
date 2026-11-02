@@ -21,11 +21,12 @@ module Test.Teams where
 import API.Brig
 import qualified API.BrigInternal as I
 import API.Common
-import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications, setTeamFeatureConfig)
+import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications, putResendTeamMemberVerificationEmail, setTeamFeatureConfig)
 import API.GalleyInternal (selectTeamMembers)
 import qualified API.GalleyInternal as I
 import API.Gundeck
 import qualified API.Nginz as Nginz
+import API.Spar (createScimToken, createScimUser)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
@@ -34,6 +35,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Time.Clock
 import Data.Time.Format
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import MLS.Util (createMLSClient, uploadNewKeyPackage)
 import Notifications
 import SetupHelpers
@@ -574,3 +577,53 @@ testGetTeamsInvitationInfo = do
     resp.json %. "role" `shouldMatch` "member"
     resp.json %. "id" `shouldMatch` (inv %. "id")
     lookupField resp.json "managed_by" `shouldMatch` (Nothing :: Maybe Value)
+
+testResendVerificationEmailPendingEmail :: (HasCallStack) => App ()
+testResendVerificationEmailPendingEmail = do
+  (owner, tid, tmem : _) <- createTeam OwnDomain 1
+  newEmail <- randomEmail
+  putUserEmail owner tmem newEmail >>= assertStatus 200
+  uid <- asString $ tmem %. "id"
+  putResendTeamMemberVerificationEmail owner tid uid >>= assertStatus 202
+
+testResendVerificationEmailNoPendingEmail :: (HasCallStack) => App ()
+testResendVerificationEmailNoPendingEmail = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  ownerUid <- asString $ owner %. "id"
+  putResendTeamMemberVerificationEmail owner tid ownerUid >>= assertStatus 204
+
+testResendVerificationEmailNonAdmin :: (HasCallStack) => App ()
+testResendVerificationEmailNonAdmin = do
+  (owner, tid, tmem : otherMember : _) <- createTeam OwnDomain 2
+  newEmail <- randomEmail
+  putUserEmail owner tmem newEmail >>= assertStatus 200
+  memberUid <- asString $ tmem %. "id"
+  putResendTeamMemberVerificationEmail otherMember tid memberUid >>= assertStatus 403
+
+testResendVerificationEmailWrongTeamCaller :: (HasCallStack) => App ()
+testResendVerificationEmailWrongTeamCaller = do
+  (_, tid, tmem : _) <- createTeam OwnDomain 1
+  (foreignOwner, _, _) <- createTeam OwnDomain 0
+  memberUid <- asString $ tmem %. "id"
+  putResendTeamMemberVerificationEmail foreignOwner tid memberUid >>= assertStatus 403
+
+testResendVerificationEmailTargetNotInTeam :: (HasCallStack) => App ()
+testResendVerificationEmailTargetNotInTeam = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  (foreignUser, _, _) <- createTeam OwnDomain 0
+  foreignUid <- asString $ foreignUser %. "id"
+  putResendTeamMemberVerificationEmail owner tid foreignUid >>= assertStatus 404
+
+testResendVerificationEmailUserNotFound :: (HasCallStack) => App ()
+testResendVerificationEmailUserNotFound = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  nonExistentUid <- liftIO (UUID.toString <$> UUID.nextRandom)
+  putResendTeamMemberVerificationEmail owner tid nonExistentUid >>= assertStatus 404
+
+testResendVerificationEmailScimUser :: (HasCallStack) => App ()
+testResendVerificationEmailScimUser = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  uid <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  putResendTeamMemberVerificationEmail owner tid uid >>= assertStatus 202

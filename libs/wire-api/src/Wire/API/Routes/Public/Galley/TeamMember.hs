@@ -20,9 +20,9 @@ module Wire.API.Routes.Public.Galley.TeamMember where
 import Data.Id
 import Data.Int
 import Data.Range
-import Data.Set (Set)
 import GHC.Generics
 import Generics.SOP qualified as GSOP
+import Imports
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
@@ -34,6 +34,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 import Wire.API.Team.Collaborator
+import Wire.API.Team.Invitation (ResendVerificationEmailResponses, ResendVerificationEmailResult)
 import Wire.API.Team.Member
 import Wire.API.User qualified as User
 
@@ -254,6 +255,28 @@ type TeamMemberAPI =
                :> "collaborators"
                :> Capture "uid" UserId
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "resend-team-member-verification-email"
+           ( Summary "Resend verification email for a team member with a pending unverified email."
+               :> Description
+                    "If the target user has a pending (unverified) email address, a new \
+                    \verification email is sent. Returns 202 if the email was sent, 204 if \
+                    \the user has no pending verification. Requires the caller to be a team admin."
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> "verification-email"
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    ResendVerificationEmailResponses
+                    ResendVerificationEmailResult
            )
 
 type TeamMemberDeleteResultResponseType =
