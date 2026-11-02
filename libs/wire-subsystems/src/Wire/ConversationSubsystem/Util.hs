@@ -692,6 +692,32 @@ ensureConversationAccess zusr conv access = do
   zusrMembership <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
 
+-- | A validated meeting link is a guest-join capability. Older meeting
+-- conversations use the activated-only default roles, so allow GuestAccessRole
+-- for this check without changing stored conversation settings. Ordinary
+-- conversations, missing CodeAccess, and team-only restrictions remain enforced.
+ensureMeetingConversationAccess ::
+  ( Member BrigAPIAccess r,
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  StoredConversation ->
+  Access ->
+  Sem r ()
+ensureMeetingConversationAccess zusr conv access =
+  let authorizedConversation =
+        if access == CodeAccess && conv.metadata.cnvmGroupConvType == Just MeetingConversation
+          then
+            conv
+              { metadata =
+                  conv.metadata
+                    { cnvmAccessRoles = Set.insert GuestAccessRole conv.metadata.cnvmAccessRoles
+                    }
+              }
+          else conv
+   in ensureConversationAccess zusr authorizedConversation access
+
 ensureAccess ::
   (Member (Error ConversationSubsystemError) r) =>
   StoredConversation ->

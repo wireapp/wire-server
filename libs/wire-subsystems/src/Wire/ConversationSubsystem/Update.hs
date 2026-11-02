@@ -762,7 +762,8 @@ joinConversationById lusr zcon cnv = do
 
 -- | Join a meeting conversation via its meeting join link (WPB-28989).
 -- Meeting conversations carry 'CodeAccess' (not 'LinkAccess'), so this is
--- 'joinConversationById' with 'CodeAccess' instead. Deliberately exempt from
+-- 'joinConversationById' with 'CodeAccess' and temporary-guest authorization
+-- for meeting conversations. Deliberately exempt from
 -- 'Query.ensureGuestLinksEnabled' (which @POST /conversations/join@ enforces
 -- for CodeAccess joins): the meeting join link is its own capability, gated
 -- by the meetings feature, and is unaffected by the conversation
@@ -785,7 +786,7 @@ joinMeetingConversation ::
   Sem r (UpdateResult Event)
 joinMeetingConversation lusr zcon cnv = do
   conv <- E.getConversation cnv >>= note ConversationSubsystemErrorConvNotFound
-  joinConversation lusr zcon conv CodeAccess
+  joinConversationWithAccessCheck ensureMeetingConversationAccess lusr zcon conv CodeAccess
 
 joinConversation ::
   forall r.
@@ -805,9 +806,30 @@ joinConversation ::
   StoredConversation ->
   Access ->
   Sem r (UpdateResult Event)
-joinConversation lusr zcon conv access = do
+joinConversation = joinConversationWithAccessCheck ensureConversationAccess
+
+joinConversationWithAccessCheck ::
+  forall r.
+  ( Member BrigAPIAccess r,
+    Member (Error ConversationSubsystemError) r,
+    Member (Error FederationError) r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member BackendNotificationQueueAccess r,
+    Member E.ExternalAccess r,
+    Member ConversationStore r,
+    Member Now r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  (UserId -> StoredConversation -> Access -> Sem r ()) ->
+  Local UserId ->
+  ConnId ->
+  StoredConversation ->
+  Access ->
+  Sem r (UpdateResult Event)
+joinConversationWithAccessCheck checkAccess lusr zcon conv access = do
   let lcnv = qualifyAs lusr conv.id_
-  ensureConversationAccess (tUnqualified lusr) conv access
+  checkAccess (tUnqualified lusr) conv access
   ensureGroupConversation conv
   -- FUTUREWORK: remote users?
   ensureMemberLimit (convProtocolTag conv) (toList $ conv.localMembers) [tUnqualified lusr]

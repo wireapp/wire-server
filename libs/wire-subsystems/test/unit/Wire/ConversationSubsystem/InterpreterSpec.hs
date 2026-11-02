@@ -50,6 +50,7 @@ import Wire.ConversationStore (ConversationStore (..))
 import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
 import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Update (guardPreventAdminlessGroupsFor, removeMemberQualified)
+import Wire.ConversationSubsystem.Util (ensureConversationAccess, ensureMeetingConversationAccess)
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem (..))
 import Wire.FederationAPIAccess (FederationAPIAccess (..))
@@ -67,6 +68,40 @@ import Wire.TeamSubsystem (TeamSubsystem (..))
 
 spec :: Spec
 spec = describe "ConversationSubsystem.Interpreter" do
+  describe "temporary guest access through a validated meeting link" do
+    it "accepts legacy meeting conversations with activated-only access roles" do
+      case runTemporaryGuestAccess (ensureMeetingConversationAccess temporaryGuest legacyMeeting CodeAccess) of
+        Right () -> pure ()
+        Left _ -> expectationFailure "expected temporary guest access to succeed"
+
+    it "keeps ordinary conversation code checks activated-only" do
+      case runTemporaryGuestAccess (ensureConversationAccess temporaryGuest legacyMeeting CodeAccess) of
+        Left ConversationSubsystemErrorConvAccessDenied -> pure ()
+        _ -> expectationFailure "expected conv-access-denied"
+
+    it "does not grant guest access to ordinary group conversations" do
+      let group = legacyMeeting {metadata = legacyMeeting.metadata {cnvmGroupConvType = Just GroupConversation}}
+      case runTemporaryGuestAccess (ensureMeetingConversationAccess temporaryGuest group CodeAccess) of
+        Left ConversationSubsystemErrorConvAccessDenied -> pure ()
+        _ -> expectationFailure "expected conv-access-denied"
+
+    it "still rejects a meeting without code access" do
+      let restricted = legacyMeeting {metadata = legacyMeeting.metadata {cnvmAccess = [InviteAccess]}}
+      case runTemporaryGuestAccess (ensureMeetingConversationAccess temporaryGuest restricted CodeAccess) of
+        Left ConversationSubsystemErrorConvAccessDenied -> pure ()
+        _ -> expectationFailure "expected conv-access-denied"
+
+    it "does not grant access through a different join mechanism" do
+      case runTemporaryGuestAccess (ensureMeetingConversationAccess temporaryGuest legacyMeeting InviteAccess) of
+        Left ConversationSubsystemErrorConvAccessDenied -> pure ()
+        _ -> expectationFailure "expected conv-access-denied"
+
+    it "preserves team-only restrictions" do
+      let restricted = legacyMeeting {metadata = legacyMeeting.metadata {cnvmAccessRoles = Set.singleton TeamMemberAccessRole}}
+      case runTemporaryGuestAccess (ensureMeetingConversationAccess temporaryGuest restricted CodeAccess) of
+        Left ConversationSubsystemErrorNotATeamMember -> pure ()
+        _ -> expectationFailure "expected not-a-team-member"
+
   prop "guardPreventAdminlessGroupsFor promotes an eligible member and emits a targeted update [legacy]" $
     \domain teamId convId leaving eligible1 eligible2 ->
       ioProperty $ do
@@ -737,3 +772,36 @@ mkUserWithName name domain utype uid = do
         userService = Nothing,
         userDisplayName = Name name
       }
+
+-- No activated users are returned: this is the temporary guest created by the
+-- browser join flow, not a registered user with an email or password.
+runTemporaryGuestAccess ::
+  Sem '[BrigAPIAccess, TeamSubsystem, Error ConversationSubsystemError] () ->
+  Either ConversationSubsystemError ()
+runTemporaryGuestAccess =
+  run
+    . runError @ConversationSubsystemError
+    . interpretTeamSubsystem
+    . interpret
+      (\case
+         LookupActivatedUsers _ -> pure []
+         _ -> error "unexpected BrigAPIAccess call in temporary guest test"
+      )
+
+temporaryGuest :: UserId
+temporaryGuest = Id $ read "00000000-0000-0000-0000-000000000003"
+
+legacyMeeting :: StoredConversation
+legacyMeeting =
+  StoredConversation
+    { id_ = Id $ read "00000000-0000-0000-0000-000000000004",
+      localMembers = [],
+      remoteMembers = [],
+      metadata =
+        (defConversationMetadata Nothing)
+          { cnvmGroupConvType = Just MeetingConversation,
+            cnvmAccess = [InviteAccess, CodeAccess],
+            cnvmAccessRoles = defRole
+          },
+      protocol = ProtocolProteus
+    }
