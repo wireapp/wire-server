@@ -20,6 +20,8 @@ module Test.Migration.Connections (testConnectionsMigrationToPostgres) where
 import API.Brig (getConnection, postConnection, putConnection)
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.UUID as UUID
+import Database.CQL.IO
 import GHC.Stack
 import SetupHelpers
 import Test.Migration.Util (assertMigrationSuccessful, waitForMigration)
@@ -65,6 +67,20 @@ testConnectionsMigrationToPostgres = do
         -- The failed counter is only registered while the migration worker
         -- runs, so assert it in this phase (worker on), not in P4.
         assertMigrationSuccessful domain "^wire_connections_migration_failed"
+
+        -- The migration copied the P1 pair under the exclusive lock and then
+        -- deleted their Cassandra partitions.
+        let brigKeyspace = backend.berBrigKeyspace
+            (u1, _) = cassandraPair
+        Just u1Id <- UUID.fromString <$> (u1 %. "qualified_id.id" & asString)
+        let selectConnRow :: PrepQuery R (Identity UUID.UUID) (Identity (Maybe UUID.UUID)) =
+              fromString $ "SELECT right FROM " <> brigKeyspace <> ".connection WHERE left = ?"
+        rows <- query selectConnRow (defQueryParams LocalQuorum (Identity u1Id))
+        rows `shouldMatch` ([] :: [Value])
+
+        -- Even with the Cassandra rows gone, the dual-mode read still serves
+        -- the P1 pair — via the Postgres read-through.
+        checkConnection cassandraPair
         pure pair
 
     -- P4 postgresql: reads are served exclusively from Postgres
