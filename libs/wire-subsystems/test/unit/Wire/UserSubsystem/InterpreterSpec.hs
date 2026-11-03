@@ -53,6 +53,7 @@ import Wire.API.Federation.Error
 import Wire.API.Pagination (OffsetPage (..))
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature (FeatureStatus (..), LockStatus (..), LockableFeature (..), MlsE2EIdConfig, npUpdate)
+import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
@@ -60,6 +61,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.ActivationCodeStore qualified as ActivationCodeStore
 import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem.Error
@@ -84,6 +86,61 @@ import Wire.VerificationCodeSubsystem
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
+  describe "resendTeamMemberVerificationEmail" do
+    it "rejects a missing account" $ do
+      domain <- generate arbitrary
+      uid <- generate arbitrary
+      tid <- generate arbitrary
+      let result =
+            runNoFederationStackUserSubsystemErrorEither def mempty def $
+              void $
+                resendTeamMemberVerificationEmail tid (toLocalUnsafe domain uid)
+      result `shouldBe` Left UserSubsystemProfileNotFound
+
+    it "rejects a target in another team even when verification is pending" $ do
+      NotPendingStoredUser stored <- generate arbitrary
+      domain <- generate arbitrary
+      tid <- generate arbitrary
+      email <- generate arbitrary
+      let user = stored {teamId = Nothing, status = Just Active, emailUnvalidated = Just email} :: StoredUser
+          backend = def {users = [user]}
+          result =
+            runNoFederationStackUserSubsystemErrorEither backend mempty def $
+              void $
+                resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
+      result `shouldBe` Left UserSubsystemProfileNotFound
+
+    it "returns nothing pending for a team member without an unvalidated email" $ do
+      NotPendingStoredUser stored <- generate arbitrary
+      domain <- generate arbitrary
+      tid <- generate arbitrary
+      let user = stored {teamId = Just tid, status = Just Active, emailUnvalidated = Nothing} :: StoredUser
+          backend = def {users = [user]}
+          result =
+            runNoFederationStack backend mempty def $
+              resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
+      case result of
+        NoVerificationEmailPending -> pure ()
+        VerificationEmailSent -> expectationFailure "sent verification without a pending email"
+
+    it "allows resending a SCIM member's pending email without an existing activation code" $ do
+      NotPendingStoredUser stored <- generate arbitrary
+      domain <- generate arbitrary
+      tid <- generate arbitrary
+      email <- generate arbitrary
+      oldEmail <- generate $ arbitrary `suchThat` (/= email)
+      let user = stored {teamId = Just tid, status = Just Active, managedBy = Just ManagedByScim, activated = True, email = Just oldEmail, emailUnvalidated = Just email} :: StoredUser
+          backend = def {users = [user]}
+          (result, activation) =
+            runNoFederationStack backend mempty def do
+              resendResult <- resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
+              storedActivation <- ActivationCodeStore.lookupActivationCode (mkEmailKey email)
+              pure (resendResult, storedActivation)
+      case result of
+        VerificationEmailSent -> pure ()
+        NoVerificationEmailPending -> expectationFailure "did not resend the pending SCIM email"
+      fmap fst activation `shouldBe` Just (Just user.id)
+
   describe "internalGetScimUsersPaginated" do
     prop "excludes expired pending accounts before counting and pagination" $
       \(accepted :: [NotPendingStoredUser]) (pendingAccounts :: [PendingNotEmptyIdentityStoredUser]) email teamId ->

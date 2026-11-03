@@ -78,7 +78,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
-import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
+import Wire.API.Team.Invitation (ResendVerificationEmailResult)
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Activation
@@ -764,14 +764,8 @@ resendTeamMemberVerificationEmailH ::
   UserId ->
   (Handler r) ResendVerificationEmailResult
 resendTeamMemberVerificationEmailH tid uid = do
-  mResult <- lift . liftSem $ UserSubsystem.getTeamMemberPendingVerificationEmail tid uid
-  case mResult of
-    Nothing -> throwStd (errorToWai @'E.UserNotFound)
-    Just Nothing -> pure NoVerificationEmailPending
-    Just (Just email) -> do
-      lusr <- qualifyLocal uid
-      _ <- lift . liftSem $ UserSubsystem.requestEmailChange lusr email UpdateOriginScim
-      pure VerificationEmailSent
+  lusr <- qualifyLocal uid
+  lift . liftSem $ UserSubsystem.resendTeamMemberVerificationEmail tid lusr
 
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This
