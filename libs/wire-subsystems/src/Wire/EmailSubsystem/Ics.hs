@@ -165,7 +165,7 @@ meetingIcs method meeting hostName organizer attendee =
               IcsCancel -> CancelledEvent def,
           veSummary = Just (Summary (LT.fromStrict (sanitizeText (fromRange meeting.title))) Nothing Nothing def),
           veTransp = def,
-          veUrl = joinUri =<< meeting.link,
+          veUrl = joinUri meeting.link,
           veRecurId = Nothing,
           veRRule = mempty,
           veDTEndDuration = Just (Left (DTEndDateTime (UTCDateTime meeting.endTime) def)),
