@@ -189,6 +189,8 @@ data UserSubsystem m a where
   CheckUserIsAdmin :: UserId -> UserSubsystem m TeamId
   SetUserSearchable :: Local UserId -> UserId -> SetSearchable -> UserSubsystem m ()
   InternalGetScimUsersPaginated :: TeamId -> Range 0 500 Int32 -> Maybe Int32 -> UserSubsystem m (OffsetPage User)
+  -- | Look up the pending verification email of a team member.
+  GetTeamMemberPendingVerificationEmail :: TeamId -> UserId -> UserSubsystem m (Maybe (Maybe EmailAddress))
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

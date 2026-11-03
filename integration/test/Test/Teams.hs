@@ -26,7 +26,7 @@ import API.GalleyInternal (selectTeamMembers)
 import qualified API.GalleyInternal as I
 import API.Gundeck
 import qualified API.Nginz as Nginz
-import API.Spar (createScimToken, createScimUser)
+import API.Spar (createScimToken, createScimUser, idp)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
@@ -626,4 +626,19 @@ testResendVerificationEmailScimUser = do
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
   scimUser <- randomScimUser
   uid <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  putResendTeamMemberVerificationEmail owner tid uid >>= assertStatus 204
+
+testResendVerificationEmailScimUserWithSamlEmail :: (HasCallStack) => App ()
+testResendVerificationEmailScimUserWithSamlEmail = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ I.setTeamFeatureStatus OwnDomain tid "sso" "enabled"
+  void $ I.setTeamFeatureStatus OwnDomain tid "validateSAMLemails" "enabled"
+  (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+  tok <- createScimToken owner def {idp = Just idpId} >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  uid <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  putResendTeamMemberVerificationEmail owner tid uid >>= assertStatus 202
+  activateEmail OwnDomain email
   putResendTeamMemberVerificationEmail owner tid uid >>= assertStatus 204

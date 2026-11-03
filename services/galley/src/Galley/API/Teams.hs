@@ -1295,7 +1295,9 @@ removeTeamCollaborator lusr tid rusr = do
 resendTeamMemberVerificationEmail ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member TeamSubsystem r
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member TeamSubsystem r,
+    Member E.BrigAPIAccess r
   ) =>
   Local UserId ->
   TeamId ->
@@ -1305,4 +1307,5 @@ resendTeamMemberVerificationEmail lzusr tid uid = do
   void $
     TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid
       >>= TeamSubsystem.permissionCheck AddTeamMember
-  TeamSubsystem.resendMemberVerificationEmail tid uid
+  Brig.resendMemberVerificationEmail tid uid
+    >>= noteS @'TeamMemberNotFound

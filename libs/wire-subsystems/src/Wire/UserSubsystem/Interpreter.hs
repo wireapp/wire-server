@@ -60,6 +60,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Pagination
 import Wire.API.Routes.FederationDomainConfig
+import Wire.API.Routes.Internal.Brig (getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Routes.Versioned as V
 import Wire.API.Team.Export
@@ -209,6 +210,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
       InternalGetScimUsersPaginated tid maxResults offset ->
         getScimUsersPaginatedImpl tid maxResults offset
+      GetTeamMemberPendingVerificationEmail tid uid ->
+        getTeamMemberPendingVerificationEmailImpl tid uid
 
 isUsersContactableImpl ::
   forall r.
@@ -1186,6 +1189,32 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
         (UserTypeApp, _, _) -> True
         (_, False, Nothing) -> False
         _ -> True
+
+getTeamMemberPendingVerificationEmailImpl ::
+  forall r any.
+  ( Member UserStore r,
+    Member DeleteQueue r,
+    Member (Input UserSubsystemConfig) r,
+    Member InvitationStore r,
+    Member (Input (Local any)) r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r (Maybe (Maybe EmailAddress))
+getTeamMemberPendingVerificationEmailImpl tid uid = do
+  loc <- input @(Local any)
+  let getBy =
+        qualifyAs loc $
+          getByNoFilters
+            { getByUserId = [uid],
+              includePendingInvitations = WithPendingInvitations
+            }
+  mUser <- listToMaybe <$> getAccountsByImpl getBy
+  pure $ case mUser of
+    Nothing -> Nothing
+    Just user
+      | userTeam user /= Just tid -> Nothing
+      | otherwise -> Just (userEmailUnvalidated user)
 
 -- | User invited via scim expires together with its invitation. the UserSubsystem interface
 -- semantics hides the fact that pending users have no TTL field. we chose to emulate this
