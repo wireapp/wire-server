@@ -263,15 +263,13 @@ resendTeamMemberVerificationEmail ::
   Sem r ResendVerificationEmailResult
 resendTeamMemberVerificationEmail tid lusr = do
   account <-
-    listToMaybe
-      <$> getAccountsBy
+    getAccountsBy
         ( qualifyAs lusr $
             getByNoFilters
               { getByUserId = [tUnqualified lusr],
                 includePendingInvitations = WithPendingInvitations
               }
-        )
-      >>= note UserSubsystemProfileNotFound
+        ) >>= note UserSubsystemProfileNotFound . listToMaybe
   when (userTeam account /= Just tid) $ throw UserSubsystemProfileNotFound
   case account.userEmailUnvalidated of
     Nothing -> pure NoVerificationEmailPending
