@@ -315,19 +315,22 @@ readerContexts :: QSem -> Env -> (Text -> IO ()) -> Population -> [ReaderStats] 
 readerContexts gate env reportError population readerStats =
   [ReaderCtx {gate, env, client, stats, reportError} | (client, stats) <- zip (readers population) readerStats]
 
--- | One reader client: fetch all streams, re-fetch only those whose page was
--- full (more is waiting) until none is, then sleep. In 'Acks' mode every
--- delivered notification goes through 'acknowledge'; due acks are written
--- before the next fetch. Failures are reported and slow the loop down, never
--- stop it; @stop@ does, checked between rounds, so no ack is cut off.
-readerLoop :: IO Bool -> ReaderCtx -> ReaderOptions -> Int -> [Subscription] -> IO ()
-readerLoop stop ctx opts pollIntervalMs = go emptyAckState
+-- | One reader client: @idle@ (sleep for the poll interval, or wait to be
+-- woken by a push), then fetch all streams, re-fetch only those whose page was
+-- full (more is waiting) until none is. Waiting first: the subscriptions start at
+-- the head of their streams, so a first fetch would find nothing (with
+-- thousands of readers it would be a burst of empty fetches through the gate). In
+-- 'Acks' mode every delivered notification goes through 'acknowledge'; due
+-- acks are written before the next fetch. Failures are reported and slow the
+-- loop down, never stop it; @stop@ does, checked between rounds, so no ack is cut off.
+readerLoop :: IO Bool -> ReaderCtx -> ReaderOptions -> IO () -> [Subscription] -> IO ()
+readerLoop stop ctx opts idle = go emptyAckState
   where
     go acks subs = do
+      idle
       stopped <- stop
       unless stopped $ do
         (subs', acks') <- readerCatchUp ctx opts acks subs
-        threadDelay (pollIntervalMs * 1000)
         go acks' subs'
 
 -- | One store call of a reader, through the gate.
@@ -501,6 +504,7 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
     label
     [ ("writers", showT p.writers),
       ("readers", showT (length readerStats)),
+      ("wake-on-push", showT opts.wakeOnPush),
       ("targets", renderTargetSpec p.targets),
       ("seed", showT setup.seed)
     ]
@@ -514,14 +518,27 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
   (errorQueue, reportError) <- newErrorReporter
   stopWriters <- newIORef False
   stopReaders <- newIORef False
-  let -- A writer stops between pushes, so every committed push has its
+  -- --wake-on-push: a reader waits on its flag, which the writers set after the commit of
+  -- every push to one of its streams (fetch, then take: no wakeup is lost). A failed fetch is
+  -- not retried before the next push to the stream. Without it there are no flags, so
+  -- 'wake' finds no subscribers and the readers sleep for the poll interval.
+  wakes <- if opts.wakeOnPush then traverse (const newEmptyMVar) readerStats else pure []
+  let wakeups = subscribersOf population wakes
+      wake push = for_ (concatMap targetKeys push.targets) $ \k ->
+        for_ (Map.findWithDefault [] k wakeups) (`tryPutMVar` ())
+      idles
+        | opts.wakeOnPush = map takeMVar wakes
+        | otherwise = repeat (threadDelay (opts.pollIntervalMs * 1000))
+      -- A writer stops between pushes, so every committed push has its
       -- expected deliveries recorded before the drain starts.
-      writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (storePush writerEnv) setup.payloadBytes setup.entries ws reportError g
-      readerClient (ctx, subs) = readerLoop (readIORef stopReaders) ctx (readerOptions opts) opts.pollIntervalMs subs
+      writer (ws, g) = writerLoop (readIORef stopWriters) (expectedDeliveries population.subscribers) (\push -> storePush writerEnv push <* wake push) setup.payloadBytes setup.entries ws reportError g
+      readerClient ((ctx, subs), idle) = readerLoop (readIORef stopReaders) ctx (readerOptions opts) idle subs
       contexts = readerContexts gate readerEnv reportError population readerStats
       readTotals = totals writerStats readerStats
   -- after the subscriptions, whose acks setup writes
   checkpointBeforeRun writerEnv
+  -- built now, not inside the first measured push
+  _ <- evaluate (Map.size wakeups)
   start <- getMonotonicTime
   writerRef <- newIORef (initialTickState start)
   readerStateRef <- newIORef (initialConsumeTickState start)
@@ -544,7 +561,7 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
     withAsync (forever (threadDelay 1_000_000 >> void doTick)) $ \tickerA -> do
       link tickerA
       withDropSampler start samplerEnv dropsRef $
-        withAsync (mapConcurrently_ readerClient (zip contexts clientSubs)) $ \readersA -> do
+        withAsync (mapConcurrently_ readerClient (zip (zip contexts clientSubs) idles)) $ \readersA -> do
           link readersA
           withAsync (mapConcurrently_ writer (zip writerStats setup.gens)) $ \writersA -> do
             link writersA
@@ -555,6 +572,8 @@ runConsume console writerEnv readerEnv samplerEnv opts = do
             -- head): let readers finish their round, cancel the ones still
             -- busy after a poll interval plus a margin (e.g. behind on timeout).
             atomicWriteIORef stopReaders True
+            -- readers blocked on their flag see the stop
+            traverse_ (`tryPutMVar` ()) wakes
             _ <- System.Timeout.timeout ((opts.pollIntervalMs + 5_000) * 1000) (waitCatch readersA)
             pure r
   -- ticker, readers and writers are cancelled now; the final tick and summary run here only

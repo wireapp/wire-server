@@ -45,6 +45,16 @@ pushOf es = fst (genPush 0 es (mkStdGen 1))
 
 spec :: Spec
 spec = do
+  describe "subscribersOf" $ do
+    it "lists the readers of a stream in reader order: both clients of a user read its user stream" $ do
+      let p = population Nothing 3 2 (entriesOf 2 [TargetConfig KindUser 10 1])
+      Map.elems (subscribersOf p [0 :: Int ..]) `shouldMatchList` [[2 * i, 2 * i + 1] | i <- [0 .. 9]]
+
+    it "has no key for users that are not online" $ do
+      let subs = subscribersOf partialReaders [0 :: Int ..]
+      Map.size subs `shouldBe` 20
+      concat (Map.elems subs) `shouldMatchList` [0 .. 19]
+
   describe "mkPopulation" $ do
     it "makes every user of a user pool a reader with C clients" $ do
       let p = population Nothing 3 2 (entriesOf 2 [TargetConfig KindUser 10 1])

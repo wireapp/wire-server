@@ -16,6 +16,8 @@ module FanInPerf.Population
     readerCount,
     readerStreams,
     streamKind,
+    subscribersOf,
+    targetKeys,
     expectedDeliveries,
     expectedFromCounts,
     subscribedRows,
@@ -95,7 +97,7 @@ readerStreams kinds r =
 
 -- | Upper bound of 'readerCount': every reader is a thread with its own state.
 maxReaders :: Int
-maxReaders = 100_000
+maxReaders = 1_600_000
 
 -- | @mkPopulation onlineUsers epochsPerUser clientsPerUser entries gen@: the
 -- online users each have @clientsPerUser@ clients (ids @1..C@), each one reader.
@@ -179,6 +181,28 @@ targetKeys = \case
   TargetTeam t -> [KTeam t]
   TargetEpoch (g, e) -> [KEpoch g e.epochNumber]
   TargetConnections _ -> []
+
+-- | @subscribersOf p xs@: for every stream some reader reads, the items of the
+-- readers subscribed to it. @xs@ has one item per reader, in the order of
+-- 'readers' @p@ (e.g. one wake flag each); the items of a stream keep that order.
+--
+-- Example: users @u1@, @u2@ online with 2 clients each, kinds @{KindUser}@, so
+-- @readers p == [u1c1, u1c2, u2c1, u2c2]@ and @xs = [m1, m2, m3, m4] :: [MVar ()]@:
+--
+-- > subscribersOf p xs == Map.fromList
+-- >   [ (KUser u1, [m1, m2]) -- both clients of u1 read u1's user stream
+-- >   , (KUser u2, [m3, m4])
+-- >   ]
+--
+-- A reader with several streams is listed under each key: kinds
+-- @{KindUser, KindTeam}@, @u1@ and @u2@ in team @t@, 1 client each, @xs = [m1, m2]@:
+--
+-- > Map.fromList [(KUser u1, [m1]), (KUser u2, [m2]), (KTeam t, [m1, m2])]
+--
+-- Users that are not online have no reader and no key: a push to them wakes nobody.
+subscribersOf :: Population -> [a] -> Map Key [a]
+subscribersOf p xs =
+  Map.fromListWith (flip (<>)) [(streamKey st, [x]) | (r, x) <- zip (readers p) xs, st <- readerStreams p.kinds r]
 
 -- | Notifications that reach readers when this push succeeds.
 expectedDeliveries :: Map Key Int -> FanInPush -> Int

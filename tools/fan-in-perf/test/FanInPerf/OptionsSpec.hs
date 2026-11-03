@@ -87,6 +87,13 @@ spec = do
           `shouldBe` (PopulationOptions Nothing 3, 100, 100, 32, 10, 0)
         c.writerOptions.writers `shouldBe` 16
         c.writerOptions.targets `shouldBe` (TargetConfig KindUser 100 1 :| [TargetConfig KindTeam 1 1])
+        c.wakeOnPush `shouldBe` False
+      _ -> expectationFailure "not a consume command"
+
+  it "parses consume --wake-on-push" $ do
+    o <- parseOk ["--db", "x", "consume", "--targets", "user:10", "--wake-on-push"]
+    case o.command of
+      Consume c -> c.wakeOnPush `shouldBe` True
       _ -> expectationFailure "not a consume command"
 
   it "parses all consume flags" $ do

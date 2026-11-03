@@ -50,6 +50,7 @@ data ConsumeOptions = ConsumeOptions
   { writerOptions :: ProduceOptions,
     population :: PopulationOptions,
     pollIntervalMs :: Int,
+    wakeOnPush :: Bool,
     fetchLimit :: Int,
     readerPoolSize :: Int,
     drainTimeout :: Int,
@@ -200,6 +201,9 @@ populationParser =
 pollIntervalOption :: Parser Int
 pollIntervalOption = option (nonNegative maxPollIntervalMs) (long "poll-interval" <> metavar "MS" <> value 100 <> showDefault <> help "Sleep in milliseconds after a fetch pass without a full page")
 
+wakeOnPushOption :: Parser Bool
+wakeOnPushOption = switch (long "wake-on-push" <> help "Readers fetch only after a push to one of their streams (woken by the writers), no idle polls and no retry of a failed fetch before the next push to the stream. --poll-interval then only sets the drain stall time and the reader stop timeout")
+
 fetchLimitOption :: Parser Int
 fetchLimitOption = option (positive maxFetchLimit) (long "fetch-limit" <> metavar "L" <> value 100 <> showDefault <> help "Notifications per fetch")
 
@@ -212,6 +216,7 @@ consumeParserWith modeParser =
     <$> produceParserWith consumeTargetsReader
     <*> populationParser
     <*> pollIntervalOption
+    <*> wakeOnPushOption
     <*> fetchLimitOption
     <*> readerPoolSizeOption
     <*> option (nonNegative maxDuration) (long "drain-timeout" <> metavar "SECS" <> value 10 <> showDefault <> help "Seconds to wait for readers to catch up after the writers stopped")

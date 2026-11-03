@@ -53,6 +53,7 @@ class Config:
     pool_split: int  # reader pool of E and F
     tuning_text: str  # how w_*/pool_* were chosen, for the Setup bullet
     payload_bytes: int = None  # --payload-bytes default of the script (None: the tool's)
+    wake_on_push: bool = False  # B-D readers fetch only after a push to their streams (--wake-on-push), no idle polls
 
 
 def log(msg):
@@ -169,6 +170,8 @@ def tool_args(cfg, exp, w, pool, dur):
     a = [exp, "--writers", w, "--targets", cfg.targets, *([] if exp == "produce" else cfg.reader_args), "--warmup", WARMUP, "--duration", max(1, dur // QUICK), "--seed", SEED]
     if exp != "produce":
         a += ["--reader-pool-size", pool, "--safety-window", 200, "--drain-timeout", DRAIN]
+        if cfg.wake_on_push:
+            a += ["--wake-on-push"]
     if exp == "consume-ack":
         a += ["--ack-every", 1]
     if PAYLOAD:
@@ -302,7 +305,7 @@ def render_report(cfg, res, env):
          f"- Date {env['date']}, commit `{env['commit']}`, driver `tools/fan-in-perf/{cfg.script}`",
          f"- Host: {env['cpus']} CPUs, {env['mem']} RAM; tool and database share it. {env['pg']}; {env['settings']}",
          *([f"- pg_partman {env['partman']}: six `*_notifications` tables range-partitioned by UUIDv7, 1 min partitions, 5 min retention, no default partition, maintenance by the background worker every 60 s. `plain`: unpartitioned, no TTL.",] if partman else []),
-         f"- Load: `--targets {cfg.targets}`{''.join(f' {a}' for a in cfg.reader_args)}: {cfg.load_text} B-D: every client reads, poll interval 100 ms, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
+         f"- Load: `--targets {cfg.targets}`{''.join(f' {a}' for a in cfg.reader_args)}: {cfg.load_text} B-D: every client reads, {'woken by pushes (no idle polls)' if cfg.wake_on_push else 'poll interval 100 ms'}, fetch limit 100, safety window 200 ms; C, D: ack after every notification.",
          f"- Writers A={cfg.w_a}, B={cfg.w_b}, C/D={cfg.w_c}; reader pool B={cfg.pool_b}, C/D={cfg.pool_c}: {cfg.tuning_text} Seed {SEED}. One run each.",
          f"- Rates are averages over the writer phase incl. {WARMUP} s warmup; p99 are histogram bucket upper bounds (at most 25 % above). `backlog at stop`: expected minus delivered when the writers stopped. `missing`: never delivered after the drain. `errors`: failed pushes + fetches + acks.",
          f"- E, F (plain only): `reset-db`, `produce` ({cfg.w_split} writers, {split_dur} s), `vacuum` (VACUUM ANALYZE), then `consume-only[-ack]` with the same seed and targets. The rows were just written, so caches are warm. Readers start at the oldest row (a client that was offline and acknowledged nothing). cons/s avg = delivered / consume time (until the last reader caught up), incl. warmup and that tail; `time to N %`: until N % of the notifications were delivered (50 ms resolution), to tell the tail from the steady rate; max ignores the first {cfg.split_warmup} s. Every reader fetches its backlog once and stops (no polling). Reader pool {cfg.pool_split}. `rows`: notifications in the table after produce.",

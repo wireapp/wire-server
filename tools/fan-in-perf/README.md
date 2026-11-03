@@ -189,6 +189,7 @@ consumer threads.
 - `--reader-pool-size 64`: sets the Postgresql connection pool size for the simulated readers
 - `--safety-window`: in Milliseconds defines how much fetching looks back after the cursor to deal with late/delayed commits
 - `--drain-timeout`: How many Seconds to drain after the writers stopped writing
+- `--wake-on-push`: readers fetch only after a push to one of their streams (the writers wake them after the commit) instead of every `--poll-interval`. No idle polls, so with many readers the lag is no longer one polling pass. A failed fetch is not retried before the next push to its stream. Models push, then fetch: not comparable to polling runs
 
 The safety-window illustrated:
 
@@ -336,10 +337,10 @@ of the simulation. Extracted from `--help`:
 addressable users (pool of `user`/`clients` in --targets)
   `- first U = --online-users (default: all)          U <= pool size
        `- C clients each (--clients-per-user)
-            `- readers = U x C                         <= 100000
+            `- readers = U x C                         <= 1600000
 ```
 
-The default takes as many pool users as the limit allows (100000 / C).
+The default takes as many pool users as the limit allows (1600000 / C).
 
 Without a `user` / `clients` pool (e.g. `team:10`) there is no pool to take
 users from: `--online-users` is required and the users are synthetic.
@@ -349,7 +350,7 @@ users from: `--online-users` is required and the users are synthetic.
 | `--targets user:2000x1` (experiments A-F)                    | 2000         | 2000 (1 per user) |
 | `--targets user:1000x1 --clients-per-user 2`                 | 1000         | 2000 (2 per user) |
 | `--targets user:1000000x20 --online-users 2000`              | 2000         | 2000              |
-| `--targets user:1000000x20 --clients-per-user 2`             | 50000        | 100000 (limit)    |
+| `--targets user:1000000x20 --clients-per-user 2`             | 800000       | 1600000 (limit)   |
 | `--targets team:10 --online-users 2000 --clients-per-user 3` | 2000         | 6000              |
 
 Streams of users that are not online have no reader: the `coverage` line of a
