@@ -374,6 +374,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (Right Map.empty)
         Map.empty
         def
+        fullLicense
         (listMeetings zUser)
 
     case result of
