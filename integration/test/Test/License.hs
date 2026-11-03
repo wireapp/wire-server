@@ -19,7 +19,7 @@ module Test.License where
 
 import API.Galley
 import SetupHelpers
-import Test.Meetings (withLicensedBackend)
+import Test.Meetings (withLicensedBackend, withLicensedBackendFlags)
 import Testlib.Prelude
 
 testLicense :: (HasCallStack) => App ()
@@ -37,3 +37,17 @@ testLicense = do
     forM_ ["invitation_links", "emails_sending", "calendars_integration"] $ \flag -> do
       v <- respL %. ("meetings." <> flag)
       asBool v >>= (`shouldMatch` True)
+
+-- | Mixed licence: invitation links and calendars integration licensed while
+-- email sending is off — each flag is served independently, exactly as
+-- licensed (review feedback on WPB-29669).
+testLicenseMixedFlags :: (HasCallStack) => App ()
+testLicenseMixedFlags =
+  withLicensedBackendFlags True False True $ \dom -> do
+    (owner, _, _) <- createTeam dom 1
+    resp <- getLicense owner >>= getJSON 200
+    forM_
+      [("invitation_links", True), ("emails_sending", False), ("calendars_integration", True)]
+      $ \(flag, expected) -> do
+        v <- resp %. ("meetings." <> flag)
+        asBool v >>= (`shouldMatch` expected)

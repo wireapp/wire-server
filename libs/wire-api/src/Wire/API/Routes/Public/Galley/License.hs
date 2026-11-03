@@ -19,7 +19,6 @@ module Wire.API.Routes.Public.Galley.License where
 
 import Servant
 import Wire.API.License
-import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
@@ -33,5 +32,5 @@ type LicenseAPI =
         :> From 'V19
         :> ZLocalUser
         :> "license"
-        :> MultiVerb1 'GET '[JSON] (Respond 200 "The deployment license" License)
+        :> Get '[JSON] License
     )

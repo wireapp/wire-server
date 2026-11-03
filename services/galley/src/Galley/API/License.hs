@@ -27,7 +27,7 @@ import Wire.Licensing.License qualified as Licensing
 
 getLicense :: (Member Licensing.Licensing r) => Local UserId -> Sem r API.License
 getLicense _user =
-  pure . toAPILicense =<< Licensing.getLicense
+  toAPILicense <$> Licensing.getLicense
   where
     toAPILicense
       ( Licensing.License

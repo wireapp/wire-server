@@ -1175,5 +1175,5 @@ putResendTeamMemberVerificationEmail caller tid uid = do
 -- | Authenticated: @GET /license@.
 getLicense :: (HasCallStack, MakesValue user) => user -> App Response
 getLicense user = do
-  req <- baseRequest user Galley Versioned (joinHttpPath ["license"])
+  req <- baseRequest user Galley Versioned "license"
   submit "GET" req
