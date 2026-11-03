@@ -87,7 +87,7 @@ if [[ -t 1 ]]; then
 fi
 
 if [[ "$f" = "all" ]] || [[ "$f" = "" ]]; then
-  files=$(git ls-files | grep '\.hsc\?$')
+  files=$(git ls-files --full-name | grep '\.hsc\?$')
 elif [[ "$f" = "pr" ]]; then
   files=$(
     git diff --diff-filter=ACMR --name-only "$PR_BASE"... | { grep '\.hsc\?$' || true; }
