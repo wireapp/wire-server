@@ -33,7 +33,7 @@ getLicense _user =
       ( Licensing.License
           { meetings = Licensing.Meetings {Licensing.invitationLinks, Licensing.emailsSending, Licensing.calendarsIntegration}
           }
-      ) =
+        ) =
         API.License
           { meetings =
               API.Meetings
