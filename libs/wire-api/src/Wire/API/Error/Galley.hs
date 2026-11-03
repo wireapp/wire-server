@@ -450,6 +450,7 @@ instance APIError MeetingError where
 type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, or meetings feature disabled"
 
 type MeetingLinkErrorStatic = 'StaticError 500 "link-unavailable" "No join link can be produced for this meeting"
+
 type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
 
 instance IsSwaggerError MeetingError where
