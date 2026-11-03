@@ -28,7 +28,7 @@ type LicenseAPI =
     "get-license"
     ( Summary "Get the deployment license"
         :> Description
-             "Returns which licensed meeting features this deployment covers. Serves all-false flags when WIRE_LICENSE is unset, invalid, expired, or does not cover this domain."
+             "Returns which licensed meeting features this deployment covers. Serves all-false flags when no license is configured, the configured license is invalid or expired, or it does not cover this domain."
         :> From 'V19
         :> ZLocalUser
         :> "license"

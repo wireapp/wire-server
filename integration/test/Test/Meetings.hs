@@ -1103,11 +1103,15 @@ licensedPayloadFor dom (invitationLinks, emailsSending, calendarsIntegration) = 
   value <- case A.decode' @A.Value (LBS.fromStrict (B64.decodeLenient (Text.encodeUtf8 (Text.strip (Text.pack token))))) of
     Just v -> pure v
     Nothing -> fail "failed to decode license payload as JSON"
-  let patched =
+  let meetingsFlag name = AL.key (fromString "license_content") . AL.key (fromString "meetings") . AL.key (fromString name)
+      patched =
         value
-          & AL.key (fromString "license_content") . AL.key (fromString "meetings") . AL.key (fromString "invitation_links") . AL._Bool .~ invitationLinks
-          & AL.key (fromString "license_content") . AL.key (fromString "meetings") . AL.key (fromString "emails_sending") . AL._Bool .~ emailsSending
-          & AL.key (fromString "license_content") . AL.key (fromString "meetings") . AL.key (fromString "calendars_integration") . AL._Bool .~ calendarsIntegration
+          & meetingsFlag "invitation_links" . AL._Bool .~ invitationLinks
+          & meetingsFlag "emails_sending" . AL._Bool .~ emailsSending
+          & meetingsFlag "calendars_integration" . AL._Bool .~ calendarsIntegration
+  -- Fail loudly if the CLI payload shape drifted and patching was a no-op,
+  -- instead of silently deploying the unpatched license.
+  when (patched == value) $ fail "license payload patch had no effect: unexpected payload shape"
   pure (Text.decodeUtf8 (B64.encode (LBS.toStrict (A.encode patched))))
 
 -- | Extract the (key, code) query parameters from a meeting join link URL

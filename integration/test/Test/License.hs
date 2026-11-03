@@ -22,21 +22,27 @@ import SetupHelpers
 import Test.Meetings (withLicensedBackend, withLicensedBackendFlags)
 import Testlib.Prelude
 
+assertMeetingsFlags :: (HasCallStack, MakesValue resp) => resp -> [(String, Bool)] -> App ()
+assertMeetingsFlags resp flags =
+  forM_ flags $ \(flag, expected) -> do
+    v <- resp %. ("meetings." <> flag)
+    asBool v >>= (`shouldMatch` expected)
+
 testLicense :: (HasCallStack) => App ()
 testLicense = do
   -- Unlicensed static backend: all flags false.
   (owner, _, _) <- createTeam OwnDomain 1
   resp <- getLicense owner >>= getJSON 200
-  forM_ ["invitation_links", "emails_sending", "calendars_integration"] $ \flag -> do
-    v <- resp %. ("meetings." <> flag)
-    asBool v >>= (`shouldMatch` False)
+  assertMeetingsFlags
+    resp
+    [("invitation_links", False), ("emails_sending", False), ("calendars_integration", False)]
   -- Licensed dynamic backend: all flags true (meetings premium activated).
   withLicensedBackend $ \dom -> do
     (ownerL, _, _) <- createTeam dom 1
     respL <- getLicense ownerL >>= getJSON 200
-    forM_ ["invitation_links", "emails_sending", "calendars_integration"] $ \flag -> do
-      v <- respL %. ("meetings." <> flag)
-      asBool v >>= (`shouldMatch` True)
+    assertMeetingsFlags
+      respL
+      [("invitation_links", True), ("emails_sending", True), ("calendars_integration", True)]
 
 -- | Mixed licence: invitation links and calendars integration licensed while
 -- email sending is off — each flag is served independently, exactly as
@@ -46,8 +52,6 @@ testLicenseMixedFlags =
   withLicensedBackendFlags True False True $ \dom -> do
     (owner, _, _) <- createTeam dom 1
     resp <- getLicense owner >>= getJSON 200
-    forM_
+    assertMeetingsFlags
+      resp
       [("invitation_links", True), ("emails_sending", False), ("calendars_integration", True)]
-      $ \(flag, expected) -> do
-        v <- resp %. ("meetings." <> flag)
-        asBool v >>= (`shouldMatch` expected)
