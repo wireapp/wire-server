@@ -313,6 +313,7 @@ let
       pkgs.vacuum-go
       pkgs.iproute2
       pkgs.lsof
+      pkgs.postgresql
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-ses

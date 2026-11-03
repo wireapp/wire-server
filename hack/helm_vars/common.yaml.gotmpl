@@ -15,7 +15,7 @@ dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster
 
 {{- $preferredStore := default "cassandra" (env "PREFERRED_STORE") }}
 conversationStore: {{ $preferredStore }}
-conversationCodesStore: {{ $preferredStore }}
+conversationCodesStore: migration-to-postgresql # WPB-29361: meeting join codes are Postgres-only and links are mandatory; dual-write keeps guest codes on Cassandra
 teamFeaturesStore: {{ $preferredStore }}
 domainRegistration: {{ $preferredStore }}
 passwordReset: {{ $preferredStore }}

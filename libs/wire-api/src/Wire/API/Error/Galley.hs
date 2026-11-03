@@ -407,6 +407,9 @@ data MeetingError
   = InvalidTimes InvalidTimesReason
   | EmptyUpdate
   | MeetingsFeatureDisabled
+  | -- | No join link can be produced: the code store cannot hold meeting
+    -- codes, or no join-link URI is configured for the user's domain.
+    LinkUnavailable
   deriving stock (Eq, Show)
 
 -- | The individual failure modes of meeting time validation.
@@ -429,6 +432,11 @@ meetingErrorToDyn = \case
     DynError 403 "invalid-op" "Meeting times must not be set further into the past than the past-edit window allows"
   EmptyUpdate -> DynError 403 "invalid-op" "Meeting update must set at least one field"
   MeetingsFeatureDisabled -> DynError 403 "invalid-op" "The meetings feature is not enabled"
+  LinkUnavailable ->
+    DynError
+      500
+      "link-unavailable"
+      "Cannot produce a meeting join link: the code store must run in postgresql or migration-to-postgresql mode and a join-link URI must be configured for the user's domain"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
@@ -439,8 +447,12 @@ instance APIError MeetingError where
 -- error (the runtime messages are more detailed but share code and label).
 type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, or meetings feature disabled"
 
+type MeetingLinkErrorStatic = 'StaticError 500 "link-unavailable" "No join link can be produced for this meeting"
+
 instance IsSwaggerError MeetingError where
-  addToOpenApi = addStaticErrorToSwagger @MeetingErrorStatic
+  addToOpenApi =
+    addStaticErrorToSwagger @MeetingErrorStatic
+      . addStaticErrorToSwagger @MeetingLinkErrorStatic
 
 instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where
   interpretServerEffect = mapError meetingErrorToDyn
