@@ -27,6 +27,8 @@ module Wire.API.Team.Invitation
     AcceptTeamInvitation (..),
     HeadInvitationByEmailResult (..),
     HeadInvitationsResponses,
+    ResendVerificationEmailResult (..),
+    ResendVerificationEmailResponses,
   )
 where
 
@@ -176,6 +178,23 @@ instance AsUnion HeadInvitationsResponses HeadInvitationByEmailResult where
   fromUnion (S (Z (I _))) = InvitationByEmailMoreThanOne
   fromUnion (S (S (Z (I ())))) = InvitationByEmail
   fromUnion (S (S (S x))) = case x of {}
+
+data ResendVerificationEmailResult
+  = VerificationEmailSent
+  | NoVerificationEmailPending
+
+type ResendVerificationEmailResponses =
+  '[ RespondEmpty 202 "Verification email sent.",
+     RespondEmpty 204 "No pending email verification."
+   ]
+
+instance AsUnion ResendVerificationEmailResponses ResendVerificationEmailResult where
+  toUnion VerificationEmailSent = Z (I ())
+  toUnion NoVerificationEmailPending = S (Z (I ()))
+
+  fromUnion (Z (I ())) = VerificationEmailSent
+  fromUnion (S (Z (I ()))) = NoVerificationEmailPending
+  fromUnion (S (S x)) = case x of {}
 
 --------------------------------------------------------------------------------
 -- InvitationList

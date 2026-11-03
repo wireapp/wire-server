@@ -54,6 +54,7 @@ module Galley.API.Teams
     internalDeleteBindingTeam,
     updateTeamCollaborator,
     removeTeamCollaborator,
+    resendTeamMemberVerificationEmail,
   )
 where
 
@@ -101,6 +102,7 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
+import Wire.API.Team.Invitation (ResendVerificationEmailResult)
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as M
 import Wire.API.Team.Member qualified as Public
@@ -1289,3 +1291,21 @@ removeTeamCollaborator lusr tid rusr = do
           recipients = userRecipient rusr : map (`Recipient` RecipientClientsAll) admins
         }
     ]
+
+resendTeamMemberVerificationEmail ::
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member TeamSubsystem r,
+    Member E.BrigAPIAccess r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r ResendVerificationEmailResult
+resendTeamMemberVerificationEmail lzusr tid uid = do
+  void $
+    TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid
+      >>= TeamSubsystem.permissionCheck AddTeamMember
+  Brig.resendMemberVerificationEmail tid uid
+    >>= noteS @'TeamMemberNotFound

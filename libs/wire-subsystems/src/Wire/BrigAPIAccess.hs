@@ -45,6 +45,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
+import Wire.API.Team.Invitation (ResendVerificationEmailResult)
 import Wire.API.Team.Role (Role)
 import Wire.API.Team.Size
 import Wire.API.User
@@ -166,6 +167,7 @@ data BrigAPIAccess m a where
   CheckAdminGetTeamId :: UserId -> BrigAPIAccess m (Either Wai.Error TeamId)
   SendSAMLIdPChangedEmail :: IdpChangedNotification -> BrigAPIAccess m ()
   GetScimUsersPaginated :: TeamId -> Range 0 500 Int32 -> Maybe Int32 -> BrigAPIAccess m (Maybe (OffsetPage User))
+  ResendMemberVerificationEmail :: TeamId -> UserId -> BrigAPIAccess m (Maybe ResendVerificationEmailResult)
 
 makeSem ''BrigAPIAccess
 

@@ -119,8 +119,8 @@ servantAPI ::
     Member AuthenticationSubsystem r,
     Member UserStore r,
     Member UserKeyStore r,
-    Member (UserPendingActivationStore p) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
