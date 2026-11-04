@@ -281,7 +281,7 @@ type BrigLowerLevelEffects =
      Jwk,
      JwtTools,
      BudgetStore,
-     UserPendingActivationStore,
+     UserPendingActivationStore InternalPaging,
      Now,
      Delay,
      Random,
