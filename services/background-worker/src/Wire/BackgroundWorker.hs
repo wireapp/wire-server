@@ -99,6 +99,7 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-nonce" $
             Migrations.nonce opts.migrationOptions
+      else pure $ pure ()
   cleanupUsersPendingActivationMigration <-
     if opts.migrateUsersPendingActivation
       then
