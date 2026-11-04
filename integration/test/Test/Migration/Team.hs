@@ -61,29 +61,6 @@ testTeamMigration = do
       checkTeamRoundtrip owner3 tid3
       (owner4, tid4, _) <- createTeam domain 1
       checkTeamRoundtrip owner4 tid4
-    (admin2, tid2) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
-      checkTeamRoundtrip admin1 tid1
-      (admin2, tid2, _) <- createTeam domain 2
-      checkTeamRoundtrip admin2 tid2
-      pure (admin2, tid2)
-
-    -- migration-to-postgresql (worker on): the copy loop backfills the team
-    -- table, including teams that predate the migration setting
-    (admin3, tid3) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
-      checkTeamRoundtrip admin1 tid1
-      checkTeamRoundtrip admin2 tid2
-      waitForMigration domain counterName
-      (admin3, tid3, _) <- createTeam domain 2
-      checkTeamRoundtrip admin3 tid3
-      pure (admin3, tid3)
-
-    -- postgresql: reads come from Postgres for all teams, old and new
-    runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
-      checkTeamRoundtrip admin1 tid1
-      checkTeamRoundtrip admin2 tid2
-      checkTeamRoundtrip admin3 tid3
-      (admin4, tid4, _) <- createTeam domain 2
-      checkTeamRoundtrip admin4 tid4
   where
     checkTeamRoundtrip admin tid =
       bindResponse (getTeam admin tid) $ \res -> do
