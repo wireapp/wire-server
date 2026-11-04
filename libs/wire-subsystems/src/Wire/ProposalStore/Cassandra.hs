@@ -55,12 +55,10 @@ interpretProposalStoreToCassandra = interpret $ \case
     client <- input
     embedClient client . retry x5 $
       write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, proposal.ref, proposal.origin, proposal.proposal))
-  GetProposal groupId epoch ref -> do
+  StoreProposals groupId epoch sps -> do
     client <- input
-    embedClient client (runIdentity <$$> retry x1 (query1 getQuery (params LocalQuorum (groupId, epoch, ref))))
-  GetAllPendingProposalRefs groupId epoch -> do
-    client <- input
-    embedClient client (runIdentity <$$> retry x1 (query getAllPendingRef (params LocalQuorum (groupId, epoch))))
+    embedClient client . for_ sps $ \sp ->
+      retry x5 $ write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, sp.ref, sp.origin, sp.proposal))
   GetAllPendingProposals groupId epoch -> do
     client <- input
     embedClient client $ map mkStoredProposal <$> retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
@@ -74,12 +72,6 @@ storeQuery ttl =
     "insert into mls_proposal_refs (group_id, epoch, ref, origin, proposal)\
     \ values (?, ?, ?, ?, ?) using ttl "
       <> show (ttl #> Second)
-
-getQuery :: PrepQuery R (GroupId, Epoch, ProposalRef) (Identity (RawMLS Proposal))
-getQuery = "select proposal from mls_proposal_refs where group_id = ? and epoch = ? and ref = ?"
-
-getAllPendingRef :: PrepQuery R (GroupId, Epoch) (Identity ProposalRef)
-getAllPendingRef = "select ref from mls_proposal_refs where group_id = ? and epoch = ?"
 
 getAllPending :: PrepQuery R (GroupId, Epoch) ProposalRow
 getAllPending = "select ref, origin, proposal from mls_proposal_refs where group_id = ? and epoch = ?"

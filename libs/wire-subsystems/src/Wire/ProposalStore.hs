@@ -38,15 +38,11 @@ data ProposalStore m a where
     Epoch ->
     StoredProposal ->
     ProposalStore m ()
-  GetProposal ::
+  StoreProposals ::
     GroupId ->
     Epoch ->
-    ProposalRef ->
-    ProposalStore m (Maybe (RawMLS Proposal))
-  GetAllPendingProposalRefs ::
-    GroupId ->
-    Epoch ->
-    ProposalStore m [ProposalRef]
+    [StoredProposal] ->
+    ProposalStore m ()
   GetAllPendingProposals ::
     GroupId ->
     Epoch ->
