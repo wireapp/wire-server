@@ -69,7 +69,6 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     -- copied by the teamStore migration, so this only flips where the
     -- pagination reads are served from.
     listItems :: StorageLocation
->>>>>>> 4d189c6c22 (WPB-29585: migrate ListItems team instance reads to PostGreSQL)
   }
   deriving (Show)
 
