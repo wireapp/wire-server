@@ -457,6 +457,24 @@ runBrigToIO e (AppT ma) = do
       -- The Postgres-backed branches therefore supply Input Pool and Error UsageError
       -- locally (raiseUnder2 + runInputConst + mapError) so they stay self-contained;
       -- UsageError is mapped to HttpError (handled by rethrowHttpErrorIO further up).
+      -- Same reasoning as passwordResetCodeStore above: VerificationCodeStore
+      -- must be peeled at this slot, before the global Pool/UsageError
+      -- providers, so the Postgres-backed branches supply them locally
+      -- (raiseUnder2 + runInputConst + mapError).
+      verificationCodeStoreInterpreter =
+        case e.postgresMigration.verificationCodes of
+          CassandraStorage -> interpretVerificationCodeStoreCassandra e.casClient
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretVerificationCodeStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretVerificationCodeStoreToCassandraAndPostgres e.casClient
+              . raiseUnder2
+
       passwordResetCodeStoreInterpreter =
         case e.postgresMigration.passwordReset of
           CassandraStorage -> passwordResetCodeStoreToCassandra @Cas.Client
@@ -479,23 +497,10 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . interpretBudgetStoreToPostgres
               . raiseUnder2
-
-      -- Same reasoning as passwordResetCodeStore above: VerificationCodeStore
-      -- must be peeled at this slot, before the global Pool/UsageError
-      -- providers, so the Postgres-backed branches supply them locally
-      -- (raiseUnder2 + runInputConst + mapError).
-      verificationCodeStoreInterpreter =
-        case e.postgresMigration.verificationCodes of
-          CassandraStorage -> interpretVerificationCodeStoreCassandra e.casClient
-          PostgresqlStorage ->
-            runInputConst e.hasqlPool
-              . mapError postgresUsageErrorToHttpError
-              . interpretVerificationCodeStoreToPostgres
-              . raiseUnder2
           MigrationToPostgresql ->
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
-              . interpretVerificationCodeStoreToCassandraAndPostgres e.casClient
+              . interpretBudgetStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
       -- Same slot consideration as passwordResetCodeStore above: the
@@ -513,7 +518,6 @@ runBrigToIO e (AppT ma) = do
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretConnectionStoreToCassandraAndPostgres
-              . interpretVerificationCodeStoreToCassandraAndPostgres e.casClient
               . raiseUnder2
 
   ( either throwM pure
