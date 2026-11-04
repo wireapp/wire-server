@@ -120,6 +120,7 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-connections" $
             Migrations.connections opts.migrationOptions
+      else pure $ pure ()
   cleanupProviderPasswordsMigration <-
     if opts.migrateProviderPasswords
       then
