@@ -389,7 +389,6 @@ servantSitemap ::
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
     Member NonceStore r,
-    Member IndexedUserStore r,
     Member UserSearchStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
