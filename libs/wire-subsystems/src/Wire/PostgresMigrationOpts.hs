@@ -60,13 +60,10 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     blockList :: StorageLocation,
     passwordReset :: StorageLocation,
     customBackend :: StorageLocation,
-<<<<<<< HEAD
     budget :: StorageLocation,
     nonce :: StorageLocation,
-    connections :: StorageLocation
-=======
+    connections :: StorageLocation,
     clients :: StorageLocation
->>>>>>> 5a95859ea6 (fix: post-rebuild)
   }
   deriving (Show)
 
@@ -81,10 +78,7 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "blockList"
       <*> o .: "passwordReset"
       <*> o .: "customBackend"
-<<<<<<< HEAD
       <*> o .: "budget"
       <*> o .: "nonce"
       <*> o .: "connections"
-=======
       <*> o .: "clients"
->>>>>>> 5a95859ea6 (fix: post-rebuild)
