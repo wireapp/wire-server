@@ -167,6 +167,8 @@ nonce migOpts = do
   Log.info logger $ Log.msg (Log.val "started nonce migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling nonce migration")
+    cancel migrationLoop
+
 usersPendingActivation :: MigrationOptions -> AppT IO CleanupAction
 usersPendingActivation migOpts = do
   cassClient <- asks (.cassandraBrig)

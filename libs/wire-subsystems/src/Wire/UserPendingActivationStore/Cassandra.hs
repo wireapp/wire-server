@@ -24,24 +24,25 @@ module Wire.UserPendingActivationStore.Cassandra
 where
 
 import Cassandra
-import Data.Conduit
-import Data.Conduit.List qualified as C
 import Data.Id (UserId)
 import Data.Time (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Internal.Tactics
+import Wire.Sem.Paging.Cassandra qualified as PC
 import Wire.UserPendingActivationStore
 
 userPendingActivationStoreToCassandra ::
-  forall r.
+  forall r a.
   (Member (Embed Client) r) =>
-  InterpreterFor UserPendingActivationStore r
+  Sem (UserPendingActivationStore PC.InternalPaging ': r) a ->
+  Sem r a
 userPendingActivationStoreToCassandra =
   interpretH $
     liftT . embed @Client . \case
       Add upa -> usersPendingActivationAdd upa
-      List -> usersPendingActivationList
+      List Nothing -> flip PC.mkInternalPage pure =<< usersPendingActivationList
+      List (Just ps) -> PC.ipNext ps
       RemoveMultiple uids -> usersPendingActivationRemoveMultiple uids
 
 usersPendingActivationAdd :: (MonadClient m) => UserPendingActivation -> m ()
@@ -51,17 +52,18 @@ usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do
     insertExpiration :: PrepQuery W (UserId, UTCTime) ()
     insertExpiration = "INSERT INTO users_pending_activation (user, expires_at) VALUES (?, ?)"
 
+-- | Full-table select, used by the Postgres migration copy loop.
 selectAllUsersPendingActivation :: PrepQuery R () (UserId, UTCTime)
 selectAllUsersPendingActivation =
   "SELECT user, expires_at FROM users_pending_activation"
 
-usersPendingActivationList :: (MonadClient m) => m [UserPendingActivation]
-usersPendingActivationList =
-  runConduit $
-    paginateC selectAllUsersPendingActivation (paramsP LocalQuorum () 100) x1
-      .| C.concat
-      .| C.map (uncurry UserPendingActivation)
-      .| C.consume
+usersPendingActivationList :: (MonadClient m) => m (Page UserPendingActivation)
+usersPendingActivationList = do
+  uncurry UserPendingActivation <$$> retry x1 (paginate selectExpired (params LocalQuorum ()))
+  where
+    selectExpired :: PrepQuery R () (UserId, UTCTime)
+    selectExpired =
+      "SELECT user, expires_at FROM users_pending_activation"
 
 usersPendingActivationRemoveMultiple :: (MonadClient m) => [UserId] -> m ()
 usersPendingActivationRemoveMultiple uids =

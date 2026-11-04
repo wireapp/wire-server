@@ -358,12 +358,12 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
       & cleanupSwagger
 
 servantSitemap ::
-  forall r m.
+  forall r p m.
   ( Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
     Member (Input (Local ())) r,
-    Member (UserPendingActivationStore) r,
+    Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
     Member EmailSending r,
@@ -911,7 +911,7 @@ createUser ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member InvitationStore r,
-    Member (UserPendingActivationStore) r,
+    Member (UserPendingActivationStore p) r,
     Member (Input (Local ())) r,
     Member TinyLog r,
     Member UserKeyStore r,
@@ -934,7 +934,7 @@ createUserV16 ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member InvitationStore r,
-    Member (UserPendingActivationStore) r,
+    Member (UserPendingActivationStore p) r,
     Member (Input (Local ())) r,
     Member TinyLog r,
     Member UserKeyStore r,
