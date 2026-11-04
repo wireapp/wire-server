@@ -108,7 +108,7 @@ postMeeting user meeting t = do
   req <- rawBaseNginzRequest user Versioned "/meetings"
   submit "POST" (req & addJSON body & addHeader "Authorization" ("Bearer " <> token))
 
-uploadProviderAsset ::(HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+uploadProviderAsset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 uploadProviderAsset domain cookie payload = do
   req <- rawBaseNginzRequest domain Versioned $ joinHttpPath ["provider", "assets"]
   bdy <- txtAsset payload
