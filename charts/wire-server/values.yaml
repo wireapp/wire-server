@@ -895,7 +895,6 @@ spar:
       customBackend: cassandra
       scimTokens: cassandra
       scimExternalIds: cassandra
-    richInfoLimit: 5000
       samlUsers: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
