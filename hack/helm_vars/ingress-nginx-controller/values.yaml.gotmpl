@@ -20,3 +20,7 @@ ingress-nginx:
     # prevent new kind:Ingress resources to be created in the cluster.
     admissionWebhooks:
       enabled: false
+    # Limit the controller to its release namespace; integration installs one controller per namespace.
+    scope:
+      enabled: true
+      namespace: "{{ .Release.Namespace }}"
