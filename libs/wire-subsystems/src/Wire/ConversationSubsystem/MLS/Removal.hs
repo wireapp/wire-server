@@ -98,7 +98,7 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = Codensity $ \k -> 
           warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
           k ()
         Just (SomeKeyPair (_ :: Proxy ss) kp) -> do
-          msgs <- for indices $ \idx -> do
+          pairs <- for indices $ \idx -> do
             let proposal = mkRawMLS (RemoveProposal idx)
             pmsg <-
               liftRandom $
@@ -109,15 +109,16 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = Codensity $ \k -> 
                   (TaggedSenderExternal 0)
                   (FramedContentProposal proposal)
             let msg = mkRawMLS (mkMessage (MessagePublic pmsg))
-            storeProposal
-              (cnvmlsGroupId meta)
-              (cnvmlsEpoch meta)
-              StoredProposal
-                { ref = publicMessageRef cs pmsg,
-                  origin = Just ProposalOriginBackend,
-                  proposal
-                }
-            pure msg
+            pure
+              ( msg,
+                StoredProposal
+                  { ref = publicMessageRef cs pmsg,
+                    origin = Just ProposalOriginBackend,
+                    proposal
+                  }
+              )
+          let (msgs, sps) = unzip pairs
+          storeProposals (cnvmlsGroupId meta) (cnvmlsEpoch meta) (toList sps)
           x <- k ()
           for_ msgs $ flip (propagateMessage qusr Nothing lConvOrSubConv Nothing) cm
           pure x
