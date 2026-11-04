@@ -1410,6 +1410,7 @@ spec = describe "UserSubsystem.Interpreter" do
       \ctx targetMls (facts :: [(StoredUser, UserFacts)]) -> do
         let b0 = mkContactBackend targetMls facts
             -- every second user has a pending invitation
+            -- REVIEW: This logic is quite odd and complex. Can't we just generate contactable and non-contactable users separately?
             backend =
               b0
                 { storedUsers =
@@ -1453,12 +1454,12 @@ spec = describe "UserSubsystem.Interpreter" do
     localDomain' = Domain "local.example.com"
     targetDomain = Domain "target.example.com"
     lself = toLocalUnsafe localDomain' (Id UUID.nil)
+    -- REVIEW: Add type
     qualify m = [Qualified u d | (d, us) <- Map.toList m, u <- us]
+    -- REVIEW: Add type
     remoteOnly = Map.filter (not . null) . Map.delete localDomain'
+    -- REVIEW: Add type
     allContactable req = FedBrig.GetContactStatusResponse (Map.fromList [(u, ContactStatus Contactable) | u <- fromRange req.users])
-
-----------------------------------------------------------------------
--- contact status test harness
 
 data ClientFacts = ClientFacts
   { hasPrekey :: Bool,
@@ -1476,6 +1477,7 @@ data UserFacts = UserFacts
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserFacts)
 
+-- REVIEW: ContactBackend is a strange name. Maybe, `TestBackendConfig`?
 data ContactBackend = ContactBackend
   { serverMls :: Bool,
     storedUsers :: [StoredUser],
@@ -1507,6 +1509,7 @@ mkContactBackend mlsFlag facts =
   where
     ufs = uniqueFacts facts
     numbered fs = zip (ClientId <$> [1 ..]) fs.clients
+    -- REVIEW: Is there no Default instance of Client or Arbitrary (with override)
     mkClient cid cf =
       Client
         { clientId = cid,
@@ -1520,6 +1523,11 @@ mkContactBackend mlsFlag facts =
           clientMLSPublicKeys = Map.fromList [(csSignatureScheme suite, "key") | suite <- S.toList cf.signatureSuites],
           clientLastActive = Nothing
         }
+
+-- REVIEW: This duplicates existing logic. The sane way is probably to check
+-- contactability with local users and federated users AND use the same user
+-- data for this. Backend config drift needs can be tested with dedicated unit
+-- tests.
 
 -- | The contactability rule, written out independently of the interpreter.
 oracle :: ContactStatusContext -> Bool -> UserFacts -> Bool
@@ -1551,6 +1559,7 @@ instance RunClient (CFed comp) where
   runRequestAcceptStatus _ _ = error "CFed does not support servant client"
   throwClientError _ = error "CFed does not support servant client"
 
+-- REVIEW: Shouldn't we better guard for the version where this is added?
 instance VersionedMonad v (CFed comp) where
   guardVersion _ = pure ()
 
@@ -1562,6 +1571,7 @@ instance FederationMonad CFed where
       Just HRefl -> \req -> CFed ($ req)
       Nothing -> error "CFed: only get-users-contact-status is supported"
 
+-- REVIEW: Is there no in-memory edition of this?
 mockMlsKeyPackages :: ContactBackend -> InterpreterFor MlsKeyPackageSubsystem r
 mockMlsKeyPackages b = interpret \case
   HasMlsKeyPackagesBulk reqs -> pure (S.fromList [r | r <- reqs, r `S.member` b.keyPackages])
@@ -1586,10 +1596,16 @@ runContactBackend ::
   a
 runContactBackend b = run . runContactStores b
 
+-- REVIEW: Why is this named `loopback`?
 loopback :: ContactBackend -> ContactHandler
 loopback b req =
   FedBrig.GetContactStatusResponse . runContactBackend b $
     getLocalContactStatusesImpl req.context (fromRange req.users)
+
+-- REVIEW: Check if this cannot be generalized and extracted. I don't see how
+-- this counts, it's collecting domains. Can't we collect the
+-- FederationAPIAccess GADTs instead to have a general collector which may be
+-- re-used else-where? This could be named something with recording in its name.
 
 -- | Records each call; domains without a handler are unreachable.
 runCountingFed ::
@@ -1630,7 +1646,7 @@ runContactRequester ::
   ([Domain], a)
 runContactRequester b handlers =
   run
-    . runState []
+    . runState [] -- REVIEW: This should have a comment or binding name to explain what `[]` represents
     . noopLogger
     . runCountingFed handlers
     . runContactStores b

@@ -450,6 +450,7 @@ testUserProfileSchemaContainsPicture = do
     resp.status `shouldMatchInt` 200
     resp.json `assertFieldMissing` "picture"
 
+-- REVIEW: Do we really need this test?
 testGetUserQualifiedNoContactStatus :: (HasCallStack) => App ()
 testGetUserQualifiedNoContactStatus = do
   alice <- randomUser OwnDomain def

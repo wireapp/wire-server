@@ -629,13 +629,11 @@ data ContactStatus = ContactStatus
 instance ToSchema ContactStatus where
   schema = object $ ContactStatus <$> contactStatusState .= field "state" schema
 
--- | Requester-side inputs of the contactability rule. Computed once by the
--- requester's backend and shipped to the backend that owns the target users, so
--- that local and remote users are evaluated by the same rule.
+-- | Parameters for the contactability rules (calculating @contact_status@) of
+-- the local backend. Provided to the federated counterpart to evaluate these
+-- rules with same parameters there.
 data ContactStatusContext = ContactStatusContext
-  { -- | Requester-side only: requester's server and team allow MLS. The
-    -- target's own server flag is applied by the target backend.
-    mlsAvailable :: Bool,
+  { mlsAvailable :: Bool,
     allowedCipherSuites :: Set CipherSuiteTag
   }
   deriving stock (Eq, Ord, Show, Generic)
