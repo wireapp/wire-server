@@ -140,7 +140,6 @@ run opts galleyOpts = do
         void $
           runConcurrently $
             (,,,,,,,,,,,,,,)
-            (,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -153,7 +152,6 @@ run opts galleyOpts = do
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
-              <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupActivationKeysMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
