@@ -1,1 +1,2 @@
 Migration of mls_proposal_refs from cassandra to postgres
+Expired mls_proposal_refs rows are deleted daily by a pg_cron job scheduled by migration 20261104121503. Operators must enable pg_cron (`shared_preload_libraries` + `CREATE EXTENSION pg_cron`) and re-run that migration's DO block if the extension was enabled after boot; without pg_cron the job is skipped (WARNING logged) and expired rows are only filtered from reads.
