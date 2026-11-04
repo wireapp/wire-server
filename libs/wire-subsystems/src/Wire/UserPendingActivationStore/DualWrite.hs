@@ -24,6 +24,7 @@ import Cassandra (Client)
 import Imports
 import Polysemy
 import Wire.Postgres (PGConstraints)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserPendingActivationStore
 import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
 import Wire.UserPendingActivationStore.Cassandra qualified as Cassandra
@@ -34,13 +35,13 @@ interpretUserPendingActivationStoreToCassandraAndPostgres ::
   ( Member (Embed Client) r,
     PGConstraints r
   ) =>
-  InterpreterFor UserPendingActivationStore r
+  InterpreterFor (UserPendingActivationStore InternalPaging) r
 interpretUserPendingActivationStoreToCassandraAndPostgres = interpret $ \case
   Add upa -> do
     Cassandra.userPendingActivationStoreToCassandra $ UserPendingActivationStore.add upa
     Postgres.interpretUserPendingActivationStoreToPostgres $ UserPendingActivationStore.add upa
-  List ->
-    Cassandra.userPendingActivationStoreToCassandra UserPendingActivationStore.list
+  List _ ->
+    Cassandra.userPendingActivationStoreToCassandra $ UserPendingActivationStore.list Nothing
   RemoveMultiple uids -> do
     Cassandra.userPendingActivationStoreToCassandra $ UserPendingActivationStore.removeMultiple uids
     Postgres.interpretUserPendingActivationStoreToPostgres $ do

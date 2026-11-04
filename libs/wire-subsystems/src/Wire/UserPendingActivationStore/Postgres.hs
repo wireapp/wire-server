@@ -27,20 +27,29 @@ import Data.Id (UserId)
 import Data.Time (UTCTime)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
+import Cassandra qualified as Cas
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
 import Polysemy
 import Wire.API.PostgresMarshall
 import Wire.Postgres
+import Wire.Sem.Paging.Cassandra (InternalPage (..), InternalPaging)
 import Wire.UserPendingActivationStore
 
 interpretUserPendingActivationStoreToPostgres ::
   (PGConstraints r) =>
-  InterpreterFor UserPendingActivationStore r
+  InterpreterFor (UserPendingActivationStore InternalPaging) r
 interpretUserPendingActivationStoreToPostgres = interpret $ \case
   Add upa -> upsertUserPendingActivation upa.upaUserId upa.upaDay
-  List -> listImpl
+  List _pagingState -> do
+    -- This operation is only consumed by Brig's pending-activation cleanup loop
+    -- (Brig.Run.forExpirationsPaged) and Brig.API.Internal.getUserPendingActivationsH,
+    -- which start from an empty paging state and iterate until the page reports
+    -- hasMore == False. The Postgres branch therefore serves the complete result as
+    -- one page instead of a continuation.
+    rows <- listImpl
+    pure (InternalPage (Cas.emptyPage, \() -> error "unreachable: no continuation for a complete page", rows))
   RemoveMultiple uids -> removeMultipleImpl uids
 
 upsertUserPendingActivation :: (PGConstraints r) => UserId -> UTCTime -> Sem r ()
