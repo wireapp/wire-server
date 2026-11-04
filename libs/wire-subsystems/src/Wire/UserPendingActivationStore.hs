@@ -23,6 +23,7 @@ import Data.Id
 import Data.Time.Clock
 import Imports
 import Polysemy
+import Wire.Sem.Paging
 
 data UserPendingActivation = UserPendingActivation
   { upaUserId :: !UserId,
@@ -30,12 +31,14 @@ data UserPendingActivation = UserPendingActivation
   }
   deriving stock (Eq, Show, Ord)
 
-data UserPendingActivationStore m a where
-  Add :: UserPendingActivation -> UserPendingActivationStore m ()
-  List :: UserPendingActivationStore m [UserPendingActivation]
-  RemoveMultiple :: [UserId] -> UserPendingActivationStore m ()
+data UserPendingActivationStore p m a where
+  Add :: UserPendingActivation -> UserPendingActivationStore p m ()
+  List ::
+    Maybe (PagingState p UserPendingActivation) ->
+    UserPendingActivationStore p m (Page p UserPendingActivation)
+  RemoveMultiple :: [UserId] -> UserPendingActivationStore p m ()
 
 makeSem ''UserPendingActivationStore
 
-remove :: forall r. (Member UserPendingActivationStore r) => UserId -> Sem r ()
+remove :: forall p r. (Member (UserPendingActivationStore p) r) => UserId -> Sem r ()
 remove uid = removeMultiple [uid]

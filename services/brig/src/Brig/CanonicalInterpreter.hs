@@ -539,10 +539,8 @@ runBrigToIO e (AppT ma) = do
               . randomToIO
               . runDelay
               . nowToIOAction e.currentTime
-              . userPendingActivationStoreToCassandra
-              . budgetStoreInterpreter
               . userPendingActivationStoreInterpreter
-              . budgetStoreToCassandra @Cas.Client
+              . budgetStoreInterpreter
               . interpretJwtTools
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)

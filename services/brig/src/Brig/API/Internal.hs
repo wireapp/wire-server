@@ -50,6 +50,7 @@ import Data.Domain (Domain)
 import Data.Handle
 import Data.HavePendingInvitations
 import Data.Id as Id
+import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword8)
 import Data.Qualified
@@ -130,6 +131,7 @@ import Wire.Rpc
 import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
@@ -151,7 +153,7 @@ import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
-  forall r.
+  forall r p.
   ( Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
@@ -168,7 +170,7 @@ servantSitemap ::
     Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
-    Member (UserPendingActivationStore) r,
+    Member (UserPendingActivationStore p) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
@@ -244,7 +246,7 @@ accountAPI ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member (UserPendingActivationStore) r,
+    Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
@@ -318,7 +320,7 @@ accountAPI =
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore) r,
+    Member (UserPendingActivationStore p) r,
     Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
@@ -597,7 +599,7 @@ internalListFullClientsH (UserSet usrs) =
 createUserNoVerify ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore) r,
+    Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member Events r,
     Member InvitationStore r,
@@ -1126,7 +1128,7 @@ getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
 
 putUserPendingActivationH ::
-  (Member UserPendingActivationStore r) =>
+  (Member (UserPendingActivationStore p) r) =>
   UserId ->
   UTCTime ->
   Handler r NoContent
@@ -1134,8 +1136,14 @@ putUserPendingActivationH uid expiresAt =
   NoContent <$ lift (liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt))
 
 getUserPendingActivationsH ::
-  (Member UserPendingActivationStore r) =>
+  (P.Paging p, Member (UserPendingActivationStore p) r) =>
   Handler r [(UserId, UTCTime)]
 getUserPendingActivationsH =
-  lift . liftSem $
-    fmap (map (\u -> (u.upaUserId, u.upaDay)) . sortOn (.upaUserId)) UserPendingActivationStore.list
+  lift . liftSem $ do
+    let go acc page = do
+          let acc' = acc <> P.pageItems page
+          if P.pageHasMore page
+            then go acc' =<< UserPendingActivationStore.list (Just (P.pageState page))
+            else pure acc'
+    rows <- go [] =<< UserPendingActivationStore.list Nothing
+    pure $ map (\u -> (u.upaUserId, u.upaDay)) (sortOn (.upaUserId) rows)
