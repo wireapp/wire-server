@@ -38,10 +38,9 @@ interpretProposalStoreToCassandraAndPostgres ::
   Sem (ProposalStore ': r) a ->
   Sem r a
 interpretProposalStoreToCassandraAndPostgres = interpret $ \case
-  GetProposal groupId epoch ref ->
-    Cassandra.interpretProposalStoreToCassandra $ ProposalStore.getProposal groupId epoch ref
-  GetAllPendingProposalRefs groupId epoch ->
-    Cassandra.interpretProposalStoreToCassandra $ ProposalStore.getAllPendingProposalRefs groupId epoch
+  StoreProposals groupId epoch sps -> do
+    Cassandra.interpretProposalStoreToCassandra $ ProposalStore.storeProposals groupId epoch sps
+    Postgres.interpretProposalStoreToPostgres $ ProposalStore.storeProposals groupId epoch sps
   GetAllPendingProposals groupId epoch ->
     Cassandra.interpretProposalStoreToCassandra $ ProposalStore.getAllPendingProposals groupId epoch
   StoreProposal groupId epoch sp -> do
