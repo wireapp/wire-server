@@ -274,7 +274,9 @@ getLocalContactStatusesImpl ctx uids = do
   clients <- ClientStore.lookupClientsBulk (map (.id) existing)
   let users =
         Map.fromList
+          -- REVIEW: Find a better name than @su@
           [ ( su.id,
+              -- REVIEW: This code  is quite confusing
               ( case su.supportedProtocols of
                   Just ps | not (Set.null ps) -> ps
                   _ -> defSupportedProtocols,
@@ -284,6 +286,7 @@ getLocalContactStatusesImpl ctx uids = do
           | su <- existing
           ]
   contactability <- isUsersContactableImpl users (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
+  -- REVIEW: Can't we directly use the sum type (Contactable, NonContactable) instead of using boolean first?
   pure . Map.map (\c -> ContactStatus (if c then Contactable else NonContactable)) $
     contactability <> Map.fromList [(su.id, False) | su <- deleted]
 
@@ -332,6 +335,7 @@ getContactStatusesImpl self ctx qids = do
         Map.mapKeys
           (tUntagged . qualifyAs rstatuses)
           (tUnqualified rstatuses)
+  -- REVIEW: Asymetric names statuses vs results
   pure $ Map.unions (localStatuses : remoteResults)
 
 isUsersContactableImpl ::

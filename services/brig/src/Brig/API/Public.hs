@@ -1135,6 +1135,7 @@ listUsersByIdsOrHandles self includeContactStatus q = do
       Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
     byIds lself uids = lift (liftSem (getUserProfilesWithErrors lself uids))
 
+-- REVIEW: Check if this function still provides value or can be inlined (up and/or down  the call trace)
 enrichContactStatus ::
   forall r.
   (Member UserSubsystem r) =>

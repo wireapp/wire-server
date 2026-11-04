@@ -173,9 +173,8 @@ data UserSubsystem m a where
   -- pending-invitation users are left out, deleted users are non-contactable.
   GetLocalContactStatuses :: ContactStatusContext -> [UserId] -> UserSubsystem m (Map UserId ContactStatus)
   -- | Evaluate the contactability rule for local and remote users, from the
-  -- point of view of the given requester (whose team configuration is read
-  -- once). Remote users are queried with one federation call per domain; a
-  -- failing domain is left out.
+  -- point of view of the given requester. Remote users are queried with one
+  -- federation call per domain; a failing domain is left out.
   GetContactStatuses :: Local UserId -> [Qualified UserId] -> UserSubsystem m (Map (Qualified UserId) ContactStatus)
   BrowseTeam ::
     UserId ->

@@ -541,6 +541,7 @@ testListUsersContactStatus = do
     assertContactStatus profiles proteusUser "non-contactable"
     assertContactStatus profiles mlsUser "non-contactable"
 
+-- REVIEW: Rename enableMlsForTeam -> configureMlsForTeam
 enableMlsForTeam :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
 enableMlsForTeam owner tid =
   setTeamFeatureConfig
@@ -564,6 +565,7 @@ enableMlsForTeam owner tid =
 assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
 assertContactStatus profiles user expected = do
   uid <- user %. "id"
+  -- REVIEW: Can this be simplified
   profile <- findM (fmap (== Just uid) . flip lookupField "id") profiles
   case profile of
     Nothing -> assertFailure "list-users did not return the requested user"
@@ -572,9 +574,10 @@ assertContactStatus profiles user expected = do
 keyPackageCount :: (HasCallStack) => ClientIdentity -> App Int
 keyPackageCount c = countKeyPackages def c >>= getJSON 200 >>= (%. "count") >>= asInt
 
--- | Same expected contact_status for local and remote targets (federated
--- @get-users-contact-status@). Requester is always a team owner on OwnDomain
--- with MLS enabled for cipher suite 0x0002.
+-- REVIEW: Ensure that `targetDomain` really points to the federated backend
+
+-- | Pending connections' @contact_status@ is supported for local and remote
+-- targets (federated @get-users-contact-status@).
 testListUsersContactStatusScenarios :: (HasCallStack) => Domain -> App ()
 testListUsersContactStatusScenarios targetDomain = do
   (owner, tid, _) <- createTeam OwnDomain 1
@@ -586,8 +589,9 @@ testListUsersContactStatusScenarios targetDomain = do
   mlsUser <- randomUser targetDomain def
   mlsClient <- createMLSClient def mlsUser
   void $ uploadNewKeyPackage def mlsClient
+  -- REVIEW: Do we need this put? Can't we just assert that the user has this property (get)?
   putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
-  -- only a key package for a suite that the requester team does not allow
+  -- A key package for a suite that the requester team does not allow
   let disallowedSuite = Ciphersuite "0x0001"
   badSuiteUser <- randomUser targetDomain def
   badSuiteClient <- createMLSClient def {ciphersuites = [disallowedSuite]} badSuiteUser
@@ -598,7 +602,8 @@ testListUsersContactStatusScenarios targetDomain = do
   prekeysBefore <- getClientPrekeyIds proteusUser proteusClient
   kpBefore <- keyPackageCount mlsClient
 
-  -- twice, to also catch consumption on the first call
+  -- REVIEW: Why is this required?
+  -- run twice, to also catch consumption on the first call
   replicateM_ 2
     $ listUsersWithContactStatus owner userIds
     `bindResponse` \resp -> do
@@ -609,7 +614,7 @@ testListUsersContactStatusScenarios targetDomain = do
       assertContactStatus profiles mlsUser "contactable"
       assertContactStatus profiles badSuiteUser "non-contactable"
 
-  -- non-consuming
+  -- Ensure that no key packages are consumed by the contact status check
   getClientPrekeyIds proteusUser proteusClient `shouldMatch` prekeysBefore
   kpAfter <- keyPackageCount mlsClient
   kpAfter `shouldMatchInt` kpBefore
@@ -626,6 +631,7 @@ testListUsersContactStatusRemoteDown = do
   void $ addClient localUser def >>= getJSON 201
   (owner, _tid, _) <- createTeam OwnDomain 1
   runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
+    -- REVIEW: Can't we write `\ _ -> ...` as `const ...`?
     downUser <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       u <- randomUser downBackend.berDomain def
       void $ addClient u def >>= getJSON 201
@@ -637,6 +643,7 @@ testListUsersContactStatusRemoteDown = do
       profiles <- resp.json %. "found" >>= asList
       localId <- localUser %. "id"
       downId <- downUser %. "id"
+      -- REVIEW: This is odd: Lookup the profile to check and apply the right assertions to each (no loop, no if, no case, ...)
       for_ profiles $ \p -> do
         pid <- p %. "id"
         mStatus <- lookupField p "contact_status"

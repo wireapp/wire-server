@@ -115,8 +115,9 @@ type MaxContactStatusUsers = 1000
 maxContactStatusUsers :: Int
 maxContactStatusUsers = fromIntegral (natVal (Proxy @MaxContactStatusUsers))
 
--- | Batch request: one call per remote domain (per chunk of 'maxContactStatusUsers'). The requester computes the
--- 'ContactStatusContext' once; the target backend must not re-derive it.
+-- | Batch request: one call per remote domain (per chunk of
+-- 'maxContactStatusUsers'). The requester computes the 'ContactStatusContext'
+-- once; the target backend must not re-derive it.
 data GetContactStatusRequest = GetContactStatusRequest
   { context :: ContactStatusContext,
     users :: Range 1 MaxContactStatusUsers [UserId]
