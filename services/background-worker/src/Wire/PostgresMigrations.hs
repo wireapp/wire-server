@@ -221,6 +221,8 @@ connections migOpts = do
   Log.info logger $ Log.msg (Log.val "started connections migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
+    cancel migrationLoop
+
 -- | The clients/prekeys/mls_public_keys tables live in brig's keyspace, so
 -- unlike the galley-based migrations this reads from @cassandraBrig@.
 clients :: MigrationOptions -> AppT IO CleanupAction
