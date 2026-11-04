@@ -50,7 +50,6 @@ import Data.Domain (Domain)
 import Data.Handle
 import Data.HavePendingInvitations
 import Data.Id as Id
-import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword8)
 import Data.Qualified
@@ -154,7 +153,8 @@ import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
   forall r p.
-  ( Member BlockListStore r,
+  ( P.Paging p,
+    Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
     Member FederationConfigStore r,
