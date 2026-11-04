@@ -20,6 +20,7 @@ module Wire.ProposalStore.Postgres
   )
 where
 
+import Data.Vector qualified as V
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
@@ -39,10 +40,8 @@ interpretProposalStoreToPostgres ::
 interpretProposalStoreToPostgres = interpret $ \case
   StoreProposal groupId epoch sp ->
     insertProposal groupId epoch sp
-  GetProposal groupId epoch ref ->
-    selectProposal groupId epoch ref
-  GetAllPendingProposalRefs groupId epoch ->
-    selectAllPendingProposalRefs groupId epoch
+  StoreProposals groupId epoch sps ->
+    insertProposals groupId epoch sps
   GetAllPendingProposals groupId epoch ->
     selectAllPendingProposals groupId epoch
   DeleteAllProposals groupId ->
@@ -70,45 +69,27 @@ insertProposal groupId epoch sp =
               expires_at = now () + interval '28 days'
         |]
 
-selectProposal ::
+insertProposals ::
   (PGConstraints r) =>
   GroupId ->
   Epoch ->
-  ProposalRef ->
-  Sem r (Maybe (RawMLS Proposal))
-selectProposal groupId epoch ref =
-  runStatement (groupId, epoch, ref) select
+  [StoredProposal] ->
+  Sem r ()
+insertProposals groupId epoch sps =
+  runStatement (groupId, epoch, map (.ref) sps, map (.origin) sps, map (.proposal) sps) insert
   where
-    select ::
-      Hasql.Statement (GroupId, Epoch, ProposalRef) (Maybe (RawMLS Proposal))
-    select =
-      dimapPG
-        [maybeStatement|
-          SELECT (proposal :: bytea)
-          FROM mls_proposal_refs
-          WHERE group_id = ($1 :: bytea)
-            AND epoch = ($2 :: int8)
-            AND ref = ($3 :: bytea)
-            AND expires_at > now ()
-        |]
-
-selectAllPendingProposalRefs ::
-  (PGConstraints r) =>
-  GroupId ->
-  Epoch ->
-  Sem r [ProposalRef]
-selectAllPendingProposalRefs groupId epoch =
-  runStatement (groupId, epoch) select
-  where
-    select :: Hasql.Statement (GroupId, Epoch) [ProposalRef]
-    select =
-      dimapPG
-        [vectorStatement|
-          SELECT (ref :: bytea)
-          FROM mls_proposal_refs
-          WHERE group_id = ($1 :: bytea)
-            AND epoch = ($2 :: int8)
-            AND expires_at > now ()
+    insert ::
+      Hasql.Statement (GroupId, Epoch, [ProposalRef], [Maybe ProposalOrigin], [RawMLS Proposal]) ()
+    insert =
+      lmapPG @(_, _, V.Vector _, V.Vector _, V.Vector _) @_
+        [resultlessStatement|
+          INSERT INTO mls_proposal_refs (group_id, epoch, ref, origin, proposal, expires_at)
+          SELECT ($1 :: bytea), ($2 :: int8), u.ref, u.origin, u.proposal, now () + interval '28 days'
+          FROM unnest (($3 :: bytea[]), ($4 :: int4?[]), ($5 :: bytea[])) AS u (ref, origin, proposal)
+          ON CONFLICT (group_id, epoch, ref) DO UPDATE
+          SET origin = EXCLUDED.origin,
+              proposal = EXCLUDED.proposal,
+              expires_at = EXCLUDED.expires_at
         |]
 
 selectAllPendingProposals ::
