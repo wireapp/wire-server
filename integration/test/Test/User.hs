@@ -449,19 +449,3 @@ testUserProfileSchemaContainsPicture = do
   getUser qself quser `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `assertFieldMissing` "picture"
-
--- REVIEW: Do we really need this test?
-testGetUserQualifiedNoContactStatus :: (HasCallStack) => App ()
-testGetUserQualifiedNoContactStatus = do
-  alice <- randomUser OwnDomain def
-  bob <- randomUser OwnDomain def
-  -- control: list-users with the flag returns contact_status
-  listUsersWithContactStatus alice [bob] `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    profile <- assertOne =<< asList (resp.json %. "found")
-    mStatus <- lookupField profile "contact_status"
-    assertBool "contact_status should be present" (isJust mStatus)
-  -- get-user-qualified never sets it
-  getUser alice bob `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json `assertFieldMissing` "contact_status"

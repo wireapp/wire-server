@@ -541,6 +541,29 @@ testListUsersContactStatus = do
     assertContactStatus profiles proteusUser "non-contactable"
     assertContactStatus profiles mlsUser "non-contactable"
 
+-- | Only list-users with @include-contact-status=true@ returns
+-- @contact_status@ fields; that endpoint is covered by its own tests. Other
+-- (non-deprecated) endpoints returning user profiles must never set it.
+--
+-- Why do we need this test? Calculating the @contact_status@ is quite
+-- expensive and shouldn't be done accidentally. Sharing response types might
+-- make this easy, though.
+testProfileEndpointsNoContactStatus :: (HasCallStack) => App ()
+testProfileEndpointsNoContactStatus = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
+
+  getUser alice bob `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `assertFieldMissing` "contact_status"
+
+  void $ createApp owner tid def >>= getJSON 200
+  getApps owner tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profile <- assertOne =<< asList resp.json
+    profile `assertFieldMissing` "contact_status"
+
 -- REVIEW: Rename enableMlsForTeam -> configureMlsForTeam
 enableMlsForTeam :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
 enableMlsForTeam owner tid =
