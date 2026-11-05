@@ -21,6 +21,18 @@ redis:
   tlsCa: ../../deploy/dockerephemeral/docker/redis-ca.pem
   insecureSkipVerifyTls: false
 
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  user: wire-server
+  dbname: backendA
+  password: posty-the-gres
+
+postgresqlPool:
+  size: 20
+  acquisitionTimeout: 10s
+  idlenessTimeout: 10m
+
 # redisAdditionalWrite:
 #   host: 127.0.0.1
 #   port: 6379
