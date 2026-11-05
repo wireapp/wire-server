@@ -21,6 +21,8 @@ import API.Brig (PostInvitation (..), listInvitations, postInvitation)
 import API.Common (randomEmail)
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.UUID as UUID
+import Database.CQL.IO
 import SetupHelpers
 import Test.Migration.Util (waitForMigration)
 import Testlib.Prelude
@@ -63,11 +65,26 @@ testInvitationsMigration = do
         assertInvitation owner1 email1 tid1
         setupInvitation domain
 
-    -- P3 migration-to-postgresql (worker on): dual-write while backfilling
+    -- P3 migration-to-postgresql (worker on): the copier copies each team's
+    -- invitations and pending SCIM users under the exclusive per-team lock
+    -- and then deletes the copied Cassandra partitions
     (owner3, email3, tid3) <-
       runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
         assertInvitation owner2 email2 tid2
         waitForMigration domain counterName
+
+        -- The P1 team was copied under the exclusive lock and its Cassandra
+        -- partitions were deleted in the same locked section.
+        Just tid1Id <- pure (UUID.fromString tid1)
+        let brigKeyspace = backend.berBrigKeyspace
+            selectInvitationRows :: PrepQuery R (Identity UUID.UUID) (Identity Int64) =
+              fromString $ "SELECT count(*) FROM " <> brigKeyspace <> ".team_invitation WHERE team = ?"
+        count <- query selectInvitationRows (defQueryParams LocalQuorum (Identity tid1Id))
+        (map runIdentity count :: [Int64]) `shouldMatch` ([0] :: [Int64])
+
+        -- Even with the Cassandra rows gone, the invitation is still served —
+        -- via the locked Postgres read-through.
+        assertInvitation owner1 email1 tid1
         setupInvitation domain
 
     -- P4 postgresql: reads are served exclusively from Postgres
