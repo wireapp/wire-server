@@ -105,7 +105,7 @@ postMeeting :: (HasCallStack, MakesValue user, MakesValue meeting, MakesValue to
 postMeeting user meeting t = do
   token <- make t & asString
   body <- make meeting
-  req <- rawBaseNginzRequest user Versioned "/meetings"
+  req <- rawBaseNginzRequest user Versioned (joinHttpPath ["meetings"])
   submit "POST" (req & addJSON body & addHeader "Authorization" ("Bearer " <> token))
 
 uploadProviderAsset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
