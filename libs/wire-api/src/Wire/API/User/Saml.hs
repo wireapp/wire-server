@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -24,11 +25,15 @@
 -- for them.
 module Wire.API.User.Saml where
 
+import Cassandra (ColumnType (..), Cql (..), Tagged (..), Value (..))
+import Control.Lens (view)
 import Control.Monad.Except
 import Data.Aeson hiding (fieldLabelModifier)
 import Data.Aeson.TH hiding (fieldLabelModifier)
 import Data.ByteString (toStrict)
 import Data.ByteString.Builder qualified as Builder
+import Data.CaseInsensitive (foldCase)
+import Data.CaseInsensitive qualified as CI
 import Data.Id (UserId)
 import Data.OpenApi
 import Data.Proxy (Proxy (Proxy))
@@ -40,9 +45,12 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import Imports
 import SAML2.WebSSO
+import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
+import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
 import Web.Cookie
+import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Orphans ()
 
@@ -130,3 +138,59 @@ instance ToSchema SsoSettings where
             "defaultSsoCode" -> "default_sso_code"
             other -> other
         }
+
+----------------------------------------------------------------------------
+-- SAML user keys (shared by spar's SAMLUserStore and its Postgres migration)
+
+-- | Used as a lookup key for 'UnqualifiedNameID' that only depends on the
+-- lowercase version of the identifier. Use 'normalizeUnqualifiedNameId' or
+-- 'normalizeQualifiedNameId' to create values.
+newtype NormalizedUNameID = NormalizedUNameID {unNormalizedUNameID :: Text}
+  deriving stock (Eq, Ord, Generic, Show)
+
+instance Cql NormalizedUNameID where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unNormalizedUNameID
+  fromCql (CqlText t) = pure $ NormalizedUNameID t
+  fromCql _ = Left "NormalizedNameID: expected CqlText"
+
+normalizeUnqualifiedNameId :: UnqualifiedNameID -> NormalizedUNameID
+normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
+  where
+    nameIdTxt :: UnqualifiedNameID -> Text
+    nameIdTxt (UNameIDUnspecified txt) = txt
+    nameIdTxt (UNameIDEmail email') = SAMLEmail.render $ CI.original email'
+    nameIdTxt (UNameIDX509 txt) = txt
+    nameIdTxt (UNameIDWindows txt) = txt
+    nameIdTxt (UNameIDKerberos txt) = txt
+    nameIdTxt (UNameIDEntity uri) = renderURI uri
+    nameIdTxt (UNameIDPersistent txt) = txt
+    nameIdTxt (UNameIDTransient txt) = txt
+
+-- | Qualifiers are ignored.
+normalizeQualifiedNameId :: NameID -> NormalizedUNameID
+normalizeQualifiedNameId = normalizeUnqualifiedNameId . view nameID
+
+----------------------------------------------------------------------------
+-- Postgres marshall
+-- (The 'Cql' instance for 'Issuer' lives in "Wire.IdPConfigStore.Orphans";
+-- these mirror the exact same URI-text encoding so the migration worker can
+-- copy rows verbatim.)
+
+instance PostgresMarshall Text Issuer where
+  postgresMarshall = renderURI . _fromIssuer
+
+instance PostgresUnmarshall Text Issuer where
+  postgresUnmarshall t =
+    case parseURI laxURIParserOptions (encodeUtf8 t) of
+      Right uri -> pure (Issuer uri)
+      Left _ -> Left "Issuer: invalid URI"
+
+instance PostgresMarshall Text NormalizedUNameID where
+  postgresMarshall = unNormalizedUNameID
+
+instance PostgresUnmarshall Text NormalizedUNameID where
+  postgresUnmarshall = pure . NormalizedUNameID
+
+instance Arbitrary NormalizedUNameID where
+  arbitrary = NormalizedUNameID . foldCase . T.pack <$> arbitrary
