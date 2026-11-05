@@ -258,6 +258,18 @@ actionDeniedCSE = \case
   ConvRole.DeleteConversation -> ConversationSubsystemErrorActionDeniedDeleteConversation
   ConvRole.ModifyAddPermission -> ConversationSubsystemErrorActionDeniedModifyAddPermission
 
+isOne2OneConversation :: StoredConversation -> Bool
+isOne2OneConversation conv = case Data.convType conv of
+  One2OneConv -> True
+  ConnectConv -> True
+  RegularConv ->
+    conv.protocol == ProtocolProteus
+      -- legacy proteus team 1:1s have no name by client convention; groups have one.
+      && isNothing conv.metadata.cnvmName
+      && isJust conv.metadata.cnvmTeam
+      && conv.metadata.cnvmGroupConvType /= Just Channel
+  _ -> False
+
 -- | Ensure that the conversation is a group conversation which includes channels
 ensureGroupConversation :: (Member (Error ConversationSubsystemError) r) => StoredConversation -> Sem r ()
 ensureGroupConversation conv = do

@@ -1154,6 +1154,7 @@ isAdminlessCheckCandidate :: StoredConversation -> Bool
 isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
     && maybe True (`elem` [GroupConversation, Channel]) conv.metadata.cnvmGroupConvType
+    && not (isOne2OneConversation conv)
 
 systemAdminlessDeletionSupported ::
   (Member (E.FederationAPIAccess FederatorClient) r) =>
