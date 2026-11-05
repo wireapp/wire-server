@@ -626,17 +626,13 @@ testListUsersContactStatusScenarios targetDomain = do
   prekeysBefore <- getClientPrekeyIds proteusUser proteusClient
   kpBefore <- keyPackageCount mlsClient
 
-  -- REVIEW: Why is this required?
-  -- run twice, to also catch consumption on the first call
-  replicateM_ 2
-    $ listUsersWithContactStatus owner userIds
-    `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      profiles <- resp.json %. "found" >>= asList
-      assertContactStatus profiles noClientUser "non-contactable"
-      assertContactStatus profiles proteusUser "contactable"
-      assertContactStatus profiles mlsUser "contactable"
-      assertContactStatus profiles badSuiteUser "non-contactable"
+  listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    assertContactStatus profiles noClientUser "non-contactable"
+    assertContactStatus profiles proteusUser "contactable"
+    assertContactStatus profiles mlsUser "contactable"
+    assertContactStatus profiles badSuiteUser "non-contactable"
 
   -- Ensure that no key packages are consumed by the contact status check
   getClientPrekeyIds proteusUser proteusClient `shouldMatch` prekeysBefore
