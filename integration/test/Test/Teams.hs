@@ -514,7 +514,7 @@ testListUsersContactStatus = do
   mlsClient <- createMLSClient def mlsUser
   void $ uploadNewKeyPackage def mlsClient
   putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
-  enableMlsForTeam owner tid
+  configureMlsForTeam owner tid
 
   let users = [noClientUser, proteusUser, mlsUser]
   userIds <- for users objQidObject
@@ -564,9 +564,8 @@ testProfileEndpointsNoContactStatus = do
     profile <- assertOne =<< asList resp.json
     profile `assertFieldMissing` "contact_status"
 
--- REVIEW: Rename enableMlsForTeam -> configureMlsForTeam
-enableMlsForTeam :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
-enableMlsForTeam owner tid =
+configureMlsForTeam :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
+configureMlsForTeam owner tid =
   setTeamFeatureConfig
     owner
     tid
@@ -606,7 +605,7 @@ keyPackageCount c = countKeyPackages def c >>= getJSON 200 >>= (%. "count") >>= 
 testListUsersContactStatusScenarios :: (HasCallStack) => Domain -> App ()
 testListUsersContactStatusScenarios targetDomain = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  enableMlsForTeam owner tid
+  configureMlsForTeam owner tid
 
   noClientUser <- randomUser targetDomain def
   proteusUser <- randomUser targetDomain def
