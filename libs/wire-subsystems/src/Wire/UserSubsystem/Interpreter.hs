@@ -316,29 +316,36 @@ getContactStatusesImpl ::
   Sem r (Map (Qualified UserId) ContactStatus)
 getContactStatusesImpl self ctx qids = do
   let (locals, remotes) = partitionQualified self (nubOrd qids)
-  localStatuses <-
-    Map.mapKeys (tUntagged . qualifyAs self)
-      <$> getLocalContactStatusesImpl ctx locals
-  remoteResponses <-
-    runFederatedConcurrentlyEither remotes $ \ruids ->
-      -- only keep what was asked for, whatever the remote answers
-      (`Map.restrictKeys` Set.fromList (tUnqualified ruids))
-        . fold
-        <$> for (chunksOf FedBrig.maxContactStatusUsers (tUnqualified ruids)) \chunk ->
-          (.statuses) <$> fedClient @'Brig @"get-users-contact-status" (FedBrig.GetContactStatusRequest ctx (unsafeRange chunk))
-  remoteStatuses <- for remoteResponses \case
-    Left (ruids, e) -> do
-      Log.warn $
-        Log.msg (Log.val "Failed to get contact status from remote backend")
-          . Log.field "domain" (domainText (tDomain ruids))
-          . Log.field "error" (displayException e)
-      pure mempty
-    Right rstatuses ->
-      pure $
-        Map.mapKeys
-          (tUntagged . qualifyAs rstatuses)
-          (tUnqualified rstatuses)
+  localStatuses <- getLocalStatuses locals
+  remoteStatuses <- getRemoteStatuses remotes
   pure $ Map.unions (localStatuses : remoteStatuses)
+  where
+    getLocalStatuses :: [UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
+    getLocalStatuses locals =
+      Map.mapKeys (tUntagged . qualifyAs self)
+        <$> getLocalContactStatusesImpl ctx locals
+
+    getRemoteStatuses :: [Remote UserId] -> Sem r [Map (Qualified UserId) ContactStatus]
+    getRemoteStatuses remotes = do
+      remoteResponses <-
+        runFederatedConcurrentlyEither remotes $ \ruids ->
+          -- only keep what was asked for, whatever the remote answers
+          (`Map.restrictKeys` Set.fromList (tUnqualified ruids))
+            . fold
+            <$> for (chunksOf FedBrig.maxContactStatusUsers (tUnqualified ruids)) \chunk ->
+              (.statuses) <$> fedClient @'Brig @"get-users-contact-status" (FedBrig.GetContactStatusRequest ctx (unsafeRange chunk))
+      for remoteResponses \case
+        Left (ruids, e) -> do
+          Log.warn $
+            Log.msg (Log.val "Failed to get contact status from remote backend")
+              . Log.field "domain" (domainText (tDomain ruids))
+              . Log.field "error" (displayException e)
+          pure mempty
+        Right rstatuses ->
+          pure $
+            Map.mapKeys
+              (tUntagged . qualifyAs rstatuses)
+              (tUnqualified rstatuses)
 
 isUsersContactableImpl ::
   forall r.
