@@ -29,7 +29,7 @@ DEBNAMES      := $(JESSIENAMES) $(STRETCHNAMES)
 # the arches that we build for alpine.
 ALPINEARCHES  := amd64 386 arm32v6
 # images we build that are based on alpine.
-ALPINENAMES   := elasticsearch java_maven_node_python localstack minio
+ALPINENAMES   := java_maven_node_python localstack minio
 
 # dependencies between docker images. <first_image>-<image_needed_to_build_first_image>
 PREBUILDS     := airdock_rvm-airdock_base airdock_fakesqs-airdock_rvm localstack-java_maven_node_python
@@ -167,7 +167,6 @@ Dockerfile-%: $$(call snd,%)/Dockerfile
 # define commit IDs for the versions we're using.
 SMTP_COMMIT                ?= 8ad8b849855be2cb6a11d97d332d27ba3e47483f
 DYNAMODB_COMMIT            ?= c1eabc28e6d08c91672ff3f1973791bca2e08918
-ELASTICSEARCH_COMMIT       ?= 06779bd8db7ab81d6706c8ede9981d815e143ea3
 AIRDOCKBASE_COMMIT         ?= 692625c9da3639129361dc6ec4eacf73f444e98d
 AIRDOCKRVM_COMMIT          ?= cdc506d68b92fa4ffcc7c32a1fc7560c838b1da9
 AIRDOCKFAKESQS_COMMIT      ?= 9547ca5e5b6d7c1b79af53e541f8940df09a495d
@@ -183,20 +182,6 @@ smtp/Dockerfile:
 dynamodb_local/Dockerfile:
 	git clone https://github.com/cnadiminti/docker-dynamodb-local.git dynamodb_local
 	cd dynamodb_local && git reset --hard $(DYNAMODB_COMMIT)
-
-elasticsearch/Dockerfile:
-	git clone https://github.com/blacktop/docker-elasticsearch-alpine.git elasticsearch-all
-	cd elasticsearch-all && git reset --hard $(ELASTICSEARCH_COMMIT)
-	cp -R elasticsearch-all/5.6/ elasticsearch
-	 # add a block to the entrypoint script to interpret CS_JVM_OPTIONS, modifying the jvm.options before launching elasticsearch.
-	 # first, add a marker to be replaced before the last if.
-	${SED} -i.bak  -r ':a;$$!{N;ba};s/^(.*)(\n?)fi/\2\1fi\nREPLACEME/' elasticsearch/elastic-entrypoint.sh
-	 # next, load our variables.
-	${SED} -i.bak  's@REPLACEME@MY_APP_CONFIG="/usr/share/elasticsearch/config/"\n&@' elasticsearch/elastic-entrypoint.sh
-	 # add our parser and replacer.
-	${SED} -i.bak  $$'s@REPLACEME@if [ ! -z "$${JVM_OPTIONS_ES}" ]; then\\nfor x in $${JVM_OPTIONS_ES}; do { l="$${x%%=*}"; r=""; e=""; [ "$$x" != "$${x/=//}" ] \&\& e="=" \&\& r="$${x##*=}"; [ "$$x" != "$${x##-Xm?}" ] \&\& r="$${x##-Xm?}" \&\& l="$${x%%$$r}"; echo $$l $$e $$r; sed -i.bak -r \'s/^[# ]?(\'"$$l$$e"\').*/\\\\1\'"$$r"\'/\' "$$MY_APP_CONFIG/jvm.options"; diff "$$MY_APP_CONFIG/jvm.options.bak" "$$MY_APP_CONFIG/jvm.options" \&\& echo "no difference"; } done;\\nfi\\n&@' elasticsearch/elastic-entrypoint.sh
-	 # remove the marker we added earlier.
-	${SED} -i.bak  's@REPLACEME@@' elasticsearch/elastic-entrypoint.sh
 
 airdock_base/Dockerfile:
 	git clone https://github.com/airdock-io/docker-base.git airdock_base-all
@@ -267,7 +252,7 @@ cassandra/Dockerfile:
 # cleanup. remove the directories we set up for building, as well as the git repos we download.
 .PHONY: clean
 clean:
-	rm -rf elasticsearch-all airdock_base-all airdock_rvm-all airdock_fakesqs-all cassandra-all $(DEBNAMES) $(ALPINENAMES)
+	rm -rf airdock_base-all airdock_rvm-all airdock_fakesqs-all cassandra-all $(DEBNAMES) $(ALPINENAMES)
 
 .PHONY: cleandocker
 cleandocker:

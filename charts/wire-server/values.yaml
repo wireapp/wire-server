@@ -1430,4 +1430,4 @@ brig:
       # pgPassword: <postgres-password>
   test:
     elasticsearch:
-      additionalHost: elasticsearch-ephemeral
+      additionalHost: opensearch-ephemeral

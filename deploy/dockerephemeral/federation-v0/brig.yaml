@@ -10,8 +10,10 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 elasticsearch:
-  url: http://nginz-federation-v0:9201
+  url: https://opensearch:9200
   index: directory_test
+  credentials: /etc/wire/brig/conf/elasticsearch-credentials.yaml
+  insecureSkipVerifyTls: true
 
 rabbitmq:
   host: rabbitmq

@@ -1,0 +1,4 @@
+apiVersion: v1
+description: OpenSearch Dashboards, the web UI for OpenSearch (e.g. to browse fluent-bit logs)
+name: opensearch-dashboards
+version: 0.0.42

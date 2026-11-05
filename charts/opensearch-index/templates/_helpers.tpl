@@ -21,7 +21,7 @@ created one (in case the CA is provided as PEM string.)
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef.name }}
 {{- else }}
-{{- print "elasticsearch-index-migrate-cassandra-client-ca" -}}
+{{- print "opensearch-index-migrate-cassandra-client-ca" -}}
 {{- end -}}
 {{- end -}}
 

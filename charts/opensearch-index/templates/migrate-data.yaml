@@ -3,7 +3,7 @@ kind: Job
 metadata:
   name: brig-index-migrate-data
   labels:
-    app: elasticsearch-index-migrate-data
+    app: opensearch-index-migrate-data
     heritage: {{.Release.Service | quote }}
     release: {{.Release.Name | quote }}
     chart: "{{.Chart.Name}}-{{.Chart.Version}}"
@@ -15,7 +15,7 @@ spec:
     metadata:
       name: "{{.Release.Name}}"
       labels:
-        app: elasticsearch-index-migrate-data
+        app: opensearch-index-migrate-data
         heritage: {{.Release.Service | quote }}
         release: {{.Release.Name | quote }}
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
@@ -29,23 +29,23 @@ spec:
           args:
             - migrate-data
             - --elasticsearch-server
-            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing opensearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             {{- if hasKey .Values.secrets "elasticsearch" }}
             - --elasticsearch-credentials
-            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            - "/etc/wire/opensearch-index/secrets/elasticsearch-credentials.yaml"
             {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --cassandra-host
-            - "{{ required "missing elasticsearch-index.cassandra.host!" .Values.cassandra.host }}"
+            - "{{ required "missing opensearch-index.cassandra.host!" .Values.cassandra.host }}"
             - --cassandra-port
-            - "{{ required "missing elasticsearch-index.cassandra.port!" .Values.cassandra.port }}"
+            - "{{ required "missing opensearch-index.cassandra.port!" .Values.cassandra.port }}"
             - --cassandra-keyspace
-            - "{{ required "missing elasticsearch-index.cassandra.keyspace!" .Values.cassandra.keyspace }}"
+            - "{{ required "missing opensearch-index.cassandra.keyspace!" .Values.cassandra.keyspace }}"
             - --galley-host
-            - "{{ required "missing elasticsearch-index.galley.host!" .Values.galley.host }}"
+            - "{{ required "missing opensearch-index.galley.host!" .Values.galley.host }}"
             - --galley-port
-            - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
+            - "{{ required "missing opensearch-index.galley.port!" .Values.galley.port }}"
             {{- if eq (include "useCassandraTLS" .Values) "true" }}
             - --cassandra-ca-cert
             - /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values }}
@@ -65,7 +65,7 @@ spec:
             - {{ .Values.postgresqlPool.idlenessTimeout | quote }}
             {{- if hasKey $.Values.secrets  "pgPassword" }}
             - --pg-password-file
-            - /etc/wire/elasticsearch-index/secrets/pgPassword
+            - /etc/wire/opensearch-index/secrets/pgPassword
             {{- end }}
             - --pg-settings
             - {{ toJson .Values.postgresql | quote }}
@@ -73,11 +73,11 @@ spec:
             - {{ .Values.postgresMigration.user }}
           volumeMounts:
           {{- if hasKey .Values.secrets "elasticsearch" }}
-            - name: "elasticsearch-index-secrets"
-              mountPath: "/etc/wire/elasticsearch-index/secrets"
+            - name: "opensearch-index-secrets"
+              mountPath: "/etc/wire/opensearch-index/secrets"
           {{- end }}
           {{- if eq (include "useCassandraTLS" .Values) "true" }}
-            - name: elasticsearch-index-migrate-cassandra-client-ca
+            - name: opensearch-index-migrate-cassandra-client-ca
               mountPath: "/certs/cassandra"
           {{- end }}
           {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
@@ -89,12 +89,12 @@ spec:
           {{- end }}
       volumes:
         {{- if hasKey .Values.secrets "elasticsearch" }}
-        - name: elasticsearch-index-secrets
+        - name: opensearch-index-secrets
           secret:
-            secretName: elasticsearch-index
+            secretName: opensearch-index
         {{- end }}
         {{- if eq (include "useCassandraTLS" .Values) "true" }}
-        - name: elasticsearch-index-migrate-cassandra-client-ca
+        - name: opensearch-index-migrate-cassandra-client-ca
           secret:
             secretName: {{ include "cassandraTlsSecretName" .Values }}
         {{- end }}

@@ -1,0 +1,79 @@
+{{- if .Values.tls.enabled }}
+# Custom securityconfig so the TLS-enabled ephemeral OpenSearch authenticates
+# with the credentials the rest of the repo expects (elastic/changeme) instead
+# of the demo config's admin/admin. Replaces the demo files on first start
+# (security index default-init reads this directory).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ template "fullname" . }}-securityconfig
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+type: Opaque
+stringData:
+  config.yml: |-
+    _meta:
+      type: "config"
+      config_version: 2
+
+    config:
+      dynamic:
+        authc:
+          basic_internal_auth_domain:
+            description: "Authenticate using HTTP basic against the internal users database"
+            http_enabled: true
+            transport_enabled: true
+            order: 1
+            http_authenticator:
+              type: basic
+              challenge: true
+            authentication_backend:
+              type: internal
+  internal_users.yml: |-
+    _meta:
+      type: "internalusers"
+      config_version: 2
+
+    elastic:
+      hash: "$2y$12$GRc68jkEX1m4uQpTVbwURu79xHxZ7vsbyEctOAADQwPjlhYS4LJVa"
+      reserved: true
+      description: "Wire User"
+      backend_roles:
+        - index_manager
+  roles_mapping.yml: |-
+    _meta:
+      type: "rolesmapping"
+      config_version: 2
+
+    all_access:
+      reserved: false
+      backend_roles:
+        - index_manager
+      description: "Map index_manager to full_access"
+  allowlist.yml: |-
+    _meta:
+      type: "allowlist"
+      config_version: 2
+
+    config:
+      enabled: false
+  roles.yml: |-
+    _meta:
+      type: "roles"
+      config_version: 2
+  nodes_dn.yml: |-
+    _meta:
+      type: "nodesdn"
+      config_version: 2
+  action_groups.yml: |-
+    _meta:
+      type: "actiongroups"
+      config_version: 2
+  tenants.yml: |-
+    _meta:
+      type: "tenants"
+      config_version: 2
+{{- end }}
