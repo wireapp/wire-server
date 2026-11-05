@@ -64,7 +64,8 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Pagination (OffsetPage (..))
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Feature (FeatureStatus (..), LockStatus (..), LockableFeature (..), MlsE2EIdConfig, npUpdate)
+import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag))
+import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), LockStatus (..), LockableFeature (..), MLSConfig, MLSConfigB (..), MlsE2EIdConfig, npUpdate)
 import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
@@ -90,6 +91,7 @@ import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem (..))
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.MockInterpreters
 import Wire.RateLimit
 import Wire.StoredUser
@@ -1387,12 +1389,12 @@ spec = describe "UserSubsystem.Interpreter" do
         let remote = remoteOnly remoteUsers
             handlers = Map.map (const allContactable) remote
             qids = qualify remote <> qualify (Map.singleton localDomain' localUserIds)
-            (calls, _) = runContactRequester emptyBackend handlers (getContactStatusesImpl lself ctx qids)
+            (calls, _) = runContactRequester (requesterWith ctx) handlers (getContactStatusesImpl lself qids)
         sort calls === sort (Map.keys remote)
 
     prop "no federation call when there are no remote users" $
       \(localUserIds :: [UserId]) ctx -> do
-        let (calls, _) = runContactRequester emptyBackend mempty (getContactStatusesImpl lself ctx (qualify (Map.singleton localDomain' localUserIds)))
+        let (calls, _) = runContactRequester (requesterWith ctx) mempty (getContactStatusesImpl lself (qualify (Map.singleton localDomain' localUserIds)))
         calls === []
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
@@ -1400,57 +1402,109 @@ spec = describe "UserSubsystem.Interpreter" do
         let up = remoteOnly upUsers
             down = remoteOnly (Map.difference downUsers up)
             handlers = Map.map (const allContactable) up
-            (calls, result) = runContactRequester emptyBackend handlers (getContactStatusesImpl lself ctx (qualify up <> qualify down))
+            (calls, result) = runContactRequester (requesterWith ctx) handlers (getContactStatusesImpl lself (qualify up <> qualify down))
         conjoin
           [ result === Map.fromList [(q, ContactStatus Contactable) | q <- qualify up],
             sort calls === sort (Map.keys up <> Map.keys down)
           ]
 
-    prop "pending-invitation users are left out, deleted users are non-contactable" $
-      \ctx targetMls (facts :: [(StoredUser, UserFacts)]) -> do
-        let b0 = mkFakeBackend targetMls facts
-            -- every second user has a pending invitation
-            -- REVIEW: This logic is quite odd and complex. Can't we just generate contactable and non-contactable users separately?
-            backend =
-              b0
-                { storedUsers =
-                    [ if odd i then u {status = Just PendingInvitation} else u
-                    | (i, u) <- zip [0 :: Int ..] b0.storedUsers
-                    ] ::
-                      [StoredUser]
-                }
-            expected =
-              Map.fromList
-                [ (u.id, ContactStatus (if oracle ctx targetMls fs then Contactable else NonContactable))
-                | (i, (u, fs)) <- zip [0 :: Int ..] (uniqueFacts facts),
-                  even i
-                ]
-        runFakeBackend backend (getLocalContactStatusesImpl ctx (map (.id) b0.storedUsers)) === expected
+    -- REVIEW: Check that these tests are complete.
 
-    prop "local route and remote route evaluate the same facts identically" $
-      \ctx targetMls (facts :: [(StoredUser, UserFacts)]) (unknownIds :: [UserId]) -> do
-        let backend = mkFakeBackend targetMls facts
+    -- The contactability rule is tested on users that are contactable by
+    -- construction. Negative cases remove exactly one ingredient.
+    prop "proteus user is contactable iff a client has a prekey" $
+      \base ctx targetMls -> do
+        let u = activeWith (Just (S.singleton BaseProtocolProteusTag)) base
+        conjoin
+          [ statusOf ctx targetMls u [proteusClient] === Just (ContactStatus Contactable),
+            statusOf ctx targetMls u [proteusClient {hasPrekey = False}] === Just (ContactStatus NonContactable),
+            statusOf ctx targetMls u [] === Just (ContactStatus NonContactable)
+          ]
+
+    prop "missing or empty supported protocols default to proteus" $
+      \base ctx targetMls -> do
+        let status protos = statusOf ctx targetMls (activeWith protos base) [proteusClient]
+        conjoin
+          [ status Nothing === Just (ContactStatus Contactable),
+            status (Just mempty) === Just (ContactStatus Contactable)
+          ]
+
+    prop "MLS user is contactable, each missing ingredient makes it non-contactable" $
+      \base ctx suite -> do
+        let ctx' = ctx {mlsAvailable = True, allowedCipherSuites = S.singleton suite}
+            u = activeWith (Just (S.singleton BaseProtocolMLSTag)) base
+            client = mlsClient suite
+            nonContactable = Just (ContactStatus NonContactable)
+        conjoin
+          [ statusOf ctx' True u [client] === Just (ContactStatus Contactable),
+            counterexample "target server MLS off" $
+              statusOf ctx' False u [client] === nonContactable,
+            counterexample "requester MLS unavailable" $
+              statusOf ctx' {mlsAvailable = False} True u [client] === nonContactable,
+            counterexample "no allowed cipher suite" $
+              statusOf ctx' {allowedCipherSuites = mempty} True u [client] === nonContactable,
+            counterexample "no signature key" $
+              statusOf ctx' True u [client {signatureSuites = mempty}] === nonContactable,
+            counterexample "no key package" $
+              statusOf ctx' True u [client {keyPackageSuites = mempty}] === nonContactable,
+            counterexample "user does not support MLS" $
+              statusOf ctx' True (activeWith (Just (S.singleton BaseProtocolProteusTag)) base) [client] === nonContactable
+          ]
+
+    prop "one capable client among incapable ones makes a user contactable, wherever it is" $
+      \base ctx suite -> do
+        let ctx' = ctx {mlsAvailable = True, allowedCipherSuites = S.singleton suite}
+            incapable = FakeClient {hasPrekey = False, signatureSuites = mempty, keyPackageSuites = mempty}
+            user = activeWith (Just (S.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag])) base
+            statusWith clients = statusOf ctx' True user clients
+        conjoin
+          [ statusWith [incapable, incapable] === Just (ContactStatus NonContactable),
+            statusWith [incapable, proteusClient] === Just (ContactStatus Contactable),
+            statusWith [proteusClient, incapable] === Just (ContactStatus Contactable),
+            statusWith [incapable, mlsClient suite] === Just (ContactStatus Contactable),
+            statusWith [mlsClient suite, incapable] === Just (ContactStatus Contactable)
+          ]
+
+    prop "deleted users are non-contactable, pending-invitation users are left out" $
+      \base ctx targetMls -> do
+        let status s = statusOf ctx targetMls (base {status = Just s, supportedProtocols = Nothing} :: StoredUser) [proteusClient]
+        conjoin
+          [ status Active === Just (ContactStatus Contactable),
+            status Deleted === Just (ContactStatus NonContactable),
+            status PendingInvitation === Nothing
+          ]
+
+    prop "local route and remote route evaluate the same users identically" $
+      \ctx targetMls (users :: [(StoredUser, [FakeClient])]) (unknownIds :: [UserId]) -> do
+        let backend = mkFakeBackend targetMls users
             known = [u.id | u <- backend.storedUsers]
             qids = [Qualified u targetDomain | u <- known <> unknownIds]
             targetSelf = toLocalUnsafe targetDomain (Id UUID.nil)
-            -- requester backend: unrelated server MLS flag, must have no influence
-            requesterBackend = emptyBackend {serverMls = not targetMls}
+            -- both requesters derive the same effective MLS availability: the
+            -- target is its own requester, so its server flag applies on both sides
             (_, viaLocal) =
-              runContactRequester backend mempty (getContactStatusesImpl targetSelf ctx qids)
+              runContactRequester backend {features = mlsFeatures ctx} mempty (getContactStatusesImpl targetSelf qids)
             (calls, viaRemote) =
-              runContactRequester requesterBackend (Map.singleton targetDomain (loopback backend)) (getContactStatusesImpl lself ctx qids)
-            expected =
-              Map.fromList
-                [ (Qualified u.id targetDomain, ContactStatus (if oracle ctx targetMls fs then Contactable else NonContactable))
-                | (u, fs) <- uniqueFacts facts,
-                  u.id `elem` known
-                ]
+              runContactRequester (requesterWith ctx) (Map.singleton targetDomain (loopback backend)) (getContactStatusesImpl lself qids)
         conjoin
-          [ viaLocal === expected,
-            viaRemote === expected,
+          [ viaRemote === viaLocal,
+            counterexample "only requested users are answered" (all (`elem` qids) (Map.keys viaLocal)),
             length calls === (if null qids then 0 else 1)
           ]
   where
+    activeWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
+    activeWith protos u = u {status = Just Active, supportedProtocols = protos}
+
+    -- Status of a single user on a backend with the given server MLS flag.
+    statusOf :: ContactStatusContext -> Bool -> StoredUser -> [FakeClient] -> Maybe ContactStatus
+    statusOf ctx serverMls u clients =
+      Map.lookup u.id $
+        runFakeBackend (mkFakeBackend serverMls [(u, clients)]) (getLocalContactStatusesImpl ctx [u.id])
+
+    -- Requester whose derived 'ContactStatusContext' is the given one.
+    requesterWith :: ContactStatusContext -> FakeBackend
+    requesterWith ctx = emptyBackend {serverMls = True, features = mlsFeatures ctx}
+
     localDomain' = Domain "local.example.com"
     targetDomain = Domain "target.example.com"
     lself = toLocalUnsafe localDomain' (Id UUID.nil)
@@ -1464,55 +1518,78 @@ spec = describe "UserSubsystem.Interpreter" do
     allContactable :: FedBrig.GetContactStatusRequest -> FedBrig.GetContactStatusResponse
     allContactable req = FedBrig.GetContactStatusResponse (Map.fromList [(u, ContactStatus Contactable) | u <- fromRange req.users])
 
-data ClientFacts = ClientFacts
+-- | What a backend stores about a client: a prekey, MLS signature keys and key
+-- packages (the latter two per cipher suite).
+data FakeClient = FakeClient
   { hasPrekey :: Bool,
     signatureSuites :: S.Set CipherSuiteTag,
     keyPackageSuites :: S.Set CipherSuiteTag
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ClientFacts)
+  deriving (Arbitrary) via (GenericUniform FakeClient)
 
-data UserFacts = UserFacts
-  { protocols :: S.Set BaseProtocolTag,
-    clients :: [ClientFacts],
-    deleted :: Bool
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserFacts)
+-- | Contactable via proteus only.
+proteusClient :: FakeClient
+proteusClient = FakeClient {hasPrekey = True, signatureSuites = mempty, keyPackageSuites = mempty}
+
+-- | Contactable via MLS with the given cipher suite only.
+mlsClient :: CipherSuiteTag -> FakeClient
+mlsClient suite = FakeClient {hasPrekey = False, signatureSuites = S.singleton suite, keyPackageSuites = S.singleton suite}
 
 data FakeBackend = FakeBackend
   { serverMls :: Bool,
     storedUsers :: [StoredUser],
     clientState :: ClientStoreState,
-    keyPackages :: S.Set (UserId, ClientId, CipherSuiteTag)
+    keyPackages :: S.Set (UserId, ClientId, CipherSuiteTag),
+    -- | team features of the requester, from which the 'ContactStatusContext' is derived
+    features :: AllTeamFeatures
   }
 
 emptyBackend :: FakeBackend
-emptyBackend = FakeBackend False [] emptyClientStoreState mempty
+emptyBackend = FakeBackend False [] emptyClientStoreState mempty def
 
--- | Keep the first occurrence of each user id.
-uniqueFacts :: [(StoredUser, UserFacts)] -> [(StoredUser, UserFacts)]
-uniqueFacts = nubBy (\a b -> (fst a).id == (fst b).id)
+-- | Team features that make the requester's derived 'ContactStatusContext' equal
+-- to the given one (as long as the server has MLS enabled).
+mlsFeatures :: ContactStatusContext -> AllTeamFeatures
+mlsFeatures ctx = npUpdate @MLSConfig mls def
+  where
+    defMls = def :: LockableFeature MLSConfig
+    mls =
+      defMls
+        { status = if ctx.mlsAvailable then FeatureStatusEnabled else FeatureStatusDisabled,
+          config =
+            defMls.config
+              { mlsSupportedProtocols = [ProtocolMLSTag],
+                mlsAllowedCipherSuites = S.toList ctx.allowedCipherSuites
+              }
+        }
 
-mkFakeBackend :: Bool -> [(StoredUser, UserFacts)] -> FakeBackend
-mkFakeBackend mlsFlag facts =
+-- | Users are stored as given (the first occurrence of each user id wins).
+mkFakeBackend :: Bool -> [(StoredUser, [FakeClient])] -> FakeBackend
+mkFakeBackend mlsFlag users =
   FakeBackend
     { serverMls = mlsFlag,
-      storedUsers = [u {status = Just (if fs.deleted then Deleted else Active), supportedProtocols = Just fs.protocols} | (u, fs) <- ufs] :: [StoredUser],
-      clientState =
-        ClientStoreState . Map.fromList $
-          [ (u.id, Map.fromList [(cid, StoredClient (mkClient cid cf) [UncheckedPrekeyBundle (PrekeyId 1) "k" | cf.hasPrekey]) | (cid, cf) <- numbered fs])
-          | (u, fs) <- ufs
-          ],
-      keyPackages =
-        S.fromList
-          [(u.id, cid, suite) | (u, fs) <- ufs, (cid, cf) <- numbered fs, suite <- S.toList cf.keyPackageSuites]
+      storedUsers = fst <$> uniqueUsers,
+      clientState = ClientStoreState (Map.fromList [(user.id, storedClients clients) | (user, clients) <- uniqueUsers]),
+      keyPackages = S.fromList [(user.id, cid, suite) | (user, clients) <- uniqueUsers, (cid, client) <- numbered clients, suite <- S.toList client.keyPackageSuites],
+      features = def
     }
   where
-    ufs = uniqueFacts facts
-    numbered fs = zip (ClientId <$> [1 ..]) fs.clients
+    -- the first occurrence of each user id wins
+    uniqueUsers = nubBy (\a b -> (fst a).id == (fst b).id) users
+    -- the backend assigns each client of a user its id: 1, 2, ...
+    numbered clients = zip (ClientId <$> [1 ..]) clients
+
+    storedClients :: [FakeClient] -> Map ClientId StoredClient
+    storedClients clients = Map.fromList [(cid, storedClient cid client) | (cid, client) <- numbered clients]
+
+    storedClient :: ClientId -> FakeClient -> StoredClient
+    storedClient cid client = StoredClient (mkClient cid client) prekeys
+      where
+        prekeys = if client.hasPrekey then [UncheckedPrekeyBundle (PrekeyId 1) "k"] else []
+
     -- REVIEW: Is there no Default instance of Client or Arbitrary (with override)
-    mkClient cid cf =
+    mkClient cid client =
       Client
         { clientId = cid,
           clientType = PermanentClientType,
@@ -1522,34 +1599,9 @@ mkFakeBackend mlsFlag facts =
           clientCookie = Nothing,
           clientModel = Nothing,
           clientCapabilities = mempty,
-          clientMLSPublicKeys = Map.fromList [(csSignatureScheme suite, "key") | suite <- S.toList cf.signatureSuites],
+          clientMLSPublicKeys = Map.fromList [(csSignatureScheme suite, "key") | suite <- S.toList client.signatureSuites],
           clientLastActive = Nothing
         }
-
--- REVIEW: This duplicates existing logic. The sane way is probably to check
--- contactability with local users and federated users AND use the same user
--- data for this. Backend config drift needs can be tested with dedicated unit
--- tests.
-
--- | The contactability rule, written out independently of the interpreter.
-oracle :: ContactStatusContext -> Bool -> UserFacts -> Bool
-oracle ctx targetMls fs
-  | fs.deleted = False
-  | otherwise = proteus || mlsReady
-  where
-    protos = if S.null fs.protocols then defSupportedProtocols else fs.protocols
-    proteus = BaseProtocolProteusTag `S.member` protos && any (.hasPrekey) fs.clients
-    mlsReady =
-      ctx.mlsAvailable
-        && targetMls
-        && BaseProtocolMLSTag `S.member` protos
-        && any
-          ( \c ->
-              any
-                (\suite -> csSignatureScheme suite `elem` S.map csSignatureScheme c.signatureSuites && suite `S.member` c.keyPackageSuites)
-                ctx.allowedCipherSuites
-          )
-          fs.clients
 
 type ContactHandler = FedBrig.GetContactStatusRequest -> FedBrig.GetContactStatusResponse
 
@@ -1640,6 +1692,7 @@ runContactRequester ::
        ClientStore,
        MlsKeyPackageSubsystem,
        Input UserSubsystemConfig,
+       GalleyAPIAccess,
        FederationAPIAccess CFed,
        TinyLog,
        State [Domain]
@@ -1651,4 +1704,5 @@ runContactRequester b handlers =
     . runState [] -- REVIEW: This should have a comment or binding name to explain what `[]` represents
     . noopLogger
     . runCountingFed handlers
+    . miniGalleyAPIAccess mempty b.features
     . runContactStores b
