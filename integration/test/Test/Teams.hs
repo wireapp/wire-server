@@ -610,17 +610,15 @@ testListUsersContactStatusScenarios targetDomain = do
   noClientUser <- randomUser targetDomain def
   proteusUser <- randomUser targetDomain def
   proteusClient <- addClient proteusUser def >>= getJSON 201 >>= (%. "id") >>= asString
-  mlsUser <- randomUser targetDomain def
+  let mlsOnly = def {I.supportedProtocols = Just ["mls"]}
+  mlsUser <- randomUser targetDomain mlsOnly
   mlsClient <- createMLSClient def mlsUser
   void $ uploadNewKeyPackage def mlsClient
-  -- REVIEW: Do we need this put? Can't we just assert that the user has this property (get)?
-  putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
   -- A key package for a suite that the requester team does not allow
   let disallowedSuite = Ciphersuite "0x0001"
-  badSuiteUser <- randomUser targetDomain def
+  badSuiteUser <- randomUser targetDomain mlsOnly
   badSuiteClient <- createMLSClient def {ciphersuites = [disallowedSuite]} badSuiteUser
   void $ uploadNewKeyPackage disallowedSuite badSuiteClient
-  putUserSupportedProtocols badSuiteUser ["mls"] >>= assertSuccess
 
   userIds <- for [noClientUser, proteusUser, mlsUser, badSuiteUser] objQidObject
   prekeysBefore <- getClientPrekeyIds proteusUser proteusClient
