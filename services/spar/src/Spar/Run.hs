@@ -38,6 +38,7 @@ import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text.Encoding
+import Hasql.Pool.Extended (initPostgresPool, rawPool)
 import Imports
 import Network.URI
 import Network.Wai (Application)
@@ -59,6 +60,7 @@ import Util.Options
 import qualified Web.Scim.Schema.Common as Scim
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
+import Wire.PostgresMigrations (runAllMigrations)
 import Wire.ScimSubsystem.Interpreter
 
 ----------------------------------------------------------------------
@@ -82,6 +84,7 @@ runServer sparCtxOpts = do
       sport :: Int = sparCtxOpts ^. to saml . SAML.cfgSPPort
   (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
   let logger = sparCtxLogger ctxOpts
+  runAllMigrations ctxOpts.sparCtxHasqlPool.rawPool logger
   let settings = newSettings $ defaultServer shost (fromIntegral sport) logger
   WU.runSettingsWithShutdown settings wrappedApp Nothing
 
@@ -90,6 +93,7 @@ mkApp sparCtxOpts = do
   let logLevel = saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
+  sparCtxHasqlPool <- initPostgresPool (Opt.postgresqlPool sparCtxOpts) (Opt.postgresql sparCtxOpts) (Opt.postgresqlPassword sparCtxOpts)
   sparCtxHttpManager <- Bilge.newManager Bilge.defaultManagerSettings
   let sparCtxHttpBrig =
         Bilge.host (sparCtxOpts ^. to brig . to host . to encodeUtf8)
