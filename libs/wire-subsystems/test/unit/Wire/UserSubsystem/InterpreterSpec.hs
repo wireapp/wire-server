@@ -1454,11 +1454,14 @@ spec = describe "UserSubsystem.Interpreter" do
     localDomain' = Domain "local.example.com"
     targetDomain = Domain "target.example.com"
     lself = toLocalUnsafe localDomain' (Id UUID.nil)
-    -- REVIEW: Add type
+
+    qualify :: Map Domain [UserId] -> [Qualified UserId]
     qualify m = [Qualified u d | (d, us) <- Map.toList m, u <- us]
-    -- REVIEW: Add type
+
+    remoteOnly :: Map Domain [UserId] -> Map Domain [UserId]
     remoteOnly = Map.filter (not . null) . Map.delete localDomain'
-    -- REVIEW: Add type
+
+    allContactable :: FedBrig.GetContactStatusRequest -> FedBrig.GetContactStatusResponse
     allContactable req = FedBrig.GetContactStatusResponse (Map.fromList [(u, ContactStatus Contactable) | u <- fromRange req.users])
 
 data ClientFacts = ClientFacts
