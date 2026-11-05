@@ -90,6 +90,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore qualified as ActivationCode
+import Wire.ActivationCodeVerificationStore (ActivationCodeVerificationStore)
 import Wire.AppStore (AppStore)
 import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem (AppSubsystem)
@@ -177,6 +178,7 @@ servantSitemap ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member HashPassword r,
     Member (Embed IO) r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member (Input UserSubsystemConfig) r,
     Member (Polysemy.Error EnterpriseLoginSubsystemError) r,
@@ -256,6 +258,7 @@ accountAPI ::
     Member HashPassword r,
     Member InvitationStore r,
     Member (Embed IO) r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
@@ -603,6 +606,7 @@ createUserNoVerify ::
     Member (Input (Local ())) r,
     Member HashPassword r,
     Member PasswordResetCodeStore r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member RateLimit r
   ) =>
@@ -626,7 +630,8 @@ createUserNoVerifySpar ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member ActivationCodeVerificationStore r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
@@ -672,6 +677,7 @@ changeSelfEmailMaybeSendH ::
     Member UserKeyStore r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
+    Member ActivationCodeVerificationStore r,
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
@@ -719,6 +725,7 @@ changeSelfEmailMaybeSend ::
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
+    Member ActivationCodeVerificationStore r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
