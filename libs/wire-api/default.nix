@@ -66,6 +66,7 @@
 , kan-extensions
 , lens
 , lib
+, lint-openapi-regression
 , metrics-wai
 , mime
 , mtl
@@ -271,6 +272,7 @@ mkDerivation {
     iso3166-country-codes
     iso639
     lens
+    lint-openapi-regression
     metrics-wai
     openapi3
     process
@@ -282,6 +284,7 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     servant
+    servant-openapi3
     servant-server
     string-conversions
     tasty

@@ -780,3 +780,13 @@ openapi-validate:
 	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/gundeck-swagger.json)
 	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/brig-swagger.json)
 	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/galley-swagger.json)
+
+BRIG_URL ?= http://localhost:8082
+
+# Usage: make openapi-lint-regression [VERSION=<n>] [BRIG_URL=<brig public url>] [UPDATE=1]
+.PHONY: openapi-lint-regression
+openapi-lint-regression:
+	@if [ -n "$(VERSION)" ] && ! echo "$(VERSION)" | grep -qE '^[0-9]+$$'; then \
+		echo "VERSION must be a positive integer" >&2; exit 1; \
+	fi
+	$(if $(VERSION),cabal run lint-openapi-regression -- --baseline-dir services/brig/docs --brig-url $(BRIG_URL) --api-version $(VERSION) $(if $(wildcard .lint-ignore/v$(VERSION).json),--ignore .lint-ignore/v$(VERSION).json,) $(if $(UPDATE),--update,),cabal run lint-openapi-regression -- --baseline-dir services/brig/docs --brig-url $(BRIG_URL) $(if $(UPDATE),--update,))
