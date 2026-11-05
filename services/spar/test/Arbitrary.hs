@@ -42,9 +42,6 @@ import qualified Wire.IdPConfigStore as E
 instance Arbitrary IdPList where
   arbitrary = IdPList <$> arbitrary
 
-instance Arbitrary ScimTokenHash where
-  arbitrary = hashScimToken <$> arbitrary
-
 instance Arbitrary ScimTokenList where
   arbitrary = ScimTokenList <$> arbitrary
 

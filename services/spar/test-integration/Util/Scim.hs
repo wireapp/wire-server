@@ -46,7 +46,6 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import qualified Spar.Intra.RpcApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
 import qualified Text.XML.DSig as SAML
 import Util.Core
@@ -71,6 +70,7 @@ import Wire.API.User
 import Wire.API.User.IdentityProvider hiding (handle, team)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
+import qualified Wire.ScimTokenStore as ScimTokenStore
 
 -- | Build a SCIM @roles@ list (RFC 7643 complex form) from plain role-name strings.
 mkScimRoles :: [Text] -> [Scim.Role.Role]
