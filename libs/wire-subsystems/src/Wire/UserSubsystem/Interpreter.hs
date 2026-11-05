@@ -277,23 +277,22 @@ getLocalContactStatusesImpl ctx uids = do
   visible <- filter (not . hasPendingInvitation) <$> UserStore.getUsers (nubOrd uids)
   let (deleted, existing) = partition (\su -> su.status == Just Deleted) visible
   clients <- ClientStore.lookupClientsBulk (map (.id) existing)
-  let users =
+  let clientsByUser :: Map UserId (Set UserClient.Client)
+      clientsByUser = userMap clients
+      protocolsOf :: StoredUser -> Set BaseProtocolTag
+      protocolsOf u = case u.supportedProtocols of
+        Just ps | not (Set.null ps) -> ps
+        _ -> defSupportedProtocols
+      users :: Map UserId (Set BaseProtocolTag, Set UserClient.Client)
+      users =
         Map.fromList
-          -- REVIEW: Find a better name than @su@
-          [ ( su.id,
-              -- REVIEW: This code  is quite confusing
-              ( case su.supportedProtocols of
-                  Just ps | not (Set.null ps) -> ps
-                  _ -> defSupportedProtocols,
-                fromMaybe Set.empty (Map.lookup su.id (userMap clients))
-              )
-            )
-          | su <- existing
+          [ (u.id, (protocolsOf u, Map.findWithDefault Set.empty u.id clientsByUser))
+          | u <- existing
           ]
   contactability <- isUsersContactableImpl users (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
   -- REVIEW: Can't we directly use the sum type (Contactable, NonContactable) instead of using boolean first?
   pure . Map.map (\c -> ContactStatus (if c then Contactable else NonContactable)) $
-    contactability <> Map.fromList [(su.id, False) | su <- deleted]
+    contactability <> Map.fromList [(u.id, False) | u <- deleted]
 
 -- | Local users are evaluated locally; for each remote domain exactly one
 -- federation action is run (domains run concurrently; requests above
