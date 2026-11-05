@@ -29,6 +29,61 @@ import SetupHelpers hiding (deleteUser)
 import Testlib.Prelude
 import Testlib.VersionedFed (FedDomain)
 
+testAdminlessSetupIgnoresOne2OneConversations :: (HasCallStack) => App ()
+testAdminlessSetupIgnoresOne2OneConversations = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+
+  one2One <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  conv <- one2One %. "conversation"
+  conv %. "type" `shouldMatchInt` 2
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+  assertNoAdminPromotion bob conv
+
+  deleteUser bob >>= assertStatus 200
+
+  -- Wait for deletion to reach Galley before checking for promotion.
+  eventually $ do
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
+      shouldBeEmpty (resp.json %. "members.others")
+
+  assertNoAdminPromotion alice conv
+
+testAdminlessSetupIgnoresLegacyTeamOne2OneConversations :: (HasCallStack) => TaggedBool "twoMembers" -> App ()
+testAdminlessSetupIgnoresLegacyTeamOne2OneConversations (TaggedBool twoMembers) = do
+  (alice, tid, participants@(bob : _)) <- createTeam OwnDomain (if twoMembers then 3 else 2)
+  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+  conv <-
+    postConversation
+      alice
+      defProteus {team = Just tid, qualifiedUsers = participants, newUsersRole = "wire_member"}
+      >>= getJSON 201
+
+  -- After the admin leaves, this unnamed conversation has one or two
+  -- participants from its own team: the legacy Proteus team 1:1 rules.
+  removeMember alice conv alice >>= assertSuccess
+  bindResponse (getConversation bob conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "type" `shouldMatchInt` 0
+    resp.json %. "name" `shouldMatch` Null
+    resp.json %. "team" `shouldMatch` tid
+    others <- resp.json %. "members.others" & asList
+    otherIds <- traverse (%. "qualified_id") others
+    expected <- traverse objQidObject (drop 1 participants)
+    otherIds `shouldMatchSet` expected
+
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+  assertNoAdminPromotion bob conv
+
 testOnLastAdminLeaveReturnEligibleMembers :: (HasCallStack) => App ()
 testOnLastAdminLeaveReturnEligibleMembers = do
   -- bob is eligible
@@ -302,14 +357,14 @@ testAdminlessReplaceMembers = do
     testVersion version assertResult = do
       (alice, tid, [bob]) <- createTeam OwnDomain 2
       configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
-      conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"}) >>= getJSON 201
+      conv <- postConversation alice (defProteus {name = Just "adminless group", team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"}) >>= getJSON 201
       assertResult alice bob conv version
 
 testAdminlessReplaceMembersAddsAdmin :: (HasCallStack) => App ()
 testAdminlessReplaceMembersAddsAdmin = do
   (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
   configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
-  conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"}) >>= getJSON 201
+  conv <- postConversation alice (defProteus {name = Just "adminless group", team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"}) >>= getJSON 201
   bobId <- bob %. "qualified_id"
   charlieId <- charlie %. "qualified_id"
 
@@ -329,7 +384,7 @@ testAdminlessReplaceMembersAddsEligibleMember :: (HasCallStack) => App ()
 testAdminlessReplaceMembersAddsEligibleMember = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   configureAdminlessGroupsFeature OwnDomain tid "enabled" "10s" []
-  conv <- postConversation alice (defProteus {team = Just tid, qualifiedUsers = [], newUsersRole = "wire_member"}) >>= getJSON 201
+  conv <- postConversation alice (defProteus {name = Just "adminless group", team = Just tid, qualifiedUsers = [], newUsersRole = "wire_member"}) >>= getJSON 201
   bobId <- bob %. "qualified_id"
 
   -- V18 rejects a replacement that removes the only admin even when the
@@ -385,7 +440,7 @@ testAdminlessSetupMemberUpdateAfterAdminLeaves = do
   conv <-
     postConversation
       alice
-      (defProteus {team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"})
+      (defProteus {name = Just "adminless group", team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"})
       >>= getJSON 201
 
   -- Alice leaves while the feature is disabled. Enabling the feature through
@@ -829,6 +884,18 @@ testOnLastAdminSelfDeletionAutopromotes = do
 
 -----------------------------------------------------------------------------------------------------------------------------
 -- UTILS
+
+-- Check throughout a short observation period, rather than succeeding as soon
+-- as the initial role is observed before an asynchronous promotion can run.
+assertNoAdminPromotion :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> App ()
+assertNoAdminPromotion user conv = replicateM_ 10 $ do
+  liftIO $ threadDelay 100_000
+  bindResponse (getConversation user conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
+    others <- resp.json %. "members.others" & asList
+    for_ others $ \otherMember ->
+      otherMember %. "conversation_role" `shouldMatch` "wire_member"
 
 createTeamMLSConversation :: (HasCallStack, MakesValue owner) => owner -> String -> ClientIdentity -> [Value] -> App Value
 createTeamMLSConversation owner tid ownerClient members = do
