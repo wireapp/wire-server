@@ -55,6 +55,7 @@ import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Time (UTCTime)
 import Data.Time.Clock.System
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (head)
@@ -129,6 +130,7 @@ import Wire.Rpc
 import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
@@ -137,7 +139,8 @@ import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
-import Wire.UserPendingActivationStore (UserPendingActivationStore)
+import Wire.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import Wire.UserPendingActivationStore qualified as UserPendingActivationStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User
@@ -150,7 +153,8 @@ import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
   forall r p.
-  ( Member BlockListStore r,
+  ( P.Paging p,
+    Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
     Member FederationConfigStore r,
@@ -215,6 +219,8 @@ servantSitemap =
     :<|> samlIdPApi
     :<|> Named @"i-delete-app" deleteAppH
     :<|> Named @"i-get-app-ids" getAppIdsH
+    :<|> Named @"put-user-pending-activation" putUserPendingActivationH
+    :<|> Named @"get-user-pending-activations" getUserPendingActivationsH
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -1120,3 +1126,24 @@ deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> 
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
+
+putUserPendingActivationH ::
+  (Member (UserPendingActivationStore p) r) =>
+  UserId ->
+  UTCTime ->
+  Handler r NoContent
+putUserPendingActivationH uid expiresAt =
+  NoContent <$ lift (liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt))
+
+getUserPendingActivationsH ::
+  (P.Paging p, Member (UserPendingActivationStore p) r) =>
+  Handler r [(UserId, UTCTime)]
+getUserPendingActivationsH =
+  lift . liftSem $ do
+    let go acc page = do
+          let acc' = acc <> P.pageItems page
+          if P.pageHasMore page
+            then go acc' =<< UserPendingActivationStore.list (Just (P.pageState page))
+            else pure acc'
+    rows <- go [] =<< UserPendingActivationStore.list Nothing
+    pure $ map (\u -> (u.upaUserId, u.upaDay)) (sortOn (.upaUserId) rows)

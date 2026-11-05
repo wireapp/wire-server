@@ -1811,6 +1811,18 @@ CREATE TABLE public.user_migration_pending_deletes (
 ALTER TABLE public.user_migration_pending_deletes OWNER TO "wire-server";
 
 --
+-- Name: users_pending_activation; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.users_pending_activation (
+    user_id uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.users_pending_activation OWNER TO "wire-server";
+
+--
 -- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2270,6 +2282,14 @@ ALTER TABLE ONLY public.user_group
 
 ALTER TABLE ONLY public.user_migration_pending_deletes
     ADD CONSTRAINT user_migration_pending_deletes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users_pending_activation users_pending_activation_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.users_pending_activation
+    ADD CONSTRAINT users_pending_activation_pkey PRIMARY KEY (user_id);
 
 
 --
@@ -2933,6 +2953,26 @@ ALTER TABLE ONLY public.local_conversation_remote_member
 
 ALTER TABLE ONLY public.subconversation
     ADD CONSTRAINT subconversation_conv_id_fkey FOREIGN KEY (conv_id) REFERENCES public.conversation(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users_pending_activation_deletions; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.users_pending_activation_deletions (
+    user_id uuid NOT NULL,
+    deleted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.users_pending_activation_deletions OWNER TO "wire-server";
+
+--
+-- Name: users_pending_activation_deletions users_pending_activation_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.users_pending_activation_deletions
+    ADD CONSTRAINT users_pending_activation_deletions_pkey PRIMARY KEY (user_id);
 
 
 --
