@@ -319,14 +319,14 @@ getContactStatusesImpl self ctx qids = do
   localStatuses <-
     Map.mapKeys (tUntagged . qualifyAs self)
       <$> getLocalContactStatusesImpl ctx locals
-  remoteStatuses <-
+  remoteResponses <-
     runFederatedConcurrentlyEither remotes $ \ruids ->
       -- only keep what was asked for, whatever the remote answers
       (`Map.restrictKeys` Set.fromList (tUnqualified ruids))
         . fold
         <$> for (chunksOf FedBrig.maxContactStatusUsers (tUnqualified ruids)) \chunk ->
           (.statuses) <$> fedClient @'Brig @"get-users-contact-status" (FedBrig.GetContactStatusRequest ctx (unsafeRange chunk))
-  remoteResults <- for remoteStatuses \case
+  remoteStatuses <- for remoteResponses \case
     Left (ruids, e) -> do
       Log.warn $
         Log.msg (Log.val "Failed to get contact status from remote backend")
@@ -338,8 +338,7 @@ getContactStatusesImpl self ctx qids = do
         Map.mapKeys
           (tUntagged . qualifyAs rstatuses)
           (tUnqualified rstatuses)
-  -- REVIEW: Asymetric names statuses vs results
-  pure $ Map.unions (localStatuses : remoteResults)
+  pure $ Map.unions (localStatuses : remoteStatuses)
 
 isUsersContactableImpl ::
   forall r.
