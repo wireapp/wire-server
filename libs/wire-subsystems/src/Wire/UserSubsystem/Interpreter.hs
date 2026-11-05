@@ -201,9 +201,14 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         searchUsersImpl luid query mDomain mMaxResults mTypes
       GetLocalContactStatuses ctx uids ->
         getLocalContactStatusesImpl ctx uids
-      GetContactStatuses self qids -> do
-        ctx <- contactStatusContextImpl self
-        getContactStatusesImpl self ctx qids
+      GetContactStatuses self qids
+        | null qids ->
+            -- We don't need to entertain the whole machinery if there is
+            -- nothing to lookup.
+            pure mempty
+        | otherwise -> do
+            ctx <- contactStatusContextImpl self
+            getContactStatusesImpl self ctx qids
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
       InternalUpdateSearchIndex uid ->
