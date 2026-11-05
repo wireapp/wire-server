@@ -79,6 +79,7 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Bifunctor (second)
 import Data.Code qualified as Code
 import Data.Coerce
+import Data.Default (Default (def))
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
@@ -91,6 +92,7 @@ import Data.SOP hiding (fn)
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
+import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
@@ -516,6 +518,24 @@ data Client = Client
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
+
+-- | Default `Client` __to simplify test setups__
+--
+-- It has no reasonable meaning in the real world.
+instance Default Client where
+  def =
+    Client
+      { clientId = ClientId 0,
+        clientType = PermanentClientType,
+        clientTime = toUTCTimeMillis (UTCTime (ModifiedJulianDay 0) 0),
+        clientClass = Nothing,
+        clientLabel = Nothing,
+        clientCookie = Nothing,
+        clientModel = Nothing,
+        clientCapabilities = mempty,
+        clientMLSPublicKeys = mempty,
+        clientLastActive = Nothing
+      }
 
 type MLSPublicKeys = Map SignatureSchemeTag ByteString
 
