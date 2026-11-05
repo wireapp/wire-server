@@ -651,25 +651,22 @@ testListUsersContactStatusScenarios targetDomain = do
 -- set.
 testListUsersContactStatusRemoteDown :: (HasCallStack) => App ()
 testListUsersContactStatusRemoteDown = do
-  resourcePool <- asks (.resourcePool)
   localUser <- randomUser OwnDomain def
   void $ addClient localUser def >>= getJSON 201
   (owner, _tid, _) <- createTeam OwnDomain 1
-  runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
-    -- REVIEW: Can't we write `\ _ -> ...` as `const ...`?
-    downUser <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
-      u <- randomUser downBackend.berDomain def
-      void $ addClient u def >>= getJSON 201
-      pure u
-    -- backend is stopped again here
-    userIds@[_, downUserId] <- for [localUser, downUser] objQidObject
-    listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      profiles <- resp.json %. "found" >>= asList
-      assertContactStatus profiles localUser "contactable"
-      -- unreachable remote: no profile at all, reported as failed
-      findProfile profiles downUser `shouldMatch` (Nothing :: Maybe Value)
-      resp.json %. "failed" `shouldMatch` [downUserId]
+  downUser <- startDynamicBackends [mempty] \[downDomain] -> do
+    u <- randomUser downDomain def
+    void $ addClient u def >>= getJSON 201
+    pure u
+  -- backend is stopped again here
+  userIds@[_, downUserId] <- for [localUser, downUser] objQidObject
+  listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    assertContactStatus profiles localUser "contactable"
+    -- unreachable remote: no profile at all, reported as failed
+    findProfile profiles downUser `shouldMatch` (Nothing :: Maybe Value)
+    resp.json %. "failed" `shouldMatch` [downUserId]
 
 -- | Remote backend without the contact-status endpoint (old federation
 -- version): 200, profile returned, contact_status absent. Needs
