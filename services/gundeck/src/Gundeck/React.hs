@@ -36,7 +36,7 @@ import Gundeck.Aws.Sns
 import Gundeck.Env
 import Gundeck.Instances ()
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Stream
+import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options (notificationTTL, settings)
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native.Types
@@ -48,6 +48,7 @@ import Wire.API.Event.Gundeck
 import Wire.API.Internal.Notification
 import Wire.API.Notification (mkNotificationId)
 import Wire.API.Push.V2
+import Wire.NotificationStore (addNotification)
 
 onEvent :: Event -> Gundeck ()
 onEvent ev = case ev ^. evType of
@@ -171,7 +172,8 @@ deleteToken u ev tk cl = do
       n = Notification i False p
       r = NonEmpty.singleton (target u & targetClients .~ [cl])
   void $ Web.push n r (Just u) Nothing Set.empty
-  Stream.add i r p =<< view (options . settings . notificationTTL)
+  ttl <- view (options . settings . notificationTTL)
+  runNotificationStore (addNotification i r p ttl)
   Push.delete u (t ^. tokenTransport) (t ^. tokenApp) tk
 
 mkPushToken :: Event -> Token -> ClientId -> PushToken

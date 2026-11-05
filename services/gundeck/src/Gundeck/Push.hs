@@ -70,7 +70,7 @@ import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Data
+import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options
 import Gundeck.Presence.Data qualified as Presence
 import Gundeck.Push.Data qualified as Data
@@ -95,6 +95,7 @@ import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
 import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
+import Wire.NotificationStore (NotificationTTL (..), addNotification)
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -124,7 +125,7 @@ instance MonadPushAll Gundeck where
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
-  mpaStreamAdd = Data.add
+  mpaStreamAdd i t p ttl = runNotificationStore (addNotification i t p ttl)
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
@@ -409,7 +410,7 @@ mkCassandraTargets NewNotification {..} =
         case r ^. recipientClients of
           RecipientClientsAll -> Just []
           -- clients are stored in cassandra as a list with a notification.  empty list
-          -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
+          -- is interpreted as "all clients" by 'Wire.NotificationStore.toNotifSingle'.
           RecipientClientsSome cs -> Just $ toList cs
       pure $ target (r ^. recipientId) & targetClients .~ clients
 
