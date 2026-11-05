@@ -308,11 +308,10 @@ getContactStatusesImpl ::
   Local UserId ->
   [Qualified UserId] ->
   Sem r (Map (Qualified UserId) ContactStatus)
-getContactStatusesImpl self qids
-  | null qids = pure mempty -- no need for the whole machinery
-  | otherwise = do
-      ctx <- contactStatusContextImpl self
-      Map.union <$> getLocalStatuses ctx locals <*> getRemoteStatuses ctx remotes
+getContactStatusesImpl _self [] = pure mempty -- no need for the whole machinery
+getContactStatusesImpl self qids = do
+  ctx <- contactStatusContextImpl self
+  Map.union <$> getLocalStatuses ctx locals <*> getRemoteStatuses ctx remotes
   where
     (locals, remotes) = partitionQualified self (nubOrd qids)
 
