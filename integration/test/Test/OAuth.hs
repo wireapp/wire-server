@@ -205,13 +205,21 @@ testOAuthNewScopesOnDeprecatedAttribute = do
   Nginz.getSelf user convToken >>= assertStatus 403
 
 -- | @POST /meetings@ can be called with an OAuth access token that has the
--- @write-only:meetings@ scope, and not with one that lacks it.
+-- @write-only:meetings@ scope, and not with one that lacks it. A plain ZAuth
+-- access token keeps working through nginz as well.
 testOAuthPostMeeting :: (HasCallStack) => App ()
 testOAuthPostMeeting = do
   (user, _, _) <- createTeam OwnDomain 1
   cid <- oauthClient user
   now <- liftIO getCurrentTime
   let newMeeting = defaultMeetingJson "OAuth Standup" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+
+  -- positive control: the oauth_scopes directive must not lock out ZAuth users
+  email <- user %. "email" >>= asString
+  zauthToken <- Nginz.login OwnDomain email defPassword >>= getJSON 200 >>= (%. "access_token") & asString
+  bindResponse (Nginz.postMeeting user newMeeting zauthToken) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "title" `shouldMatch` "OAuth Standup"
 
   meetingsToken <- accessTokenFor user cid ["write-only:meetings"]
   bindResponse (Nginz.postMeeting user newMeeting meetingsToken) $ \resp -> do
