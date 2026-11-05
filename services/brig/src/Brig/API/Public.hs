@@ -1125,7 +1125,9 @@ listUsersByIdsOrHandles self includeContactStatus q = do
       pure (l, r')
   foundUsers' <-
     if includeContactStatus == Just True
-      then enrichContactStatus lself foundUsers
+      then do
+        statuses <- lift . liftSem $ getContactStatuses lself (Public.profileQualifiedId <$> foundUsers)
+        pure [p {Public.profileContactStatus = Map.lookup p.profileQualifiedId statuses} | p <- foundUsers]
       else pure foundUsers
   pure $ ListUsersById (fmap V.Versioned foundUsers') $ fst <$$> nonEmpty errors
   where
@@ -1134,21 +1136,6 @@ listUsersByIdsOrHandles self includeContactStatus q = do
       [Qualified UserId] ->
       Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
     byIds lself uids = lift (liftSem (getUserProfilesWithErrors lself uids))
-
--- REVIEW: Check if this function still provides value or can be inlined (up and/or down  the call trace)
-enrichContactStatus ::
-  forall r.
-  (Member UserSubsystem r) =>
-  Local UserId ->
-  [Public.UserProfile] ->
-  Handler r [Public.UserProfile]
-enrichContactStatus _ [] = pure []
-enrichContactStatus lself profiles = do
-  statuses <- lift . liftSem $ getContactStatuses lself (Public.profileQualifiedId <$> profiles)
-  pure
-    [ profile {Public.profileContactStatus = Map.lookup profile.profileQualifiedId statuses}
-    | profile <- profiles
-    ]
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
