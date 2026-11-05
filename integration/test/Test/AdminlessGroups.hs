@@ -58,19 +58,21 @@ testAdminlessSetupIgnoresOne2OneConversations = do
 
   assertNoAdminPromotion alice conv
 
-testAdminlessSetupIgnoresLegacyTeamOne2OneConversations :: (HasCallStack) => TaggedBool "twoMembers" -> App ()
-testAdminlessSetupIgnoresLegacyTeamOne2OneConversations (TaggedBool twoMembers) = do
+testAdminlessSetupIgnoresLegacyTeamOne2OneConversations :: (HasCallStack) => TaggedBool "twoMembers" -> TaggedBool "featureEnabled" -> App ()
+testAdminlessSetupIgnoresLegacyTeamOne2OneConversations (TaggedBool twoMembers) (TaggedBool featureEnabled) = do
   (alice, tid, participants@(bob : _)) <- createTeam OwnDomain (if twoMembers then 3 else 2)
-  configureAdminlessGroupsFeature OwnDomain tid "disabled" "1s" []
+  configureAdminlessGroupsFeature OwnDomain tid (if featureEnabled then "enabled" else "disabled") "1s" []
   conv <-
     postConversation
       alice
-      defProteus {team = Just tid, qualifiedUsers = participants, newUsersRole = "wire_member"}
+      defProteus {team = Just tid, qualifiedUsers = participants, newUsersRole = "wire_member", skipCreator = Just twoMembers}
       >>= getJSON 201
 
-  -- After the admin leaves, this unnamed conversation has one or two
-  -- participants from its own team: the legacy Proteus team 1:1 rules.
-  removeMember alice conv alice >>= assertSuccess
+  -- Start with only two participants. For the two-member case, omit the
+  -- creator so both participants are ordinary members from the outset.
+  unless twoMembers
+    $ removeMember alice conv alice
+    >>= assertSuccess
   bindResponse (getConversation bob conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatchInt` 0
@@ -81,7 +83,8 @@ testAdminlessSetupIgnoresLegacyTeamOne2OneConversations (TaggedBool twoMembers) 
     expected <- traverse objQidObject (drop 1 participants)
     otherIds `shouldMatchSet` expected
 
-  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+  unless featureEnabled
+    $ configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
   assertNoAdminPromotion bob conv
 
 testOnLastAdminLeaveReturnEligibleMembers :: (HasCallStack) => App ()
