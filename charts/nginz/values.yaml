@@ -256,6 +256,19 @@ nginx_conf:
     - path: /self/searchable
       envs:
       - all
+    # Second factor (TOTP) management.  Deliberately *no* oauth_scope/oauth_scopes:
+    # enrolling or removing someone's second factor must require a real user
+    # session, never a third-party OAuth token.  (The neighbouring /self$ entry has
+    # oauth_scopes: ["read:self"]; do not copy it here.)
+    - path: /self/totp$
+      envs:
+      - all
+    - path: /self/totp/([^/]*)$
+      envs:
+      - all
+    - path: /self/totp/([^/]*)/activate$
+      envs:
+      - all
     - path: /connections
       envs:
       - all

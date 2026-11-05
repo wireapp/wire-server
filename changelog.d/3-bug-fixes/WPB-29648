@@ -1,0 +1,1 @@
+Fix a race where re-joining an MLS group with an external commit could drop the re-joining client from the backend's member list, silently stopping message delivery to that client.

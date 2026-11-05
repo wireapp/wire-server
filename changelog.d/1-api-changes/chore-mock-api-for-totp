@@ -1,0 +1,3 @@
+Mock API for TOTP (RFC 6238) second factors: `POST /self/totp`, `POST
+/self/totp/{id}/activate`, `GET /self/totp`, `PUT /self/totp/{id}`, `DELETE
+/self/totp/{id}`.

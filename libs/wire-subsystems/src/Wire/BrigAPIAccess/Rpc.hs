@@ -56,6 +56,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
+import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Role (Role)
 import Wire.API.Team.Size
@@ -195,6 +196,8 @@ interpretBrigAccess brigEndpoint =
         sendSAMLIdPChangedEmail notif
       GetScimUsersPaginated tid maxResults mOffset ->
         getScimUsersPaginated tid maxResults mOffset
+      ResendMemberVerificationEmail tid uid ->
+        resendMemberVerificationEmail tid uid
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -874,6 +877,29 @@ updateEmail buid email activation = do
     fromBool :: Bool -> ByteString
     fromBool True = "true"
     fromBool False = "false"
+
+resendMemberVerificationEmail ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error RpcException) r) =>
+  TeamId ->
+  UserId ->
+  Sem r (Maybe ResendVerificationEmailResult)
+resendMemberVerificationEmail tid uid = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths
+          [ "i",
+            "teams",
+            toByteString' tid,
+            "members",
+            toByteString' uid,
+            "verification-email"
+          ]
+  case statusCode resp of
+    202 -> pure $ Just VerificationEmailSent
+    204 -> pure $ Just NoVerificationEmailPending
+    404 -> pure Nothing
+    _ -> rethrow "brig" resp
 
 getAccount ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r, Member (Error RpcException) r) =>

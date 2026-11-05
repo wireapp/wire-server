@@ -73,7 +73,6 @@
 , metrics-wai
 , mime
 , mime-mail
-, mmorph
 , MonadRandom
 , mtl
 , network
@@ -212,7 +211,6 @@ mkDerivation {
     metrics-wai
     mime
     mime-mail
-    mmorph
     MonadRandom
     mtl
     network
@@ -226,6 +224,7 @@ mkDerivation {
     polysemy-wire-zoo
     prometheus-client
     proto-lens
+    QuickCheck
     ram
     random-shuffle
     raw-strings-qq

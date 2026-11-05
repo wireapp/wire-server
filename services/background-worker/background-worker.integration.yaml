@@ -61,6 +61,9 @@ migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
 migratePasswordReset: false
+migrateCustomBackend: false
+migrateNonce: false
+migrateConnections: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -97,3 +100,7 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  customBackend: postgresql
+  budget: postgresql
+  nonce: postgresql
+  connections: postgresql

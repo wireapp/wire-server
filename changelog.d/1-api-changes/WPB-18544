@@ -1,0 +1,1 @@
+Federation error responses now include `federation_domain` to identify the requested peer. When an SRV target is available, they also include `srv_target` and, when parseable, `srv_target_domain`. Existing `domain` and `path` fields are unchanged.

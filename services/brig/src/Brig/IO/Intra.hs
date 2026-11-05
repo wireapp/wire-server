@@ -51,8 +51,8 @@ import Brig.API.Error (internalServerError)
 import Brig.App
 import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
-import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.ConnectionStore qualified as E
+import Brig.Data.Types (resultList)
+import Brig.Data.Types qualified as Data
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
@@ -92,6 +92,7 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.BackendNotificationQueueAccess
+import Wire.ConnectionStore qualified as E
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -225,8 +226,7 @@ journalEvent orig e = case e of
 -- as well as his other clients about a change to his user account
 -- or profile.
 dispatchNotifications ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
+  ( Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -265,10 +265,10 @@ dispatchNotifications orig conn e = case e of
 
 notifyUserDeletionLocals ::
   forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
+  ( Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member Now r
+    Member Now r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -309,7 +309,7 @@ notifyUserDeletionLocals deleted conn event = do
 
     connectionPages :: Maybe UserId -> Local UserId -> Range 1 500 Int32 -> Sem r ()
     connectionPages mbStart user pageSize = do
-      page <- embed $ Data.lookupLocalConnections user mbStart pageSize
+      page <- Data.lookupLocalConnections user mbStart pageSize
       case resultList page of
         [] -> pure ()
         xs -> do
@@ -406,9 +406,9 @@ notifySelf event orig route conn =
 
 notifyContacts ::
   forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r
+  ( Member NotificationSubsystem r,
+    Member GalleyAPIAccess r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Event ->
   -- | Origin user.
@@ -423,7 +423,7 @@ notifyContacts event orig route conn = do
     (:|) orig <$> liftA2 (++) contacts teamContacts
   where
     contacts :: Sem r [UserId]
-    contacts = embed $ lookupContactList orig
+    contacts = lookupContactList orig
 
     teamContacts :: Sem r [UserId]
     teamContacts = screenMemberList <$> GalleyAPIAccess.getTeamContacts orig

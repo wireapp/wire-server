@@ -252,6 +252,8 @@ library
     Wire.BrigAPIAccess.Rpc
     Wire.BudgetStore
     Wire.BudgetStore.Cassandra
+    Wire.BudgetStore.DualWrite
+    Wire.BudgetStore.Postgres
     Wire.ClientStore
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB
@@ -265,6 +267,11 @@ library
     Wire.CodeStore.DualWrite
     Wire.CodeStore.Migration
     Wire.CodeStore.Postgres
+    Wire.ConnectionStore
+    Wire.ConnectionStore.Cassandra
+    Wire.ConnectionStore.DualWrite
+    Wire.ConnectionStore.Migration
+    Wire.ConnectionStore.Postgres
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
@@ -320,6 +327,9 @@ library
     Wire.ConversationSubsystem.Util
     Wire.CustomBackendStore
     Wire.CustomBackendStore.Cassandra
+    Wire.CustomBackendStore.DualWrite
+    Wire.CustomBackendStore.Migration
+    Wire.CustomBackendStore.Postgres
     Wire.DefaultSsoStore
     Wire.DefaultSsoStore.Cassandra
     Wire.DefaultSsoStore.Mem
@@ -415,6 +425,11 @@ library
     Wire.MlsKeyPackageStore.Cassandra
     Wire.MlsKeyPackageSubsystem
     Wire.MlsKeyPackageSubsystem.Interpreter
+    Wire.NonceStore
+    Wire.NonceStore.Cassandra
+    Wire.NonceStore.DualWrite
+    Wire.NonceStore.Migration
+    Wire.NonceStore.Postgres
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.Options.Galley

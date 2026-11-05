@@ -1370,3 +1370,31 @@ getSystemSettingsInternal :: (MakesValue user) => user -> App Response
 getSystemSettingsInternal user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["system", "settings"]
   submit "GET" req
+
+----------------------------------------------------------------
+-- TOTP
+
+enrolTotp :: (HasCallStack, MakesValue user) => user -> Value -> App Response
+enrolTotp user body = do
+  req <- baseRequest user Brig Versioned "/self/totp"
+  submit "POST" $ req & addJSON body
+
+activateTotp :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+activateTotp user cid body = do
+  req <- baseRequest user Brig Versioned (joinHttpPath ["self", "totp", cid, "activate"])
+  submit "POST" $ req & addJSON body
+
+listTotp :: (HasCallStack, MakesValue user) => user -> App Response
+listTotp user = do
+  req <- baseRequest user Brig Versioned "/self/totp"
+  submit "GET" req
+
+renameTotp :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+renameTotp user cid body = do
+  req <- baseRequest user Brig Versioned (joinHttpPath ["self", "totp", cid])
+  submit "PUT" $ req & addJSON body
+
+deleteTotp :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
+deleteTotp user cid body = do
+  req <- baseRequest user Brig Versioned (joinHttpPath ["self", "totp", cid])
+  submit "DELETE" $ req & addJSON body

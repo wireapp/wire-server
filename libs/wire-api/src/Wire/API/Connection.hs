@@ -53,6 +53,7 @@ import Data.Schema
 import Data.Text as Text hiding (show)
 import Imports
 import Servant.API
+import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.Routes.MultiTablePaging
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.Sem.Paging
@@ -260,6 +261,37 @@ instance C.Cql RelationWithHistory where
   toCql MissingLegalholdConsentFromIgnored = C.CqlInt 9
   toCql MissingLegalholdConsentFromSent = C.CqlInt 10
   toCql MissingLegalholdConsentFromCancelled = C.CqlInt 11
+
+instance PostgresMarshall Int32 RelationWithHistory where
+  postgresMarshall = \case
+    AcceptedWithHistory -> 0
+    BlockedWithHistory -> 1
+    PendingWithHistory -> 2
+    IgnoredWithHistory -> 3
+    SentWithHistory -> 4
+    CancelledWithHistory -> 5
+    MissingLegalholdConsentFromAccepted -> 6
+    MissingLegalholdConsentFromBlocked -> 7
+    MissingLegalholdConsentFromPending -> 8
+    MissingLegalholdConsentFromIgnored -> 9
+    MissingLegalholdConsentFromSent -> 10
+    MissingLegalholdConsentFromCancelled -> 11
+
+instance PostgresUnmarshall Int32 RelationWithHistory where
+  postgresUnmarshall = \case
+    0 -> Right AcceptedWithHistory
+    1 -> Right BlockedWithHistory
+    2 -> Right PendingWithHistory
+    3 -> Right IgnoredWithHistory
+    4 -> Right SentWithHistory
+    5 -> Right CancelledWithHistory
+    6 -> Right MissingLegalholdConsentFromAccepted
+    7 -> Right MissingLegalholdConsentFromBlocked
+    8 -> Right MissingLegalholdConsentFromPending
+    9 -> Right MissingLegalholdConsentFromIgnored
+    10 -> Right MissingLegalholdConsentFromSent
+    11 -> Right MissingLegalholdConsentFromCancelled
+    n -> Left $ "unexpected RelationWithHistory: " <> Text.pack (show n)
 
 ----------------
 -- Requests

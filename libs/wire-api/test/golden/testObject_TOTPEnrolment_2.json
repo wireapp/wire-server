@@ -1,0 +1,10 @@
+{
+    "algorithm": "sha512",
+    "credential_id": "7a63cf28-13f8-4f2e-8b5d-2d4c9f0b1002",
+    "digits": 8,
+    "expires_at": "2026-02-03T11:32:05.021Z",
+    "period": 60,
+    "secret": "JBSWY3DPEHPK3PXP",
+    "server_time": "2026-02-03T11:17:05.021Z",
+    "uri": "otpauth://totp/Wire:0f2e1b9c-6c6c-4a0e-9a3f-17a2cf15a001?secret=JBSWY3DPEHPK3PXP&issuer=Wire&algorithm=SHA512&digits=8&period=60"
+}

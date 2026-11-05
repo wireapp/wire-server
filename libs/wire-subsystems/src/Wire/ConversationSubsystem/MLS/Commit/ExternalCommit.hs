@@ -196,15 +196,13 @@ executeExternalCommitAction ::
 executeExternalCommitAction lconvOrSub senderIdentity action = do
   let mlsMeta = (tUnqualified lconvOrSub).mlsMeta
 
-  -- Remove deprecated sender client from conversation state.
-  for_ action.remove $ \_ ->
-    removeMLSClients
-      (cnvmlsGroupId mlsMeta)
-      (cidQualifiedUser senderIdentity)
-      (Set.singleton (ciClient senderIdentity))
-
-  -- Add new sender client to the conversation state.
-  addMLSClients
+  -- The optional self-removal (action.remove) is subsumed by this upsert: the removed
+  -- client is always the sender's own client (enforced in getExternalCommitData), and
+  -- the insert overwrites its leaf index and resets removal_pending. Do NOT delete and
+  -- re-insert the same key here: two server-timestamped Cassandra batches can collide
+  -- within the same millisecond and the tombstone wins, dropping the member row
+  -- (WPB-29648).
+  upsertMLSClient
     (cnvmlsGroupId mlsMeta)
-    (cidQualifiedUser senderIdentity)
-    (Set.singleton (ciClient senderIdentity, action.add))
+    senderIdentity
+    action.add

@@ -38,6 +38,7 @@ module Data.Id
     TeamId,
     ScimTokenId,
     JobId,
+    TOTPCredentialId,
     parseIdFromText,
     idToText,
     idToString,
@@ -128,6 +129,7 @@ data IdTag
   | Job
   | Meeting
   | HistoryClient
+  | TOTPCredential
 
 idTagName :: IdTag -> Text
 idTagName Asset = "Asset"
@@ -145,6 +147,7 @@ idTagName Challenge = "Challenge"
 idTagName Job = "Job"
 idTagName Meeting = "Meeting"
 idTagName HistoryClient = "HistoryClient"
+idTagName TOTPCredential = "TOTPCredential"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -177,6 +180,8 @@ instance KnownIdTag 'Meeting where idTagValue = Meeting
 
 instance KnownIdTag 'HistoryClient where idTagValue = HistoryClient
 
+instance KnownIdTag 'TOTPCredential where idTagValue = TOTPCredential
+
 type AssetId = Id 'Asset
 
 type InvitationId = Id 'Invitation
@@ -206,6 +211,9 @@ type ChallengeId = Id 'Challenge
 type JobId = Id 'Job
 
 type MeetingId = Id 'Meeting
+
+-- | A TOTP (RFC 6238) credential, i.e. one authenticator app enrolled by one user.
+type TOTPCredentialId = Id 'TOTPCredential
 
 type HistoryClientId = Id 'HistoryClient
 

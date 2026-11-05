@@ -49,6 +49,7 @@ import Wire.API.Routes.Internal.Brig (GetBy (..), getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
+import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
@@ -242,6 +243,40 @@ getUserEmail lusr =
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe User)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe <$> getAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
+
+resendTeamMemberVerificationEmail ::
+  forall r.
+  ( Member BlockListStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r,
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member (Error UserSubsystemError) r,
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
+  ) =>
+  TeamId ->
+  Local UserId ->
+  Sem r ResendVerificationEmailResult
+resendTeamMemberVerificationEmail tid lusr = do
+  account <-
+    getAccountsBy
+      ( qualifyAs lusr $
+          getByNoFilters
+            { getByUserId = [tUnqualified lusr],
+              includePendingInvitations = WithPendingInvitations
+            }
+      )
+      >>= note UserSubsystemProfileNotFound . listToMaybe
+  when (userTeam account /= Just tid) $ throw UserSubsystemProfileNotFound
+  case account.userEmailUnvalidated of
+    Nothing -> pure NoVerificationEmailPending
+    -- SCIM ownership prevents client email changes, but must not prevent an
+    -- authorized resend to the unchanged pending address.
+    Just email -> requestEmailChange lusr email UpdateOriginScim $> VerificationEmailSent
 
 -- | Call 'createEmailChangeToken' and process result: if email changes to
 -- itself, succeed, if not, send validation email.

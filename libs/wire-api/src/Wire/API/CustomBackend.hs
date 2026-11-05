@@ -19,16 +19,37 @@
 
 module Wire.API.CustomBackend
   ( CustomBackend (..),
+    CustomBackendRow,
   )
 where
 
 import Control.Lens ((?~))
+import Data.Domain (Domain)
 import Data.Misc (HttpsUrl)
 import Data.OpenApi qualified as S
 import Data.Schema
 import Deriving.Aeson
 import Imports
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+
+-- | @domain -> config_json_url -> webapp_welcome_url@ — one Postgres row of
+-- the @custom_backend@ table. @domain@ is included so a single row type serves
+-- both the marshall (upsert) and unmarshall (lookup) directions.
+type CustomBackendRow = (Text, ByteString, ByteString)
+
+instance PostgresMarshall CustomBackendRow (Domain, CustomBackend) where
+  postgresMarshall (dom, CustomBackend {backendConfigJsonUrl, backendWebappWelcomeUrl}) =
+    ( postgresMarshall dom,
+      postgresMarshall backendConfigJsonUrl,
+      postgresMarshall backendWebappWelcomeUrl
+    )
+
+instance PostgresUnmarshall CustomBackendRow CustomBackend where
+  postgresUnmarshall (_, configJsonUrl, webappWelcomeUrl) =
+    CustomBackend
+      <$> postgresUnmarshall configJsonUrl
+      <*> postgresUnmarshall webappWelcomeUrl
 
 data CustomBackend = CustomBackend
   { backendConfigJsonUrl :: HttpsUrl,

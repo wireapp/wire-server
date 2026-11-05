@@ -19,6 +19,9 @@ module API.GalleyInternal where
 
 import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base64.URL as B64U
+import qualified Data.ByteString.Char8 as BS
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Vector as Vector
@@ -114,6 +117,24 @@ legalholdIsTeamInWhitelist tid uid = do
   req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
   submit "GET" req
 
+-- | GET /i/group/:gid/member-clients — member client rows (with leaf indices)
+-- of the MLS group of a conversation; with 'subconvId' set, the group of the
+-- subconversation.  GroupId travels as base64url-unpadded, conversation JSON
+-- carries standard base64.
+getMLSMemberClients :: (HasCallStack, MakesValue user) => user -> ConvId -> App Response
+getMLSMemberClients user conv = do
+  gid <- case conv.groupId of
+    Just g -> pure g
+    Nothing -> assertFailure "conversation has no MLS group id"
+  gidBytes <- either (assertFailure . ("invalid MLS group id " <>) . (gid <>)) pure (B64.decode (cs gid))
+  req <-
+    baseRequest
+      user
+      Galley
+      Unversioned
+      ("/i/group/" <> BS.unpack (B64U.encodeUnpadded gidBytes) <> "/member-clients")
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_teams__tid__features_legalhold
 legalholdIsEnabled :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> App Response
 legalholdIsEnabled tid uid = do
@@ -169,6 +190,19 @@ setTeamFeatureMigrationState :: (HasCallStack, MakesValue domain) => domain -> S
 setTeamFeatureMigrationState domain tid state = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "feature-migration-state"]
   submit "PUT" $ req & addJSON (A.String (T.pack state))
+
+putCustomBackend :: (HasCallStack, MakesValue user, MakesValue domain, MakesValue payload) => user -> domain -> payload -> App Response
+putCustomBackend user domain payload = do
+  d <- asString domain
+  p <- make payload
+  req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "custom-backend", "by-domain", d]
+  submit "PUT" $ req & addJSON p
+
+deleteCustomBackend :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> App Response
+deleteCustomBackend user domain = do
+  d <- asString domain
+  req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "custom-backend", "by-domain", d]
+  submit "DELETE" req
 
 setCellsState :: (MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
 setCellsState user conv state = do

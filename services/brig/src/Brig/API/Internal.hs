@@ -78,6 +78,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
+import Wire.API.Team.Invitation (ResendVerificationEmailResult)
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Activation
@@ -100,6 +101,7 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem, ReAuthPolicy (ReAuthPolicy))
 import Wire.ClientSubsystem qualified as ClientSubsystem
+import Wire.ConnectionStore (ConnectionStore)
 import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
@@ -127,6 +129,7 @@ import Wire.Rpc
 import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.StoredUser (StoredUser (..))
@@ -190,7 +193,8 @@ servantSitemap ::
     Member AppSubsystem r,
     Member ClientStore r,
     Member ClientSubsystem r,
-    Member MlsKeyPackageSubsystem r
+    Member MlsKeyPackageSubsystem r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -221,7 +225,8 @@ ejpdAPI ::
     Member Rpc r,
     Member TeamSubsystem r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
@@ -260,7 +265,8 @@ accountAPI ::
     Member EnterpriseLoginSubsystem r,
     Member (Concurrency Unsafe) r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -304,6 +310,7 @@ accountAPI =
     :<|> Named @"i-get-groups" getGroupsInternalH
     :<|> Named @"i-update-group" updateGroupInternalH
     :<|> Named @"i-delete-group-managed" deleteGroupManagedInternalH
+    :<|> Named @"iResendTeamMemberVerificationEmail" resendTeamMemberVerificationEmailH
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
@@ -647,7 +654,8 @@ deleteUserNoAuthH ::
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -739,6 +747,26 @@ changeSelfEmailMaybeSend u activation email allowScim = do
           ChangeEmailNeedsActivation (_, Activation k c, _) -> do
             API.activateNoVerifyEmailDomain (ActivateKey k) c (Just u) !>> actError $> ChangeEmailResponseActivated
 
+resendTeamMemberVerificationEmailH ::
+  ( Member UserSubsystem r,
+    Member BlockListStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
+  ) =>
+  TeamId ->
+  UserId ->
+  (Handler r) ResendVerificationEmailResult
+resendTeamMemberVerificationEmailH tid uid = do
+  lusr <- qualifyLocal uid
+  lift . liftSem $ UserSubsystem.resendTeamMemberVerificationEmail tid lusr
+
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This
 -- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
@@ -819,21 +847,30 @@ getAccountStatusH uid = do
     (pure . AccountStatusResp)
     status
 
-getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
+getConnectionsStatusUnqualified ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  ConnectionsStatusRequest ->
+  Maybe Relation ->
+  (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
-  r <- wrapClient $ maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
+  r <- liftSem $ maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   pure $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
 
-getConnectionsStatus :: ConnectionsStatusRequestV2 -> (Handler r) [ConnectionStatusV2]
+getConnectionsStatus ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  ConnectionsStatusRequestV2 ->
+  (Handler r) [ConnectionStatusV2]
 getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   loc <- qualifyLocal ()
   conns <- lift $ case mtos of
-    Nothing -> wrapClient . Data.lookupAllStatuses =<< qualifyLocal froms
+    Nothing -> liftSem . Data.lookupAllStatuses =<< qualifyLocal froms
     Just tos -> do
       let getStatusesForOneDomain =
-            wrapClient
+            liftSem
               <$> foldQualified
                 loc
                 (Data.lookupLocalConnectionStatuses froms)
@@ -857,7 +894,9 @@ updateConnectionInternalH ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member UserStore r
+    Member UserStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r
   ) =>
   UpdateConnectionsInternal ->
   (Handler r) NoContent
@@ -1004,8 +1043,12 @@ checkHandleInternalH h = lift $ liftSem do
     API.CheckHandleFound -> CheckHandleResponseFound
     API.CheckHandleNotFound -> CheckHandleResponseNotFound
 
-getContactListH :: UserId -> (Handler r) UserIds
-getContactListH uid = lift . wrapClient $ UserIds <$> API.lookupContactList uid
+getContactListH ::
+  forall r.
+  (Member (ConnectionStore InternalPaging) r) =>
+  UserId ->
+  (Handler r) UserIds
+getContactListH uid = lift . liftSem $ UserIds <$> API.lookupContactList uid
 
 getUserExportDataH ::
   (Member UserSubsystem r) =>

@@ -310,8 +310,12 @@ galley:
       teamFeatures: {{ .Values.teamFeaturesStore }}
       domainRegistration: {{ .Values.domainRegistration }}
       passwordReset: {{ .Values.passwordReset }}
+      customBackend: {{ .Values.customBackendStore }}
       user: {{ .Values.userStore }}
       blockList: {{ .Values.blockListStore }}
+      budget: {{ .Values.budgetStore }}
+      nonce: {{ .Values.nonceStore }}
+      connections: {{ .Values.connectionsStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32

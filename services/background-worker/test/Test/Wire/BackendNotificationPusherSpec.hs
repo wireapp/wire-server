@@ -499,7 +499,11 @@ spec = do
                 domainRegistration = CassandraStorage,
                 user = CassandraStorage,
                 blockList = CassandraStorage,
-                passwordReset = CassandraStorage
+                passwordReset = CassandraStorage,
+                customBackend = CassandraStorage,
+                budget = CassandraStorage,
+                nonce = CassandraStorage,
+                connections = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -566,7 +570,11 @@ spec = do
                 domainRegistration = CassandraStorage,
                 user = CassandraStorage,
                 blockList = CassandraStorage,
-                passwordReset = CassandraStorage
+                passwordReset = CassandraStorage,
+                customBackend = CassandraStorage,
+                budget = CassandraStorage,
+                nonce = CassandraStorage,
+                connections = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

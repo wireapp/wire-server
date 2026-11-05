@@ -1371,6 +1371,19 @@ CREATE TABLE public.bot_conv (
 ALTER TABLE public.bot_conv OWNER TO "wire-server";
 
 --
+-- Name: budget; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.budget (
+    key text NOT NULL,
+    budget integer NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.budget OWNER TO "wire-server";
+
+--
 -- Name: collaborators; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1382,6 +1395,38 @@ CREATE TABLE public.collaborators (
 
 
 ALTER TABLE public.collaborators OWNER TO "wire-server";
+
+--
+-- Name: connection; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.connection (
+    "left" uuid NOT NULL,
+    "right" uuid NOT NULL,
+    status integer NOT NULL,
+    last_update timestamp with time zone NOT NULL,
+    conv uuid
+);
+
+
+ALTER TABLE public.connection OWNER TO "wire-server";
+
+--
+-- Name: connection_remote; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.connection_remote (
+    "left" uuid NOT NULL,
+    right_domain text NOT NULL,
+    right_user uuid NOT NULL,
+    status integer NOT NULL,
+    last_update timestamp with time zone NOT NULL,
+    conv_domain text,
+    conv_id uuid
+);
+
+
+ALTER TABLE public.connection_remote OWNER TO "wire-server";
 
 --
 -- Name: conversation; Type: TABLE; Schema: public; Owner: wire-server
@@ -1474,6 +1519,19 @@ CREATE TABLE public.conversation_out_of_sync (
 
 
 ALTER TABLE public.conversation_out_of_sync OWNER TO "wire-server";
+
+--
+-- Name: custom_backend; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.custom_backend (
+    domain text NOT NULL,
+    config_json_url bytea NOT NULL,
+    webapp_welcome_url bytea NOT NULL
+);
+
+
+ALTER TABLE public.custom_backend OWNER TO "wire-server";
 
 --
 -- Name: deleted_user; Type: TABLE; Schema: public; Owner: wire-server
@@ -1607,6 +1665,20 @@ CREATE TABLE public.mls_history_client (
 
 
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
+
+--
+-- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.nonce (
+    user_id uuid NOT NULL,
+    key text NOT NULL,
+    nonce uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.nonce OWNER TO "wire-server";
 
 --
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
@@ -1977,11 +2049,35 @@ ALTER TABLE ONLY public.bot_conv
 
 
 --
+-- Name: budget budget_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.budget
+    ADD CONSTRAINT budget_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: collaborators collaborators_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.collaborators
     ADD CONSTRAINT collaborators_pkey PRIMARY KEY (user_id, team_id);
+
+
+--
+-- Name: connection connection_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.connection
+    ADD CONSTRAINT connection_pkey PRIMARY KEY ("left", "right");
+
+
+--
+-- Name: connection_remote connection_remote_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.connection_remote
+    ADD CONSTRAINT connection_remote_pkey PRIMARY KEY ("left", right_domain, right_user);
 
 
 --
@@ -2022,6 +2118,14 @@ ALTER TABLE ONLY public.conversation_out_of_sync
 
 ALTER TABLE ONLY public.conversation
     ADD CONSTRAINT conversation_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_backend custom_backend_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.custom_backend
+    ADD CONSTRAINT custom_backend_pkey PRIMARY KEY (domain);
 
 
 --
@@ -2086,6 +2190,14 @@ ALTER TABLE ONLY public.mls_group_member_client
 
 ALTER TABLE ONLY public.mls_history_client
     ADD CONSTRAINT mls_history_client_pkey PRIMARY KEY (group_id, id);
+
+
+--
+-- Name: nonce nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.nonce
+    ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 
 
 --
@@ -2513,6 +2625,13 @@ CREATE INDEX bot_conv_team_idx ON public.bot_conv USING btree (conv_team);
 
 
 --
+-- Name: budget_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX budget_expires_at_idx ON public.budget USING btree (expires_at);
+
+
+--
 -- Name: collaborators_team_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2524,6 +2643,13 @@ CREATE INDEX collaborators_team_id_idx ON public.collaborators USING btree (team
 --
 
 CREATE INDEX collaborators_user_id_idx ON public.collaborators USING btree (user_id);
+
+
+--
+-- Name: connection_remote_right_domain_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX connection_remote_right_domain_idx ON public.connection_remote USING btree (right_domain);
 
 
 --

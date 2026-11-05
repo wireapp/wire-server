@@ -44,10 +44,12 @@ import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
+import Wire.ConnectionStore (ConnectionStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserSubsystem (UserSubsystem)
@@ -61,7 +63,8 @@ ejpdRequest ::
     Member Rpc r,
     Member TeamSubsystem r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
@@ -96,7 +99,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
         if reallyIncludeContacts
           then do
             contacts <-
-              wrapClient $ -- FUTUREWORK: use polysemy effect, not wrapClient
+              liftSem $
                 Conn.lookupContactListWithRelation uid
 
             localContacts <-

@@ -96,7 +96,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
 import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
-import Wire.API.Team.Invitation (Invitation)
+import Wire.API.Team.Invitation (Invitation, ResendVerificationEmailResult)
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Size qualified as Teamsize
 import Wire.API.User hiding (InvitationCode)
@@ -657,6 +657,24 @@ type AccountAPI =
     :<|> GetGroupsInternal
     :<|> UpdateGroupInternal
     :<|> DeleteGroupManagedInternal
+    :<|> Named
+           "iResendTeamMemberVerificationEmail"
+           ( Summary
+               "Resend the verification email for a team member with a pending unverified email."
+               :> CanThrow 'UserNotFound
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> "verification-email"
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[ RespondEmpty 202 "Verification email sent.",
+                       RespondEmpty 204 "No pending email verification."
+                     ]
+                    ResendVerificationEmailResult
+           )
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

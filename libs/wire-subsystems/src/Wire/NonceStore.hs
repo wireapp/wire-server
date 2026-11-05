@@ -1,8 +1,8 @@
-{-# LANGUAGE DeepSubsumption #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,25 +17,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Effects.ConnectionStore.Cassandra where
+module Wire.NonceStore where
 
-import Brig.Data.Connection
-import Brig.Effects.ConnectionStore
-import Cassandra
-import Data.Range
+import Data.Id (UserId)
+import Data.Nonce (Nonce, NonceTtlSecs)
 import Imports
 import Polysemy
-import Polysemy.Internal.Tactics
-import Wire.Sem.Paging.Cassandra
 
-connectionStoreToCassandra ::
-  forall r a.
-  (Member (Embed Client) r) =>
-  Sem (ConnectionStore InternalPaging ': r) a ->
-  Sem r a
-connectionStoreToCassandra =
-  interpretH $
-    liftT . embed @Client . \case
-      RemoteConnectedUsersPaginated uid mps bounds -> case mps of
-        Nothing -> flip mkInternalPage pure =<< lookupRemoteConnectedUsersPaginated uid (fromRange bounds)
-        Just ps -> ipNext ps
+data NonceStore m a where
+  InsertNonce :: NonceTtlSecs -> UserId -> Text -> Nonce -> NonceStore m ()
+  LookupAndDeleteNonce :: UserId -> Text -> NonceStore m (Maybe Nonce)
+  DeleteNonce :: UserId -> Text -> NonceStore m ()
+
+makeSem ''NonceStore

@@ -21,6 +21,16 @@ to migrate this.
 The testsuite in `integration/` is our current approach to integration tests.
 We're migrating old integration tests from service Cabal sub-projects to it.
 
+## Where to add new integration tests
+
+**All new integration tests must go into `integration/`**, not into the legacy
+per-service test directories (e.g. `services/brig/test/integration/`).
+
+- HTTP helpers (functions that call an endpoint and return `App Response`) go in
+  `integration/test/API/<Service>.hs` (e.g. `API/Brig.hs`, `API/Galley.hs`).
+- Test functions go in `integration/test/Test/<Module>.hs` (e.g. `Test/Brig.hs`,
+  `Test/Teams.hs`). Pick the module that best matches the service or feature.
+
 # Development Environment
 
 The development environment is based on Nix flakes. Entrypoint is the

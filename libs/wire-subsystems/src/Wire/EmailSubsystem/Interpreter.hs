@@ -767,7 +767,7 @@ meetingEmailReplace meeting hostName hostEmail changeSummary =
     & Map.insert "host_name" hostName
     & Map.insert "host_email" hostEmail
     & Map.insert "change_summary" changeSummary
-    & Map.insert "join_url" (maybe "" httpsUrlToText meeting.link)
+    & Map.insert "join_url" (httpsUrlToText meeting.link)
     & Map.insert "ics_url" icsCidUrl
   where
     zone t = timeZoneForUTCTime (timeZoneTZ meeting.tzid) t

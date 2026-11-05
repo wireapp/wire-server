@@ -109,6 +109,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   DeleteMembers cnv ul -> deleteMembersImpl cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> deleteMembersInRemoteConversationImpl rcnv uids
   AddMLSClients lcnv quid cs -> addMLSClientsImpl lcnv quid cs
+  UpsertMLSClient gid ci idx -> upsertMLSClientImpl gid ci idx
   AddHistoryClient groupId hid idx -> addHistoryClientImpl groupId hid idx
   RemoveHistoryClient groupId hid -> removeHistoryClientImpl groupId hid
   RemoveAllHistoryClients groupId -> removeAllHistoryClientsImpl groupId
@@ -1011,6 +1012,24 @@ addMLSClientsImpl gid (Qualified uid domain) clients =
                              (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
                              VALUES
                              ($1 :: bytea, $2 :: text, $3 :: uuid, $4 :: text, $5 :: integer, false)
+                            |]
+
+-- Only external commits may replace an existing client's leaf. Their validation
+-- ensures that any removed leaf belongs to the sender being inserted here.
+upsertMLSClientImpl :: (PGConstraints r) => GroupId -> ClientIdentity -> LeafIndex -> Sem r ()
+upsertMLSClientImpl gid ci idx =
+  runPipeline $
+    Pipeline.statement (gid, ciDomain ci, ciUser ci, ciClient ci, fromIntegral idx) upsert
+  where
+    upsert :: Hasql.Statement (GroupId, Domain, UserId, ClientId, Int32) ()
+    upsert =
+      lmapPG
+        [resultlessStatement|INSERT INTO mls_group_member_client
+                             (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
+                             VALUES
+                             ($1 :: bytea, $2 :: text, $3 :: uuid, $4 :: text, $5 :: integer, false)
+                             ON CONFLICT (group_id, user_domain, "user", client)
+                             DO UPDATE SET leaf_node_index = EXCLUDED.leaf_node_index, removal_pending = false
                             |]
 
 addHistoryClientImpl :: (PGConstraints r) => GroupId -> HistoryClientId -> LeafIndex -> Sem r ()

@@ -180,6 +180,10 @@ postgresMigration:
   passwordReset: postgresql
   user: postgresql
   blockList: postgresql
+  customBackend: postgresql
+  budget: postgresql
+  nonce: postgresql
+  connections: cassandra
 
 optSettings:
   setActivationTimeout: 4

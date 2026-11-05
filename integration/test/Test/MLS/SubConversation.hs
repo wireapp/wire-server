@@ -18,6 +18,7 @@
 module Test.MLS.SubConversation where
 
 import API.Galley
+import API.GalleyInternal
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
 import qualified Data.Map as Map
@@ -49,6 +50,38 @@ testJoinSubConv = do
   void
     $ createExternalCommit subConvId alice1 Nothing
     >>= sendAndConsumeCommitBundle
+
+testExternalCommitSameClientSubConv :: (HasCallStack) => App ()
+testExternalCommitSameClientSubConv = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- alice1 and bob1 create and join a subconversation, respectively
+  createSubConv def convId alice1 "conference"
+  subConvId <- getSubConvId alice convId "conference"
+  void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- bob1 leaves and immediately rejoins with the same client (WPB-29648)
+  leaveConv subConvId bob1
+  void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  gs <- getClientGroupState bob1
+  groupData <- assertJust "no MLS group state for bob1" (Map.lookup subConvId gs.groups)
+  members <- readGroupState groupData
+  idx <-
+    assertJust "rejoined client missing from group state"
+      $ listToMaybe [idx | (RegularClient c, idx) <- members, c == bob1]
+  rows <- getMLSMemberClients bob subConvId >>= getJSON 200 >>= (%. "member_clients") >>= asList
+  idxs <- for rows $ \r -> do
+    ci <- r %. "client"
+    uid <- ci %. "user_id" & asString
+    client <- ci %. "client_id" & asString
+    idx' <- r %. "leaf_index" & asIntegral @Word32
+    pure (uid, client, idx')
+  [idx' | (u, c, idx') <- idxs, u == bob1.user, c == bob1.client] `shouldMatch` [idx]
 
 testJoinOne2OneSubConv :: App ()
 testJoinOne2OneSubConv = do

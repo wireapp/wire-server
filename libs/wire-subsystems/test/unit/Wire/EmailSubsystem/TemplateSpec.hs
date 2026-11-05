@@ -89,7 +89,6 @@ spec = do
       for_ (byLocale meetingTemplates) $ \(loc, ts) ->
         describe (show loc) $ do
           it "invitation" $ testMeetingInvitationEmail ts
-          it "invitation without join link" $ testMeetingInvitationEmailNoLink ts
           it "update" $ testMeetingUpdateEmail ts
           it "cancel" $ testMeetingCancelEmail ts
           it "ics escapes and folds text" $ testMeetingIcsEscapesAndFoldsText ts
@@ -109,7 +108,7 @@ meetingFixture =
       invitedEmails = [fromJust (emailAddressText "invitee@example.com")],
       createdAt = UTCTime (fromGregorian 2026 10 1) 0,
       updatedAt = UTCTime (fromGregorian 2026 10 1) 0,
-      link = Just joinUrlFixture,
+      link = joinUrlFixture,
       hasPassword = False
     }
 
@@ -140,16 +139,6 @@ testMeetingInvitationEmail templates = do
   ics `shouldSatisfy` T.isInfixOf "mailto:invitee@example.com"
   ics `shouldSatisfy` T.isInfixOf "URL:https://meet.example.com/join/"
   ics `shouldSatisfy` T.isInfixOf "STATUS:CONFIRMED"
-
-testMeetingInvitationEmailNoLink :: (HasCallStack) => MeetingTemplates -> Expectation
-testMeetingInvitationEmailNoLink templates = do
-  let tpl = templates.meetingInvitationEmail
-      meeting = meetingFixture {link = Nothing}
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meeting tpl branding
-      to = fromJust $ emailAddressText "invitee@example.com"
-  assertNoErrors errs
-  lookup "Subject" mail.mailHeaders `shouldSatisfy` isSubjectOf "Quarterly Sync"
-  unfoldIcs (icsRaw mail) `shouldSatisfy` not . T.isInfixOf "URL:"
 
 testMeetingUpdateEmail :: (HasCallStack) => MeetingTemplates -> Expectation
 testMeetingUpdateEmail templates = do

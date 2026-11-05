@@ -20,8 +20,6 @@ module Brig.CanonicalInterpreter where
 import Brig.AWS (amazonkaEnv, prekeyTable)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
-import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.IO.Intra (runEvents)
 import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
@@ -74,12 +72,18 @@ import Wire.BlockListStore.DualWrite
 import Wire.BlockListStore.Postgres
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
+import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
+import Wire.BudgetStore.Postgres (interpretBudgetStoreToPostgres)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error (clientErrorToHttpError)
 import Wire.ClientSubsystem.Interpreter
+import Wire.ConnectionStore (ConnectionStore)
+import Wire.ConnectionStore.Cassandra (connectionStoreToCassandra)
+import Wire.ConnectionStore.DualWrite (interpretConnectionStoreToCassandraAndPostgres)
+import Wire.ConnectionStore.Postgres (interpretConnectionStoreToPostgres)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
@@ -119,6 +123,10 @@ import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
+import Wire.NonceStore
+import Wire.NonceStore.Cassandra
+import Wire.NonceStore.DualWrite
+import Wire.NonceStore.Postgres
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -225,6 +233,7 @@ type BrigLowerLevelEffects =
      UserGroupStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
+     NonceStore,
      BlockListStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
@@ -423,6 +432,11 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretBlockListStoreToPostgres
         MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
 
+      nonceStore = case e.postgresMigration.nonce of
+        CassandraStorage -> interpretNonceStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretNonceStoreToPostgres
+        MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -454,6 +468,37 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
+      budgetStoreInterpreter =
+        case e.postgresMigration.budget of
+          CassandraStorage -> budgetStoreToCassandra @Cas.Client
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretBudgetStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretBudgetStoreToCassandraAndPostgres @Cas.Client
+              . raiseUnder2
+
+      -- Same slot consideration as passwordResetCodeStore above: the
+      -- Postgres-backed branches supply Input Pool and Error UsageError
+      -- locally (raiseUnder2 + runInputConst + mapError).
+      connectionsStoreInterpreter =
+        case e.postgresMigration.connections of
+          CassandraStorage -> connectionStoreToCassandra
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretConnectionStoreToPostgres
+              . raiseUnder2
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretConnectionStoreToCassandraAndPostgres
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -480,7 +525,7 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
-              . budgetStoreToCassandra @Cas.Client
+              . budgetStoreInterpreter
               . interpretJwtTools
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
@@ -494,7 +539,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst appSubsystemConfig
               . runInputConst e.hasqlPool
               . runInputConst e.casClient
-              . connectionStoreToCassandra
+              . connectionsStoreInterpreter
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
@@ -524,6 +569,7 @@ runBrigToIO e (AppT ma) = do
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
               . blockListStore
+              . nonceStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres

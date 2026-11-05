@@ -120,6 +120,9 @@ data ConversationStore m a where
   DeleteMembers :: ConvId -> UserList UserId -> ConversationStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> ConversationStore m ()
+  -- | Insert or replace the validated sender of an external commit. Ordinary
+  -- adds must retain their duplicate-client handling.
+  UpsertMLSClient :: GroupId -> ClientIdentity -> LeafIndex -> ConversationStore m ()
   AddHistoryClient :: GroupId -> HistoryClientId -> LeafIndex -> ConversationStore m ()
   RemoveHistoryClient :: GroupId -> HistoryClientId -> ConversationStore m ()
   RemoveAllHistoryClients :: GroupId -> ConversationStore m ()

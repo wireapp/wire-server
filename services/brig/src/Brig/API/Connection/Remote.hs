@@ -37,6 +37,7 @@ import Data.Qualified
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import Polysemy
+import Polysemy.Input (Input)
 import System.Logger.Class qualified as Log
 import Wire.API.Component
 import Wire.API.Connection
@@ -47,10 +48,12 @@ import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.Routes.Versioned qualified as V
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.ConnectionStore (ConnectionStore)
 import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 
@@ -152,7 +155,11 @@ desiredMembership a r =
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
-  (Member GalleyAPIAccess r, Member NotificationSubsystem r) =>
+  ( Member GalleyAPIAccess r,
+    Member NotificationSubsystem r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -175,7 +182,7 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
 
   -- create connection
   connection <-
-    wrapClient $
+    liftSem $
       Data.insertConnection
         self
         (tUntagged other)
@@ -206,7 +213,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
       $ updateOne2OneConv self Nothing other mlsConvId desiredMem actor
 
   -- update connection
-  connection' <- lift $ wrapClient $ Data.updateConnection connection (relationWithHistory rel)
+  connection' <- lift $ liftSem $ Data.updateConnection connection (relationWithHistory rel)
 
   -- send event
   lift $ pushEvent self mzcon connection'
@@ -227,6 +234,8 @@ performLocalAction ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r,
     HasBrigFederationAccess m r
   ) =>
   Local UserId ->
@@ -282,7 +291,11 @@ performLocalAction luid mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
-  (Member GalleyAPIAccess r, Member NotificationSubsystem r) =>
+  ( Member GalleyAPIAccess r,
+    Member NotificationSubsystem r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r
+  ) =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -305,6 +318,8 @@ createConnectionToRemoteUser ::
     Member UserStore r,
     Member UserSubsystem r,
     Member NotificationSubsystem r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r,
     HasBrigFederationAccess m r
   ) =>
   Local UserId ->
@@ -318,7 +333,7 @@ createConnectionToRemoteUser self zcon other = do
       selfInfo = [tUntagged $ Left <$> self]
       otherInfo = [tUntagged $ qualifyAs other (Right op) | op <- maybeToList mbOtherProfile]
   ensureNoApps self $ selfInfo <> otherInfo
-  mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
+  mconnection <- lift . liftSem $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
@@ -326,6 +341,8 @@ updateConnectionToRemoteUser ::
     Member NotificationSubsystem r,
     Member FederationConfigStore r,
     Member UserStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r,
     HasBrigFederationAccess m r
   ) =>
   Local UserId ->
@@ -335,7 +352,7 @@ updateConnectionToRemoteUser ::
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
   void $ ensureFederatesWith other
-  mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
+  mconnection <- lift . liftSem $ Data.lookupConnection self (tUntagged other)
   action <-
     actionForTransition rel1
       ?? InvalidTransition (tUnqualified self)
@@ -350,7 +367,12 @@ updateConnectionToRemoteUser self other rel1 zcon = do
     actionForTransition Pending = Nothing
     actionForTransition MissingLegalholdConsent = Nothing
 
-checkLimitForLocalAction :: Local UserId -> Relation -> LocalConnectionAction -> (ConnectionM r) ()
+checkLimitForLocalAction ::
+  (Member (ConnectionStore InternalPaging) r) =>
+  Local UserId ->
+  Relation ->
+  LocalConnectionAction ->
+  (ConnectionM r) ()
 checkLimitForLocalAction u oldRel action =
   when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
     checkLimit u

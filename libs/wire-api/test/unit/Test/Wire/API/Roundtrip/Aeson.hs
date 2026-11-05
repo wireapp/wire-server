@@ -25,6 +25,7 @@ import Data.Default (def)
 import Data.Id (ConvId)
 import Data.Misc
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
+import Data.Text qualified as ST
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
@@ -81,6 +82,7 @@ import Wire.API.User qualified as User
 import Wire.API.User.Activation qualified as User.Activation
 import Wire.API.User.Auth qualified as User.Auth
 import Wire.API.User.Auth.ReAuth qualified as User.Auth
+import Wire.API.User.Auth.TOTP qualified as TOTP
 import Wire.API.User.Client qualified as User.Client
 import Wire.API.User.Client.Prekey qualified as User.Client.Prekey
 import Wire.API.User.Handle qualified as User.Handle
@@ -373,6 +375,18 @@ tests =
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamContact,
+      testRoundTrip @TOTP.TOTPSecret,
+      testRoundTrip @TOTP.TOTPCode,
+      testRoundTrip @TOTP.RecoveryCode,
+      testRoundTrip @TOTP.SecondFactorCode,
+      testRoundTrip @TOTP.TOTPHashAlgorithm,
+      testRoundTrip @TOTP.ReauthBody,
+      testRoundTrip @TOTP.TOTPCredentialInfo,
+      testRoundTrip @TOTP.NewTOTPCredential,
+      testRoundTrip @TOTP.TOTPEnrolment,
+      testRoundTrip @TOTP.ActivateTOTPCredential,
+      testRoundTrip @TOTP.TOTPCredentialName,
+      testRoundTrip @TOTP.TOTPRecoveryCodes,
       testRoundTrip @UserGroup.NewUserGroup,
       testRoundTrip @UserGroup.UserGroupUpdate,
       testRoundTrip @(UserGroup.UserGroup),
@@ -503,11 +517,11 @@ meetingLinkVersioningTests =
     [ testProperty "V18 response omits link" $
         \(m :: Meeting.MeetingV18) ->
           linkField (toJSON m) === Nothing,
-      testProperty "V19 response renders link iff meeting has one" $
+      testProperty "V19 response always renders link" $
         \(m :: Meeting.Meeting) ->
           case linkField (toJSON m) of
-            Just t -> isJust m.link && t /= mempty
-            Nothing -> isNothing m.link
+            Just t -> not (ST.null t)
+            Nothing -> False
     ]
 
 -- | Extract the @link@ string from a 'Meeting' JSON object, if present.

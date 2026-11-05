@@ -93,12 +93,33 @@ run opts galleyOpts = do
           withNamedLogger "migrate-block-list" $
             Migrations.blockList opts.migrationOptions
       else pure $ pure ()
+  cleanupNonceMigration <-
+    if opts.migrateNonce
+      then
+        runAppT env $
+          withNamedLogger "migrate-nonce" $
+            Migrations.nonce opts.migrationOptions
+      else pure $ pure ()
   cleanupPasswordResetMigration <-
     if opts.migratePasswordReset
       then
         runAppT env $
           withNamedLogger "migrate-password-reset" $
             Migrations.passwordReset opts.migrationOptions
+      else pure $ pure ()
+  cleanupCustomBackendMigration <-
+    if opts.migrateCustomBackend
+      then
+        runAppT env $
+          withNamedLogger "migrate-custom-backend" $
+            Migrations.customBackend opts.migrationOptions
+      else pure $ pure ()
+  cleanupConnectionsMigration <-
+    if opts.migrateConnections
+      then
+        runAppT env $
+          withNamedLogger "migrate-connections" $
+            Migrations.connections opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
@@ -111,7 +132,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,)
+            (,,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -120,7 +141,10 @@ run opts galleyOpts = do
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupUsersMigration
               <*> Concurrently cleanupBlockListMigration
+              <*> Concurrently cleanupNonceMigration
               <*> Concurrently cleanupPasswordResetMigration
+              <*> Concurrently cleanupCustomBackendMigration
+              <*> Concurrently cleanupConnectionsMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

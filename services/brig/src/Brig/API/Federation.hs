@@ -46,6 +46,7 @@ import Data.Set qualified as Set
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
+import Polysemy.Input (Input)
 import Servant (ServerT)
 import Servant.API
 import Wire.API.Connection
@@ -71,6 +72,7 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientSubsystem (ClientSubsystem)
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ClientSubsystem.Error (clientErrorToHttpError)
+import Wire.ConnectionStore (ConnectionStore)
 import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.FederationConfigStore qualified as E
@@ -78,6 +80,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserStore
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem)
@@ -94,7 +97,9 @@ federationSitemap ::
     Member UserStore r,
     Member ClientStore r,
     Member MlsKeyPackageSubsystem r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member (Input (Local ())) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -132,7 +137,9 @@ sendConnectionAction ::
   ( Member FederationConfigStore r,
     Member GalleyAPIAccess r,
     Member UserStore r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (Local ())) r
   ) =>
   Domain ->
   NewConnectionRequest ->
@@ -147,7 +154,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
         then do
           self <- qualifyLocal to
           let other = toRemoteUnsafe originDomain from
-          mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
+          mconnection <- lift . liftSem $ Data.lookupConnection self (tUntagged other)
           maction <- lift $ performRemoteAction self other mconnection action
           pure $ NewConnectionResponseOk maction
         else pure NewConnectionResponseUserNotActivated
@@ -308,7 +315,8 @@ getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0
 
 onUserDeleted ::
   ( Member (Concurrency 'Unsafe) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Domain ->
   UserDeletedConnectionsNotification ->
@@ -320,11 +328,11 @@ onUserDeleted origDomain udcn = lift $ do
   acceptedLocals <-
     map csv2From
       . filter (\x -> csv2Status x == Accepted)
-      <$> wrapClient (Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser))
+      <$> liftSem (Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser))
   liftSem $
     unsafePooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \recipients ->
       notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
-  wrapClient $ Data.deleteRemoteConnections deletedUser connections
+  liftSem $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse
 
 -- | If domain is not configured fall back to `NoSearch`

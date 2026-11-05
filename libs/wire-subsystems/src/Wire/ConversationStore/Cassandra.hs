@@ -1032,6 +1032,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   AddMLSClients lcnv quid cs -> do
     logEffect "ConversationStore.AddMLSClients"
     embedClient client $ addMLSClients lcnv quid cs
+  UpsertMLSClient gid ci idx -> do
+    logEffect "ConversationStore.UpsertMLSClient"
+    embedClient client $ addMLSClients gid (cidQualifiedUser ci) (Set.singleton (ciClient ci, idx))
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
@@ -1441,6 +1444,13 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ addMLSClients groupId quid cs
         True -> interpretConversationStoreToPostgres (ConvStore.addMLSClients groupId quid cs)
+  UpsertMLSClient gid ci idx -> do
+    logEffect "ConversationStore.UpsertMLSClient"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ addMLSClients gid (cidQualifiedUser ci) (Set.singleton (ciClient ci, idx))
+        True -> interpretConversationStoreToPostgres (ConvStore.upsertMLSClient gid ci idx)
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
