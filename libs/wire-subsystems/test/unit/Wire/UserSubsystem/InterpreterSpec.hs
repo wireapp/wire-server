@@ -1408,7 +1408,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop "pending-invitation users are left out, deleted users are non-contactable" $
       \ctx targetMls (facts :: [(StoredUser, UserFacts)]) -> do
-        let b0 = mkContactBackend targetMls facts
+        let b0 = mkFakeBackend targetMls facts
             -- every second user has a pending invitation
             -- REVIEW: This logic is quite odd and complex. Can't we just generate contactable and non-contactable users separately?
             backend =
@@ -1425,11 +1425,11 @@ spec = describe "UserSubsystem.Interpreter" do
                 | (i, (u, fs)) <- zip [0 :: Int ..] (uniqueFacts facts),
                   even i
                 ]
-        runContactBackend backend (getLocalContactStatusesImpl ctx (map (.id) b0.storedUsers)) === expected
+        runFakeBackend backend (getLocalContactStatusesImpl ctx (map (.id) b0.storedUsers)) === expected
 
     prop "local route and remote route evaluate the same facts identically" $
       \ctx targetMls (facts :: [(StoredUser, UserFacts)]) (unknownIds :: [UserId]) -> do
-        let backend = mkContactBackend targetMls facts
+        let backend = mkFakeBackend targetMls facts
             known = [u.id | u <- backend.storedUsers]
             qids = [Qualified u targetDomain | u <- known <> unknownIds]
             targetSelf = toLocalUnsafe targetDomain (Id UUID.nil)
@@ -1480,24 +1480,23 @@ data UserFacts = UserFacts
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserFacts)
 
--- REVIEW: ContactBackend is a strange name. Maybe, `TestBackendConfig`?
-data ContactBackend = ContactBackend
+data FakeBackend = FakeBackend
   { serverMls :: Bool,
     storedUsers :: [StoredUser],
     clientState :: ClientStoreState,
     keyPackages :: S.Set (UserId, ClientId, CipherSuiteTag)
   }
 
-emptyBackend :: ContactBackend
-emptyBackend = ContactBackend False [] emptyClientStoreState mempty
+emptyBackend :: FakeBackend
+emptyBackend = FakeBackend False [] emptyClientStoreState mempty
 
 -- | Keep the first occurrence of each user id.
 uniqueFacts :: [(StoredUser, UserFacts)] -> [(StoredUser, UserFacts)]
 uniqueFacts = nubBy (\a b -> (fst a).id == (fst b).id)
 
-mkContactBackend :: Bool -> [(StoredUser, UserFacts)] -> ContactBackend
-mkContactBackend mlsFlag facts =
-  ContactBackend
+mkFakeBackend :: Bool -> [(StoredUser, UserFacts)] -> FakeBackend
+mkFakeBackend mlsFlag facts =
+  FakeBackend
     { serverMls = mlsFlag,
       storedUsers = [u {status = Just (if fs.deleted then Deleted else Active), supportedProtocols = Just fs.protocols} | (u, fs) <- ufs] :: [StoredUser],
       clientState =
@@ -1575,14 +1574,14 @@ instance FederationMonad CFed where
       Nothing -> error "CFed: only get-users-contact-status is supported"
 
 -- REVIEW: Is there no in-memory edition of this?
-mockMlsKeyPackages :: ContactBackend -> InterpreterFor MlsKeyPackageSubsystem r
+mockMlsKeyPackages :: FakeBackend -> InterpreterFor MlsKeyPackageSubsystem r
 mockMlsKeyPackages b = interpret \case
   HasMlsKeyPackagesBulk reqs -> pure (S.fromList [r | r <- reqs, r `S.member` b.keyPackages])
   _ -> error "unimplemented MlsKeyPackageSubsystem operation"
 
 -- | Interprets the store/config layers shared by backend and requester.
 runContactStores ::
-  ContactBackend ->
+  FakeBackend ->
   Sem (UserStore : ClientStore : MlsKeyPackageSubsystem : Input UserSubsystemConfig : r) a ->
   Sem r a
 runContactStores b =
@@ -1593,16 +1592,16 @@ runContactStores b =
     . raiseUnder
     . runInMemoryUserStoreInterpreter b.storedUsers mempty
 
-runContactBackend ::
-  ContactBackend ->
+runFakeBackend ::
+  FakeBackend ->
   Sem '[UserStore, ClientStore, MlsKeyPackageSubsystem, Input UserSubsystemConfig] a ->
   a
-runContactBackend b = run . runContactStores b
+runFakeBackend b = run . runContactStores b
 
 -- REVIEW: Why is this named `loopback`?
-loopback :: ContactBackend -> ContactHandler
+loopback :: FakeBackend -> ContactHandler
 loopback b req =
-  FedBrig.GetContactStatusResponse . runContactBackend b $
+  FedBrig.GetContactStatusResponse . runFakeBackend b $
     getLocalContactStatusesImpl req.context (fromRange req.users)
 
 -- REVIEW: Check if this cannot be generalized and extracted. I don't see how
@@ -1634,7 +1633,7 @@ runCountingFed handlers = interpret \case
 -- | Runs on the requester's backend. Returns the domains that were called (with
 -- multiplicity) and the result.
 runContactRequester ::
-  ContactBackend ->
+  FakeBackend ->
   Map Domain ContactHandler ->
   Sem
     '[ UserStore,
