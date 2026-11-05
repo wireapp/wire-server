@@ -601,7 +601,7 @@ keyPackageCount c = countKeyPackages def c >>= getJSON 200 >>= (%. "count") >>= 
 -- | Pending connections' @contact_status@ is supported for local and remote
 -- targets (federated @get-users-contact-status@).
 --
--- The requester lives on `OwnDomain``; the test runs once per `Domain`
+-- The requester lives on `OwnDomain`; the test runs once per `Domain`
 -- constructor (`OwnDomain` or `OtherDomain`), with all targets on
 -- @targetDomain@. 'OtherDomain' is a separate backend, so its users are remote
 -- and their status can only come from a successful federation call.
