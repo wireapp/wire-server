@@ -1150,10 +1150,12 @@ removeMemberQualified responseMode lusr con qcnv victim =
       qcnv
       victim
 
-isAdminlessCheckCandidate :: StoredConversation -> Bool
-isAdminlessCheckCandidate conv =
-  conv.metadata.cnvmType == RegularConv
-    && maybe True (`elem` [GroupConversation, Channel]) conv.metadata.cnvmGroupConvType
+isAdminlessCheckCandidate :: (Member TeamSubsystem r) => StoredConversation -> Sem r Bool
+isAdminlessCheckCandidate conv
+  | conv.metadata.cnvmType == RegularConv,
+    maybe True (`elem` [GroupConversation, Channel]) conv.metadata.cnvmGroupConvType =
+      not <$> isOne2OneConversation conv
+  | otherwise = pure False
 
 systemAdminlessDeletionSupported ::
   (Member (E.FederationAPIAccess FederatorClient) r) =>
@@ -1196,7 +1198,8 @@ setupAdminlessGroupsCleanup ::
     Member JobSubsystem r,
     Member TinyLog r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Maybe (Local UserId) ->
   TeamId ->
@@ -1275,7 +1278,7 @@ guardPreventAdminlessGroupsFor ::
   Sem r ()
 guardPreventAdminlessGroupsFor responseMode lcnv lusr victims addedAdmins addedMembers = do
   conv <- getConversationWithError lcnv
-  when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
+  whenM (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
     let victims' = Set.map qUnqualified victims
         removingLastAdmin =
@@ -1353,7 +1356,8 @@ adminlessTryAutopromote ::
     Member Now r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
@@ -1361,7 +1365,7 @@ adminlessTryAutopromote ::
   Sem r ()
 adminlessTryAutopromote mlusr lcnv altAction = do
   conv <- getConversationWithError lcnv
-  when (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
+  whenM (isAdminlessCheckCandidate conv) $ for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
     let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
     when (feature.status == FeatureStatusEnabled && not adminExists) $ do
@@ -1434,7 +1438,8 @@ adminlessAutopromoteOrDelete ::
     Member ProposalStore r,
     Member CodeStore r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamSubsystem r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
@@ -1487,7 +1492,8 @@ adminlessAutopromoteOrSendReminder ::
     Member Now r,
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
