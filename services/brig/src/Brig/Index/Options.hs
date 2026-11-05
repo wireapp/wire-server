@@ -161,7 +161,7 @@ localElasticSettings =
     { _esConnection =
         ESConnectionSettings
           { esServer = [uri|https://localhost:9200|],
-            esIndex = ES.IndexName "directory_test",
+            esIndex = either (error . Text.unpack) id (ES.mkIndexName "directory_test"),
             esCaCert = Just "../../libs/wire-subsystems/test/resources/elasticsearch-ca.pem",
             esInsecureSkipVerifyTls = False,
             esCredentials = Just "../../libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml",
@@ -224,7 +224,7 @@ restrictedElasticSettingsParser = do
       { _esConnection =
           localElasticSettings._esConnection
             { esServer = server,
-              esIndex = ES.IndexName (prefix <> "_test"),
+              esIndex = either (error . Text.unpack) id (ES.mkIndexName (prefix <> "_test")),
               esCredentials = mCreds,
               esCaCert = mCaCert,
               esInsecureSkipVerifyTls = verifyCa
@@ -233,7 +233,7 @@ restrictedElasticSettingsParser = do
 
 indexNameParser :: Parser ES.IndexName
 indexNameParser =
-  ES.IndexName . view packed
+  either (error . Text.unpack) id . ES.mkIndexName . view packed
     <$> strOption
       ( long "elasticsearch-index"
           <> metavar "STRING"
@@ -426,7 +426,7 @@ reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
     <$> connectionSettingsParser
-    <*> ( ES.IndexName . view packed
+    <*> ( either (error . Text.unpack) id . ES.mkIndexName . view packed
             <$> strOption
               ( long "destination-index"
                   <> metavar "STRING"
@@ -533,7 +533,7 @@ commandParser =
     )
 
 _IndexName :: Iso' ES.IndexName Text
-_IndexName = iso (\(ES.IndexName n) -> n) ES.IndexName
+_IndexName = iso ES.unIndexName (either (error . Text.unpack) id . ES.mkIndexName)
 
 _Keyspace :: Iso' C.Keyspace Text
 _Keyspace = iso C.unKeyspace C.Keyspace

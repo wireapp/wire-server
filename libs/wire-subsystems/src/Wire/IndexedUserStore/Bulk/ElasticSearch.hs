@@ -57,7 +57,7 @@ expectedMigrationVersion :: MigrationVersion
 expectedMigrationVersion = MigrationVersion 6
 
 syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
-syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGT
+syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE
 
 forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
 forceSyncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE

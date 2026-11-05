@@ -36,17 +36,17 @@
     "bloodhound": {
       "flake": false,
       "locked": {
-        "lastModified": 1739958389,
-        "narHash": "sha256-E3co9FGZP135T3RocX4vbUELbbgGbYddD8CcVNUzHu8=",
-        "owner": "wireapp",
+        "lastModified": 1782771333,
+        "narHash": "sha256-aKZdz53zKfT0YGSKOznN83ogKWq3k4thXYodlXECAKo=",
+        "owner": "bitemyapp",
         "repo": "bloodhound",
-        "rev": "dac0f1384b335ce35dc026bf8154e574b1a15d62",
+        "rev": "abdb06b13350fb6dd6714b59573ac4db649b9d0d",
         "type": "github"
       },
       "original": {
-        "owner": "wireapp",
-        "ref": "wire-fork",
+        "owner": "bitemyapp",
         "repo": "bloodhound",
+        "rev": "abdb06b13350fb6dd6714b59573ac4db649b9d0d",
         "type": "github"
       }
     },

@@ -24,7 +24,6 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Tuple.Extra
-import Database.Bloodhound.Internal.Client qualified as ES
 import Database.Bloodhound.Types qualified as ES
 import Imports
 import Polysemy
@@ -113,8 +112,6 @@ upsertImpl docId userDoc versionControl =
                 docs = insertedDocs index.nextVersion
               }
           (ES.InternalVersion newVer) ->
-            insertWithVersionCheck newVer (>)
-          (ES.ExternalGT (ES.ExternalDocVersion newVer)) ->
             insertWithVersionCheck newVer (>)
           (ES.ExternalGTE (ES.ExternalDocVersion newVer)) ->
             insertWithVersionCheck newVer (>=)

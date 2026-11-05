@@ -17,7 +17,7 @@
     };
 
     bloodhound = {
-      url = "github:wireapp/bloodhound?ref=wire-fork";
+      url = "github:bitemyapp/bloodhound?rev=abdb06b13350fb6dd6714b59573ac4db649b9d0d";
       flake = false;
     };
 

@@ -36,7 +36,7 @@ import Imports hiding (log, searchable)
 import Wire.API.User (Name (fromName))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
-import Wire.IndexedUserStore.ElasticSearch (mappingName, restrictSearchSpaceByUserType)
+import Wire.IndexedUserStore.ElasticSearch (restrictSearchSpaceByUserType)
 import Wire.UserSearch.Types
 import Wire.UserStore.IndexUser (normalized)
 
@@ -81,15 +81,13 @@ queryIndex (IndexQuery q f _) s = do
   liftIndexIO $ do
     idx <- asks idxName
     let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
-    r <-
-      ES.searchByType idx mappingName search
-        >>= ES.parseEsResponse @_ @(ES.SearchResult UserDoc)
+    r <- ES.tryEsError (ES.searchByIndex idx search)
     either (throwM . IndexLookupError) (traverse (userDocToContact' localDomain) . mkResult) r
   where
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotalValue . ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = maybe 0 (.value) (ES.hitsTotal (ES.searchHits es)),
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -123,7 +121,7 @@ defaultUserQuery setting (normalized -> term') =
               (ES.QueryString term')
           )
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
-              ES.multiMatchQueryOperator = ES.And
+              ES.multiMatchQueryOperator = Just ES.And
             }
       query =
         ES.QueryBoolQuery
@@ -191,7 +189,7 @@ termQ :: Text -> Text -> ES.Query
 termQ f v =
   ES.TermQuery
     ES.Term
-      { ES.termField = f,
+      { ES.termField = Key.fromText f,
         ES.termValue = v
       }
     Nothing
@@ -260,7 +258,7 @@ matchTeamMembersSearchableByAllTeams =
     boolQuery
       { ES.boolQueryMustMatch =
           [ ES.QueryExistsQuery $ ES.FieldName "team",
-            ES.TermQuery (ES.Term (Key.toText searchVisibilityInboundFieldName) "searchable-by-all-teams") Nothing
+            ES.TermQuery (ES.Term searchVisibilityInboundFieldName "searchable-by-all-teams") Nothing
           ]
       }
 

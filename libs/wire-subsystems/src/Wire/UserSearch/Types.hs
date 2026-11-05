@@ -31,7 +31,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Text.Encoding
-import Database.Bloodhound.Types
+import Database.Bloodhound.Types hiding (Role, udId)
 import Imports
 import Test.QuickCheck
 import Wire.API.Team.Feature
