@@ -201,14 +201,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         searchUsersImpl luid query mDomain mMaxResults mTypes
       GetLocalContactStatuses ctx uids ->
         getLocalContactStatusesImpl ctx uids
-      GetContactStatuses self qids
-        | null qids ->
-            -- We don't need to entertain the whole machinery if there is
-            -- nothing to lookup.
-            pure mempty
-        | otherwise -> do
-            ctx <- contactStatusContextImpl self
-            getContactStatusesImpl self ctx qids
+      GetContactStatuses self qids ->
+        getContactStatusesImpl self qids
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
       InternalUpdateSearchIndex uid ->
@@ -302,6 +296,7 @@ getContactStatusesImpl ::
   ( Member UserStore r,
     Member ClientStore r,
     Member MlsKeyPackageSubsystem r,
+    Member GalleyAPIAccess r,
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
     Member TinyLog r,
@@ -311,21 +306,23 @@ getContactStatusesImpl ::
     Typeable fedM
   ) =>
   Local UserId ->
-  ContactStatusContext ->
   [Qualified UserId] ->
   Sem r (Map (Qualified UserId) ContactStatus)
-getContactStatusesImpl self ctx qids =
-  Map.union <$> getLocalStatuses locals <*> getRemoteStatuses remotes
+getContactStatusesImpl self qids
+  | null qids = pure mempty -- no need for the whole machinery
+  | otherwise = do
+      ctx <- contactStatusContextImpl self
+      Map.union <$> getLocalStatuses ctx locals <*> getRemoteStatuses ctx remotes
   where
     (locals, remotes) = partitionQualified self (nubOrd qids)
 
-    getLocalStatuses :: [UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
-    getLocalStatuses uids =
+    getLocalStatuses :: ContactStatusContext -> [UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
+    getLocalStatuses ctx uids =
       Map.mapKeys (tUntagged . qualifyAs self)
         <$> getLocalContactStatusesImpl ctx uids
 
-    getRemoteStatuses :: [Remote UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
-    getRemoteStatuses rs = do
+    getRemoteStatuses :: ContactStatusContext -> [Remote UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
+    getRemoteStatuses ctx rs = do
       remoteResponses <-
         runFederatedConcurrentlyEither rs $ \ruids ->
           -- only keep what was asked for, whatever the remote answers
