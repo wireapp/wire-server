@@ -29,7 +29,6 @@ import Data.Domain
 import Data.Handle
 import Data.HashSet qualified as HashSet
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
 import Data.Proxy
@@ -39,7 +38,6 @@ import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time (Day (ModifiedJulianDay), UTCTime (..))
 import Data.UUID qualified as UUID
 import Database.Bloodhound.Internal.Client qualified as ES
 import Imports
@@ -71,7 +69,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User hiding (DeleteUser)
-import Wire.API.User.Client (Client (..), ClientType (..))
+import Wire.API.User.Client (Client (..))
 import Wire.API.User.Client.Prekey (PrekeyId (..), UncheckedPrekeyBundle (..))
 import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.User.Search
@@ -1588,19 +1586,10 @@ mkFakeBackend mlsFlag users =
       where
         prekeys = if client.hasPrekey then [UncheckedPrekeyBundle (PrekeyId 1) "k"] else []
 
-    -- REVIEW: Is there no Default instance of Client or Arbitrary (with override)
     mkClient cid client =
-      Client
+      def
         { clientId = cid,
-          clientType = PermanentClientType,
-          clientTime = toUTCTimeMillis (UTCTime (ModifiedJulianDay 0) 0),
-          clientClass = Nothing,
-          clientLabel = Nothing,
-          clientCookie = Nothing,
-          clientModel = Nothing,
-          clientCapabilities = mempty,
-          clientMLSPublicKeys = Map.fromList [(csSignatureScheme suite, "key") | suite <- S.toList client.signatureSuites],
-          clientLastActive = Nothing
+          clientMLSPublicKeys = Map.fromList [(csSignatureScheme suite, "key") | suite <- S.toList client.signatureSuites]
         }
 
 type ContactHandler = FedBrig.GetContactStatusRequest -> FedBrig.GetContactStatusResponse
