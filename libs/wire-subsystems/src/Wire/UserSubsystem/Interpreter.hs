@@ -290,9 +290,8 @@ getLocalContactStatusesImpl ctx uids = do
           | u <- existing
           ]
   contactability <- isUsersContactableImpl users (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
-  -- REVIEW: Can't we directly use the sum type (Contactable, NonContactable) instead of using boolean first?
-  pure . Map.map (\c -> ContactStatus (if c then Contactable else NonContactable)) $
-    contactability <> Map.fromList [(u.id, False) | u <- deleted]
+  pure $
+    contactability <> Map.fromList [(u.id, ContactStatus NonContactable) | u <- deleted]
 
 -- | Local users are evaluated locally; for each remote domain exactly one
 -- federation action is run (domains run concurrently; requests above
@@ -348,7 +347,7 @@ isUsersContactableImpl ::
   Map UserId (Set BaseProtocolTag, Set UserClient.Client) ->
   Bool ->
   Set CipherSuiteTag ->
-  Sem r (Map UserId Bool)
+  Sem r (Map UserId ContactStatus)
 isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
   let prekeyRequests =
         [ (uid, client.clientId)
@@ -388,7 +387,7 @@ isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
                       allowedCipherSuites
                 )
                 clients
-       in proteusReady || mlsReady
+       in ContactStatus $ if proteusReady || mlsReady then Contactable else NonContactable
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
