@@ -25,6 +25,7 @@ module Wire.API.Notification
     RawNotificationId (..),
     Event,
     ServerTime (..),
+    Transmit (..),
 
     -- * QueuedNotification
     QueuedNotification,
@@ -75,6 +76,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities (mkError)
 import Servant
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version (Version)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 type NotificationId = Id QueuedNotification
@@ -93,6 +95,13 @@ mkNotificationId = do
 -- This definition is very opaque, but we know some of the structure already
 -- (e.g. visible in 'modelEvent'). Can we specify it in a better way?
 type Event = Aeson.Object
+
+-- | Adjust an event for delivery to a client that called the API at the given
+-- 'Version'.  'Nothing' = do not deliver.  The default is pass-through;
+-- instances are provided by event family modules.
+class Transmit e where
+  transmit :: e -> Version -> Maybe e
+  transmit e _ = Just e
 
 -- | Schema for an `Event` object.
 --

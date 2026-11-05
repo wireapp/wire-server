@@ -32,20 +32,21 @@ import Network.WebSockets.Connection
 import Servant
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cannon
+import Wire.API.Routes.Version (Version)
 
 publicAPIServer :: ServerT CannonAPI Cannon
 publicAPIServer =
   Named @"await-notifications" streamData
     :<|> Named @"websocket" streamData
-    :<|> Named @"consume-events@v8" (\userId mClientId -> consumeEvents userId mClientId Nothing)
+    :<|> Named @"consume-events@v8" (\v userId mClientId -> consumeEvents v userId mClientId Nothing)
     :<|> Named @"consume-events" consumeEvents
 
-streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
-streamData userId connId clientId con = do
+streamData :: Version -> UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
+streamData v userId connId clientId con = do
   e <- wsenv
-  liftIO $ wsapp (mkKey userId connId) clientId e con
+  liftIO $ wsapp v (mkKey userId connId) clientId e con
 
-consumeEvents :: UserId -> Maybe ClientId -> Maybe Text -> PendingConnection -> Cannon ()
-consumeEvents userId mClientId mSyncMarker con = do
+consumeEvents :: Version -> UserId -> Maybe ClientId -> Maybe Text -> PendingConnection -> Cannon ()
+consumeEvents v userId mClientId mSyncMarker con = do
   e <- wsenv
-  liftIO $ rabbitMQWebSocketApp userId mClientId mSyncMarker e con
+  liftIO $ rabbitMQWebSocketApp v userId mClientId mSyncMarker e con

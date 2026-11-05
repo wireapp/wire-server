@@ -30,9 +30,11 @@ import Gundeck.Notification.Data qualified as Data
 import Gundeck.Push qualified as Push
 import Imports
 import Servant (HasServer (..), (:<|>) (..))
+import Wire.API.Event.Transmit (transmitQueuedNotification)
 import Wire.API.Notification qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Gundeck
+import Wire.API.Routes.Version (Version)
 
 -------------------------------------------------------------------------------
 -- Servant API
@@ -46,10 +48,14 @@ servantSitemap = pushAPI :<|> notificationAPI :<|> timeAPI
         :<|> Named @"get-push-tokens" Push.listTokens
 
     notificationAPI =
-      Named @"get-notification-by-id" Data.fetchId
-        :<|> Named @"get-last-notification" Data.fetchLast
+      Named @"get-notification-by-id" fetchIdH
+        :<|> Named @"get-last-notification" fetchLastH
         :<|> Named @"get-notifications@v2" paginateUntilV2
         :<|> Named @"get-notifications" paginate
+
+    fetchIdH v u n c = (>>= transmitQueuedNotification v) <$> Data.fetchId u n c
+
+    fetchLastH v u c = (>>= transmitQueuedNotification v) <$> Data.fetchLast u c
 
     timeAPI =
       Named @"get-server-time" getServerTime
@@ -87,14 +93,15 @@ servantSitemap = pushAPI :<|> notificationAPI :<|> timeAPI
 -- (arianvp): I am not sure why it is convenient for clients to distinguish
 -- between these two cases.
 paginateUntilV2 ::
+  Version ->
   UserId ->
   Maybe Public.RawNotificationId ->
   Maybe ClientId ->
   Maybe (Range 100 10000 Int32) ->
   Gundeck Public.GetNotificationsResponse
-paginateUntilV2 uid mbSince mbClient mbSize = do
+paginateUntilV2 v uid mbSince mbClient mbSize = do
   let size = fromMaybe (unsafeRange 1000) mbSize
-  Notification.PaginateResult gap page <- Notification.paginate uid (join since) mbClient size
+  Notification.PaginateResult gap page <- Notification.paginate v uid (join since) mbClient size
   pure $
     if gap
       then Public.GetNotificationsWithStatusNotFound page
@@ -113,14 +120,15 @@ paginateUntilV2 uid mbSince mbClient mbSize = do
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 
 paginate ::
+  Version ->
   UserId ->
   Maybe Public.NotificationId ->
   Maybe ClientId ->
   Maybe (Range 100 10000 Int32) ->
   Gundeck (Maybe Public.QueuedNotificationList)
-paginate uid mbSince mbClient mbSize = do
+paginate v uid mbSince mbClient mbSize = do
   let size = fromMaybe (unsafeRange 1000) mbSize
-  Notification.PaginateResult gap page <- Notification.paginate uid mbSince mbClient size
+  Notification.PaginateResult gap page <- Notification.paginate v uid mbSince mbClient size
   pure $ if gap then Nothing else Just page
 
 getServerTime :: UserId -> Gundeck Public.ServerTime

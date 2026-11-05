@@ -110,7 +110,10 @@ data WSConnect = WSConnect
     domain :: String,
     client :: Maybe String,
     -- | If this is Nothing then a random Z-Connection will be used
-    conn :: Maybe String
+    conn :: Maybe String,
+    -- | Explicit API version prefix for the websocket endpoint (affects
+    -- versioned event delivery).  'Nothing' = current maximum version.
+    version :: Maybe Int
   }
 
 class ToWSConnect a where
@@ -124,20 +127,20 @@ instance {-# OVERLAPPABLE #-} (MakesValue user) => ToWSConnect user where
     (domain, uid) <- objQid u
     mc <- lookupField u "client_id"
     c <- traverse asString mc
-    pure (WSConnect uid domain c Nothing)
+    pure (WSConnect uid domain c Nothing Nothing)
 
 instance (MakesValue user, MakesValue conn) => ToWSConnect (user, conn) where
   toWSConnect (u, c) = do
     (domain, uid) <- objQid u
     conn <- make c & asString
-    pure (WSConnect uid domain Nothing (Just conn))
+    pure (WSConnect uid domain Nothing (Just conn) Nothing)
 
 instance (MakesValue user, MakesValue conn, MakesValue client) => ToWSConnect (user, conn, client) where
   toWSConnect (u, c, cl) = do
     (domain, uid) <- objQid u
     client <- make cl & asString
     conn <- make c & asString
-    pure (WSConnect uid domain (Just client) (Just conn))
+    pure (WSConnect uid domain (Just client) (Just conn) Nothing)
 
 connect :: (HasCallStack) => WSConnect -> App WebSocket
 connect wsConnect = do
@@ -178,6 +181,8 @@ run wsConnect app = do
   connId <- case wsConnect.conn of
     Just c -> pure c
     Nothing -> show <$> liftIO (randomIO :: IO Word32)
+  apiV <- maybe (getAPIVersionFor domain) pure wsConnect.version
+  let versionPrefix = "/v" <> show apiV
 
   let path =
         "/await"
@@ -185,12 +190,13 @@ run wsConnect app = do
                  Nothing -> ""
                  Just client -> fromJust . fromByteString $ Http.queryString (Http.setQueryString [("client", Just (toByteString' client))] Http.defaultRequest)
              )
+      wsPath = versionPrefix <> path
       caHdrs =
         [ ("Z-User", toByteString' (wsConnect.user)),
           ("Z-Connection", toByteString' connId)
         ]
   request <- do
-    r <- rawBaseRequest domain Cannon Versioned path
+    r <- rawBaseRequest domain Cannon (ExplicitVersion apiV) path
     pure r {HTTP.requestHeaders = caHdrs}
 
   wsapp <-
@@ -200,7 +206,7 @@ run wsConnect app = do
         ( WS.runClientWith
             caHost
             (fromIntegral caPort)
-            path
+            wsPath
             WS.defaultConnectionOptions
             caHdrs
             app
