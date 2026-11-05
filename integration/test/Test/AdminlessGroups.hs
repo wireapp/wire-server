@@ -87,6 +87,26 @@ testAdminlessSetupIgnoresLegacyTeamOne2OneConversations (TaggedBool twoMembers) 
     $ configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
   assertNoAdminPromotion bob conv
 
+testAdminlessLegacyTeamOne2OneMemberDeletion :: (HasCallStack) => TaggedBool "selfDeletion" -> App ()
+testAdminlessLegacyTeamOne2OneMemberDeletion (TaggedBool selfDeletion) = do
+  (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
+  configureAdminlessGroupsFeature OwnDomain tid "enabled" "1s" []
+  conv <- postConversation charlie (defProteus {team = Just tid, qualifiedUsers = [bob], newUsersRole = "wire_member"}) >>= getJSON 201
+
+  -- Team membership disappears before conversation membership. The missing
+  -- name must still identify the legacy 1:1 while its only admin is removed.
+  if selfDeletion
+    then deleteUser charlie >>= assertStatus 200
+    else deleteTeamMember tid alice charlie >>= assertStatus 202
+
+  eventually $ do
+    bindResponse (getConversation bob conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
+      shouldBeEmpty (resp.json %. "members.others")
+
+  assertNoAdminPromotion bob conv
+
 testOnLastAdminLeaveReturnEligibleMembers :: (HasCallStack) => App ()
 testOnLastAdminLeaveReturnEligibleMembers = do
   -- bob is eligible
@@ -475,7 +495,7 @@ testAdminlessSetupDeletesWithOriginAndRemoteMembers = do
   conv <-
     postConversation
       alice
-      (defProteus {team = Just tid, qualifiedUsers = [remoteUser], newUsersRole = "wire_member"})
+      (defProteus {name = Just "adminless group", team = Just tid, qualifiedUsers = [remoteUser], newUsersRole = "wire_member"})
       >>= getJSON 201
   convQid <- objQidObject conv
 

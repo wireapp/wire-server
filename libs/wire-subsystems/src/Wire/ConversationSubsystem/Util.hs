@@ -258,25 +258,17 @@ actionDeniedCSE = \case
   ConvRole.DeleteConversation -> ConversationSubsystemErrorActionDeniedDeleteConversation
   ConvRole.ModifyAddPermission -> ConversationSubsystemErrorActionDeniedModifyAddPermission
 
--- | Recognise explicit 1:1 conversations (including legacy connect conversations)
--- and the legacy Proteus team 1:1 representation used by clients. The latter
--- is an unnamed group with one or two participants, all from its owning team.
-isOne2OneConversation :: (Member TeamSubsystem r) => StoredConversation -> Sem r Bool
+isOne2OneConversation :: StoredConversation -> Bool
 isOne2OneConversation conv = case Data.convType conv of
-  One2OneConv -> pure True
-  ConnectConv -> pure True
-  RegularConv
-    | conv.protocol == ProtocolProteus,
-      isNothing conv.metadata.cnvmName,
-      conv.metadata.cnvmGroupConvType /= Just Channel,
-      null conv.remoteMembers,
-      length conv.localMembers `elem` [1, 2],
-      Just tid <- conv.metadata.cnvmTeam ->
-        -- Team-owned conversations can include guests, so verify membership.
-        allM
-          (\m -> isJust <$> TeamSubsystem.internalGetTeamMember m.id_ tid)
-          conv.localMembers
-  _ -> pure False
+  One2OneConv -> True
+  ConnectConv -> True
+  RegularConv ->
+    conv.protocol == ProtocolProteus
+      -- legacy proteus team 1:1s have no name by client convention; groups have one.
+      && isNothing conv.metadata.cnvmName
+      && isJust conv.metadata.cnvmTeam
+      && conv.metadata.cnvmGroupConvType /= Just Channel
+  _ -> False
 
 -- | Ensure that the conversation is a group conversation which includes channels
 ensureGroupConversation :: (Member (Error ConversationSubsystemError) r) => StoredConversation -> Sem r ()
