@@ -42,6 +42,7 @@ module Wire.API.Push.V2.Token
   )
 where
 
+import Cassandra qualified as C
 import Control.Lens (makeLenses, (?~), (^.))
 import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString (takeByteString)
@@ -51,11 +52,13 @@ import Data.OpenApi (ToParamSchema)
 import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
+import Data.Text qualified as Text
 import Generics.SOP qualified as GSOP
 import Imports
 import Servant
 import Wire.API.Error
 import Wire.API.Error.Gundeck qualified as E
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -164,6 +167,68 @@ newtype AppName = AppName
 
 instance ToSchema AppName where
   schema = AppName <$> appNameText .= schema
+
+--------------------------------------------------------------------------------
+-- Cassandra + Postgres marshall instances
+
+instance C.Cql Transport where
+  ctype = C.Tagged C.IntColumn
+
+  toCql GCM = C.CqlInt 0
+  toCql APNS = C.CqlInt 1
+  toCql APNSSandbox = C.CqlInt 2
+  toCql APNSVoIP = C.CqlInt 3
+  toCql APNSVoIPSandbox = C.CqlInt 4
+
+  fromCql (C.CqlInt i) = case i of
+    0 -> pure GCM
+    1 -> pure APNS
+    2 -> pure APNSSandbox
+    3 -> pure APNSVoIP
+    4 -> pure APNSVoIPSandbox
+    n -> Left $ "unexpected transport: " ++ show n
+  fromCql _ = Left "transport: int expected"
+
+instance C.Cql Token where
+  ctype = C.Tagged C.TextColumn
+  toCql = C.CqlText . tokenText
+  fromCql (C.CqlText txt) = Right (Token txt)
+  fromCql _ = Left "Token: Text expected"
+
+instance C.Cql AppName where
+  ctype = C.Tagged C.TextColumn
+  toCql = C.CqlText . appNameText
+  fromCql (C.CqlText txt) = Right (AppName txt)
+  fromCql _ = Left "App: Text expected"
+
+instance PostgresMarshall Int32 Transport where
+  postgresMarshall = \case
+    GCM -> 0
+    APNS -> 1
+    APNSSandbox -> 2
+    APNSVoIP -> 3
+    APNSVoIPSandbox -> 4
+
+instance PostgresUnmarshall Int32 Transport where
+  postgresUnmarshall = \case
+    0 -> Right GCM
+    1 -> Right APNS
+    2 -> Right APNSSandbox
+    3 -> Right APNSVoIP
+    4 -> Right APNSVoIPSandbox
+    n -> Left ("unexpected transport: " <> Text.pack (show n))
+
+instance PostgresMarshall Text Token where
+  postgresMarshall = tokenText
+
+instance PostgresUnmarshall Text Token where
+  postgresUnmarshall = Right . Token
+
+instance PostgresMarshall Text AppName where
+  postgresMarshall = appNameText
+
+instance PostgresUnmarshall Text AppName where
+  postgresUnmarshall = Right . AppName
 
 makeLenses ''PushToken
 
