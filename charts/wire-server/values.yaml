@@ -99,6 +99,7 @@ galley:
       budget: cassandra
       nonce: cassandra
       connections: cassandra
+      mlsCommitLocks: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1054,6 +1055,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.connections` to `migration-to-postgresql`
     # before starting the migration.
     migrateConnections: false
+    # This will start the migration of mls commit locks.
+    # It's important to set `settings.postgresMigration.mlsCommitLocks` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateMLSCommitLocks: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
