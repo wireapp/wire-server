@@ -314,27 +314,26 @@ getContactStatusesImpl ::
   ContactStatusContext ->
   [Qualified UserId] ->
   Sem r (Map (Qualified UserId) ContactStatus)
-getContactStatusesImpl self ctx qids = do
-  let (locals, remotes) = partitionQualified self (nubOrd qids)
-  localStatuses <- getLocalStatuses locals
-  remoteStatuses <- getRemoteStatuses remotes
-  pure $ Map.unions (localStatuses : remoteStatuses)
+getContactStatusesImpl self ctx qids =
+  Map.union <$> getLocalStatuses locals <*> getRemoteStatuses remotes
   where
-    getLocalStatuses :: [UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
-    getLocalStatuses locals =
-      Map.mapKeys (tUntagged . qualifyAs self)
-        <$> getLocalContactStatusesImpl ctx locals
+    (locals, remotes) = partitionQualified self (nubOrd qids)
 
-    getRemoteStatuses :: [Remote UserId] -> Sem r [Map (Qualified UserId) ContactStatus]
-    getRemoteStatuses remotes = do
+    getLocalStatuses :: [UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
+    getLocalStatuses uids =
+      Map.mapKeys (tUntagged . qualifyAs self)
+        <$> getLocalContactStatusesImpl ctx uids
+
+    getRemoteStatuses :: [Remote UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
+    getRemoteStatuses rs = do
       remoteResponses <-
-        runFederatedConcurrentlyEither remotes $ \ruids ->
+        runFederatedConcurrentlyEither rs $ \ruids ->
           -- only keep what was asked for, whatever the remote answers
           (`Map.restrictKeys` Set.fromList (tUnqualified ruids))
             . fold
             <$> for (chunksOf FedBrig.maxContactStatusUsers (tUnqualified ruids)) \chunk ->
               (.statuses) <$> fedClient @'Brig @"get-users-contact-status" (FedBrig.GetContactStatusRequest ctx (unsafeRange chunk))
-      for remoteResponses \case
+      Map.unions <$> for remoteResponses \case
         Left (ruids, e) -> do
           Log.warn $
             Log.msg (Log.val "Failed to get contact status from remote backend")
