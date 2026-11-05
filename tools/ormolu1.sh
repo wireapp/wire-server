@@ -5,6 +5,12 @@ set -e
 REL_PATH=${REL_PATH:-"."}
 cd "$(dirname "${BASH_SOURCE[0]}")/../$REL_PATH"
 
+# `git diff` below yields paths relative to the repository toplevel, which is
+# not necessarily the current directory (e.g. when REL_PATH points into a
+# subdirectory of the repo). Resolve ormolu inputs against the toplevel so
+# the script works from any REL_PATH.
+TOPLEVEL=$(git rev-parse --show-toplevel)
+
 echo Formatting branch "$PR_BASE" in "${REL_PATH}"
 
 ALLOW_DIRTY_WC="0"
@@ -81,7 +87,7 @@ if [[ -t 1 ]]; then
 fi
 
 if [[ "$f" = "all" ]] || [[ "$f" = "" ]]; then
-  files=$(git ls-files | grep '\.hsc\?$')
+  files=$(git ls-files --full-name | grep '\.hsc\?$')
 elif [[ "$f" = "pr" ]]; then
   files=$(
     git diff --diff-filter=ACMR --name-only "$PR_BASE"... | { grep '\.hsc\?$' || true; }
@@ -94,7 +100,7 @@ echo "Checking $count file(s)…"
 
 for hsfile in $files; do
   # run in background so that we can detect Ctrl-C properly
-  ormolu --mode $ARG_ORMOLU_MODE --check-idempotence "$hsfile" &
+  ormolu --mode $ARG_ORMOLU_MODE --check-idempotence "$TOPLEVEL/$hsfile" &
   wait $! && err=0 || err=$?
 
   if [[ "$err" == "100" ]]; then

@@ -22,6 +22,7 @@ module Wire.MeetingsCleanupWorker
 where
 
 import Control.Monad.Catch
+import Data.Domain (domainText)
 import Data.Id (RequestId (RequestId))
 import Data.Text qualified as T
 import Data.Time.Clock
@@ -34,6 +35,8 @@ import Wire.API.Meeting (defaultLegacyTimeZone)
 import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..))
 import Wire.Effects
 import Wire.ExternalAccess.External
+import Wire.Licensing.Interpreter (runLicense)
+import Wire.Licensing.License qualified as Licensing
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
@@ -105,9 +108,17 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
     . runError @MeetingError
     -- Cleanup performs no meeting updates, so the past-edit period is
     -- unused; pass 0 to keep the (inert) limit as tight as possible.
-    . interpretMeetingsSubsystem
-      MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
-    $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
+    -- Cleanup never sends 'getLicense', so the licensing gate never fires;
+    -- the real interpreter keeps cleanup on the same configured licence
+    -- payload as galley (missingLicense is still served when the payload is
+    -- unset or unparseable).
+    $ runLicense
+      (Licensing.Domain (domainText env.federationDomain))
+      env.license
+      ( interpretMeetingsSubsystem
+          MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
+          (Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize)
+      )
 
 data WorkerException = WorkerException Text
   deriving stock (Show)
