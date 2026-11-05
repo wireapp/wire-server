@@ -100,6 +100,7 @@ galley:
       nonce: cassandra
       connections: cassandra
       clients: cassandra
+      userClientIndex: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1059,6 +1060,9 @@ background-worker:
     # It's important to set `settings.postgresMigration.clients` to `migration-to-postgresql`
     migrateClients: false
     # This will start the migration of user client index data.
+    # It's important to set `settings.postgresMigration.userClientIndex` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateUserClientIndex: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
