@@ -826,6 +826,9 @@ nginx_conf:
     - path: /meetings/(.*)
       envs:
       - all
+    - path: /license$
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:

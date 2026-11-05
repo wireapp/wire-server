@@ -21,8 +21,13 @@ module Test.Meetings where
 
 import API.Galley
 import qualified API.GalleyInternal as I
+import Control.Lens ((.~))
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader (ask, asks)
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Lens as AL (key, _Bool)
+import qualified Data.ByteString.Base64.URL as B64
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
@@ -1068,23 +1073,46 @@ testMeetingLinkRefresh = withLicensedBackend $ \dom -> do
   (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
   postMeetingLinkRefresh owner domain2 meetingId2 (object ["password" .= ("short7" :: String)]) >>= assertStatus 400
 
--- | Run the body against a dynamic backend whose galley is licensed for
--- invitation links (WPB-29643): acquires a backend resource, generates a
--- full-license payload with the wire-licensing CLI for the backend's
--- domain, injects it into galley's config (@settings.license@), and starts
--- the backend. No process-global state, so no locking is needed.
-withLicensedBackend :: (HasCallStack) => (String -> App a) -> App a
-withLicensedBackend k = do
+-- | Run the dynamic backend with a licence whose meetings flags are the given
+-- triple @(invitation_links, emails_sending, calendars_integration)@: the CLI's
+-- example payload is patched with the requested flags, so tests can exercise
+-- flag combinations independently (e.g. join links licensed while email
+-- sending is off).
+withLicensedBackendFlags :: (HasCallStack) => Bool -> Bool -> Bool -> (String -> App a) -> App a
+withLicensedBackendFlags invitationLinks emailsSending calendarsIntegration k = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let dom = backend.berDomain
-    cli <- liftIO (fromMaybe "wire-licensing" <$> lookupEnv "WIRE_LICENSING_CLI")
-    token <- liftIO (readProcess cli ["example", "full", "--domain", dom] "")
+    payload <- licensedPayloadFor dom (invitationLinks, emailsSending, calendarsIntegration)
     let overrides =
           def
-            { galleyCfg = setField "settings.license" (Text.strip (Text.pack token))
+            { galleyCfg = setField "settings.license" payload
             }
     runCodensity (startDynamicBackend backend overrides) $ \_ -> k dom
+
+-- | Licensed backend with all meetings flags enabled.
+withLicensedBackend :: (HasCallStack) => (String -> App a) -> App a
+withLicensedBackend = withLicensedBackendFlags True True True
+
+-- | Produce a base64url licence payload from the licensing CLI's example,
+-- with the three meetings flags overwritten by the given triple.
+licensedPayloadFor :: String -> (Bool, Bool, Bool) -> App Text.Text
+licensedPayloadFor dom (invitationLinks, emailsSending, calendarsIntegration) = do
+  cli <- liftIO (fromMaybe "wire-licensing" <$> lookupEnv "WIRE_LICENSING_CLI")
+  token <- liftIO (readProcess cli ["example", "full", "--domain", dom] "")
+  value <- case A.decode' @A.Value (LBS.fromStrict (B64.decodeLenient (Text.encodeUtf8 (Text.strip (Text.pack token))))) of
+    Just v -> pure v
+    Nothing -> fail "failed to decode license payload as JSON"
+  let meetingsFlag name = AL.key (fromString "license_content") . AL.key (fromString "meetings") . AL.key (fromString name)
+      patched =
+        value
+          & meetingsFlag "invitation_links" . AL._Bool .~ invitationLinks
+          & meetingsFlag "emails_sending" . AL._Bool .~ emailsSending
+          & meetingsFlag "calendars_integration" . AL._Bool .~ calendarsIntegration
+  -- Fail loudly if the CLI payload shape drifted and patching was a no-op,
+  -- instead of silently deploying the unpatched license.
+  when (patched == value) $ fail "license payload patch had no effect: unexpected payload shape"
+  pure (Text.decodeUtf8 (B64.encode (LBS.toStrict (A.encode patched))))
 
 -- | Extract the (key, code) query parameters from a meeting join link URL
 -- (@…/meeting-join/?key=\<key\>&code=\<code\>&domain=…@). The URL contains

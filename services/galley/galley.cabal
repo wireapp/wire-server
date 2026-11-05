@@ -78,12 +78,14 @@ library
     Galley.API.Internal
     Galley.API.LegalHold
     Galley.API.LegalHold.Team
+    Galley.API.License
     Galley.API.Meetings
     Galley.API.Public.Bot
     Galley.API.Public.Conversation
     Galley.API.Public.CustomBackend
     Galley.API.Public.Feature
     Galley.API.Public.LegalHold
+    Galley.API.Public.License
     Galley.API.Public.Meetings
     Galley.API.Public.Messaging
     Galley.API.Public.MLS
