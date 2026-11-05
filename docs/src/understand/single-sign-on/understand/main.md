@@ -236,7 +236,7 @@ SCIM/LDAP is about `provisioning` (create, update, remove user accounts), not `a
 
 Wire supports the [SCIM](http://www.simplecloud.info/) ([RFC 7643](https://tools.ietf.org/html/rfc7643)) protocol to create, update and delete users.
 
-If your user data is stored in an LDAP data source like Active Directory or OpenLDAP, you can use our docker-base [ldap-scim-bridge](https://github.com/wireapp/ldap-scim-bridge/#use-via-docker) to connect it to wire.
+If your user data is stored in an LDAP data source like Active Directory or OpenLDAP, you can use our docker-base [ldap-scim-bridge](https://github.com/wireapp/ldap-scim-bridge/#use-via-docker) to connect it to wire. Its Helm chart is published from that repository, at `oci://quay.io/wire/charts/stable/ldap-scim-bridge`.
 
 Note that connecting a SCIM client to Wire also disables the functionality to create new users in the SSO login process. This functionality is disabled when a token is created (see below) and re-enabled when all tokens have been deleted.
 
