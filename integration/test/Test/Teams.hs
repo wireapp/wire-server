@@ -28,7 +28,7 @@ import API.Gundeck
 import qualified API.Nginz as Nginz
 import API.Spar (createScimToken, createScimUser, idp)
 import Control.Monad.Codensity (Codensity (runCodensity))
-import Control.Monad.Extra (anyM, findM)
+import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
@@ -586,13 +586,15 @@ enableMlsForTeam owner tid =
     >>= assertSuccess
 
 assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
-assertContactStatus profiles user expected = do
-  uid <- user %. "id"
-  -- REVIEW: Can this be simplified
-  profile <- findM (fmap (== Just uid) . flip lookupField "id") profiles
-  case profile of
+assertContactStatus profiles user expected =
+  findProfile profiles user >>= \case
     Nothing -> assertFailure "list-users did not return the requested user"
     Just p -> p %. "contact_status.state" `shouldMatch` expected
+
+findProfile :: (HasCallStack) => [Value] -> Value -> App (Maybe Value)
+findProfile profiles user = do
+  uid <- user %. "id"
+  findM (fmap (== Just uid) . flip lookupField "id") profiles
 
 keyPackageCount :: (HasCallStack) => ClientIdentity -> App Int
 keyPackageCount c = countKeyPackages def c >>= getJSON 200 >>= (%. "count") >>= asInt
@@ -646,7 +648,8 @@ testListUsersContactStatusScenarios targetDomain = do
       getClientPrekeys user client >>= getJSON 200 >>= asList >>= traverse asInt
 
 -- | Remote backend is down: list-users still returns 200 and local users keep
--- their contact_status; the unreachable remote user gets none.
+-- their contact_status; the unreachable remote user is missing from the result
+-- set.
 testListUsersContactStatusRemoteDown :: (HasCallStack) => App ()
 testListUsersContactStatusRemoteDown = do
   resourcePool <- asks (.resourcePool)
@@ -660,20 +663,14 @@ testListUsersContactStatusRemoteDown = do
       void $ addClient u def >>= getJSON 201
       pure u
     -- backend is stopped again here
-    userIds <- for [localUser, downUser] objQidObject
+    userIds@[_, downUserId] <- for [localUser, downUser] objQidObject
     listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       profiles <- resp.json %. "found" >>= asList
-      localId <- localUser %. "id"
-      downId <- downUser %. "id"
-      -- REVIEW: This is odd: Lookup the profile to check and apply the right assertions to each (no loop, no if, no case, ...)
-      for_ profiles $ \p -> do
-        pid <- p %. "id"
-        mStatus <- lookupField p "contact_status"
-        if pid == localId
-          then p %. "contact_status.state" `shouldMatch` "contactable"
-          else when (pid == downId) $ assertBool "unreachable remote must have no contact_status" (isNothing mStatus)
-      assertBool "local user must be returned" =<< anyM (fmap (== localId) . (%. "id")) profiles
+      assertContactStatus profiles localUser "contactable"
+      -- unreachable remote: no profile at all, reported as failed
+      findProfile profiles downUser `shouldMatch` (Nothing :: Maybe Value)
+      resp.json %. "failed" `shouldMatch` [downUserId]
 
 -- | Remote backend without the contact-status endpoint (old federation
 -- version): 200, profile returned, contact_status absent. Needs
