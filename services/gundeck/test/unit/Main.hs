@@ -22,6 +22,9 @@ where
 
 import Aws.Arn qualified
 import DelayQueue qualified
+import Gundeck.Notification.MetricsSpec qualified
+import Gundeck.Push.MetricsSpec qualified
+import Gundeck.Push.WebsocketSpec qualified
 import Imports
 import Json qualified
 import Native qualified
@@ -37,6 +40,9 @@ main =
     testGroup
       "Main"
       [ DelayQueue.tests,
+        Gundeck.Notification.MetricsSpec.tests,
+        Gundeck.Push.MetricsSpec.tests,
+        Gundeck.Push.WebsocketSpec.tests,
         Json.tests,
         Native.tests,
         Push.tests,

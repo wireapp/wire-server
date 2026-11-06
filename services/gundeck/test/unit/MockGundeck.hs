@@ -455,6 +455,7 @@ instance MonadBulkPush MockGundeck where
   mbpPosixTime = pure $ Ms 1545045904275 -- (time is constant)
   mbpMapConcurrently = mapM -- (no concurrency)
   mbpMonitorBadCannons _ = pure () -- (no monitoring)
+  mbpMonitorDelivered _ _ = pure () -- (no monitoring)
 
 instance Log.MonadLogger MockGundeck where
   log _ _ = pure () -- (no logging)
