@@ -1408,31 +1408,31 @@ spec = describe "UserSubsystem.Interpreter" do
 
   describe "getContactStatuses" do
     prop "every remote domain's answer is merged" $
-      \(remoteUsers :: Map Domain (ContactStatus, [UserId])) (localUserIds :: [UserId]) ctx base ->
+      \(remoteUsers :: Map Domain (Map UserId ContactStatus)) (localUserIds :: [UserId]) ctx base ->
         ioProperty do
           let remote = remoteDomains remoteUsers
               qUids =
-                toQualifiedUids (snd <$> remote)
+                toQualifiedUids (Map.keys <$> remote)
                   <> toQualifiedUids (Map.singleton localDomain' localUserIds)
           result <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
-              (uncurry (remoteHandlerFor base) <$> remote)
+              (remoteHandlerFor base <$> remote)
               (getContactStatusesImpl lself qUids)
           pure $ result === expectedStatuses remote
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
-      \(upUsers :: Map Domain (ContactStatus, [UserId])) downUsers ctx base ->
+      \(upUsers :: Map Domain (Map UserId ContactStatus)) downUsers ctx base ->
         ioProperty do
           let up = remoteDomains upUsers
               down = remoteDomains (Map.difference downUsers up)
           result <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
-              (uncurry (remoteHandlerFor base) <$> up)
+              (remoteHandlerFor base <$> up)
               ( getContactStatusesImpl
                   lself
-                  (toQualifiedUids (snd <$> up) <> toQualifiedUids down)
+                  (toQualifiedUids (Map.keys <$> up) <> toQualifiedUids down)
               )
           pure $ result === expectedStatuses up
 
@@ -1601,20 +1601,22 @@ spec = describe "UserSubsystem.Interpreter" do
     remoteDomains :: Map Domain a -> Map Domain a
     remoteDomains = Map.delete localDomain'
 
-    expectedStatuses :: Map Domain (ContactStatus, [UserId]) -> Map (Qualified UserId) ContactStatus
+    expectedStatuses ::
+      Map Domain (Map UserId ContactStatus) -> Map (Qualified UserId) ContactStatus
     expectedStatuses remote =
       Map.fromList
         [ (Qualified uid domain, status)
-        | (domain, (status, uids)) <- Map.toList remote,
-          uid <- uids
+        | (domain, statuses) <- Map.toList remote,
+          (uid, status) <- Map.toList statuses
         ]
 
-    -- A remote backend that stores all given users, all with the given status.
-    remoteHandlerFor :: StoredUser -> ContactStatus -> [UserId] -> GetContactStatusHandler
-    remoteHandlerFor base status uids =
-      remoteBackendHandler . mkFakeBackend True $ (\uid -> (withId uid, clients)) <$> uids
+    -- A remote backend that stores all given users, each with the given status.
+    remoteHandlerFor :: StoredUser -> Map UserId ContactStatus -> GetContactStatusHandler
+    remoteHandlerFor base statuses =
+      remoteBackendHandler . mkFakeBackend True $
+        (\(uid, status) -> (withId uid, clientsFor status)) <$> Map.toList statuses
       where
-        clients = [proteusClient | status == ContactStatus Contactable]
+        clientsFor status = [proteusClient | status == ContactStatus Contactable]
         withId uid = (activeWith Nothing base :: StoredUser) {id = uid}
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
