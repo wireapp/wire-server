@@ -1483,7 +1483,7 @@ spec = describe "UserSubsystem.Interpreter" do
             (_, viaLocal) =
               runContactRequester backend {features = mlsFeatures ctx} mempty (getContactStatusesImpl targetSelf qids)
             (calls, viaRemote) =
-              runContactRequester (requesterWith ctx) (Map.singleton targetDomain (loopback backend)) (getContactStatusesImpl lself qids)
+              runContactRequester (requesterWith ctx) (Map.singleton targetDomain (remoteBackendHandler backend)) (getContactStatusesImpl lself qids)
         conjoin
           [ viaRemote === viaLocal,
             counterexample "only requested users are answered" (all (`elem` qids) (Map.keys viaLocal)),
@@ -1639,9 +1639,8 @@ runFakeBackend ::
   a
 runFakeBackend b = run . runContactStores b
 
--- REVIEW: Why is this named `loopback`?
-loopback :: FakeBackend -> ContactHandler
-loopback b req =
+remoteBackendHandler :: FakeBackend -> ContactHandler
+remoteBackendHandler b req =
   FedBrig.GetContactStatusResponse . runFakeBackend b $
     getLocalContactStatusesImpl req.context (fromRange req.users)
 
