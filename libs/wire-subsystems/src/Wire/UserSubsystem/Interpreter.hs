@@ -269,23 +269,23 @@ getLocalContactStatusesImpl ::
 getLocalContactStatusesImpl ctx uids = do
   targetServerMLS <- inputs (.mlsEnabled)
   visible <- filter (not . hasPendingInvitation) <$> UserStore.getUsers (nubOrd uids)
-  let (deleted, existing) = partition (\su -> su.status == Just Deleted) visible
+  let (deleted, existing) = partition (\user -> user.status == Just Deleted) visible
   clients <- ClientStore.lookupClientsBulk (map (.id) existing)
   let clientsByUser :: Map UserId (Set UserClient.Client)
       clientsByUser = userMap clients
       protocolsOf :: StoredUser -> Set BaseProtocolTag
-      protocolsOf u = case u.supportedProtocols of
-        Just ps | not (Set.null ps) -> ps
+      protocolsOf user = case user.supportedProtocols of
+        Just protocols | not (Set.null protocols) -> protocols
         _ -> defSupportedProtocols
       users :: Map UserId (Set BaseProtocolTag, Set UserClient.Client)
       users =
         Map.fromList
-          [ (u.id, (protocolsOf u, Map.findWithDefault Set.empty u.id clientsByUser))
-          | u <- existing
+          [ (user.id, (protocolsOf user, Map.findWithDefault Set.empty user.id clientsByUser))
+          | user <- existing
           ]
   contactability <- isUsersContactableImpl users (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
   pure $
-    contactability <> Map.fromList [(u.id, ContactStatus NonContactable) | u <- deleted]
+    contactability <> Map.fromList [(user.id, ContactStatus NonContactable) | user <- deleted]
 
 -- | Local users are evaluated locally; for each remote domain exactly one
 -- federation action is run (domains run concurrently; requests above
@@ -321,9 +321,9 @@ getContactStatusesImpl self qids = do
         <$> getLocalContactStatusesImpl ctx uids
 
     getRemoteStatuses :: ContactStatusContext -> [Remote UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
-    getRemoteStatuses ctx rs = do
+    getRemoteStatuses ctx remoteUids = do
       remoteResponses <-
-        runFederatedConcurrentlyEither rs $ \ruids ->
+        runFederatedConcurrentlyEither remoteUids $ \ruids ->
           -- only keep what was asked for, whatever the remote answers
           (`Map.restrictKeys` Set.fromList (tUnqualified ruids))
             . fold
