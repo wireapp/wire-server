@@ -90,6 +90,7 @@ assertBotMessageReceived chan = do
     Nothing -> assertFailure "mock service received no bot message after migration"
     Just () -> pure ()
   where
-    go = readChan chan >>= \case
-      BotMessage _ -> pure ()
-      BotCreated -> go -- drain the addBot webhook first
+    go =
+      readChan chan >>= \case
+        BotMessage _ -> pure ()
+        BotCreated -> go -- drain the addBot webhook first
