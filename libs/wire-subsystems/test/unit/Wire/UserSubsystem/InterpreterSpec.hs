@@ -1528,7 +1528,7 @@ spec = describe "UserSubsystem.Interpreter" do
     lself = toLocalUnsafe localDomain' (Id UUID.nil)
 
     qualify :: Map Domain [UserId] -> [Qualified UserId]
-    qualify m = [Qualified u d | (d, us) <- Map.toList m, u <- us]
+    qualify domainsToUids = [Qualified uid domain | (domain, uids) <- Map.toList domainsToUids, uid <- uids]
 
     remoteOnly :: Map Domain [UserId] -> Map Domain [UserId]
     remoteOnly = Map.filter (not . null) . Map.delete localDomain'
