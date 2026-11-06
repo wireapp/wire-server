@@ -14,7 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Wire.SessionStore.Cassandra (interpretSessionStoreCassandra) where
+module Wire.SessionStore.Cassandra (interpretSessionStoreCassandra, selectAllSessions) where
 
 import Cassandra
 import Data.Id
@@ -107,3 +107,9 @@ deleteAllCookiesImpl u = retry x5 (write cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM user_cookies WHERE user = ?"
+
+-- | Full-table scan used by the Postgres migration copy loop.  @ttl(created)@
+-- yields the row's remaining Cassandra TTL (seconds); cookies are always
+-- written with a row TTL, so it is only 'Nothing' for anomalous rows.
+selectAllSessions :: PrepQuery R () (Identity (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32))
+selectAllSessions = "SELECT user, id, created, expires, type, label, succ_id, ttl(created) FROM user_cookies"
