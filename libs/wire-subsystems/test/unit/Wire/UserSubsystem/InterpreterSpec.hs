@@ -1549,8 +1549,8 @@ spec = describe "UserSubsystem.Interpreter" do
               uids = known <> unknownIds
               asLocal = [Qualified uid (tDomain lself) | uid <- uids]
               asRemote = [Qualified uid targetDomain | uid <- uids]
-          -- both requesters derive the same effective MLS availability: the
-          -- target is its own requester, so its server flag applies on both sides
+          -- both requesters have the same server flag and features, so they derive the same
+          -- effective MLS availability
           viaLocal <-
             runOnRequesterBackend
               backend {features = featuresFor ctx}
@@ -1558,7 +1558,7 @@ spec = describe "UserSubsystem.Interpreter" do
               (getContactStatusesImpl lself asLocal)
           viaRemote <-
             runOnRequesterBackend
-              (requesterBackendFor ctx)
+              (requesterBackendFor ctx) {serverMls = targetMls}
               (Map.singleton targetDomain (remoteBackendHandler backend))
               (getContactStatusesImpl lself asRemote)
           pure $
