@@ -40,6 +40,8 @@ import Data.Text qualified as T
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Async qualified as P
 import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
@@ -169,7 +171,8 @@ interpretMeetingsSubsystem ::
     Member RateLimit r,
     Member Licensing r,
     Member EmailSubsystem r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member Async r
   ) =>
   -- | System-wide meeting configuration.
   MeetingSystemConfig ->
@@ -231,7 +234,8 @@ createMeetingImpl ::
     Member TinyLog r,
     Member EmailSubsystem r,
     Member Licensing r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member Async r
   ) =>
   Local UserId ->
   ConnId ->
@@ -339,7 +343,8 @@ updateMeetingImpl ::
     Member CodeStore r,
     Member EmailSubsystem r,
     Member Licensing r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member Async r
   ) =>
   Local UserId ->
   ConnId ->
@@ -425,7 +430,8 @@ updateMeetingV16Impl ::
     Member CodeStore r,
     Member EmailSubsystem r,
     Member Licensing r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member Async r
   ) =>
   Local UserId ->
   ConnId ->
@@ -454,7 +460,8 @@ updateMeetingV18Impl ::
     Member CodeStore r,
     Member EmailSubsystem r,
     Member Licensing r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member Async r
   ) =>
   Local UserId ->
   ConnId ->
@@ -481,7 +488,8 @@ deleteMeetingImpl ::
     Member CodeStore r,
     Member EmailSubsystem r,
     Member Licensing r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member Async r
   ) =>
   Local UserId ->
   ConnId ->
@@ -557,7 +565,8 @@ refreshMeetingLinkImpl ::
     Member RateLimit r,
     Member EmailSubsystem r,
     Member Licensing r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member Async r
   ) =>
   Local UserId ->
   ConnId ->
@@ -885,12 +894,22 @@ meetingHostProfile meeting = do
 -- | Prepare the host identity/locale and the rendered 'API.Meeting' for
 -- meeting emails. Fully best-effort: 'Nothing' when meeting emails are
 -- unconfigured (see 'MeetingSystemConfig.emailsEnabled'), the meeting is
--- immediate, there are no recipients, meeting emails are unlicensed, or the
--- join-link lookup fails (logged and swallowed) — email preparation must
--- never change the outcome of the meeting operation that triggered it.
+-- immediate, there are no recipients, meeting emails are unlicensed, the
+-- host-profile lookup fails, or the join-link lookup fails (logged and
+-- swallowed) — email preparation must never change the outcome of the
+-- meeting operation that triggered it.
+--
+-- The host-profile lookup runs in an 'Async' child: typed Brig failures
+-- ('RpcException'\/'ParseException') collapse the child to 'Nothing', are
+-- warn-logged, and never fail the meeting operation (same mechanism as
+-- "Wire.ConversationSubsystem.MLS.CheckClients" @getClientData@).
+-- Transport-level IO exceptions still propagate and are an accepted
+-- residual: full detachment would break the delete path's
+-- render-before-delete ordering.
 prepareMeetingEmails ::
   ( Member CodeStore r,
     Member BrigAPIAccess r,
+    Member Async r,
     Member Licensing r,
     Member TinyLog r
   ) =>
@@ -913,10 +932,22 @@ prepareMeetingEmails emailsEnabled domain sm recipients
       meetingEmailsLicensed >>= \case
         False -> pure Nothing
         True -> do
-          mHost <- meetingHostProfile sm
+          -- Fork+await solely to isolate typed brig failures: a child that
+          -- dies on 'RpcException'/'ParseException' collapses to 'Nothing'
+          -- (see the haddock), it is not for concurrency.
+          mHost <- P.async (meetingHostProfile sm) >>= P.await
           case mHost of
-            Nothing -> pure Nothing
-            Just (hostName, hostEmail, loc) -> do
+            -- The async child died on a typed brig error: warn and skip.
+            Nothing -> do
+              TinyLog.warn $
+                Log.msg ("meeting email skipped: host profile lookup failed" :: ByteString)
+                  . Log.field "meetingId" (toByteString' sm.id)
+              pure Nothing
+            -- The child succeeded; 'Nothing' inside means the creator is
+            -- unknown or has no email (already warn-logged in
+            -- 'meetingHostProfile').
+            Just Nothing -> pure Nothing
+            Just (Just (hostName, hostEmail, loc)) -> do
               res <- runError @MeetingError (storedMeetingToMeeting domain sm)
               case res of
                 Left err -> do
@@ -944,6 +975,7 @@ dispatchMeetingEmails (hostName, hostEmail, loc, mtg) recipients sendKind =
 sendMeetingEmailsFor ::
   ( Member CodeStore r,
     Member BrigAPIAccess r,
+    Member Async r,
     Member Licensing r,
     Member TinyLog r
   ) =>
@@ -1127,6 +1159,7 @@ addInvitedEmailsImpl ::
     Member EmailSubsystem r,
     Member Licensing r,
     Member BrigAPIAccess r,
+    Member Async r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -1190,6 +1223,7 @@ replaceInvitedEmailsImpl ::
     Member EmailSubsystem r,
     Member Licensing r,
     Member BrigAPIAccess r,
+    Member Async r,
     Member TinyLog r
   ) =>
   Local UserId ->

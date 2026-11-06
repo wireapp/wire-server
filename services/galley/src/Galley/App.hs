@@ -701,24 +701,31 @@ bestEffortEmailSending e = case e ^. meetingEmail of
   Nothing -> interpret \case
     EmailSending.SendMail _ -> pure ()
   Just me -> interpret \case
-    -- Fire-and-forget (the 'pushAsyncImpl' idiom): delivery is best-effort, a
-    -- failed or slow send must never delay or fail the meeting operation.
-    -- SES failures surface as typed errors and are logged; SMTP failures are
-    -- plain IO exceptions in the forked thread and die with it.
     EmailSending.SendMail mail -> void . P.async $ do
+      -- Fire-and-forget (the 'pushBestEffort' idiom): delivery is best-effort,
+      -- a failed or slow send must never delay or fail the meeting operation.
+      -- SES failures surface as typed 'EmailSendingAWSError', SMTP failures as
+      -- plain IO exceptions; both are caught and logged once below. Swallowing
+      -- 'SomeException' includes async exceptions — same accepted trade-off as
+      -- 'pushBestEffort'.
       res <-
-        errorToIOFinal @EmailSendingAWSError
-          (fromExceptionSem @EmailSendingAWSError (runTransport (sendMail mail)))
+        errorToIOFinal @SomeException
+          . fromExceptionSem @SomeException
+          $ do
+            inner <- errorToIOFinal @EmailSendingAWSError (runTransport (sendMail mail))
+            either (throw . toException) pure inner
       case res of
-        Left err ->
+        Left exc ->
           P.err $
             Log.msg (Log.val "Failed to send meeting email")
-              . Log.field "error" (displayException err)
+              . Log.field "error" (displayException exc)
         Right _ -> pure ()
     where
       runTransport ::
-        Sem (EmailSending ': Error EmailSendingAWSError ': r) a ->
-        Sem (Error EmailSendingAWSError ': r) a
+        forall e a.
+        (Members '[Embed IO, TinyLog] e) =>
+        Sem (EmailSending ': Error EmailSendingAWSError ': e) a ->
+        Sem (Error EmailSendingAWSError ': e) a
       runTransport = case me.meSmtp of
         Just smtp -> SMTP.emailViaSMTPInterpreter (e ^. applog) smtp
         Nothing -> case me.meAwsEnv of

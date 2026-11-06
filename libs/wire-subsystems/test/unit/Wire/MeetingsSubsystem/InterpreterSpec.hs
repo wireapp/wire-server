@@ -37,6 +37,7 @@ import Data.UUID (nil)
 import Data.Vector qualified as V
 import Imports
 import Polysemy
+import Polysemy.Async (Async, asyncToIOFinal)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
@@ -79,7 +80,9 @@ import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
 import Wire.MockInterpreters
 import Wire.NotificationSubsystem (NotificationSubsystem, Push (..), Recipient (recipientUserId))
+import Wire.ParseException (ParseException (..))
 import Wire.RateLimit (RateLimit, RateLimitExceeded, RateLimitKey (RateLimitUser))
+import Wire.RpcException (RpcException (..))
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -89,6 +92,10 @@ import Wire.TeamSubsystem.GalleyAPI
 
 type TestStack =
   '[ MeetingsSubsystem,
+     Async,
+     BrigAPIAccess,
+     Error ParseException,
+     Error RpcException,
      Licensing,
      RateLimit,
      HashPassword,
@@ -102,9 +109,9 @@ type TestStack =
      TinyLog,
      Error MeetingError,
      ErrorS ('ActionDenied 'DeleteConversation),
-     State (Map MeetingId Store.StoredMeeting),
-     State (Map ConvId StoredConversation),
      State (Map ConvId (Set UserId)),
+     State (Map ConvId StoredConversation),
+     State (Map MeetingId Store.StoredMeeting),
      State [Push],
      GalleyAPIAccess,
      Now,
@@ -117,11 +124,12 @@ type TestStack =
      CodeStore,
      State (Map Key (Code, Maybe Password)),
      Input (Either HttpsUrl (Map Domain HttpsUrl)),
-     BrigAPIAccess,
      EmailSubsystem,
      State (Map UserId User),
+     State Bool,
      State (Map EmailAddress [SentMail]),
-     Embed IO
+     Embed IO,
+     Final IO
    ]
 
 testCodeURIBase :: HttpsUrl
@@ -201,11 +209,12 @@ runTestStackWithURICfg ::
   Sem TestStack a ->
   IO (Either (Tagged ('ActionDenied 'DeleteConversation) ()) (Either MeetingError a))
 runTestStackWithURICfg now gen convCodeURI teams configs lic cfg =
-  runM
+  runFinal @IO
+    . embedToFinal @IO
     . evalState (Map.empty :: Map EmailAddress [SentMail])
+    . evalState False
     . evalState (Map.empty :: Map UserId User)
     . inMemoryEmailSubsystemInterpreter
-    . mockBrigAPIAccess
     . fmap (either (error . show) (either (error . show) Imports.id))
     . runInputConst convCodeURI
     . evalState (Map.empty :: Map Key (Code, Maybe Password))
@@ -235,6 +244,13 @@ runTestStackWithURICfg now gen convCodeURI teams configs lic cfg =
     . staticHashPasswordInterpreter
     . noRateLimit
     . runLicenseMocked lic
+    -- All pure error eliminators sit outside 'asyncToIOFinal', so a typed
+    -- error thrown inside a spawned child collapses to 'Nothing' instead of
+    -- propagating (same topology as Galley.App).
+    . runErrorUnsafe @RpcException
+    . runErrorUnsafe @ParseException
+    . mockBrigAPIAccess
+    . asyncToIOFinal
     . interpretMeetingsSubsystem cfg
 
 -- | An update that sets no fields (rejected with 'EmptyUpdate'); use record
@@ -254,10 +270,23 @@ extractMeetingEvents pushes =
   [e | push <- pushes, Success e <- [fromJSON (Object push.json)]]
 
 -- | Brig mock that only answers 'GetUsers' (used for meeting-email host
--- resolution); every other operation is a programming error.
-mockBrigAPIAccess :: (Member (State (Map UserId User)) r) => InterpreterFor BrigAPIAccess r
+-- resolution); every other operation is a programming error. When the
+-- 'Bool' failure knob is set, 'GetUsers' throws an 'RpcException' the way
+-- the RPC interpreter does on a failing brig call. The knob must be set
+-- before the operation that forks the lookup: the child sees a snapshot of
+-- the pure state at fork time, so writes from inside the child are lost.
+mockBrigAPIAccess ::
+  ( Member (State (Map UserId User)) r,
+    Member (State Bool) r,
+    Member (Error RpcException) r
+  ) =>
+  InterpreterFor BrigAPIAccess r
 mockBrigAPIAccess = interpret \case
-  BrigAPIAccess.GetUsers uids -> gets (Map.elems . (`Map.restrictKeys` Set.fromList uids))
+  BrigAPIAccess.GetUsers uids -> do
+    failing <- get @Bool
+    when failing $
+      throw (RpcExceptionInternal {service = "brig", status = 502, message = "mock: host profile lookup failed"})
+    gets (Map.elems . (`Map.restrictKeys` Set.fromList uids))
   _ -> error "mockBrigAPIAccess: unimplemented operation"
 
 -- | A brig user record for the meeting host (creator) with the given name,
@@ -3074,6 +3103,19 @@ specMeetingEmails =
         Right (Right total) -> total `shouldBe` 0
         Right (Left err) -> fail $ "Error: " <> show err
         Left _denied -> expectationFailure "unexpected CheckDeleteLocalConversation denial"
+
+    it "sends no emails when the host profile lookup fails (brig error)" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        put True -- brig mock fails GetUsers
+        _ <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA, addrB])
+        totalEmails
+      case result of
+        Right total -> do
+          -- The create must succeed despite the failing brig lookup, and no
+          -- mail may be sent.
+          total `shouldBe` 0
+        Left err -> fail $ "Error: " <> show err
 
     it "still deletes the meeting when the join code is already gone (no emails)" $ do
       result <- runTestStack now0 gen0 Map.empty def $ do
