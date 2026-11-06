@@ -52,6 +52,7 @@ import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Imports
 import Test.QuickCheck (oneof)
+import Wire.API.PostgresMarshall
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -214,6 +215,18 @@ instance Cql.Cql Permissions where
     d <- Err.note "missing 'copy' permissions" ("copy" `lookup` p) >>= Cql.fromCql
     Err.note "invalid permissions" (newPermissions (f s) (f d))
   fromCql _ = Left "permissions: udt expected"
+
+-- | Encoded as the pair of permission bit masks (self, copy), mirroring the
+-- Cassandra UDT encoding.
+instance PostgresMarshall (Int64, Int64) Permissions where
+  postgresMarshall p =
+    ( fromIntegral (permsToInt p.self),
+      fromIntegral (permsToInt p.copy)
+    )
+
+instance PostgresUnmarshall (Int64, Int64) Permissions where
+  postgresUnmarshall (s, c) =
+    Err.note "invalid permissions" (newPermissions (intToPerms (fromIntegral s)) (intToPerms (fromIntegral c)))
 
 $(genSingletons [''Perm])
 

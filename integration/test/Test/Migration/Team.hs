@@ -32,14 +32,14 @@ testTeamMigration = do
     let domain = backend.berDomain
 
     -- cassandra: team metadata is written to and read from Cassandra
-    (admin, tid1) <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
-      (admin, tid1, _) <- createTeam domain 2
-      checkTeamRoundtrip admin tid1
-      pure (admin, tid1)
+    (admin1, tid1) <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
+      (admin1, tid1, _) <- createTeam domain 2
+      checkTeamRoundtrip admin1 tid1
+      pure (admin1, tid1)
 
     -- migration-to-postgresql (worker off): new teams are mirrored to Postgres
     (owner2, tid2) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
-      checkTeamRoundtrip admin tid1
+      checkTeamRoundtrip admin1 tid1
       (owner2, tid2, _) <- createTeam domain 1
       checkTeamRoundtrip owner2 tid2
       pure (owner2, tid2)
@@ -47,7 +47,7 @@ testTeamMigration = do
     -- migration-to-postgresql (worker on): the copy loop backfills the team
     -- table, including teams that predate the migration setting
     (owner3, tid3) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
-      checkTeamRoundtrip admin tid1
+      checkTeamRoundtrip admin1 tid1
       checkTeamRoundtrip owner2 tid2
       waitForMigration domain counterName
       (owner3, tid3, _) <- createTeam domain 1
@@ -56,7 +56,7 @@ testTeamMigration = do
 
     -- postgresql: reads come from Postgres for all teams, old and new
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
-      checkTeamRoundtrip admin tid1
+      checkTeamRoundtrip admin1 tid1
       checkTeamRoundtrip owner2 tid2
       checkTeamRoundtrip owner3 tid3
       (owner4, tid4, _) <- createTeam domain 1
