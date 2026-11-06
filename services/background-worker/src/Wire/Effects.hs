@@ -382,8 +382,8 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
     serviceStoreInterpreter = case env.postgresMigration.service of
-      CassandraStorage -> interpretServiceStoreToCassandra env.cassandraBrig
-      MigrationToPostgresql -> interpretServiceStoreToCassandraAndPostgres env.cassandraBrig
+      CassandraStorage -> interpretServiceStoreToCassandra env.cassandraGalley
+      MigrationToPostgresql -> interpretServiceStoreToCassandraAndPostgres env.cassandraGalley
       PostgresqlStorage -> interpretServiceStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb

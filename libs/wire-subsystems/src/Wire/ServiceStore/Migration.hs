@@ -27,6 +27,7 @@ import Data.Id
 import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Text qualified as T
 import Data.Time
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy
@@ -47,7 +48,6 @@ import Wire.Migration
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
-import Wire.ServiceStore (createService)
 import Wire.ServiceStore.Cassandra.Queries qualified as Cql
 import Wire.ServiceStore.Postgres qualified as Postgres
 
@@ -113,7 +113,7 @@ migrateAllServices migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllServices")
   withCount (paginateSem Cql.selectAllServices (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(pid, sid, _, _, _, _) -> handleErrors (toByteString' pid <> toByteString' sid) (migrateServiceRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row@(pid, sid, _, _, _, _, _) -> handleErrors (toByteString' pid <> toByteString' sid) (migrateServiceRow migOpts migCounter migDuration row)))
 
 migrateServiceRow ::
   ( PGConstraints r,
@@ -124,17 +124,18 @@ migrateServiceRow ::
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
-  (ProviderId, ServiceId, HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool) ->
+  (ProviderId, ServiceId, HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool, Int64) ->
   Sem r ()
-migrateServiceRow migOpts migCounter migDuration (pid, sid, url, tok, Set fps, ena) = do
+migrateServiceRow migOpts migCounter migDuration (pid, sid, url, tok, Set fps, ena, writeTsUs) = do
   let service = Bot.Service (newServiceRef sid pid) url tok fps ena
+      rowTs = posixSecondsToUTCTime (fromIntegral writeTsUs / 1000000)
       keyText = T.pack (show (pid, sid))
   outcomeRef <- liftIO $ IORef.newIORef @Text "error"
   bracket
     (liftIO getCurrentTime)
     (observeDuration migDuration outcomeRef)
     ( const $ do
-        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.interpretServiceStoreToPostgres $ createService service
+        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.upsertServiceIfNewer service rowTs
         case timeoutResult of
           Left timedOutAfter -> do
             markOutcome outcomeRef "timeout"

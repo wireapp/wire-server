@@ -24,17 +24,20 @@ import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.String.Conversions (cs)
 import SetupHelpers
-import Test.Bot (mkBotService)
+import Test.Bot (BotEvent (..), mkBotService, postBotMessage)
 import Test.Migration.Util (waitForMigration)
 import Testlib.MockIntegrationService (MockServerSettings (..), withMockServer)
 import Testlib.Prelude
 import Testlib.ResourcePool
+import UnliftIO (Chan, readChan, timeout)
 
 -- | Migrate the 'ServiceStore' (old bot provider/service connection data) from
 -- Cassandra to PostgreSQL. A service is created while galley reads from
 -- Cassandra; after the background worker backfills it, the service must still be
--- usable once galley reads exclusively from PostgreSQL (verified by adding a bot
--- to a conversation, which forces galley to look up the service).
+-- usable once galley reads exclusively from PostgreSQL: adding a bot to a
+-- conversation forces galley to look up the service in the PostgreSQL store, and
+-- posting a message asserts the mock service actually receives the BotMessage
+-- webhook, proving the migrated row end-to-end.
 testServiceMigration :: (HasCallStack) => App ()
 testServiceMigration = do
   resourcePool <- asks (.resourcePool)
@@ -44,27 +47,31 @@ testServiceMigration = do
     -- The mock service must stay alive across all lifecycle stages, since adding
     -- a bot in the final (PostgreSQL) stage requires the service endpoint to be
     -- reachable.
-    withMockServer settings mkBotService $ \(host, port) _chan -> do
+    withMockServer settings mkBotService $ \(host, port) chan -> do
       let serviceUrl = "https://" <> host <> ":" <> show port
       (alice, providerId, serviceId) <-
         runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
-          alice <- randomUser OwnDomain def
+          alice <- randomUser domain def
           password <- randomString 20
           provider <- setupProvider alice def {newProviderPassword = Just password}
           pid <- provider %. "id" & asString
           service <-
-            newService OwnDomain pid
+            newService domain pid
               $ def {newServiceUrl = serviceUrl, newServiceKey = cs settings.publicKey}
           sid <- asString $ service %. "id"
-          assertStatus 200 =<< updateServiceConn OwnDomain pid sid (object ["enabled" .= True, "password" .= password])
+          assertStatus 200 =<< updateServiceConn domain pid sid (object ["enabled" .= True, "password" .= password])
           pure (alice, pid, sid)
       runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ ->
         waitForMigration domain counterName
       runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
         conv <- getJSON 201 =<< postConversation alice defProteus
         cid <- conv %. "qualified_id" & objId
-        bindResponse (addBot alice providerId serviceId cid) $ \res ->
+        bindResponse (addBot alice providerId serviceId cid) $ \res -> do
           res.status `shouldMatchInt` 201
+          botId <- res.json %. "id"
+          botClient <- res.json %. "client"
+          postBotMessage alice conv botId botClient
+          assertBotMessageReceived chan
   where
     conf :: String -> Bool -> ServiceOverrides
     conf db runMigration =
@@ -75,3 +82,14 @@ testServiceMigration = do
 
 counterName :: String
 counterName = "^wire_service_migration_finished"
+
+assertBotMessageReceived :: (HasCallStack) => Chan BotEvent -> App ()
+assertBotMessageReceived chan = do
+  t <- asks (.timeOutSeconds)
+  timeout (t * 1_000_000) go >>= \case
+    Nothing -> assertFailure "mock service received no bot message after migration"
+    Just () -> pure ()
+  where
+    go = readChan chan >>= \case
+      BotMessage _ -> pure ()
+      BotCreated -> go -- drain the addBot webhook first

@@ -17,12 +17,14 @@
 
 module Wire.ServiceStore.Postgres
   ( interpretServiceStoreToPostgres,
+    upsertServiceIfNewer,
   )
 where
 
 import Control.Lens
 import Data.Id
 import Data.Misc (Fingerprint, HttpsUrl, Rsa)
+import Data.Time (UTCTime)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
 import Hasql.Statement qualified as Hasql
@@ -61,14 +63,57 @@ insertService s =
     insert =
       lmapPG @(UUID, UUID, ByteString, ByteString, Vector ByteString, Bool)
         [resultlessStatement|INSERT INTO service
-                               (provider, id, base_url, auth_token, fingerprints, enabled)
+                               (provider, id, base_url, auth_token, fingerprints, enabled, last_update)
                              VALUES
-                               ($1 :: uuid, $2 :: uuid, $3 :: bytea, $4 :: bytea, $5 :: bytea[], $6 :: boolean)
+                               ($1 :: uuid, $2 :: uuid, $3 :: bytea, $4 :: bytea, $5 :: bytea[], $6 :: boolean, now())
                              ON CONFLICT (provider, id) DO UPDATE
                              SET base_url = ($3 :: bytea),
                                  auth_token = ($4 :: bytea),
                                  fingerprints = ($5 :: bytea[]),
-                                 enabled = ($6 :: boolean)
+                                 enabled = ($6 :: boolean),
+                                 last_update = now()
+        |]
+
+-- | Backfill-only upsert used by Wire.ServiceStore.Migration. On conflict the
+-- row is only overwritten when the replayed Cassandra row is at least as new
+-- as what is stored (ties go to Cassandra), so a stale replay cannot clobber a
+-- newer row that dual-write already put in Postgres. The comparison mixes
+-- Cassandra coordinator clocks (writetime) with Postgres server clocks (now);
+-- NTP-level skew is negligible against the page-scan-scale staleness the guard
+-- exists to block.
+--
+-- Known residual (accepted, cf. merged conversation/user backfills): a row
+-- deleted in Cassandra after the scan that produced it can still be replayed
+-- and re-inserted here — the delete has already removed the Postgres row, so
+-- the guard has nothing to compare against.
+upsertServiceIfNewer :: (PGConstraints r) => Bot.Service -> UTCTime -> Sem r ()
+upsertServiceIfNewer s ts =
+  runStatement
+    ( s ^. Bot.serviceRef . serviceRefProvider,
+      s ^. Bot.serviceRef . serviceRefId,
+      s ^. Bot.serviceUrl,
+      s ^. Bot.serviceToken,
+      s ^. Bot.serviceFingerprints,
+      s ^. Bot.serviceEnabled,
+      ts
+    )
+    upsertIfNewer
+  where
+    upsertIfNewer ::
+      Hasql.Statement (ProviderId, ServiceId, HttpsUrl, ServiceToken, [Fingerprint Rsa], Bool, UTCTime) ()
+    upsertIfNewer =
+      lmapPG @(UUID, UUID, ByteString, ByteString, Vector ByteString, Bool, UTCTime)
+        [resultlessStatement|INSERT INTO service
+                               (provider, id, base_url, auth_token, fingerprints, enabled, last_update)
+                             VALUES
+                               ($1 :: uuid, $2 :: uuid, $3 :: bytea, $4 :: bytea, $5 :: bytea[], $6 :: boolean, ($7 :: timestamptz))
+                             ON CONFLICT (provider, id) DO UPDATE
+                             SET base_url = ($3 :: bytea),
+                                 auth_token = ($4 :: bytea),
+                                 fingerprints = ($5 :: bytea[]),
+                                 enabled = ($6 :: boolean),
+                                 last_update = ($7 :: timestamptz)
+                             WHERE service.last_update <= ($7 :: timestamptz)
         |]
 
 lookupService ::
