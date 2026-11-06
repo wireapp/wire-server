@@ -1612,12 +1612,10 @@ spec = describe "UserSubsystem.Interpreter" do
     -- A remote backend that stores all given users, all with the given status.
     remoteHandlerFor :: StoredUser -> ContactStatus -> [UserId] -> GetContactStatusHandler
     remoteHandlerFor base status uids =
-      remoteBackendHandler . mkFakeBackend True $
-        [ ( (activeWith Nothing base :: StoredUser) {id = uid},
-            [proteusClient | status == ContactStatus Contactable]
-          )
-        | uid <- uids
-        ]
+      remoteBackendHandler . mkFakeBackend True $ (\uid -> (withId uid, clients)) <$> uids
+      where
+        clients = [proteusClient | status == ContactStatus Contactable]
+        withId uid = (activeWith Nothing base :: StoredUser) {id = uid}
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
 -- packages (the latter two per cipher suite).
