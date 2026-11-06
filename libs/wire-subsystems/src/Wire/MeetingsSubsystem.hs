@@ -33,7 +33,7 @@ import Wire.API.User.EmailAddress (EmailAddress)
 data MeetingsSubsystem m a where
   CreateMeeting ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
     NewMeeting ->
     MeetingsSubsystem m MeetingWithConversation
   UpdateMeeting ::
