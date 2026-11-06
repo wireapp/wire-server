@@ -27,6 +27,7 @@ spec = describe "experimental Gundeck store API" $ do
       cases =
         [ ("publish", "{\"payload\":{}}", Publish mempty),
           ("fetch", "{\"cursor\":\"00000000-0000-0000-0000-000000000000\",\"limit\":100}", Fetch UUID.nil 100),
+          ("register", "{\"user\":\"00000000-0000-0000-0000-000000000000\",\"client\":\"1\"}", Register user client),
           ("initialize", "{\"user\":\"00000000-0000-0000-0000-000000000000\",\"client\":\"1\"}", Initialize user client),
           ("acknowledge", "{\"user\":\"00000000-0000-0000-0000-000000000000\",\"client\":\"1\",\"notification\":\"00000000-0000-0000-0000-000000000000\"}", Acknowledge user client UUID.nil)
         ]
@@ -81,6 +82,6 @@ spec = describe "experimental Gundeck store API" $ do
       readIORef writes `shouldReturn` 1
     it "does not swallow cancellation while sending a wakeup" $
       executeWithWakeup (const $ pure $ Right Null) (throwIO ThreadKilled) (Publish mempty) `shouldThrow` (== ThreadKilled)
-    for_ [Fetch UUID.nil 100, Initialize user client, Acknowledge user client UUID.nil] $ \command ->
+    for_ [Register user client, Fetch UUID.nil 100, Initialize user client, Acknowledge user client UUID.nil] $ \command ->
       it ("does not signal for " <> show command) $
         executeWithWakeup (const $ pure $ Right Null) (expectationFailure "unexpected wakeup") command `shouldReturn` Right Null

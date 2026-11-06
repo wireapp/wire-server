@@ -21,6 +21,7 @@
 , exceptions
 , extended
 , extra
+, fan-in-perf
 , hashable
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -82,6 +83,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    fan-in-perf
     hashable
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk

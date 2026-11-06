@@ -117,7 +117,7 @@ dropTablesSql =
   "DROP TABLE IF EXISTS \
   \user_notifications, client_notifications, team_notifications, \
   \epoch_notifications, local_connection_notifications, remote_connection_notifications, \
-  \epoch_history, \
+  \epoch_history, fan_in_perf_participants, \
   \last_user_notifications, last_client_notifications, last_team_notifications, \
   \last_epoch_notifications, last_local_connection_notifications, last_remote_connection_notifications, \
   \user_notification_acks, client_notification_acks, team_notification_acks, \

@@ -99,3 +99,10 @@ CREATE TABLE remote_connection_acks (
   last_notification_id UUID NOT NULL,
   PRIMARY KEY (user_id, connected_user_domain, connected_user_id)
 );
+
+-- Synthetic membership for the single experimental stream, separate from acks.
+CREATE TABLE fan_in_perf_participants (
+  user_id uuid NOT NULL,
+  client_id bigint NOT NULL,
+  PRIMARY KEY (user_id, client_id)
+);

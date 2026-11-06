@@ -7,6 +7,7 @@ module FanInPerf.Service
     executeRequest,
     executeWithWakeup,
     wakeupPayload,
+    boundedBody,
   )
 where
 
@@ -18,10 +19,12 @@ import Data.Id
 import Data.Misc (Duration (..))
 import Data.Qualified (toLocalUnsafe)
 import Data.UUID (UUID)
+import Data.Vector qualified as V
 import FanInPerf.NotificationsStore
 import FanInPerf.Store
 import FanInPerf.Targets (localDomain)
 import Hasql.Pool.Extended (PoolConfig (..), initPostgresPool)
+import Hasql.TH
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted))
 import Imports
 import Network.HTTP.Types
@@ -32,10 +35,12 @@ import Util.Options (FilePathSecrets)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.Push.V2 (Route (RouteDirect))
+import Wire.Postgres (runStatement)
 
 -- All requests address one synthetic epoch in the isolated benchmark fixture.
 data Request
   = Publish Object
+  | Register UserId ClientId
   | Fetch UUID Int
   | Initialize UserId ClientId
   | Acknowledge UserId ClientId UUID
@@ -51,6 +56,7 @@ requestParser endpoint = withObject "benchmark request" $ \o ->
       limit <- o .: "limit"
       unless (limit >= 1 && limit <= 1000) $ fail "limit must be between 1 and 1000"
       pure (Fetch cursor limit)
+    "register" -> Register <$> o .: "user" <*> o .: "client"
     "initialize" -> Initialize <$> o .: "user" <*> o .: "client"
     "acknowledge" -> Acknowledge <$> o .: "user" <*> o .: "client" <*> o .: "notification"
     _ -> fail "unknown endpoint"
@@ -78,6 +84,14 @@ executeRequest env request = do
             isCellsEvent = False
           }
       pure Null
+    Register user client -> do
+      runStatement
+        (user.toUUID, fromIntegral client.clientToWord64 :: Int64)
+        [resultlessStatement|
+        insert into fan_in_perf_participants (user_id, client_id)
+        values ($1 :: uuid, $2 :: int8) on conflict do nothing
+      |]
+      pure Null
     Fetch cursor limit -> toJSON <$> fetchNotifications stream cursor limit
     Initialize user client -> toJSON <$> initAcks user client stream
     Acknowledge user client notification -> ackNotification user client stream notification $> Null
@@ -102,19 +116,27 @@ executeWithWakeup store wakeup request = do
 
 -- | Disabled unless explicitly configured. Secrets never appear in errors.
 -- Schema setup stays with the benchmark's reset-db command, never service startup.
-configureService :: Maybe (Map Text Text) -> Maybe PoolConfig -> Maybe FilePathSecrets -> IO () -> IO Wai.Middleware
-configureService Nothing _ _ _ = pure id
+configureService :: Maybe (Map Text Text) -> Maybe PoolConfig -> Maybe FilePathSecrets -> IO () -> IO (Wai.Middleware, IO [(UserId, ClientId)])
+configureService Nothing _ _ _ = pure (id, pure [])
 configureService (Just config) poolOptions passwordFile wakeup = do
   let poolConfig = fromMaybe (PoolConfig 32 (Duration 5) (Duration 600)) poolOptions
   pool <- initPostgresPool poolConfig config passwordFile
   let env = Env pool (toLocalUnsafe localDomain ()) ReadCommitted
-  pure $ serviceMiddleware (executeWithWakeup (executeRequest env) wakeup)
+  let participants = runOrAbort "load benchmark participants" env $ do
+        rows <-
+          runStatement
+            ()
+            [vectorStatement|
+          select user_id :: uuid, client_id :: int8 from fan_in_perf_participants
+        |]
+        pure [(Id u, ClientId (fromIntegral c)) | (u, c) <- V.toList rows]
+  pure (serviceMiddleware (executeWithWakeup (executeRequest env) wakeup), participants)
 
 serviceMiddleware :: (Request -> IO (Either () Value)) -> Wai.Middleware
 serviceMiddleware execute fallback req respond =
   case Wai.pathInfo req of
     ["i", "fan-in-perf", endpoint]
-      | endpoint `elem` ["publish", "fetch", "initialize", "acknowledge"] ->
+      | endpoint `elem` ["publish", "fetch", "initialize", "acknowledge", "register"] ->
           if Wai.requestMethod req /= methodPost
             then respond $ Wai.responseLBS status405 [(hAllow, "POST")] ""
             else do

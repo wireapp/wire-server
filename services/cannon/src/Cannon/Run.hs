@@ -43,6 +43,7 @@ import Data.Proxy
 import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
+import FanInPerf.Wakeup qualified as FanInPerf
 import Imports hiding (head, threadDelay)
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
@@ -95,6 +96,7 @@ run o = lowerCodensity $ do
   void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
   let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) Nothing
 
+  wakeups <- lift FanInPerf.newWakeupHub
   otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
       middleware =
@@ -105,7 +107,7 @@ run o = lowerCodensity $ do
           . Gzip.gzip Gzip.defaultGzipSettings
           . catchErrors g defaultRequestIdHeaderName
       app :: Application
-      app = middleware serverApp
+      app = middleware (FanInPerf.wakeupMiddleware wakeups serverApp)
       serverApp :: Application
       serverApp req cont = do
         let envWithReqId = e {CannonTypes.reqId = getRequestId defaultRequestIdHeaderName req}

@@ -97,6 +97,7 @@ library
     , exceptions                            >=0.6
     , extended
     , extra
+    , fan-in-perf
     , hashable                              >=1.2
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk

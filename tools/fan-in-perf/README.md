@@ -456,7 +456,42 @@ prototype uses the existing RabbitMQ publishing path without publisher confirms:
 a successful HTTP response does not prove durable broker acceptance. Do not use
 these responses as a broker-delivery counter.
 
-Cannon fetching/WebSocket delivery, the wakeup consumer, a WebSocket load
-generator, controlled arrival rates and reconnect handling are still pending.
-Until a consumer is connected, wakeups accumulate in the benchmark queue. Do not interpret HTTP measurements as
-end-to-end fan-in performance results.
+### Wakeup worker and Cannon receiver
+
+The worker starts alongside Gundeck when experimental PostgreSQL is configured.
+Before publishing, register each synthetic participant with
+`POST /i/fan-in-perf/register`, using `{"user":"<user-uuid>","client":"<client-id>"}`.
+Registration is idempotent and separate from acknowledgement initialization.
+Participants persist in `fan_in_perf_participants`; the benchmark's explicit
+`reset-db` command recreates this table (also required when upgrading an older
+benchmark database). Do not reset a database whose results you want to retain.
+
+Connect those clients through Cannon's ordinary WebSocket endpoint with their
+client IDs so that existing presence registration runs. For every wakeup, the
+worker looks up current Redis presences for registered participants, filters by
+client ID and sends one signal per distinct Cannon address. There is no static
+Cannon list. Offline recipients do not block queue progress; they must catch up
+when connecting. Database or presence lookup failures requeue the wakeup.
+This fixture represents one fixed group, not production MLS authorization.
+
+The worker uses a dedicated RabbitMQ connection with the existing reconnect
+helper and re-declares the durable queue when a channel opens. It prefetches one
+message, forwards the signal to every target's `POST /i/fan-in-perf/wakeup`
+endpoint, then acknowledges the RabbitMQ delivery only if all targets succeed.
+HTTP calls have a two-second timeout and do not follow redirects. Any failed
+target causes a one-second delay and requeue; already-successful targets may
+therefore receive duplicate signals. Malformed or oversized queue messages are
+rejected without requeue and logged. This serial worker is a starting point,
+not a tuned throughput configuration.
+
+Cannon validates the fixed stream signal and returns 204 after advancing an
+in-memory generation counter. The counter provides bounded, coalescing wakeup
+state shared by future readers: one client cannot consume another client's
+signal. Its HTTP success means signal acceptance, not event delivery. On restart,
+clients must catch up from PostgreSQL rather than rely on this in-memory state.
+The receiver is an internal experimental route on this branch.
+
+Cannon fetching/WebSocket delivery, a WebSocket load generator, controlled
+arrival rates and reconnect handling are still pending. The receiver currently
+records wakeups but does not deliver event payloads. Do not interpret these HTTP
+responses as end-to-end delivery measurements.

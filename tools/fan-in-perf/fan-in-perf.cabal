@@ -99,6 +99,7 @@ library
     FanInPerf.Targets
     FanInPerf.TargetSpecParser
     FanInPerf.Terminal
+    FanInPerf.Wakeup
     FanInPerf.Worker
 
   build-depends:
@@ -122,6 +123,7 @@ library
     , postgresql-connection-string
     , prometheus-client
     , random
+    , stm
     , text
     , time
     , types-common
@@ -171,6 +173,7 @@ test-suite fan-in-perf-tests
     FanInPerf.TargetSpecParserSpec
     FanInPerf.TargetsSpec
     FanInPerf.TerminalSpec
+    FanInPerf.WakeupSpec
 
   build-depends:
     , aeson
@@ -192,6 +195,7 @@ test-suite fan-in-perf-tests
     , prometheus-client
     , QuickCheck
     , random
+    , stm
     , text
     , time
     , types-common

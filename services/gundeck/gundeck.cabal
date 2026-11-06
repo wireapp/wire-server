@@ -25,6 +25,7 @@ library
     Gundeck.Aws.Sns
     Gundeck.Client
     Gundeck.Env
+    Gundeck.FanInWorker
     Gundeck.Instances
     Gundeck.Monad
     Gundeck.Notification
@@ -111,7 +112,6 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-    , fan-in-perf
     , aeson                                 >=2.0.1.0
     , amazonka                              >=2
     , amazonka-core                         >=2
@@ -133,6 +133,7 @@ library
     , exceptions                            >=0.4
     , extended
     , extra                                 >=1.1
+    , fan-in-perf
     , foldl
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai

@@ -27,6 +27,7 @@
 , prometheus-client
 , QuickCheck
 , random
+, stm
 , text
 , time
 , types-common
@@ -67,6 +68,7 @@ mkDerivation {
     postgresql-connection-string
     prometheus-client
     random
+    stm
     text
     time
     types-common
@@ -99,6 +101,7 @@ mkDerivation {
     prometheus-client
     QuickCheck
     random
+    stm
     text
     time
     types-common
