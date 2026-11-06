@@ -699,6 +699,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.IndexedUserStore
     Wire.MockInterpreters.InvitationStore
     Wire.MockInterpreters.MeetingsStore
+    Wire.MockInterpreters.MlsKeyPackageStore
     Wire.MockInterpreters.NotificationSubsystem
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
