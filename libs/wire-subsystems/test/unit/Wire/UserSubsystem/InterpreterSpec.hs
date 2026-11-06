@@ -1611,6 +1611,7 @@ spec = describe "UserSubsystem.Interpreter" do
         ]
 
     -- A remote backend that stores all given users, each with the given status.
+    -- Contactable users get an according proteus client.
     remoteHandlerFor :: StoredUser -> Map UserId ContactStatus -> GetContactStatusHandler
     remoteHandlerFor base statuses =
       remoteBackendHandler . mkFakeBackend True $
