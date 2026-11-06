@@ -37,6 +37,10 @@ module Wire.MiniBackend
     defaultZAuthSettings,
     userSubsystemErrorEitherUnsafe,
 
+    -- * Federation mocks
+    SubsystemOperationList (..),
+    lookupSubsystemOperation,
+
     -- * Mini events
     MiniEvent (..),
 

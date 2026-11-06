@@ -54,12 +54,11 @@ import Servant.Client.Core qualified as SC
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Type.Reflection (eqTypeRep, typeRep, (:~~:) (HRefl))
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag))
 import Wire.API.EnterpriseLogin
-import Wire.API.Federation.API (FederationMonad (..))
+import Wire.API.Federation.API (FederationMonad (..), nameVal)
 import Wire.API.Federation.API.Brig qualified as FedBrig
-import Wire.API.Federation.Component (Component (Brig))
+import Wire.API.Federation.Component (Component (Brig), componentVal)
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.MLS.KeyPackage (KeyPackage (..), KeyPackageData (..), KeyPackageRef, KeyPackageTBS (..), kpRef)
@@ -1627,17 +1626,20 @@ instance RunClient (CFed comp) where
   runRequestAcceptStatus _ _ = error "CFed does not support servant client"
   throwClientError _ = error "CFed does not support servant client"
 
--- REVIEW: Shouldn't we better guard for the version where this is added?
+-- | Version negotiation is FederatorClient's concern; like other test monads,
+-- `CFed` models a remote supporting the endpoint.
 instance VersionedMonad v (CFed comp) where
   guardVersion _ = pure ()
 
 instance FederationMonad CFed where
-  fedClientWithProxy (Proxy @_) (Proxy @api) (_ :: Proxy (CFed comp)) =
-    case eqTypeRep
-      (typeRep @(SC.Client (CFed comp) api))
-      (typeRep @(FedBrig.GetContactStatusRequest -> CFed 'Brig FedBrig.GetContactStatusResponse)) of
-      Just HRefl -> \req -> CFed ($ req)
-      Nothing -> error "CFed: only get-users-contact-status is supported"
+  fedClientWithProxy (Proxy @name) (Proxy @api) (_ :: Proxy (CFed comp)) =
+    lookupSubsystemOperation
+      (componentVal @comp, nameVal @name, Proxy @(SC.Client (CFed comp) api))
+      (error "CFed: only get-users-contact-status is supported")
+      ((Brig, "get-users-contact-status", contactStatusClient) ::: TNil)
+
+contactStatusClient :: FedBrig.GetContactStatusRequest -> CFed 'Brig FedBrig.GetContactStatusResponse
+contactStatusClient req = CFed ($ req)
 
 -- | A key package the real 'MlsKeyPackageSubsystem' decodes, valid exactly for the given lifetime.
 mkKeyPackage :: CipherSuiteTag -> Lifetime -> (KeyPackageRef, KeyPackageData)
