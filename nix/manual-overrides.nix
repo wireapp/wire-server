@@ -17,6 +17,9 @@ hself: hsuper: {
   primitive-unlifted = hlib.dontCheck hsuper.primitive-unlifted;
   split = hlib.dontCheck hsuper.split;
 
+  # Local macOS workaround: tests fail because the nixpkgs ICU knows more Unicode blocks than this text-icu
+  text-icu = hlib.dontCheck hsuper.text-icu;
+
   # Jail breaks for QuickCheck
   ChasingBottoms = hlib.doJailbreak hsuper.ChasingBottoms;
   attoparsec = hlib.doJailbreak hsuper.attoparsec;

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016
 set -euo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -19,5 +20,5 @@ cd "$TOP_LEVEL"
 
 cabal-plan list-bins --plan-json "$PLAN_FILE" "$pattern:exe:*" |
   awk '{print $2}' |
-  xargs -i sh -c 'test -f {} && echo {} || true' |
-  xargs -P8 -I{} rsync -a {} "$DIST"
+  xargs -I {} sh -c 'test -f "$1" && echo "$1" || true' _ {} |
+  xargs -P8 -I {} sh -c 'rsync -a "$1" "$2"' _ {} "$DIST"
