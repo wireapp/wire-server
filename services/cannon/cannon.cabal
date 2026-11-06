@@ -21,6 +21,7 @@ library
     Cannon.API.Internal
     Cannon.API.Public
     Cannon.App
+    Cannon.FanIn
     Cannon.Dict
     Cannon.Options
     Cannon.RabbitMq
@@ -98,6 +99,7 @@ library
     , extended
     , extra
     , fan-in-perf
+    , wai-websockets
     , hashable                              >=1.2
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk

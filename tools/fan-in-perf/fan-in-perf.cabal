@@ -80,6 +80,8 @@ library
     FanInPerf.Consume
     FanInPerf.ConsumeStats
     FanInPerf.Database
+    FanInPerf.Delivery
+    FanInPerf.Fixture
     FanInPerf.GcImpact
     FanInPerf.Metrics
     FanInPerf.NotificationsAdmin
@@ -158,6 +160,7 @@ test-suite fan-in-perf-tests
     FanInPerf.ConsumeSpec
     FanInPerf.ConsumeStatsSpec
     FanInPerf.DatabaseSpec
+    FanInPerf.DeliverySpec
     FanInPerf.GcImpactSpec
     FanInPerf.MetricsSpec
     FanInPerf.NotificationsAdminSpec
@@ -202,6 +205,9 @@ test-suite fan-in-perf-tests
     , uuid-types
     , vector
     , wai
+    , warp
+    , websockets
+    , wai-websockets
     , wai-extra
     , wire-api
     , wire-subsystems

@@ -54,6 +54,7 @@
 , wai
 , wai-extra
 , wai-utilities
+, wai-websockets
 , warp
 , websockets
 , wire-api
@@ -109,6 +110,7 @@ mkDerivation {
     wai
     wai-extra
     wai-utilities
+    wai-websockets
     warp
     websockets
     wire-api

@@ -491,7 +491,68 @@ signal. Its HTTP success means signal acceptance, not event delivery. On restart
 clients must catch up from PostgreSQL rather than rely on this in-memory state.
 The receiver is an internal experimental route on this branch.
 
-Cannon fetching/WebSocket delivery, a WebSocket load generator, controlled
-arrival rates and reconnect handling are still pending. The receiver currently
-records wakeups but does not deliver event payloads. Do not interpret these HTTP
-responses as end-to-end delivery measurements.
+The WebSocket adapter described below consumes this wakeup hub. The wakeup
+receiver's HTTP response alone is still not an end-to-end delivery measurement.
+
+### Experimental Cannon event stream
+
+Cannon now fetches the shared epoch directly through the same PostgreSQL store
+code as Gundeck. Enable it in local Cannon YAML with `postgresql`,
+`postgresqlPool` and optionally `postgresqlPassword`, using the same dedicated
+benchmark database as Gundeck. These are optional; without `postgresql`, both
+experimental Cannon endpoints are disabled. The chart does not yet expose these
+Cannon settings; this milestone is intended for local service runs.
+
+```yaml
+postgresql:
+  host: localhost
+  port: "5432"
+  user: wire-server
+  dbname: fan_in_perf
+postgresqlPassword: /path/to/local/postgres-password
+postgresqlPool:
+  size: 32
+  acquisitionTimeout: 5
+  idlenessTimeout: 600
+```
+
+Register each synthetic `(user, client)` via Gundeck's registration endpoint,
+then open `ws://<cannon-host>:<port>/i/fan-in-perf/events` with headers
+`Z-User: <user-uuid>`, `Z-Client: <client-id>` and a fresh
+`Z-Connection: <connection-id>`. This internal-only benchmark endpoint trusts
+these identities, as do the other internal fixture APIs; do not expose it through
+public ingress. Unknown participants are rejected before upgrading the socket.
+It uses ordinary Cannon presence registration, so there is no extra connection
+to open and no static Cannon list to configure.
+
+The server sends JSON (binary WebSocket messages):
+
+```json
+{"type":"events","tag":1,"events":[{"id":"<notification-uuid>","payload":{}}]}
+```
+
+Reply with `{"type":"ack","tag":1}`. The tag is scoped to this connection.
+Cannon persists the last event's position for that device, then sends
+`{"type":"acked","tag":1}`. It sends `{"type":"ready"}` whenever catch-up
+finds no more events and waits for another wakeup. The generation is sampled
+before fetching to avoid losing wakeups that arrive during catch-up.
+
+There is at most one page (100 events) in flight per connection. A missing ack
+closes the session after 30 seconds; malformed or wrong-tag acks also close it.
+Incoming frames/messages are limited to 1 KiB. The experimental protocol uses
+this conservative stop-and-wait policy for correctness, not peak throughput.
+
+A registered device without a saved ack reads all retained fixture events.
+Reconnects resume after the saved ack; unacknowledged pages are replayed.
+Do not call `initialize` on reconnect: that separate benchmark operation jumps
+the cursor to the newest event. Initial connection catch-up also recovers events
+published while the device was offline, without requiring a fresh wakeup.
+
+This is still a fixed-epoch prototype: membership changes, expired-cursor gap
+reporting, native pushes, controlled arrival rates and a production delivery-tag
+protocol are not implemented. Use a single publisher for this milestone: UUID
+cursor ordering with concurrently committed writes remains a known limitation
+of the existing store; this path does not implement the polling benchmark's
+look-back window. The new delivery unit tests include a real local WebSocket
+transport test with two clients and independent reconnect progress, backed by an
+in-memory store. They do not launch the full Gundeck/RabbitMQ/PostgreSQL stack.

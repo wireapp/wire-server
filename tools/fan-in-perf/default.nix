@@ -37,7 +37,9 @@
 , vector
 , wai
 , wai-extra
+, wai-websockets
 , warp
+, websockets
 , wire-api
 , wire-subsystems
 }:
@@ -109,6 +111,9 @@ mkDerivation {
     vector
     wai
     wai-extra
+    wai-websockets
+    warp
+    websockets
     wire-api
     wire-subsystems
   ];

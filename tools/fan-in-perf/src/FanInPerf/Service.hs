@@ -16,24 +16,19 @@ import Data.Aeson.Types (Parser, parseEither)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Id
-import Data.Misc (Duration (..))
-import Data.Qualified (toLocalUnsafe)
 import Data.UUID (UUID)
 import Data.Vector qualified as V
+import FanInPerf.Fixture
 import FanInPerf.NotificationsStore
 import FanInPerf.Store
-import FanInPerf.Targets (localDomain)
-import Hasql.Pool.Extended (PoolConfig (..), initPostgresPool)
+import Hasql.Pool.Extended (PoolConfig)
 import Hasql.TH
-import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted))
 import Imports
 import Network.HTTP.Types
 import Network.HTTP.Types.Header (hAllow)
 import Network.Wai qualified as Wai
 import UnliftIO.Exception (tryAny)
 import Util.Options (FilePathSecrets)
-import Wire.API.MLS.Epoch
-import Wire.API.MLS.Group
 import Wire.API.Push.V2 (Route (RouteDirect))
 import Wire.Postgres (runStatement)
 
@@ -60,12 +55,6 @@ requestParser endpoint = withObject "benchmark request" $ \o ->
     "initialize" -> Initialize <$> o .: "user" <*> o .: "client"
     "acknowledge" -> Acknowledge <$> o .: "user" <*> o .: "client" <*> o .: "notification"
     _ -> fail "unknown endpoint"
-
-benchmarkGroup :: GroupId
-benchmarkGroup = GroupId "fan-in-perf-experimental"
-
-benchmarkEpoch :: Epoch
-benchmarkEpoch = Epoch 1
 
 executeRequest :: Env -> Request -> IO (Either () Value)
 executeRequest env request = do
@@ -119,9 +108,7 @@ executeWithWakeup store wakeup request = do
 configureService :: Maybe (Map Text Text) -> Maybe PoolConfig -> Maybe FilePathSecrets -> IO () -> IO (Wai.Middleware, IO [(UserId, ClientId)])
 configureService Nothing _ _ _ = pure (id, pure [])
 configureService (Just config) poolOptions passwordFile wakeup = do
-  let poolConfig = fromMaybe (PoolConfig 32 (Duration 5) (Duration 600)) poolOptions
-  pool <- initPostgresPool poolConfig config passwordFile
-  let env = Env pool (toLocalUnsafe localDomain ()) ReadCommitted
+  env <- configureStore config poolOptions passwordFile
   let participants = runOrAbort "load benchmark participants" env $ do
         rows <-
           runStatement
