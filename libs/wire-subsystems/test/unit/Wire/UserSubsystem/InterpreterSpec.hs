@@ -1409,7 +1409,7 @@ spec = describe "UserSubsystem.Interpreter" do
         (calls, result) <- runContactRequester (requesterWith ctx) handlers (getContactStatusesImpl lself (qualify up <> qualify down))
         pure $
           conjoin
-            [ result === Map.fromList [(q, ContactStatus Contactable) | q <- qualify up],
+            [ result === Map.fromList [(qid, ContactStatus Contactable) | qid <- qualify up],
               sort calls === sort (Map.keys up <> Map.keys down)
             ]
 
@@ -1417,12 +1417,12 @@ spec = describe "UserSubsystem.Interpreter" do
     -- construction. Negative cases remove exactly one ingredient.
     prop "proteus user is contactable iff a client has a prekey" $
       \base ctx targetMls -> ioProperty do
-        let u = activeWith (Just (S.singleton BaseProtocolProteusTag)) base
+        let user = activeWith (Just (S.singleton BaseProtocolProteusTag)) base
         conjoin
           <$> sequence
-            [ statusOf ctx targetMls u [proteusClient] `shouldBeStatus` Just (ContactStatus Contactable),
-              statusOf ctx targetMls u [proteusClient {hasPrekey = False}] `shouldBeStatus` Just (ContactStatus NonContactable),
-              statusOf ctx targetMls u [] `shouldBeStatus` Just (ContactStatus NonContactable)
+            [ statusOf ctx targetMls user [proteusClient] `shouldBeStatus` Just (ContactStatus Contactable),
+              statusOf ctx targetMls user [proteusClient {hasPrekey = False}] `shouldBeStatus` Just (ContactStatus NonContactable),
+              statusOf ctx targetMls user [] `shouldBeStatus` Just (ContactStatus NonContactable)
             ]
 
     prop "missing or empty supported protocols default to proteus" $
@@ -1437,24 +1437,24 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "MLS user is contactable, each missing ingredient makes it non-contactable" $
       \base ctx suite -> ioProperty do
         let ctx' = ctx {mlsAvailable = True, allowedCipherSuites = S.singleton suite}
-            u = activeWith (Just (S.singleton BaseProtocolMLSTag)) base
+            user = activeWith (Just (S.singleton BaseProtocolMLSTag)) base
             client = mlsClient suite
             nonContactable = Just (ContactStatus NonContactable)
         conjoin
           <$> sequence
-            [ statusOf ctx' True u [client] `shouldBeStatus` Just (ContactStatus Contactable),
+            [ statusOf ctx' True user [client] `shouldBeStatus` Just (ContactStatus Contactable),
               counterexample "target server MLS off"
-                <$> (statusOf ctx' False u [client] `shouldBeStatus` nonContactable),
+                <$> (statusOf ctx' False user [client] `shouldBeStatus` nonContactable),
               counterexample "requester MLS unavailable"
-                <$> (statusOf ctx' {mlsAvailable = False} True u [client] `shouldBeStatus` nonContactable),
+                <$> (statusOf ctx' {mlsAvailable = False} True user [client] `shouldBeStatus` nonContactable),
               counterexample "no allowed cipher suite"
-                <$> (statusOf ctx' {allowedCipherSuites = mempty} True u [client] `shouldBeStatus` nonContactable),
+                <$> (statusOf ctx' {allowedCipherSuites = mempty} True user [client] `shouldBeStatus` nonContactable),
               counterexample "no signature key"
-                <$> (statusOf ctx' True u [client {signatureSuites = mempty}] `shouldBeStatus` nonContactable),
+                <$> (statusOf ctx' True user [client {signatureSuites = mempty}] `shouldBeStatus` nonContactable),
               counterexample "no key package"
-                <$> (statusOf ctx' True u [client {keyPackageSuites = mempty}] `shouldBeStatus` nonContactable),
+                <$> (statusOf ctx' True user [client {keyPackageSuites = mempty}] `shouldBeStatus` nonContactable),
               counterexample "expired key package"
-                <$> (statusOfBackend ctx' (mkFakeBackend True [(u, [client])]) {keyPackageLifetime = expiredLifetime} u `shouldBeStatus` nonContactable),
+                <$> (statusOfBackend ctx' (mkFakeBackend True [(user, [client])]) {keyPackageLifetime = expiredLifetime} user `shouldBeStatus` nonContactable),
               counterexample "user does not support MLS"
                 <$> (statusOf ctx' True (activeWith (Just (S.singleton BaseProtocolProteusTag)) base) [client] `shouldBeStatus` nonContactable)
             ]
@@ -1487,8 +1487,8 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "local route and remote route evaluate the same users identically" $
       \ctx targetMls (users :: [(StoredUser, [FakeClient])]) (unknownIds :: [UserId]) -> ioProperty do
         let backend = mkFakeBackend targetMls users
-            known = [u.id | u <- backend.storedUsers]
-            qids = [Qualified u targetDomain | u <- known <> unknownIds]
+            known = [user.id | user <- backend.storedUsers]
+            qids = [Qualified uid targetDomain | uid <- known <> unknownIds]
             targetSelf = toLocalUnsafe targetDomain (Id UUID.nil)
         -- both requesters derive the same effective MLS availability: the
         -- target is its own requester, so its server flag applies on both sides
@@ -1504,15 +1504,15 @@ spec = describe "UserSubsystem.Interpreter" do
             ]
   where
     activeWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
-    activeWith protos u = u {status = Just Active, supportedProtocols = protos}
+    activeWith protos user = user {status = Just Active, supportedProtocols = protos}
 
     -- Status of a single user on a backend with the given server MLS flag.
     statusOf :: ContactStatusContext -> Bool -> StoredUser -> [FakeClient] -> IO (Maybe ContactStatus)
-    statusOf ctx serverMls u clients = statusOfBackend ctx (mkFakeBackend serverMls [(u, clients)]) u
+    statusOf ctx serverMls user clients = statusOfBackend ctx (mkFakeBackend serverMls [(user, clients)]) user
 
     statusOfBackend :: ContactStatusContext -> FakeBackend -> StoredUser -> IO (Maybe ContactStatus)
-    statusOfBackend ctx backend u =
-      Map.lookup u.id <$> runFakeBackend backend (getLocalContactStatusesImpl ctx [u.id])
+    statusOfBackend ctx backend user =
+      Map.lookup user.id <$> runFakeBackend backend (getLocalContactStatusesImpl ctx [user.id])
 
     -- QuickCheck has no monadic '==='. This keeps results as 'Property', so
     -- 'conjoin' still reports all failing checks.
@@ -1597,7 +1597,7 @@ mkFakeBackend mlsFlag users =
     }
   where
     -- the first occurrence of each user id wins
-    uniqueUsers = nubBy (\a b -> (fst a).id == (fst b).id) users
+    uniqueUsers = nubBy (\(user1, _) (user2, _) -> user1.id == user2.id) users
     -- the backend assigns each client of a user its id: 1, 2, ...
     numbered clients = zip (ClientId <$> [1 ..]) clients
 
@@ -1661,30 +1661,30 @@ runContactStores ::
   FakeBackend ->
   Sem (UserStore : ClientStore : MlsKeyPackageSubsystem : Input UserSubsystemConfig : r) a ->
   Sem r a
-runContactStores b action = do
+runContactStores backend action = do
   lock <- embed (newMVar ())
-  ( runInputConst (def {mlsEnabled = b.serverMls})
+  ( runInputConst (def {mlsEnabled = backend.serverMls})
       . runInMemoryMlsKeyPackageStore keyPackageStore
       . interpretMlsKeyPackageSubsystem Nothing lock
       . raiseUnder
-      . evalState b.clientState
+      . evalState backend.clientState
       . runInMemoryClientStoreInterpreterWithState
       . raiseUnder
-      . runInMemoryUserStoreInterpreter b.storedUsers mempty
+      . runInMemoryUserStoreInterpreter backend.storedUsers mempty
     )
     action
   where
-    keyPackageStore = Map.fromSet (\(_, _, suite) -> [mkKeyPackage suite b.keyPackageLifetime]) b.keyPackages
+    keyPackageStore = Map.fromSet (\(_, _, suite) -> [mkKeyPackage suite backend.keyPackageLifetime]) backend.keyPackages
 
 runFakeBackend ::
   FakeBackend ->
   Sem '[UserStore, ClientStore, MlsKeyPackageSubsystem, Input UserSubsystemConfig, Resource, Embed IO] a ->
   IO a
-runFakeBackend b = runM . runResource . runContactStores b
+runFakeBackend backend = runM . runResource . runContactStores backend
 
 remoteBackendHandler :: FakeBackend -> GetContactStatusHandler
-remoteBackendHandler b req =
-  FedBrig.GetContactStatusResponse <$> runFakeBackend b (getLocalContactStatusesImpl req.context (fromRange req.users))
+remoteBackendHandler backend req =
+  FedBrig.GetContactStatusResponse <$> runFakeBackend backend (getLocalContactStatusesImpl req.context (fromRange req.users))
 
 -- | Records each call; domains without a handler are unreachable.
 runRecordingFed ::
@@ -1696,14 +1696,14 @@ runRecordingFed handlers = interpret \case
     modify (tDomain remote :)
     case Map.lookup (tDomain remote) handlers of
       Nothing -> pure $ Left (FederationUnexpectedError "unreachable")
-      Just h -> Right <$> embed (f h)
+      Just handler -> Right <$> embed (f handler)
   RunFederatedConcurrentlyEither remotes rpc ->
-    for (bucketRemote remotes) \ruids@(tDomain -> d) -> case rpc ruids of
+    for (bucketRemote remotes) \ruids@(tDomain -> domain) -> case rpc ruids of
       CFed f -> do
-        modify (d :)
-        case Map.lookup d handlers of
+        modify (domain :)
+        case Map.lookup domain handlers of
           Nothing -> pure $ Left (ruids, FederationUnexpectedError "unreachable")
-          Just h -> Right . qualifyAs ruids <$> embed (f h)
+          Just handler -> Right . qualifyAs ruids <$> embed (f handler)
   RunFederatedConcurrentlyBucketsEither {} -> error "unimplemented: RunFederatedConcurrentlyBucketsEither"
   IsFederationConfigured -> pure True
 
@@ -1726,14 +1726,14 @@ runContactRequester ::
      ]
     a ->
   IO ([Domain], a)
-runContactRequester b handlers =
+runContactRequester backend handlers =
   runM
     . runResource
     . runState emptyFedCallsAcc
     . noopLogger
     . runRecordingFed handlers
-    . miniGalleyAPIAccess mempty b.features
-    . runContactStores b
+    . miniGalleyAPIAccess mempty backend.features
+    . runContactStores backend
   where
     emptyFedCallsAcc :: [Domain]
     emptyFedCallsAcc = []
