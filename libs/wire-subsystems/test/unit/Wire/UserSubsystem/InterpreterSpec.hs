@@ -1516,7 +1516,8 @@ spec = describe "UserSubsystem.Interpreter" do
     statusOfBackend ctx backend u =
       Map.lookup u.id <$> runFakeBackend backend (getLocalContactStatusesImpl ctx [u.id])
 
-    -- REVIEW: Is there no monadic equivalent of ===? If so, use that instead.
+    -- QuickCheck has no monadic '==='. This keeps results as 'Property', so
+    -- 'conjoin' still reports all failing checks.
     shouldBeStatus :: IO (Maybe ContactStatus) -> Maybe ContactStatus -> IO Property
     shouldBeStatus actual expected = (=== expected) <$> actual
 
