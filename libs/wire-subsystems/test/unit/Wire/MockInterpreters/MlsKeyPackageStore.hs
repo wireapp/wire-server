@@ -35,25 +35,30 @@ runInMemoryMlsKeyPackageStore initial =
     . inMemoryMlsKeyPackageStoreInterpreter
     . raiseUnder
 
--- REVIEW: Appreviations as binding names make this hard to understand.
 inMemoryMlsKeyPackageStoreInterpreter ::
   (Member (State KeyPackageStoreState) r) =>
   InterpreterFor MlsKeyPackageStore r
 inMemoryMlsKeyPackageStoreInterpreter = interpret \case
-  InsertKeyPackages u c ps ->
-    for_ ps \(ref, suite, packageData) ->
+  InsertKeyPackages userId clientId packages ->
+    for_ packages \(ref, suite, packageData) ->
       -- Like Cassandra, re-inserting a ref overwrites the old entry.
-      -- `insertWith f k new` calls `f new old`.
-      modify $ Map.insertWith (\new old -> dropRefs [ref] old <> new) (u, c, suite) [(ref, packageData)]
-  LookupKeyPackages u c s -> gets $ Map.findWithDefault [] (u, c, s)
-  LookupKeyPackagesBulk requests -> gets \st -> Map.restrictKeys st (Set.fromList requests)
-  DeleteKeyPackages u c s refs ->
-    modify $ Map.update (nonEmpty' . dropRefs refs) (u, c, s)
-  DeleteAllKeyPackages u c suites ->
-    modify \st -> foldr (\s -> Map.delete (u, c, s)) st suites
-  DeleteKeyPackage u c s ref ->
-    modify $ Map.update (nonEmpty' . dropRefs [ref]) (u, c, s)
+      -- `insertWith f key new` calls `f new old`.
+      modify $
+        Map.insertWith
+          (\newPackages oldPackages -> dropRefs [ref] oldPackages <> newPackages)
+          (userId, clientId, suite)
+          [(ref, packageData)]
+  LookupKeyPackages userId clientId suite ->
+    gets $ Map.findWithDefault [] (userId, clientId, suite)
+  LookupKeyPackagesBulk requests ->
+    gets \store -> Map.restrictKeys store (Set.fromList requests)
+  DeleteKeyPackages userId clientId suite refs ->
+    modify $ Map.update (nothingIfEmpty . dropRefs refs) (userId, clientId, suite)
+  DeleteAllKeyPackages userId clientId suites ->
+    modify \store -> foldr (\suite -> Map.delete (userId, clientId, suite)) store suites
+  DeleteKeyPackage userId clientId suite ref ->
+    modify $ Map.update (nothingIfEmpty . dropRefs [ref]) (userId, clientId, suite)
   where
     dropRefs refs = filter ((`notElem` refs) . fst)
     -- Cassandra has no row for a client without key packages.
-    nonEmpty' ps = if null ps then Nothing else Just ps
+    nothingIfEmpty packages = if null packages then Nothing else Just packages
