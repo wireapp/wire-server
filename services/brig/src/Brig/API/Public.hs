@@ -1127,7 +1127,7 @@ listUsersByIdsOrHandles self includeContactStatus q = do
     if includeContactStatus == Just True
       then do
         statuses <- lift . liftSem $ getContactStatuses lself (Public.profileQualifiedId <$> foundUsers)
-        pure [p {Public.profileContactStatus = Map.lookup p.profileQualifiedId statuses} | p <- foundUsers]
+        pure [profile {Public.profileContactStatus = Map.lookup profile.profileQualifiedId statuses} | profile <- foundUsers]
       else pure foundUsers
   pure $ ListUsersById (fmap V.Versioned foundUsers') $ fst <$$> nonEmpty errors
   where
