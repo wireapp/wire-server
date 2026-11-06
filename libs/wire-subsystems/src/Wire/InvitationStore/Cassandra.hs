@@ -17,6 +17,12 @@
 
 module Wire.InvitationStore.Cassandra
   ( interpretInvitationStoreToCassandra,
+
+    -- * Raw queries (used by the migration loop)
+    teamInvitationsSelect,
+    teamPendingScimUsersSelect,
+    invitationClear,
+    pendingScimUserClear,
   )
 where
 
@@ -26,6 +32,7 @@ import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as Conduit
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.UUID (UUID)
 import Data.Range (Range, fromRange)
 import Database.CQL.Protocol (Record (..), TupleType, asRecord)
 import Imports
@@ -244,3 +251,41 @@ deleteInvitationsImpl teamId =
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
+
+-- | All live (non-expired) invitations of one team, as copied by the
+-- migration loop. @ttl(created_at)@ is the remaining time-to-live in seconds;
+-- rows whose TTL has already expired read back with a negative or zero
+-- remainder and are skipped by the copier.
+teamInvitationsSelect ::
+  PrepQuery R (Identity TeamId) (UUID, Maybe Role, UUID, UTCTime, Maybe UUID, EmailAddress, Maybe Text, Text, Int32)
+teamInvitationsSelect =
+  [sql|
+    SELECT team, role, id, created_at, created_by, email, name, code, ttl(created_at)
+    FROM team_invitation WHERE team = ?
+  |]
+
+-- | All pending SCIM users of one team, as copied by the migration loop.
+teamPendingScimUsersSelect ::
+  PrepQuery R (Identity TeamId) (UUID, Text, UUID)
+teamPendingScimUsersSelect =
+  [sql|
+    SELECT team, email, user FROM team_scim_pending_user_email WHERE team = ?
+  |]
+
+-- | Delete the migrated @team_invitation@ partition of one team from
+-- Cassandra. Must only run under the exclusive per-team migration lock after
+-- the partition is fully copied to Postgres (and mirrored writes have kept
+-- Postgres current while the lock was held).
+invitationClear :: PrepQuery W (Identity TeamId) ()
+invitationClear =
+  [sql|
+    DELETE FROM team_invitation WHERE team = ?
+  |]
+
+-- | Delete the migrated @team_scim_pending_user_email@ partition of one team
+-- from Cassandra. Same locking discipline as 'invitationClear'.
+pendingScimUserClear :: PrepQuery W (Identity TeamId) ()
+pendingScimUserClear =
+  [sql|
+    DELETE FROM team_scim_pending_user_email WHERE team = ?
+  |]

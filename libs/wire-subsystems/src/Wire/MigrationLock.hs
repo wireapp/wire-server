@@ -187,6 +187,11 @@ instance MigrationLockable (TeamId, Text) where
   lockScope = "team_feature"
   toText (tid, feat) = idToText tid <> ":" <> feat
 
+instance MigrationLockable TeamId where
+  lockKey = hashUUID
+  lockScope = "team_invitation"
+  toText = idToText
+
 instance MigrationLockable ConvId where
   lockKey = hashUUID
   lockScope = "conv"
