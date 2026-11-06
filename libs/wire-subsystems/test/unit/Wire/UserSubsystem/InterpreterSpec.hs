@@ -67,7 +67,7 @@ import Wire.API.MLS.Lifetime (Lifetime (..), Timestamp (..))
 import Wire.API.MLS.Serialisation (RawMLS (..), mkRawMLS)
 import Wire.API.Pagination (OffsetPage (..))
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), LockStatus (..), LockableFeature (..), MLSConfig, MLSConfigB (..), MlsE2EIdConfig, npUpdate)
+import Wire.API.Team.Feature (AllTeamFeatures, CellsInternalConfigB (backend), FeatureStatus (..), LockStatus (..), LockableFeature (..), MLSConfig, MLSConfigB (..), MlsE2EIdConfig, npUpdate)
 import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
@@ -1554,6 +1554,7 @@ proteusClient = FakeClient {hasPrekey = True, signatureSuites = mempty, keyPacka
 mlsClient :: CipherSuiteTag -> FakeClient
 mlsClient suite = FakeClient {hasPrekey = False, signatureSuites = S.singleton suite, keyPackageSuites = S.singleton suite}
 
+-- | Data required to simulate a fake backend
 data FakeBackend = FakeBackend
   { serverMls :: Bool,
     storedUsers :: [StoredUser],
