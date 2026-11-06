@@ -1665,12 +1665,12 @@ usableLifetime = Lifetime (Timestamp 0) (Timestamp maxBound)
 expiredLifetime = Lifetime (Timestamp 0) (Timestamp 1)
 
 -- | Interprets the store/config layers shared by backend and requester.
-runContactStores ::
+runFakeBackendStores ::
   (Members '[Embed IO, Resource] r) =>
   FakeBackend ->
   Sem (UserStore : ClientStore : MlsKeyPackageSubsystem : Input UserSubsystemConfig : r) a ->
   Sem r a
-runContactStores backend action = do
+runFakeBackendStores backend action = do
   lock <- embed (newMVar ())
   ( runInputConst (def {mlsEnabled = backend.serverMls})
       . runInMemoryMlsKeyPackageStore keyPackageStore
@@ -1689,7 +1689,7 @@ runFakeBackend ::
   FakeBackend ->
   Sem '[UserStore, ClientStore, MlsKeyPackageSubsystem, Input UserSubsystemConfig, Resource, Embed IO] a ->
   IO a
-runFakeBackend backend = runM . runResource . runContactStores backend
+runFakeBackend backend = runM . runResource . runFakeBackendStores backend
 
 remoteBackendHandler :: FakeBackend -> GetContactStatusHandler
 remoteBackendHandler backend req =
@@ -1742,7 +1742,7 @@ runContactRequester backend handlers =
     . noopLogger
     . runRecordingFed handlers
     . miniGalleyAPIAccess mempty backend.features
-    . runContactStores backend
+    . runFakeBackendStores backend
   where
     emptyFedCallsAcc :: [Domain]
     emptyFedCallsAcc = []
