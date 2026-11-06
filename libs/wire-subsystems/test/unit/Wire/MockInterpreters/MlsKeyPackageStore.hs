@@ -42,13 +42,18 @@ inMemoryMlsKeyPackageStoreInterpreter ::
 inMemoryMlsKeyPackageStoreInterpreter = interpret \case
   InsertKeyPackages u c ps ->
     for_ ps \(ref, suite, packageData) ->
-      -- REVIEW: Why does `<>` need to be flipped?
-      modify $ Map.insertWith (flip (<>)) (u, c, suite) [(ref, packageData)]
+      -- Like Cassandra, re-inserting a ref overwrites the old entry.
+      -- `insertWith f k new` calls `f new old`.
+      modify $ Map.insertWith (\new old -> dropRefs [ref] old <> new) (u, c, suite) [(ref, packageData)]
   LookupKeyPackages u c s -> gets $ Map.findWithDefault [] (u, c, s)
   LookupKeyPackagesBulk requests -> gets \st -> Map.restrictKeys st (Set.fromList requests)
   DeleteKeyPackages u c s refs ->
-    modify $ Map.adjust (filter ((`notElem` refs) . fst)) (u, c, s)
+    modify $ Map.update (nonEmpty' . dropRefs refs) (u, c, s)
   DeleteAllKeyPackages u c suites ->
     modify \st -> foldr (\s -> Map.delete (u, c, s)) st suites
   DeleteKeyPackage u c s ref ->
-    modify $ Map.adjust (filter ((/= ref) . fst)) (u, c, s)
+    modify $ Map.update (nonEmpty' . dropRefs [ref]) (u, c, s)
+  where
+    dropRefs refs = filter ((`notElem` refs) . fst)
+    -- Cassandra has no row for a client without key packages.
+    nonEmpty' ps = if null ps then Nothing else Just ps

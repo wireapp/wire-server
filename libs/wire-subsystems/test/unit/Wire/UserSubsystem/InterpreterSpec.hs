@@ -54,7 +54,6 @@ import Servant.Client.Core qualified as SC
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Test.QuickCheck.Monadic (monadic)
 import Type.Reflection (eqTypeRep, typeRep, (:~~:) (HRefl))
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag))
 import Wire.API.EnterpriseLogin
