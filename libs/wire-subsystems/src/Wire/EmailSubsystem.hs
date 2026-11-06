@@ -32,6 +32,35 @@ import Wire.API.User
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Client (Client (..))
 
+-- | Interpreter that does nothing for every operation: used as a cleanup
+-- worker default and wherever emails are intentionally disabled.
+noopEmailSubsystemInterpreter :: InterpreterFor EmailSubsystem r
+noopEmailSubsystemInterpreter = interpret \case
+  SendPasswordResetMail {} -> pure ()
+  SendVerificationMail {} -> pure ()
+  SendCreateScimTokenVerificationMail {} -> pure ()
+  SendLoginVerificationMail {} -> pure ()
+  SendActivationMail {} -> pure ()
+  SendEmailAddressUpdateMail {} -> pure ()
+  SendNewClientEmail {} -> pure ()
+  SendAccountDeletionEmail {} -> pure ()
+  SendTeamActivationMail {} -> pure ()
+  SendTeamDeletionVerificationMail {} -> pure ()
+  SendTeamInvitationMail {} -> pure ""
+  SendTeamInvitationMailPersonalUser {} -> pure ""
+  SendMemberWelcomeEmail {} -> pure ()
+  SendNewTeamOwnerWelcomeEmail {} -> pure ()
+  SendSAMLIdPChanged {} -> pure ()
+  SendMeetingInvitationEmail {} -> pure ()
+  SendMeetingUpdateEmail {} -> pure ()
+  SendMeetingCancelEmail {} -> pure ()
+
+-- | Synonym for 'noopEmailSubsystemInterpreter', used at call sites that
+-- express \"email sending intentionally disabled\" (unconfigured galley
+-- meeting emails, meetings cleanup worker).
+discardEmailSubsystem :: InterpreterFor EmailSubsystem r
+discardEmailSubsystem = noopEmailSubsystemInterpreter
+
 data EmailSubsystem m a where
   SendPasswordResetMail :: EmailAddress -> PasswordResetPair -> Maybe Locale -> EmailSubsystem m ()
   SendVerificationMail :: EmailAddress -> ActivationKey -> ActivationCode -> Maybe Locale -> EmailSubsystem m ()

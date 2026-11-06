@@ -410,6 +410,7 @@ data MeetingError
   | -- | No join link can be produced: the code store cannot hold meeting
     -- codes, or no join-link URI is configured for the user's domain.
     LinkUnavailable
+  | MeetingNotLicensed
   deriving stock (Eq, Show)
 
 -- | The individual failure modes of meeting time validation.
@@ -437,6 +438,7 @@ meetingErrorToDyn = \case
       500
       "link-unavailable"
       "Cannot produce a meeting join link: the code store must run in postgresql or migration-to-postgresql mode and a join-link URI must be configured for the user's domain"
+  MeetingNotLicensed -> DynError 403 "id-feature-error" "Not licensed on this backend"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
@@ -449,10 +451,13 @@ type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, 
 
 type MeetingLinkErrorStatic = 'StaticError 500 "link-unavailable" "No join link can be produced for this meeting"
 
+type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
+
 instance IsSwaggerError MeetingError where
   addToOpenApi =
     addStaticErrorToSwagger @MeetingErrorStatic
       . addStaticErrorToSwagger @MeetingLinkErrorStatic
+      . addStaticErrorToSwagger @MeetingNotLicensedStatic
 
 instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where
   interpretServerEffect = mapError meetingErrorToDyn

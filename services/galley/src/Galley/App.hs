@@ -42,17 +42,24 @@ module Galley.App
   )
 where
 
+import Amazonka qualified
+import Amazonka.SES qualified as SES
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
+import Cassandra.Options qualified
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.Domain (Domain)
+import Data.ByteString.Builder (toLazyByteString)
+import Data.Default (def)
+import Data.Domain (Domain, domainText)
 import Data.Id
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -70,6 +77,7 @@ import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async
+import Polysemy.Async qualified as P
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Fail
@@ -83,6 +91,7 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
+import Util.Options (awsHost, awsPort, awsSecure, initCredentials)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -115,6 +124,14 @@ import Wire.CustomBackendStore
 import Wire.CustomBackendStore.Cassandra
 import Wire.CustomBackendStore.DualWrite
 import Wire.CustomBackendStore.Postgres
+import Wire.EmailSending (EmailSending (..), sendMail)
+import Wire.EmailSending qualified as EmailSending
+import Wire.EmailSending.Options qualified as EmailOpt
+import Wire.EmailSending.SES (EmailSendingAWSError, emailViaSESInterpreter)
+import Wire.EmailSending.SMTP qualified as SMTP
+import Wire.EmailSubsystem (EmailSubsystem, discardEmailSubsystem)
+import Wire.EmailSubsystem.Interpreter (meetingEmailSubsystemInterpreter)
+import Wire.EmailSubsystem.Template (loadMeetingTemplates)
 import Wire.Error
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.ExternalAccess.External
@@ -134,6 +151,9 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.Licensing.Effect (Licensing)
+import Wire.Licensing.Interpreter (runLicense)
+import Wire.Licensing.License qualified as Licensing
 import Wire.ListItems (ListItems)
 import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
@@ -199,7 +219,10 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 type GalleyEffects =
   '[ MeetingsSubsystem,
+     EmailSubsystem,
+     EmailSending,
      ConversationSubsystem,
+     Licensing,
      MeetingNotifier,
      JobSubsystem,
      Input RequestId,
@@ -313,7 +336,8 @@ meetingSystemConfig o =
   Meeting.MeetingSystemConfig
     { legacyTimeZone = fromMaybe defaultLegacyTimeZone (m >>= view legacyTimeZone >>= parseTimeZone),
       validityPeriod = realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
-      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod)
+      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod),
+      emailsEnabled = isJust (m >>= view O.email)
     }
   where
     m = o ^. settings . meetings
@@ -359,6 +383,45 @@ createEnv o l = do
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
     <*> pure codeURIcfg
     <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
+    <*> initMeetingEmailEnv o l mgr
+
+-- | Build the meeting-email environment when @settings.meetings.email@ is
+-- configured; 'Nothing' (the default) disables meeting emails entirely.
+initMeetingEmailEnv :: Opts -> Logger -> Manager -> IO (Maybe MeetingEmailEnv)
+initMeetingEmailEnv o lgr mgr = case o ^. settings . meetings >>= (^. O.email) of
+  Nothing -> pure Nothing
+  Just cfg -> do
+    templates <- loadMeetingTemplates (O._templateDir cfg) def (O._from cfg)
+    let meetingBranding = fromMaybe Map.empty (O._branding cfg)
+    (mSmtp, mAwsEnv) <- case O._transport cfg of
+      EmailOpt.EmailSMTP s -> do
+        let Cassandra.Options.Endpoint {host = h, port = p} = s.smtpEndpoint
+            p' = Just . fromInteger . toInteger $ p
+        smtpCredentials <- case EmailOpt.smtpCredentials s of
+          Just (EmailOpt.EmailSMTPCredentials u pw) ->
+            Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials pw
+          _ -> pure Nothing
+        smtp <- SMTP.initSMTP lgr h p' smtpCredentials (EmailOpt.smtpConnType s)
+        pure (Just smtp, Nothing)
+      EmailOpt.EmailAWS ao -> do
+        -- Mirror brig's SES endpoint construction (Brig.AWS.mkAwsEnv).
+        let svc = Amazonka.setEndpoint (ao.sesEndpoint ^. awsSecure) (ao.sesEndpoint ^. awsHost) (ao.sesEndpoint ^. awsPort) SES.defaultService
+        baseEnv <- Amazonka.newEnv Amazonka.discover <&> Amazonka.configureService svc
+        pure
+          ( Nothing,
+            Just $
+              baseEnv
+                { Amazonka.logger = awsLogger (Log.clone (Just "aws.galley") lgr),
+                  Amazonka.manager = mgr
+                }
+          )
+    pure (Just MeetingEmailEnv {meTemplates = templates, meBranding = meetingBranding, meReplyTo = O._replyTo cfg, meSmtp = mSmtp, meAwsEnv = mAwsEnv})
+  where
+    awsLogger g l = Log.log g (mapLevel l) . Log.msg . toLazyByteString
+    mapLevel Amazonka.Info = Log.Info
+    mapLevel Amazonka.Debug = Log.Debug
+    mapLevel Amazonka.Trace = Log.Trace
+    mapLevel Amazonka.Error = Log.Error
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l =
@@ -479,6 +542,10 @@ evalGalley e =
             maxConvSize = e._options._settings._maxConvSize,
             listClientsUsingBrig = e._options._settings._intraListing
           }
+      licenseInterpreter =
+        runLicense
+          (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
+          (fmap encodeUtf8 (e ^. options . settings . license))
    in ExceptT
         . runFinal @IO
         . unsafelyPerformConcurrency
@@ -584,7 +651,10 @@ evalGalley e =
         . runInputConst (e ^. reqId)
         . interpretJobSubsystem defaultJobSubsystemConfig
         . interpretMeetingNotifier
+        . licenseInterpreter
         . interpretConversationSubsystem
+        . bestEffortEmailSending e
+        . meetingEmailsInterpreter e
         . Meeting.interpretMeetingsSubsystem (meetingSystemConfig (e ^. options))
   where
     lh = view (options . settings . featureFlags . to npProject) e
@@ -600,3 +670,66 @@ interpretTeamFeatureSpecialContext e =
 
 mapTeamFeatureStoreError :: TeamFeatureStoreError -> InternalError
 mapTeamFeatureStoreError (TeamFeatureStoreErrorInternalError msg) = InternalErrorWithDescription msg
+
+-- | Interpret 'EmailSubsystem' for meeting emails only. When
+-- @settings.meetings.email@ is unset, no emails are sent (the config
+-- comment's contract). Otherwise the three meeting operations render and
+-- send via the configured transport, with delivery failures logged and
+-- swallowed so they never surface to the meeting creator.
+meetingEmailsInterpreter ::
+  (Member TinyLog r) =>
+  Env ->
+  InterpreterFor EmailSubsystem (EmailSending ': r)
+meetingEmailsInterpreter e = case e ^. meetingEmail of
+  Nothing -> discardEmailSubsystem
+  Just me -> meetingEmailSubsystemInterpreter me.meTemplates me.meBranding me.meReplyTo
+
+-- | EmailSending transport whose delivery failures are logged and swallowed,
+-- so a failed email never fails the meeting operation that triggered it
+-- (WPB-25932).
+bestEffortEmailSending ::
+  forall r.
+  ( Member TinyLog r,
+    Member P.Async r,
+    Member (Embed IO) r,
+    Member (Final IO) r
+  ) =>
+  Env ->
+  InterpreterFor EmailSending r
+bestEffortEmailSending e = case e ^. meetingEmail of
+  -- No meeting-email configuration: nothing can reach the transport.
+  Nothing -> interpret \case
+    EmailSending.SendMail _ -> pure ()
+  Just me -> interpret \case
+    EmailSending.SendMail mail -> void . P.async $ do
+      -- Fire-and-forget (the 'pushBestEffort' idiom): delivery is best-effort,
+      -- a failed or slow send must never delay or fail the meeting operation.
+      -- SES failures surface as typed 'EmailSendingAWSError', SMTP failures as
+      -- plain IO exceptions; both are caught and logged once below. Swallowing
+      -- 'SomeException' includes async exceptions — same accepted trade-off as
+      -- 'pushBestEffort'.
+      res <-
+        errorToIOFinal @SomeException
+          . fromExceptionSem @SomeException
+          $ do
+            inner <- errorToIOFinal @EmailSendingAWSError (runTransport (sendMail mail))
+            either (throw . toException) pure inner
+      case res of
+        Left exc ->
+          P.err $
+            Log.msg (Log.val "Failed to send meeting email")
+              . Log.field "error" (displayException exc)
+        Right _ -> pure ()
+    where
+      runTransport ::
+        forall e a.
+        (Members '[Embed IO, TinyLog] e) =>
+        Sem (EmailSending ': Error EmailSendingAWSError ': e) a ->
+        Sem (Error EmailSendingAWSError ': e) a
+      runTransport = case me.meSmtp of
+        Just smtp -> SMTP.emailViaSMTPInterpreter (e ^. applog) smtp
+        Nothing -> case me.meAwsEnv of
+          Just awsEnv -> emailViaSESInterpreter awsEnv
+          -- Cannot happen: 'initMeetingEmailEnv' always initializes the
+          -- transport matching the configured one.
+          Nothing -> error "meeting emails configured without a transport"

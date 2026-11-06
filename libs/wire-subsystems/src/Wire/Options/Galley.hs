@@ -35,6 +35,7 @@ module Wire.Options.Galley
     federationProtocols,
     mlsPrivateKeyPaths,
     featureFlags,
+    license,
     defConcurrentDeletionEvents,
     JournalOpts (JournalOpts),
     queueName,
@@ -179,7 +180,14 @@ data Settings = Settings
     -- | Check group info
     _checkGroupInfo :: !(Maybe Bool),
     -- | Configuration for meetings
-    _meetings :: !(Maybe MeetingsConfig)
+    _meetings :: !(Maybe MeetingsConfig),
+    -- | Raw licence payload: base64url-encoded JSON 'LicenceSpec' as produced by
+    --   @wire-licensing encode@ / @example@. Unset means unlicensed
+    --   ('missingLicense'; meeting join-by-link endpoints paywall).
+    --   'Text' rather than 'ByteString' because aeson's FromJSON ByteString
+    --   instance base64-decodes; convert with 'encodeUtf8' at the 'runLicense'
+    --   call site.
+    _license :: !(Maybe Text)
   }
   deriving (Show, Generic)
 
@@ -206,7 +214,14 @@ data MeetingsEmailConfig = MeetingsEmailConfig
     -- | Optional 'Reply-To' address.
     _replyTo :: !(Maybe EmailAddress),
     -- | Outbound transport: AWS SES or SMTP ('Wire.EmailSending.Options.EmailOpts').
-    _transport :: !EmailOpts
+    _transport :: !EmailOpts,
+    -- | Directory of the wire-subsystems email templates (the same tree brig
+    -- points emailSMS.general.templateDir at). Required when the block is present.
+    _templateDir :: !FilePath,
+    -- | Branding substitutions (${brand_*}, ${support}, ${legal}, ...) applied
+    -- to meeting emails. Unreplaced placeholders render literally, so operators
+    -- should mirror brig's templateBranding here. Empty map when unset.
+    _branding :: !(Maybe (Map Text Text))
   }
   deriving (Show, Generic)
 

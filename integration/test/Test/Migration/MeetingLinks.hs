@@ -33,7 +33,7 @@ import Data.Time.Clock
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
 import SetupHelpers
-import Test.Meetings (defaultMeetingJson, getMeetingIdAndDomain, linkKeyAndCode)
+import Test.Meetings (defaultMeetingJson, getMeetingIdAndDomain, linkKeyAndCode, withLicensedBackend)
 import Testlib.PG (execSql)
 import Testlib.Prelude
 import Text.Regex.TDFA ((=~))
@@ -69,8 +69,8 @@ backfillSql =
   \WHERE conversation_codes.expires_at <= now();"
 
 testMeetingJoinCodeBackfill :: (HasCallStack) => App ()
-testMeetingJoinCodeBackfill = do
-  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+testMeetingJoinCodeBackfill = withLicensedBackend $ \dom -> do
+  (owner, _tid, [bob]) <- createTeam dom 2
   now <- liftIO getCurrentTime
   let newMeeting = defaultMeetingJson "Backfill Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
 

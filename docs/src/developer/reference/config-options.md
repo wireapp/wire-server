@@ -262,9 +262,14 @@ settings:
 
 The optional `settings.meetings.email` block enables emailing meeting
 invitations to external addresses. `from` is required; `replyTo` is optional.
-`transport` is an AWS SES or SMTP value (the same shape Brig uses for its
-email transport). When the block is absent, no meeting invitation emails are
-sent.
+`templateDir` is the directory of the wire-subsystems email templates (the
+same tree Brig points `emailSMS.general.templateDir` at; only the `en/` locale
+tree exists upstream). `branding` is an optional map of substitutions
+(`${brand_*}`, `${support}`, `${legal}`, ...) applied to meeting emails;
+unreplaced placeholders render literally, so mirror Brig's
+`templateBranding` values here. `transport` is an AWS SES or SMTP value (the
+same shape Brig uses for its email transport). Meeting emails are sent only
+when this block is present and the deployment license covers meeting emails.
 
 ```yaml
 # galley.yaml
@@ -273,6 +278,10 @@ settings:
     email:
       from: meetings@example.com
       replyTo: noreply@example.com
+      templateDir: /www/emails
+      branding:
+        brand: Wire
+        legal: https://wire.com/legal/
       transport:               # SES:
         sesQueue: wire-meetings-email-feedback
         sesEndpoint: https://email.us-east-1.amazonaws.com
@@ -891,6 +900,43 @@ config:
           lockStatus: unlocked
 ```
 
+
+## License
+
+Wire's licensing uses a licence payload: a base64url-encoded JSON
+`LicenceSpec`, produced by the `wire-licensing` CLI
+(`wire-licensing encode` or `wire-licensing example full --domain <domain>`).
+The payload is unsigned: it is an operator-controlled entitlement whose
+integrity rests entirely on configuration access control.
+
+The payload follows the 2026-10-08 licence RFC: `schema_version` (only `1` is
+accepted), `tenant_id`/`license_id`, `licensed_domains`,
+`valid_from`/`expires_at`/`issued_at`, and `license_content` =
+`{entitlements, meetings, limits}` — `entitlements` is a flat list of RFC
+feature names (parsed and preserved; no gate reads it yet), `meetings` carries
+the per-feature meeting booleans (`invitation_links`, `emails_sending`,
+`calendars_integration`; `invitation_links` gates join-by-link), and `limits`
+is accepted and preserved but unused.
+
+Two config keys accept the payload:
+
+```yaml
+# galley.yaml
+settings:
+  license: <base64url licence payload>
+
+# background-worker.yaml
+license: <same payload>
+```
+
+Semantics:
+
+- Unset (or invalid / not covering this domain / outside its validity window),
+  the interpreter serves the "missing license"; in particular the meeting
+  join-by-link endpoints return `403 id-feature-error`.
+- In the helm chart, set the single top-level `license` value; it is rendered
+  into both services' config keys above. The `WIRE_LICENSE` environment
+  variable is no longer read.
 
 ## Settings in brig
 

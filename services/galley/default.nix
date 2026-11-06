@@ -6,6 +6,7 @@
 , aeson
 , aeson-qq
 , amazonka
+, amazonka-ses
 , amqp
 , async
 , base
@@ -106,6 +107,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-licensing
 , wire-otel
 , wire-subsystems
 , yaml
@@ -119,6 +121,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
+    amazonka-ses
     amqp
     async
     base
@@ -177,6 +180,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-licensing
     wire-otel
     wire-subsystems
   ];

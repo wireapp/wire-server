@@ -118,13 +118,18 @@ joinUrlFixture = HttpsUrl (fromRight (error "invalid test join URL") (parseURI s
 testMeetingInvitationEmail :: (HasCallStack) => MeetingTemplates -> Expectation
 testMeetingInvitationEmail templates = do
   let tpl = templates.meetingInvitationEmail
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meetingFixture tpl branding
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meetingFixture tpl branding Nothing
+      (rtErrs, rtMail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meetingFixture tpl branding (Just hostEmail)
       to = fromJust $ emailAddressText "invitee@example.com"
   assertNoErrors errs
+  assertNoErrors rtErrs
   mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
   mail.mailTo `shouldBe` [Address Nothing "invitee@example.com"]
   lookup "Subject" mail.mailHeaders `shouldSatisfy` isSubjectOf "Quarterly Sync"
   lookup "X-Zeta-Purpose" mail.mailHeaders `shouldBe` Just "MeetingInvitation"
+  -- No Reply-To header when unconfigured; present when given.
+  lookup "Reply-To" mail.mailHeaders `shouldBe` Nothing
+  lookup "Reply-To" rtMail.mailHeaders `shouldBe` Just (fromEmail hostEmail)
   plainTextOf mail `shouldContain` "https://meet.example.com/join/"
   assertIcsPartType mail "text/calendar; charset=utf-8; method=REQUEST"
   let ics = unfoldIcs (icsRaw mail)
@@ -147,7 +152,7 @@ testMeetingUpdateEmail templates = do
       -- The update email carries a strictly larger SEQUENCE than the
       -- invitation (same UID) because updatedAt has moved on.
       meeting = meetingFixture {updatedAt = UTCTime (fromGregorian 2026 10 1) (secondsToDiffTime 3600)}
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingUpdateEmail to hostName hostEmail meeting summary tpl branding
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingUpdateEmail to hostName hostEmail meeting summary tpl branding Nothing
       to = fromJust $ emailAddressText "invitee@example.com"
   assertNoErrors errs
   mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
@@ -164,7 +169,7 @@ testMeetingUpdateEmail templates = do
 testMeetingCancelEmail :: (HasCallStack) => MeetingTemplates -> Expectation
 testMeetingCancelEmail templates = do
   let tpl = templates.meetingCancelEmail
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingCancelEmail to hostName hostEmail meetingFixture tpl branding
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingCancelEmail to hostName hostEmail meetingFixture tpl branding Nothing
       to = fromJust $ emailAddressText "invitee@example.com"
   assertNoErrors errs
   mail.mailFrom.addressEmail `shouldBe` fromEmail tpl.meetingEmailSender
@@ -216,10 +221,10 @@ testMeetingIcsEscapesAndFoldsText templates = do
       crTitle = unsafeRange "Standup\rURL:http://evil.example\rEND:VEVENT\rBEGIN:VALARM"
       crHost = "Alice\rHost \"Injected\""
       to = fromJust $ emailAddressText "invitee@example.com"
-      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meeting tpl branding
+      (errs, mail) = run $ runOutputList @Text $ renderMeetingInvitationEmail to hostName hostEmail meeting tpl branding Nothing
       (crErrs, crMail) =
         run . runOutputList @Text $
-          renderMeetingInvitationEmail to crHost hostEmail (meetingFixture {title = crTitle}) tpl branding
+          renderMeetingInvitationEmail to crHost hostEmail (meetingFixture {title = crTitle}) tpl branding Nothing
   assertNoErrors errs
   assertNoErrors crErrs
   let ics = icsRaw mail

@@ -57,6 +57,7 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
+, wire-licensing
 , wire-subsystems
 }:
 mkDerivation {
@@ -109,6 +110,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-licensing
     wire-subsystems
   ];
   executableHaskellDepends = [
