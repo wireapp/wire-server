@@ -1440,7 +1440,7 @@ spec = describe "UserSubsystem.Interpreter" do
     -- construction. Negative cases remove exactly one ingredient.
     prop "proteus user is contactable iff a client has a prekey" $
       \base ctx targetMls -> ioProperty do
-        let user = activeWith (Just (S.singleton BaseProtocolProteusTag)) base
+        let user = makeActiveWith (Just (S.singleton BaseProtocolProteusTag)) base
         conjoin
           <$> sequence
             [ statusOf ctx targetMls user [proteusClient]
@@ -1452,7 +1452,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop "missing or empty supported protocols default to proteus" $
       \base ctx targetMls -> ioProperty do
-        let status protos = statusOf ctx targetMls (activeWith protos base) [proteusClient]
+        let status protos = statusOf ctx targetMls (makeActiveWith protos base) [proteusClient]
         conjoin
           <$> sequence
             [ status Nothing `shouldBeStatus` Just (ContactStatus Contactable),
@@ -1462,7 +1462,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "MLS user is contactable, each missing ingredient makes it non-contactable" $
       \base ctx suite -> ioProperty do
         let ctx' = ctx {mlsAvailable = True, allowedCipherSuites = S.singleton suite}
-            user = activeWith (Just (S.singleton BaseProtocolMLSTag)) base
+            user = makeActiveWith (Just (S.singleton BaseProtocolMLSTag)) base
             client = mlsClient suite
             nonContactable = Just (ContactStatus NonContactable)
         conjoin
@@ -1499,7 +1499,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 <$> ( statusOf
                         ctx'
                         True
-                        (activeWith (Just (S.singleton BaseProtocolProteusTag)) base)
+                        (makeActiveWith (Just (S.singleton BaseProtocolProteusTag)) base)
                         [client]
                         `shouldBeStatus` nonContactable
                     )
@@ -1510,7 +1510,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let ctx' = ctx {mlsAvailable = True, allowedCipherSuites = S.singleton suite}
             incapable =
               FakeClient {hasPrekey = False, signatureSuites = mempty, keyPackageSuites = mempty}
-            user = activeWith (Just (S.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag])) base
+            user = makeActiveWith (Just (S.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag])) base
             statusWith clients = statusOf ctx' True user clients
         conjoin
           <$> sequence
@@ -1568,8 +1568,8 @@ spec = describe "UserSubsystem.Interpreter" do
                   (all (`elem` qUids) (Map.keys viaLocal))
               ]
   where
-    activeWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
-    activeWith protos user = user {status = Just Active, supportedProtocols = protos}
+    makeActiveWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
+    makeActiveWith protos user = user {status = Just Active, supportedProtocols = protos}
 
     -- Status of a single user on a backend with the given server MLS flag.
     statusOf ::
@@ -1614,10 +1614,10 @@ spec = describe "UserSubsystem.Interpreter" do
     remoteHandlerFor :: StoredUser -> Map UserId ContactStatus -> GetContactStatusHandler
     remoteHandlerFor base statuses =
       remoteBackendHandler . mkFakeBackend True $
-        (\(uid, status) -> (withId uid, clientsFor status)) <$> Map.toList statuses
+        (\(uid, status) -> (createActiveUserWithId uid, clientsFor status)) <$> Map.toList statuses
       where
         clientsFor status = [proteusClient | status == ContactStatus Contactable]
-        withId uid = (activeWith Nothing base :: StoredUser) {id = uid}
+        createActiveUserWithId uid = (makeActiveWith Nothing base :: StoredUser) {id = uid}
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
 -- packages (the latter two per cipher suite).
