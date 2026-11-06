@@ -1411,14 +1411,14 @@ spec = describe "UserSubsystem.Interpreter" do
       \(remoteUsers :: Map Domain (ContactStatus, [UserId])) (localUserIds :: [UserId]) ctx base ->
         ioProperty do
           let remote = remoteDomains remoteUsers
-              qids =
+              qUids =
                 toQualifiedUids (snd <$> remote)
                   <> toQualifiedUids (Map.singleton localDomain' localUserIds)
           result <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
               (uncurry (remoteHandlerFor base) <$> remote)
-              (getContactStatusesImpl lself qids)
+              (getContactStatusesImpl lself qUids)
           pure $ result === expectedStatuses remote
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
@@ -1546,7 +1546,7 @@ spec = describe "UserSubsystem.Interpreter" do
         ioProperty do
           let backend = mkFakeBackend targetMls users
               known = [user.id | user <- backend.storedUsers]
-              qids = [Qualified uid targetDomain | uid <- known <> unknownIds]
+              qUids = [Qualified uid targetDomain | uid <- known <> unknownIds]
               targetSelf = toLocalUnsafe targetDomain (Id UUID.nil)
           -- both requesters derive the same effective MLS availability: the
           -- target is its own requester, so its server flag applies on both sides
@@ -1554,18 +1554,18 @@ spec = describe "UserSubsystem.Interpreter" do
             runOnRequesterBackend
               backend {features = featuresFor ctx}
               mempty
-              (getContactStatusesImpl targetSelf qids)
+              (getContactStatusesImpl targetSelf qUids)
           viaRemote <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
               (Map.singleton targetDomain (remoteBackendHandler backend))
-              (getContactStatusesImpl lself qids)
+              (getContactStatusesImpl lself qUids)
           pure $
             conjoin
               [ viaRemote === viaLocal,
                 counterexample
                   "only requested users are answered"
-                  (all (`elem` qids) (Map.keys viaLocal))
+                  (all (`elem` qUids) (Map.keys viaLocal))
               ]
   where
     activeWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
