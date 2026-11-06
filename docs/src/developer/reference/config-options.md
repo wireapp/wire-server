@@ -574,6 +574,45 @@ Default values:
 - `config.allowed_to_create_channels`: `team-members`
 - `config.allowed_to_open_channels`: `team-members`
 
+### TOTP
+
+TOTP (Time-based One-Time Password) MFA team settings are controlled per team
+as a "team feature". The configuration exposes two boolean switches that the
+frontend uses to render the MFA section in Team Settings. The backend persists
+and returns the values without enforcing any behaviour — enforcement is a
+future concern.
+
+The configuration has these fields:
+
+- `lockStatus`: `locked` or `unlocked`
+- `status`: `enabled` or `disabled`
+- `config.require_for_all_members`: `true` or `false`
+- `config.owners_and_admins`: `true` or `false`
+
+Configuration example (in Galley's config):
+
+```yaml
+settings:
+  featureFlags:
+    totp:
+      defaults:
+        status: disabled
+        lockStatus: locked
+        config:
+          require_for_all_members: false
+          owners_and_admins: false
+```
+
+Default values:
+
+- `lockStatus`: `locked`
+- `status`: `disabled`
+- `config.require_for_all_members`: `false`
+- `config.owners_and_admins`: `false`
+
+The lock status can be changed via the internal lock endpoint:
+`PUT /teams/:tid/features/totp/unlocked` (via Stern).
+
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator
