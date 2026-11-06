@@ -1390,26 +1390,26 @@ spec = describe "UserSubsystem.Interpreter" do
   describe "getContactStatuses" do
     prop "one federation call per remote domain, none without remote users" $
       \(remoteUsers :: Map Domain [UserId]) (localUserIds :: [UserId]) ctx -> ioProperty do
-        let remote = remoteOnly remoteUsers
-            handlers = allContactable <$ remote
-            qids = qualify remote <> qualify (Map.singleton localDomain' localUserIds)
-        (calls, _) <- runContactRequester (requesterBackendFor ctx) handlers (getContactStatusesImpl lself qids)
+        let remote = remoteDomainUsers remoteUsers
+            handlers = allContactableHandler <$ remote
+            qids = toQualifiedUids remote <> toQualifiedUids (Map.singleton localDomain' localUserIds)
+        (calls, _) <- runOnRequesterBackend (requesterBackendFor ctx) handlers (getContactStatusesImpl lself qids)
         pure $ sort calls === sort (Map.keys remote)
 
     prop "no federation call when there are no remote users" $
       \(localUserIds :: [UserId]) ctx -> ioProperty do
-        (calls, _) <- runContactRequester (requesterBackendFor ctx) mempty (getContactStatusesImpl lself (qualify (Map.singleton localDomain' localUserIds)))
+        (calls, _) <- runOnRequesterBackend (requesterBackendFor ctx) mempty (getContactStatusesImpl lself (toQualifiedUids (Map.singleton localDomain' localUserIds)))
         pure $ calls === []
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
       \(upUsers :: Map Domain [UserId]) (downUsers :: Map Domain [UserId]) ctx -> ioProperty do
-        let up = remoteOnly upUsers
-            down = remoteOnly (Map.difference downUsers up)
-            handlers = allContactable <$ up
-        (calls, result) <- runContactRequester (requesterBackendFor ctx) handlers (getContactStatusesImpl lself (qualify up <> qualify down))
+        let up = remoteDomainUsers upUsers
+            down = remoteDomainUsers (Map.difference downUsers up)
+            handlers = allContactableHandler <$ up
+        (calls, result) <- runOnRequesterBackend (requesterBackendFor ctx) handlers (getContactStatusesImpl lself (toQualifiedUids up <> toQualifiedUids down))
         pure $
           conjoin
-            [ result === Map.fromList [(qid, ContactStatus Contactable) | qid <- qualify up],
+            [ result === Map.fromList [(qid, ContactStatus Contactable) | qid <- toQualifiedUids up],
               sort calls === sort (Map.keys up <> Map.keys down)
             ]
 
@@ -1493,9 +1493,9 @@ spec = describe "UserSubsystem.Interpreter" do
         -- both requesters derive the same effective MLS availability: the
         -- target is its own requester, so its server flag applies on both sides
         (_, viaLocal) <-
-          runContactRequester backend {features = mlsFeatures ctx} mempty (getContactStatusesImpl targetSelf qids)
+          runOnRequesterBackend backend {features = featuresFor ctx} mempty (getContactStatusesImpl targetSelf qids)
         (calls, viaRemote) <-
-          runContactRequester (requesterBackendFor ctx) (Map.singleton targetDomain (remoteBackendHandler backend)) (getContactStatusesImpl lself qids)
+          runOnRequesterBackend (requesterBackendFor ctx) (Map.singleton targetDomain (remoteBackendHandler backend)) (getContactStatusesImpl lself qids)
         pure $
           conjoin
             [ viaRemote === viaLocal,
@@ -1521,20 +1521,20 @@ spec = describe "UserSubsystem.Interpreter" do
 
     -- Requester whose derived 'ContactStatusContext' is the given one.
     requesterBackendFor :: ContactStatusContext -> FakeBackend
-    requesterBackendFor ctx = emptyBackend {serverMls = True, features = mlsFeatures ctx}
+    requesterBackendFor ctx = emptyBackend {serverMls = True, features = featuresFor ctx}
 
     localDomain' = Domain "local.example.com"
     targetDomain = Domain "target.example.com"
     lself = toLocalUnsafe localDomain' (Id UUID.nil)
 
-    qualify :: Map Domain [UserId] -> [Qualified UserId]
-    qualify domainsToUids = [Qualified uid domain | (domain, uids) <- Map.toList domainsToUids, uid <- uids]
+    toQualifiedUids :: Map Domain [UserId] -> [Qualified UserId]
+    toQualifiedUids domainsToUids = [Qualified uid domain | (domain, uids) <- Map.toList domainsToUids, uid <- uids]
 
-    remoteOnly :: Map Domain [UserId] -> Map Domain [UserId]
-    remoteOnly = Map.filter (not . null) . Map.delete localDomain'
+    remoteDomainUsers :: Map Domain [UserId] -> Map Domain [UserId]
+    remoteDomainUsers = Map.filter (not . null) . Map.delete localDomain'
 
-    allContactable :: GetContactStatusHandler
-    allContactable req = pure $ FedBrig.GetContactStatusResponse (Map.fromList [(uid, ContactStatus Contactable) | uid <- fromRange req.users])
+    allContactableHandler :: GetContactStatusHandler
+    allContactableHandler req = pure $ FedBrig.GetContactStatusResponse (Map.fromList [(uid, ContactStatus Contactable) | uid <- fromRange req.users])
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
 -- packages (the latter two per cipher suite).
@@ -1579,8 +1579,8 @@ emptyBackend =
 
 -- | Team features that make the requester's derived 'ContactStatusContext' equal
 -- to the given one (as long as the server has MLS enabled).
-mlsFeatures :: ContactStatusContext -> AllTeamFeatures
-mlsFeatures ctx = npUpdate @MLSConfig mls def
+featuresFor :: ContactStatusContext -> AllTeamFeatures
+featuresFor ctx = npUpdate @MLSConfig mls def
   where
     defMls = def :: LockableFeature MLSConfig
     mls =
@@ -1718,7 +1718,7 @@ runRecordingFed handlers = interpret \case
 
 -- | Runs on the requester's backend. Returns the domains that were called (with
 -- multiplicity) and the result.
-runContactRequester ::
+runOnRequesterBackend ::
   FakeBackend ->
   Map Domain GetContactStatusHandler ->
   Sem
@@ -1735,7 +1735,7 @@ runContactRequester ::
      ]
     a ->
   IO ([Domain], a)
-runContactRequester backend handlers =
+runOnRequesterBackend backend handlers =
   runM
     . runResource
     . runState emptyFedCallsAcc
