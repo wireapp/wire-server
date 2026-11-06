@@ -82,8 +82,6 @@ type instance E.PagingState InternalPaging a = InternalPagingState a
 
 type instance E.Page InternalPaging a = InternalPage a
 
-type instance E.PagingBounds InternalPaging TeamId = Range 1 100 Int32
-
 instance E.Paging InternalPaging where
   pageItems (InternalPage (_, _, items)) = items
   pageHasMore (InternalPage (p, _, _)) = hasMore p

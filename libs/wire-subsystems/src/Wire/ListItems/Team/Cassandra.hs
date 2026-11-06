@@ -17,7 +17,6 @@
 
 module Wire.ListItems.Team.Cassandra
   ( interpretTeamListToCassandra,
-    interpretInternalTeamListToCassandra,
   )
 where
 
@@ -45,22 +44,6 @@ interpretTeamListToCassandra = interpret $ \case
     logEffect "TeamList.ListItems"
     embedClientInput $ teamIdsFrom uid ps lim
 
-interpretInternalTeamListToCassandra ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member TinyLog r
-  ) =>
-  Sem (ListItems InternalPaging TeamId ': r) a ->
-  Sem r a
-interpretInternalTeamListToCassandra = interpret $ \case
-  ListItems uid mps lim -> do
-    logEffect "InternalTeamList.ListItems"
-    embedClientInput $ case mps of
-      Nothing -> do
-        page <- teamIdsForPagination uid Nothing lim
-        mkInternalPage page pure
-      Just ps -> ipNext ps
-
 teamIdsFrom :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (ResultSet TeamId)
 teamIdsFrom usr range (fromRange -> max) =
   mkResultSet . fmap runIdentity . strip <$> case range of
@@ -68,9 +51,3 @@ teamIdsFrom usr range (fromRange -> max) =
     Nothing -> paginate Cql.selectUserTeams (paramsP LocalQuorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
-
-teamIdsForPagination :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (Page TeamId)
-teamIdsForPagination usr range (fromRange -> max) =
-  fmap runIdentity <$> case range of
-    Just c -> paginate Cql.selectUserTeamsFrom (paramsP LocalQuorum (usr, c) max)
-    Nothing -> paginate Cql.selectUserTeams (paramsP LocalQuorum (Identity usr) max)
