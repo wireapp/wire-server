@@ -1500,7 +1500,7 @@ spec = describe "UserSubsystem.Interpreter" do
                         `shouldBeStatus` nonContactable
                     ),
               counterexample "expired key package"
-                <$> ( statusOfBackend
+                <$> ( statusOfOnBackend
                         ctx'
                         (mkFakeBackend True [(user, [client])])
                           { keyPackageLifetime = expiredLifetime
@@ -1589,10 +1589,10 @@ spec = describe "UserSubsystem.Interpreter" do
     statusOf ::
       ContactStatusContext -> Bool -> StoredUser -> [FakeClient] -> IO (Maybe ContactStatus)
     statusOf ctx serverMls user clients =
-      statusOfBackend ctx (mkFakeBackend serverMls [(user, clients)]) user
+      statusOfOnBackend ctx (mkFakeBackend serverMls [(user, clients)]) user
 
-    statusOfBackend :: ContactStatusContext -> FakeBackend -> StoredUser -> IO (Maybe ContactStatus)
-    statusOfBackend ctx backend user =
+    statusOfOnBackend :: ContactStatusContext -> FakeBackend -> StoredUser -> IO (Maybe ContactStatus)
+    statusOfOnBackend ctx backend user =
       Map.lookup user.id <$> runFakeBackend backend (getLocalContactStatusesImpl ctx [user.id])
 
     -- QuickCheck has no monadic '==='. This keeps results as 'Property', so
