@@ -1391,7 +1391,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "one federation call per remote domain, none without remote users" $
       \(remoteUsers :: Map Domain [UserId]) (localUserIds :: [UserId]) ctx -> ioProperty do
         let remote = remoteOnly remoteUsers
-            handlers = Map.map (const allContactable) remote
+            handlers = allContactable <$ remote
             qids = qualify remote <> qualify (Map.singleton localDomain' localUserIds)
         (calls, _) <- runContactRequester (requesterWith ctx) handlers (getContactStatusesImpl lself qids)
         pure $ sort calls === sort (Map.keys remote)
@@ -1405,15 +1405,13 @@ spec = describe "UserSubsystem.Interpreter" do
       \(upUsers :: Map Domain [UserId]) (downUsers :: Map Domain [UserId]) ctx -> ioProperty do
         let up = remoteOnly upUsers
             down = remoteOnly (Map.difference downUsers up)
-            handlers = Map.map (const allContactable) up
+            handlers = allContactable <$ up
         (calls, result) <- runContactRequester (requesterWith ctx) handlers (getContactStatusesImpl lself (qualify up <> qualify down))
         pure $
           conjoin
             [ result === Map.fromList [(q, ContactStatus Contactable) | q <- qualify up],
               sort calls === sort (Map.keys up <> Map.keys down)
             ]
-
-    -- REVIEW: Check that these tests are complete.
 
     -- The contactability rule is tested on users that are contactable by
     -- construction. Negative cases remove exactly one ingredient.
