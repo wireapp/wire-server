@@ -1,5 +1,6 @@
 module FanInPerf.ServiceSpec (spec) where
 
+import Control.Exception (AsyncException (ThreadKilled), ErrorCall (..), throwIO)
 import Data.Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.Id
@@ -63,3 +64,23 @@ spec = describe "experimental Gundeck store API" $ do
     it ("leaves unmatched path " <> show path <> " to Gundeck") $ do
       result <- runSession (request $ setPath Wai.defaultRequest path) (app forbidden)
       simpleStatus result `shouldBe` status404
+
+  describe "persistence and wakeup ordering" $ do
+    it "persists before sending one wakeup" $ do
+      steps <- newIORef ([] :: [Text])
+      let store _ = modifyIORef' steps (<> ["persist"]) $> Right Null
+          wakeup = modifyIORef' steps (<> ["wakeup"])
+      executeWithWakeup store wakeup (Publish mempty) `shouldReturn` Right Null
+      readIORef steps `shouldReturn` ["persist", "wakeup"]
+    it "does not send a wakeup when persistence fails" $ do
+      executeWithWakeup (const $ pure $ Left ()) (expectationFailure "unexpected wakeup") (Publish mempty) `shouldReturn` Left ()
+    it "returns failure without retrying persistence if the wakeup fails" $ do
+      writes <- newIORef (0 :: Int)
+      let store _ = modifyIORef' writes (+ 1) $> Right Null
+      executeWithWakeup store (throwIO $ ErrorCall "synthetic broker failure") (Publish mempty) `shouldReturn` Left ()
+      readIORef writes `shouldReturn` 1
+    it "does not swallow cancellation while sending a wakeup" $
+      executeWithWakeup (const $ pure $ Right Null) (throwIO ThreadKilled) (Publish mempty) `shouldThrow` (== ThreadKilled)
+    for_ [Fetch UUID.nil 100, Initialize user client, Acknowledge user client UUID.nil] $ \command ->
+      it ("does not signal for " <> show command) $
+        executeWithWakeup (const $ pure $ Right Null) (expectationFailure "unexpected wakeup") command `shouldReturn` Right Null

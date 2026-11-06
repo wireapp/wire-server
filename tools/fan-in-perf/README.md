@@ -430,12 +430,12 @@ It operates exclusively on the synthetic group `fan-in-perf-experimental`, epoch
 
 | Endpoint (POST) | JSON body fields | Response |
 | --- | --- | --- |
-| `/i/fan-in-perf/publish` | `payload`: JSON object | `null` after persistence |
+| `/i/fan-in-perf/publish` | `payload`: JSON object | `null` after persistence and sending a wakeup |
 | `/i/fan-in-perf/fetch` | `cursor`: UUID, `limit`: integer 1–1000 | Array of `[notification UUID, payload]` pairs |
 | `/i/fan-in-perf/initialize` | `user`: synthetic user UUID, `client`: client ID | Latest UUID or `null`; initializes the client's acknowledgement |
 | `/i/fan-in-perf/acknowledge` | `user`, `client`, `notification`: UUID | `null` after monotonic acknowledgement update |
 
-Bodies are limited to 64 KiB. Invalid requests return 400, unsupported methods 405, oversized bodies 413, and store failures 503 with
+Bodies are limited to 64 KiB. Invalid requests return 400, unsupported methods 405, oversized bodies 413, and storage or wakeup failures 503 with
 no database details. Existing routes continue through Gundeck's usual handler.
 
 `initialize` starts at the latest event: invoke it before publishing, not when
@@ -443,7 +443,20 @@ resuming a disconnected client. The API currently has no resume operation.
 The existing benchmark readers' cursor/look-back handling still needs to be
 preserved when building the WebSocket reader.
 
-The experimental API exposes storage through Gundeck. RabbitMQ wakeups, Cannon
-fetching/WebSocket delivery, a WebSocket load generator, controlled arrival rates
-and reconnect handling are still pending. Do not interpret HTTP measurements as
+Publishing stores the event first, then sends a persistent JSON wakeup identifying
+its group and epoch to the durable `fan-in-perf-wakeups` queue. The queue is
+created at startup when the experimental PostgreSQL configuration is present,
+using Gundeck's configured RabbitMQ connection and vhost. Event payloads stay in
+PostgreSQL. Fetching, initialization and acknowledgements do not send wakeups.
+
+A failed storage write sends no wakeup. A wakeup failure returns 503 without
+retrying the database write; the event may already be persisted. The two writes
+are not atomic and retrying a failed publish can create duplicate events. This
+prototype uses the existing RabbitMQ publishing path without publisher confirms:
+a successful HTTP response does not prove durable broker acceptance. Do not use
+these responses as a broker-delivery counter.
+
+Cannon fetching/WebSocket delivery, the wakeup consumer, a WebSocket load
+generator, controlled arrival rates and reconnect handling are still pending.
+Until a consumer is connected, wakeups accumulate in the benchmark queue. Do not interpret HTTP measurements as
 end-to-end fan-in performance results.

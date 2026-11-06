@@ -1,10 +1,12 @@
 -- | Experimental, internal-only Gundeck adapter for the benchmark store.
--- No schema changes or external pushes are performed by this adapter.
+-- This adapter does not manage the schema or send native pushes.
 module FanInPerf.Service
   ( configureService,
     serviceMiddleware,
     Request (..),
     executeRequest,
+    executeWithWakeup,
+    wakeupPayload,
   )
 where
 
@@ -25,6 +27,7 @@ import Imports
 import Network.HTTP.Types
 import Network.HTTP.Types.Header (hAllow)
 import Network.Wai qualified as Wai
+import UnliftIO.Exception (tryAny)
 import Util.Options (FilePathSecrets)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
@@ -82,15 +85,30 @@ executeRequest env request = do
   where
     stream = StreamEpoch benchmarkGroup benchmarkEpoch
 
+-- | A wakeup identifies the shared stream; event payloads stay in PostgreSQL.
+wakeupPayload :: Value
+wakeupPayload = object ["group" .= benchmarkGroup, "epoch" .= benchmarkEpoch]
+
+-- | Publish a signal only after a successful write. Do not retry the write if
+-- signalling fails: it may already be persisted and a retry would duplicate it.
+executeWithWakeup :: (Request -> IO (Either () Value)) -> IO () -> Request -> IO (Either () Value)
+executeWithWakeup store wakeup request = do
+  result <- store request
+  case (request, result) of
+    (Publish _, Right value) -> do
+      sent <- tryAny wakeup
+      pure $ either (const $ Left ()) (const $ Right value) sent
+    _ -> pure result
+
 -- | Disabled unless explicitly configured. Secrets never appear in errors.
 -- Schema setup stays with the benchmark's reset-db command, never service startup.
-configureService :: Maybe (Map Text Text) -> Maybe PoolConfig -> Maybe FilePathSecrets -> IO Wai.Middleware
-configureService Nothing _ _ = pure id
-configureService (Just config) poolOptions passwordFile = do
+configureService :: Maybe (Map Text Text) -> Maybe PoolConfig -> Maybe FilePathSecrets -> IO () -> IO Wai.Middleware
+configureService Nothing _ _ _ = pure id
+configureService (Just config) poolOptions passwordFile wakeup = do
   let poolConfig = fromMaybe (PoolConfig 32 (Duration 5) (Duration 600)) poolOptions
   pool <- initPostgresPool poolConfig config passwordFile
   let env = Env pool (toLocalUnsafe localDomain ()) ReadCommitted
-  pure $ serviceMiddleware (executeRequest env)
+  pure $ serviceMiddleware (executeWithWakeup (executeRequest env) wakeup)
 
 serviceMiddleware :: (Request -> IO (Either () Value)) -> Wai.Middleware
 serviceMiddleware execute fallback req respond =

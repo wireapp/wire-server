@@ -43,6 +43,7 @@ import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
+import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
@@ -99,7 +100,7 @@ run opts = withTracer \tracer -> do
   wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
 
-  experimental <- FanInPerf.configureService (opts ^. postgresql) (opts ^. postgresqlPool) (opts ^. postgresqlPassword)
+  experimental <- FanInPerf.configureService (opts ^. postgresql) (opts ^. postgresqlPool) (opts ^. postgresqlPassword) (runDirect env publishExperimentalWakeup)
   app <- middleware env <*> pure (experimental (mkApp env))
   inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
     Log.info logger $ Log.msg (Log.val "Shutting down ...")
@@ -119,6 +120,25 @@ run opts = withTracer \tracer -> do
       liftIO $ createUserNotificationsExchange chan
       liftIO $ createDeadUserNotificationsExchange chan
       liftIO $ createCellsNotificationsQueue chan
+      when (isJust (opts ^. postgresql)) $
+        liftIO $
+          void $
+            declareQueue chan newQueue {queueName = "fan-in-perf-wakeups", queueDurable = True, queueAutoDelete = False}
+
+    publishExperimentalWakeup :: Gundeck ()
+    publishExperimentalWakeup = do
+      chan <- getRabbitMqChan
+      liftIO $
+        void $
+          publishMsg
+            chan
+            ""
+            "fan-in-perf-wakeups"
+            newMsg
+              { msgBody = Aeson.encode FanInPerf.wakeupPayload,
+                msgContentType = Just "application/json",
+                msgDeliveryMode = Just Persistent
+              }
 
     createUserNotificationsExchange :: Channel -> IO ()
     createUserNotificationsExchange chan = do
