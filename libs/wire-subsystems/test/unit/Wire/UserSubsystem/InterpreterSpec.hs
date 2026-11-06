@@ -1534,7 +1534,7 @@ spec = describe "UserSubsystem.Interpreter" do
     remoteOnly = Map.filter (not . null) . Map.delete localDomain'
 
     allContactable :: ContactHandler
-    allContactable req = pure $ FedBrig.GetContactStatusResponse (Map.fromList [(u, ContactStatus Contactable) | u <- fromRange req.users])
+    allContactable req = pure $ FedBrig.GetContactStatusResponse (Map.fromList [(uid, ContactStatus Contactable) | uid <- fromRange req.users])
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
 -- packages (the latter two per cipher suite).
