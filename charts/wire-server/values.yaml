@@ -730,9 +730,9 @@ gundeck:
   config:
     # Dedicated database for the experimental fan-in benchmark (e.g. fan_in_perf).
     # Uses libpq keys; do not point this at Brig/Galley databases.
-    # Set secrets.pgPassword for the password (mounted from the gundeck Secret).
-    postgresql: null
-    postgresqlPool:
+    # Set secrets.fanInPerfPgPassword for the password (mounted from the gundeck Secret).
+    fanInPerfPostgresql: null
+    fanInPerfPostgresqlPool:
       size: 32
       acquisitionTimeout: 5
       idlenessTimeout: 600

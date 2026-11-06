@@ -137,9 +137,9 @@ data Opts = Opts
     _brig :: !Endpoint,
     _cassandra :: !CassandraOpts,
     -- | Optional PostgreSQL store for the experimental fan-in benchmark.
-    _postgresql :: !(Maybe (Map Text Text)),
-    _postgresqlPool :: !(Maybe PoolConfig),
-    _postgresqlPassword :: !(Maybe FilePathSecrets),
+    _fanInPerfPostgresql :: !(Maybe (Map Text Text)),
+    _fanInPerfPostgresqlPool :: !(Maybe PoolConfig),
+    _fanInPerfPostgresqlPassword :: !(Maybe FilePathSecrets),
     _redis :: !RedisEndpoint,
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
     _aws :: !AWSOpts,

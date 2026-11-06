@@ -15,7 +15,7 @@ import subprocess
 import sys
 import urllib.request
 
-DB = "postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf"
+DB = "postgresql://wire-server:posty-the-gres@localhost:55432/fan_in_perf"
 GRAFANA = "http://localhost:3000/d/fan-in-perf/fan-in-perf"
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SEED = 42

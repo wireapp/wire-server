@@ -54,8 +54,8 @@ instance MimeUnrender WakeupJSON ByteString where
 data Runtime = Runtime {store :: Env, hub :: WakeupHub}
 
 configure :: Opts -> IO (Maybe Runtime)
-configure opts = for opts._optsPostgresql $ \config ->
-  Runtime <$> configureStore config opts._optsPostgresqlPool opts._optsPostgresqlPassword <*> newWakeupHub
+configure opts = for opts._optsFanInPerfPostgresql $ \config ->
+  Runtime <$> configureStore config opts._optsFanInPerfPostgresqlPool opts._optsFanInPerfPostgresqlPassword <*> newWakeupHub
 
 server :: Maybe Runtime -> WS.Env -> Server API
 server runtime wsEnv =

@@ -94,11 +94,11 @@ An example run could be:
 
 ```sh
 # Reset/initialize the database
-$ fan-in-perf --db "postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf" reset-db
+$ fan-in-perf --db "postgresql://wire-server:posty-the-gres@localhost:55432/fan_in_perf" reset-db
 recreated fan-in notification tables (plain)
 
 # Run the (toy) experiment: 2 users push notifications to the other user's user stream for 10 Seconds
-$ fan-in-perf --db "postgresql://wire-server:posty-the-gres@localhost:5432/fan_in_perf" produce --duration 10 --targets user:2x1
+$ fan-in-perf --db "postgresql://wire-server:posty-the-gres@localhost:55432/fan_in_perf" produce --duration 10 --targets user:2x1
 produce: writers=16 targets=user:2x1 seed=6361057343649634839
 summary: duration=10.0s
   pushes=46,990 targets=46,990 errors=0 (0.00%)
@@ -379,7 +379,7 @@ users.
 ## Experimental Gundeck API
 
 Gundeck exposes endpoints under `/i/fan-in-perf/` when its YAML configuration contains
-`postgresql` libpq connection settings. Omit that field to disable the API.
+`fanInPerfPostgresql` libpq connection settings. Omit that field to disable the API.
 Use the local development service stack and its mock AWS configuration; this
 adapter never calls SNS.
 
@@ -394,29 +394,29 @@ Gundeck RabbitMQ credentials):
 ```yaml
 gundeck:
   config:
-    postgresql:
+    fanInPerfPostgresql:
       host: postgresql
       port: "5432"
       dbname: fan_in_perf
       user: benchmark
-    postgresqlPool:
+    fanInPerfPostgresqlPool:
       size: 32
       acquisitionTimeout: 5
       idlenessTimeout: 600
   secrets:
-    pgPassword: "YOUR_BENCHMARK_DATABASE_PASSWORD"
+    fanInPerfPgPassword: "YOUR_BENCHMARK_DATABASE_PASSWORD"
 ```
 
 The chart mounts the password from the Gundeck Secret and sets
-`postgresqlPassword: /etc/wire/gundeck/secrets/pgPassword`; it does not put the
-password in the ConfigMap. For local runs, use the same `postgresql` and
-`postgresqlPool` fields at the top level of `gundeck.yaml`, and optionally set
-`postgresqlPassword` to a local password file, following Brig's convention.
+`fanInPerfPostgresqlPassword: /etc/wire/gundeck/secrets/fanInPerfPgPassword`; it does not put the
+password in the ConfigMap. For local runs, use the same `fanInPerfPostgresql` and
+`fanInPerfPostgresqlPool` fields at the top level of `gundeck.yaml`, and optionally set
+`fanInPerfPostgresqlPassword` to a local password file, following Brig's convention.
 
 Initialize the dedicated database with the existing `reset-db --partitioned`
 command before starting Gundeck. Service startup does not reset or migrate data.
 The default pool has 32 connections, a five-second acquisition timeout and a
-600-second idleness timeout; `postgresqlPool` overrides these settings.
+600-second idleness timeout; `fanInPerfPostgresqlPool` overrides these settings.
 For this spike Gundeck depends on the `fan-in-perf` library to reuse its SQL;
 this is an experimental dependency, not a proposed production package layout.
 
@@ -499,20 +499,20 @@ receiver's HTTP response alone is still not an end-to-end delivery measurement.
 ### Experimental Cannon event stream
 
 Cannon now fetches the shared epoch directly through the same PostgreSQL store
-code as Gundeck. Enable it in local Cannon YAML with `postgresql`,
-`postgresqlPool` and optionally `postgresqlPassword`, using the same dedicated
-benchmark database as Gundeck. These are optional; without `postgresql`, both
+code as Gundeck. Enable it in local Cannon YAML with `fanInPerfPostgresql`,
+`fanInPerfPostgresqlPool` and optionally `fanInPerfPostgresqlPassword`, using the same dedicated
+benchmark database as Gundeck. These are optional; without `fanInPerfPostgresql`, both
 experimental Cannon endpoints reject requests. The chart does not yet expose these
 Cannon settings; this milestone is intended for local service runs.
 
 ```yaml
-postgresql:
+fanInPerfPostgresql:
   host: localhost
-  port: "5432"
+  port: "55432"
   user: wire-server
   dbname: fan_in_perf
-postgresqlPassword: /path/to/local/postgres-password
-postgresqlPool:
+fanInPerfPostgresqlPassword: /path/to/local/postgres-password
+fanInPerfPostgresqlPool:
   size: 32
   acquisitionTimeout: 5
   idlenessTimeout: 600
@@ -558,3 +558,20 @@ of the existing store; this path does not implement the polling benchmark's
 look-back window. The new delivery unit tests include a real local WebSocket
 transport test with two clients and independent reconnect progress, backed by an
 in-memory store. They do not launch the full Gundeck/RabbitMQ/PostgreSQL stack.
+
+
+The benchmark Compose stack publishes PostgreSQL on `127.0.0.1:55432`; the
+regular development stack keeps `5432`. Exporters use the benchmark container's
+internal port `5432`. Both Gundeck and Cannon must use `55432` for local runs.
+The generic `postgresql` configuration namespace is reserved for a future
+ordinary service database connection; it does not enable the benchmark. Rename
+existing experimental configuration keys to `fanInPerfPostgresql`,
+`fanInPerfPostgresqlPool` and `fanInPerfPostgresqlPassword` (and the Gundeck Helm
+secret key to `fanInPerfPgPassword`). No database tables or data are renamed.
+
+To opt in with the local service runner, add the Cannon YAML block above to
+both `services/cannon/cannon.integration.yaml` and
+`services/gundeck/gundeck.integration.yaml`, using an absolute password-file
+path. Keep these overrides local: ordinary service runs do not need the
+benchmark database. Initialize the dedicated benchmark schema explicitly before
+starting the services; never run `reset-db` against the regular database.

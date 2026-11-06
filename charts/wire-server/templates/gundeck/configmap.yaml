@@ -63,11 +63,11 @@ data:
       {{- end }}
     {{- end }}
 
-    {{- if .postgresql }}
-    postgresql: {{ toYaml .postgresql | nindent 6 }}
-    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- if hasKey $.Values.gundeck.secrets "pgPassword" }}
-    postgresqlPassword: /etc/wire/gundeck/secrets/pgPassword
+    {{- if .fanInPerfPostgresql }}
+    fanInPerfPostgresql: {{ toYaml .fanInPerfPostgresql | nindent 6 }}
+    fanInPerfPostgresqlPool: {{ toYaml .fanInPerfPostgresqlPool | nindent 6 }}
+    {{- if hasKey $.Values.gundeck.secrets "fanInPerfPgPassword" }}
+    fanInPerfPostgresqlPassword: /etc/wire/gundeck/secrets/fanInPerfPgPassword
     {{- end }}
     {{- end }}
 

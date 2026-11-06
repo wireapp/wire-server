@@ -103,9 +103,9 @@ run opts = withTracer \tracer -> do
   wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
 
-  (experimental, participants) <- FanInPerf.configureService (opts ^. postgresql) (opts ^. postgresqlPool) (opts ^. postgresqlPassword) (runDirect env publishExperimentalWakeup)
+  (experimental, participants) <- FanInPerf.configureService (opts ^. fanInPerfPostgresql) (opts ^. fanInPerfPostgresqlPool) (opts ^. fanInPerfPostgresqlPassword) (runDirect env publishExperimentalWakeup)
   app <- middleware env <*> pure (experimental (mkApp env))
-  let withWorker action = case opts ^. postgresql of
+  let withWorker action = case opts ^. fanInPerfPostgresql of
         Just _ -> Async.withAsync (FanInWorker.runWorker logger (opts ^. rabbitmq) (env ^. manager) participants (\users -> runDirect env $ runWithDefaultRedis $ Presence.listAll users)) $ \worker -> Async.link worker >> action
         _ -> action
   withWorker (inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing)) `finally` do
@@ -126,7 +126,7 @@ run opts = withTracer \tracer -> do
       liftIO $ createUserNotificationsExchange chan
       liftIO $ createDeadUserNotificationsExchange chan
       liftIO $ createCellsNotificationsQueue chan
-      when (isJust (opts ^. postgresql)) $
+      when (isJust (opts ^. fanInPerfPostgresql)) $
         liftIO $
           void $
             declareQueue chan newQueue {queueName = wakeupQueue, queueDurable = True, queueAutoDelete = False}

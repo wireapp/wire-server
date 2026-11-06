@@ -36,9 +36,9 @@ module Cannon.Options
     rabbitMqMaxConnections,
     rabbitMqMaxChannels,
     notificationTTL,
-    postgresql,
-    postgresqlPool,
-    postgresqlPassword,
+    fanInPerfPostgresql,
+    fanInPerfPostgresqlPool,
+    fanInPerfPostgresqlPassword,
     Opts (..),
     gracePeriodSeconds,
     millisecondsBetweenBatches,
@@ -136,9 +136,9 @@ data Opts = Opts
     -- | Maximum number of rabbitmq channels per connection. Must be strictly positive.
     _optsRabbitMqMaxChannels :: Int,
     _optsNotificationTTL :: Int,
-    _optsPostgresql :: !(Maybe (Map Text Text)),
-    _optsPostgresqlPool :: !(Maybe PoolConfig),
-    _optsPostgresqlPassword :: !(Maybe FilePathSecrets)
+    _optsFanInPerfPostgresql :: !(Maybe (Map Text Text)),
+    _optsFanInPerfPostgresqlPool :: !(Maybe PoolConfig),
+    _optsFanInPerfPostgresqlPassword :: !(Maybe FilePathSecrets)
   }
   deriving (Show, Generic)
 
@@ -167,6 +167,6 @@ instance FromJSON Opts where
       <*> o .:? "rabbitMqMaxConnections" .!= 1000
       <*> o .:? "rabbitMqMaxChannels" .!= 300
       <*> o .: "notificationTTL"
-      <*> o .:? "postgresql"
-      <*> o .:? "postgresqlPool"
-      <*> o .:? "postgresqlPassword"
+      <*> o .:? "fanInPerfPostgresql"
+      <*> o .:? "fanInPerfPostgresqlPool"
+      <*> o .:? "fanInPerfPostgresqlPassword"
