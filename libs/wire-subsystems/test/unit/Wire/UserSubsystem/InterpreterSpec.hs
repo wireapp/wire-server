@@ -67,7 +67,7 @@ import Wire.API.MLS.Lifetime (Lifetime (..), Timestamp (..))
 import Wire.API.MLS.Serialisation (RawMLS (..), mkRawMLS)
 import Wire.API.Pagination (OffsetPage (..))
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Feature (AllTeamFeatures, CellsInternalConfigB (backend), FeatureStatus (..), LockStatus (..), LockableFeature (..), MLSConfig, MLSConfigB (..), MlsE2EIdConfig, npUpdate)
+import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), LockStatus (..), LockableFeature (..), MLSConfig, MLSConfigB (..), MlsE2EIdConfig, npUpdate)
 import Wire.API.Team.Invitation (ResendVerificationEmailResult (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
@@ -1393,12 +1393,12 @@ spec = describe "UserSubsystem.Interpreter" do
         let remote = remoteOnly remoteUsers
             handlers = allContactable <$ remote
             qids = qualify remote <> qualify (Map.singleton localDomain' localUserIds)
-        (calls, _) <- runContactRequester (requesterWith ctx) handlers (getContactStatusesImpl lself qids)
+        (calls, _) <- runContactRequester (requesterBackendFor ctx) handlers (getContactStatusesImpl lself qids)
         pure $ sort calls === sort (Map.keys remote)
 
     prop "no federation call when there are no remote users" $
       \(localUserIds :: [UserId]) ctx -> ioProperty do
-        (calls, _) <- runContactRequester (requesterWith ctx) mempty (getContactStatusesImpl lself (qualify (Map.singleton localDomain' localUserIds)))
+        (calls, _) <- runContactRequester (requesterBackendFor ctx) mempty (getContactStatusesImpl lself (qualify (Map.singleton localDomain' localUserIds)))
         pure $ calls === []
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
@@ -1406,7 +1406,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let up = remoteOnly upUsers
             down = remoteOnly (Map.difference downUsers up)
             handlers = allContactable <$ up
-        (calls, result) <- runContactRequester (requesterWith ctx) handlers (getContactStatusesImpl lself (qualify up <> qualify down))
+        (calls, result) <- runContactRequester (requesterBackendFor ctx) handlers (getContactStatusesImpl lself (qualify up <> qualify down))
         pure $
           conjoin
             [ result === Map.fromList [(qid, ContactStatus Contactable) | qid <- qualify up],
@@ -1495,7 +1495,7 @@ spec = describe "UserSubsystem.Interpreter" do
         (_, viaLocal) <-
           runContactRequester backend {features = mlsFeatures ctx} mempty (getContactStatusesImpl targetSelf qids)
         (calls, viaRemote) <-
-          runContactRequester (requesterWith ctx) (Map.singleton targetDomain (remoteBackendHandler backend)) (getContactStatusesImpl lself qids)
+          runContactRequester (requesterBackendFor ctx) (Map.singleton targetDomain (remoteBackendHandler backend)) (getContactStatusesImpl lself qids)
         pure $
           conjoin
             [ viaRemote === viaLocal,
@@ -1520,8 +1520,8 @@ spec = describe "UserSubsystem.Interpreter" do
     shouldBeStatus actual expected = (=== expected) <$> actual
 
     -- Requester whose derived 'ContactStatusContext' is the given one.
-    requesterWith :: ContactStatusContext -> FakeBackend
-    requesterWith ctx = emptyBackend {serverMls = True, features = mlsFeatures ctx}
+    requesterBackendFor :: ContactStatusContext -> FakeBackend
+    requesterBackendFor ctx = emptyBackend {serverMls = True, features = mlsFeatures ctx}
 
     localDomain' = Domain "local.example.com"
     targetDomain = Domain "target.example.com"
