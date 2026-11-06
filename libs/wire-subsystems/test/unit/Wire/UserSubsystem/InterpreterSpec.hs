@@ -1408,40 +1408,33 @@ spec = describe "UserSubsystem.Interpreter" do
 
   describe "getContactStatuses" do
     prop "every remote domain's answer is merged" $
-      \(remoteUsers :: Map Domain (Bool, [UserId])) (localUserIds :: [UserId]) ctx base ->
+      \(remoteUsers :: Map Domain (ContactStatus, [UserId])) (localUserIds :: [UserId]) ctx base ->
         ioProperty do
-          let remote = Map.filter (not . null . snd) (Map.delete localDomain' remoteUsers)
-              handlers = uncurry (remoteHandlerFor base) <$> remote
+          let remote = remoteDomainStatuses remoteUsers
               qids =
                 toQualifiedUids (snd <$> remote)
                   <> toQualifiedUids (Map.singleton localDomain' localUserIds)
-              expected =
-                Map.fromList
-                  [ (Qualified uid domain, statusFor contactable)
-                  | (domain, (contactable, uids)) <- Map.toList remote,
-                    uid <- uids
-                  ]
           result <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
-              handlers
+              (uncurry (remoteHandlerFor base) <$> remote)
               (getContactStatusesImpl lself qids)
-          pure $ result === expected
+          pure $ result === expectedStatuses remote
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
-      \(upUsers :: Map Domain [UserId]) (downUsers :: Map Domain [UserId]) ctx base ->
+      \(upUsers :: Map Domain (ContactStatus, [UserId])) downUsers ctx base ->
         ioProperty do
-          let up = remoteDomainUsers upUsers
+          let up = remoteDomainStatuses upUsers
               down = remoteDomainUsers (Map.difference downUsers up)
-              handlers = remoteHandlerFor base True <$> up
           result <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
-              handlers
-              (getContactStatusesImpl lself (toQualifiedUids up <> toQualifiedUids down))
-          pure $
-            result
-              === Map.fromList [(qid, ContactStatus Contactable) | qid <- toQualifiedUids up]
+              (uncurry (remoteHandlerFor base) <$> up)
+              ( getContactStatusesImpl
+                  lself
+                  (toQualifiedUids (snd <$> up) <> toQualifiedUids down)
+              )
+          pure $ result === expectedStatuses up
 
     -- The contactability rule is tested on users that are contactable by
     -- construction. Negative cases remove exactly one ingredient.
@@ -1608,14 +1601,25 @@ spec = describe "UserSubsystem.Interpreter" do
     remoteDomainUsers :: Map Domain [UserId] -> Map Domain [UserId]
     remoteDomainUsers = Map.filter (not . null) . Map.delete localDomain'
 
-    statusFor :: Bool -> ContactStatus
-    statusFor contactable = ContactStatus if contactable then Contactable else NonContactable
+    remoteDomainStatuses ::
+      Map Domain (ContactStatus, [UserId]) -> Map Domain (ContactStatus, [UserId])
+    remoteDomainStatuses = Map.filter (not . null . snd) . Map.delete localDomain'
 
-    -- A remote backend that stores all given users, either all contactable or all not.
-    remoteHandlerFor :: StoredUser -> Bool -> [UserId] -> GetContactStatusHandler
-    remoteHandlerFor base contactable uids =
+    expectedStatuses :: Map Domain (ContactStatus, [UserId]) -> Map (Qualified UserId) ContactStatus
+    expectedStatuses remote =
+      Map.fromList
+        [ (Qualified uid domain, status)
+        | (domain, (status, uids)) <- Map.toList remote,
+          uid <- uids
+        ]
+
+    -- A remote backend that stores all given users, all with the given status.
+    remoteHandlerFor :: StoredUser -> ContactStatus -> [UserId] -> GetContactStatusHandler
+    remoteHandlerFor base status uids =
       remoteBackendHandler . mkFakeBackend True $
-        [ ((activeWith Nothing base :: StoredUser) {id = uid}, [proteusClient | contactable])
+        [ ( (activeWith Nothing base :: StoredUser) {id = uid},
+            [proteusClient | status == ContactStatus Contactable]
+          )
         | uid <- uids
         ]
 
