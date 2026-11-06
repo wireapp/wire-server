@@ -62,6 +62,7 @@ import Util.Options
 import Wire.API.MLS.Keys
 import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.FeatureFlags qualified as FeatureFlags
+import Wire.API.User.EmailAddress (EmailAddress)
 import Wire.AWS qualified as Aws
 import Wire.BoundedQueue.STM qualified as Q
 import Wire.EmailSending.SMTP (SMTP)
@@ -101,6 +102,8 @@ data Env = Env
 data MeetingEmailEnv = MeetingEmailEnv
   { meTemplates :: Localised MeetingTemplates,
     meBranding :: Map Text Text,
+    -- | Optional Reply-To header for meeting emails.
+    meReplyTo :: Maybe EmailAddress,
     -- | Just when transport = EmailSMTP
     meSmtp :: Maybe SMTP,
     -- | Just when transport = EmailAWS

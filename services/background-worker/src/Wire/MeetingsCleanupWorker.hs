@@ -122,7 +122,8 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
       (Licensing.Domain (domainText env.federationDomain))
       env.license
       ( interpretMeetingsSubsystem
-          MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
+          -- Meeting emails are inert here: cleanupOldMeetings sends none.
+          MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0, emailsEnabled = False}
           (Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize)
       )
 

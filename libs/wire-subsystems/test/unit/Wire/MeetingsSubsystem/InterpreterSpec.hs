@@ -174,6 +174,33 @@ runTestStackWithURI ::
   Sem TestStack a ->
   IO (Either (Tagged ('ActionDenied 'DeleteConversation) ()) (Either MeetingError a))
 runTestStackWithURI now gen convCodeURI teams configs lic =
+  runTestStackWithURICfg
+    now
+    gen
+    convCodeURI
+    teams
+    configs
+    lic
+    MeetingSystemConfig
+      { legacyTimeZone = API.defaultLegacyTimeZone,
+        validityPeriod = 3600,
+        pastEditPeriod = configuredPastEditPeriod,
+        emailsEnabled = True
+      }
+
+-- | 'runTestStackWithURI' with an explicit 'MeetingSystemConfig', for tests
+-- that exercise alternative configuration (e.g. meeting emails disabled).
+runTestStackWithURICfg ::
+  UTCTime ->
+  StdGen ->
+  Either HttpsUrl (Map Domain HttpsUrl) ->
+  Map TeamId [TeamMember] ->
+  AllTeamFeatures ->
+  License ->
+  MeetingSystemConfig ->
+  Sem TestStack a ->
+  IO (Either (Tagged ('ActionDenied 'DeleteConversation) ()) (Either MeetingError a))
+runTestStackWithURICfg now gen convCodeURI teams configs lic cfg =
   runM
     . evalState (Map.empty :: Map EmailAddress [SentMail])
     . evalState (Map.empty :: Map UserId User)
@@ -208,12 +235,7 @@ runTestStackWithURI now gen convCodeURI teams configs lic =
     . staticHashPasswordInterpreter
     . noRateLimit
     . runLicenseMocked lic
-    . interpretMeetingsSubsystem
-      MeetingSystemConfig
-        { legacyTimeZone = API.defaultLegacyTimeZone,
-          validityPeriod = 3600,
-          pastEditPeriod = configuredPastEditPeriod
-        }
+    . interpretMeetingsSubsystem cfg
 
 -- | An update that sets no fields (rejected with 'EmptyUpdate'); use record
 -- update on it to set individual fields.
@@ -3022,6 +3044,53 @@ specMeetingEmails =
         Right (Right total) -> total `shouldBe` 0
         Right (Left err) -> fail $ "Error: " <> show err
         Left _denied -> expectationFailure "unexpected CheckDeleteLocalConversation denial"
+
+    it "sends one invitation per unique address even with duplicated recipients" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        _ <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA, addrA, addrB])
+        mailsA <- sentTo addrA
+        total <- totalEmails
+        pure (mailsA, total)
+      case result of
+        Right (mailsA, total) -> do
+          length mailsA `shouldBe` 1
+          total `shouldBe` 2
+        Left err -> fail $ "Error: " <> show err
+
+    it "sends no emails when meeting email settings are unconfigured" $ do
+      let cfg =
+            MeetingSystemConfig
+              { legacyTimeZone = API.defaultLegacyTimeZone,
+                validityPeriod = 3600,
+                pastEditPeriod = configuredPastEditPeriod,
+                emailsEnabled = False
+              }
+      result <- runTestStackWithURICfg now0 gen0 (Left testCodeURIBase) Map.empty def fullLicense cfg $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        _ <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA, addrB])
+        totalEmails
+      case result of
+        Right (Right total) -> total `shouldBe` 0
+        Right (Left err) -> fail $ "Error: " <> show err
+        Left _denied -> expectationFailure "unexpected CheckDeleteLocalConversation denial"
+
+    it "still deletes the meeting when the join code is already gone (no emails)" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 testConnId (mkNewMeeting API.Scheduled [addrA])
+        CodeStore.deleteMeetingCode (qUnqualified meeting.meeting.id)
+        deleted <- deleteMeeting zUser1 testConnId meeting.meeting.id
+        total <- totalEmails
+        pure (deleted, total)
+      case result of
+        Right (deleted, total) -> do
+          -- Deletion succeeds despite the missing code: email preparation is
+          -- best-effort and must not fail the meeting operation.
+          deleted `shouldBe` True
+          -- Only the invitation from create; no cancellation email.
+          total `shouldBe` 1
+        Left err -> fail $ "Error: " <> show err
 
     it "sends emails and paywalls join links independently of each other's flags" $ do
       let emailsOnlyLicense = fullLicense {meetings = (meetings fullLicense) {invitationLinks = False}}

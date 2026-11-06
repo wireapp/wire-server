@@ -336,7 +336,8 @@ meetingSystemConfig o =
   Meeting.MeetingSystemConfig
     { legacyTimeZone = fromMaybe defaultLegacyTimeZone (m >>= view legacyTimeZone >>= parseTimeZone),
       validityPeriod = realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
-      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod)
+      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod),
+      emailsEnabled = isJust (m >>= view O.email)
     }
   where
     m = o ^. settings . meetings
@@ -414,7 +415,7 @@ initMeetingEmailEnv o lgr mgr = case o ^. settings . meetings >>= (^. O.email) o
                   Amazonka.manager = mgr
                 }
           )
-    pure (Just MeetingEmailEnv {meTemplates = templates, meBranding = meetingBranding, meSmtp = mSmtp, meAwsEnv = mAwsEnv})
+    pure (Just MeetingEmailEnv {meTemplates = templates, meBranding = meetingBranding, meReplyTo = O._replyTo cfg, meSmtp = mSmtp, meAwsEnv = mAwsEnv})
   where
     awsLogger g l = Log.log g (mapLevel l) . Log.msg . toLazyByteString
     mapLevel Amazonka.Info = Log.Info
@@ -681,7 +682,7 @@ meetingEmailsInterpreter ::
   InterpreterFor EmailSubsystem (EmailSending ': r)
 meetingEmailsInterpreter e = case e ^. meetingEmail of
   Nothing -> discardEmailSubsystem
-  Just me -> meetingEmailSubsystemInterpreter me.meTemplates me.meBranding
+  Just me -> meetingEmailSubsystemInterpreter me.meTemplates me.meBranding me.meReplyTo
 
 -- | EmailSending transport whose delivery failures are logged and swallowed,
 -- so a failed email never fails the meeting operation that triggered it
