@@ -23,5 +23,5 @@ import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Imports
 import Wire.API.Provider.Service (ServiceToken)
 
-selectAllServices :: PrepQuery R () (ProviderId, ServiceId, HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool)
-selectAllServices = "SELECT provider, id, base_url, auth_token, fingerprints, enabled FROM service"
+selectAllServices :: PrepQuery R () (ProviderId, ServiceId, HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool, Int64)
+selectAllServices = "SELECT provider, id, base_url, auth_token, fingerprints, enabled, writetime(base_url) FROM service"

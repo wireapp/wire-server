@@ -1738,7 +1738,8 @@ CREATE TABLE public.service (
     base_url bytea NOT NULL,
     auth_token bytea NOT NULL,
     fingerprints bytea[] DEFAULT '{}'::bytea[] NOT NULL,
-    enabled boolean NOT NULL
+    enabled boolean NOT NULL,
+    last_update timestamp with time zone NOT NULL
 );
 
 
