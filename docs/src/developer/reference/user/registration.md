@@ -154,6 +154,19 @@ Set-Cookie: zuid=...
 }
 ```
 
+### Joining a meeting as a temporary guest
+
+Anonymous accounts also power "Join as Temporary Guest" on meeting join links
+(`<base>/meeting-join/?key=<key>&code=<code>&domain=<domain>`): the browser
+previews the meeting with the unauthenticated
+`GET /meeting/{domain}/{key}/{code}/code-check`, registers an anonymous
+account as above, and joins with the authenticated
+`POST /meeting/{domain}/{key}/{code}/join`, which adds it to the meeting's
+conversation (MLS) and thereby the call. Refreshing a link rotates its code,
+so URLs carrying the stale value stop granting access; a guest who already
+joined keeps their membership. Temporary guests are web-only: native apps
+require an existing Wire account.
+
 ## Blocking creation of personal users, new teams {#RefRestrictRegistration}
 
 [moved here](../../../how-to/install/infrastructure-configuration.md#blocking-creation-of-personal-users-new-teams)
