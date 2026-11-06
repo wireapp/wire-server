@@ -268,6 +268,13 @@ galley:
               allowed_to_create_channels: team-members
               allowed_to_open_channels: team-members
             lockStatus: locked
+        totp:
+          defaults:
+            status: disabled
+            lockStatus: locked
+            config:
+              require_for_all_members: false
+              owners_and_admins: false
         preventAdminlessGroups:
           defaults:
             status: disabled
