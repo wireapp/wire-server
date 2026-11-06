@@ -6,9 +6,6 @@ import Data.ByteString.Lazy qualified as BL
 import FanInPerf.Service (wakeupPayload)
 import FanInPerf.Wakeup
 import Imports
-import Network.HTTP.Types
-import Network.Wai qualified as Wai
-import Network.Wai.Test
 import Test.Hspec
 
 spec :: Spec
@@ -56,18 +53,3 @@ spec = do
       atomically $ replicateM_ 100 (signal hub)
       atomically (awaitWakeup hub 0) `shouldReturn` 100
       atomically ((Just <$> awaitWakeup hub 100) `orElse` pure Nothing) `shouldReturn` Nothing
-    it "accepts valid HTTP wakeups and rejects unrelated data" $ do
-      hub <- newWakeupHub
-      let fallback _ respond = respond $ Wai.responseLBS status404 [] ""
-          app = wakeupMiddleware hub fallback
-          req body = SRequest ((setPath Wai.defaultRequest "/i/fan-in-perf/wakeup") {Wai.requestMethod = methodPost}) body
-      bad <- runSession (srequest $ req "{}") app
-      simpleStatus bad `shouldBe` status400
-      atomically (currentGeneration hub) `shouldReturn` 0
-      good <- runSession (srequest $ req (encode wakeupPayload)) app
-      simpleStatus good `shouldBe` status204
-      atomically (currentGeneration hub) `shouldReturn` 1
-      large <- runSession (srequest $ req (BL.replicate 1025 32)) app
-      simpleStatus large `shouldBe` status413
-      wrongMethod <- runSession (request $ setPath Wai.defaultRequest "/i/fan-in-perf/wakeup") app
-      simpleStatus wrongMethod `shouldBe` status405

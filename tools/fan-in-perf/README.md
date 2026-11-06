@@ -489,7 +489,9 @@ in-memory generation counter. The counter provides bounded, coalescing wakeup
 state shared by future readers: one client cannot consume another client's
 signal. Its HTTP success means signal acceptance, not event delivery. On restart,
 clients must catch up from PostgreSQL rather than rely on this in-memory state.
-The receiver is an internal experimental route on this branch.
+Both experimental endpoints are explicit named Servant routes in Cannon’s
+combined API. No middleware intercepts their paths. The wakeup route streams
+JSON input and enforces its 1 KiB limit before decoding.
 
 The WebSocket adapter described below consumes this wakeup hub. The wakeup
 receiver's HTTP response alone is still not an end-to-end delivery measurement.
@@ -500,7 +502,7 @@ Cannon now fetches the shared epoch directly through the same PostgreSQL store
 code as Gundeck. Enable it in local Cannon YAML with `postgresql`,
 `postgresqlPool` and optionally `postgresqlPassword`, using the same dedicated
 benchmark database as Gundeck. These are optional; without `postgresql`, both
-experimental Cannon endpoints are disabled. The chart does not yet expose these
+experimental Cannon endpoints reject requests. The chart does not yet expose these
 Cannon settings; this milestone is intended for local service runs.
 
 ```yaml

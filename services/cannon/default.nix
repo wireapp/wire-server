@@ -37,6 +37,7 @@
 , random
 , retry
 , safe-exceptions
+, servant
 , servant-conduit
 , servant-server
 , strict
@@ -54,7 +55,6 @@
 , wai
 , wai-extra
 , wai-utilities
-, wai-websockets
 , warp
 , websockets
 , wire-api
@@ -97,6 +97,7 @@ mkDerivation {
     prometheus-client
     retry
     safe-exceptions
+    servant
     servant-conduit
     servant-server
     strict
@@ -110,7 +111,6 @@ mkDerivation {
     wai
     wai-extra
     wai-utilities
-    wai-websockets
     warp
     websockets
     wire-api
@@ -118,17 +118,23 @@ mkDerivation {
   ];
   executableHaskellDepends = [ base imports types-common ];
   testHaskellDepends = [
+    aeson
     async
     base
     bytestring
+    fan-in-perf
+    http-types
     imports
     metrics-wai
     QuickCheck
     random
+    servant-server
     tasty
     tasty-hunit
     tasty-quickcheck
     uuid
+    wai
+    wai-extra
     wire-api
   ];
   benchmarkHaskellDepends = [ async base criterion imports uuid ];

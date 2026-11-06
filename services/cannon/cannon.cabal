@@ -99,7 +99,6 @@ library
     , extended
     , extra
     , fan-in-perf
-    , wai-websockets
     , hashable                              >=1.2
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -113,6 +112,7 @@ library
     , retry                                 >=0.7
     , safe-exceptions
     , servant-conduit
+    , servant
     , servant-server
     , strict                                >=0.3.2
     , text                                  >=1.1
@@ -200,6 +200,7 @@ test-suite cannon-tests
   other-modules:
     Paths_cannon
     Test.Cannon.Dict
+    Test.Cannon.FanIn
 
   hs-source-dirs:     test
   default-extensions:
@@ -252,6 +253,12 @@ test-suite cannon-tests
 
   build-depends:
       async
+    , aeson
+    , fan-in-perf
+    , http-types
+    , servant-server
+    , wai
+    , wai-extra
     , base
     , bytestring
     , cannon

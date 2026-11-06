@@ -67,7 +67,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry (withTracer)
 
-type CombinedAPI = CannonAPI :<|> Internal.API
+type CombinedAPI = CannonAPI :<|> Internal.API :<|> FanIn.API
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
@@ -96,7 +96,7 @@ run o = lowerCodensity $ do
   void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
   let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) Nothing
 
-  experimental <- lift $ FanIn.configure o (env e)
+  experimental <- lift $ FanIn.configure o
   otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
       middleware =
@@ -107,7 +107,7 @@ run o = lowerCodensity $ do
           . Gzip.gzip Gzip.defaultGzipSettings
           . catchErrors g defaultRequestIdHeaderName
       app :: Application
-      app = middleware (experimental serverApp)
+      app = middleware serverApp
       serverApp :: Application
       serverApp req cont = do
         let envWithReqId = e {CannonTypes.reqId = getRequestId defaultRequestIdHeaderName req}
@@ -115,6 +115,7 @@ run o = lowerCodensity $ do
             server =
               hoistServer (Proxy @CannonAPI) (runCannonToServant envWithReqId) publicAPIServer
                 :<|> hoistServer (Proxy @Internal.API) (runCannonToServant envWithReqId) internalServer
+                :<|> FanIn.server experimental (env envWithReqId)
         serve (Proxy @CombinedAPI) server req cont
   tid <- lift myThreadId
 

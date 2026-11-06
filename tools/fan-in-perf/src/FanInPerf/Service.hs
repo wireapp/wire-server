@@ -7,7 +7,6 @@ module FanInPerf.Service
     executeRequest,
     executeWithWakeup,
     wakeupPayload,
-    boundedBody,
   )
 where
 
