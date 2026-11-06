@@ -1566,7 +1566,15 @@ data FakeBackend = FakeBackend
   }
 
 emptyBackend :: FakeBackend
-emptyBackend = FakeBackend False [] emptyClientStoreState mempty usableLifetime def
+emptyBackend =
+  FakeBackend
+    { serverMls = False,
+      storedUsers = [],
+      clientState = emptyClientStoreState,
+      keyPackages = mempty,
+      keyPackageLifetime = usableLifetime,
+      features = def
+    }
 
 -- | Team features that make the requester's derived 'ContactStatusContext' equal
 -- to the given one (as long as the server has MLS enabled).
