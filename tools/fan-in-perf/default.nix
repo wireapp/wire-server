@@ -35,6 +35,7 @@
 , uuid-types
 , vector
 , wai
+, wai-extra
 , warp
 , wire-api
 , wire-subsystems
@@ -104,6 +105,7 @@ mkDerivation {
     uuid-types
     vector
     wai
+    wai-extra
     wire-api
     wire-subsystems
   ];

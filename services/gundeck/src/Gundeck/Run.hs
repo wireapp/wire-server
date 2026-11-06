@@ -49,6 +49,7 @@ import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Database.Redis qualified as Redis
+import FanInPerf.Service qualified as FanInPerf
 import Gundeck.API.Internal as Internal (InternalAPI, servantSitemap)
 import Gundeck.API.Public as Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
@@ -98,7 +99,8 @@ run opts = withTracer \tracer -> do
   wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
 
-  app <- middleware env <*> pure (mkApp env)
+  experimental <- FanInPerf.configureService (opts ^. postgresql) (opts ^. postgresqlPool) (opts ^. postgresqlPassword)
+  app <- middleware env <*> pure (experimental (mkApp env))
   inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
     Log.info logger $ Log.msg (Log.val "Shutting down ...")
     shutdown (env ^. cstate)

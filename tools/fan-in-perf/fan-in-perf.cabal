@@ -91,6 +91,7 @@ library
     FanInPerf.Population
     FanInPerf.Produce
     FanInPerf.Run
+    FanInPerf.Service
     FanInPerf.Settle
     FanInPerf.Stats
     FanInPerf.Store
@@ -163,6 +164,7 @@ test-suite fan-in-perf-tests
     FanInPerf.PoolSpec
     FanInPerf.PopulationSpec
     FanInPerf.ProduceSpec
+    FanInPerf.ServiceSpec
     FanInPerf.SettleSpec
     FanInPerf.StatsSpec
     FanInPerf.SummarySpec
@@ -196,6 +198,7 @@ test-suite fan-in-perf-tests
     , uuid-types
     , vector
     , wai
+    , wai-extra
     , wire-api
     , wire-subsystems
 

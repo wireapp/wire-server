@@ -375,3 +375,75 @@ in is not modelled. Acks are still per (user, client).
 A delivery is one notification handed to one reader, so a row in a stream with
 R readers counts R times: a team stream is read by all clients of the team's
 users.
+
+## Experimental Gundeck API
+
+Gundeck exposes endpoints under `/i/fan-in-perf/` when its YAML configuration contains
+`postgresql` libpq connection settings. Omit that field to disable the API.
+Use the local development service stack and its mock AWS configuration; this
+adapter never calls SNS.
+
+Use a dedicated database and database user for this benchmark, separate from
+Brig and Galley. The PostgreSQL server may be shared, but the database must not
+be. Provision `fan_in_perf` and its user before running schema setup. These
+settings do not inherit Brig or Galley connection configuration.
+
+Helm overrides to merge with the existing deployment values (including its
+Gundeck RabbitMQ credentials):
+
+```yaml
+gundeck:
+  config:
+    postgresql:
+      host: postgresql
+      port: "5432"
+      dbname: fan_in_perf
+      user: benchmark
+    postgresqlPool:
+      size: 32
+      acquisitionTimeout: 5
+      idlenessTimeout: 600
+  secrets:
+    pgPassword: "YOUR_BENCHMARK_DATABASE_PASSWORD"
+```
+
+The chart mounts the password from the Gundeck Secret and sets
+`postgresqlPassword: /etc/wire/gundeck/secrets/pgPassword`; it does not put the
+password in the ConfigMap. For local runs, use the same `postgresql` and
+`postgresqlPool` fields at the top level of `gundeck.yaml`, and optionally set
+`postgresqlPassword` to a local password file, following Brig's convention.
+
+Initialize the dedicated database with the existing `reset-db --partitioned`
+command before starting Gundeck. Service startup does not reset or migrate data.
+The default pool has 32 connections, a five-second acquisition timeout and a
+600-second idleness timeout; `postgresqlPool` overrides these settings.
+For this spike Gundeck depends on the `fan-in-perf` library to reuse its SQL;
+this is an experimental dependency, not a proposed production package layout.
+
+Each endpoint accepts its own JSON body. For example, publish with
+`POST /i/fan-in-perf/publish` and `{"payload":{"text":"test"}}`.
+
+Requests use a JSON body without authentication in the isolated benchmark
+environment. This is an experimental internal API.
+It operates exclusively on the synthetic group `fan-in-perf-experimental`, epoch
+1; no production group IDs can be supplied. Each publish stores one shared row.
+
+| Endpoint (POST) | JSON body fields | Response |
+| --- | --- | --- |
+| `/i/fan-in-perf/publish` | `payload`: JSON object | `null` after persistence |
+| `/i/fan-in-perf/fetch` | `cursor`: UUID, `limit`: integer 1–1000 | Array of `[notification UUID, payload]` pairs |
+| `/i/fan-in-perf/initialize` | `user`: synthetic user UUID, `client`: client ID | Latest UUID or `null`; initializes the client's acknowledgement |
+| `/i/fan-in-perf/acknowledge` | `user`, `client`, `notification`: UUID | `null` after monotonic acknowledgement update |
+
+Bodies are limited to 64 KiB. Invalid requests return 400, unsupported methods 405, oversized bodies 413, and store failures 503 with
+no database details. Existing routes continue through Gundeck's usual handler.
+
+`initialize` starts at the latest event: invoke it before publishing, not when
+resuming a disconnected client. The API currently has no resume operation.
+The existing benchmark readers' cursor/look-back handling still needs to be
+preserved when building the WebSocket reader.
+
+The experimental API exposes storage through Gundeck. RabbitMQ wakeups, Cannon
+fetching/WebSocket delivery, a WebSocket load generator, controlled arrival rates
+and reconnect handling are still pending. Do not interpret HTTP measurements as
+end-to-end fan-in performance results.
