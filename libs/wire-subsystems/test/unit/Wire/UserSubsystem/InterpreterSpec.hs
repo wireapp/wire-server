@@ -1619,6 +1619,10 @@ spec = describe "UserSubsystem.Interpreter" do
         clientsFor status = [proteusClient | status == ContactStatus Contactable]
         createActiveUserWithId uid = (makeActiveWith Nothing base :: StoredUser) {id = uid}
 
+    -- Contactable proteus client
+    proteusClient :: FakeClient
+    proteusClient = FakeClient {hasPrekey = True, signatureSuites = mempty, keyPackageSuites = mempty}
+
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
 -- packages (the latter two per cipher suite).
 data FakeClient = FakeClient
@@ -1628,10 +1632,6 @@ data FakeClient = FakeClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FakeClient)
-
--- | Contactable via proteus only.
-proteusClient :: FakeClient
-proteusClient = FakeClient {hasPrekey = True, signatureSuites = mempty, keyPackageSuites = mempty}
 
 -- | Contactable via MLS with the given cipher suite only.
 mlsClient :: CipherSuiteTag -> FakeClient
