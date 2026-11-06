@@ -96,22 +96,21 @@ testBotSelfSigned = do
     botId <- resp.json %. "id"
     aliceQid <- resp.json %. "event.qualified_from"
     conv <- resp.json %. "event.qualified_conversation"
+    postBotMessage aliceQid conv botId botClient
 
-    aliceC <- getJSON 201 =<< addClient aliceQid def
-    aliceCid <- objId aliceC
-
-    msg <-
-      mkProteusRecipients
-        aliceQid
-        [(botId, [botClient])]
-        "hi bot"
-    let aliceBotMessage =
-          Proto.defMessage @Proto.QualifiedNewOtrMessage
-            & #sender . Proto.client .~ (aliceCid ^?! hex)
-            & #recipients .~ [msg]
-            & #reportAll .~ Proto.defMessage
-    assertStatus 201
-      =<< postProteusMessage aliceQid conv aliceBotMessage
+-- | Post a proteus message from 'aliceQid' to the bot ('botId' with client
+-- 'botClient') in 'conv', over the bot conversation's proteus transport.
+postBotMessage :: (HasCallStack) => Value -> Value -> Value -> Value -> App ()
+postBotMessage aliceQid conv botId botClient = do
+  aliceC <- getJSON 201 =<< addClient aliceQid def
+  aliceCid <- objId aliceC
+  msg <- mkProteusRecipients aliceQid [(botId, [botClient])] "hi bot"
+  let aliceBotMessage =
+        Proto.defMessage @Proto.QualifiedNewOtrMessage
+          & #sender . Proto.client .~ (aliceCid ^?! hex)
+          & #recipients .~ [msg]
+          & #reportAll .~ Proto.defMessage
+  assertStatus 201 =<< postProteusMessage aliceQid conv aliceBotMessage
 
 withBotWithSettings ::
   MockServerSettings ->
