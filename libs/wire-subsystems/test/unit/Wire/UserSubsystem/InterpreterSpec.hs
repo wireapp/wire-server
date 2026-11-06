@@ -1407,47 +1407,41 @@ spec = describe "UserSubsystem.Interpreter" do
              in result === Left UserSubsystemProfileNotFound
 
   describe "getContactStatuses" do
-    prop "one federation call per remote domain, none without remote users" $
-      \(remoteUsers :: Map Domain [UserId]) (localUserIds :: [UserId]) ctx -> ioProperty do
-        let remote = remoteDomainUsers remoteUsers
-            handlers = allContactableHandler <$ remote
-            qids =
-              toQualifiedUids remote <> toQualifiedUids (Map.singleton localDomain' localUserIds)
-        (calls, _) <-
-          runOnRequesterBackend
-            (requesterBackendFor ctx)
-            handlers
-            (getContactStatusesImpl lself qids)
-        pure $ sort calls === sort (Map.keys remote)
-
-    prop "no federation call when there are no remote users" $
-      \(localUserIds :: [UserId]) ctx -> ioProperty do
-        (calls, _) <-
-          runOnRequesterBackend
-            (requesterBackendFor ctx)
-            mempty
-            ( getContactStatusesImpl
-                lself
-                (toQualifiedUids (Map.singleton localDomain' localUserIds))
-            )
-        pure $ calls === []
+    prop "every remote domain's answer is merged" $
+      \(remoteUsers :: Map Domain (Bool, [UserId])) (localUserIds :: [UserId]) ctx base ->
+        ioProperty do
+          let remote = Map.filter (not . null . snd) (Map.delete localDomain' remoteUsers)
+              handlers = uncurry (remoteHandlerFor base) <$> remote
+              qids =
+                toQualifiedUids (snd <$> remote)
+                  <> toQualifiedUids (Map.singleton localDomain' localUserIds)
+              expected =
+                Map.fromList
+                  [ (Qualified uid domain, statusFor contactable)
+                  | (domain, (contactable, uids)) <- Map.toList remote,
+                    uid <- uids
+                  ]
+          result <-
+            runOnRequesterBackend
+              (requesterBackendFor ctx)
+              handlers
+              (getContactStatusesImpl lself qids)
+          pure $ result === expected
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
-      \(upUsers :: Map Domain [UserId]) (downUsers :: Map Domain [UserId]) ctx -> ioProperty do
-        let up = remoteDomainUsers upUsers
-            down = remoteDomainUsers (Map.difference downUsers up)
-            handlers = allContactableHandler <$ up
-        (calls, result) <-
-          runOnRequesterBackend
-            (requesterBackendFor ctx)
-            handlers
-            (getContactStatusesImpl lself (toQualifiedUids up <> toQualifiedUids down))
-        pure $
-          conjoin
-            [ result
-                === Map.fromList [(qid, ContactStatus Contactable) | qid <- toQualifiedUids up],
-              sort calls === sort (Map.keys up <> Map.keys down)
-            ]
+      \(upUsers :: Map Domain [UserId]) (downUsers :: Map Domain [UserId]) ctx base ->
+        ioProperty do
+          let up = remoteDomainUsers upUsers
+              down = remoteDomainUsers (Map.difference downUsers up)
+              handlers = remoteHandlerFor base True <$> up
+          result <-
+            runOnRequesterBackend
+              (requesterBackendFor ctx)
+              handlers
+              (getContactStatusesImpl lself (toQualifiedUids up <> toQualifiedUids down))
+          pure $
+            result
+              === Map.fromList [(qid, ContactStatus Contactable) | qid <- toQualifiedUids up]
 
     -- The contactability rule is tested on users that are contactable by
     -- construction. Negative cases remove exactly one ingredient.
@@ -1563,12 +1557,12 @@ spec = describe "UserSubsystem.Interpreter" do
               targetSelf = toLocalUnsafe targetDomain (Id UUID.nil)
           -- both requesters derive the same effective MLS availability: the
           -- target is its own requester, so its server flag applies on both sides
-          (_, viaLocal) <-
+          viaLocal <-
             runOnRequesterBackend
               backend {features = featuresFor ctx}
               mempty
               (getContactStatusesImpl targetSelf qids)
-          (calls, viaRemote) <-
+          viaRemote <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
               (Map.singleton targetDomain (remoteBackendHandler backend))
@@ -1578,8 +1572,7 @@ spec = describe "UserSubsystem.Interpreter" do
               [ viaRemote === viaLocal,
                 counterexample
                   "only requested users are answered"
-                  (all (`elem` qids) (Map.keys viaLocal)),
-                length calls === (if null qids then 0 else 1)
+                  (all (`elem` qids) (Map.keys viaLocal))
               ]
   where
     activeWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
@@ -1615,11 +1608,16 @@ spec = describe "UserSubsystem.Interpreter" do
     remoteDomainUsers :: Map Domain [UserId] -> Map Domain [UserId]
     remoteDomainUsers = Map.filter (not . null) . Map.delete localDomain'
 
-    allContactableHandler :: GetContactStatusHandler
-    allContactableHandler req =
-      pure $
-        FedBrig.GetContactStatusResponse
-          (Map.fromList [(uid, ContactStatus Contactable) | uid <- fromRange req.users])
+    statusFor :: Bool -> ContactStatus
+    statusFor contactable = ContactStatus if contactable then Contactable else NonContactable
+
+    -- A remote backend that stores all given users, either all contactable or all not.
+    remoteHandlerFor :: StoredUser -> Bool -> [UserId] -> GetContactStatusHandler
+    remoteHandlerFor base contactable uids =
+      remoteBackendHandler . mkFakeBackend True $
+        [ ((activeWith Nothing base :: StoredUser) {id = uid}, [proteusClient | contactable])
+        | uid <- uids
+        ]
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
 -- packages (the latter two per cipher suite).
@@ -1645,6 +1643,13 @@ mlsClient suite =
     }
 
 -- | Data required to simulate a fake backend
+--
+-- This is deliberately not built on 'MiniBackend': its effect stack is pure, but the real
+-- 'interpretMlsKeyPackageSubsystem' needs 'Embed IO' and 'Resource' (key package lifetimes are
+-- checked against the system clock, claiming takes a lock), so 'MiniBackend' can only mock it.
+-- Contactability depends on key package validity, so we want the real interpreter here.
+-- 'MiniBackend's federation also lacks @get-users-contact-status@ and
+-- 'RunFederatedConcurrentlyEither'.
 data FakeBackend = FakeBackend
   { serverMls :: Bool,
     storedUsers :: [StoredUser],
@@ -1810,21 +1815,19 @@ remoteBackendHandler backend req =
   FedBrig.GetContactStatusResponse
     <$> runFakeBackend backend (getLocalContactStatusesImpl req.context (fromRange req.users))
 
--- | Records each call; domains without a handler are unreachable.
-runRecordingFed ::
-  (Members '[State [Domain], Embed IO] r) =>
+-- | Answers each call with the domain's handler; domains without a handler are unreachable.
+runFakeFed ::
+  (Member (Embed IO) r) =>
   Map Domain GetContactStatusHandler ->
   InterpreterFor (FederationAPIAccess CFed) r
-runRecordingFed handlers = interpret \case
-  RunFederatedEither remote (CFed f) -> do
-    modify (tDomain remote :)
+runFakeFed handlers = interpret \case
+  RunFederatedEither remote (CFed f) ->
     case Map.lookup (tDomain remote) handlers of
       Nothing -> pure $ Left (FederationUnexpectedError "unreachable")
       Just handler -> Right <$> embed (f handler)
   RunFederatedConcurrentlyEither remotes rpc ->
     for (bucketRemote remotes) \ruids@(tDomain -> domain) -> case rpc ruids of
-      CFed f -> do
-        modify (domain :)
+      CFed f ->
         case Map.lookup domain handlers of
           Nothing -> pure $ Left (ruids, FederationUnexpectedError "unreachable")
           Just handler -> Right . qualifyAs ruids <$> embed (f handler)
@@ -1832,8 +1835,7 @@ runRecordingFed handlers = interpret \case
     error "unimplemented: RunFederatedConcurrentlyBucketsEither"
   IsFederationConfigured -> pure True
 
--- | Runs on the requester's backend. Returns the domains that were called (with
--- multiplicity) and the result.
+-- | Runs on the requester's backend.
 runOnRequesterBackend ::
   FakeBackend ->
   Map Domain GetContactStatusHandler ->
@@ -1845,20 +1847,15 @@ runOnRequesterBackend ::
        GalleyAPIAccess,
        FederationAPIAccess CFed,
        TinyLog,
-       State [Domain],
        Resource,
        Embed IO
      ]
     a ->
-  IO ([Domain], a)
+  IO a
 runOnRequesterBackend backend handlers =
   runM
     . runResource
-    . runState emptyFedCallsAcc
     . noopLogger
-    . runRecordingFed handlers
+    . runFakeFed handlers
     . miniGalleyAPIAccess mempty backend.features
     . runFakeBackendStores backend
-  where
-    emptyFedCallsAcc :: [Domain]
-    emptyFedCallsAcc = []
