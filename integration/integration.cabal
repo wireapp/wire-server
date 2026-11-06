@@ -188,6 +188,7 @@ library
     Test.Migration.Nonce
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
+    Test.Migration.TeamStore
     Test.Migration.User
     Test.Migration.Util
     Test.MLS

@@ -52,6 +52,7 @@ import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Imports
 import Test.QuickCheck (oneof)
+import Wire.API.PostgresMarshall
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -218,3 +219,18 @@ instance Cql.Cql Permissions where
 $(genSingletons [''Perm])
 
 $(promoteShowInstances [''Perm])
+
+--------------------------------------------------------------------------------
+-- Postgres marshalling
+
+-- | Encoded as the pair of permission bit masks (self, copy), mirroring the
+-- Cassandra UDT encoding.
+instance PostgresMarshall (Int64, Int64) Permissions where
+  postgresMarshall p =
+    ( fromIntegral (permsToInt p.self),
+      fromIntegral (permsToInt p.copy)
+    )
+
+instance PostgresUnmarshall (Int64, Int64) Permissions where
+  postgresUnmarshall (s, c) =
+    Err.note "invalid permissions" (newPermissions (intToPerms (fromIntegral s)) (intToPerms (fromIntegral c)))
