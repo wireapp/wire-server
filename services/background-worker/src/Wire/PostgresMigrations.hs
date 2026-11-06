@@ -204,6 +204,7 @@ customBackend migOpts = do
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
     cancel migrationLoop
+
 service :: MigrationOptions -> AppT IO CleanupAction
 service migOpts = do
   cassClient <- asks (.cassandraGalley)
