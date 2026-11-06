@@ -1736,8 +1736,11 @@ runContactRequester ::
 runContactRequester b handlers =
   runM
     . runResource
-    . runState [] -- REVIEW: This should have a comment or binding name to explain what `[]` represents
+    . runState emptyFedCallsAcc
     . noopLogger
     . runCountingFed handlers
     . miniGalleyAPIAccess mempty b.features
     . runContactStores b
+  where
+    emptyFedCallsAcc :: [Domain]
+    emptyFedCallsAcc = []
