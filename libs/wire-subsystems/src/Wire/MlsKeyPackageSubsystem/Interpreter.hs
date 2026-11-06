@@ -35,6 +35,7 @@ import Wire.API.MLS.Serialisation
 import Wire.MlsKeyPackageStore qualified as Store
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem (..), validateKeyPackageLifetime)
 
+-- FUTUREWORK: This should not depend on IO as this forces all unit-tests into IO as well.
 interpretMlsKeyPackageSubsystem :: (Member Store.MlsKeyPackageStore r, Member (Embed IO) r, Member Resource r) => Maybe NominalDiffTime -> C.MVar () -> InterpreterFor MlsKeyPackageSubsystem r
 interpretMlsKeyPackageSubsystem configuredLifetime lock = interpret $ \case
   InsertMlsKeyPackages u c ps -> insertMlsKeyPackages u c ps
