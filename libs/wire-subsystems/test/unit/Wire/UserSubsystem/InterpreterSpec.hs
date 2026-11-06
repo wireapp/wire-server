@@ -1533,7 +1533,7 @@ spec = describe "UserSubsystem.Interpreter" do
     remoteOnly :: Map Domain [UserId] -> Map Domain [UserId]
     remoteOnly = Map.filter (not . null) . Map.delete localDomain'
 
-    allContactable :: ContactHandler
+    allContactable :: GetContactStatusHandler
     allContactable req = pure $ FedBrig.GetContactStatusResponse (Map.fromList [(uid, ContactStatus Contactable) | uid <- fromRange req.users])
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
@@ -1615,11 +1615,11 @@ mkFakeBackend mlsFlag users =
           clientMLSPublicKeys = Map.fromList [(csSignatureScheme suite, "key") | suite <- S.toList client.signatureSuites]
         }
 
-type ContactHandler = FedBrig.GetContactStatusRequest -> IO FedBrig.GetContactStatusResponse
+type GetContactStatusHandler = FedBrig.GetContactStatusRequest -> IO FedBrig.GetContactStatusResponse
 
 -- | Federation monad whose only endpoint is @get-users-contact-status@, answered by a handler.
-newtype CFed (comp :: Component) a = CFed (ContactHandler -> IO a)
-  deriving (Functor, Applicative, Monad) via (ReaderT ContactHandler IO)
+newtype CFed (comp :: Component) a = CFed (GetContactStatusHandler -> IO a)
+  deriving (Functor, Applicative, Monad) via (ReaderT GetContactStatusHandler IO)
 
 instance RunClient (CFed comp) where
   runRequestAcceptStatus _ _ = error "CFed does not support servant client"
@@ -1682,14 +1682,14 @@ runFakeBackend ::
   IO a
 runFakeBackend b = runM . runResource . runContactStores b
 
-remoteBackendHandler :: FakeBackend -> ContactHandler
+remoteBackendHandler :: FakeBackend -> GetContactStatusHandler
 remoteBackendHandler b req =
   FedBrig.GetContactStatusResponse <$> runFakeBackend b (getLocalContactStatusesImpl req.context (fromRange req.users))
 
 -- | Records each call; domains without a handler are unreachable.
 runRecordingFed ::
   (Members '[State [Domain], Embed IO] r) =>
-  Map Domain ContactHandler ->
+  Map Domain GetContactStatusHandler ->
   InterpreterFor (FederationAPIAccess CFed) r
 runRecordingFed handlers = interpret \case
   RunFederatedEither remote (CFed f) -> do
@@ -1711,7 +1711,7 @@ runRecordingFed handlers = interpret \case
 -- multiplicity) and the result.
 runContactRequester ::
   FakeBackend ->
-  Map Domain ContactHandler ->
+  Map Domain GetContactStatusHandler ->
   Sem
     '[ UserStore,
        ClientStore,
