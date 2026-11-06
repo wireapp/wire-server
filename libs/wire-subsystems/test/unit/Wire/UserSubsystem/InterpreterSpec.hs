@@ -1603,11 +1603,11 @@ spec = describe "UserSubsystem.Interpreter" do
 
     expectedStatuses ::
       Map Domain (Map UserId ContactStatus) -> Map (Qualified UserId) ContactStatus
-    expectedStatuses remote =
+    expectedStatuses domainToUserStatuses =
       Map.fromList
         [ (Qualified uid domain, status)
-        | (domain, statuses) <- Map.toList remote,
-          (uid, status) <- Map.toList statuses
+        | (domain, userStatuses) <- Map.toList domainToUserStatuses,
+          (uid, status) <- Map.toList userStatuses
         ]
 
     -- A remote backend that stores all given users, each with the given status.
