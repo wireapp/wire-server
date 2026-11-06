@@ -1410,7 +1410,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "every remote domain's answer is merged" $
       \(remoteUsers :: Map Domain (Map UserId ContactStatus)) (localUserIds :: [UserId]) ctx base ->
         ioProperty do
-          let remote = remoteDomains remoteUsers
+          let remote = onlyRemoteDomains remoteUsers
               qUids =
                 toQualifiedUids (Map.keys <$> remote)
                   <> toQualifiedUids (Map.singleton localDomain' localUserIds)
@@ -1424,8 +1424,8 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "a failing remote domain has no entries, other domains are unaffected" $
       \(upUsers :: Map Domain (Map UserId ContactStatus)) downUsers ctx base ->
         ioProperty do
-          let up = remoteDomains upUsers
-              down = remoteDomains (Map.difference downUsers up)
+          let up = onlyRemoteDomains upUsers
+              down = onlyRemoteDomains (Map.difference downUsers up)
           result <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
@@ -1598,8 +1598,8 @@ spec = describe "UserSubsystem.Interpreter" do
     toQualifiedUids domainsToUids =
       [Qualified uid domain | (domain, uids) <- Map.toList domainsToUids, uid <- uids]
 
-    remoteDomains :: Map Domain a -> Map Domain a
-    remoteDomains = Map.delete localDomain'
+    onlyRemoteDomains :: Map Domain a -> Map Domain a
+    onlyRemoteDomains = Map.delete localDomain'
 
     expectedStatuses ::
       Map Domain (Map UserId ContactStatus) -> Map (Qualified UserId) ContactStatus
