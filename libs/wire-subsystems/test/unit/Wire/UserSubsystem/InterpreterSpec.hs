@@ -1558,7 +1558,7 @@ spec = describe "UserSubsystem.Interpreter" do
               (getContactStatusesImpl lself asLocal)
           viaRemote <-
             runOnRequesterBackend
-              (requesterBackendFor ctx) {serverMls = targetMls}
+              (requesterBackendFor ctx) {serverMls = backend.serverMls}
               (Map.singleton targetDomain (remoteBackendHandler backend))
               (getContactStatusesImpl lself asRemote)
           pure $
