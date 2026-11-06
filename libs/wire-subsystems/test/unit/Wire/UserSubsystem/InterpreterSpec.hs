@@ -1546,26 +1546,27 @@ spec = describe "UserSubsystem.Interpreter" do
         ioProperty do
           let backend = mkFakeBackend targetMls users
               known = [user.id | user <- backend.storedUsers]
-              qUids = [Qualified uid targetDomain | uid <- known <> unknownIds]
-              targetSelf = toLocalUnsafe targetDomain (Id UUID.nil)
+              uids = known <> unknownIds
+              asLocal = [Qualified uid (tDomain lself) | uid <- uids]
+              asRemote = [Qualified uid targetDomain | uid <- uids]
           -- both requesters derive the same effective MLS availability: the
           -- target is its own requester, so its server flag applies on both sides
           viaLocal <-
             runOnRequesterBackend
               backend {features = featuresFor ctx}
               mempty
-              (getContactStatusesImpl targetSelf qUids)
+              (getContactStatusesImpl lself asLocal)
           viaRemote <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
               (Map.singleton targetDomain (remoteBackendHandler backend))
-              (getContactStatusesImpl lself qUids)
+              (getContactStatusesImpl lself asRemote)
           pure $
             conjoin
-              [ viaRemote === viaLocal,
+              [ Map.mapKeys qUnqualified viaRemote === Map.mapKeys qUnqualified viaLocal,
                 counterexample
                   "only requested users are answered"
-                  (all (`elem` qUids) (Map.keys viaLocal))
+                  (all (`elem` asLocal) (Map.keys viaLocal))
               ]
   where
     makeActiveWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
