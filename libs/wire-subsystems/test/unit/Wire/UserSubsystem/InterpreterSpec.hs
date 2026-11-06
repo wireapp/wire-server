@@ -1688,17 +1688,12 @@ remoteBackendHandler :: FakeBackend -> ContactHandler
 remoteBackendHandler b req =
   FedBrig.GetContactStatusResponse <$> runFakeBackend b (getLocalContactStatusesImpl req.context (fromRange req.users))
 
--- REVIEW: Check if this cannot be generalized and extracted. I don't see how
--- this counts, it's collecting domains. Can't we collect the
--- FederationAPIAccess GADTs instead to have a general collector which may be
--- re-used else-where? This could be named something with recording in its name.
-
 -- | Records each call; domains without a handler are unreachable.
-runCountingFed ::
+runRecordingFed ::
   (Members '[State [Domain], Embed IO] r) =>
   Map Domain ContactHandler ->
   InterpreterFor (FederationAPIAccess CFed) r
-runCountingFed handlers = interpret \case
+runRecordingFed handlers = interpret \case
   RunFederatedEither remote (CFed f) -> do
     modify (tDomain remote :)
     case Map.lookup (tDomain remote) handlers of
@@ -1738,7 +1733,7 @@ runContactRequester b handlers =
     . runResource
     . runState emptyFedCallsAcc
     . noopLogger
-    . runCountingFed handlers
+    . runRecordingFed handlers
     . miniGalleyAPIAccess mempty b.features
     . runContactStores b
   where
