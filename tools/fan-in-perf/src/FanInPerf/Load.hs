@@ -1,5 +1,5 @@
 -- | Load the experimental service path without direct database access.
-module FanInPerf.Load (LoadOptions (..), loadParser, runLoad, runLoadWith, LoadStats (..), latencyBucket, emptyStats) where
+module FanInPerf.Load (LoadOptions (..), loadParser, runLoad, runLoadWith, LoadStats (..), DeviceProgress (..), latencyBucket, emptyStats) where
 
 import Control.Concurrent.Async (link, mapConcurrently_, race, withAsync)
 import Control.Concurrent.STM (check)
@@ -62,11 +62,27 @@ loadParser =
 data LoadStats = LoadStats
   { attempted :: !Int,
     published :: !Int,
+    received :: !Int,
+    ackSentDeliveries :: !Int,
+    ackRequestsSent :: !Int,
+    ackConfirmations :: !Int,
+    ackLatencyTotalMs :: !Double,
+    ackLatencyMaxMs :: !Double,
+    ackLatencyHistogram :: !(Map Int Int),
+    deviceProgress :: !(Map Int DeviceProgress),
     acknowledged :: !Int,
     latencyTotalMs :: !Double,
     latencyMaxMs :: !Double,
     latencyHistogram :: !(Map Int Int),
     publishSeconds :: !Double
+  }
+  deriving (Eq, Show)
+
+data DeviceProgress = DeviceProgress
+  { lastReceived :: !Int,
+    lastConfirmed :: !Int,
+    pendingSince :: !(Maybe Word64),
+    ackSendCompleted :: !Bool
   }
   deriving (Eq, Show)
 
@@ -80,7 +96,24 @@ latencyBucket milliseconds = go 1
       | otherwise = go (bound * 2)
 
 emptyStats :: LoadStats
-emptyStats = LoadStats 0 0 0 0 0 Map.empty 0
+emptyStats =
+  LoadStats
+    { attempted = 0,
+      published = 0,
+      received = 0,
+      ackSentDeliveries = 0,
+      ackRequestsSent = 0,
+      ackConfirmations = 0,
+      ackLatencyTotalMs = 0,
+      ackLatencyMaxMs = 0,
+      ackLatencyHistogram = Map.empty,
+      deviceProgress = Map.empty,
+      acknowledged = 0,
+      latencyTotalMs = 0,
+      latencyMaxMs = 0,
+      latencyHistogram = Map.empty,
+      publishSeconds = 0
+    }
 
 failLoad :: Text -> IO a
 failLoad = throwIO . SmokeFailure
@@ -96,10 +129,24 @@ runLoad opts = do
     actions <- networkActions opts.service
     runLoadWith opts actions stats (putStrLn . T.unpack)
   final <- readTVarIO stats
+  snapshotTime <- getMonotonicTimeNSec
   let expected = opts.devices * final.published
       missing = max 0 (expected - final.acknowledged)
-      mean = if final.acknowledged == 0 then 0 else final.latencyTotalMs / fromIntegral final.acknowledged
-      percentile fraction = quantile (ceiling (fraction * fromIntegral final.acknowledged)) (Map.toAscList final.latencyHistogram)
+      mean = if final.received == 0 then 0 else final.latencyTotalMs / fromIntegral final.received
+      percentile fraction = quantile (ceiling (fraction * fromIntegral final.received)) (Map.toAscList final.latencyHistogram)
+      ackPercentile fraction = quantile (ceiling (fraction * fromIntegral final.ackConfirmations)) (Map.toAscList final.ackLatencyHistogram)
+      lagging =
+        [ object
+            [ "device_index" .= index,
+              "last_sequence_received" .= d.lastReceived,
+              "last_sequence_confirmed" .= d.lastConfirmed,
+              "ack_pending" .= isJust d.pendingSince,
+              "ack_send_completed" .= d.ackSendCompleted,
+              "pending_ack_age_ms" .= fmap (\start -> fromIntegral (snapshotTime - min snapshotTime start) / 1000000 :: Double) d.pendingSince
+            ]
+        | (index, d) <- Map.toAscList final.deviceProgress,
+          d.lastConfirmed < final.published || isJust d.pendingSince
+        ]
       quantile _ [] = 0 :: Int
       quantile n ((bound, count) : rest) = if n <= count then bound else quantile (n - count) rest
       summary =
@@ -113,6 +160,20 @@ runLoad opts = do
             "attempted" .= final.attempted,
             "publish_errors" .= (final.attempted - final.published),
             "published" .= final.published,
+            "received_deliveries" .= final.received,
+            "ack_sent_deliveries" .= final.ackSentDeliveries,
+            "ack_not_sent_deliveries" .= (final.received - final.ackSentDeliveries),
+            "ack_sent_unconfirmed_deliveries" .= (final.ackSentDeliveries - final.acknowledged),
+            "ack_requests_sent" .= final.ackRequestsSent,
+            "ack_confirmations_received" .= final.ackConfirmations,
+            "not_received_deliveries" .= max 0 (expected - final.received),
+            "received_unconfirmed_deliveries" .= (final.received - final.acknowledged),
+            "ack_latency_mean_ms" .= (if final.ackConfirmations == 0 then 0 else final.ackLatencyTotalMs / fromIntegral final.ackConfirmations),
+            "ack_latency_max_ms" .= final.ackLatencyMaxMs,
+            "ack_latency_p50_upper_ms" .= ackPercentile (0.5 :: Double),
+            "ack_latency_p95_upper_ms" .= ackPercentile (0.95 :: Double),
+            "ack_latency_p99_upper_ms" .= ackPercentile (0.99 :: Double),
+            "lagging_devices" .= lagging,
             "acknowledged_deliveries" .= final.acknowledged,
             "missing_deliveries" .= missing,
             "publish_seconds" .= final.publishSeconds,
@@ -145,10 +206,11 @@ runLoadWith :: LoadOptions -> SmokeActions -> TVar LoadStats -> (Text -> IO ()) 
 runLoadWith opts actions stats report = do
   runId <- UUID.nextRandom
   clients <- replicateM opts.devices (Device <$> UUID.nextRandom <*> pure "1")
+  atomically $ modifyTVar' stats $ \s -> s {deviceProgress = Map.fromList [(index, DeviceProgress 0 0 Nothing False) | index <- [1 .. opts.devices]]}
   ready <- newTVarIO (0 :: Int)
   slots <- newTVarIO opts.connectConcurrency
   let registerAll = for_ clients $ \device -> actions.register device >> actions.initialize device
-      deviceReader device = do
+      deviceReader index device = do
         atomically $ do
           available <- readTVar slots
           check (available > 0)
@@ -178,25 +240,49 @@ runLoadWith opts actions stats report = do
                             [(Int, Word64)]
                     unless (map fst own == take (length own) [previous + 1 ..]) $ failLoad "duplicate, missing or out-of-order event"
                     let latencies = [fromIntegral (receivedAt - min receivedAt sent) / 1000000 | (_, sent) <- own]
+                    -- Record receipt before waiting for acknowledgement persistence.
+                    atomically $ modifyTVar' stats $ \s ->
+                      s
+                        { received = s.received + length own,
+                          latencyTotalMs = s.latencyTotalMs + sum latencies,
+                          latencyMaxMs = maximum (s.latencyMaxMs : latencies),
+                          latencyHistogram = foldl' (\hist ms -> Map.insertWith (+) (latencyBucket ms) 1 hist) s.latencyHistogram latencies,
+                          deviceProgress = Map.adjust (\d -> d {lastReceived = previous + length own}) index s.deviceProgress
+                        }
+                    ackStarted <- getMonotonicTimeNSec
+                    atomically $ modifyTVar' stats $ \s ->
+                      s
+                        { deviceProgress = Map.adjust (\d -> d {pendingSince = Just ackStarted, ackSendCompleted = False}) index s.deviceProgress
+                        }
                     socket.acknowledge tag
+                    atomically $ modifyTVar' stats $ \s ->
+                      s
+                        { ackSentDeliveries = s.ackSentDeliveries + length own,
+                          ackRequestsSent = s.ackRequestsSent + 1,
+                          deviceProgress = Map.adjust (\d -> d {ackSendCompleted = True}) index s.deviceProgress
+                        }
                     confirmation <- bounded opts.service.timeoutSeconds "acknowledgement" socket.receive
                     unless (confirmation == Acked tag) $ failLoad "missing acknowledgement confirmation"
+                    confirmedAt <- getMonotonicTimeNSec
+                    let ackMs = fromIntegral (confirmedAt - ackStarted) / 1000000
                     atomically $ modifyTVar' stats $ \s ->
                       s
                         { acknowledged = s.acknowledged + length own,
-                          latencyTotalMs = s.latencyTotalMs + sum latencies,
-                          latencyMaxMs = maximum (s.latencyMaxMs : latencies),
-                          latencyHistogram = foldl' (\hist ms -> Map.insertWith (+) (latencyBucket ms) 1 hist) s.latencyHistogram latencies
+                          ackConfirmations = s.ackConfirmations + 1,
+                          ackLatencyTotalMs = s.ackLatencyTotalMs + ackMs,
+                          ackLatencyMaxMs = max s.ackLatencyMaxMs ackMs,
+                          ackLatencyHistogram = Map.insertWith (+) (latencyBucket ackMs) 1 s.ackLatencyHistogram,
+                          deviceProgress = Map.adjust (\d -> d {lastConfirmed = previous + length own, pendingSince = Nothing, ackSendCompleted = False}) index s.deviceProgress
                         }
                     loop (previous + length own) announced
           loop 0 False
-      guardedReader device = do
-        result <- tryAny $ deviceReader device
+      guardedReader (index, device) = do
+        result <- tryAny $ deviceReader index device
         case result of
           Right () -> failLoad "device session ended unexpectedly"
           Left err -> do
             count <- readTVarIO ready
-            failLoad $ "device session failed (" <> T.pack (show count) <> "/" <> T.pack (show opts.devices) <> " reached ready): " <> describeFailure err
+            failLoad $ "device " <> T.pack (show index) <> " session failed (" <> T.pack (show count) <> "/" <> T.pack (show opts.devices) <> " reached ready): " <> describeFailure err
       publisher = do
         start <- getMonotonicTimeNSec
         let end = start + fromIntegral opts.duration * 1000000000
@@ -233,6 +319,14 @@ runLoadWith opts actions stats report = do
               <> show opts.devices
               <> " published="
               <> show s.published
+              <> " received="
+              <> show s.received
+              <> " ack_sent="
+              <> show s.ackSentDeliveries
+              <> " not_received="
+              <> show (max 0 $ opts.devices * s.published - s.received)
+              <> " received_unconfirmed="
+              <> show (s.received - s.acknowledged)
               <> " acknowledged="
               <> show s.acknowledged
               <> " outstanding="
@@ -252,6 +346,6 @@ runLoadWith opts actions stats report = do
   report $ "Connecting devices (concurrency " <> T.pack (show opts.connectConcurrency) <> ")"
   withAsync progress $ \monitor -> do
     link monitor
-    race (mapConcurrently_ guardedReader clients) controller >>= \case
+    race (mapConcurrently_ guardedReader (zip [1 ..] clients)) controller >>= \case
       Left () -> failLoad "all device sessions unexpectedly stopped"
       Right () -> pure ()

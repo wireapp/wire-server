@@ -77,13 +77,57 @@ spec = do
         final.published `shouldSatisfy` (<= 4)
         final.attempted `shouldBe` final.published
         final.acknowledged `shouldBe` (3 * final.published)
-        sum (Map.elems final.latencyHistogram) `shouldBe` final.acknowledged
+        final.received `shouldBe` final.acknowledged
+        final.ackSentDeliveries `shouldBe` final.acknowledged
+        final.ackRequestsSent `shouldBe` final.ackConfirmations
+        sum (Map.elems final.latencyHistogram) `shouldBe` final.received
+        sum (Map.elems final.ackLatencyHistogram) `shouldBe` final.ackConfirmations
+        for_ (Map.elems final.deviceProgress) $ \d -> do
+          d.lastReceived `shouldBe` final.published
+          d.lastConfirmed `shouldBe` final.published
+          d.pendingSince `shouldBe` Nothing
     it "fails the drain when connected devices receive no wakeup" $
       withFixture False True $ \opts -> do
         actions <- networkActions opts
         stats <- newTVarIO emptyStats
         result <- tryAny $ runLoadWith (loadOptions opts) actions stats (const $ pure ())
         result `shouldSatisfy` failedWith "drain timed out"
+        final <- readTVarIO stats
+        final.received `shouldBe` 0
+        final.ackRequestsSent `shouldBe` 0
+        all (isNothing . pendingSince) (Map.elems final.deviceProgress) `shouldBe` True
+    it "distinguishes received events from withheld acknowledgement confirmations" $
+      withFixture True True $ \opts -> do
+        actions <- networkActions opts
+        stats <- newTVarIO emptyStats
+        let stalled =
+              actions
+                { withClient = \device action -> withClient actions device $ \socket ->
+                    action
+                      socket
+                        { receive = do
+                            frame <- socket.receive
+                            case frame of
+                              Acked _ -> threadDelay 10000000 >> pure frame
+                              _ -> pure frame
+                        }
+                }
+            options = (loadOptions opts) {service = opts {timeoutSeconds = 10}}
+        result <- tryAny $ runLoadWith options stalled stats (const $ pure ())
+        result `shouldSatisfy` failedWith "drain timed out"
+        final <- readTVarIO stats
+        final.received `shouldSatisfy` (> 0)
+        final.ackSentDeliveries `shouldBe` final.received
+        final.ackRequestsSent `shouldBe` 3
+        final.acknowledged `shouldBe` 0
+        final.ackConfirmations `shouldBe` 0
+        sum (Map.elems final.latencyHistogram) `shouldBe` final.received
+        for_ (Map.elems final.deviceProgress) $ \d -> do
+          d.lastReceived `shouldSatisfy` (> 0)
+          d.lastConfirmed `shouldBe` 0
+          d.pendingSince `shouldSatisfy` isJust
+          d.ackSendCompleted `shouldBe` True
+
     it "reports the failure type and ready count without raw exception contents" $
       withFixture True True $ \opts -> do
         actions <- networkActions opts

@@ -672,14 +672,15 @@ the target: a passing run below the target does not prove capacity at that rate.
 The publishing window excludes setup and drain; an in-flight HTTP request can
 extend it by the request timeout.
 
-Once per second, output shows successful publishes, confirmed device deliveries,
-and their difference (`outstanding`). This is delivery backlog, **not RabbitMQ
+Once per second, output shows successful publishes, received deliveries, sent
+acknowledgements, confirmed deliveries, and outstanding work at each stage.
+`outstanding` remains expected deliveries minus confirmed deliveries. This is delivery backlog, **not RabbitMQ
 queue depth**; inspect RabbitMQ separately to locate wakeup-processing backlog.
 The final JSON includes achieved publish rate, missing deliveries, publish errors,
 and delivery latency mean, maximum and approximate p50/p95/p99. Latency runs from
 just before the HTTP publish request to receipt of a WebSocket page, using the
-load generator's monotonic clock. Samples are committed to the statistics after
-acknowledgement confirmation. Percentiles are power-of-two millisecond bucket
+load generator's monotonic clock. Receipt samples are recorded immediately, even when acknowledgement confirmation
+is still pending. Percentiles are power-of-two millisecond bucket
 upper bounds, not exact percentiles. Measurement includes generator scheduling
 and HTTP latency; monitor generator CPU and file-descriptor limits at high load.
 
@@ -708,3 +709,39 @@ and service-launch shells. Both processes need room for the requested sockets
 plus database, HTTP and other descriptors. Raising a shell limit affects only
 processes subsequently started from that shell; restart affected services if
 needed. Lowering connection concurrency does not reduce the final socket count.
+
+#### Diagnosing a slow drain
+
+The final JSON separates these stages (delivery counters count events per device):
+
+- `received_deliveries`: this run's events received over WebSockets.
+- `ack_sent_deliveries`: received events covered by successfully sent ack frames.
+- `acknowledged_deliveries`: events whose ack confirmation was received.
+- `not_received_deliveries`: expected events not yet received.
+- `ack_not_sent_deliveries`: received events whose ack send has not completed.
+- `ack_sent_unconfirmed_deliveries`: events with an ack sent but no confirmation.
+- `received_unconfirmed_deliveries`: the sum of the previous two ack stages.
+
+`missing_deliveries` retains its previous meaning: expected minus confirmed, not
+proof of message loss. `ack_requests_sent` and `ack_confirmations_received` count
+**pages**, since one ack can cover up to 100 events. `ack_latency_*_ms` measures
+from just before sending an ack to receipt of its matching confirmation, including
+send time, server persistence and scheduling. Its histogram counts confirmed
+pages, not events; p50/p95/p99 are power-of-two millisecond upper bounds. Pending
+acks are absent from that histogram, so inspect the pending ages as well.
+
+`lagging_devices` lists every device with unconfirmed expected events or a pending
+ack at the final snapshot, including on timeout or another failure. Devices use
+run-local indices, not real user identifiers. Each entry contains
+`last_sequence_received`, `last_sequence_confirmed`, `ack_pending`,
+`ack_send_completed`, and `pending_ack_age_ms` (null when no ack is pending).
+Pending age starts just before the send attempt. Device state uses bounded memory
+per configured device and is retained when sessions are cancelled at shutdown.
+These are client observations: a missing confirmation does not establish whether
+the server has already persisted the acknowledgement.
+
+For the next diagnostic run, keep the workload unchanged and use
+`--drain-seconds 120`. The separate `--timeout-seconds` still bounds each wait for
+an acknowledgement confirmation; increase it too if you want to observe a single
+pending ack for longer than the default 30 seconds. Compare the counters with
+PostgreSQL pool waits, locks and queries, RabbitMQ queue depth, and service CPU.
