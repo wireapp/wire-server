@@ -1,0 +1,1 @@
+Kicked meeting participants now receive a `meeting.delete` event, so their clients remove the meeting as soon as they are excluded from the meeting conversation. ##

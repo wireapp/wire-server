@@ -48,6 +48,8 @@ interpretMeetingNotifier ::
 interpretMeetingNotifier = interpret $ \case
   NotifyMeetingMembersAdded qUser qConvId mTeamId users ->
     notifyMeetingMembersAddedImpl qUser qConvId mTeamId users
+  NotifyMeetingMembersRemoved qUser qConvId mTeamId users ->
+    notifyMeetingMembersRemovedImpl qUser qConvId mTeamId users
   NotifyMeetingEvent lUser conn members qConvId mTeamId meetingType qMeetingId ->
     notifyMeetingEventImpl lUser conn members qConvId mTeamId meetingType qMeetingId
 
@@ -84,6 +86,40 @@ notifyMeetingMembersAddedImpl qUser qConvId mTeamId users = do
         qConvId
         mTeamId
         MeetingEvent.MemberAdd
+        (Qualified meeting.id (qDomain qConvId))
+
+-- | Deliver @meeting.delete@ notifications fire-and-forget via 'pushNotificationAsync'. Resolve each alive meeting for the conversation and notify only the users removed by the successful membership commit, logging a warning when no alive meeting is found.
+notifyMeetingMembersRemovedImpl ::
+  ( Member Store.MeetingsStore r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
+  Qualified UserId ->
+  Qualified ConvId ->
+  Maybe TeamId ->
+  [UserId] ->
+  Sem r ()
+notifyMeetingMembersRemovedImpl qUser qConvId mTeamId users = do
+  now <- Now.get
+  meetings <- Store.listMeetingsByConversation (qUnqualified qConvId) now
+  when (null meetings) $
+    TinyLog.warn $
+      Log.msg ("alive meeting not found for meeting member-remove event" :: ByteString)
+        . Log.field "conversationId" (toByteString' (qUnqualified qConvId))
+  -- Recipients are exactly the removed users, so their clients drop the
+  -- meeting view. conn is Nothing: every client connection of each removed
+  -- user should be notified.
+  for_ meetings $ \meeting ->
+    pushNotificationAsync $
+      mkMeetingEventPush
+        now
+        qUser
+        Nothing
+        (map userRecipient users)
+        qConvId
+        mTeamId
+        MeetingEvent.Delete
         (Qualified meeting.id (qDomain qConvId))
 
 -- | Deliver a create/update/delete lifecycle event synchronously via 'pushNotifications'.
