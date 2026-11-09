@@ -296,8 +296,9 @@ getContactStatusesImpl self qids = do
     (locals, remotes) = partitionQualified self (nubOrd qids)
 
     -- Requester-side inputs of the contactability rule, computed once per
-    -- request: MLS must be enabled on this server and for the requester's team,
-    -- and the team's allowed cipher suites apply.
+    -- request: whether MLS counts towards contactability (enabled on this server
+    -- and for the requester's team, MLS protocol supported) and the team's allowed
+    -- cipher suites. Proteus contactability does not depend on either.
     contactStatusContext :: Sem r ContactStatusContext
     contactStatusContext = do
       serverMLS <- inputs (.mlsEnabled)
@@ -327,7 +328,11 @@ getContactStatusesImpl self qids = do
           (`Map.restrictKeys` Set.fromList (tUnqualified ruids))
             . fold
             <$> for (chunksOf FedBrig.maxContactStatusUsers (tUnqualified ruids)) \chunk ->
-              (.statuses) <$> fedClient @'Brig @"get-users-contact-status" (FedBrig.GetContactStatusRequest ctx (unsafeRange chunk))
+              (.statuses)
+                <$> fedClient
+                  @'Brig
+                  @"get-users-contact-status"
+                  (FedBrig.GetContactStatusRequest ctx (unsafeRange chunk))
       Map.unions <$> for remoteResponses \case
         Left (ruids, e) -> do
           Log.warn $
