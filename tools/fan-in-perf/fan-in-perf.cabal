@@ -83,6 +83,7 @@ library
     FanInPerf.Delivery
     FanInPerf.Fixture
     FanInPerf.GcImpact
+    FanInPerf.Load
     FanInPerf.Metrics
     FanInPerf.NotificationsAdmin
     FanInPerf.NotificationsAdmin.Postgres
@@ -107,6 +108,7 @@ library
 
   build-depends:
     , aeson
+    , aeson-pretty
     , async
     , base
     , bytestring

@@ -7,6 +7,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Data.UUID.Types qualified as UUID
 import FanInPerf.Delivery
+import FanInPerf.Load
 import FanInPerf.Options
 import FanInPerf.Smoke
 import FanInPerf.Wakeup
@@ -37,6 +38,73 @@ spec = do
       for_ ["https://localhost", "http://user:password@localhost", "http://localhost/path", "http://localhost?token=secret", "http://localhost:99999"] $ \url ->
         parseEndpoint "http:" url `shouldSatisfy` isLeft
 
+  describe "service load generator" $ do
+    it "parses load options without database credentials" $ case getParseResult $ execParserPure defaultPrefs invocationInfo ["load", "--devices", "3", "--rate", "4", "--duration", "1"] of
+      Just (LoadRun opts) -> (opts.devices, opts.rate, opts.duration) `shouldBe` (3, 4, 1)
+      _ -> expectationFailure "load did not parse"
+    for_ ["devices", "rate", "duration", "drain-seconds", "setup-seconds", "payload-bytes", "connect-concurrency"] $ \name ->
+      it ("rejects zero " <> name) $ case execParserPure defaultPrefs invocationInfo ["load", "--" <> name, "0"] of
+        Failure _ -> pure ()
+        _ -> expectationFailure "zero accepted"
+    it "rejects overflowing numeric input" $ case execParserPure defaultPrefs invocationInfo ["load", "--rate", "18446744073709551617"] of
+      Failure _ -> pure ()
+      _ -> expectationFailure "overflowing rate accepted"
+    it "uses bounded latency histogram buckets" $
+      map latencyBucket [0, 1, 1.1, 2, 3, 1000] `shouldBe` [1, 1, 2, 2, 4, 1024]
+    it "delivers each published event to every device and waits for acknowledgements" $
+      withFixture True True $ \opts -> do
+        actions <- networkActions opts
+        stats <- newTVarIO emptyStats
+        connecting <- newTVarIO (0 :: Int, 0 :: Int)
+        let observed =
+              actions
+                { withClient = \device action -> do
+                    atomically $ modifyTVar' connecting $ \(current, peak) -> (current + 1, max peak (current + 1))
+                    withClient actions device $ \socket -> do
+                      firstReady <- newIORef True
+                      let receive = do
+                            frame <- socket.receive
+                            when (frame == Ready) $ do
+                              first <- atomicModifyIORef' firstReady (\old -> (False, old))
+                              when first $ atomically $ modifyTVar' connecting $ \(current, peak) -> (current - 1, peak)
+                            pure frame
+                      action socket {receive = receive}
+                }
+        runLoadWith (loadOptions opts) observed stats (const $ pure ())
+        readTVarIO connecting `shouldReturn` (0, 1)
+        final <- readTVarIO stats
+        final.published `shouldSatisfy` (> 0)
+        final.published `shouldSatisfy` (<= 4)
+        final.attempted `shouldBe` final.published
+        final.acknowledged `shouldBe` (3 * final.published)
+        sum (Map.elems final.latencyHistogram) `shouldBe` final.acknowledged
+    it "fails the drain when connected devices receive no wakeup" $
+      withFixture False True $ \opts -> do
+        actions <- networkActions opts
+        stats <- newTVarIO emptyStats
+        result <- tryAny $ runLoadWith (loadOptions opts) actions stats (const $ pure ())
+        result `shouldSatisfy` failedWith "drain timed out"
+    it "reports the failure type and ready count without raw exception contents" $
+      withFixture True True $ \opts -> do
+        actions <- networkActions opts
+        stats <- newTVarIO emptyStats
+        let broken = actions {withClient = \_ _ -> fail "PRIVATE_EXCEPTION_DETAIL"}
+        result <- tryAny $ runLoadWith (loadOptions opts) broken stats (const $ pure ())
+        result `shouldSatisfy` failedWith "0/3 reached ready"
+        result `shouldSatisfy` failedWith "I/O failure"
+        result `shouldSatisfy` (not . failedWith "PRIVATE_EXCEPTION_DETAIL")
+
+    it "does not retry an ambiguous failed publish" $
+      withFixture True True $ \opts -> do
+        actions <- networkActions opts
+        stats <- newTVarIO emptyStats
+        let broken = actions {publish = \payload -> actions.publish payload >> fail "publish response lost"}
+        result <- tryAny $ runLoadWith (loadOptions opts) broken stats (const $ pure ())
+        result `shouldSatisfy` isLeft
+        final <- readTVarIO stats
+        final.attempted `shouldBe` 1
+        final.published `shouldBe` 0
+
   describe "smoke against in-process HTTP and WebSocket services" $ do
     it "checks live delivery, ack persistence and offline catch-up" $
       withFixture True True $ \opts -> do
@@ -56,6 +124,7 @@ spec = do
         outcome <- tryAny $ runScenario 2 (const $ pure ()) actions runId alice bob
         outcome `shouldSatisfy` failedWith "replayed"
   where
+    loadOptions opts = LoadOptions opts 3 4 1 1 5 32 1 Nothing
     failedWith fragment (Left err) = case fromException err of
       Just (SmokeFailure message) -> fragment `T.isInfixOf` message
       Nothing -> False

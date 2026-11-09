@@ -2,6 +2,7 @@ module FanInPerf.DeliverySpec (spec) where
 
 import Control.Concurrent.Async (waitCatch, withAsync)
 import Control.Exception (throwIO)
+import Control.Exception qualified as E
 import Data.Aeson
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString.Lazy qualified as BL
@@ -67,13 +68,19 @@ spec = describe "experimental delivery sessions" $ do
           let cursor = if Socket.requestPath (Socket.pendingRequest pending) == "/a" then aCursor else bCursor
           connection <- Socket.acceptRequest pending
           start <- readIORef cursor
-          deliverEvents
-            hub
-            start
-            (\after -> pure [(nid, Null) | after < nid])
-            (writeIORef cursor)
-            (Socket.sendTextData connection . encode)
-            (Socket.receiveData connection)
+          E.handle
+            ( \case
+                Socket.CloseRequest _ _ -> pure ()
+                Socket.ConnectionClosed -> pure ()
+                err -> throwIO err
+            )
+            $ deliverEvents
+              hub
+              start
+              (\after -> pure [(nid, Null) | after < nid])
+              (writeIORef cursor)
+              (Socket.sendTextData connection . encode)
+              (Socket.receiveData connection)
         app = websocketsOr Socket.defaultConnectionOptions server (\_ respond -> respond $ Wai.responseLBS status404 [] "")
         frame connection expected = do
           bytes <- timeout 2_000_000 (Socket.receiveData connection :: IO BL.ByteString)
@@ -98,6 +105,21 @@ spec = describe "experimental delivery sessions" $ do
         Socket.sendClose b ("done" :: Text)
       readIORef aCursor `shouldReturn` nid
       readIORef bCursor `shouldReturn` nid
+
+  it "propagates a disconnect without wrapping it in a linked-thread exception" $ do
+    hub <- newWakeupHub
+    client <- newClient
+    disconnect <- newEmptyTMVarIO
+    let receiveClosed = atomically (takeTMVar disconnect) >> throwIO Socket.ConnectionClosed
+    withAsync (deliverEvents hub UUID.nil (const $ pure []) (const $ pure ()) (send client) receiveClosed) $ \session -> do
+      expectType client "ready"
+      atomically $ putTMVar disconnect ()
+      result <- timeout 2_000_000 $ waitCatch session
+      case result of
+        Just (Left err) -> case fromException err of
+          Just Socket.ConnectionClosed -> pure ()
+          _ -> expectationFailure "disconnect exception was wrapped or replaced"
+        _ -> expectationFailure "disconnected session did not terminate"
 
   it "does not persist progress for an invalid acknowledgement" $ do
     hub <- newWakeupHub

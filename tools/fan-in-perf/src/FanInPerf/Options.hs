@@ -20,6 +20,7 @@ where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
+import FanInPerf.Load (LoadOptions, loadParser)
 import FanInPerf.NotificationsAdmin (SchemaShape (..))
 import FanInPerf.Smoke (SmokeOptions, smokeParser)
 import FanInPerf.TargetSpecParser (parseTargetSpec)
@@ -136,12 +137,12 @@ data Options = Options
     summaryJson :: Maybe FilePath
   }
 
-data Invocation = DatabaseRun Options | SmokeRun SmokeOptions
+data Invocation = DatabaseRun Options | SmokeRun SmokeOptions | LoadRun LoadOptions
 
 invocationInfo :: ParserInfo Invocation
 invocationInfo =
   info
-    ( ( hsubparser (O.command "smoke" (info (SmokeRun <$> smokeParser) (progDesc "Check the running Gundeck/Cannon delivery path without database access")))
+    ( ( hsubparser (O.command "load" (info (LoadRun <$> loadParser) (progDesc "Load the experimental Gundeck/Cannon path")) <> O.command "smoke" (info (SmokeRun <$> smokeParser) (progDesc "Check the running Gundeck/Cannon delivery path without database access")))
           <|> (DatabaseRun <$> optionsParser)
       )
         <**> helper

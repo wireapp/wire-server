@@ -1,7 +1,7 @@
 -- | Bounded, stop-and-wait experimental delivery protocol. One page is in flight.
 module FanInPerf.Delivery where
 
-import Control.Concurrent.Async (link, withAsync)
+import Control.Concurrent.Async (race_)
 import Control.Concurrent.STM (throwSTM)
 import Control.Exception (throwIO)
 import Data.Aeson
@@ -52,4 +52,7 @@ deliverEvents hub initial fetch persist send receive = do
             persist next
             send $ object ["type" .= ("acked" :: Text), "tag" .= tag]
             loop next (tag + 1)
-  withAsync receiveLoop $ \receiver -> link receiver >> loop initial (1 :: Integer)
+  -- Propagate the original receive exception synchronously. Linking wraps it in
+  -- ExceptionInLinkedThread, which escapes the adapter's synchronous exception
+  -- handler and incorrectly turns ordinary disconnects into HTTP 500 errors.
+  race_ receiveLoop (loop initial (1 :: Integer))

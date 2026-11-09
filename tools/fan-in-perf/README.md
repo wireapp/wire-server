@@ -578,6 +578,17 @@ starting the services; never run `reset-db` against the regular database.
 
 ### End-to-end smoke command
 
+When running the binary directly, make the Nix development libraries available
+to the runtime loader. From the repository root, run once in your terminal:
+
+```bash
+export LD_LIBRARY_PATH="$PWD/.env/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+```
+
+This also applies to the `load` command below. `LIBRARY_PATH` from direnv is used
+at link time; it does not replace `LD_LIBRARY_PATH` at runtime. Without this,
+the executable may fail to locate `librusty_jwt_tools_ffi.so` before it starts.
+
 With the regular development dependencies, benchmark PostgreSQL, Gundeck and
 Cannon running and configured as above, build and run:
 
@@ -612,3 +623,88 @@ value.
 The command's unit tests use in-process HTTP/WebSocket fixtures, including
 missing-wakeup and missing-ack-persistence failures. Passing those tests alone
 does not establish that the full service stack is configured correctly.
+
+### Service load generator
+
+After the end-to-end smoke test passes, use `load` to exercise the same HTTP,
+RabbitMQ wakeup and Cannon WebSocket path with a configurable number of online
+devices. Build `exe:fan-in-perf` as above, then run:
+
+```bash
+"$(cabal list-bin exe:fan-in-perf)" load \
+  --devices 100 \
+  --rate 10 \
+  --duration 60 \
+  --payload-bytes 256 \
+  --drain-seconds 30 \
+  --summary-json /tmp/fan-in-load.json
+```
+
+This represents one shared group with 100 eligible devices and ten application
+events per second: 1,000 expected device deliveries per second. Each device uses
+a fresh synthetic user and client. Registration and initial catch-up finish
+before publishing begins. Connection setup is limited by `--connect-concurrency`
+(default 20); a slot is released when a device first reaches `ready`, while that
+WebSocket stays open. This separates startup pressure from steady-state load.
+Use a larger value explicitly when testing connection bursts. Every received page is acknowledged, and the command
+waits for all expected acknowledgement confirmations before succeeding.
+
+Options (all counts and durations must be positive):
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--devices` | 10 | Number of online WebSocket clients, up to 100,000 |
+| `--connect-concurrency` | 20 | Maximum sessions concurrently connecting and awaiting initial readiness |
+| `--rate` | 1 | Target publishes per second, up to 100,000 |
+| `--duration` | 30 | Publishing duration in seconds, up to 86,400 |
+| `--payload-bytes` | 256 | ASCII padding size, excluding the JSON envelope; up to 60,000 |
+| `--drain-seconds` | 30 | Deadline for outstanding acknowledgements, up to 3,600 |
+| `--setup-seconds` | 300 | Separate deadlines for registration and connection readiness, up to 86,400 |
+| `--timeout-seconds` | 30 | HTTP request and acknowledgement-confirmation timeout, up to 300 |
+| `--gundeck-url` | `http://127.0.0.1:8086` | Internal Gundeck base URL |
+| `--cannon-url` | `ws://127.0.0.1:8083` | Internal Cannon base URL |
+| `--summary-json` | unset | Optional final JSON output file |
+
+The publisher is sequential because this prototype does not yet handle the
+concurrent-commit ordering hazard. It does not queue an unbounded backlog or
+send catch-up bursts if it falls behind. Compare the achieved publish rate with
+the target: a passing run below the target does not prove capacity at that rate.
+The publishing window excludes setup and drain; an in-flight HTTP request can
+extend it by the request timeout.
+
+Once per second, output shows successful publishes, confirmed device deliveries,
+and their difference (`outstanding`). This is delivery backlog, **not RabbitMQ
+queue depth**; inspect RabbitMQ separately to locate wakeup-processing backlog.
+The final JSON includes achieved publish rate, missing deliveries, publish errors,
+and delivery latency mean, maximum and approximate p50/p95/p99. Latency runs from
+just before the HTTP publish request to receipt of a WebSocket page, using the
+load generator's monotonic clock. Samples are committed to the statistics after
+acknowledgement confirmation. Percentiles are power-of-two millisecond bucket
+upper bounds, not exact percentiles. Measurement includes generator scheduling
+and HTTP latency; monitor generator CPU and file-descriptor limits at high load.
+
+Any device/protocol failure, publish failure or drain timeout fails the run with
+a nonzero exit status. Failed publishes are not retried: a failed HTTP response
+can correspond to an already-persisted event. Consequently, counts on a failed
+run can include deliveries from a publish not counted as successful; do not use
+that run as a clean throughput result. The JSON `success` field records this.
+
+Run only one publisher against the dedicated experimental database. This first
+version models one fixed epoch, all clients online, and one selected Cannon;
+it does not simulate reconnect churn, multiple groups, multiple Cannon addresses
+or native pushes. It does not change worker concurrency or reset the database.
+Participant records and events remain after each run; accumulated participants
+can increase worker lookup costs. Use a fresh benchmark fixture for comparable
+runs (the documented `reset-db` command deletes previous benchmark data).
+Stop the service runner before resetting and restart it after schema setup
+finishes. Otherwise, Gundeck can process queued wakeups while the participant
+table is temporarily absent, resulting in missing-table errors and requeues.
+
+If startup fails before publishing, the command reports how many devices reached
+readiness and the failure category. Other connections are cancelled, so Cannon
+may subsequently log `ConnectionClosed`; those messages alone do not identify
+the original failure. Check the first error and `ulimit -Sn` in both the generator
+and service-launch shells. Both processes need room for the requested sockets
+plus database, HTTP and other descriptors. Raising a shell limit affects only
+processes subsequently started from that shell; restart affected services if
+needed. Lowering connection concurrency does not reduce the final socket count.

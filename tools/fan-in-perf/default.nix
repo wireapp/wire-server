@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-pretty
 , async
 , base
 , bytestring
@@ -53,6 +54,7 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    aeson-pretty
     async
     base
     bytestring
