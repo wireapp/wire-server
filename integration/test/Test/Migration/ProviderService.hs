@@ -60,7 +60,7 @@ testProviderServiceMigration = do
         -- whitelisted-services search must be empty before whitelisting
         bindResponse (listTeamServiceProfilesByPrefix alice tid Nothing False 50) $ \res -> do
           res.status `shouldMatchInt` 200
-          results <- res.json & asList
+          results <- res.json %. "services" & asList
           length results `shouldMatchInt` 0
         assertStatus 200 =<< postServiceWhitelist alice tid (object ["service" .= sid, "provider" .= pid, "status" .= True])
         pure (alice, pid, password, sid, tid)
@@ -90,15 +90,16 @@ testProviderServiceMigration = do
       -- prefix index served from PostgreSQL: the dual-write's index maintenance
       -- moved the prefix rows to the new name ("provi" = prefix of
       -- serviceAName'; "new s" = prefix of the default "New Service" name the
-      -- service was created with)
+      -- service was created with). ServiceProfilePage serialises its results
+      -- under "services".
       bindResponse (listTeamServiceProfilesByPrefix alice tid (Just "provi") False 50) $ \res -> do
         res.status `shouldMatchInt` 200
-        profiles <- res.json %. "results" & asList
+        profiles <- res.json %. "services" & asList
         sids <- mapM (%. "id") profiles >>= mapM asString
         sids `shouldMatch` [serviceAId]
       bindResponse (listTeamServiceProfilesByPrefix alice tid (Just "new s") False 50) $ \res -> do
         res.status `shouldMatchInt` 200
-        profiles <- res.json %. "results" & asList
+        profiles <- res.json %. "services" & asList
         sids <- mapM (%. "id") profiles >>= mapM asString
         sids `shouldMatch` ([] :: [String])
       -- provider list served from PostgreSQL: exactly the surviving service
@@ -109,13 +110,13 @@ testProviderServiceMigration = do
       -- public tag search served from PostgreSQL: only the surviving service
       bindResponse (searchServices domain serviceTag) $ \res -> do
         res.status `shouldMatchInt` 200
-        profiles <- res.json %. "results" & asList
+        profiles <- res.json %. "services" & asList
         sids <- mapM (%. "id") profiles >>= mapM asString
         sids `shouldMatch` [serviceAId]
       -- team whitelist search served from PostgreSQL (backfilled whitelist)
       bindResponse (listTeamServiceProfilesByPrefix alice tid Nothing False 50) $ \res -> do
         res.status `shouldMatchInt` 200
-        profiles <- res.json %. "results" & asList
+        profiles <- res.json %. "services" & asList
         sids <- mapM (%. "id") profiles >>= mapM asString
         sids `shouldMatch` [serviceAId]
   where

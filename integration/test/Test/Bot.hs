@@ -101,14 +101,24 @@ testBotSelfSigned = do
 -- | Post a proteus message from 'aliceQid' to the bot ('botId' with client
 -- 'botClient') in 'conv', over the bot conversation's proteus transport.
 postBotMessage :: (HasCallStack) => Value -> Value -> Value -> Value -> App ()
-postBotMessage aliceQid conv botId botClient = do
+postBotMessage aliceQid conv botId botClient =
+  postBotMessages aliceQid conv [(botId, [botClient])]
+
+-- | Post a proteus message from a fresh client of 'aliceQid' to the given
+-- @(bot, client)@ pairs in 'conv'. Galley rejects a proteus send with 412
+-- ClientMismatch unless every conversation member's client other than the
+-- sending client is covered by the recipient entries, so callers must pass
+-- /all/ bots added to the conversation so far. Each recipient bot's service
+-- then receives the BotMessage webhook.
+postBotMessages :: (HasCallStack) => Value -> Value -> [(Value, [Value])] -> App ()
+postBotMessages aliceQid conv recipients = do
   aliceC <- getJSON 201 =<< addClient aliceQid def
   aliceCid <- objId aliceC
-  msg <- mkProteusRecipients aliceQid [(botId, [botClient])] "hi bot"
+  entries <- mapM (\(bot, clts) -> mkProteusRecipients aliceQid [(bot, clts)] "hi bot") recipients
   let aliceBotMessage =
         Proto.defMessage @Proto.QualifiedNewOtrMessage
           & #sender . Proto.client .~ (aliceCid ^?! hex)
-          & #recipients .~ [msg]
+          & #recipients .~ entries
           & #reportAll .~ Proto.defMessage
   assertStatus 201 =<< postProteusMessage aliceQid conv aliceBotMessage
 

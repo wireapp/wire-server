@@ -25,7 +25,7 @@ import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.String.Conversions (cs)
 import SetupHelpers
-import Test.Bot (BotEvent (..), mkBotService, postBotMessage)
+import Test.Bot (BotEvent (..), mkBotService, postBotMessages)
 import Test.Migration.Util (waitForMigration)
 import Testlib.MockIntegrationService (MockServerSettings (..), withMockServer)
 import Testlib.Prelude
@@ -115,29 +115,32 @@ testServiceMigration = do
           runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
             conv <- getJSON 201 =<< postConversation alice defProteus
             cid <- conv %. "qualified_id" & objId
-            -- s2 (dual-write-created row) delivers to the first mock service.
-            bindResponse (addBot alice providerId sid2 cid) $ \res -> do
-              res.status `shouldMatchInt` 201
-              botId <- res.json %. "id"
-              botClient <- res.json %. "client"
-              postBotMessage alice conv botId botClient
-              assertBotMessageReceived chan1
-            -- s1 (dual-write-updated row) delivers to the second mock service;
-            -- if the stale backfilled (pre-update) row had won, the webhook
-            -- would land on the first one instead.
-            bindResponse (addBot alice providerId sid1 cid) $ \res -> do
-              res.status `shouldMatchInt` 201
-              botId <- res.json %. "id"
-              botClient <- res.json %. "client"
-              postBotMessage alice conv botId botClient
-              assertBotMessageReceived chan2
+            -- s2 (dual-write-created row) and s1 (dual-write-updated row) must
+            -- both exist with the right URLs after cutover. One proteus message
+            -- encrypting for both bots: galley rejects a proteus send with 412
+            -- ClientMismatch unless every member's client is covered, and both
+            -- services then receive the BotMessage webhook — s2's on the first
+            -- mock (the row only exists if the mirror writes are live), s1's on
+            -- the second (if the stale backfilled pre-update row had won, the
+            -- webhook would land on the first one instead).
+            res2 <- addBot alice providerId sid2 cid
+            res2.status `shouldMatchInt` 201
+            botId2 <- res2.json %. "id"
+            botClient2 <- res2.json %. "client"
+            res1 <- addBot alice providerId sid1 cid
+            res1.status `shouldMatchInt` 201
+            botId1 <- res1.json %. "id"
+            botClient1 <- res1.json %. "client"
+            postBotMessages alice conv [(botId2, [botClient2]), (botId1, [botClient1])]
+            assertBotMessageReceived chan1
+            assertBotMessageReceived chan2
             -- s3 (dual-write-deleted row): the member row is inserted
             -- regardless, but addBot's own BotCreated webhook must not reach
             -- the third mock service. Ordered last so the two positive checks
             -- prove the delivery pipeline is warm before the negative window
             -- opens.
-            bindResponse (addBot alice providerId sid3 cid) $ \res ->
-              res.status `shouldMatchInt` 201
+            res3 <- addBot alice providerId sid3 cid
+            res3.status `shouldMatchInt` 201
             t <- asks (.timeOutSeconds)
             timeout (t * 1_000_000) (readChan chan3) >>= \case
               Just _ -> assertFailure "deleted service still receives webhooks after cutover"
