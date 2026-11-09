@@ -276,3 +276,4 @@ postgresMigration:
   budget: postgresql
   connections: postgresql
   service: postgresql
+  providerService: cassandra

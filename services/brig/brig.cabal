@@ -122,7 +122,6 @@ library
     Brig.Provider.DB
     Brig.Provider.Email
     Brig.Provider.RPC
-    Brig.Provider.Tag
     Brig.Provider.Template
     Brig.Queue
     Brig.Queue.Stomp

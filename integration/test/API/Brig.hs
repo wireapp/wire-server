@@ -760,6 +760,31 @@ newService dom providerId service = do
           . addHeader "Z-Provider" providerId
   submit "POST" (addJSON s . addHdrs $ req) >>= getJSON 201
 
+-- | DELETE /provider/services/{sid} (async provider-side service deletion).
+deleteService :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+deleteService domain pid sid password = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["provider", "services", sid]
+  submit "DELETE" $
+    req
+      & addHeader "Z-Type" "provider"
+      & addHeader "Z-Provider" pid
+      & addJSON (object ["password" .= password])
+
+-- | GET /provider/services (list the provider's own services).
+listProviderServices :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+listProviderServices domain pid = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["provider", "services"]
+  submit "GET" $
+    req
+      & addHeader "Z-Type" "provider"
+      & addHeader "Z-Provider" pid
+
+-- | GET /services (public service search by tags).
+searchServices :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+searchServices domain tags = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["services"]
+  submit "GET" $ req & addQueryParams [("tags", tags)]
+
 getService :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 getService domain pid sid = do
   req <- baseRequest domain Brig Versioned $ joinHttpPath ["provider", "services", sid]

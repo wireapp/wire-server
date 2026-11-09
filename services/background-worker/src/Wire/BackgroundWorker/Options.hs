@@ -62,6 +62,7 @@ data Opts = Opts
     migrateNonce :: !Bool,
     migrateConnections :: !Bool,
     migrateService :: !Bool,
+    migrateProviderService :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig

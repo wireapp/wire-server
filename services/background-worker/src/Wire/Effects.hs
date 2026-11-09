@@ -105,6 +105,10 @@ import Wire.ParseException
 import Wire.PostgresMigrationOpts
 import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
+import Wire.ProviderServiceStore (ProviderServiceStore)
+import Wire.ProviderServiceStore.Cassandra (interpretProviderServiceStoreToCassandra)
+import Wire.ProviderServiceStore.DualWrite (interpretProviderServiceStoreToCassandraAndPostgres)
+import Wire.ProviderServiceStore.Postgres (interpretProviderServiceStoreToPostgres)
 import Wire.RateLimit (RateLimit, RateLimitExceeded)
 import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
@@ -229,6 +233,7 @@ type BackgroundWorkerEffects =
      TeamFeatureStore,
      UserGroupStore,
      ServiceStore,
+     ProviderServiceStore,
      ProposalStore,
      MLSCommitLockStore,
      Input FanoutLimit,
@@ -329,6 +334,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
     . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
     . interpretProposalStoreToCassandra
+    . providerServiceStoreInterpreter
     . serviceStoreInterpreter
     . interpretUserGroupStoreToPostgres
     . interpretTeamFeatureStore
@@ -385,6 +391,10 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       CassandraStorage -> interpretServiceStoreToCassandra env.cassandraGalley
       MigrationToPostgresql -> interpretServiceStoreToCassandraAndPostgres env.cassandraGalley
       PostgresqlStorage -> interpretServiceStoreToPostgres
+    providerServiceStoreInterpreter = case env.postgresMigration.providerService of
+      CassandraStorage -> interpretProviderServiceStoreToCassandra env.cassandraBrig
+      MigrationToPostgresql -> interpretProviderServiceStoreToCassandraAndPostgres env.cassandraBrig
+      PostgresqlStorage -> interpretProviderServiceStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb

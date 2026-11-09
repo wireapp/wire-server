@@ -33,7 +33,6 @@ import Brig.API.Types (PasswordResetError (..))
 import Brig.App
 import Brig.Options (Settings (..))
 import Brig.Options qualified as Opt
-import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
 import Brig.Provider.RPC qualified as RPC
@@ -133,6 +132,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
+import Wire.ProviderServiceStore
 import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe), unsafePooledMapConcurrentlyN_)
 import Wire.Sem.Now (Now)
@@ -158,7 +158,8 @@ botAPI ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member ProviderServiceStore r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -188,7 +189,8 @@ servicesAPI ::
     Member UserStore r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ProviderServiceStore r
   ) =>
   ServerT ServicesAPI (Handler r)
 servicesAPI =
@@ -214,7 +216,8 @@ providerAPI ::
     Member RateLimit r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
-    Member Now r
+    Member Now r,
+    Member ProviderServiceStore r
   ) =>
   ServerT ProviderAPI (Handler r)
 providerAPI =
@@ -449,7 +452,7 @@ updateAccountPassword pid upd = do
   wrapClientE $ DB.updateAccountPassword pid hashedPwd
 
 addService ::
-  (Member GalleyAPIAccess r) =>
+  (Member GalleyAPIAccess r, Member ProviderServiceStore r) =>
   ProviderId ->
   Public.NewService ->
   (Handler r) Public.NewServiceResponse
@@ -465,26 +468,29 @@ addService pid new = do
   let tags = fromRange (newServiceTags new)
   (pk, fp) <- validateServiceKey pubkey >>= maybeInvalidServiceKey
   token <- maybe randServiceToken pure (newServiceToken new)
-  sid <- wrapClientE $ DB.insertService pid name summary descr baseUrl token pk fp assets tags
+  sid <- lift . liftSem $ createProviderService pid name summary descr baseUrl token pk fp assets tags
   let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
   pure $ Public.NewServiceResponse sid rstoken
 
-listServices :: (Member GalleyAPIAccess r) => ProviderId -> (Handler r) [Public.Service]
+listServices ::
+  (Member GalleyAPIAccess r, Member ProviderServiceStore r) =>
+  ProviderId ->
+  (Handler r) [Public.Service]
 listServices pid = do
   guardSecondFactorDisabled Nothing
-  wrapClientE $ DB.listServices pid
+  lift . liftSem $ listProviderServices pid
 
 getService ::
-  (Member GalleyAPIAccess r) =>
+  (Member GalleyAPIAccess r, Member ProviderServiceStore r) =>
   ProviderId ->
   ServiceId ->
   (Handler r) Public.Service
 getService pid sid = do
   guardSecondFactorDisabled Nothing
-  wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
+  (lift . liftSem $ lookupProviderService pid sid) >>= maybeServiceNotFound
 
 updateService ::
-  (Member GalleyAPIAccess r) =>
+  (Member GalleyAPIAccess r, Member ProviderServiceStore r) =>
   ProviderId ->
   ServiceId ->
   Public.UpdateService ->
@@ -493,7 +499,7 @@ updateService pid sid upd = do
   guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   -- Update service profile
-  svc <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
+  svc <- (lift . liftSem $ lookupProviderService pid sid) >>= maybeServiceNotFound
   let name = serviceName svc
   let newName = updateServiceName upd
   let nameChange = fmap (name,) newName
@@ -504,8 +510,8 @@ updateService pid sid upd = do
   let newDescr = fromRange <$> updateServiceDescr upd
   let newAssets = updateServiceAssets upd
   -- Update service, tags/prefix index if the service is enabled
-  wrapClientE $
-    DB.updateService
+  lift . liftSem $
+    updateProviderService
       pid
       sid
       name
@@ -519,7 +525,8 @@ updateService pid sid upd = do
 
 updateServiceConn ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ProviderServiceStore r
   ) =>
   ProviderId ->
   ServiceId ->
@@ -529,8 +536,8 @@ updateServiceConn pid sid upd = do
   guardSecondFactorDisabled Nothing
   unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.updateServiceConnPassword)) $
     throwStd (errorToWai @E.BadCredentials)
-  scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
-  svc <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
+  scon <- (lift . liftSem $ lookupProviderServiceConn pid sid) >>= maybeServiceNotFound
+  svc <- (lift . liftSem $ lookupProviderServiceProfile pid sid) >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
   let newTokens = nonEmpty . fromRange =<< updateServiceConnTokens upd
   let newEnabled = updateServiceConnEnabled upd
@@ -538,7 +545,7 @@ updateServiceConn pid sid upd = do
   keys <- forM newKeyPems (mapM (validateServiceKey >=> maybeInvalidServiceKey))
   let newKeys = keys >>= nonEmpty
   let newFps = fmap snd <$> newKeys
-  wrapClientE $ DB.updateServiceConn pid sid newBaseUrl newTokens newKeys newEnabled
+  lift . liftSem $ updateProviderServiceConn pid sid newBaseUrl newTokens newKeys newEnabled
   let scon' =
         scon
           { sconBaseUrl = fromMaybe (sconBaseUrl scon) newBaseUrl,
@@ -553,10 +560,10 @@ updateServiceConn pid sid upd = do
       let name = serviceProfileName svc
       let tags = unsafeRange (serviceProfileTags svc)
       -- Update index, make it visible over search
-      wrapClientE $
+      lift . liftSem $
         if sconEnabled scon
-          then DB.deleteServiceIndexes pid sid name tags
-          else DB.insertServiceIndexes pid sid name tags
+          then deleteProviderServiceIndexes pid sid name tags
+          else insertProviderServiceIndexes pid sid name tags
 
 -- TODO: Send informational email to provider.
 
@@ -568,7 +575,8 @@ updateServiceConn pid sid upd = do
 deleteService ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member ProviderServiceStore r
   ) =>
   ProviderId ->
   ServiceId ->
@@ -578,9 +586,9 @@ deleteService pid sid del = do
   guardSecondFactorDisabled Nothing
   unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteServicePassword)) do
     throwStd (errorToWai @E.BadCredentials)
-  _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
+  _ <- (lift . liftSem $ lookupProviderService pid sid) >>= maybeServiceNotFound
   -- Disable the service
-  wrapClientE $ DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
+  lift . liftSem $ updateProviderServiceConn pid sid Nothing Nothing Nothing (Just False)
   -- Create an event
   lift . liftSem $ enqueueServiceDeletion pid sid
 
@@ -590,13 +598,14 @@ finishDeleteService ::
     Member (Concurrency Unsafe) r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ProviderServiceStore r
   ) =>
   ProviderId ->
   ServiceId ->
   Sem r ()
 finishDeleteService pid sid = do
-  mbSvc <- embed $ DB.lookupService pid sid
+  mbSvc <- lookupProviderService pid sid
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
@@ -604,13 +613,14 @@ finishDeleteService pid sid = do
       paginateWithStateC (UserStore.lookupServiceUsers pid sid)
         .| C.mapM_ (unsafePooledMapConcurrentlyN_ 16 kick)
     embed $ RPC.removeServiceConn pid sid
-    embed $ DB.deleteService pid sid name tags
+    deleteProviderService pid sid name tags
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccount ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ProviderServiceStore r
   ) =>
   ProviderId ->
   Public.DeleteProvider ->
@@ -621,13 +631,13 @@ deleteAccount pid del = do
   -- We don't care about pwd update status (scrypt, argon2id etc) when deleting things
   unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteProviderPassword)) do
     throwStd (errorToWai @E.BadCredentials)
-  svcs <- wrapClientE $ DB.listServices pid
+  svcs <- lift . liftSem $ listProviderServices pid
   forM_ svcs $ \svc -> do
     let sid = svc.serviceId
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     lift $ wrapHttpClient $ RPC.removeServiceConn pid sid
-    wrapClientE $ DB.deleteService pid sid name tags
+    lift . liftSem $ deleteProviderService pid sid name tags
   wrapClientE $ DB.deleteKey (mkEmailKey (providerEmail prov))
   wrapClientE $ DB.deleteAccount pid
 
@@ -639,38 +649,54 @@ getProviderProfile _ pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE (DB.lookupAccountProfile pid)
 
-listServiceProfiles :: (Member GalleyAPIAccess r) => UserId -> ProviderId -> (Handler r) [Public.ServiceProfile]
+listServiceProfiles ::
+  (Member GalleyAPIAccess r, Member ProviderServiceStore r) =>
+  UserId ->
+  ProviderId ->
+  (Handler r) [Public.ServiceProfile]
 listServiceProfiles _ pid = do
   guardSecondFactorDisabled Nothing
-  wrapClientE $ DB.listServiceProfiles pid
+  lift . liftSem $ listProviderServiceProfiles pid
 
-getServiceProfile :: (Member GalleyAPIAccess r) => UserId -> ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
+getServiceProfile ::
+  (Member GalleyAPIAccess r, Member ProviderServiceStore r) =>
+  UserId ->
+  ProviderId ->
+  ServiceId ->
+  (Handler r) Public.ServiceProfile
 getServiceProfile _ pid sid = do
   guardSecondFactorDisabled Nothing
-  wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
+  (lift . liftSem $ lookupProviderServiceProfile pid sid) >>= maybeServiceNotFound
 
 -- TODO: in order to actually make it possible for clients to implement
 -- pagination here, we need both 'start' and 'prefix'.
 --
 -- Also see Note [buggy pagination].
-searchServiceProfiles :: (Member GalleyAPIAccess r) => UserId -> Maybe (Public.QueryAnyTags 1 3) -> Maybe Text -> Maybe (Range 10 100 Int32) -> (Handler r) Public.ServiceProfilePage
+searchServiceProfiles ::
+  (Member GalleyAPIAccess r, Member ProviderServiceStore r) =>
+  UserId ->
+  Maybe (Public.QueryAnyTags 1 3) ->
+  Maybe Text ->
+  Maybe (Range 10 100 Int32) ->
+  (Handler r) Public.ServiceProfilePage
 searchServiceProfiles _ Nothing (Just start) mSize = do
   guardSecondFactorDisabled Nothing
   prefix :: Range 1 128 Text <- rangeChecked start
   let size = fromMaybe (unsafeRange 20) mSize
-  wrapClientE . DB.paginateServiceNames (Just prefix) (fromRange size) =<< asks (.settings.providerSearchFilter)
+  pFilter <- asks (.settings.providerSearchFilter)
+  lift . liftSem $ paginateProviderServiceNames (Just prefix) (fromRange size) pFilter
 searchServiceProfiles _ (Just tags) start mSize = do
   guardSecondFactorDisabled Nothing
   let size = fromMaybe (unsafeRange 20) mSize
-  (wrapClientE . DB.paginateServiceTags tags start (fromRange size))
-    =<< asks (.settings.providerSearchFilter)
+  pFilter <- asks (.settings.providerSearchFilter)
+  lift . liftSem $ paginateProviderServiceTags tags start (fromRange size) pFilter
 searchServiceProfiles _ Nothing Nothing _ = do
   guardSecondFactorDisabled Nothing
   throwStd $ badRequest "At least `tags` or `start` must be provided."
 
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
 searchTeamServiceProfiles ::
-  (Member UserStore r) =>
+  (Member UserStore r, Member ProviderServiceStore r) =>
   UserId ->
   TeamId ->
   Maybe (Range 1 128 Text) ->
@@ -687,7 +713,7 @@ searchTeamServiceProfiles uid tid prefix mFilterDisabled mSize = do
   unless (Just tid == teamId) $
     throwStd insufficientTeamPermissions
   -- Get search results
-  wrapClientE $ DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
+  lift . liftSem $ paginateProviderServiceWhitelist tid prefix filterDisabled (fromRange size)
 
 getServiceTagList :: (Member GalleyAPIAccess r) => UserId -> (Handler r) Public.ServiceTagList
 getServiceTagList _ = do
@@ -705,7 +731,8 @@ updateServiceWhitelist ::
     Member UserStore r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ProviderServiceStore r
   ) =>
   UserId ->
   ConnId ->
@@ -720,14 +747,14 @@ updateServiceWhitelist uid _con tid upd = do
       newWhitelisted = updateServiceWhitelistStatus upd
   when newWhitelisted guardMLSNotDefault
   lift . liftSem $ ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
-  _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
+  _ <- (lift . liftSem $ lookupProviderService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
-  whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid
+  whitelisted <- lift . liftSem $ getProviderServiceWhitelistStatus tid pid sid
   case (whitelisted, newWhitelisted) of
     (False, False) -> pure UpdateServiceWhitelistRespUnchanged
     (True, True) -> pure UpdateServiceWhitelistRespUnchanged
     (False, True) -> do
-      wrapClientE $ DB.insertServiceWhitelist tid pid sid
+      lift . liftSem $ insertProviderServiceWhitelist tid pid sid
       pure UpdateServiceWhitelistRespChanged
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
@@ -744,7 +771,7 @@ updateServiceWhitelist uid _con tid upd = do
                     deleteBot (botUserId bid) Nothing bid cid
                 )
             )
-      wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
+      lift . liftSem $ deleteProviderServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
   where
     guardMLSNotDefault = lift . liftSem $ do
@@ -766,7 +793,8 @@ addBot ::
     Member UserStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member ProviderServiceStore r
   ) =>
   UserId ->
   ConnId ->
@@ -801,12 +829,12 @@ addBot zuid zcon cid add = do
   unless (Set.member ServiceAccessRole (cnvAccessRoles cnv)) $
     throwStd (errorToWai @'E.InvalidConversation)
   -- Lookup the relevant service data
-  scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
+  scon <- (lift . liftSem $ lookupProviderServiceConn pid sid) >>= maybeServiceNotFound
   unless (sconEnabled scon) $
     throwStd (errorToWai @'E.ServiceDisabled)
-  svp <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
+  svp <- (lift . liftSem $ lookupProviderServiceProfile pid sid) >>= maybeServiceNotFound
   for_ (cnvTeam cnv) $ \tid -> do
-    whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid
+    whitelisted <- lift . liftSem $ getProviderServiceWhitelistStatus tid pid sid
     unless whitelisted $
       throwStd serviceNotWhitelisted
   -- Prepare a user ID, client ID and token for the bot.

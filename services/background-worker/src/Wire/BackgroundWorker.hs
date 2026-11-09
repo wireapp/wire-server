@@ -128,6 +128,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-connections" $
             Migrations.connections opts.migrationOptions
       else pure $ pure ()
+  cleanupProviderServiceMigration <-
+    if opts.migrateProviderService
+      then
+        runAppT env $
+          withNamedLogger "migrate-provider-service" $
+            Migrations.providerService opts.migrationOptions
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -139,7 +146,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,,,,,)
+            (,,,,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -153,6 +160,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
               <*> Concurrently cleanupServiceMigration
+              <*> Concurrently cleanupProviderServiceMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 

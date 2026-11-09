@@ -100,6 +100,7 @@ galley:
       nonce: cassandra
       connections: cassandra
       service: cassandra
+      providerService: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -1059,6 +1060,11 @@ background-worker:
     # It's important to set `settings.postgresMigration.service` to `migration-to-postgresql`
     # before starting the migration.
     migrateService: false
+    # This will start the migration of brig's provider-platform service tables
+    # (service, service_tag, service_prefix, service_whitelist{,_rev}).
+    # It's important to set brig's `settings.postgresMigration.providerService`
+    # to `migration-to-postgresql` before starting the migration.
+    migrateProviderService: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
