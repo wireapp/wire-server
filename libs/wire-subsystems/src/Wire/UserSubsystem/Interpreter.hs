@@ -248,8 +248,7 @@ contactStatusContextImpl self = do
 -- handler.
 --
 -- Visibility mirrors 'getLocalUserProfileInternal', so that local and remote
--- users are treated alike (RFC M0: only users visible in the directory get a
--- status):
+-- users are treated alike:
 --
 -- * unknown users and users with a pending invitation are left out. Answering
 --   for the latter would reveal over federation that they exist, which
