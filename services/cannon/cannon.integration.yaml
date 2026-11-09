@@ -1,3 +1,14 @@
+fanInPerfPostgresql:
+  host: localhost
+  port: "55432"
+  user: wire-server
+  dbname: fan_in_perf
+fanInPerfPostgresqlPassword: /tmp/fan-in-perf-password
+fanInPerfPostgresqlPool:
+  size: 32
+  acquisitionTimeout: "5s"
+  idlenessTimeout: "600s"
+
 # Example yaml-formatted configuration for cannon used in integration tests
 
 # cannon can be started with a config file (e.g. ./dist/cannon -c cannon.yaml.example)

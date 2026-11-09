@@ -95,6 +95,7 @@ library
     FanInPerf.Run
     FanInPerf.Service
     FanInPerf.Settle
+    FanInPerf.Smoke
     FanInPerf.Stats
     FanInPerf.Store
     FanInPerf.Summary
@@ -116,10 +117,12 @@ library
     , hasql-resource-pool
     , hasql-th
     , hasql-transaction
+    , http-client
     , http-types
     , imports
     , megaparsec
     , mmzk-typeid
+    , network-uri
     , optparse-applicative
     , polysemy
     , postgresql-connection-string
@@ -135,6 +138,7 @@ library
     , vector
     , wai
     , warp
+    , websockets
     , wire-api
     , wire-subsystems
 
@@ -171,6 +175,7 @@ test-suite fan-in-perf-tests
     FanInPerf.ProduceSpec
     FanInPerf.ServiceSpec
     FanInPerf.SettleSpec
+    FanInPerf.SmokeSpec
     FanInPerf.StatsSpec
     FanInPerf.SummarySpec
     FanInPerf.TargetSpecParserSpec
@@ -202,13 +207,14 @@ test-suite fan-in-perf-tests
     , text
     , time
     , types-common
+    , unliftio
     , uuid-types
     , vector
     , wai
+    , wai-extra
+    , wai-websockets
     , warp
     , websockets
-    , wai-websockets
-    , wai-extra
     , wire-api
     , wire-subsystems
 

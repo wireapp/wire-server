@@ -16,11 +16,13 @@
 , hasql-transaction
 , hspec
 , hspec-discover
+, http-client
 , http-types
 , imports
 , lib
 , megaparsec
 , mmzk-typeid
+, network-uri
 , optparse-applicative
 , polysemy
 , postgresql-connection-string
@@ -61,10 +63,12 @@ mkDerivation {
     hasql-resource-pool
     hasql-th
     hasql-transaction
+    http-client
     http-types
     imports
     megaparsec
     mmzk-typeid
+    network-uri
     optparse-applicative
     polysemy
     postgresql-connection-string
@@ -80,6 +84,7 @@ mkDerivation {
     vector
     wai
     warp
+    websockets
     wire-api
     wire-subsystems
   ];
@@ -107,6 +112,7 @@ mkDerivation {
     text
     time
     types-common
+    unliftio
     uuid-types
     vector
     wai

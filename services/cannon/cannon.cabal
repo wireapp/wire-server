@@ -21,8 +21,8 @@ library
     Cannon.API.Internal
     Cannon.API.Public
     Cannon.App
-    Cannon.FanIn
     Cannon.Dict
+    Cannon.FanIn
     Cannon.Options
     Cannon.RabbitMq
     Cannon.RabbitMqConsumerApp
@@ -111,8 +111,8 @@ library
     , prometheus-client
     , retry                                 >=0.7
     , safe-exceptions
-    , servant-conduit
     , servant
+    , servant-conduit
     , servant-server
     , strict                                >=0.3.2
     , text                                  >=1.1
@@ -252,24 +252,24 @@ test-suite cannon-tests
     -Wunused-packages -Wno-x-partial
 
   build-depends:
-      async
-    , aeson
-    , fan-in-perf
-    , http-types
-    , servant-server
-    , wai
-    , wai-extra
+      aeson
+    , async
     , base
     , bytestring
     , cannon
+    , fan-in-perf
+    , http-types
     , imports
     , metrics-wai
     , QuickCheck        >=2.7
     , random            >=1.0
+    , servant-server
     , tasty             >=0.8
     , tasty-hunit       >=0.8
     , tasty-quickcheck  >=0.8
     , uuid
+    , wai
+    , wai-extra
     , wire-api
 
   default-language:   GHC2021

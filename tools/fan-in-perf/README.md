@@ -401,8 +401,8 @@ gundeck:
       user: benchmark
     fanInPerfPostgresqlPool:
       size: 32
-      acquisitionTimeout: 5
-      idlenessTimeout: 600
+      acquisitionTimeout: "5s"
+      idlenessTimeout: "600s"
   secrets:
     fanInPerfPgPassword: "YOUR_BENCHMARK_DATABASE_PASSWORD"
 ```
@@ -514,8 +514,8 @@ fanInPerfPostgresql:
 fanInPerfPostgresqlPassword: /path/to/local/postgres-password
 fanInPerfPostgresqlPool:
   size: 32
-  acquisitionTimeout: 5
-  idlenessTimeout: 600
+  acquisitionTimeout: "5s"
+  idlenessTimeout: "600s"
 ```
 
 Register each synthetic `(user, client)` via Gundeck's registration endpoint,
@@ -575,3 +575,40 @@ both `services/cannon/cannon.integration.yaml` and
 path. Keep these overrides local: ordinary service runs do not need the
 benchmark database. Initialize the dedicated benchmark schema explicitly before
 starting the services; never run `reset-db` against the regular database.
+
+### End-to-end smoke command
+
+With the regular development dependencies, benchmark PostgreSQL, Gundeck and
+Cannon running and configured as above, build and run:
+
+```bash
+set -o pipefail
+cabal build exe:fan-in-perf 2>&1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'
+"$(cabal list-bin exe:fan-in-perf)" smoke \
+  --gundeck-url http://127.0.0.1:8086 \
+  --cannon-url ws://127.0.0.1:8083 \
+  --timeout-seconds 30
+```
+
+These are the defaults; `fan-in-perf smoke` is sufficient when using those
+addresses. Only internal `http://` and `ws://` base URLs are supported. Run this
+against the dedicated experimental setup, with no other publisher active.
+
+The command registers two fresh synthetic devices and initializes their cursors
+past existing events. It checks that both receive and acknowledge the same live
+event, disconnects one device, publishes another event, and verifies offline
+catch-up on reconnect. Finally, both reconnect to verify acknowledged events are
+not replayed. Each step prints `RUN`/`OK`; success prints `PASS`, and failure or
+timeout exits nonzero with `FAIL`.
+
+This exercises the real Gundeck publish, RabbitMQ worker, Redis presence,
+Cannon WebSocket and PostgreSQL acknowledgement path. It does not test native
+pushes or load capacity. It neither starts services nor resets the database and
+does not require `--db`. Each successful run leaves two participant records and
+two events in the fixture. The timeout applies per step; connection setup and
+teardown are additionally bounded by an overall timeout of twelve times that
+value.
+
+The command's unit tests use in-process HTTP/WebSocket fixtures, including
+missing-wakeup and missing-ack-persistence failures. Passing those tests alone
+does not establish that the full service stack is configured correctly.
