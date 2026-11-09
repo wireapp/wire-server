@@ -285,9 +285,10 @@ getLocalContactStatusesImpl ctx uids = do
           [ (user.id, (protocolsOf user, Map.findWithDefault Set.empty user.id clientsByUser))
           | user <- existing
           ]
-  contactability <- usersContactabilityStatus existingUsers (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
+  contactable <- isUsersContactableImpl existingUsers (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
   pure $
-    contactability <> Map.fromList [(user.id, ContactStatus NonContactable) | user <- deleted]
+    contactable
+      <> Map.fromList [(user.id, ContactStatus NonContactable) | user <- deleted]
 
 -- | Local users are evaluated locally; for each remote domain exactly one
 -- federation action is run (domains run concurrently; requests above
@@ -344,25 +345,24 @@ getContactStatusesImpl self qids = do
               (tUntagged . qualifyAs rstatuses)
               (tUnqualified rstatuses)
 
-usersContactabilityStatus ::
+isUsersContactableImpl ::
   forall r.
   (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
   Map UserId (Set BaseProtocolTag, Set UserClient.Client) ->
   Bool ->
   Set CipherSuiteTag ->
   Sem r (Map UserId ContactStatus)
-usersContactabilityStatus usersToProtocolsAndClients mlsAvailable allowedCipherSuites = do
+isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
   let prekeyRequests =
         [ (uid, client.clientId)
-        | (uid, (protocols, clients)) <- Map.toList usersToProtocolsAndClients,
-          -- Prekeys only matter for Proteus
+        | (uid, (protocols, clients)) <- Map.toList users,
           Set.member BaseProtocolProteusTag protocols,
           client <- Set.toList clients
         ]
       mlsRequests =
         [ (uid, client.clientId, ciphersuite)
         | mlsAvailable,
-          (uid, (protocols, clients)) <- Map.toList usersToProtocolsAndClients,
+          (uid, (protocols, clients)) <- Map.toList users,
           Set.member BaseProtocolMLSTag protocols,
           client <- Set.toList clients,
           ciphersuite <- Set.toList allowedCipherSuites,
@@ -372,14 +372,8 @@ usersContactabilityStatus usersToProtocolsAndClients mlsAvailable allowedCipherS
         ]
   prekeyPresence <- ClientStore.lookupPrekeyPresenceBulk prekeyRequests
   mlsPresence <- Mls.hasMlsKeyPackagesBulk mlsRequests
-  pure $ Map.mapWithKey (isContactable prekeyPresence mlsPresence) usersToProtocolsAndClients
+  pure $ Map.mapWithKey (isContactable prekeyPresence mlsPresence) users
   where
-    isContactable ::
-      Set (UserId, ClientId) ->
-      Set (UserId, ClientId, CipherSuiteTag) ->
-      UserId ->
-      (Set BaseProtocolTag, Set UserClient.Client) ->
-      ContactStatus
     isContactable prekeyPresence mlsPresence uid (protocols, clients) =
       let proteusReady =
             Set.member BaseProtocolProteusTag protocols
@@ -397,7 +391,7 @@ usersContactabilityStatus usersToProtocolsAndClients mlsAvailable allowedCipherS
                       allowedCipherSuites
                 )
                 clients
-       in ContactStatus $ if proteusReady || mlsReady then Contactable else NonContactable
+       in ContactStatus $ bool NonContactable Contactable (proteusReady || mlsReady)
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
