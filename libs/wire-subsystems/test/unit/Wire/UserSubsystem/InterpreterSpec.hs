@@ -1739,6 +1739,8 @@ type GetContactStatusHandler =
 newtype CFed (comp :: Component) a = CFed (GetContactStatusHandler -> IO a)
   deriving (Functor, Applicative, Monad) via (ReaderT GetContactStatusHandler IO)
 
+-- | Only required by the 'RunClient' constraints of the federated functions. Never used:
+-- 'fedClientWithProxy' bypasses servant.
 instance RunClient (CFed comp) where
   runRequestAcceptStatus _ _ = error "CFed does not support servant client"
   throwClientError _ = error "CFed does not support servant client"
