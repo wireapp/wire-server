@@ -17,7 +17,7 @@
 
 module Wire.PropertyStore.Postgres
   ( interpretPropertyStoreToPostgres,
-    insertPropertyImpl,
+    insertPropertyIfAbsentImpl,
   )
 where
 
@@ -57,6 +57,21 @@ insertPropertyImpl u k v =
                          VALUES ($1 :: uuid, $2 :: text, $3 :: bytea)
                          ON CONFLICT (user_id, key) DO UPDATE
                          SET value = ($3 :: bytea)
+                        |]
+
+-- | Copy-only insert used by the Cassandra→Postgres backfill: never
+-- overwrites a row that dual-write already put in Postgres.
+insertPropertyIfAbsentImpl ::
+  (PGConstraints r) =>
+  UserId ->
+  PropertyKey ->
+  RawPropertyValue ->
+  Sem r ()
+insertPropertyIfAbsentImpl u k v =
+  runStatement (u, k, v) . lmapPG $
+    [resultlessStatement|INSERT INTO properties (user_id, key, value)
+                         VALUES ($1 :: uuid, $2 :: text, $3 :: bytea)
+                         ON CONFLICT (user_id, key) DO NOTHING
                         |]
 
 lookupPropertyImpl ::

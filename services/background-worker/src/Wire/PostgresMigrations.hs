@@ -223,7 +223,6 @@ connections migOpts = do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
     cancel migrationLoop
 
-
 properties :: MigrationOptions -> AppT IO CleanupAction
 properties migOpts = do
   cassClient <- asks (.cassandraBrig)

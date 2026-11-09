@@ -117,6 +117,21 @@ migrateAllProperties migOpts migCounter migDuration = do
           )
       )
 
+-- | Copy a single Cassandra property row into Postgres.
+--
+-- Accepted residual race (program-level trade-off for this store,
+-- 2026-10-22): the backfill is copy-only and properties have no tombstones
+-- or write timestamps, so a delete or 'ClearProperties' dual-written to
+-- Postgres between the Cassandra page fetch and this insert can be
+-- resurrected by the copy (a resurrected row is not removed by later
+-- backfill passes). This is bounded by the backfill duration, and
+-- Cassandra remains the source of truth until cutover. The insert is
+-- deliberately insert-if-absent: in migration mode brig dual-writes all
+-- mutations to Postgres, so any row already present was written with
+-- at-least-as-new data and must not be clobbered by the stale copy. The
+-- converse also holds by the same bound: a Cassandra-write whose PG mirror
+-- failed leaves PG staler than Cassandra and the copy skips it, but the
+-- divergence persists only until cutover, after which Cassandra is retired.
 migratePropertiesRow ::
   ( PGConstraints r,
     Member TinyLog r,
@@ -134,7 +149,7 @@ migratePropertiesRow migOpts migCounter migDuration (u, k, v) = do
     (liftIO getCurrentTime)
     (observeDuration migDuration outcomeRef)
     ( const $ do
-        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.insertPropertyImpl u k v
+        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.insertPropertyIfAbsentImpl u k v
         case timeoutResult of
           Left timedOutAfter -> do
             markOutcome outcomeRef "timeout"
