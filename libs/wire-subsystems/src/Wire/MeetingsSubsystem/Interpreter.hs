@@ -627,9 +627,11 @@ getMeetingImpl zUser meetingId validityPeriod = do
           lift $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
     else pure Nothing
 
--- | Whether the deployment's license covers invitation links (WPB-29643).
-invitationLinksLicensed :: (Member Licensing r) => Sem r Bool
-invitationLinksLicensed = (.meetings.invitationLinks) <$> getLicense
+-- | Throw the given error unless the deployment's license covers
+-- invitation links (WPB-29643).
+invitationLinksLicensed :: (Member Licensing r, Member (Error e) r) => e -> Sem r ()
+invitationLinksLicensed err =
+  getLicense >>= \l -> unless l.meetings.invitationLinks $ throw err
 
 -- | Unauthenticated check of a meeting join link (WPB-28989). Unlike
 -- 'getMeetingImpl' no creator/membership check and no meetings-feature gate
@@ -645,6 +647,7 @@ codeCheckMeetingLinkImpl ::
     Member HashPassword r,
     Member RateLimit r,
     Member (Input (Local ())) r,
+    Member (Error MeetingError) r,
     Member Licensing r
   ) =>
   IpAddr ->
@@ -655,26 +658,24 @@ codeCheckMeetingLinkImpl ::
   NominalDiffTime ->
   Sem r CodeCheckMeetingLinkResult
 codeCheckMeetingLinkImpl origIp domain key presentedValue mPassword validityPeriod = do
-  invitationLinksLicensed >>= \case
-    False -> pure CodeCheckPaywall
-    True -> do
-      localDomain <- tDomain <$> input
-      resolveLiveMeetingByKey localDomain domain key presentedValue validityPeriod >>= \case
-        Nothing -> pure CodeCheckNotFound
-        Just (mHashedPw, meeting) -> do
-          ok <- verifyCodePassword (RateLimitIp origIp) (mHashedPw, mPassword)
-          if ok
-            then
-              pure $
-                CodeCheckOk
-                  API.MeetingCodeCheck
-                    { title = meeting.title,
-                      startTime = meeting.startTime,
-                      endTime = meeting.endTime,
-                      tzid = meeting.tzid,
-                      recurrence = meeting.recurrence
-                    }
-            else pure CodeCheckInvalidPassword
+  invitationLinksLicensed MeetingNotLicensed
+  localDomain <- tDomain <$> input
+  resolveLiveMeetingByKey localDomain domain key presentedValue validityPeriod >>= \case
+    Nothing -> pure CodeCheckNotFound
+    Just (mHashedPw, meeting) -> do
+      ok <- verifyCodePassword (RateLimitIp origIp) (mHashedPw, mPassword)
+      if ok
+        then
+          pure $
+            CodeCheckOk
+              API.MeetingCodeCheck
+                { title = meeting.title,
+                  startTime = meeting.startTime,
+                  endTime = meeting.endTime,
+                  tzid = meeting.tzid,
+                  recurrence = meeting.recurrence
+                }
+        else pure CodeCheckInvalidPassword
 
 -- | Join a meeting through its join link (WPB-28989), like
 -- @POST /conversations/join@: resolve the link's code and join the meeting's
@@ -688,7 +689,8 @@ codeCheckMeetingLinkImpl origIp domain key presentedValue mPassword validityPeri
 -- returned as 'JoinMeetingNotFound' rather than thrown because a throw from
 -- interpreter space is invisible to callers' local error handlers (PR #5571
 -- review lesson); only the strict link-production failure ('LinkUnavailable')
--- is thrown, and the join route declares it.
+-- and the license gate (which throws 'MeetingNotLicensed', as declared on the
+-- route) are thrown.
 joinMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member CodeStore r,
@@ -708,13 +710,11 @@ joinMeetingImpl ::
   Maybe PlainTextPassword8 ->
   NominalDiffTime ->
   Sem r JoinMeetingResult
-joinMeetingImpl zUser connId domain key presentedValue mPassword validityPeriod =
-  invitationLinksLicensed >>= \case
-    False -> pure JoinMeetingPaywall
-    True ->
-      resolveLiveMeetingByKey (tDomain zUser) domain key presentedValue validityPeriod >>= \case
-        Nothing -> pure JoinMeetingNotFound
-        Just (mHashedPw, meeting) -> do
+joinMeetingImpl zUser connId domain key presentedValue mPassword validityPeriod = do
+  invitationLinksLicensed MeetingNotLicensed
+  resolveLiveMeetingByKey (tDomain zUser) domain key presentedValue validityPeriod >>= \case
+    Nothing -> pure JoinMeetingNotFound
+    Just (mHashedPw, meeting) -> do
           ok <- verifyCodePassword (RateLimitUser (tUnqualified zUser)) (mHashedPw, mPassword)
           if ok
             then do

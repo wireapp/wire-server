@@ -53,7 +53,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -487,7 +486,7 @@ evalGalley e =
       licenseInterpreter =
         runLicense
           (Licensing.Domain (domainText (e ^. options . settings . federationDomain)))
-          (fmap encodeUtf8 (e ^. options . settings . license))
+          (e ^. options . settings . license)
    in ExceptT
         . runFinal @IO
         . unsafelyPerformConcurrency

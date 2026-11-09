@@ -327,7 +327,7 @@ type MeetingsAPI =
                :> From 'V19
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'InvalidMeetingPassword
-               :> CanThrow MeetingError
+               :> CanThrow 'MeetingNotLicensed
                :> Header' [Required, Strict] "X-Forwarded-For" IpAddr
                :> "meeting"
                :> Capture "domain" Domain
@@ -356,13 +356,13 @@ type MeetingsAPI =
                :> QueryParam' '[Optional, Strict] "password" PlainTextPassword8
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'InvalidMeetingPassword
-               :> CanThrow MeetingError
+               :> CanThrow 'MeetingNotLicensed
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotATeamMember
                :> CanThrow 'TooManyMembers
-               :> CanThrow MeetingError
+               :> CanThrow 'MeetingNotLicensed
                :> MultiVerb
                     'POST
                     '[JSON]

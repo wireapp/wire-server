@@ -397,6 +397,13 @@ type instance MapError 'MLSHistoryClientDuplication = 'StaticError 400 "mls-hist
 
 type instance MapError 'MeetingNotFound = 'StaticError 404 "meeting-not-found" "Meeting not found"
 
+type instance MapError 'MeetingNotLicensed = MeetingNotLicensedStatic
+
+type instance ErrorEffect (e :: MeetingError) = Error MeetingError
+
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: MeetingError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+
 type instance MapError 'CodeStoreNotFound = 'StaticError 404 "code-store-not-found" "Code store not found"
 
 -- | Errors raised by the meetings subsystem, exposed at the API level via

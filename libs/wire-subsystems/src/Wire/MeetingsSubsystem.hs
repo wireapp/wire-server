@@ -157,11 +157,7 @@ data MeetingsSubsystem m a where
 
 -- | Outcome of checking a meeting join link ('CodeCheckMeetingLink').
 data CodeCheckMeetingLinkResult
-  = -- | The deployment's license does not cover invitation links
-    -- (WPB-29643). Checked before link resolution, so it also applies to
-    -- unknown or stale links (surfaced as 403 id-feature-error).
-    CodeCheckPaywall
-  | -- | No live local meeting behind the key+code.
+  = -- | No live local meeting behind the key+code.
     CodeCheckNotFound
   | -- | The code is password-protected and the query param does not match.
     CodeCheckInvalidPassword
@@ -171,11 +167,7 @@ data CodeCheckMeetingLinkResult
 
 -- | Outcome of joining a meeting through its join link ('JoinMeeting').
 data JoinMeetingResult
-  = -- | The deployment's license does not cover invitation links
-    -- (WPB-29643). Checked before link resolution, so it also applies to
-    -- unknown or stale links (surfaced as 403 id-feature-error).
-    JoinMeetingPaywall
-  | -- | No live local meeting, or no live join code row for it.
+  = -- | No live local meeting, or no live join code row for it.
     JoinMeetingNotFound
   | -- | The join code is password-protected and the supplied password does
     -- not match (or is missing).

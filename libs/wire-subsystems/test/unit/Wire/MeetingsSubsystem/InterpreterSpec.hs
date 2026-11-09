@@ -1677,7 +1677,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           mCode <- gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
           maybe (error "no meeting code stored") (pure . fst) mCode
 
-    it "returns JoinMeetingPaywall when the license is missing" $ do
+    it "returns MeetingNotLicensed when the license is missing (join)" $ do
       result <-
         runTestStackWithURI
           now
@@ -1691,9 +1691,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               code <- meetingCode (qUnqualified meeting.meeting.id)
               joinMeeting zUser2 (ConnId "test-conn") (Domain "wire.com") code.codeKey code.codeValue Nothing
           )
-      result `shouldBe` Right (Right JoinMeetingPaywall)
+      result `shouldBe` Right (Left MeetingNotLicensed)
 
-    it "returns CodeCheckPaywall when the license is missing" $ do
+    it "returns MeetingNotLicensed when the license is missing (code-check)" $ do
       result <-
         runTestStackWithURI
           now
@@ -1707,7 +1707,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               code <- meetingCode (qUnqualified meeting.meeting.id)
               codeCheckMeetingLink (IpAddr (read @IP "10.0.0.1")) (Domain "my-domain") code.codeKey code.codeValue Nothing
           )
-      result `shouldBe` Right (Right CodeCheckPaywall)
+      result `shouldBe` Right (Left MeetingNotLicensed)
 
     it "joins when invitation links are licensed" $ do
       result <- runTestStack now gen Map.empty teamConfig $ do

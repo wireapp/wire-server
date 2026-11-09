@@ -184,9 +184,6 @@ data Settings = Settings
     -- | Raw licence payload: base64url-encoded JSON 'LicenceSpec' as produced by
     --   @wire-licensing encode@ / @example@. Unset means unlicensed
     --   ('missingLicense'; meeting join-by-link endpoints paywall).
-    --   'Text' rather than 'ByteString' because aeson's FromJSON ByteString
-    --   instance base64-decodes; convert with 'encodeUtf8' at the 'runLicense'
-    --   call site.
     _license :: !(Maybe Text)
   }
   deriving (Show, Generic)
