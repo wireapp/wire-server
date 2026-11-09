@@ -5,6 +5,10 @@
     self.submodules = true;
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-26.05";
     nixpkgs_24_11.url = "github:nixos/nixpkgs?ref=nixos-24.11";
+    # Only used for haskell-language-server 2.15 (nixos-26.05 has 2.13).
+    # Follows nixpkgs' haskell-updates branch; flake.lock pins the rev.
+    # Bump with: nix flake update nixpkgs_hls
+    nixpkgs_hls.url = "github:nixos/nixpkgs?ref=haskell-updates";
     flake-utils.url = "github:numtide/flake-utils";
     tom-bombadil = {
       url = "github:wireapp/tom-bombadil";

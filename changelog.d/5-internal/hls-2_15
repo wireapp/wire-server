@@ -1,0 +1,1 @@
+Dev shell: provide haskell-language-server 2.15 (was 2.13). It is taken from a second, pinned nixpkgs input (`nixpkgs_hls`, haskell-updates) and built with the project's GHC, so the ABI check at HLS startup passes.

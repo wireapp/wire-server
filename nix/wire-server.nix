@@ -502,6 +502,28 @@ let
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
 
+  # Newer nixpkgs, only for haskell-language-server (see flake.nix).
+  # HLS must be built with the very same GHC as the project (ABI hashes are
+  # checked at startup). Same version number is not enough: GHC builds from
+  # different nixpkgs revisions have different ABIs.
+  pkgs_hls = import inputs.nixpkgs_hls {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    overlays = [
+      (import ./overlay.nix)
+      (self: super: {
+        haskell = super.haskell // {
+          packages = super.haskell.packages // {
+            ghc910 = self.haskell.packages.ghc910Project;
+            ghc910Project = super.haskell.packages.ghc910.override {
+              ghc = pkgs.haskell.compiler.ghc910;
+              buildHaskellPackages = self.haskell.packages.ghc910Project;
+            };
+          };
+        };
+      })
+    ];
+  };
+
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
     destination = "/.profile";
@@ -525,7 +547,7 @@ let
     pkgs.bash
     pkgs.crate2nix
     pkgs.dash
-    (pkgs.haskell-language-server.override { supportedGhcVersions = [ "910" ]; })
+    (pkgs_hls.haskell-language-server.override { supportedGhcVersions = [ "910" ]; })
     pkgs.ghcid
     pkgs.kind
     pkgs.netcat

@@ -347,6 +347,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_hls": {
+      "locked": {
+        "lastModified": 1794210730,
+        "narHash": "sha256-q9zQbCGmLIde1mG+XzsufCA44KBAaDVeit+f7AEA2vA=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "1aaf5f9c1576ad9f5ae8091858b2d8ca97872492",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "haskell-updates",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "postgresql-connection-string": {
       "flake": false,
       "locked": {
@@ -397,6 +413,7 @@
         "http-client": "http-client",
         "nixpkgs": "nixpkgs",
         "nixpkgs_24_11": "nixpkgs_24_11",
+        "nixpkgs_hls": "nixpkgs_hls",
         "postgresql-connection-string": "postgresql-connection-string",
         "postie": "postie",
         "sbomnix": "sbomnix",
