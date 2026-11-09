@@ -286,11 +286,11 @@ instance S.ToSchema ServiceToken where
 
 deriving instance Cql ServiceToken
 
-instance PostgresMarshall ByteString ServiceToken where
-  postgresMarshall = toByteString'
+instance PostgresMarshall Text ServiceToken where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
 
-instance PostgresUnmarshall ByteString ServiceToken where
-  postgresUnmarshall = first Text.pack . runParser parser
+instance PostgresUnmarshall Text ServiceToken where
+  postgresUnmarshall = first Text.pack . runParser parser . Text.encodeUtf8
 
 --------------------------------------------------------------------------------
 -- ServiceProfile

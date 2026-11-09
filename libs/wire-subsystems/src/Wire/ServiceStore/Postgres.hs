@@ -61,14 +61,14 @@ insertService s =
     insert ::
       Hasql.Statement (ProviderId, ServiceId, HttpsUrl, ServiceToken, [Fingerprint Rsa], Bool) ()
     insert =
-      lmapPG @(UUID, UUID, ByteString, ByteString, Vector ByteString, Bool)
+      lmapPG @(UUID, UUID, ByteString, Text, Vector ByteString, Bool)
         [resultlessStatement|INSERT INTO service
                                (provider, id, base_url, auth_token, fingerprints, enabled, last_update)
                              VALUES
-                               ($1 :: uuid, $2 :: uuid, $3 :: bytea, $4 :: bytea, $5 :: bytea[], $6 :: boolean, now())
+                               ($1 :: uuid, $2 :: uuid, $3 :: bytea, $4 :: text, $5 :: bytea[], $6 :: boolean, now())
                              ON CONFLICT (provider, id) DO UPDATE
                              SET base_url = ($3 :: bytea),
-                                 auth_token = ($4 :: bytea),
+                                 auth_token = ($4 :: text),
                                  fingerprints = ($5 :: bytea[]),
                                  enabled = ($6 :: boolean),
                                  last_update = now()
@@ -102,14 +102,14 @@ upsertServiceIfNewer s ts =
     upsertIfNewer ::
       Hasql.Statement (ProviderId, ServiceId, HttpsUrl, ServiceToken, [Fingerprint Rsa], Bool, UTCTime) ()
     upsertIfNewer =
-      lmapPG @(UUID, UUID, ByteString, ByteString, Vector ByteString, Bool, UTCTime)
+      lmapPG @(UUID, UUID, ByteString, Text, Vector ByteString, Bool, UTCTime)
         [resultlessStatement|INSERT INTO service
                                (provider, id, base_url, auth_token, fingerprints, enabled, last_update)
                              VALUES
-                               ($1 :: uuid, $2 :: uuid, $3 :: bytea, $4 :: bytea, $5 :: bytea[], $6 :: boolean, ($7 :: timestamptz))
+                               ($1 :: uuid, $2 :: uuid, $3 :: bytea, $4 :: text, $5 :: bytea[], $6 :: boolean, ($7 :: timestamptz))
                              ON CONFLICT (provider, id) DO UPDATE
                              SET base_url = ($3 :: bytea),
-                                 auth_token = ($4 :: bytea),
+                                 auth_token = ($4 :: text),
                                  fingerprints = ($5 :: bytea[]),
                                  enabled = ($6 :: boolean),
                                  last_update = ($7 :: timestamptz)
@@ -129,9 +129,9 @@ lookupService sr =
         (ProviderId, ServiceId)
         (Maybe (HttpsUrl, ServiceToken, [Fingerprint Rsa], Bool))
     select =
-      dimapPG @(UUID, UUID) @(ProviderId, ServiceId) @(Maybe (ByteString, ByteString, Vector ByteString, Bool))
+      dimapPG @(UUID, UUID) @(ProviderId, ServiceId) @(Maybe (ByteString, Text, Vector ByteString, Bool))
         [maybeStatement|SELECT (base_url :: bytea),
-                               (auth_token :: bytea),
+                               (auth_token :: text),
                                (fingerprints :: bytea[]),
                                (enabled :: boolean)
                         FROM service

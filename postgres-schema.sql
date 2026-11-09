@@ -1736,7 +1736,7 @@ CREATE TABLE public.service (
     provider uuid NOT NULL,
     id uuid NOT NULL,
     base_url bytea NOT NULL,
-    auth_token bytea NOT NULL,
+    auth_token text NOT NULL,
     fingerprints bytea[] DEFAULT '{}'::bytea[] NOT NULL,
     enabled boolean NOT NULL,
     last_update timestamp with time zone NOT NULL
