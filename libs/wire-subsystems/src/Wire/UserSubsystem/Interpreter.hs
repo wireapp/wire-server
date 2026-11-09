@@ -273,17 +273,19 @@ getLocalContactStatusesImpl ctx uids = do
   clients <- ClientStore.lookupClientsBulk (map (.id) existing)
   let clientsByUser :: Map UserId (Set UserClient.Client)
       clientsByUser = userMap clients
+
       protocolsOf :: StoredUser -> Set BaseProtocolTag
       protocolsOf user = case user.supportedProtocols of
         Just protocols | not (Set.null protocols) -> protocols
         _ -> defSupportedProtocols
-      users :: Map UserId (Set BaseProtocolTag, Set UserClient.Client)
-      users =
+
+      existingUsers :: Map UserId (Set BaseProtocolTag, Set UserClient.Client)
+      existingUsers =
         Map.fromList
           [ (user.id, (protocolsOf user, Map.findWithDefault Set.empty user.id clientsByUser))
           | user <- existing
           ]
-  contactability <- isUsersContactableImpl users (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
+  contactability <- usersContactabilityStatus existingUsers (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
   pure $
     contactability <> Map.fromList [(user.id, ContactStatus NonContactable) | user <- deleted]
 
@@ -342,17 +344,18 @@ getContactStatusesImpl self qids = do
               (tUntagged . qualifyAs rstatuses)
               (tUnqualified rstatuses)
 
-isUsersContactableImpl ::
+usersContactabilityStatus ::
   forall r.
   (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
   Map UserId (Set BaseProtocolTag, Set UserClient.Client) ->
   Bool ->
   Set CipherSuiteTag ->
   Sem r (Map UserId ContactStatus)
-isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
+usersContactabilityStatus users mlsAvailable allowedCipherSuites = do
   let prekeyRequests =
         [ (uid, client.clientId)
         | (uid, (protocols, clients)) <- Map.toList users,
+          -- Prekeys only matter for Proteus
           Set.member BaseProtocolProteusTag protocols,
           client <- Set.toList clients
         ]
