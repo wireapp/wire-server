@@ -22,6 +22,7 @@ module Wire.OAuthAuthCodeStore.Postgres
 where
 
 import Data.Id (OAuthClientId, UserId)
+import Data.Time (UTCTime, addUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
 import Hasql.Statement qualified as Hasql
@@ -42,16 +43,18 @@ interpretOAuthAuthCodeStoreToPostgres ::
   (PGConstraints r) =>
   InterpreterFor OAuthAuthCodeStore r
 interpretOAuthAuthCodeStoreToPostgres = interpret $ \case
-  InsertOAuthAuthCode ttl code cid uid scope uri chal ->
-    insertOAuthAuthCodePg ttl code cid uid scope uri (Just chal)
+  InsertOAuthAuthCode ttl code cid uid scope uri chal -> do
+    now <- liftIO getCurrentTime
+    insertOAuthAuthCodePg (addUTCTime (fromIntegral ttl) now) code cid uid scope uri (Just chal)
   LookupAndDeleteOAuthAuthCode code ->
     lookupAndDeleteOAuthAuthCodePg code
 
 -- | Exposed separately (with a 'Maybe' challenge) for the migration loop,
--- which copies rows carrying a NULL @code_challenge@.
+-- which copies rows carrying a NULL @code_challenge@. The first argument is
+-- the absolute @expires_at@ deadline, computed by the caller.
 insertOAuthAuthCodePg ::
   (PGConstraints r) =>
-  Int32 ->
+  UTCTime ->
   OAuthAuthorizationCode ->
   OAuthClientId ->
   UserId ->
@@ -59,29 +62,31 @@ insertOAuthAuthCodePg ::
   RedirectUrl ->
   Maybe OAuthCodeChallenge ->
   Sem r ()
-insertOAuthAuthCodePg ttl code cid uid scope uri mChal =
+insertOAuthAuthCodePg expiresAt code cid uid scope uri mChal =
   runStatement
-    (code, cid, uid, scope, uri, mChal, ttl)
+    (code, cid, uid, scope, uri, mChal, expiresAt)
     insertOAuthAuthCodeStatement
 
 insertOAuthAuthCodeStatement ::
   Hasql.Statement
-    (OAuthAuthorizationCode, OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge, Int32)
+    (OAuthAuthorizationCode, OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge, UTCTime)
     ()
 insertOAuthAuthCodeStatement =
   lmapPG insertOAuthAuthCodeStatementDb
 
 insertOAuthAuthCodeStatementDb ::
   Hasql.Statement
-    (Text, UUID, UUID, Vector Text, ByteString, Maybe Text, Int32)
+    (Text, UUID, UUID, Vector Text, ByteString, Maybe Text, UTCTime)
     ()
 insertOAuthAuthCodeStatementDb =
-  -- NOTE: unlike Cassandra (USING TTL 0 = never expires), a TTL of 0 here
-  -- produces an already-expired row. brig always configures a positive
-  -- expiration, and expiring early is the safe side.
+  -- NOTE: expiry is computed by the caller from its own clock (brig from its
+  -- configured expiration, the migration from the source row's TTL); brig
+  -- always configures a positive expiration. @DO NOTHING@ leaves an existing
+  -- row (e.g. already dual-written) untouched — no expiry refresh.
   [resultlessStatement|
       INSERT INTO oauth_auth_code (code, client, "user", scope, redirect_uri, code_challenge, expires_at)
-      VALUES ($1 :: text, $2 :: uuid, $3 :: uuid, $4 :: text[], $5 :: bytea, $6 :: text?, now() + make_interval(secs => $7 :: int))
+      VALUES ($1 :: text, $2 :: uuid, $3 :: uuid, $4 :: text[], $5 :: bytea, $6 :: text?, $7 :: timestamptz)
+      ON CONFLICT (code) DO NOTHING
     |]
 
 -- | Consume-on-read in a single atomic statement: a code is returned at most

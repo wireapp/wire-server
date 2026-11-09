@@ -48,6 +48,7 @@ import Wire.OAuthAuthCodeStore.Postgres qualified as Postgres
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.Util (embedClientInput)
 
 type EffectStack =
   [ AtomicState Int,
@@ -65,6 +66,14 @@ type EffectStack =
 -- short-lived (a few hundred seconds) single-use codes, so the loop runs
 -- best-effort: rows that expire mid-migration are skipped, and unconsumed
 -- codes TTL out on their own.
+--
+-- The TTL of each row is read as @ttl(client)@ and converted to an absolute
+-- deadline at page-read time; a worker-vs-Cassandra clock skew of NTP scale
+-- is accepted. Between the Cassandra existence probe and the Postgres insert
+-- a consume can still delete the row; the stale copy survives only until
+-- @expires_at@ (bounded by the configured code TTL, default 5 min) and is
+-- unreachable to every read path once the deadline passes — accepted for this
+-- copy-only migration pattern.
 migrateOAuthAuthCodeLoop ::
   MigrationOptions ->
   ClientState ->
@@ -116,16 +125,25 @@ migrateAllOAuthAuthCode migOpts migCounter migDuration = do
   withCount (paginateSem selectAllOAuthAuthCode (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_
-      ( traverse_ $ \row@(code, _, _, _, _, _, _) ->
-          -- The error key must not carry the raw code (RFC 9700 §5.7); the
-          -- Show instance redacts it.
-          handleErrors
-            (toByteString' (T.pack (show code)))
-            (migrateOAuthAuthCodeRow migOpts migCounter migDuration row)
+      ( \page -> do
+          -- ttl() is evaluated by Cassandra when the page is read; fix the
+          -- absolute deadline here so rows buffered behind earlier rows cannot
+          -- outlive their source TTL.
+          readTime <- liftIO getCurrentTime
+          traverse_
+            ( \row@(code, _, _, _, _, _, _) ->
+                -- The error key must not carry the raw code (RFC 9700 §5.7); the
+                -- Show instance redacts it.
+                handleErrors
+                  (toByteString' (T.pack (show code)))
+                  (migrateOAuthAuthCodeRow migOpts migCounter migDuration readTime row)
+            )
+            page
       )
 
 migrateOAuthAuthCodeRow ::
   ( PGConstraints r,
+    Member (Input ClientState) r,
     Member TinyLog r,
     Member Resource r,
     Member Race r
@@ -133,30 +151,42 @@ migrateOAuthAuthCodeRow ::
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
-  (OAuthAuthorizationCode, OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge, Int32) ->
+  UTCTime ->
+  (OAuthAuthorizationCode, OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge, Maybe Int32) ->
   Sem r ()
-migrateOAuthAuthCodeRow migOpts migCounter migDuration (code, cid, uid, scope, uri, mChal, ttl) =
-  -- A row with ttl <= 0 has already expired (or expires while being copied);
-  -- copying it would produce a row Postgres reads as valid until its own
-  -- expiry, so skip it.
-  when (ttl > 0) $ do
-    let codeText = T.pack (show code)
-    outcomeRef <- liftIO $ IORef.newIORef @Text "error"
-    bracket
-      (liftIO getCurrentTime)
-      (observeDuration migDuration outcomeRef)
-      ( const $ do
-          timeoutResult <-
-            Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $
-              Postgres.insertOAuthAuthCodePg ttl code cid uid scope uri mChal
-          case timeoutResult of
-            Left timedOutAfter -> do
-              markOutcome outcomeRef "timeout"
-              liftIO . UnliftIO.throwIO $ MigrationTimedOut codeText timedOutAfter
-            Right () -> do
-              markOutcome outcomeRef "success"
-              liftIO $ Prometheus.incCounter migCounter
-      )
+migrateOAuthAuthCodeRow migOpts migCounter migDuration readTime (code, cid, uid, scope, uri, mChal, mttl)
+  | maybe True (<= 0) mttl =
+      debug $
+        Log.msg (Log.val "skipping expired oauth auth code") . Log.field "code" (T.pack (show code))
+  | otherwise = do
+      -- The guard above guarantees a positive TTL.
+      let expiresAt = addUTCTime (fromIntegral (fromMaybe 1 mttl)) readTime
+      now <- liftIO getCurrentTime
+      -- Rows whose absolute deadline already passed while buffered in the
+      -- page are expired; copying them would create rows valid on their own
+      -- clock, so skip.
+      when (expiresAt > now) $ do
+        stillLive <-
+          embedClientInput
+            (isJust <$> retry x1 (query1 selectLiveOAuthAuthCode (params LocalQuorum (Identity code))))
+        when stillLive $ do
+          let codeText = T.pack (show code)
+          outcomeRef <- liftIO $ IORef.newIORef @Text "error"
+          bracket
+            (liftIO getCurrentTime)
+            (observeDuration migDuration outcomeRef)
+            ( const $ do
+                timeoutResult <-
+                  Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $
+                    Postgres.insertOAuthAuthCodePg expiresAt code cid uid scope uri mChal
+                case timeoutResult of
+                  Left timedOutAfter -> do
+                    markOutcome outcomeRef "timeout"
+                    liftIO . UnliftIO.throwIO $ MigrationTimedOut codeText timedOutAfter
+                  Right () -> do
+                    markOutcome outcomeRef "success"
+                    liftIO $ Prometheus.incCounter migCounter
+            )
   where
     handleTimeout =
       err $
@@ -173,6 +203,13 @@ selectAllOAuthAuthCode ::
   PrepQuery
     R
     ()
-    (OAuthAuthorizationCode, OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge, Int32)
+    (OAuthAuthorizationCode, OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge, Maybe Int32)
 selectAllOAuthAuthCode =
-  "SELECT code, client, user, scope, redirect_uri, code_challenge, ttl(code) FROM oauth_auth_code"
+  "SELECT code, client, user, scope, redirect_uri, code_challenge, ttl(client) FROM oauth_auth_code"
+
+-- Existence probe: a buffered row may have been consumed (deleted from
+-- both stores) before its insert runs; copying it anyway would resurrect
+-- a redeemed code.
+selectLiveOAuthAuthCode ::
+  PrepQuery R (Identity OAuthAuthorizationCode) (Identity OAuthAuthorizationCode)
+selectLiveOAuthAuthCode = "SELECT code FROM oauth_auth_code WHERE code = ?"
