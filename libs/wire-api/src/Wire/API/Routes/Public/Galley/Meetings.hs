@@ -73,7 +73,7 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
                :> "meetings"
                :> ReqBody '[JSON] NewMeeting
                :> CanThrow MeetingError
