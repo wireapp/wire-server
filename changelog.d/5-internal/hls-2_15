@@ -1,0 +1,1 @@
+Dev shell: provide haskell-language-server 2.15 (was 2.13). HLS and its dependencies are pinned to Hackage versions in `nix/overlay.nix`; the pins affect only HLS.
