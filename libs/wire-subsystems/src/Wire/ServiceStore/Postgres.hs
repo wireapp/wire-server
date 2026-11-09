@@ -74,13 +74,15 @@ insertService s =
                                  last_update = now()
         |]
 
--- | Backfill-only upsert used by Wire.ServiceStore.Migration. On conflict the
--- row is only overwritten when the replayed Cassandra row is at least as new
--- as what is stored (ties go to Cassandra), so a stale replay cannot clobber a
--- newer row that dual-write already put in Postgres. The comparison mixes
--- Cassandra coordinator clocks (writetime) with Postgres server clocks (now);
--- NTP-level skew is negligible against the page-scan-scale staleness the guard
--- exists to block.
+-- | Guarded upsert used by both the backfill (Wire.ServiceStore.Migration)
+-- and the live dual-write mirror (Wire.ServiceStore.DualWrite). On conflict
+-- the row is only overwritten when the replayed Cassandra row is at least as
+-- new as what is stored (ties go to Cassandra), so a stale replay cannot
+-- clobber a newer row that dual-write already put in Postgres. During
+-- migration the stored timestamps are mutation timestamps supplied by the
+-- dual-write interpreter; the backfill compares them against Cassandra
+-- coordinator writetimes. NTP-level clock skew between the two is negligible
+-- against the page-scan-scale staleness the guard exists to block.
 --
 -- Known residual (accepted, cf. merged conversation/user backfills): a row
 -- deleted in Cassandra after the scan that produced it can still be replayed
