@@ -265,10 +265,18 @@ getLocalContactStatusesImpl ctx uids = do
     contactable
       <> Map.fromList [(user.id, ContactStatus NonContactable) | user <- deleted]
 
--- | Local users are evaluated locally; for each remote domain exactly one
+-- | Decide on technical contactability of users regarding @self@ user
+--
+-- Local users are evaluated locally; for each remote domain exactly one
 -- federation action is run (domains run concurrently; requests above
 -- 'FedBrig.maxContactStatusUsers' users are chunked within that action). A
 -- failing domain is logged and left out of the result as a whole.
+--
+-- For judgement on remotes, a `ContactStatusContext` is provided which
+-- contains required aspects of the requesting backend. Currently, it contains
+-- information about MLS availability and allowed cyphersuites.
+-- E.g. when the requesting backend doesn't support MLS, then the federated
+-- doesn't need to check MLS client attributes, because these won't be used.
 getContactStatusesImpl ::
   forall r fedM.
   ( Member UserStore r,
