@@ -219,30 +219,6 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       InternalGetScimUsersPaginated tid maxResults offset ->
         getScimUsersPaginatedImpl tid maxResults offset
 
--- | Requester-side inputs of the contactability rule, computed once per
--- request: MLS must be enabled on this server and for the requester's team,
--- and the team's allowed cipher suites apply.
-contactStatusContextImpl ::
-  ( Member GalleyAPIAccess r,
-    Member (Input UserSubsystemConfig) r
-  ) =>
-  Local UserId ->
-  Sem r ContactStatusContext
-contactStatusContextImpl self = do
-  serverMLS <- inputs (.mlsEnabled)
-  if not serverMLS
-    then pure (ContactStatusContext False Set.empty)
-    else do
-      requesterFeatures <- getAllTeamFeaturesForUser (Just (tUnqualified self))
-      let mlsConfig = npProject @MLSConfig requesterFeatures
-      pure
-        ContactStatusContext
-          { mlsAvailable =
-              mlsConfig.status == FeatureStatusEnabled
-                && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols,
-            allowedCipherSuites = Set.fromList mlsConfig.config.mlsAllowedCipherSuites
-          }
-
 -- | Evaluate the contactability rule for local users. The only evaluation path of
 -- the rule: used for local users of the requester and by the federation
 -- handler.
@@ -310,12 +286,33 @@ getContactStatusesImpl ::
   Local UserId ->
   [Qualified UserId] ->
   Sem r (Map (Qualified UserId) ContactStatus)
-getContactStatusesImpl _self [] = pure mempty -- no need for the whole machinery
+getContactStatusesImpl _self [] = pure mempty -- no need to run the whole machinery
 getContactStatusesImpl self qids = do
-  ctx <- contactStatusContextImpl self
+  ctx <- contactStatusContext
   Map.union <$> getLocalStatuses ctx locals <*> getRemoteStatuses ctx remotes
   where
+    locals :: [UserId]
+    remotes :: [Remote UserId]
     (locals, remotes) = partitionQualified self (nubOrd qids)
+
+    -- Requester-side inputs of the contactability rule, computed once per
+    -- request: MLS must be enabled on this server and for the requester's team,
+    -- and the team's allowed cipher suites apply.
+    contactStatusContext :: Sem r ContactStatusContext
+    contactStatusContext = do
+      serverMLS <- inputs (.mlsEnabled)
+      if not serverMLS
+        then pure (ContactStatusContext False Set.empty)
+        else do
+          requesterFeatures <- getAllTeamFeaturesForUser (Just (tUnqualified self))
+          let mlsConfig = npProject @MLSConfig requesterFeatures
+          pure
+            ContactStatusContext
+              { mlsAvailable =
+                  mlsConfig.status == FeatureStatusEnabled
+                    && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols,
+                allowedCipherSuites = Set.fromList mlsConfig.config.mlsAllowedCipherSuites
+              }
 
     getLocalStatuses :: ContactStatusContext -> [UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
     getLocalStatuses ctx uids =
