@@ -69,7 +69,7 @@ tests =
       testRoundTrip @Int32 @Connection.RelationWithHistory,
       testRoundTrip @A.Value @DbConfig,
       testRoundTrip @ByteString @(Fingerprint Rsa),
-      testRoundTrip @ByteString @ServiceToken
+      testRoundTrip @Text @ServiceToken
     ]
 
 testRoundTrip ::
