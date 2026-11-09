@@ -1677,6 +1677,13 @@ CREATE TABLE public.nonce (
     user_id uuid NOT NULL,
     key text NOT NULL,
     nonce uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.nonce OWNER TO "wire-server";
+
+--
 -- Name: oauth_auth_code; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1691,7 +1698,6 @@ CREATE TABLE public.oauth_auth_code (
 );
 
 
-ALTER TABLE public.nonce OWNER TO "wire-server";
 ALTER TABLE public.oauth_auth_code OWNER TO "wire-server";
 
 --
