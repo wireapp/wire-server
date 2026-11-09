@@ -351,10 +351,10 @@ usersContactabilityStatus ::
   Bool ->
   Set CipherSuiteTag ->
   Sem r (Map UserId ContactStatus)
-usersContactabilityStatus users mlsAvailable allowedCipherSuites = do
+usersContactabilityStatus usersToProtocolsAndClients mlsAvailable allowedCipherSuites = do
   let prekeyRequests =
         [ (uid, client.clientId)
-        | (uid, (protocols, clients)) <- Map.toList users,
+        | (uid, (protocols, clients)) <- Map.toList usersToProtocolsAndClients,
           -- Prekeys only matter for Proteus
           Set.member BaseProtocolProteusTag protocols,
           client <- Set.toList clients
@@ -362,7 +362,7 @@ usersContactabilityStatus users mlsAvailable allowedCipherSuites = do
       mlsRequests =
         [ (uid, client.clientId, ciphersuite)
         | mlsAvailable,
-          (uid, (protocols, clients)) <- Map.toList users,
+          (uid, (protocols, clients)) <- Map.toList usersToProtocolsAndClients,
           Set.member BaseProtocolMLSTag protocols,
           client <- Set.toList clients,
           ciphersuite <- Set.toList allowedCipherSuites,
@@ -372,8 +372,14 @@ usersContactabilityStatus users mlsAvailable allowedCipherSuites = do
         ]
   prekeyPresence <- ClientStore.lookupPrekeyPresenceBulk prekeyRequests
   mlsPresence <- Mls.hasMlsKeyPackagesBulk mlsRequests
-  pure $ Map.mapWithKey (isContactable prekeyPresence mlsPresence) users
+  pure $ Map.mapWithKey (isContactable prekeyPresence mlsPresence) usersToProtocolsAndClients
   where
+    isContactable ::
+      Set (UserId, ClientId) ->
+      Set (UserId, ClientId, CipherSuiteTag) ->
+      UserId ->
+      (Set BaseProtocolTag, Set UserClient.Client) ->
+      ContactStatus
     isContactable prekeyPresence mlsPresence uid (protocols, clients) =
       let proteusReady =
             Set.member BaseProtocolProteusTag protocols
