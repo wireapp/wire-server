@@ -36,36 +36,38 @@ testPropertiesMigration = do
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let domain = backend.berDomain
 
-    -- Cassandra: set a property and confirm it is readable.
-    runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
+    -- P1 cassandra: set a property and confirm it is readable. Each phase
+    -- starts only after the previous backend has stopped.
+    alice <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
       [alice] <- createUsers [domain]
       setProperty alice "color" ("green" :: String) `bindResponse` \resp ->
         resp.status `shouldMatchInt` 200
+      pure alice
 
-      -- migration-to-postgresql with the worker running: backfill the existing
-      -- property and confirm it survives once the migration is finished.
-      -- New writes go to both stores.
-      runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
-        waitForMigration domain counterName
-        getProperty alice "color" `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
-          resp.json `shouldMatch` toJSON ("green" :: String)
-        setProperty alice "size" ("large" :: String) `bindResponse` \resp ->
-          resp.status `shouldMatchInt` 200
+    -- P2 migration-to-postgresql with the worker running: backfill the
+    -- existing property and confirm it survives once the migration is
+    -- finished. New writes go to both stores.
+    runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
+      waitForMigration domain counterName
+      getProperty alice "color" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json `shouldMatch` toJSON ("green" :: String)
+      setProperty alice "size" ("large" :: String) `bindResponse` \resp ->
+        resp.status `shouldMatchInt` 200
 
-      -- PostgreSQL only: migrated and dual-written properties must persist,
-      -- and deleting must remove them.
-      runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
-        getProperty alice "color" `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
-          resp.json `shouldMatch` toJSON ("green" :: String)
-        getProperty alice "size" `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
-          resp.json `shouldMatch` toJSON ("large" :: String)
-        deleteProperty alice "color" `bindResponse` \resp ->
-          resp.status `shouldMatchInt` 200
-        getProperty alice "color" `bindResponse` \resp ->
-          resp.status `shouldMatchInt` 404
+    -- P3 postgresql only: migrated and dual-written properties must persist,
+    -- and deleting must remove them.
+    runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
+      getProperty alice "color" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json `shouldMatch` toJSON ("green" :: String)
+      getProperty alice "size" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json `shouldMatch` toJSON ("large" :: String)
+      deleteProperty alice "color" `bindResponse` \resp ->
+        resp.status `shouldMatchInt` 200
+      getProperty alice "color" `bindResponse` \resp ->
+        resp.status `shouldMatchInt` 404
   where
     conf :: String -> Bool -> ServiceOverrides
     conf db runMigration =
