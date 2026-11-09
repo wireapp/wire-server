@@ -39,7 +39,7 @@ testOAuthAuthCodeMigration = do
         scopes = ["write-only:conversations"]
 
     (user, cid, code1u, code1v) <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
-      user <- randomUser OwnDomain def
+      user <- randomUser domain def
       cid <- createOAuthClient user "oauth-migration" redirectUrl >>= getJSON 200 >>= flip (%.) "client_id"
       -- consumed on cassandra
       code1 <- genCode user cid scopes
@@ -115,7 +115,7 @@ conf db runMigration =
   def
     { brigCfg =
         setField "postgresMigration.oauthAuthCode" db
-          >=> setField "settings.oAuthAuthorizationCodeExpirationTimeSecsInternal" (3600 :: Int),
+          >=> setField "settings.setOAuthAuthorizationCodeExpirationTimeSecs" (3600 :: Int),
       backgroundWorkerCfg = setField "migrateOAuthAuthCode" runMigration
     }
 
