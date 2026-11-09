@@ -675,6 +675,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FederationAPIAccess.GalleySpec
+    Wire.FederationConfigSubsystem.InterpreterSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec

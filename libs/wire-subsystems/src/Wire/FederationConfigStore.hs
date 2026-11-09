@@ -29,19 +29,20 @@ data AddFederationRemoteResult
   = AddFederationRemoteSuccess
   | AddFederationRemoteMaxRemotesReached
   | AddFederationRemoteDivergingConfig (Map Domain FederationDomainConfig)
+  deriving (Show, Eq)
 
 data UpdateFederationResult
   = UpdateFederationSuccess
   | UpdateFederationRemoteNotFound
   | UpdateFederationRemoteDivergingConfig
+  deriving (Show, Eq)
 
 data AddFederationRemoteTeamResult
   = AddFederationRemoteTeamSuccess
   | AddFederationRemoteTeamDomainNotFound
   | AddFederationRemoteTeamRestrictionAllowAll
+  deriving (Show, Eq)
 
--- FUTUREWORK: This store effect is more than just a store,
--- we should break it up in business logic and store
 data FederationConfigStore m a where
   GetFederationConfig :: Domain -> FederationConfigStore m (Maybe FederationDomainConfig)
   GetFederationConfigs :: FederationConfigStore m [FederationDomainConfig]

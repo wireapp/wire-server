@@ -22,19 +22,22 @@ import Polysemy
 import Polysemy.State
 import Wire.API.Routes.FederationDomainConfig
 import Wire.FederationConfigStore
+import Data.Domain
+import qualified Data.Map as Map
 
 inMemoryFederationConfigStoreInterpreter ::
-  (Member (State [FederationDomainConfig]) r) =>
+  (Member (State (Map Domain FederationDomainConfig)) r) =>
   InterpreterFor FederationConfigStore r
 inMemoryFederationConfigStoreInterpreter =
   interpret $ \case
-    GetFederationConfig domain -> gets $ find (\cfg -> cfg.domain == domain)
-    GetFederationConfigs -> get
+    GetFederationConfig domain -> gets $ Map.lookup domain
+    GetFederationConfigs -> gets $ Map.elems
     AddFederationConfig newCfg -> do
-      modify $ (newCfg :) . deleteBy (\a b -> a.domain == b.domain) newCfg
+      modify $ Map.insert newCfg.domain newCfg
       pure AddFederationRemoteSuccess
-    UpdateFederationConfig _ ->
-      error "UpdateFederationConfig not implemented in inMemoryFederationConfigStoreInterpreter"
+    UpdateFederationConfig newCfg -> do
+      modify $ Map.insert newCfg.domain newCfg
+      pure UpdateFederationSuccess
     AddFederationRemoteTeam _ _ ->
       error "AddFederationRemoteTeam not implemented in inMemoryFederationConfigStoreInterpreter"
     RemoveFederationRemoteTeam _ _ ->
@@ -44,6 +47,6 @@ inMemoryFederationConfigStoreInterpreter =
 
 runFederationConfigStoreInMemory :: InterpreterFor FederationConfigStore r
 runFederationConfigStoreInMemory =
-  evalState []
+  evalState Map.empty
     . inMemoryFederationConfigStoreInterpreter
     . raiseUnder
