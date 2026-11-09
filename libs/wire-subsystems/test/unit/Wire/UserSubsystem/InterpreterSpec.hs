@@ -1754,10 +1754,10 @@ instance FederationMonad CFed where
       (componentVal @comp, nameVal @name, Proxy @(SC.Client (CFed comp) api))
       (error "CFed: only get-users-contact-status is supported")
       ((Brig, "get-users-contact-status", contactStatusClient) ::: TNil)
-
-contactStatusClient ::
-  FedBrig.GetContactStatusRequest -> CFed 'Brig FedBrig.GetContactStatusResponse
-contactStatusClient req = CFed ($ req)
+    where
+      contactStatusClient ::
+        FedBrig.GetContactStatusRequest -> CFed 'Brig FedBrig.GetContactStatusResponse
+      contactStatusClient req = CFed ($ req)
 
 -- | A key package the real 'MlsKeyPackageSubsystem' decodes, valid exactly for the given lifetime.
 mkKeyPackage :: CipherSuiteTag -> Lifetime -> (KeyPackageRef, KeyPackageData)
