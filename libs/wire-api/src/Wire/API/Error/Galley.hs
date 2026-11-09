@@ -399,6 +399,8 @@ type instance MapError 'MeetingNotFound = 'StaticError 404 "meeting-not-found" "
 
 type instance MapError 'MeetingNotLicensed = MeetingNotLicensedStatic
 
+type instance MapError 'LinkUnavailable = MeetingLinkErrorStatic
+
 type instance ErrorEffect (e :: MeetingError) = Error MeetingError
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: MeetingError) where

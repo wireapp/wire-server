@@ -183,7 +183,8 @@ data Settings = Settings
     _meetings :: !(Maybe MeetingsConfig),
     -- | Raw licence payload: base64url-encoded JSON 'LicenceSpec' as produced by
     --   @wire-licensing encode@ / @example@. Unset means unlicensed
-    --   ('missingLicense'; meeting join-by-link endpoints paywall).
+    --   ('missingLicense'; meeting join-by-link endpoints return
+    --   @403 id-feature-error@).
     _license :: !(Maybe Text)
   }
   deriving (Show, Generic)

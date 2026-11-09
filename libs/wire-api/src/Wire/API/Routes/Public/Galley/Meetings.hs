@@ -357,12 +357,12 @@ type MeetingsAPI =
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'InvalidMeetingPassword
                :> CanThrow 'MeetingNotLicensed
+               :> CanThrow 'LinkUnavailable
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotATeamMember
                :> CanThrow 'TooManyMembers
-               :> CanThrow 'MeetingNotLicensed
                :> MultiVerb
                     'POST
                     '[JSON]

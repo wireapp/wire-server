@@ -715,16 +715,16 @@ joinMeetingImpl zUser connId domain key presentedValue mPassword validityPeriod 
   resolveLiveMeetingByKey (tDomain zUser) domain key presentedValue validityPeriod >>= \case
     Nothing -> pure JoinMeetingNotFound
     Just (mHashedPw, meeting) -> do
-          ok <- verifyCodePassword (RateLimitUser (tUnqualified zUser)) (mHashedPw, mPassword)
-          if ok
-            then do
-              -- Fail before mutating: without a configured join-link URI the
-              -- joined view cannot be rendered, and the joiner must not be left
-              -- in the conversation with a 500.
-              base <- codeURIBase (tDomain zUser)
-              when (isNothing base) $ throw LinkUnavailable
-              joinMeetingOk meeting
-            else pure JoinMeetingInvalidPassword
+      ok <- verifyCodePassword (RateLimitUser (tUnqualified zUser)) (mHashedPw, mPassword)
+      if ok
+        then do
+          -- Fail before mutating: without a configured join-link URI the
+          -- joined view cannot be rendered, and the joiner must not be left
+          -- in the conversation with a 500.
+          base <- codeURIBase (tDomain zUser)
+          when (isNothing base) $ throw LinkUnavailable
+          joinMeetingOk meeting
+        else pure JoinMeetingInvalidPassword
   where
     joinMeetingOk meeting = do
       void $ ConversationSubsystem.joinMeetingConversation zUser connId meeting.conversationId
