@@ -676,6 +676,8 @@ testListUsersContactStatusOldFedRemote fedDomain = do
   listUsersWithContactStatus owner [oldUser] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     profile <- assertOne =<< asList (resp.json %. "found")
+    -- the user is really found, only contact_status is missing
+    profile %. "name" `shouldMatch` (oldUser %. "name")
     lookupField profile "contact_status" `shouldMatch` (Nothing :: Maybe Value)
 
 testGetTeamsInvitationInfo :: (HasCallStack) => App ()
