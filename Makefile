@@ -1,4 +1,13 @@
+# On macOS, `/usr/bin/env` is a SIP-protected Apple platform binary, so dyld
+# strips all DYLD_*/LD_* env vars at that exec hop (e.g. breaks
+# DYLD_LIBRARY_PATH needed to run nginz locally). Route through the
+# nix-provided bash directly there to avoid the strip; elsewhere keep the
+# portable `env bash` lookup.
+ifeq ($(shell uname -s),Darwin)
+SHELL                 := $(shell command -v bash)
+else
 SHELL                 := /usr/bin/env bash
+endif
 DOCKER_USER           ?= quay.io/wire
 # kubernetes namespace for running integration tests
 NAMESPACE             ?= test-$(USER)
