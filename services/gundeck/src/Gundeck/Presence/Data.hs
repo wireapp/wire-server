@@ -20,7 +20,6 @@ module Gundeck.Presence.Data
     list,
     listAll,
     deleteAll,
-    cleanup,
   )
 where
 
@@ -111,11 +110,6 @@ deleteAll pp = do
   case backend of
     PresenceBackendPostgres _ -> pgDeleteAll pp
     PresenceBackendRedis _ _ -> runWithAdditionalRedis (redisDeleteAll pp)
-
--- | Delete presences older than a week.  Only meaningful with the postgresql
--- backend (redis presences expire via key TTL).
-cleanup :: Gundeck ()
-cleanup = runPool $ statement () deleteStale
 
 -- Redis implementation ------------------------------------------------------
 
@@ -291,12 +285,13 @@ readPresenceRow u c r cl t = do
 upsertPresence :: Statement (UUID, Text, Text, Maybe Text, UTCTime) ()
 upsertPresence =
   [resultlessStatement|
-    INSERT INTO presence (user_id, conn_id, resource, client_id, created_at)
-    VALUES ($1 :: uuid, $2 :: text, $3 :: text, $4 :: text?, $5 :: timestamptz)
+    INSERT INTO presence (user_id, conn_id, resource, client_id, created_at, expires_at)
+    VALUES ($1 :: uuid, $2 :: text, $3 :: text, $4 :: text?, $5 :: timestamptz, $5 :: timestamptz + interval '7 days')
     ON CONFLICT (user_id, conn_id) DO UPDATE
     SET resource = EXCLUDED.resource,
         client_id = EXCLUDED.client_id,
-        created_at = EXCLUDED.created_at
+        created_at = EXCLUDED.created_at,
+        expires_at = EXCLUDED.expires_at
   |]
 
 selectByUsers :: Statement (Vector.Vector UUID) (Vector.Vector (UUID, Text, Text, Maybe Text, UTCTime))
@@ -305,6 +300,7 @@ selectByUsers =
     SELECT user_id :: uuid, conn_id :: text, resource :: text, client_id :: text?, created_at :: timestamptz
     FROM presence
     WHERE user_id = ANY ($1 :: uuid[])
+      AND expires_at >= now()
   |]
 
 deleteMany :: Statement (Vector.Vector UUID, Vector.Vector Text, Vector.Vector UTCTime) ()
@@ -317,9 +313,3 @@ deleteMany =
       AND p.created_at <= d.created_at
   |]
 
-deleteStale :: Statement () ()
-deleteStale =
-  [resultlessStatement|
-    DELETE FROM presence
-    WHERE created_at < now() - interval '7 days'
-  |]

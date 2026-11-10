@@ -5,8 +5,11 @@ CREATE TABLE IF NOT EXISTS presence (
   resource text NOT NULL,
   client_id text,
   created_at timestamptz NOT NULL,
+  -- absolute TTL deadline (created_at + 7 days, mirroring the redis key TTL);
+  -- filtered on read and garbage-collected by pg_cron (ADR-0005)
+  expires_at timestamptz NOT NULL,
   PRIMARY KEY (user_id, conn_id)
 );
 
--- index for cleanup deletes like `DELETE ... WHERE created_at < now() - interval '7 days'`
-CREATE INDEX presence_created_at_idx ON presence (created_at);
+-- index for the pg_cron TTL deletes like `DELETE ... WHERE expires_at < now()`
+CREATE INDEX presence_expires_at_idx ON presence (expires_at);
