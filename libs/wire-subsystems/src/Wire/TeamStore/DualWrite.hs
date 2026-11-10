@@ -21,15 +21,30 @@ module Wire.TeamStore.DualWrite
 where
 
 import Cassandra (ClientState)
+import Cassandra.Util (Writetime (..), writetimeToInt64, writetimeToUTC)
+import Data.Time.Clock (getCurrentTime)
 import Imports
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility (SearchVisibilityStandard))
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.ConversationStore (ConversationStore)
 import Wire.Postgres (PGConstraints)
 import Wire.TeamStore
+import Wire.TeamStore.Cassandra qualified as Cassandra
 import Wire.TeamStore.Postgres (routeCassandra)
 import Wire.TeamStore.Postgres qualified as Postgres
+import Wire.Util (embedClientInput)
+
+-- | Client-chosen LWW stamp for one dual write: picked once per constructor,
+-- written to Cassandra with @using timestamp@ and applied to Postgres behind
+-- per-column writetime guards, so both stores converge to the same final
+-- value under any interleaving of concurrent writes.
+type TeamWriteStamp = Writetime TeamStatus
+
+newWriteStamp :: (Member (Embed IO) r) => Sem r TeamWriteStamp
+newWriteStamp = Writetime <$> embed getCurrentTime
 
 -- | Dual-write interpreter for the team-metadata slice: metadata writes go to
 -- both Cassandra and Postgres; everything else (all reads and the team-member
@@ -43,31 +58,31 @@ interpretTeamStoreMetadataToCassandraAndPostgres ::
   ) =>
   InterpreterFor TeamStore r
 interpretTeamStoreMetadataToCassandraAndPostgres = interpret $ \case
-  -- Metadata writes: both stores.  The Cassandra leg runs through the full
-  -- Cassandra interpreter, which stays the source of truth.
+  -- Metadata writes: both stores, sharing one client-chosen writetime per
+  -- write (see 'TeamWriteStamp').  Cassandra stays the source of truth for
+  -- reads.
   CreateTeam mtid uid n i k b -> do
-    t <- routeCassandra (createTeam mtid uid n i k b)
-    Postgres.insertTeamPg t
+    stamp <- newWriteStamp
+    t <- Cassandra.createTeamWithTimestamp mtid uid n i k b (writetimeToInt64 stamp)
+    Postgres.insertTeamPg t (writetimeToUTC stamp)
     pure t
   SetTeamData tid upd -> do
-    routeCassandra (setTeamData tid upd)
-    Postgres.updateTeamPg tid upd
+    stamp <- newWriteStamp
+    embedClientInput $ Cassandra.updateTeamWithTimestamp tid upd (writetimeToInt64 stamp)
+    Postgres.updateTeamPg tid upd (writetimeToUTC stamp)
   SetTeamStatus tid st -> do
-    routeCassandra (setTeamStatus tid st)
-    Postgres.updateTeamStatusPg tid st
+    stamp <- newWriteStamp
+    embedClientInput $ Cassandra.updateTeamStatusWithTimestamp tid st (writetimeToInt64 stamp)
+    Postgres.updateTeamStatusPg tid st (writetimeToUTC stamp)
   SetSearchVisibility tid v -> do
-    routeCassandra (setSearchVisibility tid v)
-    Postgres.setSearchVisibilityPg tid v
+    stamp <- newWriteStamp
+    embedClientInput $ Cassandra.setSearchVisibilityWithTimestamp tid v (writetimeToInt64 stamp)
+    Postgres.updateTeamSearchVisibilityPg tid v (writetimeToUTC stamp)
   ResetSearchVisibility tid -> do
-    routeCassandra (resetSearchVisibility tid)
-    Postgres.resetSearchVisibilityPg tid
-  DeleteTeam tid -> do
-    -- The Postgres metadata half; the member removal lives in the Cassandra
-    -- implementation (member tables are still Cassandra-owned in this PR), so
-    -- the whole constructor is additionally routed through the Cassandra
-    -- interpreter, which also rewrites the metadata there.
-    Postgres.deleteTeamPg tid
-    routeCassandra (deleteTeam tid)
+    stamp <- newWriteStamp
+    embedClientInput $ Cassandra.setSearchVisibilityWithTimestamp tid SearchVisibilityStandard (writetimeToInt64 stamp)
+    Postgres.updateTeamSearchVisibilityPg tid SearchVisibilityStandard (writetimeToUTC stamp)
+  DeleteTeam tid -> Postgres.deleteTeamWithCassandra tid
   -- Metadata reads: Cassandra is the source of truth.
   GetTeam tid -> routeCassandra (getTeam tid)
   GetTeamName tid -> routeCassandra (getTeamName tid)

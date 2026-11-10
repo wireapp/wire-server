@@ -1753,15 +1753,20 @@ CREATE TABLE public.team (
     team uuid NOT NULL,
     creator uuid NOT NULL,
     name text NOT NULL,
+    name_time timestamp with time zone,
     icon text NOT NULL,
+    icon_time timestamp with time zone,
     icon_key text,
+    icon_key_time timestamp with time zone,
     splash_screen text,
+    splash_screen_time timestamp with time zone,
     deleted boolean DEFAULT false NOT NULL,
     status text NOT NULL,
-    status_time timestamp with time zone DEFAULT now() NOT NULL,
+    status_time timestamp with time zone,
     binding text NOT NULL,
-    binding_time timestamp with time zone DEFAULT now() NOT NULL,
-    search_visibility text
+    binding_time timestamp with time zone,
+    search_visibility text,
+    search_visibility_time timestamp with time zone
 );
 
 

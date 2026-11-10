@@ -18,7 +18,8 @@
 -- | Copy-only migration of the Cassandra @team@ table (team metadata) to
 -- Postgres.  There is no delete-after-copy: @team@ is a small row-per-team
 -- table, and rows are only ever mutated (never garbage collected) — the
--- upsert keeps re-runs idempotent.
+-- insert-if-absent plus writetime-guarded reconciliation keeps re-runs
+-- idempotent.
 module Wire.TeamStore.Migration (migrateTeamLoop) where
 
 import Cassandra hiding (Value)
@@ -32,8 +33,6 @@ import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.UUID (UUID)
 import Hasql.Pool.Extended qualified as Hasql
-import Hasql.Statement qualified as Hasql
-import Hasql.TH
 import Imports
 import Polysemy
 import Polysemy.Async
@@ -57,6 +56,7 @@ import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
+import Wire.TeamStore.Postgres qualified as Postgres
 
 type EffectStack =
   [ AtomicState Int,
@@ -120,7 +120,7 @@ migrateAllTeams migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllTeams")
   withCount (paginateSem Cql.selectAllTeams (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(tid, _, _, _, _, _, _, _, _, _, _, _) -> handleErrors (T.encodeUtf8 (T.pack (show tid))) (migrateTeamRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row@(tid, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> handleErrors (T.encodeUtf8 (T.pack (show tid))) (migrateTeamRow migOpts migCounter migDuration row)))
 
 migrateTeamRow ::
   ( PGConstraints r,
@@ -134,18 +134,23 @@ migrateTeamRow ::
   ( UUID,
     UserId,
     Text,
+    Maybe (Writetime Text),
     Icon,
+    Maybe (Writetime Icon),
     Maybe Text,
+    Maybe (Writetime Text),
     Bool,
     Maybe TeamStatus,
     Maybe (Writetime TeamStatus),
     Maybe TeamBinding,
     Maybe (Writetime TeamBinding),
     Maybe Icon,
-    Maybe TeamSearchVisibility
+    Maybe (Writetime Icon),
+    Maybe TeamSearchVisibility,
+    Maybe (Writetime TeamSearchVisibility)
   ) ->
   Sem r ()
-migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, _, _, _) = do
+migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = do
   let keyText = T.pack (show tid)
   outcomeRef <- liftIO $ IORef.newIORef @Text "error"
   bracket
@@ -175,66 +180,58 @@ migrateTeamRow migOpts migCounter migDuration row@(tid, _, _, _, _, _, _, _, _, 
       end <- liftIO getCurrentTime
       liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
 
-currentTimeStamp :: UTCTime
-currentTimeStamp = UTCTime (ModifiedJulianDay 0) 0
-
--- | Upserts one copied team row.  Missing Cassandra columns fall back to the
--- same defaults the read paths use (status @active@, binding @nonBinding@),
--- and Cassandra's writetimes are carried over into the maintained
--- @status_time@/@binding_time@ columns so that @tdStatusTime@ and
--- 'GetTeamCreationTime' survive the migration.  On conflict the Cassandra
--- row (source of truth) wins.
+-- | Copies one team row into Postgres with version-guarded reconciliation:
+-- the snapshot is inserted only if the row is absent, and each column whose
+-- Cassandra writetime is present is then reconciled with the same
+-- last-write-wins guard the dual write uses
+-- (@*col*_time is null or *col*_time <= writetime@).  A stale snapshot page
+-- can therefore never overwrite a newer dual-written value.  Columns whose
+-- Cassandra column has no writetime are only set by the insert-if-absent
+-- (first copy of the row).
 upsertTeamRow ::
   (PGConstraints r) =>
   ( UUID,
     UserId,
     Text,
+    Maybe (Writetime Text),
     Icon,
+    Maybe (Writetime Icon),
     Maybe Text,
+    Maybe (Writetime Text),
     Bool,
     Maybe TeamStatus,
     Maybe (Writetime TeamStatus),
     Maybe TeamBinding,
     Maybe (Writetime TeamBinding),
     Maybe Icon,
-    Maybe TeamSearchVisibility
+    Maybe (Writetime Icon),
+    Maybe TeamSearchVisibility,
+    Maybe (Writetime TeamSearchVisibility)
   ) ->
   Sem r ()
-upsertTeamRow (tid, creator, name, icon, iconKey, deleted, status, mwStatus, binding, mwBinding, splash, searchVis) =
-  runStatement
-    ( tid,
-      Just (toUUID creator),
-      name,
-      postgresMarshall icon,
-      iconKey,
-      deleted,
-      postgresMarshall (fromMaybe Active status),
-      maybe currentTimeStamp writetimeToUTC mwStatus,
-      postgresMarshall (fromMaybe NonBinding binding),
-      maybe currentTimeStamp writetimeToUTC mwBinding,
-      postgresMarshall <$> splash,
-      postgresMarshall <$> searchVis
-    )
-    upsertTeamStatement
-
-upsertTeamStatement ::
-  Hasql.Statement
-    (UUID, Maybe UUID, Text, Text, Maybe Text, Bool, Text, UTCTime, Text, UTCTime, Maybe Text, Maybe Text)
-    ()
-upsertTeamStatement =
-  [resultlessStatement|
-    insert into team (team, creator, name, icon, icon_key, deleted, status, status_time, binding, binding_time, splash_screen, search_visibility)
-    values ($1 :: uuid, $2 :: uuid?, $3 :: text, $4 :: text, $5 :: text?, $6 :: bool, $7 :: text, $8 :: timestamptz, $9 :: text, $10 :: timestamptz, $11 :: text?, $12 :: text?)
-    on conflict (team) do update set
-      creator = excluded.creator,
-      name = excluded.name,
-      icon = excluded.icon,
-      icon_key = excluded.icon_key,
-      deleted = excluded.deleted,
-      status = excluded.status,
-      status_time = excluded.status_time,
-      binding = excluded.binding,
-      binding_time = excluded.binding_time,
-      splash_screen = excluded.splash_screen,
-      search_visibility = excluded.search_visibility
-  |]
+upsertTeamRow (tid, creator, name, mwName, icon, mwIcon, iconKey, mwIconKey, _deleted, status, mwStatus, binding, mwBinding, splash, mwSplash, searchVis, mwSearchVis) = do
+  Postgres.insertTeamRowIfAbsentPg
+    (Id tid)
+    creator
+    name
+    (writetimeToUTC <$> mwName)
+    (postgresMarshall icon)
+    (writetimeToUTC <$> mwIcon)
+    iconKey
+    (writetimeToUTC <$> mwIconKey)
+    (postgresMarshall <$> splash)
+    (writetimeToUTC <$> mwSplash)
+    (fromMaybe Active status)
+    (writetimeToUTC <$> mwStatus)
+    (fromMaybe NonBinding binding)
+    (writetimeToUTC <$> mwBinding)
+    searchVis
+    (writetimeToUTC <$> mwSearchVis)
+  for_ mwName $ \w -> Postgres.updateTeamNamePg (Id tid) name (writetimeToUTC w)
+  for_ mwIcon $ \w -> Postgres.updateTeamIconPg (Id tid) (postgresMarshall icon) (writetimeToUTC w)
+  for_ mwIconKey $ \w -> Postgres.updateTeamIconKeyPg (Id tid) iconKey (writetimeToUTC w)
+  for_ mwSplash $ \w -> for_ splash $ \ss -> Postgres.updateTeamSplashScreenPg (Id tid) (postgresMarshall ss) (writetimeToUTC w)
+  for_ mwStatus $ \w -> Postgres.updateTeamStatusPg (Id tid) (fromMaybe Active status) (writetimeToUTC w)
+  for_ mwSearchVis $ \w -> Postgres.updateTeamSearchVisibilityPg (Id tid) v (writetimeToUTC w)
+  where
+    v = fromMaybe SearchVisibilityStandard searchVis
