@@ -154,10 +154,14 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
-import Polysemy.Error (runError)
+import Polysemy.Async (Async, asyncToIOFinal)
+import Polysemy.Conc (Race, interpretRace)
+import Polysemy.Error (Error, runError)
 import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input, runInputConst)
+import Polysemy.Resource (Resource, resourceToIOFinal)
+import Polysemy.TinyLog (TinyLog)
 import Prometheus
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
@@ -177,9 +181,11 @@ import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (EmailTemplates (..), Localised, TemplateBranding, forLocale, loadMeetingTemplates)
 import Wire.Error (postgresUsageErrorToHttpError)
 import Wire.ExternalAccess.External
+import Wire.MigrationLock (MigrationLockError, migrationLockErrorToHttpError)
 import Wire.Postgres (PGConstraints)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
+import Wire.Sem.Logger.TinyLog (loggerToTinyLogReqId)
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
 import Wire.SessionStore.DualWrite (interpretSessionStoreToCassandraAndPostgres)
@@ -678,27 +684,86 @@ instance HasRequestId (AppT r) where
 -- Ad hoc interpreters
 
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocSessionStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
+adhocSessionStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem (SessionStore ': SessionDualWriteStack) a -> m a
 adhocSessionStoreInterpreter action = do
   env <- ask
   liftIO $ case env.postgresMigration.sessions of
-    CassandraStorage -> runM $ interpretSessionStoreCassandra env.casClient action
+    CassandraStorage ->
+      runSessionStore
+        env.hasqlPool
+        env.appLogger
+        env.requestId
+        (interpretSessionStoreCassandra env.casClient)
+        action
     MigrationToPostgresql ->
-      runSessionPG env.hasqlPool (interpretSessionStoreToCassandraAndPostgres env.casClient) action
-    PostgresqlStorage -> runSessionPG env.hasqlPool interpretSessionStoreToPostgres action
+      runSessionStore
+        env.hasqlPool
+        env.appLogger
+        env.requestId
+        (interpretSessionStoreToCassandraAndPostgres env.casClient)
+        action
+    PostgresqlStorage ->
+      runSessionStore
+        env.hasqlPool
+        env.appLogger
+        env.requestId
+        interpretSessionStoreToPostgres
+        action
 
--- | Both Postgres-backed SessionStore interpreters require 'PGConstraints';
--- this runner supplies Input Pool and Error UsageError locally (raiseUnder2
--- inserts them below the SessionStore slot) and surfaces UsageError as an
--- HttpError exception.
-runSessionPG ::
+-- | Effects below the 'SessionStore' slot for the ad-hoc interpreters.  The
+-- locked dual-write interpreter needs all of them ('MigrationLockError' for
+-- the shared per-user migration locks, 'TinyLog' for lock logging, Async /
+-- Race / Resource for 'withMigrationLocks'); the plain interpreters tolerate
+-- the extra effects and the runner discards the unused ones.
+type SessionDualWriteStack =
+  [ TinyLog,
+    Input HasqlPool.Pool,
+    Error UsageError,
+    Error MigrationLockError,
+    Race,
+    Async,
+    Resource,
+    Embed IO,
+    Final IO
+  ]
+
+-- | Runs a SessionStore interpreter over 'SessionDualWriteStack': supplies
+-- Input Pool and Error UsageError locally, interprets the auxiliary effects
+-- with IO and surfaces UsageError / MigrationLockError as HttpError
+-- exceptions.
+runSessionStore ::
   HasqlPool.Pool ->
-  (forall r. (PGConstraints r) => InterpreterFor SessionStore r) ->
-  Sem '[SessionStore, Embed IO] a ->
+  Logger ->
+  RequestId ->
+  ( forall r.
+    ( PGConstraints r,
+      Member TinyLog r,
+      Member Async r,
+      Member Race r,
+      Member Resource r,
+      Member (Error MigrationLockError) r
+    ) =>
+    InterpreterFor SessionStore r
+  ) ->
+  Sem (SessionStore ': SessionDualWriteStack) a ->
   IO a
-runSessionPG pool interp act = do
-  eith <- runM . runError @UsageError . runInputConst pool . interp . raiseUnder2 $ act
-  either (throwM . postgresUsageErrorToHttpError) pure eith
+runSessionStore pool logger reqId interp act = do
+  eith <-
+    runFinal
+      . embedToFinal
+      . resourceToIOFinal
+      . asyncToIOFinal
+      . interpretRace
+      . runError @MigrationLockError
+      . runError @UsageError
+      . runInputConst pool
+      . loggerToTinyLogReqId reqId logger
+      . interp
+      $ act
+  case eith of
+    Left lockErr -> throwM (migrationLockErrorToHttpError lockErr)
+    Right (Left e) -> throwM (postgresUsageErrorToHttpError e)
+    Right (Right a) -> pure a
 
 --------------------------------------------------------------------------------
 -- Federation

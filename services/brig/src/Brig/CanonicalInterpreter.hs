@@ -444,7 +444,11 @@ runBrigToIO e (AppT ma) = do
       -- mapError postgresUsageErrorToHttpError providers, so the Postgres-backed
       -- branches supply Input Pool and Error UsageError locally (raiseUnder2 +
       -- runInputConst + mapError); UsageError is mapped to HttpError (handled
-      -- by rethrowHttpErrorIO further up).
+      -- by rethrowHttpErrorIO further up).  The dual-write branch additionally
+      -- needs TinyLog, Error MigrationLockError, Async, Race and Resource for
+      -- the shared per-user migration locks; TinyLog and MigrationLockError
+      -- are discharged positionally right above the Pool / UsageError
+      -- providers, and Async / Race / Resource come from the ambient stack.
       sessionStoreInterpreter = case e.postgresMigration.sessions of
         CassandraStorage -> interpretSessionStoreCassandra e.casClient
         PostgresqlStorage ->
@@ -455,8 +459,13 @@ runBrigToIO e (AppT ma) = do
         MigrationToPostgresql ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError
+            . mapError migrationLockErrorToHttpError
+            . loggerToTinyLogReqId e.requestId e.appLogger
             . interpretSessionStoreToCassandraAndPostgres e.casClient
-            . raiseUnder2
+            . raiseUnder @TinyLog
+            . raiseUnder @(Error MigrationLockError)
+            . raiseUnder @(Error UsageError)
+            . raiseUnder @(Input HasqlPoolExt.Pool)
 
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL

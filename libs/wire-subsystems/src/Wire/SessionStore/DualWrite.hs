@@ -23,28 +23,49 @@ where
 import Cassandra (ClientState)
 import Imports
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Conc.Effect.Race (Race)
+import Polysemy.Error (Error)
+import Polysemy.Resource (Resource)
+import Polysemy.Time (MilliSeconds (..))
+import Polysemy.TinyLog (TinyLog)
+import Wire.MigrationLock (LockType (..), MigrationLockError, withMigrationLocks)
 import Wire.Postgres (PGConstraints)
 import Wire.SessionStore
 import Wire.SessionStore qualified as SessionStore
 import Wire.SessionStore.Cassandra qualified as Cassandra
 import Wire.SessionStore.Postgres qualified as Postgres
 
--- | Cassandra is the source of truth during migration; writes are mirrored to Postgres.
+-- | Cassandra is the source of truth during migration; writes are mirrored to
+-- Postgres.  Mutations hold a shared per-user migration lock so they
+-- serialize against the backfill's exclusive lock: a revoke that races the
+-- backfill either lands before the lock (row skipped) or after (Postgres row
+-- deleted), never resurrecting the cookie.  Same protocol as
+-- "Wire.DomainRegistrationStore.DualWrite".
 interpretSessionStoreToCassandraAndPostgres ::
-  (PGConstraints r) =>
+  ( PGConstraints r,
+    Member TinyLog r,
+    Member Async r,
+    Member Race r,
+    Member Resource r,
+    Member (Error MigrationLockError) r
+  ) =>
   ClientState ->
   InterpreterFor SessionStore r
 interpretSessionStoreToCassandraAndPostgres cs = interpret $ \case
-  InsertCookie uid cookie ttl -> do
-    Cassandra.interpretSessionStoreCassandra cs $ SessionStore.insertCookie uid cookie ttl
-    Postgres.interpretSessionStoreToPostgres $ SessionStore.insertCookie uid cookie ttl
+  InsertCookie uid cookie ttl ->
+    withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+      Cassandra.interpretSessionStoreCassandra cs $ SessionStore.insertCookie uid cookie ttl
+      Postgres.interpretSessionStoreToPostgres $ SessionStore.insertCookie uid cookie ttl
   LookupCookie uid expiry cid ->
     Cassandra.interpretSessionStoreCassandra cs $ SessionStore.lookupCookie uid expiry cid
   ListCookies uid ->
     Cassandra.interpretSessionStoreCassandra cs $ SessionStore.listCookies uid
-  DeleteAllCookies uid -> do
-    Cassandra.interpretSessionStoreCassandra cs $ SessionStore.deleteAllCookies uid
-    Postgres.interpretSessionStoreToPostgres $ SessionStore.deleteAllCookies uid
-  DeleteCookies uid cc -> do
-    Cassandra.interpretSessionStoreCassandra cs $ SessionStore.deleteCookies uid cc
-    Postgres.interpretSessionStoreToPostgres $ SessionStore.deleteCookies uid cc
+  DeleteAllCookies uid ->
+    withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+      Cassandra.interpretSessionStoreCassandra cs $ SessionStore.deleteAllCookies uid
+      Postgres.interpretSessionStoreToPostgres $ SessionStore.deleteAllCookies uid
+  DeleteCookies uid cc ->
+    withMigrationLocks LockShared (MilliSeconds 500) [uid] $ do
+      Cassandra.interpretSessionStoreCassandra cs $ SessionStore.deleteCookies uid cc
+      Postgres.interpretSessionStoreToPostgres $ SessionStore.deleteCookies uid cc

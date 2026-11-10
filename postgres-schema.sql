@@ -2784,6 +2784,13 @@ CREATE INDEX user_cookies_expires_idx ON public.user_cookies USING btree (user_i
 
 
 --
+-- Name: user_cookies_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_cookies_expires_at_idx ON public.user_cookies USING btree (expires_at);
+
+
+--
 -- Name: user_group_member_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 

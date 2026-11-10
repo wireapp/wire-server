@@ -18,15 +18,17 @@
 module Wire.SessionStore.Postgres
   ( interpretSessionStoreToPostgres,
     insertCookie,
+    insertCookieWithDeadline,
   )
 where
 
 -- TTL/purge note: unlike the Cassandra interpreter, where row TTLs delete
 -- expired cookies physically, Postgres rows survive their @invalid_after@
 -- boundary and are only filtered by the read predicates (@invalid_after >
--- now()@).  No purge job is provisioned: expired session rows are harmless
--- (unreachable on every read path) and bounded by user cookie rotation,
--- following the accepted no-purge precedent of the password_reset migration.
+-- now()@).  Expired rows are reaped on write: every insert first deletes the
+-- rows of the affected user that are invisible to every read path, which is
+-- bounded per user by the @(user_id, expires_at)@ index and keeps rotation
+-- from accumulating dead rows unboundedly.
 
 import Data.Id
 import Data.Time.Clock
@@ -52,20 +54,29 @@ interpretSessionStoreToPostgres = interpret $ \case
   DeleteAllCookies uid -> deleteAllImpl uid
   DeleteCookies uid cs -> deleteImpl uid cs
 
+-- | Marshals a cookie into the column order of the insert statements below
+-- (user_id and invalid_after passed separately).
+cookieColumns :: Cookie () -> (Int64, Int32, UTCTime, Maybe Text, Maybe Int64, UTCTime)
+cookieColumns ck =
+  ( postgresMarshall (cookieId ck),
+    postgresMarshall (cookieType ck),
+    cookieCreated ck,
+    fmap postgresMarshall (cookieLabel ck),
+    fmap postgresMarshall (cookieSucc ck),
+    cookieExpires ck
+  )
+
 -- | Upsert a cookie. The Cassandra interpreter relies on a row TTL; here the
 -- row carries an explicit @invalid_after@ boundary instead: cookie expiry by
 -- default, or now() + TTL when a (short) TTL is passed, as renewCookie does
 -- for superseded cookies. Lookups ignore rows past that boundary.
 insertCookie :: (PGConstraints r) => UserId -> Cookie () -> Maybe TTL -> Sem r ()
 insertCookie u ck ttl =
-  runStatement (u.toUUID, i, t, c, l, s, x, ttlSecs) insertStatement
+  runSessionWithRetry $ do
+    HasqlSession.statement u.toUUID purgeExpiredStatement
+    HasqlSession.statement (u.toUUID, i, t, c, l, s, x, ttlSecs) insertStatement
   where
-    i = postgresMarshall (cookieId ck)
-    x = cookieExpires ck
-    c = cookieCreated ck
-    t = postgresMarshall (cookieType ck)
-    l = fmap postgresMarshall (cookieLabel ck)
-    s = fmap postgresMarshall (cookieSucc ck)
+    (i, t, c, l, s, x) = cookieColumns ck
     ttlSecs = fmap ttlSeconds ttl
     insertStatement :: Hasql.Statement (UUID, Int64, Int32, UTCTime, Maybe Text, Maybe Int64, UTCTime, Maybe Int32) ()
     insertStatement =
@@ -79,6 +90,35 @@ insertCookie u ck ttl =
                                succ_id = EXCLUDED.succ_id,
                                expires_at = EXCLUDED.expires_at,
                                invalid_after = EXCLUDED.invalid_after|]
+
+-- | Migration-backfill insert: @invalid_after@ is an absolute deadline that was
+-- computed from the row's remaining Cassandra TTL at scan time (never a fresh
+-- @now() + TTL@, which would restart the TTL and extend the cookie's
+-- validity).  The conflict clause is @DO NOTHING@: a replayed scan page must
+-- not clobber newer dual-written state nor resurrect a cookie revoked in
+-- Cassandra (brig's renew semantics still need the @DO UPDATE@ of
+-- 'insertCookie').
+insertCookieWithDeadline :: (PGConstraints r) => UserId -> Cookie () -> UTCTime -> Sem r ()
+insertCookieWithDeadline u ck deadline =
+  runSessionWithRetry $ do
+    HasqlSession.statement u.toUUID purgeExpiredStatement
+    HasqlSession.statement (u.toUUID, i, t, c, l, s, x, deadline) insertWithDeadlineStatement
+  where
+    (i, t, c, l, s, x) = cookieColumns ck
+    insertWithDeadlineStatement :: Hasql.Statement (UUID, Int64, Int32, UTCTime, Maybe Text, Maybe Int64, UTCTime, UTCTime) ()
+    insertWithDeadlineStatement =
+      [resultlessStatement|INSERT INTO user_cookies (user_id, id, typ, created, label, succ_id, expires_at, invalid_after)
+                           VALUES ($1 :: uuid, $2 :: int8, $3 :: int4, $4 :: timestamptz, $5 :: text?, $6 :: int8?, $7 :: timestamptz, $8 :: timestamptz)
+                           ON CONFLICT (user_id, id) DO NOTHING|]
+
+-- | Delete exactly the rows that no read path can see: 'listImpl' requires
+-- both @expires_at@ and @invalid_after@ in the future, 'lookupImpl' requires
+-- @invalid_after@ in the future, so the @OR@ below reaps both expired cookies
+-- and superseded ones (future @expires_at@, past @invalid_after@).
+purgeExpiredStatement :: Hasql.Statement UUID ()
+purgeExpiredStatement =
+  [resultlessStatement|DELETE FROM user_cookies WHERE user_id = ($1 :: uuid)
+                       AND (expires_at <= now() OR invalid_after <= now())|]
 
 lookupImpl :: (PGConstraints r) => UserId -> UTCTime -> CookieId -> Sem r (Maybe (Cookie ()))
 lookupImpl u expiry cid =

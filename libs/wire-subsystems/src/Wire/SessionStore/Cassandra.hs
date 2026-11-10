@@ -14,7 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Wire.SessionStore.Cassandra (interpretSessionStoreCassandra, selectAllSessions) where
+module Wire.SessionStore.Cassandra (interpretSessionStoreCassandra, selectAllSessions, sessionRowExists) where
 
 import Cassandra
 import Data.Id
@@ -111,5 +111,14 @@ deleteAllCookiesImpl u = retry x5 (write cql (params LocalQuorum (Identity u)))
 -- | Full-table scan used by the Postgres migration copy loop.  @ttl(created)@
 -- yields the row's remaining Cassandra TTL (seconds); cookies are always
 -- written with a row TTL, so it is only 'Nothing' for anomalous rows.
-selectAllSessions :: PrepQuery R () (Identity (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32))
+selectAllSessions :: PrepQuery R () (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32)
 selectAllSessions = "SELECT user, id, created, expires, type, label, succ_id, ttl(created) FROM user_cookies"
+
+-- | Re-read a row's primary key, used by the migration backfill inside its
+-- per-user exclusive lock: a row that was revoked in Cassandra after the scan
+-- page was fetched no longer exists and must not be copied to Postgres.
+sessionRowExists :: (MonadClient m) => UserId -> UTCTime -> CookieId -> m Bool
+sessionRowExists u x c = isJust <$> retry x1 (query1 cql (params LocalQuorum (u, x, c)))
+  where
+    cql :: PrepQuery R (UserId, UTCTime, CookieId) (Identity CookieId)
+    cql = "SELECT id FROM user_cookies WHERE user = ? AND expires = ? AND id = ?"
