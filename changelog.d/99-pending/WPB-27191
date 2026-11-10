@@ -1,0 +1,2 @@
+Meeting join links now admit temporary guests: meeting conversations store `GuestAccessRole`.
+Access updates on meeting conversations are rejected with 403 `invalid-op`: their access roles are owned by the meetings subsystem so temporary guests can join.

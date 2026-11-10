@@ -252,7 +252,7 @@ createMeetingImpl zUser connId newMeeting = do
             -- performConversationJoin (ensureAccess conv InviteAccess).
             -- CodeAccess allows joining the meeting conversation by code.
             newConvAccess = Set.fromList [InviteAccess, CodeAccess],
-            newConvAccessRoles = Nothing,
+            newConvAccessRoles = Just (Set.insert GuestAccessRole defRole),
             newConvTeam = ConvTeamInfo <$> conversationTeamId,
             newConvMessageTimer = Nothing,
             newConvReceiptMode = Nothing,

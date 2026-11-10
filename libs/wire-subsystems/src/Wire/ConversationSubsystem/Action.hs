@@ -424,6 +424,12 @@ instance IsConversationAction 'ConversationAccessDataTag where
   ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
     throw ConversationSubsystemErrorConvNotFound
   ensureAllowed _loc action conv (ActorContext (Just origUser) mTm) = do
+    -- Meeting conversations are provisioned by the meetings subsystem with
+    -- 'GuestAccessRole' so temporary guests can join (WPB-27191). A
+    -- client-side access rewrite would drop that role and silently break
+    -- temp-guest joining, so meeting conversations reject access updates.
+    when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
+      throw ConversationSubsystemErrorInvalidOperation
     -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
     -- so on; users not supposed to be able to make other conversations
     -- have 'PrivateAccessRole'

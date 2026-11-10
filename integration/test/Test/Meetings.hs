@@ -35,6 +35,10 @@ import Testlib.Prelude
 import Text.Regex.TDFA ((=~))
 import UnliftIO.Concurrent (threadDelay)
 
+-- | Password protecting meeting join links in this module's tests.
+meetingLinkPassword :: String
+meetingLinkPassword = "supersecret8"
+
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -62,6 +66,8 @@ testMeetingCreate = do
   assertConversationMatchesLegacy meeting
 
   meeting %. "conversation" %. "access" `shouldMatchSet` ["invite", "code"]
+  roles <- meeting %. "conversation" %. "access_role" & asList >>= traverse asString
+  roles `shouldMatchSet` ["team_member", "non_team_member", "guest", "service"]
 
   -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -170,6 +176,13 @@ defaultMeetingJsonLegacy title startTime endTime invitedEmails =
       "end_time" .= endTime,
       "invited_emails" .= invitedEmails
     ]
+
+-- | Create a meeting with default times relative to now (starts in one hour,
+-- one hour long, no invitees, title \"Team Standup\") and return the 201 body.
+createDefaultMeeting :: (HasCallStack, MakesValue user) => user -> App Value
+createDefaultMeeting user = do
+  now <- liftIO getCurrentTime
+  postMeetings user (defaultMeetingJson "Team Standup" (addUTCTime 3600 now) (addUTCTime 7200 now) []) >>= getJSON 201
 
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
@@ -1106,7 +1119,7 @@ testMeetingJoinByLink = do
   joinedTitle <- joined %. "title" >>= asString
   joinedTitle `shouldMatch` title
   -- Password-protect the link via refresh; this rotates the code value.
-  refreshed <- postMeetingLinkRefresh owner domain meetingId (object ["password" .= ("supersecret8" :: String)]) >>= getJSON 200
+  refreshed <- postMeetingLinkRefresh owner domain meetingId (object ["password" .= meetingLinkPassword]) >>= getJSON 200
   newLink <- refreshed %. "link" >>= asString
   let (newKey, newCode) = linkKeyAndCode newLink
 
@@ -1114,7 +1127,7 @@ testMeetingJoinByLink = do
   postMeetingJoin bob domain oldKey oldCode Nothing >>= assertLabel 404 "meeting-not-found"
   postMeetingJoin bob domain newKey newCode Nothing >>= assertLabel 403 "invalid-meeting-password"
   postMeetingJoin bob domain newKey newCode (Just "wrongpass1") >>= assertLabel 403 "invalid-meeting-password"
-  ok <- postMeetingJoin bob domain newKey newCode (Just "supersecret8")
+  ok <- postMeetingJoin bob domain newKey newCode (Just meetingLinkPassword)
   assertStatus 200 ok
 
   -- Clearing the password makes the link passwordless again.
@@ -1140,9 +1153,9 @@ testMeetingLinkJoin = do
   let isCassandraCodeStore = codeStorage == "cassandra"
 
   (alice, _tid, [bob]) <- createTeam OwnDomain 2
+
   now <- liftIO getCurrentTime
   let newMeeting = defaultMeetingJson "Link Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
-
   when isCassandraCodeStore $ do
     -- Creation fails closed: no code store, no link.
     postMeetings alice newMeeting >>= assertLabel 500 "link-unavailable"
@@ -1195,7 +1208,7 @@ testMeetingLinkJoin = do
       otherIds `shouldMatchSet` [bobQid]
 
       -- Password matrix: the password gates resolving and joining.
-      refreshed <- postMeetingLinkRefresh alice domain meetingId (object ["password" .= ("supersecret8" :: String)]) >>= getJSON 200
+      refreshed <- postMeetingLinkRefresh alice domain meetingId (object ["password" .= meetingLinkPassword]) >>= getJSON 200
       newLink <- refreshed %. "link" >>= asString
       let (newKey, newCode) = linkKeyAndCode newLink
       -- GET without the password is rejected.
@@ -1203,13 +1216,143 @@ testMeetingLinkJoin = do
       -- GET with a wrong password is rejected.
       getMeetingCodeCheck bob domain newKey newCode (Just "wrongsecret8") >>= assertLabel 403 "invalid-meeting-password"
       -- GET with the correct password resolves.
-      getMeetingCodeCheck bob domain newKey newCode (Just "supersecret8") >>= assertStatus 200
+      getMeetingCodeCheck bob domain newKey newCode (Just meetingLinkPassword) >>= assertStatus 200
       -- POST without the password is rejected.
       postMeetingJoin bob domain newKey newCode Nothing >>= assertLabel 403 "invalid-meeting-password"
       -- POST with the correct password joins (idempotent for the member).
-      postMeetingJoin bob domain newKey newCode (Just "supersecret8") >>= assertStatus 200
+      postMeetingJoin bob domain newKey newCode (Just meetingLinkPassword) >>= assertStatus 200
       -- The stale (pre-refresh) code value no longer resolves.
       getMeetingCodeCheck bob domain key code Nothing >>= assertLabel 404 "meeting-not-found"
+
+-- | A temporary guest (brig ephemeral account created via the anonymous
+-- @POST /register@ flow, what the webapp's "Join as Temporary Guest" uses)
+-- can resolve a meeting join link and join the meeting conversation without
+-- being a team member. Refreshing the link rotates the code so the stale
+-- value stops working, while an already-joined guest keeps their membership.
+testMeetingLinkTempGuest :: (HasCallStack) => App ()
+testMeetingLinkTempGuest = do
+  -- Meeting join codes live in the Postgres code store only: a cassandra-only
+  -- code store cannot hold them, so meeting creation fails closed with 500
+  -- @link-unavailable@. Assert that instead of the positive path below; the
+  -- unknown-key/code 404s are covered by 'testMeetingLinkJoinNotFound' in
+  -- every mode.
+  codeStorage <- readServiceConfig Galley %. "postgresMigration.conversationCodes" >>= asString
+  let isCassandraCodeStore = codeStorage == "cassandra"
+
+  (owner, _tid, _) <- createTeam OwnDomain 1
+
+  when isCassandraCodeStore $ do
+    -- Creation fails closed: no code store, no link.
+    now <- liftIO getCurrentTime
+    postMeetings owner (defaultMeetingJson "Team Standup" (addUTCTime 3600 now) (addUTCTime 7200 now) [])
+      >>= assertLabel 500 "link-unavailable"
+
+  unless isCassandraCodeStore $ do
+    meeting <- createDefaultMeeting owner
+    (meetingId, domain) <- getMeetingIdAndDomain meeting
+    mLink <- lookupField meeting "link" >>= maybe (pure Nothing) asStringM
+    link <- case mLink of
+      Nothing -> assertFailure "meeting response has no join link (join-link URI configured for this backend?)"
+      Just l -> pure l
+    let (key, code) = linkKeyAndCode link
+    title <- meeting %. "title" >>= asString
+
+    -- The temporary guest is an ephemeral account: no email/phone/SSO,
+    -- expiring after the server session token timeout (24h in prod; the
+    -- integration environment overrides it to a few seconds).
+    guest <- ephemeralUser OwnDomain
+    expiresAtStr <- guest %. "expires_at" >>= asString
+    expiresAt <-
+      assertJust ("could not parse expires_at: " <> expiresAtStr)
+        $ iso8601ParseM @Maybe @UTCTime expiresAtStr
+    sessionTokenTimeout <- asInt $ readServiceConfig Brig %. "zauth.authSettings.sessionTokenTimeout"
+    sampledAt <- liftIO getCurrentTime
+    -- expires_at is stamped by brig at registration time, so the observed
+    -- remaining time is the configured timeout minus the elapsed calls.
+    -- The band absorbs the registration round-trip and the ordering of
+    -- the two clock reads; a tight symmetric window would flake.
+    let timeoutSeconds = fromIntegral (sessionTokenTimeout :: Int) :: Double
+        ttlSeconds = realToFrac (diffUTCTime expiresAt sampledAt) :: Double
+    unless (ttlSeconds > timeoutSeconds - 10 && ttlSeconds <= timeoutSeconds + 1)
+      $ assertFailure
+        ( "expected ephemeral expiry ~sessionTokenTimeout ("
+            <> show sessionTokenTimeout
+            <> "s), got "
+            <> show ttlSeconds
+            <> "s"
+        )
+
+    -- Unauthenticated metadata preview works for the guest before joining.
+    fetched <- getMeetingCodeCheck guest domain key code Nothing >>= getJSON 200
+    fetched %. "title" `shouldMatch` title
+    fetched %. "start_time" `shouldMatch` (meeting %. "start_time")
+    fetched %. "end_time" `shouldMatch` (meeting %. "end_time")
+
+    -- The guest joins the meeting conversation (MLS) and thereby the call.
+    joined <- postMeetingJoin guest domain key code Nothing >>= getJSON 200
+    joined %. "qualified_id" %. "id" `shouldMatch` meetingId
+    -- Pin the join response's membership view: members.others lists the
+    -- pre-existing members (the owner) and never the joiner —
+    -- Wire.StoredConversation.conversationView filters the viewer out of
+    -- others.
+    ownerQid <- objQidObject owner
+    joinedOthers <- joined %. "conversation" %. "members" %. "others" & asList
+    joinedOtherIds <- for joinedOthers (%. "qualified_id")
+    joinedOtherIds `shouldMatchSet` [ownerQid]
+
+    -- Membership: the guest's own view shows members.self, and the
+    -- owner's view lists the guest in members.others.
+    joinedConvQid <- joined %. "conversation" %. "qualified_id"
+    convAsGuest <- getConversation guest joinedConvQid >>= getJSON 200
+    convAsGuest %. "members" %. "self" %. "qualified_id" `shouldMatch` objQidObject guest
+    convAsOwner <- getConversation owner joinedConvQid >>= getJSON 200
+    others <- convAsOwner %. "members.others" & asList
+    guestQid <- objQidObject guest
+    otherIds <- for others (%. "qualified_id")
+    otherIds `shouldMatchSet` [guestQid]
+
+    -- Refreshing the link rotates the code: the stale value stops
+    -- granting access, while the joined guest keeps their membership.
+    refreshed <- postMeetingLinkRefresh owner domain meetingId (object ["password" .= meetingLinkPassword]) >>= getJSON 200
+    newLink <- refreshed %. "link" >>= asString
+    let (newKey, newCode) = linkKeyAndCode newLink
+    postMeetingJoin guest domain key code Nothing >>= assertLabel 404 "meeting-not-found"
+    -- Rotation wins over password validity: the correct password cannot
+    -- resurrect the stale code value.
+    postMeetingJoin guest domain key code (Just meetingLinkPassword) >>= assertLabel 404 "meeting-not-found"
+
+    -- A second temporary guest joins via the refreshed link+password.
+    guest2 <- ephemeralUser OwnDomain
+    postMeetingJoin guest2 domain newKey newCode Nothing >>= assertLabel 403 "invalid-meeting-password"
+    postMeetingJoin guest2 domain newKey newCode (Just meetingLinkPassword) >>= assertStatus 200
+
+    -- The first guest remains a conversation member after the refresh.
+    convAsOwnerAfter <- getConversation owner joinedConvQid >>= getJSON 200
+    othersAfter <- convAsOwnerAfter %. "members.others" & asList
+    otherIdsAfter <- for othersAfter (%. "qualified_id")
+    guest2Qid <- objQidObject guest2
+    otherIdsAfter `shouldMatchSet` [guestQid, guest2Qid]
+
+-- | Access-role updates on meeting conversations are rejected: the roles are
+-- owned by the meetings subsystem (the stored 'GuestAccessRole' is what lets
+-- temporary guests join, see WPB-27191), and a client rewrite via
+-- @PUT \/conversations\/{cnv}\/access@ would strip that role.
+testMeetingAccessUpdateRejected :: (HasCallStack) => App ()
+testMeetingAccessUpdateRejected = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  meeting <- createDefaultMeeting owner
+  convQid <- meeting %. "conversation" %. "qualified_id"
+
+  let update =
+        [ "access" .= ["invite", "code"],
+          "access_role" .= ["team_member", "non_team_member", "service"]
+        ]
+  updateAccess owner convQid update >>= assertLabel 403 "invalid-op"
+
+  -- Roles unchanged: guest is still admitted (no partial write happened).
+  conv <- getConversation owner convQid >>= getJSON 200
+  roles <- conv %. "access_role" & asList >>= traverse asString
+  roles `shouldMatchSet` ["team_member", "non_team_member", "guest", "service"]
 
 -- | @POST /meetings@ accepts an optional @password@ that
 -- password-protects the join link/code at creation time; short passwords are
@@ -1227,7 +1370,7 @@ testMeetingCreatePassword = do
             "tzid" .= ("Europe/Berlin" :: String),
             "type" .= ("scheduled" :: String),
             "invited_emails" .= ([] :: [String]),
-            "password" .= ("supersecret8" :: String)
+            "password" .= meetingLinkPassword
           ]
 
   -- A too-short password is rejected by the request schema.
@@ -1242,10 +1385,10 @@ testMeetingCreatePassword = do
     -- POST join without / wrong password is rejected; correct password joins.
     postMeetingJoin bob domain key code Nothing >>= assertLabel 403 "invalid-meeting-password"
     postMeetingJoin bob domain key code (Just "wrongpass1") >>= assertLabel 403 "invalid-meeting-password"
-    postMeetingJoin bob domain key code (Just "supersecret8") >>= assertStatus 200
+    postMeetingJoin bob domain key code (Just meetingLinkPassword) >>= assertStatus 200
     -- GET code-check enforces the same password.
     getMeetingCodeCheck bob domain key code Nothing >>= assertLabel 403 "invalid-meeting-password"
-    getMeetingCodeCheck bob domain key code (Just "supersecret8") >>= assertStatus 200
+    getMeetingCodeCheck bob domain key code (Just meetingLinkPassword) >>= assertStatus 200
 
 testMeetingLinkJoinNotFound :: (HasCallStack) => App ()
 testMeetingLinkJoinNotFound = do

@@ -17,7 +17,6 @@
 
 module Wire.MockInterpreters.ConversationSubsystem where
 
-import Data.Default (def)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (tUnqualified)
@@ -66,7 +65,7 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
                   { cnvmType = Public.RegularConv,
                     cnvmCreator = Just (tUnqualified lusr),
                     cnvmAccess = Set.toList newConv.newConvAccess,
-                    cnvmAccessRoles = def,
+                    cnvmAccessRoles = fromMaybe Public.defRole newConv.newConvAccessRoles,
                     cnvmName = fromRange <$> newConv.newConvName,
                     cnvmMessageTimer = newConv.newConvMessageTimer,
                     cnvmReceiptMode = newConv.newConvReceiptMode,
