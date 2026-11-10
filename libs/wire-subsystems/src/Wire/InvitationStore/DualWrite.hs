@@ -35,7 +35,6 @@ import Polysemy.Error
 import Polysemy.Resource (Resource)
 import Polysemy.Time (MilliSeconds (..))
 import Polysemy.TinyLog
-import Wire.API.PostgresMarshall
 import Wire.InvitationStore
 import Wire.InvitationStore.Cassandra qualified as Cassandra
 import Wire.InvitationStore.Postgres qualified as Postgres
@@ -115,7 +114,11 @@ interpretInvitationStoreToCassandraAndPostgres casClient = interpret $ \case
       cassRes <- Cassandra.interpretInvitationStoreToCassandra casClient $ lookupInvitationsByEmail email
       pure $ nubBy sameInvitation (pgRes <> cassRes)
   InsertPendingScimUser tid email uid ->
-    withMigrationLocks LockShared (MilliSeconds 500) [(tid, postgresMarshall email :: Text)] $ do
+    -- Lock on (team, email) via 'MigrationLockable (TeamId, EmailAddress)',
+    -- whose advisory key is the team-wide "team_invitation" lock: this
+    -- serializes against the copy loop's exclusive team lock so a deleted
+    -- pending-SCIM row cannot be resurrected by a stale re-copy.
+    withMigrationLocks LockShared (MilliSeconds 500) [(tid, email)] $ do
       Cassandra.interpretInvitationStoreToCassandra casClient $ insertPendingScimUser tid email uid
       Postgres.interpretInvitationStoreToPostgres $ insertPendingScimUser tid email uid
   LookupPendingScimUsers tid email ->
@@ -123,7 +126,7 @@ interpretInvitationStoreToCassandraAndPostgres casClient = interpret $ \case
       (\_ -> Postgres.interpretInvitationStoreToPostgres $ lookupPendingScimUsers tid email)
       (\_ -> Cassandra.interpretInvitationStoreToCassandra casClient $ lookupPendingScimUsers tid email)
   DeletePendingScimUser tid email uid ->
-    withMigrationLocks LockShared (MilliSeconds 500) [(tid, postgresMarshall email :: Text)] $ do
+    withMigrationLocks LockShared (MilliSeconds 500) [(tid, email)] $ do
       Cassandra.interpretInvitationStoreToCassandra casClient $ deletePendingScimUser tid email uid
       Postgres.interpretInvitationStoreToPostgres $ deletePendingScimUser tid email uid
   LookupInvitationsPaginated mSize tid miid ->
