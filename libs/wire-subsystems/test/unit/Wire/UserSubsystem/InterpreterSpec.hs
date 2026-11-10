@@ -1587,20 +1587,23 @@ spec = describe "UserSubsystem.Interpreter" do
       \ctx
        targetMls
        (usersByDomain :: Map Domain [(StoredUser, [FakeClient])])
-       (unknownIds :: [UserId]) ->
+       -- stored on no backend: both routes must omit them, not report NonContactable
+       (absentIds :: [UserId]) ->
           ioProperty do
             -- the same users are evaluated once as local users and once spread over remote domains
             let pool = Map.delete localDomain' usersByDomain
                 localBackend = mkFakeBackend targetMls (concat (Map.elems pool))
                 remoteBackends = mkFakeBackend targetMls <$> pool
-                localIds = [u.id | u <- localBackend.storedUsers] <> unknownIds
-                asLocal = [Qualified uid (tDomain lself) | uid <- localIds]
-                asRemote =
+                storedLocal = [Qualified u.id (tDomain lself) | u <- localBackend.storedUsers]
+                storedRemote =
                   [ Qualified user.id domain
                   | (domain, remoteBackend) <- Map.toList remoteBackends,
                     user <- remoteBackend.storedUsers
                   ]
-                    <> [Qualified uid domain | domain <- Map.keys remoteBackends, uid <- unknownIds]
+                asLocal = storedLocal <> [Qualified uid (tDomain lself) | uid <- absentIds]
+                asRemote =
+                  storedRemote
+                    <> [Qualified uid domain | domain <- Map.keys remoteBackends, uid <- absentIds]
             -- both requesters have the same server flag and features, so they derive the same
             -- effective MLS availability
             viaLocal <-
@@ -1617,8 +1620,11 @@ spec = describe "UserSubsystem.Interpreter" do
               conjoin
                 [ Map.mapKeys qUnqualified viaRemote === Map.mapKeys qUnqualified viaLocal,
                   counterexample
-                    "only requested users are answered"
-                    (all (`elem` asLocal) (Map.keys viaLocal))
+                    "local route answers only stored users, absent ids are omitted"
+                    (Map.keysSet viaLocal `S.isSubsetOf` S.fromList storedLocal),
+                  counterexample
+                    "remote route answers only stored users, under their own domain"
+                    (Map.keysSet viaRemote `S.isSubsetOf` S.fromList storedRemote)
                 ]
   where
     makeActiveWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
