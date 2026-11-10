@@ -28,10 +28,11 @@ import Testlib.ResourcePool
 
 -- | Migrate the 'provider_password' store (brig) from Cassandra to PostgreSQL.
 --
--- The store is read-only from the perspective of normal traffic (provider login
--- lookups), so the migration is a copy-only backfill with no dual-write
--- interpreter. A password set while Cassandra is the source of truth must keep
--- verifying after the copy loop runs and after the cutover to PostgreSQL.
+-- The store is mostly read-only from the perspective of normal traffic
+-- (provider login lookups), so the migration is a copy-only backfill alongside
+-- a dual-write interpreter. A password set while Cassandra is the source of
+-- truth must keep verifying after the copy loop runs and after the cutover to
+-- PostgreSQL.
 testProviderPasswordMigration :: (HasCallStack) => App ()
 testProviderPasswordMigration = do
   resourcePool <- asks (.resourcePool)
