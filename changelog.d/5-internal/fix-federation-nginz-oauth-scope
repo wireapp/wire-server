@@ -1,0 +1,2 @@
+Revert nginz config of local federation-v0/v1/v2 test backends to `oauth_scope`
+(pinned images do not support `oauth_scopes` from commit 7efe9b4 / PR #5542).
