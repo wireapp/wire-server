@@ -28,7 +28,6 @@ import Data.Text qualified as T
 import Imports
 import Polysemy
 import Polysemy.Error
-
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log

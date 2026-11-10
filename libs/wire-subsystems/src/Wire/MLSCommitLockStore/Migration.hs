@@ -27,12 +27,12 @@ import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async
+import Polysemy.AtomicState
 import Polysemy.Conc (interpretRace)
 import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
 import Polysemy.Input
 import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
-import Polysemy.AtomicState
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -41,8 +41,8 @@ import Wire.API.MLS.Epoch (Epoch)
 import Wire.API.MLS.Group (GroupId, unGroupId)
 import Wire.ConversationStore qualified as CommitLockStore
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
-import Wire.Migration
 import Wire.MLSCommitLockStore.Postgres qualified as Postgres
+import Wire.Migration
 import Wire.Postgres (PGConstraints)
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
@@ -127,21 +127,21 @@ migrateCommitLockRow ::
   (GroupId, Epoch) ->
   Sem r ()
 migrateCommitLockRow migOpts migCounter migDuration (gId, epoch) = do
-    let keyText = T.pack (show gId)
-    outcomeRef <- liftIO $ IORef.newIORef @Text "error"
-    bracket
-      (liftIO getCurrentTime)
-      (observeDuration migDuration outcomeRef)
-      ( const $ do
-          timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ void $ Postgres.interpretMLSCommitLockStoreToPostgres $ CommitLockStore.holdCommitLock gId epoch (pure ())
-          case timeoutResult of
-            Left timedOutAfter -> do
-              markOutcome outcomeRef "timeout"
-              liftIO . UnliftIO.throwIO $ MigrationTimedOut keyText timedOutAfter
-            Right _ -> do
-              markOutcome outcomeRef "success"
-              liftIO $ Prometheus.incCounter migCounter
-      )
+  let keyText = T.pack (show gId)
+  outcomeRef <- liftIO $ IORef.newIORef @Text "error"
+  bracket
+    (liftIO getCurrentTime)
+    (observeDuration migDuration outcomeRef)
+    ( const $ do
+        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ void $ Postgres.interpretMLSCommitLockStoreToPostgres $ CommitLockStore.holdCommitLock gId epoch (pure ())
+        case timeoutResult of
+          Left timedOutAfter -> do
+            markOutcome outcomeRef "timeout"
+            liftIO . UnliftIO.throwIO $ MigrationTimedOut keyText timedOutAfter
+          Right _ -> do
+            markOutcome outcomeRef "success"
+            liftIO $ Prometheus.incCounter migCounter
+    )
   where
     handleTimeout =
       err $
