@@ -34,6 +34,7 @@ module Wire.API.Provider.Service
     -- * Service
     Service (..),
     ServiceToken (..),
+    ServiceConn (..),
     ServiceProfile (..),
     ServiceProfilePage (..),
 
@@ -61,7 +62,7 @@ import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
-import Data.Misc (HttpsUrl (..), PlainTextPassword6)
+import Data.Misc (Fingerprint, HttpsUrl (..), PlainTextPassword6, Rsa)
 import Data.OpenApi qualified as S
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Proxy
@@ -159,6 +160,12 @@ instance Cql ServiceKey where
         ("size", toCql siz),
         ("pem", toCql pem)
       ]
+
+-- | Postgres storage encoding for 'ServiceKey' lists (jsonb column, cf. the
+-- Cassandra UDT list in @pubkeys@).
+deriving via (StoreAsJSON [ServiceKey]) instance PostgresMarshall A.Value [ServiceKey]
+
+deriving via (StoreAsJSON [ServiceKey]) instance PostgresUnmarshall A.Value [ServiceKey]
 
 -- | Other types may be supported in the future.
 data ServiceKeyType
@@ -291,6 +298,21 @@ instance PostgresMarshall Text ServiceToken where
 
 instance PostgresUnmarshall Text ServiceToken where
   postgresUnmarshall = first Text.pack . runParser parser . Text.encodeUtf8
+
+--------------------------------------------------------------------------------
+-- ServiceConn
+
+-- | Connection information of a service, as used by brig's provider API to
+-- talk to the service backend.
+data ServiceConn = ServiceConn
+  { sconProvider :: !ProviderId,
+    sconService :: !ServiceId,
+    sconBaseUrl :: !HttpsUrl,
+    sconAuthTokens :: !(NonEmpty ServiceToken),
+    sconFingerprints :: !(NonEmpty (Fingerprint Rsa)),
+    sconEnabled :: !Bool
+  }
+  deriving stock (Eq, Show)
 
 --------------------------------------------------------------------------------
 -- ServiceProfile

@@ -137,6 +137,12 @@ instance ToSchema Asset where
       typeSchema :: ValueSchema NamedSwaggerDoc ()
       typeSchema = enum @Text $ element "image" ()
 
+-- | Postgres storage encoding for 'Asset' lists (jsonb column, cf. the
+-- Cassandra list in @assets@).
+deriving via (StoreAsJSON [Asset]) instance PostgresMarshall A.Value [Asset]
+
+deriving via (StoreAsJSON [Asset]) instance PostgresUnmarshall A.Value [Asset]
+
 instance C.Cql Asset where
   -- Note: Type name and column names and types must match up with the
   --       Cassandra schema definition. New fields may only be added
