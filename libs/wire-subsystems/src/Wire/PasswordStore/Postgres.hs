@@ -86,8 +86,7 @@ insertIfNotDeletedStatement =
     [resultlessStatement|INSERT INTO provider_password (id, password)
                          SELECT ($1 :: uuid), ($2 :: text)
                          WHERE NOT EXISTS (SELECT 1 FROM provider_passwords_deletions WHERE id = ($1 :: uuid))
-                         ON CONFLICT (id) DO UPDATE
-                         SET password = EXCLUDED.password|]
+                         ON CONFLICT (id) DO NOTHING|]
 
 -- | Record a provider password as deleted in the @provider_passwords_deletions@
 -- marker table; called by the dual-write delete so the copy loop can filter it
