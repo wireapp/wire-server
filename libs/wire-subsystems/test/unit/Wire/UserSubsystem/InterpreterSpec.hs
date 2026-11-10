@@ -1584,33 +1584,42 @@ spec = describe "UserSubsystem.Interpreter" do
           ]
 
     prop "local route and remote route evaluate the same users identically" $
-      \ctx targetMls (users :: [(StoredUser, [FakeClient])]) (unknownIds :: [UserId]) ->
-        ioProperty do
-          let backend = mkFakeBackend targetMls users
-              known = [user.id | user <- backend.storedUsers]
-              uids = known <> unknownIds
-              asLocal = [Qualified uid (tDomain lself) | uid <- uids]
-              -- REVIEW: Have variance over domains?
-              asRemote = [Qualified uid targetDomain | uid <- uids]
-          -- both requesters have the same server flag and features, so they derive the same
-          -- effective MLS availability
-          viaLocal <-
-            runOnRequesterBackend
-              backend {features = featuresFor ctx}
-              mempty
-              (getContactStatusesImpl lself asLocal)
-          viaRemote <-
-            runOnRequesterBackend
-              (requesterBackendFor ctx) {serverMls = backend.serverMls}
-              (Map.singleton targetDomain (remoteBackendHandler backend))
-              (getContactStatusesImpl lself asRemote)
-          pure $
-            conjoin
-              [ Map.mapKeys qUnqualified viaRemote === Map.mapKeys qUnqualified viaLocal,
-                counterexample
-                  "only requested users are answered"
-                  (all (`elem` asLocal) (Map.keys viaLocal))
-              ]
+      \ctx
+       targetMls
+       (usersByDomain :: Map Domain [(StoredUser, [FakeClient])])
+       (unknownIds :: [UserId]) ->
+          ioProperty do
+            -- the same users are evaluated once as local users and once spread over remote domains
+            let pool = Map.delete localDomain' usersByDomain
+                localBackend = mkFakeBackend targetMls (concat (Map.elems pool))
+                remoteBackends = mkFakeBackend targetMls <$> pool
+                localIds = [u.id | u <- localBackend.storedUsers] <> unknownIds
+                asLocal = [Qualified uid (tDomain lself) | uid <- localIds]
+                asRemote =
+                  [ Qualified user.id domain
+                  | (domain, remoteBackend) <- Map.toList remoteBackends,
+                    user <- remoteBackend.storedUsers
+                  ]
+                    <> [Qualified uid domain | domain <- Map.keys remoteBackends, uid <- unknownIds]
+            -- both requesters have the same server flag and features, so they derive the same
+            -- effective MLS availability
+            viaLocal <-
+              runOnRequesterBackend
+                localBackend {features = featuresFor ctx}
+                mempty
+                (getContactStatusesImpl lself asLocal)
+            viaRemote <-
+              runOnRequesterBackend
+                (requesterBackendFor ctx) {serverMls = targetMls}
+                (remoteBackendHandler <$> remoteBackends)
+                (getContactStatusesImpl lself asRemote)
+            pure $
+              conjoin
+                [ Map.mapKeys qUnqualified viaRemote === Map.mapKeys qUnqualified viaLocal,
+                  counterexample
+                    "only requested users are answered"
+                    (all (`elem` asLocal) (Map.keys viaLocal))
+                ]
   where
     makeActiveWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
     makeActiveWith protos user = user {status = Just Active, supportedProtocols = protos}
@@ -1647,7 +1656,6 @@ spec = describe "UserSubsystem.Interpreter" do
     requesterBackendFor ctx = emptyBackend {serverMls = True, features = featuresFor ctx}
 
     localDomain' = Domain "local.example.com"
-    targetDomain = Domain "target.example.com"
     lself = toLocalUnsafe localDomain' (Id UUID.nil)
 
     qualified :: Map Domain (Map UserId a) -> Map (Qualified UserId) a
