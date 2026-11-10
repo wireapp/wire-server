@@ -723,6 +723,10 @@ insertTeamMemberStatement =
       perms_write_time = now()
   |]
 
+-- ACCEPTED RISK (WPB-22957 review): unguarded by design — permission writes
+-- run under the exclusive (team, user) migration lock, which serializes them
+-- against every other member dual write and the copy loop, so last writer
+-- wins is the correct order.
 updatePermissionsStatement :: Hasql.Statement (Int64, Int64, UUID, UUID) ()
 updatePermissionsStatement =
   [resultlessStatement|

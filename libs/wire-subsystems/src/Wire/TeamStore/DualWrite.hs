@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.TeamStore.DualWrite
-  ( interpretTeamStoreMetadataToCassandraAndPostgres,
+  ( interpretTeamStoreToCassandraAndPostgres,
   )
 where
 
@@ -55,9 +55,10 @@ type TeamWriteStamp = Writetime TeamStatus
 newWriteStamp :: (Member (Embed IO) r) => Sem r TeamWriteStamp
 newWriteStamp = Writetime <$> embed getCurrentTime
 
--- | Dual-write interpreter for 'TeamStore' (WPB-22956 metadata + WPB-22957
--- members): writes go to both Cassandra and Postgres; reads go to Cassandra,
--- which remains the source of truth during migration.
+-- | Dual-write interpreter for 'TeamStore' covering both migrated slices —
+-- team metadata (WPB-22956) and team members (WPB-22957): writes go to both
+-- Cassandra and Postgres; reads go to Cassandra, which remains the source of
+-- truth during migration.
 --
 -- DUAL-WRITE CUTOVER-INCOMPLETE: @team_member.legalhold_status@ is also
 -- written by the LegalHoldStore directly against Cassandra
@@ -69,7 +70,7 @@ newWriteStamp = Writetime <$> embed getCurrentTime
 -- while both stores are written; reads stay on Cassandra until cutover so
 -- this is benign during migration, but it MUST be resolved (mirrored write or
 -- Postgres-side LegalHoldStore) before team members cut over to Postgres.
-interpretTeamStoreMetadataToCassandraAndPostgres ::
+interpretTeamStoreToCassandraAndPostgres ::
   ( PGConstraints r,
     Member (Input ClientState) r,
     Member TinyLog r,
@@ -80,7 +81,7 @@ interpretTeamStoreMetadataToCassandraAndPostgres ::
     Member (Error MigrationLockError) r
   ) =>
   InterpreterFor TeamStore r
-interpretTeamStoreMetadataToCassandraAndPostgres = interpret $ \case
+interpretTeamStoreToCassandraAndPostgres = interpret $ \case
   -- Metadata writes: both stores, sharing one client-chosen writetime per
   -- write (see 'TeamWriteStamp').  Cassandra stays the source of truth for
   -- reads.
@@ -108,18 +109,26 @@ interpretTeamStoreMetadataToCassandraAndPostgres = interpret $ \case
   DeleteTeam tid -> do
     -- Serialize the whole deletion against the member copy loop and the
     -- locked member dual writes: take the exclusive (team, user) locks for
-    -- the team's current members (re-read from Cassandra, the source of
-    -- truth), then park PendingDelete, run the Cassandra cleanup, finalize,
-    -- and sweep the Postgres member rows — all inside the locked section so
-    -- no in-flight copy can resurrect a deleted member row.
-    mems <- routeCassandra (getTeamMembers tid)
-    withMigrationLocks
-      LockExclusive
-      (MilliSeconds 2000)
-      [(tid, mem ^. userId) | mem <- mems]
-      $ do
-        Postgres.deleteTeamWithCassandra tid
-        Postgres.removeTeamMemberRowsPg tid
+    -- the team's current members, then re-read inside the locked section and
+    -- lock any member added since the snapshot (its in-flight dual write
+    -- holds the matching shared lock, so acquiring the exclusive half waits
+    -- for that write to complete) before parking PendingDelete, running the
+    -- Cassandra cleanup, finalizing, and sweeping the Postgres member rows.
+    mems0 <- routeCassandra (getTeamMembers tid)
+    let locked = [(tid, mem ^. userId) | mem <- mems0]
+    withMigrationLocks LockExclusive (MilliSeconds 2000) locked $ do
+      mems1 <- routeCassandra (getTeamMembers tid)
+      let delta =
+            [(tid, u) | u <- nub ((^. userId) <$> mems1), (tid, u) `notElem` locked]
+      unless (null delta) $
+        -- Accepted residual risk: a member whose Cassandra write is not yet
+        -- visible at this re-read is missed here; its dual write then lands
+        -- after the sweep.  The window is bounded by the shared-lock hold
+        -- time of one dual write, and team deletion (account removal) is
+        -- serialized against member additions at the galley layer.
+        withMigrationLocks LockExclusive (MilliSeconds 2000) delta $ pure ()
+      Postgres.deleteTeamWithCassandra tid
+      Postgres.removeTeamMemberRowsPg tid
   -- Metadata reads: Cassandra is the source of truth.
   GetTeam tid -> routeCassandra (getTeam tid)
   GetTeamName tid -> routeCassandra (getTeamName tid)
@@ -127,10 +136,11 @@ interpretTeamStoreMetadataToCassandraAndPostgres = interpret $ \case
   GetTeamBinding tid -> routeCassandra (getTeamBinding tid)
   GetTeamCreationTime tid -> routeCassandra (getTeamCreationTime tid)
   GetSearchVisibility tid -> routeCassandra (getSearchVisibility tid)
-  -- Member writes: both stores.  The shared (team, user) lock serializes
-  -- against the copy loop's exclusive lock, so a concurrent write can not be
-  -- clobbered by a stale copy; on lock timeout only the Cassandra leg has
-  -- run, and the copy loop reconciles Postgres afterwards.
+  -- Member writes: both stores.  The exclusive (team, user) lock serializes
+  -- member dual writes against each other and against the copy loop, so a
+  -- concurrent write can not be clobbered by a stale copy and a create can
+  -- not interleave with a delete of the same member; on TimedOutAcquiringLock
+  -- neither leg has run, and the copy loop reconciles Postgres afterwards.
   CreateTeamMember tid mem ->
     withMemberLock tid (mem ^. userId) $ do
       routeCassandra (createTeamMember tid mem)
@@ -156,9 +166,10 @@ interpretTeamStoreMetadataToCassandraAndPostgres = interpret $ \case
   GetUsersTeams uids -> routeCassandra (getUsersTeams uids)
   GetOneUserTeam uid -> routeCassandra (getOneUserTeam uid)
 
--- | The shared half of the copy loop's per-(team, user) advisory lock: held
--- by member writes in dual-write mode so the migration worker's exclusive
--- lock can not interleave a stale copy.
+-- | The per-(team, user) advisory lock held by member writes in dual-write
+-- mode, in its exclusive form: it serializes member dual writes against each
+-- other and against the migration worker's exclusive copy lock, so no stale
+-- copy can interleave and no two legs of the same member can reorder.
 withMemberLock ::
   ( PGConstraints r,
     Member TinyLog r,
@@ -172,4 +183,4 @@ withMemberLock ::
   Sem r x ->
   Sem r x
 withMemberLock tid uid =
-  withMigrationLocks LockShared (MilliSeconds 500) [(tid, uid)]
+  withMigrationLocks LockExclusive (MilliSeconds 500) [(tid, uid)]
