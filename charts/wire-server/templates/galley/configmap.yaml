@@ -116,6 +116,9 @@ data:
       {{- if .settings.checkGroupInfo }}
       checkGroupInfo: {{ .settings.checkGroupInfo }}
       {{- end }}
+      {{- if .settings.mlsGroupInfoRepair }}
+      mlsGroupInfoRepair: {{ .settings.mlsGroupInfoRepair }}
+      {{- end }}
       meetings:
         {{- with .settings.meetings }}
         {{- if .validityPeriod }}

@@ -30,11 +30,13 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
+import Data.Domain (Domain, domainText)
 import Data.Id as Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
@@ -116,6 +118,7 @@ internalAPI =
       <@> mkNamedAPI @"connect" createConnectConversation
       <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"get-conversation-member-clients" iGetMLSMemberClients
+      <@> mkNamedAPI @"delete-mls-member-client" iDeleteMLSMemberClient
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -559,3 +562,22 @@ iGetMLSMemberClients gid = do
       | (quid, clients) <- Map.assocs (unClientMap cm),
         (cid, idx) <- Map.assocs clients
       ]
+
+-- | Deletes a single member-client row; support/ops manual repair tool and
+-- damage injector for integration tests.
+iDeleteMLSMemberClient ::
+  forall r.
+  (Member ConversationStore r, Member P.TinyLog r) =>
+  GroupId ->
+  Domain ->
+  UserId ->
+  ClientId ->
+  Sem r ()
+iDeleteMLSMemberClient gid dom uid cid = do
+  P.warn $
+    Log.msg ("deleting MLS member-client row" :: ByteString)
+      . Log.field "groupId" (UTF8.fromString (show gid))
+      . Log.field "userDomain" (domainText dom)
+      . Log.field "user" (idToText uid)
+      . Log.field "client" (clientToText cid)
+  ConversationStore.removeMLSClients gid (Qualified uid dom) (Set.singleton cid)

@@ -1335,6 +1335,27 @@ Enabling consistency checks makes Galley parse the ratchet tree
 extension in the group info of every commit and compare it to the
 group state after applying the commit.
 
+#### MLS group info repair
+
+To enable repairing MLS member-client rows from the ratchet tree stored
+in the group info on every commit:
+```
+# galley.yaml
+config:
+  settings:
+    mlsGroupInfoRepair: true
+```
+
+Enabling the repair makes Galley reconcile the
+`mls_group_member_client`/`mls_history_client` rows with the ratchet
+tree of the previously processed commit bundle before validating a new
+bundle, restoring rows lost to e.g. the external-commit re-join race
+(WPB-29648). Off by default; enabling it is the rollout step, and
+disabling it is the rollback. Note: history-client rows are only
+present for Postgres-resident conversations, so healing of
+`mls_history_client` rows applies to those; conversations still served
+from Cassandra only get their `mls_group_member_client` rows healed.
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won’t be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.

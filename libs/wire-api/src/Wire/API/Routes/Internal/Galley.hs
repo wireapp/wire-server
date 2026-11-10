@@ -199,6 +199,22 @@ type InternalAPIBase =
                     '[JSON]
                     (Respond 200 "MLS member clients" MLSMemberClientList)
            )
+    -- Deletes a single member-client row; support/ops manual repair tool and
+    -- damage injector for integration tests.
+    :<|> Named
+           "delete-mls-member-client"
+           ( Summary "Delete an MLS conversation member client row"
+               :> "group"
+               :> Capture "gid" GroupId
+               :> "member-clients"
+               :> Capture "domain" Domain
+               :> Capture "uid" UserId
+               :> Capture "client" ClientId
+               :> MultiVerb1
+                    'DELETE
+                    '[JSON]
+                    (RespondEmpty 204 "Deleted")
+           )
     :<|> Named
            "guard-legalhold-policy-conflicts"
            ( "guard-legalhold-policy-conflicts"
