@@ -11,10 +11,13 @@
 --      UserLegalHoldStatus: disabled|pending|enabled|no_consent)
 --   * Icon         -> text, 'default' or the asset key
 --
--- Cassandra writetimes are not reproducible in Postgres; the two consumers of
--- writetimes (TeamData.tdStatusTime from writetime(status) and
--- TeamCreationTime from writetime(binding)) read maintained timestamptz columns
--- instead (status_time, binding_time), set at insert/update time.
+-- Every column whose Cassandra writetime is consumed is mirrored by a nullable
+-- @*_time@ column holding that writetime.  The two consumers of writetimes
+-- (TeamData.tdStatusTime from writetime(status) and TeamCreationTime from
+-- writetime(binding)) read @status_time@ and @binding_time@; like Cassandra's
+-- writetime function, those columns are NULL when the corresponding Cassandra
+-- column has no writetime.  They are carried over from Cassandra by the team
+-- migration copy loop and maintained by the dual-write leg via now().
 --
 -- NOTE: "user" is a reserved word in PostgreSQL; user-facing columns are named
 -- user_id.
@@ -28,9 +31,9 @@ CREATE TABLE IF NOT EXISTS team (
     splash_screen text,
     deleted       boolean NOT NULL DEFAULT false,
     status        text NOT NULL,
-    status_time   timestamptz NOT NULL DEFAULT now(),
+    status_time   timestamptz,
     binding       text NOT NULL,
-    binding_time  timestamptz NOT NULL DEFAULT now(),
+    binding_time  timestamptz,
     search_visibility text
 );
 
@@ -42,6 +45,7 @@ CREATE TABLE IF NOT EXISTS team_member (
     invited_by       uuid,
     invited_at       timestamptz,
     legalhold_status text,
+    perms_write_time       timestamptz NOT NULL,
     PRIMARY KEY (team, user_id)
 );
 

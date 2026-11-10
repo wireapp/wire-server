@@ -153,9 +153,10 @@ migrateTeams migOpts migCounter migDuration =
                       Postgres.trStatus = postgresMarshall <$> status,
                       -- carry the Cassandra writetimes over so the TeamData
                       -- status time and TeamCreationTime survive the copy
-                      Postgres.trStatusTime = maybe currentTimeStamp writetimeToUTC statusWT,
+                      -- NULL when Cassandra has no writetime, like reads
+                      Postgres.trStatusTime = fmap writetimeToUTC statusWT,
                       Postgres.trBinding = postgresMarshall <$> binding,
-                      Postgres.trBindingTime = maybe currentTimeStamp writetimeToUTC bindingWT,
+                      Postgres.trBindingTime = fmap writetimeToUTC bindingWT,
                       Postgres.trSplashScreen = postgresMarshall <$> splashScreen,
                       Postgres.trSearchVisibility = postgresMarshall <$> searchVisibility
                     }
@@ -173,7 +174,7 @@ migrateTeamMembers migOpts migCounter migDuration =
   withCount (paginateSem selectTeamMembers (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_
-      ( traverse_ $ \(tid, uid, perms, minvu, minvt, mlh) ->
+      ( traverse_ $ \(tid, uid, perms, minvu, minvt, mlh, permsWT) ->
           handleErrors (encodeUtf8 (idToText tid)) $
             migrateRowWithMetrics
               migOpts
@@ -181,15 +182,20 @@ migrateTeamMembers migOpts migCounter migDuration =
               migDuration
               (encodeUtf8 (idToText tid))
               ( let (permsSelf, permsCopy) = postgresMarshall perms :: (Int64, Int64)
-                 in Postgres.migrateTeamMemberRow
-                      (toUUID tid)
-                      ( toUUID uid,
-                        permsSelf,
-                        permsCopy,
-                        toUUID <$> minvu,
-                        fromUTCTimeMillis <$> minvt,
-                        Postgres.userLegalHoldStatusToText <$> mlh
-                      )
+                 in do
+                      -- writetime(perms) carries the original permissions
+                      -- write time into the maintained perms_write_time column.
+                      let permsTime = writetimeToUTC permsWT
+                      Postgres.migrateTeamMemberRow
+                        (toUUID tid)
+                        ( toUUID uid,
+                          permsSelf,
+                          permsCopy,
+                          toUUID <$> minvu,
+                          fromUTCTimeMillis <$> minvt,
+                          Postgres.userLegalHoldStatusToText <$> mlh,
+                          permsTime
+                        )
               )
       )
 
@@ -271,9 +277,6 @@ observeDuration metric outcomeRef start = do
   end <- liftIO getCurrentTime
   liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
 
-currentTimeStamp :: UTCTime
-currentTimeStamp = UTCTime (ModifiedJulianDay 0) 0
-
 --------------------------------------------------------------------------------
 -- local scan queries (bound at use site so the Cql/Tuple instances resolve,
 -- mirroring Wire.ConversationStore.Migration)
@@ -281,8 +284,8 @@ currentTimeStamp = UTCTime (ModifiedJulianDay 0) 0
 selectTeams :: PrepQuery R () (TeamId, UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe (Writetime TeamBinding), Maybe Icon, Maybe TeamSearchVisibility)
 selectTeams = "select team, creator, name, icon, icon_key, deleted, status, writetime(status), binding, writetime(binding), splash_screen, search_visibility from team"
 
-selectTeamMembers :: PrepQuery R () (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
-selectTeamMembers = "select team, user, perms, invited_by, invited_at, legalhold_status from team_member"
+selectTeamMembers :: PrepQuery R () (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus, Writetime Permissions)
+selectTeamMembers = "select team, user, perms, invited_by, invited_at, legalhold_status, writetime(perms) from team_member"
 
 selectUserTeams :: PrepQuery R () (UserId, TeamId)
 selectUserTeams = "select user, team from user_team"
