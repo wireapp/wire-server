@@ -2336,6 +2336,7 @@ galley:
       nonce: postgresql
       connections: postgresql
       service: postgresql
+      providerService: cassandra
 background-worker:
   config:
     migrateConversations: false
@@ -2348,6 +2349,7 @@ background-worker:
     migrateNonce: false
     migrateConnections: false
     migrateService: false
+    migrateProviderService: false
 ```
 
 #### Migration for existing installations
@@ -2385,7 +2387,7 @@ The current settings and their background-worker flags are:
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
 - `service` -> `migrateService`
-
+- `providerService` -> `migrateProviderService` (brig's provider-platform tables: `service`, `service_tag`, `service_prefix`, `service_whitelist`, `service_whitelist_rev`)
 **Migration pattern per migration setting**
 
 1. Prepare the selected migration setting(s) for migration by setting
@@ -2412,6 +2414,7 @@ The current settings and their background-worker flags are:
          nonce: cassandra
          connections: cassandra
          service: cassandra
+         providerService: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2425,6 +2428,7 @@ The current settings and their background-worker flags are:
        migrateNonce: false
        migrateConnections: false
        migrateService: false
+       migrateProviderService: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2445,6 +2449,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: true
        migrateConnections: true
        migrateService: true
+       migrateProviderService: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2476,6 +2481,13 @@ The current settings and their background-worker flags are:
    - `nonce`: `wire_nonce_migration_finished`
    - `connections`: `wire_connections_migration_finished`
    - `service`: `wire_service_migration_finished`
+   - `providerService`: `wire_provider_service_migration_finished`,
+     `wire_provider_service_tag_migration_finished`,
+     `wire_provider_service_prefix_migration_finished`,
+     `wire_provider_service_whitelist_migration_finished`, and
+     `wire_provider_service_whitelist_rev_migration_finished` (one counter set
+     per backfill scan: row table, tag index, prefix index, whitelist,
+     whitelist reverse index)
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2497,6 +2509,7 @@ The current settings and their background-worker flags are:
          nonce: postgresql
          connections: postgresql
          service: postgresql
+         providerService: postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2510,6 +2523,7 @@ The current settings and their background-worker flags are:
        migrateNonce: false
        migrateConnections: false
        migrateService: false
+       migrateProviderService: false
    ```
 
 **How to run migrations independently or in batches**

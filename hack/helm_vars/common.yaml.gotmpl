@@ -26,6 +26,10 @@ budgetStore: {{ $preferredStore }}
 nonceStore: {{ $preferredStore }}
 connectionsStore: {{ $preferredStore }}
 serviceStore: {{ $preferredStore }}
+# Brig's provider-platform service tables migrate separately from the galley
+# service projection table (bot lookup); start in cassandra until brig's
+# provider-service backfill has run.
+providerServiceStore: cassandra
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

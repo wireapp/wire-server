@@ -91,6 +91,7 @@ data:
     migrateNonce: {{ .migrateNonce }}
     migrateConnections: {{ .migrateConnections }}
     migrateService: {{ .migrateService }}
+    migrateProviderService: {{ .migrateProviderService }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 

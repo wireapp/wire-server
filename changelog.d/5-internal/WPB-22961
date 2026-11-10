@@ -1,1 +1,3 @@
-Migration of service (old bots) from cassandra to postgres
+Migration of the galley service projection table (bot lookup) and brig's provider-platform service tables (`service`, `service_tag`, `service_prefix`, `service_whitelist`, `service_whitelist_rev`) from cassandra to postgres.
+
+New config keys: `postgresMigration.providerService` (brig/galley/background-worker) and `migrateProviderService` (background-worker).

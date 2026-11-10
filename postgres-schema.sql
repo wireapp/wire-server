@@ -1715,6 +1715,86 @@ CREATE TABLE public.remote_conversation_local_member (
 
 ALTER TABLE public.remote_conversation_local_member OWNER TO "wire-server";
 
+
+--
+-- Name: provider_service; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.provider_service (
+    provider uuid NOT NULL,
+    id uuid NOT NULL,
+    base_url bytea NOT NULL,
+    name text NOT NULL,
+    summary text,
+    descr text NOT NULL,
+    auth_tokens text[] NOT NULL,
+    pubkeys jsonb NOT NULL,
+    fingerprints bytea[] NOT NULL,
+    assets jsonb NOT NULL,
+    tags bigint[] NOT NULL,
+    enabled boolean NOT NULL,
+    last_update timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.provider_service OWNER TO "wire-server";
+
+--
+-- Name: provider_service_prefix; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.provider_service_prefix (
+    prefix text NOT NULL,
+    name text NOT NULL,
+    service uuid NOT NULL,
+    provider uuid NOT NULL
+);
+
+
+ALTER TABLE public.provider_service_prefix OWNER TO "wire-server";
+
+--
+-- Name: provider_service_tag; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.provider_service_tag (
+    bucket integer NOT NULL,
+    tag bigint NOT NULL,
+    name text NOT NULL,
+    service uuid NOT NULL,
+    provider uuid NOT NULL
+);
+
+
+ALTER TABLE public.provider_service_tag OWNER TO "wire-server";
+
+--
+-- Name: provider_service_whitelist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.provider_service_whitelist (
+    team uuid NOT NULL,
+    provider uuid NOT NULL,
+    service uuid NOT NULL
+);
+
+
+ALTER TABLE public.provider_service_whitelist OWNER TO "wire-server";
+
+--
+-- Name: provider_service_whitelist_rev; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.provider_service_whitelist_rev (
+    provider uuid NOT NULL,
+    service uuid NOT NULL,
+    team uuid NOT NULL
+);
+
+
+ALTER TABLE public.provider_service_whitelist_rev OWNER TO "wire-server";
+
+--
 --
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: wire-server
 --
@@ -2225,6 +2305,48 @@ ALTER TABLE ONLY public.password_reset
     ADD CONSTRAINT password_reset_pkey PRIMARY KEY (key);
 
 
+
+--
+-- Name: provider_service provider_service_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.provider_service
+    ADD CONSTRAINT provider_service_pkey PRIMARY KEY (provider, id);
+
+
+--
+-- Name: provider_service_prefix provider_service_prefix_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.provider_service_prefix
+    ADD CONSTRAINT provider_service_prefix_pkey PRIMARY KEY (prefix, name, service);
+
+
+--
+-- Name: provider_service_tag provider_service_tag_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.provider_service_tag
+    ADD CONSTRAINT provider_service_tag_pkey PRIMARY KEY (bucket, tag, name, service);
+
+
+--
+-- Name: provider_service_whitelist provider_service_whitelist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.provider_service_whitelist
+    ADD CONSTRAINT provider_service_whitelist_pkey PRIMARY KEY (team, provider, service);
+
+
+--
+-- Name: provider_service_whitelist_rev provider_service_whitelist_rev_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.provider_service_whitelist_rev
+    ADD CONSTRAINT provider_service_whitelist_rev_pkey PRIMARY KEY (provider, service, team);
+
+
+--
 --
 -- Name: remote_conversation_local_member remote_conversation_local_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --

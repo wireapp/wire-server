@@ -455,6 +455,7 @@ library
     Wire.ProviderServiceStore
     Wire.ProviderServiceStore.Cassandra
     Wire.ProviderServiceStore.DualWrite
+    Wire.ProviderServiceStore.Migration
     Wire.ProviderServiceStore.Postgres
     Wire.RateLimit
     Wire.RateLimit.Interpreter
