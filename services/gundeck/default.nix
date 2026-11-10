@@ -214,6 +214,7 @@ mkDerivation {
     mtl
     multiset
     network-uri
+    prometheus-client
     QuickCheck
     quickcheck-instances
     quickcheck-state-machine
