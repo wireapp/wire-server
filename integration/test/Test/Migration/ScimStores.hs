@@ -44,8 +44,8 @@ testScimStoresMigration = do
       (owner, _tid, _) <- createTeam domain 1
       tokenResponse <- createScimToken owner def >>= getJSON 200
       bearer <- tokenResponse %. "token" >>= asString
-      tokenId <- tokenResponse %. "id" >>= asString
-      tokens <- getScimTokens owner >>= getJSON 200 >>= asList
+      tokenId <- tokenResponse %. "info" %. "id" >>= asString
+      tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
       assertBool "expected exactly one scim token" (length tokens == 1)
       externalId <- randomExternalId
       scimUser <- randomScimUserWithEmail externalId =<< randomEmail
@@ -58,22 +58,29 @@ testScimStoresMigration = do
     runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
       waitForMigration domain tokensCounterName
       waitForMigration domain externalIdsCounterName
-      tokens <- getScimTokens owner >>= getJSON 200 >>= asList
+      tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
       assertBool "scim token did not survive the migration" (length tokens == 1)
-      assertSuccess =<< findUsersByExternalId domain bearer externalId
+      found <- findUsersByExternalId domain bearer externalId >>= getJSON 200
+      foundByExtId <- found %. "Resources" >>= asList >>= assertOne
+      (foundByExtId %. "id") `shouldMatch` scid
 
     -- PostgreSQL only: the token and the external-id mapping must be served
     -- from PostgreSQL, and writes must work.
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
       assertSuccess =<< putScimTokenName owner tokenId "renamed"
-      tokens <- getScimTokens owner >>= getJSON 200 >>= asList
+      tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
       assertBool "expected exactly one scim token" (length tokens == 1)
       name <- head tokens %. "name" >>= asString
       name `shouldMatch` "renamed"
-      assertSuccess =<< findUsersByExternalId domain bearer externalId
+      found <- findUsersByExternalId domain bearer externalId >>= getJSON 200
+      foundByExtId <- found %. "Resources" >>= asList >>= assertOne
+      (foundByExtId %. "id") `shouldMatch` scid
       assertSuccess =<< deleteScimUser domain bearer scid
+      -- the deleted user must no longer be served by the SCIM user listing
+      deleted <- findUsersByExternalId domain bearer externalId >>= getJSON 200
+      (deleted %. "Resources" >>= asList) `shouldMatch` ([] :: [Value])
       assertSuccess =<< deleteScimToken owner tokenId
-      tokens' <- getScimTokens owner >>= getJSON 200 >>= asList
+      tokens' <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
       assertBool "scim token was not deleted" (null tokens')
   where
     conf :: String -> Bool -> ServiceOverrides

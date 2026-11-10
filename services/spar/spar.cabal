@@ -156,6 +156,7 @@ library
     , optparse-applicative
     , polysemy
     , polysemy-check         >=0.9
+    , polysemy-conc
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck

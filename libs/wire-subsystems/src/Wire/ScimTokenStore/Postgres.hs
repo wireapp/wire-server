@@ -25,6 +25,7 @@ module Wire.ScimTokenStore.Postgres
 where
 
 import Data.Id
+import Data.Map qualified as Map
 import Data.Time (UTCTime)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
@@ -126,9 +127,11 @@ lookupScimTokenPg token = do
     -- hashed row (both can exist if a previous conversion crashed between the
     -- upsert and the delete, or if the migration worker copied the plaintext
     -- row after a concurrent conversion): convert it to the hashed key and
-    -- delete the stale plaintext row, mirroring the C* re-keying.
+    -- delete the stale plaintext row, mirroring the C* re-keying. The
+    -- conversion re-reads the row in-statement, so a revocation that raced the
+    -- lookup cannot be resurrected here.
     _ | Just (ScimTokenLookupKeyPlaintext plain, info) <- find (isPlaintextKey . fst) byKey -> do
-      pgConvertPlaintextToken plain info
+      pgConvertPlaintextToken plain
       pure (Just info)
     ((_, info) : _) -> pure (Just info)
     [] -> pure Nothing
@@ -157,13 +160,32 @@ selectScimTokenByKeys =
                     WHERE token = ANY ($1 :: text[])
                     |]
 
--- | Re-key a plaintext token row to its hashed key: upsert under the hashed
--- key, then delete the plaintext row. Used both by the Postgres read path and
--- mirrored from the DualWrite interpreter.
-pgConvertPlaintextToken :: (PGConstraints r) => ScimToken -> ScimTokenInfo -> Sem r ()
-pgConvertPlaintextToken token info = do
-  upsertScimTokenByKey (ScimTokenLookupKeyHashed (hashScimToken token)) info
-  runStatement (postgresMarshall (ScimTokenLookupKeyPlaintext token)) deletePlaintextStatement
+-- | Re-key a plaintext token row to its hashed key: copy the CURRENT row
+-- contents under the hashed key, then delete the plaintext row. The
+-- @INSERT ... SELECT@ reads the row in-statement (not the detached result of
+-- an earlier lookup), so if the token was deleted between the lookup and this
+-- conversion, there is nothing to insert and no credential is resurrected;
+-- @DO NOTHING@ never clobbers a fresher hashed row written by a concurrent
+-- insert or conversion. Used both by the Postgres read path and mirrored from
+-- the DualWrite interpreter.
+pgConvertPlaintextToken :: (PGConstraints r) => ScimToken -> Sem r ()
+pgConvertPlaintextToken token = do
+  runStatement (hashedKey, plainKey) convertPlaintextStatement
+  runStatement plainKey deletePlaintextStatement
+  where
+    hashedKey = postgresMarshall (ScimTokenLookupKeyHashed (hashScimToken token))
+    plainKey = postgresMarshall (ScimTokenLookupKeyPlaintext token)
+
+convertPlaintextStatement :: Hasql.Statement (Text, Text) ()
+convertPlaintextStatement =
+  lmapPG
+    [resultlessStatement|INSERT INTO scim_token
+                           (token, team, id, created_at, idp, descr, name)
+                         SELECT ($1 :: text), team, id, created_at, idp, descr, name
+                         FROM scim_token
+                         WHERE token = ($2 :: text)
+                         ON CONFLICT (token) DO NOTHING
+     |]
 
 deletePlaintextStatement :: Hasql.Statement Text ()
 deletePlaintextStatement =
@@ -176,7 +198,23 @@ getScimTokensPg team = do
   rows <- runStatement (postgresMarshall team) selectScimTokenByTeam
   pure $
     sortOn (.stiCreatedAt) $
-      mapMaybe fromScimTokenPgRow (V.toList rows)
+      mapMaybe fromScimTokenPgRow $
+        Map.elems $
+          Map.fromListWith preferPlaintextKey [(tokenId r, r) | r <- V.toList rows]
+  where
+    -- Plaintext and hashed rows can coexist for the same token after an
+    -- interrupted conversion, or after a read-path conversion raced the
+    -- backfill. Deduplicate by token id, preferring the plaintext-key row
+    -- (same precedence as 'lookupScimTokenPg'), so one credential is not
+    -- listed — and counted toward maxScimTokens — twice.
+    preferPlaintextKey a b
+      | isPlaintextRow a = a
+      | isPlaintextRow b = b
+      | otherwise = a
+    isPlaintextRow (tok, _, _, _, _, _, _) = case postgresUnmarshall tok of
+      Right ScimTokenLookupKeyPlaintext {} -> True
+      _ -> False
+    tokenId (_, _, tid, _, _, _, _) = tid
 
 selectScimTokenByTeam :: Hasql.Statement UUID (Vector (Text, UUID, UUID, UTCTime, Maybe UUID, Text, Maybe Text))
 selectScimTokenByTeam =

@@ -20,35 +20,35 @@ module Wire.ScimTokenStore.Migration (migrateScimTokensLoop) where
 import Cassandra hiding (Value)
 import Data.Conduit
 import Data.Conduit.List qualified as C
-import Data.IORef qualified as IORef
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
-import Hasql.Pool.Extended qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Polysemy
 import Polysemy.Async
 import Polysemy.AtomicState
 import Polysemy.Conc (interpretRace)
-import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
+import Polysemy.Error (runError)
 import Polysemy.Input
-import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.TinyLog
 import Prometheus qualified
 import SAML2.WebSSO qualified as SAML
 import System.Logger qualified as Log
-import UnliftIO qualified
 import Wire.API.PostgresMarshall (PostgresUnmarshall (..))
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
 import Wire.Migration
+import Wire.MigrationLock (MigrationLockError, ScimTokenLockKey (..))
 import Wire.Postgres
 import Wire.ScimTokenStore.Postgres qualified as Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.Util (embedClient)
 
 hush :: Either a b -> Maybe b
 hush = either (const Nothing) Just
@@ -56,7 +56,7 @@ hush = either (const Nothing) Just
 type EffectStack =
   [ AtomicState Int,
     Input ClientState,
-    Input Hasql.Pool,
+    Input HasqlPoolExt.Pool,
     Resource,
     Async,
     Race,
@@ -68,7 +68,7 @@ type EffectStack =
 migrateScimTokensLoop ::
   MigrationOptions ->
   ClientState ->
-  Hasql.Pool ->
+  HasqlPoolExt.Pool ->
   Log.Logger ->
   Prometheus.Counter ->
   Prometheus.Counter ->
@@ -84,7 +84,7 @@ migrateScimTokensLoop migOpts cassClient pgPool logger migCounter migFinished mi
     (interpreter cassClient pgPool logger "scim tokens")
     (migrateAllScimTokens migOpts migCounter migDuration)
 
-interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
+interpreter :: ClientState -> HasqlPoolExt.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
   runFinal
     . embedToFinal
@@ -105,13 +105,14 @@ selectAllScimTokens =
   "SELECT token_, team, id, created_at, idp, descr, name FROM team_provisioning_by_team"
 
 migrateAllScimTokens ::
-  ( Member (Input Hasql.Pool) r,
+  ( Member (Input HasqlPoolExt.Pool) r,
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member TinyLog r,
     Member (AtomicState Int) r,
     Member Resource r,
-    Member Race r
+    Member Race r,
+    Member Async r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
@@ -129,59 +130,58 @@ migrateScimTokenRow ::
   ( PGConstraints r,
     Member TinyLog r,
     Member Resource r,
-    Member Race r
+    Member Race r,
+    Member Async r,
+    Member (Input ClientState) r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   (Text, UUID, UUID, UTCTime, Maybe SAML.IdPId, Text, Maybe Text) ->
   Sem r ()
-migrateScimTokenRow migOpts migCounter migDuration (tok, team, tid, createdAt, idp, descr, name) =
-  for_ mkInfo $ \scimInfo ->
-    for_ (hush (postgresUnmarshall tok)) $ \key -> do
-      -- team/id pair: the token itself is a live bearer credential, never log it
-      let rowId = UUID.toText team <> "/" <> UUID.toText tid
-      outcomeRef <- liftIO $ IORef.newIORef @Text "error"
-      bracket
-        (liftIO getCurrentTime)
-        (observeDuration migDuration outcomeRef)
-        ( const $ do
-            timeoutResult <-
-              Conc.timeout (migOpts.timeout <$ handleTimeout rowId) migOpts.timeout $
-                Postgres.upsertScimTokenByKey key scimInfo
-            case timeoutResult of
-              Left timedOutAfter -> do
-                markOutcome outcomeRef "timeout"
-                liftIO . UnliftIO.throwIO $ MigrationTimedOut rowId timedOutAfter
-              Right () -> do
-                markOutcome outcomeRef "success"
+migrateScimTokenRow migOpts migCounter migDuration (_, team, tid, _, _, _, _) =
+  for_
+    ( (,) <$> hush (postgresUnmarshall team)
+        <*> hush (postgresUnmarshall tid)
+    )
+    $ \(team', tid') ->
+      -- Copy under the exclusive (team, token-id) migration lock and re-read
+      -- the row from Cassandra inside the locked section: the scanned page can
+      -- be arbitrarily stale, so a token revoked by a concurrent dual-write
+      -- 'Delete' / 'DeleteByTeam' must not be resurrected in Postgres (a
+      -- revoked bearer credential that stays valid would be a security
+      -- incident). Dual-write token mutations take the shared lock on the same
+      -- key ('Wire.ScimTokenStore.DualWrite'), so they are serialized against
+      -- this copy.
+      void . runError @MigrationLockError $
+        withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [ScimTokenLockKey (team', tid')] $ do
+          client <- input @ClientState
+          freshRows <- embedClient client $ retry x1 (query selectFreshScimToken (params LocalQuorum (team, tid)))
+          for_ (listToMaybe freshRows) $ \(freshKey, freshTeam, freshTid, freshCreatedAt, freshIdp, freshDescr, freshName) ->
+            for_
+              ( do
+                  infoKey <- hush (postgresUnmarshall freshKey)
+                  infoTeam <- hush (postgresUnmarshall freshTeam)
+                  infoTid <- hush (postgresUnmarshall freshTid)
+                  infoIdp <- hush (postgresUnmarshall freshIdp)
+                  pure
+                    ( infoKey,
+                      ScimTokenInfo
+                        { stiTeam = infoTeam,
+                          stiId = infoTid,
+                          stiCreatedAt = freshCreatedAt,
+                          stiIdP = infoIdp,
+                          stiDescr = freshDescr,
+                          stiName = fromMaybe (idToText infoTid) freshName
+                        }
+                    )
+              )
+              $ \(tokKey, tokInfo) -> do
+                Postgres.upsertScimTokenByKey tokKey tokInfo
                 liftIO $ Prometheus.incCounter migCounter
-        )
-  where
-    mkInfo :: Maybe ScimTokenInfo
-    mkInfo = do
-      team' <- hush (postgresUnmarshall team)
-      tid' <- hush (postgresUnmarshall tid)
-      idp' <- hush (postgresUnmarshall idp)
-      pure
-        ScimTokenInfo
-          { stiTeam = team',
-            stiId = tid',
-            stiCreatedAt = createdAt,
-            stiIdP = idp',
-            stiDescr = descr,
-            stiName = fromMaybe (idToText tid') name
-          }
 
-    handleTimeout rowId =
-      err $
-        Log.msg (Log.val "scim token migration timed out")
-          . Log.field "team_id" rowId
-          . Log.field "timeout" (show migOpts.timeout)
-
-    markOutcome ref outcome = liftIO $ IORef.writeIORef ref outcome
-
-    observeDuration metric outcomeRef start = do
-      outcome <- liftIO $ IORef.readIORef outcomeRef
-      end <- liftIO getCurrentTime
-      liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
+-- | Fresh point-read of one token row from the by-team table, executed inside
+-- the exclusive migration lock.
+selectFreshScimToken :: PrepQuery R (UUID, UUID) (Text, UUID, UUID, UTCTime, Maybe SAML.IdPId, Text, Maybe Text)
+selectFreshScimToken =
+  "SELECT token_, team, id, created_at, idp, descr, name FROM team_provisioning_by_team WHERE team = ? AND id = ?"

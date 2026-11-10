@@ -30,9 +30,12 @@ import qualified Hasql.Pool as Hasql
 import qualified Hasql.Pool.Extended as HasqlPoolExt
 import Imports
 import Polysemy
+import Polysemy.Async (Async, asyncToIOFinal)
+import Polysemy.Conc (Race, interpretRace)
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.TinyLog hiding (err)
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
@@ -65,6 +68,7 @@ import Wire.IdPRawMetadataStore (IdPRawMetadataStore)
 import Wire.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Wire.IdPSubsystem (IdPSubsystem)
 import Wire.IdPSubsystem.Interpreter (IdPSubsystemError, interpretIdPSubsystem)
+import Wire.MigrationLock (MigrationLockError, migrationLockErrorToHttpError)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
 import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 import Wire.Reporter (Reporter)
@@ -119,6 +123,7 @@ type LowerLevelCanonicalEffs =
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed Cas.Client,
+     Error MigrationLockError,
      Error Hasql.UsageError,
      Error IdpDbError,
      Error TTLError,
@@ -133,6 +138,9 @@ type LowerLevelCanonicalEffs =
      Random,
      Now,
      Embed IO,
+     Race,
+     Async,
+     Resource,
      Final IO
    ]
 
@@ -149,6 +157,9 @@ runSparToIO ctx =
           MigrationToPostgresql -> interpretScimExternalIdStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretScimExternalIdStoreToPostgres
    in runFinal
+        . resourceToIOFinal
+        . asyncToIOFinal
+        . interpretRace
         . embedToFinal @IO
         . nowToIO
         . randomToIO
@@ -163,6 +174,7 @@ runSparToIO ctx =
         . ttlErrorToSparError
         . idpDbErrorToSparError
         . Polysemy.Error.mapError (httpErrorToSparError . postgresUsageErrorToHttpError)
+        . Polysemy.Error.mapError (httpErrorToSparError . migrationLockErrorToHttpError)
         . interpretClientToIO (sparCtxCas ctx)
         . samlUserStoreToCassandra
         . idpRawMetadataStoreToCassandra

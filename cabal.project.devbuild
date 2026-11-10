@@ -1,0 +1,98 @@
+repository hackage.haskell.org
+  url: https://hackage.haskell.org/
+index-state: 2023-10-03T15:17:00Z
+
+packages:
+    integration
+  , libs/bilge/
+  , libs/cargohold-types/
+  , libs/cassandra-util/
+  , libs/extended/
+  , libs/dns-util/
+  , libs/deriving-swagger2/
+  , libs/galley-types/
+  , libs/hscim/
+  , libs/http2-manager/
+  , libs/imports/
+  , libs/jwt-tools/
+  , libs/metrics-core/
+  , libs/metrics-wai/
+  , libs/polysemy-wire-zoo/
+  , libs/saml2-web-sso
+  , libs/schema-profunctor/
+  , libs/sodium-crypto-sign/
+  , libs/ssl-util/
+  , libs/tasty-cannon/
+  , libs/types-common/
+  , libs/types-common-aws/
+  , libs/types-common-journal/
+  , libs/wai-utilities/
+  , libs/wire-api/
+  , libs/wire-api-federation/
+  , libs/wire-otel/
+  , libs/wire-message-proto-lens/
+  , libs/wire-subsystems/
+  , libs/zauth/
+  , services/background-worker/
+  , services/brig/
+  , services/cannon/
+  , services/cargohold/
+  , services/federator/
+  , services/galley/
+  , services/gundeck/
+  , services/proxy/
+  , services/spar/
+  , tools/db/assets/
+  , tools/db/auto-whitelist/
+  , tools/db/find-undead/
+  , tools/db/inconsistencies/
+  , tools/db/migrate-sso-feature-flag/
+  , tools/db/migrate-features/
+  , tools/db/mls-users/
+  , tools/db/move-team/
+  , tools/db/phone-users/
+  , tools/db/repair-handles/
+  , tools/db/team-info/
+  , tools/db/repair-brig-clients-table/
+  , tools/db/service-backfill/
+  , tools/rabbitmq-consumer
+  , tools/stern/
+  , tools/mlsstats/
+  , tools/test-stats/
+  , tools/entreprise-provisioning/
+
+tests: True
+benchmarks: True
+
+program-options
+    ghc-options: -Werror
+
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+package polysemy-wire-zoo
+  flags: +nix-dev-env
+package dns-util
+  flags: +nix-dev-env
+package wire-subsystems
+  flags: +nix-dev-env
+package wai-utilities
+  flags: +nix-dev-env
+package wire-api-federation
+  flags: +nix-dev-env
+package http2-manager
+  flags: +nix-dev-env
+package hscim
+  flags: +nix-dev-env
+package extended
+  flags: +nix-dev-env
+package metrics-wai
+  flags: +nix-dev-env
+package wire-server-enterprise
+  flags: +nix-dev-env
+package spar
+  flags: +nix-dev-env
+package wire-message-proto-lens
+  flags: +nix-dev-env
+package types-common-journal
+  flags: +nix-dev-env
