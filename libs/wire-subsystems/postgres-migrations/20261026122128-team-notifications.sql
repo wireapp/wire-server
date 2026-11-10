@@ -26,7 +26,9 @@ CREATE INDEX team_notifications_expires_at_idx
 -- TTL garbage collection per ADR-0005. Hourly: 28d TTL and low write volume
 -- (member-join events only) — no need for the 5-minute cadence of short-lived
 -- data, and volume is far below the batching threshold of ADR-0005.
--- The purge job is provisioned per ADR-0005 (pg_cron, proposed) outside
--- transactional migrations: CREATE EXTENSION pg_cron (superuser +
--- shared_preload_libraries) is an operator/DBA prerequisite, NOT part of this
--- migration — no migration on develop creates extensions.
+-- The purge job is scheduled by 20261110130000-team-notifications-ttl-cleanup.sql.
+-- pg_cron itself (superuser + shared_preload_libraries) remains an
+-- operator/DBA prerequisite, NOT part of this migration — no migration on
+-- develop creates extensions. Without pg_cron the job is skipped (the
+-- migration only raises a warning) and expired rows are filtered out by
+-- every read.

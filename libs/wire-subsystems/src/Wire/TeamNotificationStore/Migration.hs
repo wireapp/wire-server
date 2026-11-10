@@ -94,9 +94,11 @@ interpreter cassClient pgPool logger name =
     . atomicStateToIO 0
 
 -- | Full scan of the Cassandra team_notifications table, defined
--- module-locally (this store has no Queries module).
+-- module-locally (this store has no Queries module). Rows whose TTL already
+-- expired (ttl(id) = 0 means dead or tombstoned) are skipped so the copier
+-- does not insert rows that are expired on arrival.
 selectAllTeamNotifications :: PrepQuery R () (TeamId, TimeUuid, Blob)
-selectAllTeamNotifications = "SELECT team, id, payload FROM team_notifications"
+selectAllTeamNotifications = "SELECT team, id, payload FROM team_notifications WHERE ttl(id) > 0"
 
 migrateAllTeamNotifications ::
   ( Member (Input Hasql.Pool) r,
