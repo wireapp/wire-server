@@ -25,6 +25,7 @@ where
 
 import Data.Id (UserId)
 import Data.Time (UTCTime)
+import Data.Typeable (cast)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
 import Cassandra qualified as Cas
@@ -34,7 +35,7 @@ import Imports
 import Polysemy
 import Wire.API.PostgresMarshall
 import Wire.Postgres
-import Wire.Sem.Paging.Cassandra (InternalPage (..), InternalPaging)
+import Wire.Sem.Paging.Cassandra (InternalPage (..), InternalPaging, InternalPagingState (..))
 import Wire.UserPendingActivationStore
 
 interpretUserPendingActivationStoreToPostgres ::
@@ -42,14 +43,7 @@ interpretUserPendingActivationStoreToPostgres ::
   InterpreterFor (UserPendingActivationStore InternalPaging) r
 interpretUserPendingActivationStoreToPostgres = interpret $ \case
   Add upa -> upsertUserPendingActivation upa.upaUserId upa.upaDay
-  List _pagingState -> do
-    -- This operation is only consumed by Brig's pending-activation cleanup loop
-    -- (Brig.Run.forExpirationsPaged) and Brig.API.Internal.getUserPendingActivationsH,
-    -- which start from an empty paging state and iterate until the page reports
-    -- hasMore == False. The Postgres branch therefore serves the complete result as
-    -- one page instead of a continuation.
-    rows <- listImpl
-    pure (InternalPage (Cas.emptyPage, \() -> error "unreachable: no continuation for a complete page", rows))
+  List pagingState -> listImpl pagingState
   RemoveMultiple uids -> removeMultipleImpl uids
 
 upsertUserPendingActivation :: (PGConstraints r) => UserId -> UTCTime -> Sem r ()
@@ -92,20 +86,58 @@ insertPendingActivationDeletionMarkers uids =
                            SELECT u FROM unnest (($1 :: uuid[])) AS t(u)
                            ON CONFLICT (user_id) DO NOTHING|]
 
+-- | Keyset pagination over @users_pending_activation@, ordered by @user_id@.
+--
+-- The 'InternalPage' continuation runs in Cassandra's 'Client' monad, which a
+-- Postgres interpreter cannot execute. Each page therefore carries the last
+-- @user_id@ of the page as its paging-state marker (the 'Cas.Page' items), and
+-- continuation happens by the caller passing 'Wire.Sem.Paging.pageState' back
+-- into 'UserPendingActivationStore.list' — the round-trip used by every
+-- consumer of this effect (Brig.Run.forExpirationsPaged,
+-- Brig.API.Internal.getUserPendingActivationsH) — never by invoking the
+-- 'Client' continuation.
 listImpl ::
-  -- \| Deliberately unfiltered — parity with Cassandra, which returns every row
-  -- in the store regardless of @expires_at@; TTL filtering is not part of this
-  -- store's contract.
   (PGConstraints r) =>
-  Sem r [UserPendingActivation]
-listImpl =
-  fmap (uncurry UserPendingActivation) <$> runStatement () listStatement
-  where
-    listStatement :: Hasql.Statement () [(UserId, UTCTime)]
-    listStatement =
-      dimapPG
-        [vectorStatement|SELECT (user_id :: uuid), (expires_at :: timestamptz)
-                         FROM users_pending_activation|]
+  Maybe (InternalPagingState UserPendingActivation) ->
+  Sem r (InternalPage UserPendingActivation)
+listImpl pagingState = do
+  let lastSeen = case pagingState of
+        -- States are only ever constructed by this interpreter (in postgresql
+        -- mode the states of other interpreters never reach this branch); the
+        -- 'Typeable s' constraint on 'InternalPagingState' makes recovering
+        -- the keyset marker sound.
+        Just (InternalPagingState (page, _)) -> listToMaybe (Cas.result page) >>= cast
+        Nothing -> Nothing
+  rows <- runStatement (lastSeen, listPageSize + 1) listPageStatement
+  let pageRows = take (fromIntegral listPageSize) (fmap (uncurry UserPendingActivation) rows)
+      moreComing = length rows > fromIntegral listPageSize
+      marker = case reverse pageRows of
+        (u : _) -> [u.upaUserId]
+        [] -> []
+  pure $
+    InternalPage
+      ( Cas.Page
+          { Cas.hasMore = moreComing,
+            Cas.nextPage = error "unreachable: Postgres pages continue via UserPendingActivationStore.list",
+            Cas.result = marker
+          },
+        \_ -> error "unreachable: Postgres pages continue via UserPendingActivationStore.list",
+        pageRows
+      )
+
+-- | Upper bound on rows served per 'List' page (the Cassandra interpreter
+-- pages via cql-io's default page size; this bounds the Postgres analogue).
+listPageSize :: Int32
+listPageSize = 1000
+
+listPageStatement :: Hasql.Statement (Maybe UserId, Int32) [(UserId, UTCTime)]
+listPageStatement =
+  dimapPG
+    [vectorStatement|SELECT (user_id :: uuid), (expires_at :: timestamptz)
+                     FROM users_pending_activation
+                     WHERE user_id > coalesce(($1 :: uuid?), ('00000000-0000-0000-0000-000000000000' :: uuid))
+                     ORDER BY user_id
+                     LIMIT ($2 :: int4)|]
 
 removeMultipleImpl :: (PGConstraints r) => [UserId] -> Sem r ()
 removeMultipleImpl uids =

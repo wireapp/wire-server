@@ -60,15 +60,20 @@ type instance E.PagingBounds LegacyPaging TeamId = Range 1 100 Int32
 
 data InternalPaging
 
-data InternalPagingState a = forall s. InternalPagingState (Page s, s -> Client a)
+-- The 'Typeable s' constraint on the existential state lets interpreters
+-- recover a state they constructed themselves (e.g. a Postgres keyset marker)
+-- soundly via 'Data.Typeable.cast'; the Cassandra interpreter never needs it,
+-- and ground types have 'Typeable' automatically, so this is transparent to
+-- all construction sites.
+data InternalPagingState a = forall s. (Typeable s) => InternalPagingState (Page s, s -> Client a)
 
 deriving instance (Functor InternalPagingState)
 
-data InternalPage a = forall s. InternalPage (Page s, s -> Client a, [a])
+data InternalPage a = forall s. (Typeable s) => InternalPage (Page s, s -> Client a, [a])
 
 deriving instance (Functor InternalPage)
 
-mkInternalPage :: Page s -> (s -> Client a) -> Client (InternalPage a)
+mkInternalPage :: (Typeable s) => Page s -> (s -> Client a) -> Client (InternalPage a)
 mkInternalPage p f = do
   items <- traverse f (result p)
   pure $ InternalPage (p, f, items)
