@@ -89,7 +89,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   DeleteConversation cid -> deleteConversationImpl cid
   SetGroupInfo cid gib -> setGroupInfoImpl cid gib
   UpdateToMixedProtocol cid gid epoch -> updateToMixedProtocolImpl cid gid epoch
-  UpdateToMLSProtocol cid -> updateToMLSProtocolImpl cid
+  UpdateToMLSProtocol cid recMode -> updateToMLSProtocolImpl cid recMode
   UpdateChannelAddPermissions cid cap -> updateChannelAddPermissionsImpl cid cap
   DeleteTeamConversation tid cid -> deleteTeamConversationImpl tid cid
   GetTeamConversation tid cid -> getTeamConversationImpl tid cid
@@ -575,15 +575,15 @@ updateToMixedProtocolImpl convId gid epoch =
                              SET protocol = ($2 :: integer), group_id = ($3 :: bytea), epoch = ($4 :: bigint), epoch_timestamp = NOW()
                              WHERE id = ($1 :: uuid)|]
 
-updateToMLSProtocolImpl :: (PGConstraints r) => ConvId -> Sem r ()
-updateToMLSProtocolImpl convId =
-  runStatement (convId, ProtocolMLSTag) update
+updateToMLSProtocolImpl :: (PGConstraints r) => ConvId -> ReceiptMode -> Sem r ()
+updateToMLSProtocolImpl convId recMode =
+  runStatement (convId, ProtocolMLSTag, recMode) update
   where
-    update :: Hasql.Statement (ConvId, ProtocolTag) ()
+    update :: Hasql.Statement (ConvId, ProtocolTag, ReceiptMode) ()
     update =
       lmapPG
         [resultlessStatement|UPDATE conversation
-                             SET protocol = ($2 :: integer), receipt_mode = 0
+                             SET protocol = ($2 :: integer), receipt_mode = ($3 :: integer)
                              WHERE id = ($1 :: uuid)|]
 
 -- This doesn't check whether the conv belongs to the team because the cassandra

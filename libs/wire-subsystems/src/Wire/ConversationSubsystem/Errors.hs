@@ -103,7 +103,6 @@ cseToGalleyError = \case
   ConversationSubsystemErrorTooManyMembers -> Just TooManyMembers
   ConversationSubsystemErrorCreateConversationCodeConflict -> Just CreateConversationCodeConflict
   ConversationSubsystemErrorInvalidTarget -> Just InvalidTarget
-  ConversationSubsystemErrorMLSReadReceiptsNotAllowed -> Just MLSReadReceiptsNotAllowed
   ConversationSubsystemErrorInvalidTargetAccess -> Just InvalidTargetAccess
   ConversationSubsystemErrorConvInvalidProtocolTransition -> Just ConvInvalidProtocolTransition
   ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> Just MLSMigrationCriteriaNotSatisfied
@@ -169,7 +168,6 @@ galleyErrorToCSE = \case
   TooManyMembers -> Just ConversationSubsystemErrorTooManyMembers
   CreateConversationCodeConflict -> Just ConversationSubsystemErrorCreateConversationCodeConflict
   InvalidTarget -> Just ConversationSubsystemErrorInvalidTarget
-  MLSReadReceiptsNotAllowed -> Just ConversationSubsystemErrorMLSReadReceiptsNotAllowed
   InvalidTargetAccess -> Just ConversationSubsystemErrorInvalidTargetAccess
   ConvInvalidProtocolTransition -> Just ConversationSubsystemErrorConvInvalidProtocolTransition
   MLSMigrationCriteriaNotSatisfied -> Just ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
@@ -232,7 +230,6 @@ data ConversationSubsystemError
   | ConversationSubsystemErrorTooManyMembers
   | ConversationSubsystemErrorCreateConversationCodeConflict
   | ConversationSubsystemErrorInvalidTarget
-  | ConversationSubsystemErrorMLSReadReceiptsNotAllowed
   | ConversationSubsystemErrorInvalidTargetAccess
   | ConversationSubsystemErrorConvInvalidProtocolTransition
   | ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
@@ -306,7 +303,6 @@ instance APIError ConversationSubsystemError where
       ConversationSubsystemErrorTooManyMembers -> toResponse $ Tagged @'TooManyMembers ()
       ConversationSubsystemErrorCreateConversationCodeConflict -> toResponse $ Tagged @'CreateConversationCodeConflict ()
       ConversationSubsystemErrorInvalidTarget -> toResponse $ Tagged @'InvalidTarget ()
-      ConversationSubsystemErrorMLSReadReceiptsNotAllowed -> toResponse $ Tagged @'MLSReadReceiptsNotAllowed ()
       ConversationSubsystemErrorInvalidTargetAccess -> toResponse $ Tagged @'InvalidTargetAccess ()
       ConversationSubsystemErrorConvInvalidProtocolTransition -> toResponse $ Tagged @'ConvInvalidProtocolTransition ()
       ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> toResponse $ Tagged @'MLSMigrationCriteriaNotSatisfied ()
