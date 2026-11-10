@@ -126,12 +126,10 @@ testServiceMigration = do
             res2 <- addBot alice providerId sid2 cid
             res2.status `shouldMatchInt` 201
             botId2 <- res2.json %. "id"
-            botClient2 <- res2.json %. "client"
             res1 <- addBot alice providerId sid1 cid
             res1.status `shouldMatchInt` 201
             botId1 <- res1.json %. "id"
-            botClient1 <- res1.json %. "client"
-            postBotMessages alice conv [(botId2, [botClient2]), (botId1, [botClient1])]
+            postBotMessages alice conv [botId2, botId1]
             assertBotMessageReceived chan1
             assertBotMessageReceived chan2
             -- s3 (dual-write-deleted row): the member row is inserted

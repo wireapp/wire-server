@@ -62,7 +62,7 @@ testProviderServiceMigration = do
           res.status `shouldMatchInt` 200
           results <- res.json %. "services" & asList
           length results `shouldMatchInt` 0
-        assertStatus 200 =<< postServiceWhitelist alice tid (object ["service" .= sid, "provider" .= pid, "status" .= True])
+        assertStatus 200 =<< postServiceWhitelist alice tid (object ["provider" .= pid, "id" .= sid, "whitelisted" .= True])
         pure (alice, pid, password, sid, tid)
     runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
       for_ [counterName, tagCounterName, prefixCounterName, whitelistCounterName, whitelistRevCounterName] $ \n ->
