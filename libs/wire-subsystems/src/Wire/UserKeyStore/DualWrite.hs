@@ -52,11 +52,6 @@ interpretUserKeyStoreToCassandraAndPostgres casClient = interpret $ \case
   KeyAvailable key uid ->
     Cassandra.interpretUserKeyStoreCassandra casClient $ UserKeyStore.keyAvailable key uid
   ClaimKey key uid -> do
-    -- Read-then-write, mirroring the Cassandra implementation: availability is
-    -- decided against Cassandra (the source of truth); a successful claim is
-    -- mirrored to Postgres.
-    free <- Cassandra.interpretUserKeyStoreCassandra casClient $ UserKeyStore.keyAvailable key (Just uid)
-    when free $ do
-      Cassandra.interpretUserKeyStoreCassandra casClient $ UserKeyStore.insertKey uid key
-      Postgres.interpretUserKeyStoreToPostgres $ UserKeyStore.insertKey uid key
+    free <- Cassandra.claimKeyImpl casClient key uid
+    when free $ Postgres.interpretUserKeyStoreToPostgres $ UserKeyStore.insertKey uid key
     pure free

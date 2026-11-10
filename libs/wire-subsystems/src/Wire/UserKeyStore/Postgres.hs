@@ -17,6 +17,7 @@
 
 module Wire.UserKeyStore.Postgres
   ( interpretUserKeyStoreToPostgres,
+    insertUserKeyIfAbsent,
     upsertUserKey,
   )
 where
@@ -85,6 +86,24 @@ upsertUserKey key uid =
         [resultlessStatement|INSERT INTO user_keys (key, user_id)
                              VALUES ($1 :: text, $2 :: uuid)
                              ON CONFLICT (key) DO UPDATE SET user_id = EXCLUDED.user_id|]
+
+-- | Insert a user key only if the key is not yet present in Postgres.
+--
+-- Used exclusively by the migration copy loop: a stale Cassandra snapshot must
+-- never overwrite (clobber) a newer Postgres row, e.g. one written by a key
+-- reclaim after the row was copied.  The dual-write mirror ('upsertUserKey')
+-- deliberately does overwrite, because it mirrors the unconditional Cassandra
+-- overwrite of 'insertKeyImpl'.
+insertUserKeyIfAbsent :: (PGConstraints r) => Text -> UserId -> Sem r ()
+insertUserKeyIfAbsent key uid =
+  runStatement (key, uid) insertIfAbsentStatement
+  where
+    insertIfAbsentStatement :: Hasql.Statement (Text, UserId) ()
+    insertIfAbsentStatement =
+      lmapPG
+        [resultlessStatement|INSERT INTO user_keys (key, user_id)
+                             VALUES ($1 :: text, $2 :: uuid)
+                             ON CONFLICT (key) DO NOTHING|]
 
 deleteKeyImpl :: (PGConstraints r) => EmailKey -> Sem r ()
 deleteKeyImpl k =
