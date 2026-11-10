@@ -37,6 +37,8 @@ import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO.Retry
 
+-- | Schemas for the Postgres stores, embedded from @postgres-migrations@ at
+-- compile time; new migration files require recompiling this module.
 allMigrations :: [MigrationCommand]
 allMigrations = map (\(name, contentBS) -> MigrationScript name (Text.decodeUtf8 contentBS)) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 

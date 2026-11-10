@@ -21,11 +21,8 @@
 -- @ttl(...)@ on read. Here rows carry an @expires_at@ column; the remaining
 -- lifetime is computed as @expires_at - now()@, and the
 -- @expires_at > now()@ guard reproduces Cassandra's vanished-row semantics.
---
--- Accepted trade-off (nonce/DPoP-replay precedent, PR #5675): expired rows are
--- not purged and @expires_at@ has no purge job or index — reads are guarded by
--- @expires_at > now()@, which reproduces the TTL semantics exactly; the dead
--- rows remain until a dedicated cleanup is provisioned per ADR-0005.
+-- Expired rows are deleted by the pg_cron jobs @expire-vcodes@ and
+-- @expire-vcodes-throttle@ scheduled by the TTL-cleanup migration (ADR-0005).
 module Wire.VerificationCodeStore.Postgres
   ( interpretVerificationCodeStoreToPostgres,
     insertCodeRow,
@@ -113,12 +110,7 @@ insertCodeIfNotDeletedStatement =
     [resultlessStatement|INSERT INTO vcodes (key, scope, value, retries, email, account, expires_at)
                          SELECT ($1 :: text), ($2 :: int4), ($3 :: text), ($4 :: int4), ($5 :: text), ($6 :: uuid?), now() + make_interval(secs => $7 :: int4)
                          WHERE NOT EXISTS (SELECT 1 FROM vcodes_deletions WHERE key = ($1 :: text) AND scope = ($2 :: int4))
-                         ON CONFLICT (key, scope) DO UPDATE
-                         SET value = ($3 :: text),
-                             retries = ($4 :: int4),
-                             email = ($5 :: text),
-                             account = ($6 :: uuid?),
-                             expires_at = now() + make_interval(secs => $7 :: int4)
+                         ON CONFLICT (key, scope) DO NOTHING
        |]
 
 insertCodeDeletionMarkerStatement :: Hasql.Statement (Key, Scope) ()

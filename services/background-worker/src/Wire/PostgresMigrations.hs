@@ -230,11 +230,12 @@ verificationCodes migOpts = do
   logger <- asks (.logger)
   Log.info logger $ Log.msg (Log.val "starting verification codes migration")
   count <- register $ counter $ Prometheus.Info "wire_verification_codes_migrated_to_pg" "Number of verification codes migrated to Postgresql"
+  throttleCount <- register $ counter $ Prometheus.Info "wire_verification_codes_throttle_migrated_to_pg" "Number of verification-code throttle rows migrated to Postgresql"
   finished <- register $ counter $ Prometheus.Info "wire_verification_codes_migration_finished" "Whether the verification codes migration to Postgresql is finished successfully"
   failed <- register $ counter $ Prometheus.Info "wire_verification_codes_migration_failed" "Whether the verification codes migration to Postgresql has failed"
   duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_verification_codes_migration_duration_seconds" "Duration of verification codes migration attempts") defaultBuckets
 
-  migrationLoop <- async . lift $ migrateVerificationCodesLoop migOpts cassClient pgPool logger count finished failed duration
+  migrationLoop <- async . lift $ migrateVerificationCodesLoop migOpts cassClient pgPool logger count throttleCount finished failed duration
 
   Log.info logger $ Log.msg (Log.val "started verification codes migration")
   pure $ do
