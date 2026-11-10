@@ -2379,7 +2379,7 @@ used as `password` field.
 
 For new installations, configure `galley.config.postgresMigration` to use
 PostgreSQL for migrated Cassandra-backed data. In the Helm charts, this is the single source
-of truth and is consumed by `galley`, `brig`, and `background-worker`:
+of truth and is consumed by `galley`, `brig`, `background-worker`, and `gundeck`:
 
 ```yaml
 galley:

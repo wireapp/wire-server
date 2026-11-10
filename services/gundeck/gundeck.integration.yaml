@@ -63,6 +63,9 @@ postgresMigration:
   blockList: postgresql
   passwordReset: postgresql
   customBackend: postgresql
+  budget: postgresql
+  nonce: postgresql
+  connections: postgresql
   notifications: postgresql
 
 settings:

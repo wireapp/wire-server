@@ -776,16 +776,6 @@ gundeck:
       size: 100
       acquisitionTimeout: 10s
       idlenessTimeout: 10m
-    postgresMigration:
-      conversation: cassandra
-      conversationCodes: cassandra
-      teamFeatures: cassandra
-      domainRegistration: cassandra
-      user: cassandra
-      blockList: cassandra
-      passwordReset: cassandra
-      customBackend: cassandra
-      notifications: cassandra
     redis:
       host: redis-ephemeral
       port: 6379
