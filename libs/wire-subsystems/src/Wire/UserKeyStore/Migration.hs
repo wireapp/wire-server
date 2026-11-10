@@ -132,7 +132,7 @@ migrateUserKeyRow migOpts migCounter migDuration (key, uid) = do
     (liftIO getCurrentTime)
     (observeDuration migDuration outcomeRef)
     ( const $ do
-        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.upsertUserKey key uid
+        timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.insertUserKeyIfAbsent key uid
         case timeoutResult of
           Left timedOutAfter -> do
             markOutcome outcomeRef "timeout"
