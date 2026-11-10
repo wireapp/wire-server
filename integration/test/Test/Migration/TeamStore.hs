@@ -42,28 +42,28 @@ testTeamStoreMigration = do
     let domain = backend.berDomain
 
     -- phase 1: Cassandra only: create a team with members.
-    (owner, tid, members) <- runCodensity (startDynamicBackend backend (phase1 backend)) $ \_ -> do
+    (owner, tid, members) <- runCodensity (startDynamicBackend backend phase1) $ \_ -> do
       (owner, tid, members) <- createTeam domain 4
       pure (owner, tid, members)
 
     -- phase 2: dual-write on, worker off: membership writes are mirrored to
     -- Postgres while reads remain on Cassandra.
-    runCodensity (startDynamicBackend backend (phase2 backend)) $ \_ -> do
+    runCodensity (startDynamicBackend backend phase2) $ \_ -> do
       checkTeam owner tid members
 
     -- phase 3: worker on: the copy loop backfills the tables, including
     -- rows that predate the migration setting.
-    runCodensity (startDynamicBackend backend (phase3 backend)) $ \_ -> do
+    runCodensity (startDynamicBackend backend phase3) $ \_ -> do
       waitForMigration domain counterName
       checkTeam owner tid members
 
     -- phase 4: worker off again after the migration ran: steady state.
-    runCodensity (startDynamicBackend backend (phase4 backend)) $ \_ -> do
+    runCodensity (startDynamicBackend backend phase4) $ \_ -> do
       checkTeam owner tid members
 
     -- phase 5: PostgreSQL only: the team and its members must be served from
     -- PostgreSQL, and team writes must work.
-    runCodensity (startDynamicBackend backend (phase5 backend)) $ \_ -> do
+    runCodensity (startDynamicBackend backend phase5) $ \_ -> do
       checkTeam owner tid members
       -- team creation goes through the Postgres-backed store
       (owner2, tid2, members2) <- createTeam domain 2
@@ -87,9 +87,9 @@ testTeamStoreMigration = do
               >=> setField "migrateTeamMembers" runMigration
         }
 
-    phase1, phase2, phase3, phase4, phase5 :: (MakesValue backend) => backend -> ServiceOverrides
-    phase1 backend = conf backend "cassandra" False
-    phase2 backend = conf backend "migration-to-postgresql" False
-    phase3 backend = conf backend "migration-to-postgresql" True
-    phase4 backend = conf backend "migration-to-postgresql" False
-    phase5 backend = conf backend "postgresql" False
+    phase1, phase2, phase3, phase4, phase5 :: ServiceOverrides
+    phase1 = conf "cassandra" False
+    phase2 = conf "migration-to-postgresql" False
+    phase3 = conf "migration-to-postgresql" True
+    phase4 = conf "migration-to-postgresql" False
+    phase5 = conf "postgresql" False
