@@ -31,19 +31,17 @@ module Wire.TeamStore.Postgres
     updateTeamMemberPg,
     removeTeamMemberPg,
     removeTeamMemberRowsPg,
+    upsertTeamMemberRowStatement,
+    upsertUserTeamsPgStatement,
+    upsertBillingTeamMembersPgStatement,
+    upsertTeamAdminsPgStatement,
     userLegalHoldStatusToText,
+    routeCassandra,
   )
 where
 
 import Cassandra (ClientState)
 import Cassandra.Util (Writetime (..))
-import Control.Lens ((.~), (^.))
-import Data.Id
-import Data.Range (Range, fromRange)
-import Data.Time.Clock (UTCTime, getCurrentTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-nds)
-=======
 import Control.Lens ((.~), (^.), (^?), _1, _2, _Just)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
@@ -110,32 +108,6 @@ interpretTeamStoreMetadataToPostgres = interpret $ \case
   ResetSearchVisibility tid -> do
     stamp <- Writetime <$> embed @IO getCurrentTime
     updateTeamSearchVisibilityPg tid SearchVisibilityStandard (writetimeToUTC stamp)
-  -- Team members are out of scope for the Postgres metadata migration.
-  CreateTeamMember tid mem -> routeCassandra (createTeamMember tid mem)
-  SetTeamMemberPermissions p0 tid uid p1 -> routeCassandra (setTeamMemberPermissions p0 tid uid p1)
-  DeleteTeamMember tid uid -> routeCassandra (deleteTeamMember tid uid)
-  GetTeamMember tid uid -> routeCassandra (getTeamMember tid uid)
-  GetTeamMembers tid -> routeCassandra (getTeamMembers tid)
-  GetTeamMembersWithLimit tid n -> routeCassandra (getTeamMembersWithLimit tid n)
-  SelectTeamMembers tid uids -> routeCassandra (selectTeamMembers tid uids)
-  SelectTeamMemberInfos tid uids -> routeCassandra (selectTeamMemberInfos tid uids)
-  GetBillingTeamMembers tid -> routeCassandra (getBillingTeamMembers tid)
-  GetTeamAdmins tid -> routeCassandra (getTeamAdmins tid)
-  SelectTeams uid tids -> routeCassandra (selectTeams uid tids)
-  GetUserTeams uid -> routeCassandra (getUserTeams uid)
-  GetUsersTeams uids -> routeCassandra (getUsersTeams uids)
-  GetOneUserTeam uid -> routeCassandra (getOneUserTeam uid)
-
--- | Runs a 'TeamStore' action through the Cassandra interpreter.
-routeCassandra ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member TinyLog r,
-    Member ConversationStore r
-  ) =>
-  Sem (TeamStore ': r) x ->
-  Sem r x
-routeCassandra = Cassandra.interpretTeamStoreToCassandra
   -- Team members (WPB-22957).
   CreateTeamMember tid mem -> addTeamMemberPg tid mem
   SetTeamMemberPermissions old tid uid new -> updateTeamMemberPg old tid uid new
@@ -151,6 +123,17 @@ routeCassandra = Cassandra.interpretTeamStoreToCassandra
   GetUserTeams uid -> map Id . V.toList <$> runStatement (toUUID uid) selectUserTeamsStatement
   GetUsersTeams uids -> usersTeamsPg uids
   GetOneUserTeam uid -> fmap (fmap Id) (runStatement (toUUID uid) selectOneUserTeamStatement)
+
+-- | Runs a 'TeamStore' action through the Cassandra interpreter.
+routeCassandra ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member ConversationStore r
+  ) =>
+  Sem (TeamStore ': r) x ->
+  Sem r x
+routeCassandra = Cassandra.interpretTeamStoreToCassandra
 
 --------------------------------------------------------------------------------
 -- Create
@@ -212,6 +195,27 @@ initialTeamStatus NonBinding = Active
 -- | Insert-if-absent primitive over the full team row; the writetime columns
 -- are passed through verbatim (@Nothing@ when the Cassandra column has no
 -- writetime).  Shared with the migration copy loop.
+userLegalHoldStatusToText :: UserLegalHoldStatus -> Text
+userLegalHoldStatusToText = \case
+  UserLegalHoldDisabled -> "disabled"
+  UserLegalHoldPending -> "pending"
+  UserLegalHoldEnabled -> "enabled"
+  UserLegalHoldNoConsent -> "no_consent"
+
+userLegalHoldStatusFromText :: Text -> Either Text UserLegalHoldStatus
+userLegalHoldStatusFromText = \case
+  "disabled" -> Right UserLegalHoldDisabled
+  "pending" -> Right UserLegalHoldPending
+  "enabled" -> Right UserLegalHoldEnabled
+  "no_consent" -> Right UserLegalHoldNoConsent
+  t -> Left ("invalid user legal hold status: " <> t)
+
+permissionsToPair :: Permissions -> (Int64, Int64)
+permissionsToPair = postgresMarshall
+
+pairToPermissions :: (Int64, Int64) -> Either Text Permissions
+pairToPermissions = postgresUnmarshall
+
 insertTeamRowIfAbsentPg ::
   (PGConstraints r) =>
   TeamId ->
@@ -509,9 +513,6 @@ updateTeamSearchVisibilityStatement =
     update team set search_visibility = $2 :: text, search_visibility_time = $3 :: timestamptz
      where team = $1 :: uuid and (search_visibility_time is null or search_visibility_time <= $4 :: timestamptz)
   |]
-
-resetSearchVisibilityPg :: (PGConstraints r) => TeamId -> Sem r ()
-resetSearchVisibilityPg tid = setSearchVisibilityPg tid SearchVisibilityStandard
 
 --------------------------------------------------------------------------------
 -- Team members (WPB-22957)
@@ -828,4 +829,44 @@ listTeamAdminsStatement :: Hasql.Statement UUID (Vector UUID)
 listTeamAdminsStatement =
   [vectorStatement|
     select user_id :: uuid from team_admin where team = $1 :: uuid
+  |]
+
+-- | Copy-path member row insert used by the migration: carries Cassandra's
+-- @writetime(perms)@ into @perms_write_time@ and does nothing on conflict so
+-- a re-run or stale page can never clobber a newer dual-written row.
+upsertTeamMemberRowStatement ::
+  Hasql.Statement
+    (UUID, UUID, Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text, UTCTime)
+    ()
+upsertTeamMemberRowStatement =
+  [resultlessStatement|
+    insert into team_member (team, user_id, perms_self, perms_copy, invited_by, invited_at, legalhold_status, perms_write_time)
+    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: uuid?, $6 :: timestamptz?, $7 :: text?, $8 :: timestamptz)
+    on conflict (team, user_id) do nothing
+  |]
+
+-- | Bulk copy-path upserts for the auxiliary member tables (one round trip
+-- per table per page); do nothing on conflict.
+upsertUserTeamsPgStatement :: Hasql.Statement (Vector UUID, Vector UUID) ()
+upsertUserTeamsPgStatement =
+  [resultlessStatement|
+    insert into user_team (user_id, team)
+      select u, t from unnest($1 :: uuid[], $2 :: uuid[]) as x(u, t)
+      on conflict (user_id, team) do nothing
+  |]
+
+upsertBillingTeamMembersPgStatement :: Hasql.Statement (Vector UUID, Vector UUID) ()
+upsertBillingTeamMembersPgStatement =
+  [resultlessStatement|
+    insert into billing_team_member (team, user_id)
+      select t, u from unnest($1 :: uuid[], $2 :: uuid[]) as x(t, u)
+      on conflict (team, user_id) do nothing
+  |]
+
+upsertTeamAdminsPgStatement :: Hasql.Statement (Vector UUID, Vector UUID) ()
+upsertTeamAdminsPgStatement =
+  [resultlessStatement|
+    insert into team_admin (team, user_id)
+      select t, u from unnest($1 :: uuid[], $2 :: uuid[]) as x(t, u)
+      on conflict (team, user_id) do nothing
   |]
