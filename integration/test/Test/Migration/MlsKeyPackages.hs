@@ -38,36 +38,50 @@ testMlsKeyPackagesMigration = do
     let domain = backend.berDomain
         altSuite = Ciphersuite "0x0007"
 
-    -- P1 cassandra: upload 2 default-suite + 1 alt-suite KPs, claim one
-    -- default-suite KP.
-    (alice, alice1, refAlt) <-
+    -- P1 cassandra: alice and carol upload KPs; bob (no MLS client, hence no
+    -- Z-Client header) claims one of alice's default-suite KPs — brig skips
+    -- the requesting client when it is also the target, so the requester must
+    -- be client-less.
+    (alice, alice1, bob, carol1, refAlt) <-
       runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
-        alice <- randomUser OwnDomain def
+        alice <- randomUser domain def
+        bob <- randomUser domain def
+        carol <- randomUser domain def
         alice1 <- createMLSClient def {ciphersuites = [def, altSuite]} alice
+        carol1 <- createMLSClient def {ciphersuites = [def]} carol
         (kp1, _) <- generateKeyPackage alice1 def
         (kp2, _) <- generateKeyPackage alice1 def
         (kpAlt, refAlt) <- generateKeyPackage alice1 altSuite
         uploadKeyPackages alice1 [kp1, kp2] >>= assertStatus 201
         uploadKeyPackages alice1 [kpAlt] >>= assertStatus 201
 
-        claimKeyPackages def alice1 alice >>= assertStatus 200
+        (ckp1, _) <- generateKeyPackage carol1 def
+        (ckp2, _) <- generateKeyPackage carol1 def
+        uploadKeyPackages carol1 [ckp1, ckp2] >>= assertStatus 201
+
+        claimKeyPackages def bob alice >>= assertStatus 200
 
         assertCount def alice1 1
         assertCount altSuite alice1 1
-        pure (alice, alice1, refAlt)
+        assertCount def carol1 2
+        pure (alice, alice1, bob, carol1, refAlt)
 
-    -- P2 migration-to-postgresql (worker off): brig keeps serving Cassandra;
-    -- nothing is written to Postgres.
+    -- P2 migration-to-postgresql (worker off): brig on-demand-migrates an
+    -- unmarked user on first access (copy + mark under the exclusive lock)
+    -- even with the background worker disabled, so alice is marked here and
+    -- her reads go to Postgres. carol is never touched, so she remains
+    -- Cassandra-only until the worker copies her in P3.
     runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
       (kp, _) <- generateKeyPackage alice1 def
       uploadKeyPackages alice1 [kp] >>= assertStatus 201
 
-      claimKeyPackages def alice1 alice >>= assertStatus 200
+      claimKeyPackages def bob alice >>= assertStatus 200
       assertCount def alice1 1
       assertCount altSuite alice1 1
 
-    -- P3 migration-to-postgresql (worker on): copy loop backfills Postgres;
-    -- brig reads still come from Cassandra.
+    -- P3 migration-to-postgresql (worker on): the worker enumerates brig's
+    -- clients table and backfills Postgres. alice is already marked (P2
+    -- on-demand migration); carol is copied here.
     runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
       (kp, _) <- generateKeyPackage alice1 def
       uploadKeyPackages alice1 [kp] >>= assertStatus 201
@@ -75,25 +89,31 @@ testMlsKeyPackagesMigration = do
       waitForMigration domain counterName
       assertMigrationSuccessful domain "wire_mls_key_packages_migration_failed"
 
-      claimKeyPackages def alice1 alice >>= assertStatus 200
+      claimKeyPackages def bob alice >>= assertStatus 200
       assertCount def alice1 1
       assertCount altSuite alice1 1
 
     -- P4 postgresql: reads are served exclusively from Postgres.
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
+      -- carol was untouched since P1, so this count pins the worker's
+      -- clients-table enumeration + full-partition-key copy: her two
+      -- default-suite KPs must have been backfilled.
+      assertCount def carol1 2
+
       -- The alt-suite row written in P1 (pure Cassandra) must have been
       -- backfilled by the background worker; delete it through Postgres.
+      -- Delete (below) and replaceKeyPackages (further down) both return 201.
       assertCount altSuite alice1 1
-      deleteKeyPackages altSuite alice1 [refAlt] >>= assertStatus 200
+      deleteKeyPackages altSuite alice1 [refAlt] >>= assertStatus 201
       assertCount altSuite alice1 0
 
       -- replaceKeyPackages (PUT) exercises deleteAll + insert in Postgres.
       (kp, ref) <- generateKeyPackage alice1 def
-      replaceKeyPackages alice1 [def] [kp] >>= assertStatus 200
+      replaceKeyPackages alice1 [def] [kp] >>= assertStatus 201
 
       -- The claimed key package must be the one just uploaded (same ref).
       -- This pins the claim path against a ref/data column swap.
-      claimKeyPackages def alice1 alice `bindResponse` \resp -> do
+      claimKeyPackages def bob alice `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "key_packages.0.key_package_ref" `shouldMatch` ref
       assertCount def alice1 0

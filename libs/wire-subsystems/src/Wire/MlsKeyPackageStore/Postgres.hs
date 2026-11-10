@@ -68,6 +68,12 @@ insertKeyPackagesTx u c kps =
 
 insertStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, KeyPackageRef, KeyPackageData) ()
 insertStatement =
+  -- DO UPDATE is safe here: every caller is either live brig traffic (an
+  -- upload overwrites the row for that exact ref) or the migration copy loop
+  -- inside the copy+marker transaction, which only runs for users not yet
+  -- marked migrated, so it can never overwrite rows a claim has already
+  -- removed.  A full-scan backfill without the marker gate must NOT use this
+  -- statement (it would resurrect consumed one-time-use key packages).
   lmapPG
     [resultlessStatement|INSERT INTO mls_key_packages (user_id, client, cipher_suite, ref, data)
                          VALUES ($1 :: uuid, $2 :: text, $3 :: int4, $4 :: bytea, $5 :: bytea)

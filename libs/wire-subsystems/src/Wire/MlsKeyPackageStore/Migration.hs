@@ -17,18 +17,18 @@
 
 module Wire.MlsKeyPackageStore.Migration
   ( migrateMlsKeyPackagesLoop,
+    migrateUserKeyPackages,
+    lookupUserClients,
   )
 where
 
 import Cassandra
-import Data.Bifunctor (first)
+import Cassandra qualified as Cas
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Conduit
 import Data.Conduit.List qualified as C
 import Data.Id
-import Data.Text qualified as Text
-import Data.Text.Encoding (encodeUtf8)
 import Hasql.Pool.Extended qualified as Hasql
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write))
 import Imports hiding (lookup)
@@ -95,16 +95,15 @@ type EffectStack =
 -- Postgres.
 --
 -- Cutover: once @wire_mls_key_packages_migration_finished@ is 1, flip
--- @postgresMigration.mlsKeyPackages@ to @postgresql@. Note that @finished@
--- means "a full pass completed without errors", not "Cassandra is drained":
--- a user whose first key package lands in Cassandra after the enumeration
--- page has passed them is not marked in that pass (zero rows). Flip only
--- after @finished@ is 1 @and@ key package upload traffic has been quiet for
--- longer than one full pass duration, so stragglers are covered by a later
--- pass. No reconciliation pass is otherwise needed. Do not roll back to
--- Cassandra after cutover: migrated users' claims happened in Postgres, so
--- their Cassandra copies are stale — same rollback caveat as the users
--- migration.
+-- @postgresMigration.mlsKeyPackages@ to @postgresql@. With on-demand
+-- migration ('Wire.MlsKeyPackageStore.Migrating.interpretMlsKeyPackageStoreToCassandraAndPostgres'
+-- migrates an unmarked user on first access under the exclusive lock), every
+-- user is marked by the time the pass finishes: the enumeration covered all
+-- users in the @clients@ table, and any user brig touched since was
+-- on-demand-migrated. No quiet period or reconciliation pass is needed. Do
+-- not roll back to Cassandra after cutover: migrated users' claims happened
+-- in Postgres, so their Cassandra copies are stale — same rollback caveat as
+-- the users migration.
 migrateMlsKeyPackagesLoop ::
   MigrationOptions ->
   ClientState ->
@@ -154,55 +153,94 @@ migrateAllMlsKeyPackages ::
   ConduitM () Void (Sem r) ()
 migrateAllMlsKeyPackages migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllMlsKeyPackages")
-  withCount (paginateSem selectUsers (paramsP LocalQuorum () migOpts.pageSize) x5)
+  withCount (paginateSem selectUserWithClients (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize runIdentity
     .| C.mapM_
       ( traverse_ $ \u ->
           handleLockAndDBErrors
             (toByteString' u)
-            (withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [u] (migrateUserKeyPackages u migCounter))
+            ( withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [u] $ do
+                clients <- lookupUserClients u
+                migrated <- migrateUserKeyPackages u clients
+                when migrated $ liftIO (Prometheus.incCounter migCounter)
+            )
       )
   where
-    selectUsers :: PrepQuery R () (Identity UserId)
-    selectUsers = "SELECT DISTINCT user FROM mls_key_packages"
+    -- The partition key of @mls_key_packages@ is (user, client, cipher_suite),
+    -- so neither a @SELECT DISTINCT user@ nor a @user = ?@ restriction alone is
+    -- valid CQL on that table. Enumerate users from brig's @clients@ table
+    -- instead: its partition key is @user@ alone, so a @DISTINCT user@ scan is
+    -- valid CQL, and brig maintains the table on client registration\/
+    -- deletion, so it covers every claimable key-package partition. Rows
+    -- outside clients × cipher suites are unreachable dead data (brig's claim
+    -- path iterates the user's clients × suites) and are intentionally not
+    -- copied.
+    selectUserWithClients :: PrepQuery R () (Identity UserId)
+    selectUserWithClients = "SELECT DISTINCT user FROM clients"
 
+-- | The claimable key-package universe is exactly the user's registered
+-- clients × all cipher suites (brig stores\/claims per client × suite), so
+-- copy each (client, suite) partition with a point query restricted on the
+-- full partition key.
+allCipherSuites :: [CipherSuiteTag]
+allCipherSuites = [minBound .. maxBound]
+
+-- | Copy an unmarked user's key packages into Postgres and mark them
+-- migrated, in one copy+marker transaction. Returns 'True' iff the copy and
+-- mark actually executed (the caller owns any migration counter). Safe to
+-- call under contention: a user already marked is a no-op, so a concurrent
+-- migration can never resurrect claimed key packages.
 migrateUserKeyPackages ::
-  (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) =>
+  (PGConstraints r, Member (Input ClientState) r) =>
   UserId ->
-  Prometheus.Counter ->
-  Sem r ()
-migrateUserKeyPackages u migCounter = do
+  Cas.Set ClientId ->
+  Sem r Bool
+migrateUserKeyPackages u clients = do
   -- Short-circuit on the marker: a user already marked migrated must never
   -- be re-copied. Claiming (and user-driven deletes) remove rows from
   -- Postgres, so re-inserting the retained stale Cassandra partition would
   -- resurrect consumed one-time-use key packages.
   migrated <- Postgres.isUserKeyPackagesMigrated u
-  unless migrated $ do
-    rows <-
-      embedClientInput $
-        retry x5 (query selectUserKeyPackages (params LocalQuorum (Identity u)))
-    kps <-
-      catMaybes <$> for rows \(c, suite, ref', kpData') ->
-        case (,)
-          <$> cipherSuiteTagFromInt32 suite
-          <*> first Text.pack (runParser parser (encodeUtf8 c)) of
-          Left parseErr -> do
-            warn $
-              Log.msg (Log.val "skipping mls key package with invalid client id or cipher suite")
-                . Log.field "user" (toByteString' u)
-                . Log.field "error" (Text.unpack parseErr)
-            pure Nothing
-          Right (s, cid) ->
-            pure (Just (cid, s, KeyPackageRef (unKeyPackageBlob ref'), KeyPackageData (unKeyPackageBlob kpData')))
-    runTransactionWithRetry ReadCommitted Write $ do
-      for_ kps $ \(cid, s, ref, kpData) ->
-        Postgres.insertKeyPackagesTx u cid [(ref, s, kpData)]
-      Postgres.markUserKeyPackagesMigratedTx u
-    liftIO $ Prometheus.incCounter migCounter
+  if migrated
+    then pure False
+    else do
+      partitions <-
+        concat
+          <$> for
+            (fromSet clients)
+            ( \cid -> for allCipherSuites $ \suite -> do
+                rows <-
+                  embedClientInput $
+                    retry x5 (query selectUserKeyPackages (params LocalQuorum (u, cid, suite)))
+                pure
+                  ( cid,
+                    [ (KeyPackageRef (unKeyPackageBlob ref'), suite, KeyPackageData (unKeyPackageBlob kpData'))
+                    | (ref', kpData') <- rows
+                    ]
+                  )
+            )
+      runTransactionWithRetry ReadCommitted Write $ do
+        for_ partitions $ uncurry (Postgres.insertKeyPackagesTx u)
+        Postgres.markUserKeyPackagesMigratedTx u
+      pure True
 
-selectUserKeyPackages :: PrepQuery R (Identity UserId) (Text, Int32, KeyPackageBlob, KeyPackageBlob)
+selectUserKeyPackages :: PrepQuery R (UserId, ClientId, CipherSuiteTag) (KeyPackageBlob, KeyPackageBlob)
 selectUserKeyPackages =
-  "SELECT client, cipher_suite, ref, data FROM mls_key_packages WHERE user = ?"
+  "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ?"
+
+-- | The user's registered clients from brig's Cassandra @clients@ table
+-- (one row per client, partition key @user@ alone). Used by the worker's
+-- per-user copy and brig's on-demand migration path.
+lookupUserClients ::
+  (Member (Input ClientState) r, Member (Embed IO) r) =>
+  UserId ->
+  Sem r (Cas.Set ClientId)
+lookupUserClients u =
+  Cas.Set . map runIdentity
+    <$> embedClientInput (retry x5 (query selectUserClients (params LocalQuorum (Identity u))))
+
+selectUserClients :: PrepQuery R (Identity UserId) (Identity ClientId)
+selectUserClients = "SELECT client FROM clients WHERE user = ?"
 
 -- | Cassandra blobs need a newtype: plain 'ByteString' has no 'Cql' instance.
 newtype KeyPackageBlob = KeyPackageBlob {unKeyPackageBlob :: ByteString}
