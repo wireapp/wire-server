@@ -62,6 +62,7 @@ import Polysemy.TinyLog qualified as TinyLog
 import System.Logger.Message qualified as Log
 import Wire.API.Error
 import Wire.API.PostgresMarshall
+import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.Error
 import Wire.Postgres
 
@@ -191,6 +192,16 @@ instance MigrationLockable TeamId where
   lockKey = hashUUID
   lockScope = "team_invitation"
   toText = idToText
+
+-- | Pending-SCIM-user lock for the invitations migration.  The lock key is
+-- deliberately derived from the team only, so these locks contend with the
+-- team-wide 'MigrationLockable TeamId' lock that the invitations copy loop
+-- holds exclusively while re-copying a team's rows; the email is carried
+-- along for logging only.
+instance MigrationLockable (TeamId, EmailAddress) where
+  lockKey (team, _) = hashUUID team
+  lockScope = "team_invitation"
+  toText (team, email) = idToText team <> ":" <> fromEmail email
 
 instance MigrationLockable ConvId where
   lockKey = hashUUID
