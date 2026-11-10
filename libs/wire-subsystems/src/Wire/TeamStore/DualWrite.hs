@@ -17,6 +17,17 @@
 
 -- | Dual-write interpreter for 'TeamStore': Cassandra stays the source of
 -- truth for reads, writes are mirrored to Postgres.
+--
+-- DUAL-WRITE CUTOVER-INCOMPLETE: @team_member.legalhold_status@ is also
+-- written by the LegalHoldStore directly against Cassandra
+-- (@setUserLegalHoldStatus@ in "Wire.LegalHoldStore.Cassandra"), outside this
+-- interpreter.  Those writes are deliberately NOT mirrored here — per the
+-- WPB-22960 decision the LegalHoldStore boundary is kept Cassandra-only until
+-- that store migrates, rather than restructuring it in this PR.  Consequence:
+-- the Postgres @legalhold_status@ column can go stale relative to Cassandra
+-- while both stores are written; reads stay on Cassandra until cutover so
+-- this is benign during migration, but it MUST be resolved (mirrored write or
+-- Postgres-side LegalHoldStore) before team members cut over to Postgres.
 module Wire.TeamStore.DualWrite
   ( interpretTeamStoreToCassandraAndPostgres,
   )

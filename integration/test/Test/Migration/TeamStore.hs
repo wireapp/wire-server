@@ -28,30 +28,42 @@ import Testlib.ResourcePool
 -- | Migrate the team store (teams, team members, user_team, billing team
 -- members, team admins) from Cassandra to PostgreSQL.
 --
--- A team with members is created while Cassandra is the source of truth, the
--- background worker backfills the five tables, and after the cutover the team
--- and its members are still served from PostgreSQL and membership writes keep
--- working.
+-- Phase 1: Cassandra only — a team with members is created while Cassandra is
+-- the source of truth.
+-- Phase 2: dual-write on, copy worker off — writes are mirrored to Postgres.
+-- Phase 3: dual-write on, copy worker on — the five tables are backfilled.
+-- Phase 4: worker off again after the migration ran — steady state.
+-- Phase 5: PostgreSQL only — the team and its members are served from
+-- PostgreSQL and membership writes keep working.
 testTeamStoreMigration :: (HasCallStack) => App ()
 testTeamStoreMigration = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let domain = backend.berDomain
 
-    -- Cassandra: create a team with members.
-    (owner, tid, members) <- runCodensity (startDynamicBackend backend (conf "cassandra" False)) $ \_ -> do
+    -- phase 1: Cassandra only: create a team with members.
+    (owner, tid, members) <- runCodensity (startDynamicBackend backend (phase1 backend)) $ \_ -> do
       (owner, tid, members) <- createTeam domain 4
       pure (owner, tid, members)
 
-    -- migration-to-postgresql with the worker running: backfill and confirm
-    -- reads still work (reads remain on Cassandra here).
-    runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
+    -- phase 2: dual-write on, worker off: membership writes are mirrored to
+    -- Postgres while reads remain on Cassandra.
+    runCodensity (startDynamicBackend backend (phase2 backend)) $ \_ -> do
+      checkTeam owner tid members
+
+    -- phase 3: worker on: the copy loop backfills the tables, including
+    -- rows that predate the migration setting.
+    runCodensity (startDynamicBackend backend (phase3 backend)) $ \_ -> do
       waitForMigration domain counterName
       checkTeam owner tid members
 
-    -- PostgreSQL only: the team and its members must be served from
+    -- phase 4: worker off again after the migration ran: steady state.
+    runCodensity (startDynamicBackend backend (phase4 backend)) $ \_ -> do
+      checkTeam owner tid members
+
+    -- phase 5: PostgreSQL only: the team and its members must be served from
     -- PostgreSQL, and team writes must work.
-    runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
+    runCodensity (startDynamicBackend backend (phase5 backend)) $ \_ -> do
       checkTeam owner tid members
       -- team creation goes through the Postgres-backed store
       (owner2, tid2, members2) <- createTeam domain 2
@@ -74,3 +86,10 @@ testTeamStoreMigration = do
             setField "postgresMigration.teamStore" db
               >=> setField "migrateTeamMembers" runMigration
         }
+
+    phase1, phase2, phase3, phase4, phase5 :: (MakesValue backend) => backend -> ServiceOverrides
+    phase1 backend = conf backend "cassandra" False
+    phase2 backend = conf backend "migration-to-postgresql" False
+    phase3 backend = conf backend "migration-to-postgresql" True
+    phase4 backend = conf backend "migration-to-postgresql" False
+    phase5 backend = conf backend "postgresql" False
