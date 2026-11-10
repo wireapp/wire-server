@@ -175,7 +175,6 @@ library
     , wire-api
     , wire-otel
     , wire-subsystems
-    , yaml                                  >=0.8
 
   default-language:   GHC2021
 
