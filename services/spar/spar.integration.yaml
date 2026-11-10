@@ -52,6 +52,9 @@ postgresMigration:
   blockList: cassandra
   passwordReset: cassandra
   customBackend: cassandra
+  budget: cassandra
+  nonce: cassandra
+  connections: cassandra
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"
