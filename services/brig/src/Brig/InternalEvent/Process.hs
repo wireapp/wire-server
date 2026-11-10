@@ -42,6 +42,7 @@ import Wire.Events (Events)
 import Wire.InvitationStore (InvitationStore)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
+import Wire.ProviderServiceStore (ProviderServiceStore)
 import Wire.Sem.Concurrency
 import Wire.Sem.Delay
 import Wire.Sem.Paging.Cassandra (InternalPaging)
@@ -66,6 +67,7 @@ onEvent ::
     Member InvitationStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
+    Member ProviderServiceStore r,
     Member Events r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,

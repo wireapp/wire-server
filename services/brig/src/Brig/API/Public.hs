@@ -154,7 +154,7 @@ import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BackendNotificationQueueAccess
-import Wire.BlockListStore (BlockListStore)
+import Wire.BlockListStore
 import Wire.BudgetStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -183,6 +183,7 @@ import Wire.NonceStore (NonceStore, insertNonce)
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
+import Wire.ProviderServiceStore (ProviderServiceStore)
 import Wire.RateLimit
 import Wire.SFT
 import Wire.Sem.Concurrency
@@ -415,7 +416,8 @@ servantSitemap ::
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     HasBrigFederationAccess m r,
-    Member BudgetStore r
+    Member BudgetStore r,
+    Member ProviderServiceStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
