@@ -20,33 +20,32 @@ module Wire.SessionStore.Migration (migrateSessionsLoop) where
 import Cassandra hiding (Value)
 import Data.Conduit
 import Data.Conduit.List qualified as C
-import Data.IORef qualified as IORef
 import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time
+import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async
 import Polysemy.AtomicState
 import Polysemy.Conc (interpretRace)
-import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
+import Polysemy.Error (Error)
 import Polysemy.Input
-import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
-import UnliftIO qualified
 import Wire.API.User.Auth
 import Wire.Migration
-import Wire.Postgres
+import Wire.MigrationLock (MigrationLockError)
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
-import Wire.SessionStore (TTL (..))
 import Wire.SessionStore.Cassandra qualified as Cql
 import Wire.SessionStore.Postgres qualified as Postgres
+import Wire.Util (embedClientInput)
 
 type EffectStack =
   [ AtomicState Int,
@@ -100,6 +99,7 @@ migrateAllSessions ::
     Member TinyLog r,
     Member (AtomicState Int) r,
     Member Resource r,
+    Member Async r,
     Member Race r
   ) =>
   MigrationOptions ->
@@ -111,12 +111,24 @@ migrateAllSessions migOpts migCounter migDuration = do
   withCount
     (paginateSem Cql.selectAllSessions (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
+    -- Stamp each row with an absolute validity deadline computed from its
+    -- remaining Cassandra TTL at page-fetch time.  Applying the TTL relative
+    -- to the insert time instead would restart the TTL for rows queued behind
+    -- others and extend their validity.
+    .| C.mapM
+      ( \rows -> do
+          now <- liftIO getCurrentTime
+          pure
+            [ (row, fmap (\t -> addUTCTime (fromIntegral t) now) mttl)
+            | row@(_, _, _, _, _, _, _, mttl) <- rows
+            ]
+      )
     .| C.mapM_
       ( traverse_
-          ( \(Identity row) ->
-              handleErrors
+          ( \item@(row, _) ->
+              handleLockAndDBErrors
                 (encodeUtf8 (rowKey row))
-                (migrateSessionRow migOpts migCounter migDuration row)
+                (migrateSessionRow migOpts migCounter migDuration item)
           )
       )
 
@@ -125,18 +137,20 @@ rowKey (uid, cid, _, _, _, _, _, _) =
   Text.pack (show (uid, cookieIdNum cid))
 
 migrateSessionRow ::
-  ( PGConstraints r,
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Input ClientState) r,
     Member TinyLog r,
-    Member Resource r,
-    Member Race r
+    Member Async r,
+    Member Race r,
+    Member Resource r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
-  (UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32) ->
-  Sem r ()
-migrateSessionRow migOpts migCounter migDuration (uid, cid, created, expires, typ, label, csucc, mttl) = do
-  outcomeRef <- liftIO $ IORef.newIORef @Text "error"
+  ((UserId, CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId, Maybe Int32), Maybe UTCTime) ->
+  Sem (Error MigrationLockError : Error UsageError : r) ()
+migrateSessionRow migOpts migCounter migDuration ((uid, cid, created, expires, typ, label, csucc, _), mdeadline) = do
   let cookie =
         Cookie
           { cookieId = cid,
@@ -148,36 +162,18 @@ migrateSessionRow migOpts migCounter migDuration (uid, cid, created, expires, ty
             cookieValue = ()
           }
   -- Carry the row's remaining Cassandra TTL over into the Postgres
-  -- @invalid_after@ boundary (@invalid_after = now() + remaining@), matching
-  -- what renewCookie does for superseded cookies; inserting with the full
-  -- @expires_at@ would resurrect sessions Cassandra is about to expire.  Rows
-  -- with a missing or exhausted TTL are skipped.
-  when (maybe False (> 0) mttl) $
-    bracket
-      (liftIO getCurrentTime)
-      (observeDuration migDuration outcomeRef)
-      ( const $ do
-          timeoutResult <-
-            Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $
-              Postgres.insertCookie uid cookie (TTL <$> mttl)
-          case timeoutResult of
-            Left timedOutAfter -> do
-              markOutcome outcomeRef "timeout"
-              liftIO . UnliftIO.throwIO $ MigrationTimedOut (rowKey (uid, cid, created, expires, typ, label, csucc, mttl)) timedOutAfter
-            Right () -> do
-              markOutcome outcomeRef "success"
-              liftIO $ Prometheus.incCounter migCounter
-      )
-  where
-    handleTimeout =
-      err $
-        Log.msg (Log.val "sessions migration timed out")
-          . Log.field "key" (rowKey (uid, cid, created, expires, typ, label, csucc, mttl))
-          . Log.field "timeout" (show migOpts.timeout)
-
-    markOutcome ref outcome = liftIO $ IORef.writeIORef ref outcome
-
-    observeDuration metric outcomeRef start = do
-      outcome <- liftIO $ IORef.readIORef outcomeRef
-      end <- liftIO getCurrentTime
-      liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
+  -- @invalid_after@ boundary as an absolute deadline computed at scan time;
+  -- inserting with the full @expires_at@ would resurrect sessions Cassandra
+  -- is about to expire.  Rows with a missing or exhausted TTL are skipped.
+  now <- liftIO getCurrentTime
+  case mdeadline of
+    Just deadline | deadline > now -> do
+      withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [uid] $ do
+        -- Re-read the row inside the exclusive lock: dual-write mutations hold
+        -- a shared lock, so a cookie revoked after the scan page was fetched
+        -- either is gone here (skip) or was already deleted from Postgres.
+        alive <- embedClientInput (Cql.sessionRowExists uid expires cid)
+        when alive $ do
+          Postgres.insertCookieWithDeadline uid cookie deadline
+          liftIO $ Prometheus.incCounter migCounter
+    _ -> pure ()
