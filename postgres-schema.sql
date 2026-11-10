@@ -2813,6 +2813,13 @@ CREATE INDEX team_invitation_email_idx ON public.team_invitation USING btree (em
 
 
 --
+-- Name: team_invitation_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_invitation_expires_at_idx ON public.team_invitation USING btree (expires_at);
+
+
+--
 -- Name: user_group_member_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 

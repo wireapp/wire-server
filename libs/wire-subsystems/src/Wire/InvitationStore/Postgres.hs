@@ -151,6 +151,10 @@ insertInvitationImpl = flip runStatement insertInvitationStatement
 
 insertInvitationStatement :: Hasql.Statement InvitationRow ()
 insertInvitationStatement =
+  -- DO UPDATE (instead of the ADR's DO NOTHING) is safe here: every caller
+  -- holds the team-wide "team_invitation" migration lock (exclusive in the
+  -- copy loop, shared in dual-write), so a concurrent delete cannot be
+  -- overwritten by a stale row re-insert.
   [resultlessStatement|INSERT INTO team_invitation
                          (team, invitation_id, role, created_at, created_by, email, name, code, expires_at)
                        VALUES
