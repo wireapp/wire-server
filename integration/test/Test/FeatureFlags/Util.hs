@@ -252,7 +252,7 @@ defAllFeatures =
       "meetings" .= enabled,
       "meetingsPremium" .= enabledLocked,
       "backgroundEffects" .= enabledLocked,
-      "totp"
+      "mfa-totp"
         .= object
           [ "lockStatus" .= "locked",
             "status" .= "disabled",
@@ -260,7 +260,7 @@ defAllFeatures =
             "config"
               .= object
                 [ "require_for_all_members" .= False,
-                  "owners_and_admins" .= False
+                  "compulsory_for_owners_and_admins" .= False
                 ]
           ],
       "preventAdminlessGroups"
@@ -291,7 +291,7 @@ hasExplicitLockStatus "domainRegistration" = True
 hasExplicitLockStatus "meetings" = True
 hasExplicitLockStatus "meetingsPremium" = True
 hasExplicitLockStatus "backgroundEffects" = True
-hasExplicitLockStatus "totp" = True
+hasExplicitLockStatus "mfa-totp" = True
 hasExplicitLockStatus _ = False
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()

@@ -22,7 +22,7 @@ import Testlib.Prelude
 
 testTotp :: (HasCallStack) => APIAccess -> App ()
 testTotp access =
-  mkFeatureTests "totp"
+  mkFeatureTests "mfa-totp"
     & addUpdate validConfig
     & addInvalidUpdate invalidConfig
     & runFeatureTests OwnDomain access
@@ -35,7 +35,7 @@ validConfig =
       "config"
         .= object
           [ "require_for_all_members" .= True,
-            "owners_and_admins" .= True
+            "compulsory_for_owners_and_admins" .= True
           ]
     ]
 
@@ -48,24 +48,24 @@ invalidConfig =
       "config"
         .= object
           [ "require_for_all_members" .= ("yes" :: String),
-            "owners_and_admins" .= False
+            "compulsory_for_owners_and_admins" .= False
           ]
     ]
 
 testPatchTotp :: (HasCallStack) => App ()
 testPatchTotp = do
-  checkPatch OwnDomain "totp"
+  checkPatch OwnDomain "mfa-totp"
     $ object ["lockStatus" .= "locked"]
-  checkPatch OwnDomain "totp"
+  checkPatch OwnDomain "mfa-totp"
     $ object ["status" .= "disabled"]
-  checkPatch OwnDomain "totp"
+  checkPatch OwnDomain "mfa-totp"
     $ object ["lockStatus" .= "locked", "status" .= "disabled"]
-  checkPatch OwnDomain "totp"
+  checkPatch OwnDomain "mfa-totp"
     $ object
       [ "lockStatus" .= "unlocked",
         "config"
           .= object
             [ "require_for_all_members" .= True,
-              "owners_and_admins" .= False
+              "compulsory_for_owners_and_admins" .= False
             ]
       ]

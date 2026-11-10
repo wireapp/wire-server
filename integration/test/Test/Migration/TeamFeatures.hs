@@ -103,7 +103,7 @@ testTeamFeaturesMigration = do
         "meetings",
         "meetingsPremium",
         "backgroundEffects",
-        "totp"
+        "mfa-totp"
       ]
 
     assertModifiedFeatures :: String -> [(Value, String, [Value])] -> App ()

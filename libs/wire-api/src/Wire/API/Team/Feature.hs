@@ -2442,7 +2442,6 @@ instance ToObjectSchema MeetingsPremiumConfig where
   objectSchema = pure MeetingsPremiumConfig
 
 --------------------------------------------------------------------------------
-----------------------------------------------------------------------
 -- TotpConfig
 
 -- | Feature flag controlling TOTP (Time-based One-Time Password) MFA settings
@@ -2450,7 +2449,7 @@ instance ToObjectSchema MeetingsPremiumConfig where
 -- enforcing any behaviour — enforcement is a future concern (WPB-29745).
 data TotpConfigB t f = TotpConfig
   { requireForAllMembers :: Wear t f Bool,
-    ownersAndAdmins :: Wear t f Bool
+    compulsoryForOwnersAndAdmins :: Wear t f Bool
   }
   deriving (Generic, BareB)
 
@@ -2482,7 +2481,7 @@ instance (Typeable f, FieldF f) => ToSchema (TotpConfigB Covered f) where
     object $
       TotpConfig
         <$> requireForAllMembers .= fieldF "require_for_all_members" schema
-        <*> ownersAndAdmins .= fieldF "owners_and_admins" schema
+        <*> compulsoryForOwnersAndAdmins .= fieldF "compulsory_for_owners_and_admins" schema
 
 instance Default (LockableFeature TotpConfig) where
   def = defLockedFeature
@@ -2491,7 +2490,7 @@ instance ToObjectSchema TotpConfig where
   objectSchema = field "config" schema
 
 instance IsFeatureConfig TotpConfig where
-  type FeatureSymbol TotpConfig = "totp"
+  type FeatureSymbol TotpConfig = "mfa-totp"
   featureSingleton = FeatureSingletonTotpConfig
 
 -- BackgroundEffects Feature
