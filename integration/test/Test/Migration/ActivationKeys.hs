@@ -49,11 +49,21 @@ testActivationKeysMigration = do
       wrongActivationCodeFails domain (k2, c2)
 
     -- dual-write, worker on: copy Cassandra rows; create a fresh pending
-    -- registration
-    (k4, c4) <-
+    -- registration; consume another one (retry exhaustion deletes it in both
+    -- stores and records a deletion marker)
+    ((k4, c4), (k3, c3)) <-
       runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) . const $ do
         waitForMigration domain counterName
-        newPendingActivation domain
+        fresh <- newPendingActivation domain
+        consumed <- newPendingActivation domain
+        -- 4 wrong attempts: retries 3 -> 0, then the 4th deletes the row
+        forM_ [1 :: Int .. 4] $ \_ -> wrongActivationCodeFails domain consumed
+        pure (fresh, consumed)
+
+    -- dual-write, worker on (re-run of the copy loop): the consumed key must
+    -- not resurrect (guarded by the activation_keys_deletions marker)
+    runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) . const $ do
+      waitForMigration domain counterName
 
     -- postgresql: pre-migration codes activate from Postgres; retry state
     -- converged; exhaustion deletes the row
@@ -63,6 +73,8 @@ testActivationKeysMigration = do
       -- code that was wrong-attempted once in dual-write activates
       -- (mirrored writes kept Postgres in sync)
       activateCode domain (k2, c2)
+      -- consumed code stays deleted after the second copy pass
+      wrongActivationCodeFails domain (k3, c3)
       -- brute-force exhaustion: 3 wrong attempts decrement to 0, correct code
       -- still works, the 4th wrong attempt deletes the row, correct then fails
       forM_ [1 :: Int .. 3] $ \_ -> wrongActivationCodeFails domain (k4, c4)
