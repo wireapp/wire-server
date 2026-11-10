@@ -132,7 +132,9 @@ runAllEffectsWithUserKeys initialUsers args =
     . evalState ([] :: [UserId])
     . evalState mempty
     . evalState args.initialUsers
+    . evalState @(Map (TeamId, InvitationId) StoredInvitation) mempty
     . inMemoryUserStoreInterpreterWithDeleteHook (\uid -> modify @[UserId] (uid :))
+    . raiseUnder @(State (Map (TeamId, InvitationId) StoredInvitation))
     . raiseUnder @(State [StoredUser])
     . raiseUnder @(State (Map UserId Password))
     . inMemoryUserSubsystemInterpreter

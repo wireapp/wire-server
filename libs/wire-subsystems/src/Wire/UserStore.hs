@@ -77,6 +77,11 @@ data UserStore m a where
   GetIndexUsersPaginated :: Int32 -> Maybe (GeneralPaginationState UserPageMarker) -> UserStore m (PageWithState UserPageMarker IndexUser)
   -- | Returns a 'Maybe' because cassandra doesn't support this.
   GetScimUsersPaginated :: TeamId -> Int32 -> Maybe Int32 -> UserStore m (Maybe (OffsetPage StoredUser))
+  -- | Pending SCIM users (see 'GetScimUsersPaginated''s visibility
+  -- predicate) whose team invitation has expired, for eager garbage
+  -- collection when a SCIM client lists the team's users.  Empty on
+  -- backends that cannot determine it (Cassandra).
+  GetExpiredPendingScimUsers :: TeamId -> UserStore m [UserId]
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateEmail :: UserId -> EmailAddress -> UserStore m ()

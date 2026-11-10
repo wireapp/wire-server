@@ -71,6 +71,7 @@ interpretUserStorePostgres =
     GetIndexUser uid -> getIndexUserImpl uid
     GetIndexUsersPaginated pageSize mPagingState -> getIndexUsersPaginatedImpl pageSize (paginationStatePostgres =<< mPagingState)
     GetScimUsersPaginated tid pageSize mOffset -> getScimUsersPaginatedImpl tid pageSize mOffset
+    GetExpiredPendingScimUsers tid -> getExpiredPendingScimUsersImpl tid
     UpdateUser uid update -> updateUserImpl uid update
     UpdateEmail uid email -> updateEmailImpl uid (Just email)
     DeleteEmail uid -> updateEmailImpl uid Nothing
@@ -574,6 +575,41 @@ getScimUsersPaginatedImpl tid maxResults mOffset =
           ORDER BY id
           LIMIT $2 :: integer
           OFFSET $3 :: integer
+        |]
+
+-- | Pending SCIM users whose team invitation has expired: same pending
+-- shape as 'getScimUsersPaginatedImpl''s visibility predicate (managed_by =
+-- 1, account_status = 4, activated = true, email IS NOT NULL — also the
+-- partial shape of the @wire_user_pending_scim_users_idx@ index) with the
+-- live-invitation EXISTS negated.  Used to enqueue deletion of expired
+-- accounts when a SCIM client lists the team, so they are reaped eagerly
+-- instead of only on direct lookups.
+--
+-- The predicate fragment is kept in sync by comment across the three
+-- statements ('selectCount', 'selectUsers' above and 'selectExpired'
+-- here): Hasql.TH quasi-quotes need self-contained SQL text.
+getExpiredPendingScimUsersImpl :: (PGConstraints r) => TeamId -> Sem r [UserId]
+getExpiredPendingScimUsersImpl tid =
+  runStatement tid selectExpired
+  where
+    selectExpired :: Hasql.Statement TeamId [UserId]
+    selectExpired =
+      dimapPG
+        [vectorStatement|
+          SELECT id :: uuid
+          FROM wire_user
+          WHERE team = ($1 :: uuid)
+          AND managed_by = 1
+          AND account_status = 4
+          AND activated = true
+          AND email IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM team_invitation ti
+            WHERE ti.team = ($1 :: uuid)
+              AND ti.email = wire_user.email
+              AND ti.expires_at > now()
+          )
+          ORDER BY id
         |]
 
 updateUserImpl :: (PGConstraints r, Member TinyLog r) => UserId -> StoredUserUpdate -> Sem r ()
