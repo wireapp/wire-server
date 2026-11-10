@@ -541,7 +541,7 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         ok <- checkMigrationCriteria now mlsConv mig
         unless ok $ throw ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
         removeExtraneousClients qusr lconv
-        let recMode = fromMaybe def $ Data.convReceiptMode storedConv 
+        let recMode = fromMaybe def $ Data.convReceiptMode storedConv
         E.updateToMLSProtocol storedConv.id_ recMode
         pure $ mkPerformActionResult action
       (ProtocolProteusTag, ProtocolProteusTag, _) ->
