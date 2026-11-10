@@ -343,7 +343,7 @@ updateToMLSProtocol ::
   (Member (Embed IO) r) =>
   ClientState ->
   ConvId ->
-  ReceiptMode -> 
+  ReceiptMode ->
   Sem r ()
 updateToMLSProtocol client cnv recMode =
   runEmbedded (runClient client) . embed . retry x5 $
