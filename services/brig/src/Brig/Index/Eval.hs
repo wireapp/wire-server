@@ -301,8 +301,7 @@ runBackfillNormalizedNames pgSettings batchSize = do
             TextIO.putStrLn
               ("backfill-normalized-names: done, updated " <> Text.pack (show (total :: Int)) <> " users")
           batch -> do
-            forM_ batch $ \(uid, name) ->
-              runSession conn (Session.statement (uid, normalized name) updateOne)
+            runSession conn (Session.statement (map fst batch, map (normalized . snd) batch) updateBatch)
             loop (total + length batch)
   loop 0
   where
@@ -316,12 +315,13 @@ selectBatch =
     (const (0 :: Int32) >$< Encoders.param (Encoders.nonNullable Encoders.int4))
     (Decoders.rowList ((,) <$> Decoders.column (Decoders.nonNullable Decoders.uuid) <*> Decoders.column (Decoders.nonNullable Decoders.text)))
 
-updateOne :: Statement (UUID, Text) ()
-updateOne =
+-- | Batched update: one statement per page instead of one per row.
+updateBatch :: Statement ([UUID], [Text]) ()
+updateBatch =
   Statement.preparable
-    "UPDATE wire_user SET name_normalized = ($2 :: text) WHERE id = ($1 :: uuid)"
-    ( (fst >$< Encoders.param (Encoders.nonNullable Encoders.uuid))
-        <> (snd >$< Encoders.param (Encoders.nonNullable Encoders.text))
+    "UPDATE wire_user w SET name_normalized = n.name_normalized FROM unnest(($1 :: uuid[]), ($2 :: text[])) AS n(id, name_normalized) WHERE w.id = n.id"
+    ( (fst >$< Encoders.param (Encoders.nonNullable (Encoders.foldableArray (Encoders.nonNullable Encoders.uuid))))
+        <> (snd >$< Encoders.param (Encoders.nonNullable (Encoders.foldableArray (Encoders.nonNullable Encoders.text))))
     )
     Decoders.noResult
 
