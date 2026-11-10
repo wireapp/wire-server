@@ -242,6 +242,12 @@ getLocalContactStatusesImpl ::
   [UserId] ->
   Sem r (Map UserId ContactStatus)
 getLocalContactStatusesImpl ctx uids = do
+  -- Deliberately not the target user's team: the MLS team feature (enabled,
+  -- supported protocols, allowed cipher suites) is evaluated only for the
+  -- requester, in 'ctx'. The target contributes its server's MLS flag and its
+  -- users' protocols, clients and key packages. A target with a client that has
+  -- fitting attributes (a usable prekey, or an MLS key package for an allowed
+  -- cipher suite) is contactable, whatever its own team's settings say.
   targetServerMLS <- inputs (.mlsEnabled)
   visible <- filter (not . hasPendingInvitation) <$> UserStore.getUsers (nubOrd uids)
   let (deleted, existing) = partition (\user -> user.status == Just Deleted) visible
@@ -306,7 +312,9 @@ getContactStatusesImpl self qids = do
     -- Requester-side inputs of the contactability rule, computed once per
     -- request: whether MLS counts towards contactability (enabled on this server
     -- and for the requester's team, MLS protocol supported) and the team's allowed
-    -- cipher suites. Proteus contactability does not depend on either.
+    -- cipher suites. Proteus contactability does not depend on either. The
+    -- targets' teams are deliberately not consulted, see
+    -- 'getLocalContactStatusesImpl'.
     contactStatusContext :: Sem r ContactStatusContext
     contactStatusContext = do
       serverMLS <- inputs (.mlsEnabled)
