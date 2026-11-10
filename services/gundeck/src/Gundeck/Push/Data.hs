@@ -37,6 +37,7 @@ import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Conversion (toByteString)
 import Data.Id (ClientId, ConnId, UserId)
+import Data.Text qualified as Text
 import Gundeck.Aws.Arn (fromText, toText)
 import Gundeck.Env
 import Gundeck.Options (postgresMigration)
@@ -93,7 +94,7 @@ mkAddr (usr, trp, app, tok, arn, conn, clt) = case (clt, arn >>= hush . fromText
         field "user" (toByteString usr)
           ~~ field "transport" (show trp)
           ~~ field "app" (appNameText app)
-          ~~ field "token" (tokenText tok)
+          ~~ field "tokenlen" (toInteger (Text.length (tokenText tok)))
           ~~ msg (val "Deleting legacy push token without a client or ARN.")
     delete usr trp app tok
     pure Nothing
