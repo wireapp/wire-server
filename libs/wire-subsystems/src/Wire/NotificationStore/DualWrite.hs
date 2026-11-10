@@ -21,24 +21,22 @@ module Wire.NotificationStore.DualWrite
 where
 
 import Cassandra (ClientState)
-import Control.Concurrent.Async (async, cancel, wait)
-
 import Control.Exception (throwIO)
+import Control.Lens ((^.))
 import Data.Id (UserId)
-import Data.Vector (Vector)
-import Hasql.Pool qualified as Hasql
-import Hasql.Pool.Extended qualified as HasqlPoolExt
-import Hasql.Session qualified as Session
-import Hasql.Statement qualified as Hasql
-import Hasql.TH
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Set qualified as Set
 import Imports
 import Polysemy
-import Polysemy.Error (runError, throw)
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race (Race)
+import Polysemy.Error (runError)
 import Polysemy.Input
-import System.IO.Error (userError)
-import System.Timeout (timeout)
-import Wire.API.PostgresMarshall (lmapPG)
-import Wire.MigrationLock (hashUUID)
+import Polysemy.Resource (Resource)
+import Polysemy.Time.Data.TimeUnit (MilliSeconds (..))
+import Polysemy.TinyLog (TinyLog)
+import Wire.API.Internal.Notification (targetUser)
+import Wire.MigrationLock (LockType (LockShared), MigrationLockError (..), withMigrationLocks)
 import Wire.NotificationStore
 import Wire.NotificationStore qualified as Store
 import Wire.NotificationStore.Cassandra qualified as Cassandra
@@ -50,80 +48,62 @@ import Wire.Postgres (PGConstraints)
 interpretNotificationStoreToCassandraAndPostgres ::
   ( Member (Input ClientState) r,
     Member (Input NotificationStoreConfig) r,
-    PGConstraints r
+    PGConstraints r,
+    Member TinyLog r,
+    Member Async r,
+    Member Race r,
+    Member Resource r
   ) =>
   Sem (NotificationStore ': r) a ->
   Sem r a
 interpretNotificationStoreToCassandraAndPostgres = interpret $ \case
   AddNotification nid tgts objs ttl -> do
     runCassandra $ Store.addNotification nid tgts objs ttl
-    Postgres.interpretNotificationStoreToPostgres $ Store.addNotification nid tgts objs ttl
+    -- The Postgres leg runs under the shared per-user migration lock so a
+    -- concurrent dual delete cannot interleave and leave a PG-only ghost
+    -- row (the copy loop's inserts are DO NOTHING, so a ghost row would
+    -- never self-heal). The Cassandra leg stays unlocked: it is the source
+    -- of truth during migration.
+    underSharedUserLocks (Set.toList (Set.fromList (map (^. targetUser) (NonEmpty.toList tgts)))) $
+      Postgres.interpretNotificationStoreToPostgres $ Store.addNotification nid tgts objs ttl
   FetchNotifications u c msince range ->
     runCassandra $ Store.fetchNotifications u c msince range
   FetchNotificationById u n c ->
     runCassandra $ Store.fetchNotificationById u n c
   FetchLastNotification u c ->
     runCassandra $ Store.fetchLastNotification u c
-  DeleteAllNotifications u -> do
+  DeleteAllNotifications u ->
     -- Dual deletes race the copier's full scan: without a lock, the copier
     -- can re-insert rows that were just deleted from both stores (the
     -- Cassandra partition is cleared, so nothing self-heals until row
-    -- expiry). Hold the shared per-user migration lock while deleting so
-    -- the copier's exclusive per-user lock serializes against this delete
-    -- (same 'Wire.MigrationLock' advisory-lock scheme; see
-    -- 'withDualDeleteLocks').
-    pool <- input @HasqlPoolExt.Pool
-    release <- embed $ acquireDualDeleteLocks pool [u]
-    e <- runError $ do
+    -- expiry). 'withMigrationLocks' brackets acquire/release (session-level
+    -- pg_advisory_lock_shared on a dedicated connection) so no async
+    -- exception can leak the lock; the copier's exclusive per-user lock
+    -- serializes against this delete.
+    underSharedUserLocks [u] $ do
       runCassandra $ Store.deleteAllNotifications u
       Postgres.interpretNotificationStoreToPostgres $ Store.deleteAllNotifications u
-    embed release
-    either throw pure e
 
--- | Acquire the shared per-user migration lock for a dual delete, mirroring
--- the semantics of @Wire.MigrationLock.withMigrationLocks LockShared@: a
--- session-level @pg_advisory_lock_shared@ held on a dedicated connection for
--- the duration of the action, with a bounded acquire wait. Lock keys are
--- derived with the same 'hashUUID' the copier's exclusive
--- @MigrationLockable UserId@ instance uses, so the two lock families
--- contend.
-acquireDualDeleteLocks :: HasqlPoolExt.Pool -> [UserId] -> IO (IO ())
-acquireDualDeleteLocks pool userIds = do
-  acquired <- newEmptyMVar
-  done <- newEmptyMVar
-  lockThread <-
-    async . void . Hasql.use (HasqlPoolExt.rawPool pool) $ do
-      Session.statement lockIds acquireSharedLocks
-      liftIO (putMVar acquired ())
-      liftIO (takeMVar done)
-      Session.statement lockIds releaseSharedLocks
-  waitResult <- timeout 500_000 (takeMVar acquired)
-  case waitResult of
-    Nothing -> do
-      cancel lockThread
-      throwIO . userError $ "notification store: timed out acquiring the dual-delete migration lock"
-    Just () -> pure $ do
-      _ <- tryPutMVar done ()
-      -- Best-effort: if the unlock thread does not finish in time, the
-      -- session locks die with the connection when the pool recycles it.
-      _ <- timeout 1_000_000 (wait lockThread)
-      pure ()
-  where
-    lockIds = sort (map hashUUID userIds)
-
-    acquireSharedLocks :: Hasql.Statement [Int64] ()
-    acquireSharedLocks =
-      lmapPG @(Vector _)
-        [resultlessStatement|SELECT (1 :: int)
-                             FROM (SELECT pg_advisory_lock_shared(lockId)
-                                   FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
-
-    releaseSharedLocks :: Hasql.Statement [Int64] ()
-    releaseSharedLocks =
-      lmapPG @(Vector _)
-        [resultlessStatement|SELECT (1 :: int)
-                             FROM (SELECT pg_advisory_unlock_shared(lockId)
-                                   FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
+-- | Run an action under the shared per-user migration lock
+-- ('Wire.MigrationLock', 500ms wait — the shared-lock wait used by the
+-- connections migration). A lock wait timeout is rethrown as the typed
+-- 'MigrationLockError' exception; the lock itself is bracketed inside
+-- 'withMigrationLocks', so the timeout surfaces only after a clean release.
+underSharedUserLocks ::
+  ( Member TinyLog r,
+    Member Async r,
+    Member Race r,
+    Member Resource r,
+    PGConstraints r
+  ) =>
+  [UserId] ->
+  Sem r a ->
+  Sem r a
+underSharedUserLocks users action = do
+  e <- runError $ withMigrationLocks LockShared (MilliSeconds 500) users (raise action)
+  case e of
+    Right a -> pure a
+    Left TimedOutAcquiringLock -> embed (throwIO TimedOutAcquiringLock)
 
 -- | Runs the Cassandra interpreter with the client state and store config
 -- taken from the ambient 'Input' effects.
