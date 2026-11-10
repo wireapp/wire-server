@@ -27,10 +27,6 @@ CREATE INDEX notifications_user_occurred_at_idx
 CREATE INDEX notifications_expires_at_idx
   ON notifications (expires_at);
 
--- resolution of payload_ref fan-out rows
-CREATE INDEX notifications_payload_ref_idx
-  ON notifications (payload_ref);
-
 CREATE TABLE notification_payload (
   id uuid PRIMARY KEY,
   payload bytea NOT NULL,
@@ -42,8 +38,11 @@ CREATE TABLE notification_payload (
 CREATE INDEX notification_payload_expires_at_idx
   ON notification_payload (expires_at);
 
--- Purge job per ADR-0005 is provisioned externally (pg_cron, proposed)
--- outside transactional migrations: DELETE FROM notifications / notification_payload
--- WHERE expires_at < now(), scheduled hourly. Requires pg_cron
--- (superuser + shared_preload_libraries) as an operator/DBA prerequisite —
--- no migration on develop creates extensions; they are provisioned externally.
+-- TTL garbage collection per ADR-0005: expired notifications and
+-- notification_payload rows are deleted by the pg_cron jobs scheduled in
+-- 20261110120000-notifications-ttl-cleanup.sql (hourly, batched deletes).
+-- pg_cron itself (superuser + shared_preload_libraries) remains an
+-- operator/DBA prerequisite — no migration on develop creates extensions;
+-- they are provisioned externally. Without pg_cron the jobs are skipped
+-- (the migration only raises a warning) and expired rows are filtered out
+-- by every read.

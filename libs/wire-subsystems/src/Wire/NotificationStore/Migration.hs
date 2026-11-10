@@ -38,16 +38,21 @@ import Polysemy.Conc (interpretRace)
 import Polysemy.Conc qualified as Conc
 import Polysemy.Conc.Effect.Race hiding (Timeout)
 import Polysemy.Input
+import Polysemy.Error (Error)
 import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
 import UnliftIO qualified
 import Wire.Migration
+import Wire.MigrationLock (MigrationLockError)
 import Wire.NotificationStore.Postgres qualified as Postgres
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
+import Wire.Util (embedClient)
 
 type EffectStack =
   [ AtomicState Int,
@@ -58,6 +63,7 @@ type EffectStack =
     Race,
     TinyLog,
     Embed IO,
+    Concurrency 'Unsafe,
     Final IO
   ]
 
@@ -83,6 +89,7 @@ migrateNotificationsLoop migOpts cassClient pgPool logger migCounter migFinished
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
   runFinal
+    . unsafelyPerformConcurrency
     . embedToFinal
     . loggerToTinyLog logger
     . mapLogger (Log.field "migration" (Log.val name) .)
@@ -115,7 +122,9 @@ migrateAllNotifications ::
     Member TinyLog r,
     Member (AtomicState Int) r,
     Member Resource r,
-    Member Race r
+    Member Race r,
+    Member Async r,
+    Member (Concurrency 'Unsafe) r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
@@ -126,7 +135,7 @@ migrateAllNotifications migOpts migCounter migDuration = do
   withCount (paginateSem selectAllPayloads (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_
-      ( traverse_ $ \row@(payloadId, _, _) ->
+      ( unsafePooledMapConcurrentlyN_ migOpts.parallelism $ \row@(payloadId, _, _) ->
           handleErrors (TE.encodeUtf8 (rowKeyText payloadId payloadId)) $
             migrateNotificationPayloadRow migOpts migCounter migDuration row
       )
@@ -134,8 +143,8 @@ migrateAllNotifications migOpts migCounter migDuration = do
   withCount (paginateSem selectAllNotifications (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_
-      ( traverse_ $ \row@(userId, nid, _, _, _, _, _, _) ->
-          handleErrors (TE.encodeUtf8 (rowKeyText userId nid)) $
+      ( unsafePooledMapConcurrentlyN_ migOpts.parallelism $ \row@(userId, nid, _, _, _, _, _, _) ->
+          handleLockAndDBErrors (TE.encodeUtf8 (rowKeyText userId nid)) $
             migrateNotificationRow migOpts migCounter migDuration row
       )
 
@@ -173,35 +182,63 @@ migrateNotificationPayloadRow migOpts migCounter migDuration (payloadId, blob, m
 -- | Copy one @notifications@ row. Payload bytes are copied raw (no
 -- re-encode); @occurred_at@ is decoded from the RFC 4122 v1 timestamp of the
 -- notification id (falling back to the copy time for non-v1 ids).
+--
+-- The row is copied under the exclusive per-user migration lock, and the
+-- row is re-read from Cassandra inside the lock: rows enumerated by the
+-- full scan may have been deleted meanwhile (e.g. 'DeleteAllNotifications'
+-- during account removal). Without the lock and re-read, a stale row would
+-- be resurrected in Postgres and nothing would self-heal (the Cassandra
+-- partition is cleared, so a later copy pass never sees the delete again).
 migrateNotificationRow ::
   ( Member TinyLog r,
     Member Resource r,
     Member Race r,
+    Member Async r,
+    Member (Input ClientState) r,
     PGConstraints r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   (UUID, TimeUuid, Maybe Blob, Maybe UUID, Maybe Int32, Cql.Set ClientId, Maybe Int32, Maybe Int32) ->
-  Sem r ()
-migrateNotificationRow migOpts migCounter migDuration (userId, nid, mbPayload, mbPayloadRef, mbPayloadRefSize, clients, mbPayloadTtl, mbRefTtl) =
-  case mbPayloadTtl <|> mbRefTtl of
-    Nothing ->
-      pure ()
-    Just remaining -> do
-      now <- embed getCurrentTime
-      let occurred = fromMaybe now (Postgres.notificationIdTime (Id (fromTimeUuid nid)))
-          expires = addUTCTime (fromIntegral remaining) now
-      withTimeoutAndMetrics migOpts migCounter migDuration (rowKeyText (Id userId) nid) $
-        Postgres.insertNotificationRow
-          (Id userId)
-          (Id (fromTimeUuid nid))
-          (fmap (LBS.toStrict . fromBlob) mbPayload)
-          (Id <$> mbPayloadRef)
-          mbPayloadRefSize
-          (Set.fromList (Cql.fromSet clients))
-          occurred
-          expires
+  Sem (Error MigrationLockError : r) ()
+migrateNotificationRow migOpts migCounter migDuration (userId, nid, _, _, _, _, _, _) =
+  withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [Id userId :: UserId] $ do
+    client <- input @ClientState
+    mRow <-
+      embedClient client $
+        retry x1 $
+          query1
+            selectNotificationForCopy
+            (params LocalQuorum (userId, nid))
+    case mRow of
+      -- deleted after enumeration; do not resurrect it
+      Nothing -> pure ()
+      Just (mbPayload, mbPayloadRef, mbPayloadRefSize, clients, mbPayloadTtl, mbRefTtl) ->
+        case mbPayloadTtl <|> mbRefTtl of
+          Nothing -> pure ()
+          Just remaining -> do
+            now <- embed getCurrentTime
+            let occurred = fromMaybe now (Postgres.notificationIdTime (Id (fromTimeUuid nid)))
+                expires = addUTCTime (fromIntegral remaining) now
+            Postgres.insertNotificationRow
+              (Id userId)
+              (Id (fromTimeUuid nid))
+              (fmap (LBS.toStrict . fromBlob) mbPayload)
+              (Id <$> mbPayloadRef)
+              mbPayloadRefSize
+              (Set.fromList (Cql.fromSet clients))
+              occurred
+              expires
+            liftIO $ Prometheus.incCounter migCounter
+
+-- | Point re-read used inside the exclusive lock to detect rows that were
+-- deleted after the full scan enumerated them.
+selectNotificationForCopy ::
+  PrepQuery R (UUID, TimeUuid) (Maybe Blob, Maybe UUID, Maybe Int32, Cql.Set ClientId, Maybe Int32, Maybe Int32)
+selectNotificationForCopy =
+  "SELECT payload, payload_ref, payload_ref_size, clients, ttl(payload), ttl(payload_ref) \
+  \FROM notifications WHERE user = ? AND id = ?"
 
 -- | Per-row bracket + timeout + duration histogram, mirroring the other
 -- store migrations.

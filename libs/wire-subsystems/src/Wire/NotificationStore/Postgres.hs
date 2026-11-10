@@ -94,33 +94,53 @@ pgAddNotification nid tgts objs (notificationTTLSeconds -> ttlSeconds) = do
       -- like Cassandra's USING TTL, the row expires relative to the write
       -- time (this also matches the copy loop's 'now + remaining' anchor)
       expires = addUTCTime (fromIntegral ttlSeconds) now
-  if null (NonEmpty.tail tgts)
-    then
       -- inline payload when there is exactly one target
-      for_ tgts $ \tgt ->
-        insertNotificationRow
-          (tgt ^. targetUser)
-          nid
-          (Just payload)
-          Nothing
-          Nothing
-          (Set.fromList (tgt ^. targetClients))
-          occurred
-          expires
-    else do
-      payloadId <- Id <$> embed UUID.nextRandom
-      insertNotificationPayloadRow payloadId payload occurred expires
-      let payloadRefSize = fromIntegral (BS.length payload)
-      for_ tgts $ \tgt ->
-        insertNotificationRow
-          (tgt ^. targetUser)
-          nid
-          Nothing
-          (Just payloadId)
-          (Just payloadRefSize)
-          (Set.fromList (tgt ^. targetClients))
-          occurred
-          expires
+      inline = null (NonEmpty.tail tgts)
+      payloadRefSize = fromIntegral (BS.length payload)
+  -- resolve the shared payload row for fan-out notifications
+  mbPayloadId <-
+    if inline
+      then pure Nothing
+      else do
+        payloadId <- Id <$> embed UUID.nextRandom
+        insertNotificationPayloadRow payloadId payload occurred expires
+        pure (Just payloadId)
+  -- batched fan-out: one statement for all recipients, mirroring the
+  -- Cassandra interpreter's 32-wide concurrent fan-out
+  let vrows =
+        Vector.fromList
+          ( NonEmpty.toList tgts <&> \tgt ->
+              ( toUUID (tgt ^. targetUser),
+                toUUID nid,
+                if inline then Just payload else Nothing,
+                toUUID <$> mbPayloadId,
+                if inline then Nothing else Just payloadRefSize,
+                Vector.fromList (map clientToText (tgt ^. targetClients)),
+                occurred,
+                expires
+              )
+          )
+  runStatement
+    ( (\(a, _, _, _, _, _, _, _) -> a) <$> vrows,
+      (\(_, b, _, _, _, _, _, _) -> b) <$> vrows,
+      (\(_, _, c, _, _, _, _, _) -> c) <$> vrows,
+      (\(_, _, _, d, _, _, _, _) -> d) <$> vrows,
+      (\(_, _, _, _, e, _, _, _) -> e) <$> vrows,
+      (\(_, _, _, _, _, f, _, _) -> f) <$> vrows,
+      (\(_, _, _, _, _, _, g, _) -> g) <$> vrows,
+      (\(_, _, _, _, _, _, _, h) -> h) <$> vrows
+    )
+    insertNotificationRowsStatement
+
+insertNotificationRowsStatement :: Hasql.Statement (Vector UUID, Vector UUID, Vector (Maybe ByteString), Vector (Maybe UUID), Vector (Maybe Int32), Vector (Vector Text), Vector UTCTime, Vector UTCTime) ()
+insertNotificationRowsStatement =
+  [resultlessStatement|
+      INSERT INTO notifications
+        (user_id, id, payload, payload_ref, payload_ref_size, clients, occurred_at, expires_at)
+      SELECT * FROM UNNEST
+        ($1 :: uuid[], $2 :: uuid[], $3 :: bytea?[], $4 :: uuid?[], $5 :: int4?[], $6 :: text[][], $7 :: timestamptz[], $8 :: timestamptz[])
+      ON CONFLICT (user_id, id) DO NOTHING
+    |]
 
 -- | Insert a @notifications@ row. Shared by the runtime path and the
 -- migration copy loop so they cannot drift. The payload bytes are copied

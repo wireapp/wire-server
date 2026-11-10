@@ -15,7 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Migration.Notifications where
+-- | Migration test for the gundeck notification store
+-- (@postgresMigration.notifications@): five phases over one dynamic backend —
+--
+--   1. @cassandra@: baseline writes land in Cassandra.
+--   2. @migration-to-postgresql@, copy worker off: new writes are mirrored to
+--      Postgres, reads still come from Cassandra.
+--   3. @migration-to-postgresql@, copy worker on: the copy loop back-fills
+--      rows written in earlier phases.
+--   4. @migration-to-postgresql@, copy worker off again: the system keeps
+--      working with the worker disabled after the migration ran.
+--   5. @postgresql@: reads come from Postgres alone, including the
+--      copy-replicated rows of the phase-1 user.
+module Test.Migration.Notifications
+  ( testNotificationsMigration,
+  )
+where
 
 import API.Common (randomClientId)
 import API.Gundeck (GetNotifications (..), getLastNotification, getNotifications)
@@ -66,7 +81,18 @@ testNotificationsMigration = do
       assertBool "notification count did not grow" (count > 0)
       pure count
 
-    -- Phase 4: postgresql. Notifications come from Postgres alone (mirrored
+    -- Phase 4: migration-to-postgresql, worker off again (after the copy
+    -- loop ran in phase 3). Writes keep being mirrored, reads keep coming
+    -- from Cassandra.
+    _count4 <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
+      alice <- randomUser domain def
+      bob <- randomUser domain def
+      seed alice bob
+      count <- countNotifications alice
+      assertBool "notification count did not grow" (count > 0)
+      pure count
+
+    -- Phase 5: postgresql. Notifications come from Postgres alone (mirrored
     -- and copied); the last-notification read returns the newest payload.
     -- The copy-replicated rows of the phase-1 (cassandra) user are read back
     -- through the Postgres path to verify the copy loop.

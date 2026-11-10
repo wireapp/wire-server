@@ -2804,13 +2804,6 @@ CREATE INDEX notifications_expires_at_idx ON public.notifications USING btree (e
 
 
 --
--- Name: notifications_payload_ref_idx; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX notifications_payload_ref_idx ON public.notifications USING btree (payload_ref);
-
-
---
 -- Name: notifications_user_occurred_at_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
