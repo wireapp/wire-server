@@ -30,8 +30,10 @@ import Testlib.ResourcePool
 --
 -- The store holds pending SCIM invitations; the migration is a copy-only
 -- backfill. A row added while Cassandra is the source of truth must survive
--- the copy loop and remain readable after the cutover to PostgreSQL, and a row
--- added after the cutover must live in PostgreSQL.
+-- the copy loop and remain readable after the cutover to PostgreSQL, a row
+-- written during dual-write (worker off) must be mirrored to PostgreSQL and
+-- readable after the cutover, and a row added after the cutover must live in
+-- PostgreSQL.
 testUserPendingActivationMigration :: (HasCallStack) => App ()
 testUserPendingActivationMigration = do
   resourcePool <- asks (.resourcePool)
@@ -49,25 +51,36 @@ testUserPendingActivationMigration = do
       resp.json %. "0.0" >>= asString >>= (`shouldMatch` uid1)
       resp.json %. "0.1" >>= asString >>= (`shouldMatch` expiresAt)
 
-    -- migration-to-postgresql with the worker running: copy the row and
-    -- confirm it is still readable (via Cassandra, the source of truth).
+    -- dual-write with the migration worker off: the write is mirrored to
+    -- Postgres immediately, while the copy loop is not running yet.
+    uid3 <- randomId
+    runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" False)) $ \_ -> do
+      assertSuccess =<< BrigInternal.putUserPendingActivation domain uid3 expiresAt
+
+    -- migration-to-postgresql with the worker running: copy the rows and
+    -- confirm they are still readable (via Cassandra, the source of truth).
     runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
       waitForMigration domain counterName
       resp <- BrigInternal.getUserPendingActivations domain
       assertStatus 200 resp
-      resp.json %. "0.0" >>= asString >>= (`shouldMatch` uid1)
+      uidA <- resp.json %. "0.0" >>= asString
+      uidB <- resp.json %. "1.0" >>= asString
+      shouldMatch [uidA, uidB] (sort [uid1, uid3])
 
-    -- PostgreSQL only: the migrated row must persist, and a row written after
+    -- PostgreSQL only: the migrated rows must persist, and a row written after
     -- the cutover must be readable from PostgreSQL too.
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
       resp <- BrigInternal.getUserPendingActivations domain
       assertStatus 200 resp
-      resp.json %. "0.0" >>= asString >>= (`shouldMatch` uid1)
+      uidA <- resp.json %. "0.0" >>= asString
+      uidB <- resp.json %. "1.0" >>= asString
+      shouldMatch [uidA, uidB] (sort [uid1, uid3])
       assertSuccess =<< BrigInternal.putUserPendingActivation domain uid2 expiresAt
       resp' <- BrigInternal.getUserPendingActivations domain
-      uidA <- resp'.json %. "0.0" >>= asString
-      uidB <- resp'.json %. "1.0" >>= asString
-      shouldMatch [uidA, uidB] (sort [uid1, uid2])
+      uidA' <- resp'.json %. "0.0" >>= asString
+      uidB' <- resp'.json %. "1.0" >>= asString
+      uidC' <- resp'.json %. "2.0" >>= asString
+      shouldMatch [uidA', uidB', uidC'] (sort [uid1, uid2, uid3])
   where
     conf :: String -> Bool -> ServiceOverrides
     conf db runMigration =
