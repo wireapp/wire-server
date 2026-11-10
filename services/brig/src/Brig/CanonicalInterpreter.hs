@@ -583,10 +583,10 @@ runBrigToIO e (AppT ma) = do
               . domainRegistrationStore
               . ( case e.searchBackend of
                     SearchBackendElasticSearch -> interpretUserSearchStoreElasticSearch
-                    SearchBackendPostgres
-                      | CassandraStorage <- e.postgresMigration.user ->
-                          error "UserSearchStore requires the brig user store in Postgres: set postgresMigration.user to PostgresqlStorage or MigrationToPostgresql"
-                      | otherwise -> interpretUserSearchStorePostgres
+                    -- Misconfigurations (postgres search with the user
+                    -- store still on Cassandra) are rejected at startup in
+                    -- 'Brig.App.newEnv'.
+                    SearchBackendPostgres -> interpretUserSearchStorePostgres
                 )
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
