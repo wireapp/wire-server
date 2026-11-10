@@ -37,12 +37,13 @@ import Data.Time.Clock
 import Data.Time.Format
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import MLS.Util (createMLSClient, uploadNewKeyPackage)
+import MLS.Util (InitMLSClient (..), createMLSClient, uploadNewKeyPackage)
 import Notifications
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
+import Testlib.VersionedFed (FedDomain)
 
 testInvitePersonalUserToTeam :: (HasCallStack) => App ()
 testInvitePersonalUserToTeam = do
@@ -513,23 +514,7 @@ testListUsersContactStatus = do
   mlsClient <- createMLSClient def mlsUser
   void $ uploadNewKeyPackage def mlsClient
   putUserSupportedProtocols mlsUser ["mls"] >>= assertSuccess
-  setTeamFeatureConfig
-    owner
-    tid
-    "mls"
-    ( object
-        [ "status" .= ("enabled" :: String),
-          "config"
-            .= object
-              [ "protocolToggleUsers" .= ([] :: [String]),
-                "defaultProtocol" .= ("mls" :: String),
-                "supportedProtocols" .= (["proteus", "mls"] :: [String]),
-                "allowedCipherSuites" .= ([2] :: [Int]),
-                "defaultCipherSuite" .= (2 :: Int)
-              ]
-        ]
-    )
-    >>= assertSuccess
+  configureMlsForTeam owner tid
 
   let users = [noClientUser, proteusUser, mlsUser]
   userIds <- for users objQidObject
@@ -555,14 +540,145 @@ testListUsersContactStatus = do
     profiles <- resp.json %. "found" >>= asList
     assertContactStatus profiles proteusUser "non-contactable"
     assertContactStatus profiles mlsUser "non-contactable"
+
+-- | Only list-users with @include-contact-status=true@ returns
+-- @contact_status@ fields; that endpoint is covered by its own tests. Other
+-- (non-deprecated) endpoints returning user profiles must never set it.
+--
+-- Why do we need this test? Calculating the @contact_status@ is quite
+-- expensive and shouldn't be done accidentally. Sharing response types might
+-- make this easy, though.
+testProfileEndpointsNoContactStatus :: (HasCallStack) => App ()
+testProfileEndpointsNoContactStatus = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
+
+  getUser alice bob `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `assertFieldMissing` "contact_status"
+
+  void $ createApp owner tid def >>= getJSON 200
+  getApps owner tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profile <- assertOne =<< asList resp.json
+    profile `assertFieldMissing` "contact_status"
+
+configureMlsForTeam :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
+configureMlsForTeam owner tid =
+  setTeamFeatureConfig
+    owner
+    tid
+    "mls"
+    ( object
+        [ "status" .= ("enabled" :: String),
+          "config"
+            .= object
+              [ "protocolToggleUsers" .= ([] :: [String]),
+                "defaultProtocol" .= ("mls" :: String),
+                "supportedProtocols" .= (["proteus", "mls"] :: [String]),
+                "allowedCipherSuites" .= ([2] :: [Int]),
+                "defaultCipherSuite" .= (2 :: Int)
+              ]
+        ]
+    )
+    >>= assertSuccess
+
+assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
+assertContactStatus profiles user expected =
+  findProfile profiles user >>= \case
+    Nothing -> assertFailure "list-users did not return the requested user"
+    Just p -> p %. "contact_status.state" `shouldMatch` expected
+
+findProfile :: (HasCallStack) => [Value] -> Value -> App (Maybe Value)
+findProfile profiles user = do
+  uid <- user %. "id"
+  findM (fmap (== Just uid) . flip lookupField "id") profiles
+
+keyPackageCount :: (HasCallStack) => ClientIdentity -> App Int
+keyPackageCount c = countKeyPackages def c >>= getJSON 200 >>= (%. "count") >>= asInt
+
+-- | Pending connections' @contact_status@ is supported for local and remote
+-- targets (federated @get-users-contact-status@).
+--
+-- The requester lives on `OwnDomain`; the test runs once per `Domain`
+-- constructor (`OwnDomain` or `OtherDomain`), with all targets on
+-- @targetDomain@. 'OtherDomain' is a separate backend, so its users are remote
+-- and their status can only come from a successful federation call.
+testListUsersContactStatusScenarios :: (HasCallStack) => Domain -> App ()
+testListUsersContactStatusScenarios targetDomain = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  configureMlsForTeam owner tid
+
+  noClientUser <- randomUser targetDomain def
+  proteusUser <- randomUser targetDomain def
+  proteusClient <- addClient proteusUser def >>= getJSON 201 >>= (%. "id") >>= asString
+  let mlsOnly = def {I.supportedProtocols = Just ["mls"]}
+  mlsUser <- randomUser targetDomain mlsOnly
+  mlsClient <- createMLSClient def mlsUser
+  void $ uploadNewKeyPackage def mlsClient
+  -- A key package for a suite that the requester team does not allow
+  let disallowedSuite = Ciphersuite "0x0001"
+  badSuiteUser <- randomUser targetDomain mlsOnly
+  badSuiteClient <- createMLSClient def {ciphersuites = [disallowedSuite]} badSuiteUser
+  void $ uploadNewKeyPackage disallowedSuite badSuiteClient
+
+  userIds <- for [noClientUser, proteusUser, mlsUser, badSuiteUser] objQidObject
+  prekeysBefore <- getClientPrekeyIds proteusUser proteusClient
+  kpBefore <- keyPackageCount mlsClient
+
+  listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    assertContactStatus profiles noClientUser "non-contactable"
+    assertContactStatus profiles proteusUser "contactable"
+    assertContactStatus profiles mlsUser "contactable"
+    assertContactStatus profiles badSuiteUser "non-contactable"
+
+  -- Ensure that no key packages are consumed by the contact status check
+  getClientPrekeyIds proteusUser proteusClient `shouldMatch` prekeysBefore
+  kpAfter <- keyPackageCount mlsClient
+  kpAfter `shouldMatchInt` kpBefore
   where
-    assertContactStatus :: (HasCallStack) => [Value] -> Value -> String -> App ()
-    assertContactStatus profiles user expected = do
-      uid <- user %. "id"
-      profile <- findM (fmap (== Just uid) . flip lookupField "id") profiles
-      case profile of
-        Nothing -> assertFailure "list-users did not return the requested user"
-        Just p -> p %. "contact_status.state" `shouldMatch` expected
+    getClientPrekeyIds user client =
+      getClientPrekeys user client >>= getJSON 200 >>= asList >>= traverse asInt
+
+-- | Remote backend is down: list-users still returns 200 and local users keep
+-- their contact_status; the unreachable remote user is missing from the result
+-- set.
+testListUsersContactStatusRemoteDown :: (HasCallStack) => App ()
+testListUsersContactStatusRemoteDown = do
+  localUser <- randomUser OwnDomain def
+  void $ addClient localUser def >>= getJSON 201
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  downUser <- startDynamicBackends [mempty] \[downDomain] -> do
+    u <- randomUser downDomain def
+    void $ addClient u def >>= getJSON 201
+    pure u
+  -- backend is stopped again here
+  userIds@[_, downUserId] <- for [localUser, downUser] objQidObject
+  listUsersWithContactStatus owner userIds `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    assertContactStatus profiles localUser "contactable"
+    -- unreachable remote: no profile at all, reported as failed
+    findProfile profiles downUser `shouldMatch` (Nothing :: Maybe Value)
+    resp.json %. "failed" `shouldMatch` [downUserId]
+
+-- | Remote backend without the contact-status endpoint (old federation
+-- version): 200, profile returned, contact_status absent. Needs
+-- ENABLE_FEDERATION_V1=1.
+testListUsersContactStatusOldFedRemote :: (HasCallStack) => FedDomain 1 -> App ()
+testListUsersContactStatusOldFedRemote fedDomain = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  oldUser <- randomUser fedDomain def
+  void $ addClient oldUser def >>= getJSON 201
+  listUsersWithContactStatus owner [oldUser] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profile <- assertOne =<< asList (resp.json %. "found")
+    -- the user is really found, only contact_status is missing
+    profile %. "name" `shouldMatch` (oldUser %. "name")
+    lookupField profile "contact_status" `shouldMatch` (Nothing :: Maybe Value)
 
 testGetTeamsInvitationInfo :: (HasCallStack) => App ()
 testGetTeamsInvitationInfo = do

@@ -1,0 +1,9 @@
+{
+    "context": {
+        "allowed_cipher_suites": [],
+        "mls_available": false
+    },
+    "users": [
+        "69f66843-6cf1-48fb-8c05-1cf58c23566a"
+    ]
+}

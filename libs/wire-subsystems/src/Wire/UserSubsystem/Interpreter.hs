@@ -21,6 +21,8 @@
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
+    getLocalContactStatusesImpl,
+    getContactStatusesImpl,
   )
 where
 
@@ -36,7 +38,7 @@ import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
-import Data.List.Extra (nubOrd)
+import Data.List.Extra (chunksOf, nubOrd)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl)
 import Data.Qualified
@@ -53,10 +55,12 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import Servant.Client.Core
 import System.Logger.Message qualified as Log
+import Wire.API.Conversation.Protocol (ProtocolTag (..))
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version (Version)
 import Wire.API.MLS.CipherSuite (CipherSuiteTag, csSignatureScheme)
 import Wire.API.Pagination
 import Wire.API.Routes.FederationDomainConfig
@@ -75,6 +79,8 @@ import Wire.API.User.Client qualified as UserClient
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.API.UserMap (UserMap (..))
+import Wire.API.VersionInfo (VersionedMonad)
 import Wire.AppStore (AppStore)
 import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem
@@ -134,6 +140,7 @@ runUserSubsystem ::
     Member Events r,
     Member Now r,
     RunClient (fedM 'Brig),
+    VersionedMonad Version (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
     Member IndexedUserStore r,
@@ -192,8 +199,10 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         updateTeamSearchVisibilityInboundImpl status
       SearchUsers luid query mDomain mMaxResults mTypes ->
         searchUsersImpl luid query mDomain mMaxResults mTypes
-      IsUsersContactable users mlsAvailable allowedCipherSuites ->
-        isUsersContactableImpl users mlsAvailable allowedCipherSuites
+      GetLocalContactStatuses ctx uids ->
+        getLocalContactStatusesImpl ctx uids
+      GetContactStatuses self qids ->
+        getContactStatusesImpl self qids
       BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
         browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
       InternalUpdateSearchIndex uid ->
@@ -210,13 +219,156 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       InternalGetScimUsersPaginated tid maxResults offset ->
         getScimUsersPaginatedImpl tid maxResults offset
 
+-- | Evaluate the contactability rule for local users. The only evaluation path of
+-- the rule: used for local users of the requester and by the federation
+-- handler.
+--
+-- Visibility mirrors 'getLocalUserProfileInternal', so that local and remote
+-- users are treated alike:
+--
+-- * unknown users and users with a pending invitation are left out. Answering
+--   for the latter would reveal over federation that they exist, which
+--   @get-users-by-ids@ hides.
+-- * deleted users are 'NonContactable' (their profile is still returned, with
+--   @deleted=true@).
+getLocalContactStatusesImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  ContactStatusContext ->
+  [UserId] ->
+  Sem r (Map UserId ContactStatus)
+getLocalContactStatusesImpl ctx uids = do
+  -- Deliberately not the target user's team: the MLS team feature (enabled,
+  -- supported protocols, allowed cipher suites) is evaluated only for the
+  -- requester, in 'ctx'. The target contributes its server's MLS flag and its
+  -- users' protocols, clients and key packages. A target with a client that has
+  -- fitting attributes (a usable prekey, or an MLS key package for an allowed
+  -- cipher suite) is contactable, whatever its own team's settings say.
+  targetServerMLS <- inputs (.mlsEnabled)
+  visible <- filter (not . hasPendingInvitation) <$> UserStore.getUsers (nubOrd uids)
+  let (deleted, existing) = partition (\user -> user.status == Just Deleted) visible
+  clients <- ClientStore.lookupClientsBulk (map (.id) existing)
+  let clientsByUser :: Map UserId (Set UserClient.Client)
+      clientsByUser = userMap clients
+
+      protocolsOf :: StoredUser -> Set BaseProtocolTag
+      protocolsOf user = case user.supportedProtocols of
+        Just protocols | not (Set.null protocols) -> protocols
+        _ -> defSupportedProtocols
+
+      existingUsers :: Map UserId (Set BaseProtocolTag, Set UserClient.Client)
+      existingUsers =
+        Map.fromList
+          [ (user.id, (protocolsOf user, Map.findWithDefault Set.empty user.id clientsByUser))
+          | user <- existing
+          ]
+  contactable <- isUsersContactableImpl existingUsers (ctx.mlsAvailable && targetServerMLS) ctx.allowedCipherSuites
+  pure $
+    contactable
+      <> Map.fromList [(user.id, ContactStatus NonContactable) | user <- deleted]
+
+-- | Decide on technical contactability of users regarding @self@ user
+--
+-- Local users are evaluated locally; for each remote domain exactly one
+-- federation action is run (domains run concurrently; requests above
+-- 'FedBrig.maxContactStatusUsers' users are chunked within that action). A
+-- failing domain is logged and left out of the result as a whole.
+--
+-- For judgement on remotes, a `ContactStatusContext` is provided which
+-- contains required aspects of the requesting backend. Currently, it contains
+-- information about MLS availability and allowed cyphersuites.
+-- E.g. when the requesting backend doesn't support MLS, then the federated
+-- doesn't need to check MLS client attributes, because these won't be used.
+getContactStatusesImpl ::
+  forall r fedM.
+  ( Member UserStore r,
+    Member ClientStore r,
+    Member MlsKeyPackageSubsystem r,
+    Member GalleyAPIAccess r,
+    Member (Input UserSubsystemConfig) r,
+    Member (FederationAPIAccess fedM) r,
+    Member TinyLog r,
+    RunClient (fedM 'Brig),
+    VersionedMonad Version (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
+  ) =>
+  Local UserId ->
+  [Qualified UserId] ->
+  Sem r (Map (Qualified UserId) ContactStatus)
+getContactStatusesImpl _self [] = pure mempty -- no need to run the whole machinery
+getContactStatusesImpl self qids = do
+  ctx <- contactStatusContext
+  Map.union <$> getLocalStatuses ctx locals <*> getRemoteStatuses ctx remotes
+  where
+    locals :: [UserId]
+    remotes :: [Remote UserId]
+    (locals, remotes) = partitionQualified self (nubOrd qids)
+
+    -- Requester-side inputs of the contactability rule, computed once per
+    -- request: whether MLS counts towards contactability (enabled on this server
+    -- and for the requester's team, MLS protocol supported) and the team's allowed
+    -- cipher suites. Proteus contactability does not depend on either. The
+    -- targets' teams are deliberately not consulted, see
+    -- 'getLocalContactStatusesImpl'.
+    contactStatusContext :: Sem r ContactStatusContext
+    contactStatusContext = do
+      serverMLS <- inputs (.mlsEnabled)
+      if not serverMLS
+        then pure (ContactStatusContext False Set.empty)
+        else do
+          requesterFeatures <- getAllTeamFeaturesForUser (Just (tUnqualified self))
+          let mlsConfig = npProject @MLSConfig requesterFeatures
+          pure
+            ContactStatusContext
+              { mlsAvailable =
+                  mlsConfig.status == FeatureStatusEnabled
+                    && ProtocolMLSTag `elem` mlsConfig.config.mlsSupportedProtocols,
+                allowedCipherSuites = Set.fromList mlsConfig.config.mlsAllowedCipherSuites
+              }
+
+    getLocalStatuses :: ContactStatusContext -> [UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
+    getLocalStatuses ctx uids =
+      Map.mapKeys (tUntagged . qualifyAs self)
+        <$> getLocalContactStatusesImpl ctx uids
+
+    getRemoteStatuses :: ContactStatusContext -> [Remote UserId] -> Sem r (Map (Qualified UserId) ContactStatus)
+    getRemoteStatuses ctx remoteUids = do
+      remoteResponses <-
+        runFederatedConcurrentlyEither remoteUids $ \ruids ->
+          -- only keep what was asked for, whatever the remote answers
+          (`Map.restrictKeys` Set.fromList (tUnqualified ruids))
+            . fold
+            <$> for (chunksOf FedBrig.maxContactStatusUsers (tUnqualified ruids)) \chunk ->
+              (.statuses)
+                <$> fedClient
+                  @'Brig
+                  @"get-users-contact-status"
+                  (FedBrig.GetContactStatusRequest ctx (unsafeRange chunk))
+      Map.unions <$> for remoteResponses \case
+        Left (ruids, e) -> do
+          Log.warn $
+            Log.msg (Log.val "Failed to get contact status from remote backend")
+              . Log.field "domain" (domainText (tDomain ruids))
+              . Log.field "error" (displayException e)
+          pure mempty
+        Right rstatuses ->
+          pure $
+            Map.mapKeys
+              (tUntagged . qualifyAs rstatuses)
+              (tUnqualified rstatuses)
+
 isUsersContactableImpl ::
   forall r.
   (Member ClientStore r, Member MlsKeyPackageSubsystem r) =>
   Map UserId (Set BaseProtocolTag, Set UserClient.Client) ->
   Bool ->
   Set CipherSuiteTag ->
-  Sem r (Map UserId Bool)
+  Sem r (Map UserId ContactStatus)
 isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
   let prekeyRequests =
         [ (uid, client.clientId)
@@ -256,7 +408,7 @@ isUsersContactableImpl users mlsAvailable allowedCipherSuites = do
                       allowedCipherSuites
                 )
                 clients
-       in proteusReady || mlsReady
+       in ContactStatus $ bool NonContactable Contactable (proteusReady || mlsReady)
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do

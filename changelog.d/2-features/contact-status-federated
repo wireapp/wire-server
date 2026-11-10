@@ -1,0 +1,8 @@
+`contact_status` in `POST /list-users?include-contact-status=true` now covers
+federated users. The requester's backend sends its context (MLS availability,
+allowed cipher suites) in one batched call per remote domain; the remote
+backend evaluates the rule on its own users.
+
+**Administration notes:** Requests to backends on federation version `< V5` log
+an error on level `Warn` (because the request cannot be fulfilled). This will
+be resolved once the remote backend is upgraded.

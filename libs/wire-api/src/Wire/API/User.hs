@@ -33,6 +33,7 @@ module Wire.API.User
     UserProfile (..),
     ContactStatus (..),
     ContactStatusState (..),
+    ContactStatusContext (..),
     SelfProfile (..),
     -- User (should not be here)
     User (..),
@@ -217,6 +218,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Locale
+import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.Password
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service (ServiceRef)
@@ -626,6 +628,24 @@ data ContactStatus = ContactStatus
 
 instance ToSchema ContactStatus where
   schema = object $ ContactStatus <$> contactStatusState .= field "state" schema
+
+-- | Parameters for the contactability rules (calculating @contact_status@) of
+-- the local backend. Provided to the federated counterpart to evaluate these
+-- rules with same parameters there.
+data ContactStatusContext = ContactStatusContext
+  { mlsAvailable :: Bool,
+    allowedCipherSuites :: Set CipherSuiteTag
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ContactStatusContext)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ContactStatusContext)
+
+instance ToSchema ContactStatusContext where
+  schema =
+    object $
+      ContactStatusContext
+        <$> (.mlsAvailable) .= field "mls_available" schema
+        <*> (.allowedCipherSuites) .= field "allowed_cipher_suites" (set schema)
 
 --------------------------------------------------------------------------------
 -- SelfProfile

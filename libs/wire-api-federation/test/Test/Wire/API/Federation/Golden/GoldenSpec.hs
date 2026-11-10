@@ -21,6 +21,8 @@ import Imports
 import Test.Hspec
 import Test.Wire.API.Federation.Golden.ConversationCreated qualified as ConversationCreated
 import Test.Wire.API.Federation.Golden.ConversationUpdate qualified as ConversationUpdate
+import Test.Wire.API.Federation.Golden.GetContactStatusRequest qualified as GetContactStatusRequest
+import Test.Wire.API.Federation.Golden.GetContactStatusResponse qualified as GetContactStatusResponse
 import Test.Wire.API.Federation.Golden.GetOne2OneConversationResponse qualified as GetOne2OneConversationResponse
 import Test.Wire.API.Federation.Golden.LeaveConversationRequest qualified as LeaveConversationRequest
 import Test.Wire.API.Federation.Golden.LeaveConversationResponse qualified as LeaveConversationResponse
@@ -89,4 +91,12 @@ spec =
     testObjects
       [ (UnsupportedVersionPolicy.testObjectUnsupportedVersionPolicyKeepQueued, "testObject_UnsupportedVersionPolicy_KeepQueued.json"),
         (UnsupportedVersionPolicy.testObjectUnsupportedVersionPolicyDropIfUnsupported, "testObject_UnsupportedVersionPolicy_DropIfUnsupported.json")
+      ]
+    testObjects
+      [ (GetContactStatusRequest.testObject_GetContactStatusRequest1, "testObject_GetContactStatusRequest1.json"),
+        (GetContactStatusRequest.testObject_GetContactStatusRequest2, "testObject_GetContactStatusRequest2.json")
+      ]
+    testObjects
+      [ (GetContactStatusResponse.testObject_GetContactStatusResponse1, "testObject_GetContactStatusResponse1.json"),
+        (GetContactStatusResponse.testObject_GetContactStatusResponse2, "testObject_GetContactStatusResponse2.json")
       ]
