@@ -863,12 +863,18 @@ guardLockedHandleField user updateOrigin handle = do
 
 getScimUsersPaginatedImpl ::
   ( Member UserStore r,
+    Member DeleteQueue r,
     Member (Input (Local any)) r,
     Member (Input UserSubsystemConfig) r,
     Member (Error UserSubsystemError) r
   ) =>
   TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (OffsetPage User)
 getScimUsersPaginatedImpl tid pageSize mOffset = do
+  -- The store hides expired pending SCIM users from the listing (SQL
+  -- predicate); queue their deletion here so they are reaped eagerly on
+  -- listing instead of lingering until a direct lookup GCs them via
+  -- 'garbageCollectExpiredScimInvitations'.
+  UserStore.getExpiredPendingScimUsers tid >>= mapM_ enqueueUserDeletion
   storedPage <-
     UserStore.getScimUsersPaginated tid (fromRange pageSize) mOffset
       >>= note UserSubsystemOffsetPaginationNotSupported
