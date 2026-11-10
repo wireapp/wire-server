@@ -1,1 +1,0 @@
-The background worker now cleans up expired activation keys from Postgres via a nightly cron job; new required config flag 'background-worker.config.activationKeysCleanup.schedule' (default '0 3 * * *').
