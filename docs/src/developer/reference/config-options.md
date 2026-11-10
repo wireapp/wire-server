@@ -2447,6 +2447,20 @@ The current settings and their background-worker flags are:
 - `connections` -> `migrateConnections`
 - `clients` -> `migrateClients`
 
+**Reconciling pre-existing client-store tables**
+
+The client-store migration (`clients` -> brig) creates the `clients`,
+`prekeys`, and `mls_public_keys` tables with `CREATE TABLE IF NOT EXISTS`. It
+therefore never alters a table that already exists in PostgreSQL. Operators
+whose PostgreSQL database still carries these tables from an older
+brig-on-PostgreSQL era must reconcile them before enabling the migration:
+if an existing table's columns do not match the schema the migration expects
+(see `libs/wire-subsystems/postgres-migrations/20261023090000-client-store.sql`,
+notably `client_id` as `text`), the migration leaves the divergent table in
+place and the store fails at runtime. In that case drop or rename the stale
+tables (after backing up any still-needed rows) so the migration can create
+them with the expected schema.
+
 **Migration pattern per migration setting**
 
 1. Prepare the selected migration setting(s) for migration by setting
