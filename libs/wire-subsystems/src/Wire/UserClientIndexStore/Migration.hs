@@ -21,6 +21,26 @@
 --
 -- Copy-only: Cassandra rows are never deleted. Re-runs are idempotent
 -- (@ON CONFLICT DO NOTHING@).
+--
+-- Accepted race (5414 service-store precedent): a client deleted by dual-write
+-- traffic while a scan page is in flight can leave a stale @user_client_index@
+-- row — the page was fetched before the delete, the mirror delete removed the
+-- row from both stores, and the page's @INSERT ... ON CONFLICT DO NOTHING@
+-- re-inserts it afterwards (the row was absent, so DO NOTHING does not fire).
+-- There is no deletion-marker table because the Cassandra source (the
+-- @clients@ set column) carries no per-entry tombstones a full scan could
+-- read. The window is bounded by the scan duration and invisible while
+-- Cassandra is the source of truth (reads route to Cassandra in
+-- migration-to-postgresql mode); a stale row is a dangling index entry for a
+-- client that no longer exists.
+--
+-- Reconciliation at cutover: brig's @clients@ table (the client-store
+-- migration, WPB-29574) is the authoritative client inventory once brig is cut
+-- over. Operators can rebuild the index from it in one statement if a stale
+-- row is suspected:
+--
+-- > DELETE FROM user_client_index;
+-- > INSERT INTO user_client_index SELECT user_id, client_id FROM clients;
 module Wire.UserClientIndexStore.Migration
   ( migrateUserClientIndexLoop,
   )
