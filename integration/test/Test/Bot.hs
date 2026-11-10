@@ -98,17 +98,32 @@ testBotSelfSigned = do
     conv <- resp.json %. "event.qualified_conversation"
     postBotMessage aliceQid conv botId botClient
 
--- | Post a proteus message from 'aliceQid' to the bot ('botId' with client
--- 'botClient') in 'conv', over the bot conversation's proteus transport.
+-- | Post a proteus message from 'aliceQid' to the bot ('botId') in 'conv',
+-- over the bot conversation's proteus transport.
 postBotMessage :: (HasCallStack) => Value -> Value -> Value -> Value -> App ()
-postBotMessage aliceQid conv botId botClient = do
+postBotMessage aliceQid conv botId _botClient =
+  postBotMessages aliceQid conv [botId]
+
+-- | Post a proteus message from a fresh client of 'aliceQid' to the given bot
+-- users in 'conv'. Galley rejects a proteus send with 412 ClientMismatch
+-- unless every conversation member's client other than the sending client is
+-- covered by the recipient entries, so callers must pass /all/ bots added to
+-- the conversation so far. The clients to encrypt for are looked up from
+-- brig's client registry (a bot user can have more than one client), and each
+-- recipient bot's service then receives the BotMessage webhook.
+postBotMessages :: (HasCallStack) => Value -> Value -> [Value] -> App ()
+postBotMessages aliceQid conv bots = do
   aliceC <- getJSON 201 =<< addClient aliceQid def
   aliceCid <- objId aliceC
-  msg <- mkProteusRecipients aliceQid [(botId, [botClient])] "hi bot"
+  dom <- objDomain aliceQid
+  entries <- forM bots $ \bot -> do
+    clientsRes <- getClientsQualified aliceQid dom (object ["domain" .= dom, "id" .= bot])
+    clients <- clientsRes.json & asList
+    mkProteusRecipients aliceQid [(bot, clients)] "hi bot"
   let aliceBotMessage =
         Proto.defMessage @Proto.QualifiedNewOtrMessage
           & #sender . Proto.client .~ (aliceCid ^?! hex)
-          & #recipients .~ [msg]
+          & #recipients .~ entries
           & #reportAll .~ Proto.defMessage
   assertStatus 201 =<< postProteusMessage aliceQid conv aliceBotMessage
 

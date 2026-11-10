@@ -204,6 +204,13 @@ deleteCustomBackend user domain = do
   req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "custom-backend", "by-domain", d]
   submit "DELETE" req
 
+-- | DELETE /i/services — same call brig's removeServiceConn RPC makes
+-- (body = ServiceRef { "id", "provider" }, Wire.API.Provider.Service).
+deleteServiceConnInternal :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteServiceConnInternal user pid sid = do
+  req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "services"]
+  submit "DELETE" $ req & addJSONObject ["id" .= sid, "provider" .= pid]
+
 setCellsState :: (MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
 setCellsState user conv state = do
   convId <- snd <$> objQid conv
