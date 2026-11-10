@@ -54,17 +54,18 @@ import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
 startPushingNotifications ::
+  TMVar () ->
   MVar () ->
   Q.Channel ->
   Domain ->
   AppT IO Q.ConsumerTag
-startPushingNotifications runningFlag chan domain = do
+startPushingNotifications channelClosed runningFlag chan domain = do
   lift $ ensureQueue chan domain._domainText
   QL.consumeMsgs'
     chan
     (routingKey domain._domainText)
     Q.Ack
-    (void . pushNotification runningFlag domain)
+    (void . async . untilChannelClosed channelClosed . pushNotificationAction runningFlag domain)
     ( \consumerTag ->
         Log.err
           ( Log.msg (Log.val "Got basic.cancel message for queue. Cancel queue consumer.")
@@ -75,7 +76,19 @@ startPushingNotifications runningFlag chan domain = do
     (QL.FieldTable M.empty)
 
 pushNotification :: (RabbitMQEnvelope e) => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
-pushNotification runningFlag targetDomain (msg, envelope) = do
+pushNotification runningFlag targetDomain message =
+  async $ pushNotificationAction runningFlag targetDomain message
+
+-- | Each delivery belongs to one channel. Race its processing against closure so
+-- sleeping retries and in-flight requests cannot outlive that channel. Each new
+-- channel gets its own signal, so reconnecting cannot revive an old delivery.
+untilChannelClosed :: (MonadUnliftIO m) => TMVar () -> m () -> m ()
+untilChannelClosed channelClosed action = do
+  open <- atomically $ isEmptyTMVar channelClosed
+  when open $ race_ (atomically $ readTMVar channelClosed) action
+
+pushNotificationAction :: (RabbitMQEnvelope e) => MVar () -> Domain -> (Q.Message, e) -> AppT IO ()
+pushNotificationAction runningFlag targetDomain (msg, envelope) = do
   cfg <- asks (.backendNotificationsConfig)
   -- Jittered exponential backoff with 10ms as starting delay and 300s as max
   -- delay. When 300s is reached, every retry will happen after 300s.
@@ -100,6 +113,15 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
 
       shouldRetry :: SomeException -> AppT IO Bool
       shouldRetry e = do
+        case fromException @Q.AMQPException e of
+          -- A delivery envelope belongs to its original channel. Reconnecting
+          -- cannot make its acknowledgement usable; RabbitMQ must redeliver it.
+          Just (Q.ConnectionClosedException {}) -> pure False
+          Just (Q.ChannelClosedException {}) -> pure False
+          _ -> shouldRetryFederator e
+
+      shouldRetryFederator :: SomeException -> AppT IO Bool
+      shouldRetryFederator e =
         case fromException @FederatorClientError e of
           Just (FederatorClientError err) -> do
             case err.innerError of
@@ -124,16 +146,15 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
   -- can't cancel the consumer, and the calling code will block until the cancellation message
   -- can be processed.
   -- Luckily, we can async this loop and carry on as usual due to how we have the channel setup.
-  async $
-    recovering policy handlers $
-      const $
-        -- Ensure that the mvars are reset correctly.
-        -- takeMVar also has the nice feature of being a second layer of protection
-        -- against lazy thread updates in `amqp`. If this somehow gets called while
-        -- we are trying to cleanup workers for a shutdown, this will call will block
-        -- and prevent the message from being sent out as we are tearing down resources.
-        -- This removes one way that a message might be delivered twice.
-        UnliftIO.bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) go
+  recovering policy handlers $
+    const $
+      -- Ensure that the mvars are reset correctly.
+      -- takeMVar also has the nice feature of being a second layer of protection
+      -- against lazy thread updates in `amqp`. If this somehow gets called while
+      -- we are trying to cleanup workers for a shutdown, this will call will block
+      -- and prevent the message from being sent out as we are tearing down resources.
+      -- This removes one way that a message might be delivered twice.
+      UnliftIO.bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) go
   where
     go :: AppT IO ()
     go = case A.eitherDecode @(PayloadBundle 'Brig) (Q.msgBody msg) of
@@ -280,6 +301,12 @@ pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
 -- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
 startPusher :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
 startPusher adminClient consumersRef chan = do
+  channelClosed <- newEmptyTMVarIO
+  -- AMQP invokes channel exception handlers on connection loss as well as
+  -- channel failure. Signal only; task cancellation happens in the delivery
+  -- threads, without blocking the AMQP exception handler.
+  liftIO $ Q.addChannelExceptionHandler chan $ \_ ->
+    atomically $ void $ tryPutTMVar channelClosed ()
   markAsWorking BackendNotificationPusher
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
@@ -303,16 +330,16 @@ startPusher adminClient consumersRef chan = do
     $ forever
     $ do
       remotes <- getRemoteDomains adminClient
-      ensureConsumers consumersRef chan remotes
+      ensureConsumers channelClosed consumersRef chan remotes
       threadDelay timeBeforeNextRefresh
 
-ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
-ensureConsumers consumers chan domains = do
+ensureConsumers :: TMVar () -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
+ensureConsumers channelClosed consumers chan domains = do
   keys' <- Set.fromList . Map.keys <$> readIORef consumers
   let domains' = Set.fromList domains
       droppedDomains = Set.difference keys' domains'
   -- Loop over all of the new domains. We can check for existing consumers and add new ones.
-  traverse_ (ensureConsumer consumers chan) domains
+  traverse_ (ensureConsumer channelClosed consumers chan) domains
   -- Loop over all of the dropped domains. These need to be cancelled as they are no longer
   -- on the domain list.
   traverse_ (cancelConsumer consumers chan) droppedDomains
@@ -325,8 +352,8 @@ cancelConsumer consumers chan domain = do
   atomicModifyIORef' consumers (\c -> (Map.delete domain c, Map.lookup domain c))
     >>= liftIO . traverse_ (Q.cancelConsumer chan . fst)
 
-ensureConsumer :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> Domain -> AppT IO ()
-ensureConsumer consumers chan domain = do
+ensureConsumer :: TMVar () -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> Domain -> AppT IO ()
+ensureConsumer channelClosed consumers chan domain = do
   consumerExists <- Map.member domain <$> readIORef consumers
   unless consumerExists $ do
     Log.info $ Log.msg (Log.val "Starting consumer") . Log.field "domain" (domainText domain)
@@ -334,7 +361,7 @@ ensureConsumer consumers chan domain = do
     -- The cleanup code that runs when the service receives a SIGTERM or SIGINT will wait on these MVars
     -- to allow current messages to finish processing before we close AMQP connections.
     runningFlag <- newMVar ()
-    tag <- startPushingNotifications runningFlag chan domain
+    tag <- startPushingNotifications channelClosed runningFlag chan domain
     oldTag <- atomicModifyIORef consumers $ \c -> (Map.insert domain (tag, runningFlag) c, Map.lookup domain c)
     -- This isn't strictly nessacary. `unless consumerExists` won't
     -- let us come down this path if there is an old consumer.
