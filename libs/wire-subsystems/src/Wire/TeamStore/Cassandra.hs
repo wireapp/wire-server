@@ -17,6 +17,10 @@
 
 module Wire.TeamStore.Cassandra
   ( interpretTeamStoreToCassandra,
+    createTeamWithTimestamp,
+    updateTeamWithTimestamp,
+    updateTeamStatusWithTimestamp,
+    setSearchVisibilityWithTimestamp,
   )
 where
 
@@ -155,9 +159,52 @@ createTeam t uid (fromRange -> n) i k b = do
   tid <- embed @IO $ maybe (Id <$> liftIO nextRandom) pure t
   embedClientInput $ retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
   pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
-  where
-    initialStatus Binding = PendingActive
-    initialStatus NonBinding = Active
+
+initialStatus :: TeamBinding -> TeamStatus
+initialStatus Binding = PendingActive
+initialStatus NonBinding = Active
+
+-- | 'createTeam' with an explicit client-chosen writetime (microseconds since
+-- the epoch, applied with @using timestamp@).  Used by the dual-write
+-- interpreter so that both legs of a dual write share one LWW stamp and the
+-- stores converge under any interleaving.
+createTeamWithTimestamp ::
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  Maybe TeamId ->
+  UserId ->
+  Range 1 256 Text ->
+  Icon ->
+  Maybe (Range 1 256 Text) ->
+  TeamBinding ->
+  Int64 ->
+  Sem r Team
+createTeamWithTimestamp t uid (fromRange -> n) i k b stamp = do
+  tid <- embed @IO $ maybe (Id <$> liftIO nextRandom) pure t
+  embedClientInput $ retry x5 $ write Cql.insertTeamTimestamped (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b, stamp))
+  pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
+
+-- | 'updateTeam' with the same client-chosen writetime for every present
+-- column (see 'createTeamWithTimestamp').
+updateTeamWithTimestamp :: TeamId -> TeamUpdateData -> Int64 -> Client ()
+updateTeamWithTimestamp tid u stamp = retry x5 . batch $ do
+  setType BatchLogged
+  setConsistency LocalQuorum
+  for_ (u ^. nameUpdate) $ \n -> addPrepQuery Cql.updateTeamNameTimestamped (stamp, fromRange n, tid)
+  for_ (u ^. iconUpdate) $ \i -> addPrepQuery Cql.updateTeamIconTimestamped (stamp, decodeUtf8 . toByteString' $ i, tid)
+  for_ (u ^. iconKeyUpdate) $ \k -> addPrepQuery Cql.updateTeamIconKeyTimestamped (stamp, fromRange k, tid)
+  for_ (u ^. splashScreenUpdate) $ \ss -> addPrepQuery Cql.updateTeamSplashScreenTimestamped (stamp, decodeUtf8 . toByteString' $ ss, tid)
+
+-- | 'updateTeamStatus' with a client-chosen writetime (see
+-- 'createTeamWithTimestamp').
+updateTeamStatusWithTimestamp :: TeamId -> TeamStatus -> Int64 -> Client ()
+updateTeamStatusWithTimestamp tid s stamp = retry x5 $ write Cql.updateTeamStatusTimestamped (params LocalQuorum (stamp, s, tid))
+
+-- | 'setSearchVisibility' with a client-chosen writetime (see
+-- 'createTeamWithTimestamp').
+setSearchVisibilityWithTimestamp :: TeamId -> TeamSearchVisibility -> Int64 -> Client ()
+setSearchVisibilityWithTimestamp tid v stamp = retry x5 $ write Cql.updateSearchVisibilityTimestamped (params LocalQuorum (stamp, v, tid))
 
 listBillingTeamMembers :: TeamId -> Client [UserId]
 listBillingTeamMembers tid = fmap runIdentity <$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
