@@ -48,19 +48,20 @@ testTeamMembersMigration = do
 
     -- migration-to-postgresql (worker on): the copy loop migrates all member
     -- rows, including teams created before the migration setting
-    (admin3, tid3) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
+    (admin3, tid3, mems3) <- runCodensity (startDynamicBackend backend (conf "migration-to-postgresql" True)) $ \_ -> do
       checkMembersListed admin1 tid1 (admin1 : mems1)
       checkMembersListed admin2 tid2 (admin2 : mems2)
       waitForMigration domain counterName
-      (admin3, tid3, _) <- createTeam domain 2
-      pure (admin3, tid3)
+      r@(admin3, tid3, mems) <- createTeam domain 2
+      checkMembersListed admin3 tid3 (admin3 : mems)
+      pure r
 
     -- postgresql: member reads and writes come from Postgres for all teams,
     -- old and new
     runCodensity (startDynamicBackend backend (conf "postgresql" False)) $ \_ -> do
       checkMembersListed admin1 tid1 (admin1 : mems1)
       checkMembersListed admin2 tid2 (admin2 : mems2)
-      checkMembersListed admin3 tid3 [admin3]
+      checkMembersListed admin3 tid3 (admin3 : mems3)
       (admin4, tid4, mems4) <- createTeam domain 2
       m : _ <- pure mems4
       assertSuccess =<< updateTeamMember tid4 admin4 m Admin
