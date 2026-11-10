@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.UserKeyStore.Cassandra
-  ( interpretUserKeyStoreCassandra,
+  ( claimKeyImpl,
+    interpretUserKeyStoreCassandra,
     selectAllUserKeys,
   )
 where
