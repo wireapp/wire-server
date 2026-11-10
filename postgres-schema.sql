@@ -2216,6 +2216,7 @@ ALTER TABLE ONLY public.mls_history_client
 ALTER TABLE ONLY public.nonce
     ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 
+--
 -- Name: oauth_auth_code oauth_auth_code_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
