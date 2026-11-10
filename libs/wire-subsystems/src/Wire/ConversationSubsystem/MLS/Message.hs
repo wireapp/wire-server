@@ -101,6 +101,7 @@ import Wire.ConversationSubsystem.MLS.One2One
 import Wire.ConversationSubsystem.MLS.OutOfSync
 import Wire.ConversationSubsystem.MLS.Propagate
 import Wire.ConversationSubsystem.MLS.Proposal
+import Wire.ConversationSubsystem.MLS.Repair (GroupInfoRepairEnabled, repairMLSMemberClients)
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.MLS.Welcome (sendWelcomes)
 import Wire.ConversationSubsystem.Util
@@ -577,6 +578,7 @@ postMLSCommitBundle ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
@@ -610,6 +612,7 @@ postMLSCommitBundleFromLocalUser ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Random r,
     Member Resource r,
@@ -645,6 +648,7 @@ postMLSCommitBundleToLocalConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
@@ -664,7 +668,11 @@ postMLSCommitBundleToLocalConv ::
   Local ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
-  lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+  lConvOrSub0 <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+  -- Heal ghost clients from the authoritative ratchet tree before anything
+  -- consumes convOrSub.indexMap (WPB-29648 follow-up).
+  changed <- repairMLSMemberClients lConvOrSub0
+  lConvOrSub <- if changed then fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId else pure lConvOrSub0
   let convOrSub = tUnqualified lConvOrSub
 
   -- validate application message

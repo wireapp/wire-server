@@ -29,6 +29,7 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time
+import Data.UUID (UUID)
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.Records (HasField)
@@ -57,6 +58,7 @@ import Wire.API.Pagination
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
 import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Reconcile (MlsReconcileOps (..), mlsReconcileOps)
 import Wire.ConversationStore.MLS.Types
 import Wire.Postgres
 import Wire.Sem.Paging.Cassandra
@@ -118,6 +120,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
   LookupMLSClients lcnv -> lookupMLSClientsImpl lcnv
   LookupHistoryClients gid -> lookupHistoryClientsImpl gid
+  ReconcileMLSClients gid leaves -> reconcileMLSClientsImpl gid leaves
   LookupMLSClientLeafIndices lcnv -> lookupMLSClientLeafIndicesImpl lcnv
   UpsertSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
   GetSubConversation convId subConvId -> getSubConversationImpl convId subConvId
@@ -1136,6 +1139,92 @@ selectHistoryClients =
 
 lookupHistoryClientsImpl :: (PGConstraints r) => GroupId -> Sem r [(HistoryClientId, Int32, Bool)]
 lookupHistoryClientsImpl gid = runStatement gid selectHistoryClients
+
+reconcileMLSClientsImpl :: (PGConstraints r) => GroupId -> IndexMap -> Sem r (Int, Int, Int)
+reconcileMLSClientsImpl gid leaves = do
+  memberRows <- runStatement gid selectMLSClients
+  historyRows <- runStatement gid selectHistoryClients
+  let ops = mlsReconcileOps memberRows historyRows leaves
+      (insDomains, insUsers, insClients, insLeaves) = unzip4 ops.roMemberInsert
+      (updDomains, updUsers, updClients, updLeaves) = unzip4 ops.roMemberUpdateLeaf
+      (delDomains, delUsers, delClients) = unzip3 ops.roMemberDelete
+      (insHistoryIds, insHistoryLeaves) = unzip ops.roHistoryInsert
+      (updHistoryIds, updHistoryLeaves) = unzip ops.roHistoryUpdateLeaf
+  runPipeline $
+    Pipeline.statement (gid, insDomains, insUsers, insClients, insLeaves) insertMembers
+      *> Pipeline.statement (gid, updDomains, updUsers, updClients, updLeaves) updateMemberLeaves
+      *> Pipeline.statement (gid, delDomains, delUsers, delClients) deleteStaleMembers
+      *> Pipeline.statement (gid, insHistoryIds, insHistoryLeaves) insertHistoryClients
+      *> Pipeline.statement (gid, updHistoryIds, updHistoryLeaves) updateHistoryLeaves
+      *> Pipeline.statement (gid, ops.roHistoryDelete) deleteHistoryClients
+  pure
+    ( length ops.roMemberInsert + length ops.roHistoryInsert,
+      length ops.roMemberUpdateLeaf + length ops.roHistoryUpdateLeaf,
+      length ops.roMemberDelete + length ops.roHistoryDelete
+    )
+  where
+    insertMembers :: Hasql.Statement (GroupId, [Domain], [UserId], [ClientId], [Int32]) ()
+    insertMembers =
+      lmapPG @(ByteString, Vector Text, Vector UUID, Vector Text, Vector Int32) @(GroupId, [Domain], [UserId], [ClientId], [Int32])
+        [resultlessStatement|INSERT INTO mls_group_member_client
+                             (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
+                             SELECT g.group_id, t.domain, t.usr, t.client, t.idx, false
+                             FROM UNNEST($2 :: text[], $3 :: uuid[], $4 :: text[], $5 :: integer[]) AS t(domain, usr, client, idx)
+                             CROSS JOIN (SELECT ($1 :: bytea) AS group_id) g
+                             ON CONFLICT (group_id, user_domain, "user", client) DO NOTHING
+                            |]
+
+    updateMemberLeaves :: Hasql.Statement (GroupId, [Domain], [UserId], [ClientId], [Int32]) ()
+    updateMemberLeaves =
+      lmapPG @(ByteString, Vector Text, Vector UUID, Vector Text, Vector Int32) @(GroupId, [Domain], [UserId], [ClientId], [Int32])
+        -- alias 'cl': a bare 'client' would be ambiguous against
+        -- mls_group_member_client.client under UPDATE ... FROM
+        [resultlessStatement|UPDATE mls_group_member_client
+                             SET leaf_node_index = idx
+                             FROM UNNEST($2 :: text[], $3 :: uuid[], $4 :: text[], $5 :: integer[]) AS t(domain, usr, cl, idx)
+                             WHERE group_id = ($1 :: bytea)
+                             AND user_domain = t.domain
+                             AND "user" = t.usr
+                             AND client = t.cl
+                            |]
+
+    deleteStaleMembers :: Hasql.Statement (GroupId, [Domain], [UserId], [ClientId]) ()
+    deleteStaleMembers =
+      lmapPG @(ByteString, Vector Text, Vector UUID, Vector Text) @(GroupId, [Domain], [UserId], [ClientId])
+        [resultlessStatement|DELETE FROM mls_group_member_client
+                             WHERE group_id = ($1 :: bytea)
+                             AND (user_domain, "user", client) IN
+                               (SELECT * FROM UNNEST($2 :: text[], $3 :: uuid[], $4 :: text[]))
+                            |]
+
+    insertHistoryClients :: Hasql.Statement (GroupId, [HistoryClientId], [Int32]) ()
+    insertHistoryClients =
+      lmapPG @(ByteString, Vector UUID, Vector Int32) @(GroupId, [HistoryClientId], [Int32])
+        [resultlessStatement|INSERT INTO mls_history_client
+                             (group_id, id, leaf_node_index, removal_pending)
+                             SELECT g.group_id, t.id, t.idx, false
+                             FROM UNNEST($2 :: uuid[], $3 :: integer[]) AS t(id, idx)
+                             CROSS JOIN (SELECT ($1 :: bytea) AS group_id) g
+                             ON CONFLICT (group_id, id) DO NOTHING
+                            |]
+
+    updateHistoryLeaves :: Hasql.Statement (GroupId, [HistoryClientId], [Int32]) ()
+    updateHistoryLeaves =
+      lmapPG @(ByteString, Vector UUID, Vector Int32) @(GroupId, [HistoryClientId], [Int32])
+        [resultlessStatement|UPDATE mls_history_client
+                             SET leaf_node_index = idx
+                             FROM UNNEST($2 :: uuid[], $3 :: integer[]) AS t(hid, idx)
+                             WHERE group_id = ($1 :: bytea)
+                             AND id = t.hid
+                            |]
+
+    deleteHistoryClients :: Hasql.Statement (GroupId, [HistoryClientId]) ()
+    deleteHistoryClients =
+      lmapPG @(ByteString, Vector UUID) @(GroupId, [HistoryClientId])
+        [resultlessStatement|DELETE FROM mls_history_client
+                             WHERE group_id = ($1 :: bytea)
+                             AND id IN (SELECT * FROM UNNEST($2 :: uuid[]))
+                            |]
 
 lookupMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndicesImpl gid = do

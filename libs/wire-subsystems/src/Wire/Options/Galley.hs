@@ -61,6 +61,7 @@ module Wire.Options.Galley
     passwordHashingOptions,
     passwordHashingRateLimit,
     checkGroupInfo,
+    mlsGroupInfoRepair,
     meetings,
     validityPeriod,
     legacyTimeZone,
@@ -176,6 +177,8 @@ data Settings = Settings
     _passwordHashingRateLimit :: RateLimitConfig,
     -- | Check group info
     _checkGroupInfo :: !(Maybe Bool),
+    -- | Repair MLS member-client rows from the stored ratchet tree
+    _mlsGroupInfoRepair :: !(Maybe Bool),
     -- | Configuration for meetings
     _meetings :: !(Maybe MeetingsConfig),
     -- | Raw licence payload: base64url-encoded JSON 'LicenceSpec' as produced by

@@ -76,6 +76,7 @@ import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.ConversationStore.Cassandra.Queries qualified as Queries
+import Wire.ConversationStore.MLS.Reconcile (MlsReconcileOps (..), mlsReconcileOps)
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
@@ -774,6 +775,31 @@ lookupMLSClientRows groupId =
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
 lookupMLSClients = fmap mkClientMap . lookupMLSClientRows
 
+-- | Reconcile member-client rows with the tree leaves. History clients live
+-- exclusively in Postgres in the dual-write era, so the diff covers member
+-- rows only here. Inserts and leaf updates reuse 'Cql.addMLSClient' (an
+-- upsert that clears @removal_pending@), which is safe because both target
+-- identities that reconcile proved are non-pending.
+reconcileMLSClients :: GroupId -> IndexMap -> Client (Int, Int, Int)
+reconcileMLSClients groupId leaves = do
+  memberRows <- lookupMLSClientRows groupId
+  let ops = mlsReconcileOps memberRows [] leaves
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    -- addMLSClient is an upsert that clears removal_pending; inserts and leaf
+    -- updates are the same write here, and both only target identities the
+    -- diff proved are non-pending.
+    for_ (ops.roMemberInsert <> ops.roMemberUpdateLeaf) $ \(dom, usr, c, idx) ->
+      addPrepQuery Cql.addMLSClient (groupId, dom, usr, c, idx)
+    for_ ops.roMemberDelete $ \(dom, usr, c) ->
+      addPrepQuery Cql.removeMLSClient (groupId, dom, usr, c)
+  pure
+    ( length ops.roMemberInsert,
+      length ops.roMemberUpdateLeaf,
+      length ops.roMemberDelete
+    )
+
 -----------------------------------------------------------------------------------------
 -- SUB CONVERSATION STORE
 
@@ -1035,6 +1061,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   UpsertMLSClient gid ci idx -> do
     logEffect "ConversationStore.UpsertMLSClient"
     embedClient client $ addMLSClients gid (cidQualifiedUser ci) (Set.singleton (ciClient ci, idx))
+  ReconcileMLSClients gid leaves -> do
+    logEffect "ConversationStore.ReconcileMLSClients"
+    embedClient client $ reconcileMLSClients gid leaves
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
@@ -1451,6 +1480,13 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ addMLSClients gid (cidQualifiedUser ci) (Set.singleton (ciClient ci, idx))
         True -> interpretConversationStoreToPostgres (ConvStore.upsertMLSClient gid ci idx)
+  ReconcileMLSClients gid leaves -> do
+    logEffect "ConversationStore.ReconcileMLSClients"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ reconcileMLSClients gid leaves
+        True -> interpretConversationStoreToPostgres (ConvStore.reconcileMLSClients gid leaves)
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx

@@ -1068,6 +1068,90 @@ testExternalCommitDuplicateClient = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
 
+-- | A ghost client (member-client row lost) is healed from the stored ratchet
+-- tree on the next commit bundle; remove/re-add then works again
+-- (no 400 mls-invalid-leaf-node-index).
+testGhostMemberRowRepair :: (HasCallStack) => App ()
+testGhostMemberRowRepair = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (void . uploadNewKeyPackage def) [bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- Inject the damage: delete bob1's member-client row.
+  void $ I.deleteMLSMemberClient alice convId bob bob1.client >>= assertSuccess
+
+  -- Sanity: bob1 no longer receives fan-out.
+  withWebSockets [alice1, bob1] $ \[_, wsBob] -> do
+    mp <- createApplicationMessage convId alice1 "before repair"
+    bindResponse (postMLSMessage mp.sender mp.message) $ \resp ->
+      resp.status `shouldMatchInt` 201
+    expectFailure (const $ pure ())
+      $ awaitMatch
+        (\m -> nPayload m %. "type" `isEqual` "conversation.mls-message-add")
+        wsBob
+
+  -- Any commit bundle triggers the repair from the stored ratchet tree.
+  void $ createExternalCommit convId alice1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- bob1's row is back with its TRUE leaf index.
+  gs <- getClientGroupState bob1
+  groupData <- assertJust "no MLS group state for bob1" (Map.lookup convId gs.groups)
+  members <- readGroupState groupData
+  idx <-
+    assertJust "bob1 missing from group state"
+      $ listToMaybe [idx | (RegularClient c, idx) <- members, c == bob1]
+  rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
+  idxs <- for rows $ \r -> do
+    ci <- r %. "client"
+    uid <- ci %. "user_id" & asString
+    client <- ci %. "client_id" & asString
+    idx' <- r %. "leaf_index" & asIntegral @Word32
+    pure (uid, client, idx')
+  [idx' | (u, c, idx') <- idxs, u == bob1.user, c == bob1.client] `shouldMatch` [idx]
+
+  -- bob1 receives messages again.
+  withWebSockets [alice1, bob1] $ \[_, wsBob] -> do
+    mp <- createApplicationMessage convId alice1 "after repair"
+    bindResponse (postMLSMessage mp.sender mp.message) $ \resp ->
+      resp.status `shouldMatchInt` 201
+    n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") wsBob
+    nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
+
+  -- Remove/re-add bob without the 400 mls-invalid-leaf-node-index.
+  mp <- createRemoveCommit alice1 convId [bob1]
+  void $ sendAndConsumeCommitBundle mp
+  -- bob1 is in membersToBeRemoved for the remove commit, so the harness never
+  -- lets it consume that commit and its local group state goes stale; reset it
+  -- or the re-add welcome trips the existing-client assertion in consumeWelcome.
+  setClientGroupState bob1 def
+  void $ uploadNewKeyPackage def bob1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+-- | WPB-29648: with the repair disabled, removing a ghost client (whose
+-- member-client row was lost) is rejected with the pre-fix failure from the
+-- bug report: 400 mls-invalid-leaf-node-index.
+testGhostRemoveRejectedWithoutRepair :: (HasCallStack) => App ()
+testGhostRemoveRejectedWithoutRepair = do
+  withModifiedBackend
+    (def {galleyCfg = setField "settings.mlsGroupInfoRepair" (False :: Bool)})
+    $ \domain -> do
+      [alice, bob] <- createAndConnectUsers [domain, domain]
+      [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+      traverse_ (uploadNewKeyPackage def) [bob1]
+      convId <- createNewGroup def alice1
+      void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+      -- Inject the damage: delete bob1's member-client row.
+      void $ I.deleteMLSMemberClient alice convId bob bob1.client >>= assertSuccess
+
+      -- Remove-commit bundle for the ghost client is rejected with the exact
+      -- error from the bug report (no healing happened to fix the indexMap).
+      mp <- createRemoveCommit alice1 convId [bob1]
+      err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 400
+      err %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
+
 testExternalCommitSameClient :: (HasCallStack) => App ()
 testExternalCommitSameClient = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]

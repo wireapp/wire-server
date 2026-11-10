@@ -93,6 +93,7 @@ testEnv = do
       passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
       license = Nothing
+      mlsGroupInfoRepair = Nothing
       arbiterConnStr = secretText ""
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
       featureFlags = def
