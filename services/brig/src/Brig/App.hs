@@ -265,6 +265,14 @@ loadEmailTemplates opts = do
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
+  -- Fail fast at startup: the Postgres search backend requires the brig
+  -- user store in Postgres.  Previously this surfaced as a lazy `error` in
+  -- the CanonicalInterpreter chain, i.e. only on the first search request.
+  when
+    ( fromMaybe Opt.SearchBackendElasticSearch opts.searchBackend == Opt.SearchBackendPostgres
+        && opts.postgresMigration.user == CassandraStorage
+    )
+    $ error "UserSearchStore requires the brig user store in Postgres: set postgresMigration.user to PostgresqlStorage or MigrationToPostgresql"
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"

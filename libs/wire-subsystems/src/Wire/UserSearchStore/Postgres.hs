@@ -533,33 +533,42 @@ keysetPredicate mSortBy dir = \case
   OffsetCursor _ -> Nothing
   KeysetCursor flag val uid -> do
     col <- sortColumnExpr mSortBy
-    typed <- sortValFromAeson col val
     let (op, idOp, dirSql) = case dir of
           SortOrderAsc -> (">", ">", "asc")
           SortOrderDesc -> ("<", "<", "desc")
-    pure $
-      literal "((("
-        <> literal ("(" <> col <> " is null)")
-        <> literal dirSql
-        <> literal ","
-        <> literal col
-        <> literal dirSql
-        <> literal ","
-        <> literal ("wu.id " <> dirSql)
-        <> literal (") " <> op <> " (")
-        <> boolParam flag
-        <> literal ","
-        <> sortValParam typed
-        <> literal ","
-        <> uidParam uid
-        <> literal "))"
-        <> literal "or ("
-        <> literal col
-        <> literal "is null and"
-        <> boolParam flag
-        <> literal ("and wu.id " <> idOp)
-        <> uidParam uid
-        <> literal ")"
+    -- Branch on the null-flag BEFORE decoding the sort value: a cursor for
+    -- a row whose sort value was NULL stores a placeholder that cannot be
+    -- decoded, and decoding it here would make the predicate 'Nothing' and
+    -- restart the page from the beginning (duplicate rows).  Rows after a
+    -- NULL-valued cursor are simply the other NULL-valued rows ordered by
+    -- id (the tuple comparison with a NULL sort value is UNKNOWN in SQL).
+    if flag
+      then
+        pure $
+          literal "("
+            <> literal col
+            <> literal "is null and"
+            <> literal ("wu.id " <> idOp)
+            <> uidParam uid
+            <> literal ")"
+      else do
+        typed <- sortValFromAeson col val
+        pure $
+          literal "((("
+            <> literal ("(" <> col <> " is null)")
+            <> literal dirSql
+            <> literal ","
+            <> literal col
+            <> literal dirSql
+            <> literal ","
+            <> literal ("wu.id " <> dirSql)
+            <> literal (") " <> op <> " (")
+            <> boolParam flag
+            <> literal ","
+            <> sortValParam typed
+            <> literal ","
+            <> uidParam uid
+            <> literal "))"
 
 -- | Sort value of a row, used for keyset pagination cursors.
 data SortVal = SortText Text | SortInt32 Int32 | SortTime UTCTime
