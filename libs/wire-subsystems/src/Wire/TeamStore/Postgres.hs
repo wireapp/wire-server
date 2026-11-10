@@ -21,10 +21,13 @@
 -- tables @team@, @team_member@, @user_team@, @billing_team_member@ and
 -- @team_admin@ (see @postgres-migrations/20261021175638-team-store.sql@).
 --
--- Cassandra writetimes are carried over by the copy loop into the maintained
--- @team.status_time@ (from @writetime(status)@) and @team.binding_time@ (from
--- @writetime(binding)@) columns; direct writes maintain them via now(). They
--- are served to @TeamData.tdStatusTime@ and 'TeamCreationTime' respectively.
+-- Every column whose Cassandra writetime is consumed is mirrored by a nullable
+-- @*_time@ column holding that writetime: @team.status_time@ (from
+-- @writetime(status)@) and @team.binding_time@ (from @writetime(binding)@) are
+-- carried over by the copy loop (NULL when Cassandra has no writetime), and
+-- maintained by the dual-write leg via now().  They are served to
+-- @TeamData.tdStatusTime@ and 'TeamCreationTime' respectively; like Cassandra,
+-- absent writetimes are served as absent, never fabricated.
 --
 -- Rows that fail to decode are dropped silently (absent) instead of failing the
 -- request — rows are only written through this interpreter or the migration
@@ -172,19 +175,31 @@ interpretTeamStoreToPostgres = interpret $ \case
     fmap Id <$> runStatement (toUUID uid) selectOneUserTeamStatement
   GetTeamsBindings tids -> do
     logEffect "TeamStore.GetTeamsBindings"
-    pairs <- traverse (\tid -> fmap (tid,) (getTeamBinding tid)) tids
-    pure (mapMaybe snd pairs)
+    rows <- runStatement (V.fromList (toUUID <$> tids)) selectTeamBindingsInStatement
+    -- Preserve the input order and the Cassandra semantics: teams without a
+    -- row are skipped, teams with a NULL binding count as non-binding.
+    let byId = Map.fromList (V.toList rows)
+    pure $
+      mapMaybe
+        ( \tid -> do
+            t <- Map.lookup (toUUID tid) byId
+            either (const Nothing) Just (teamBindingFromText t)
+        )
+        tids
   GetTeamBinding tid -> do
     logEffect "TeamStore.GetTeamBinding"
     getTeamBinding tid
   GetTeamCreationTime tid -> do
     logEffect "TeamStore.GetTeamCreationTime"
     mres <- runStatement (toUUID tid) selectTeamCreationTimeStatement
-    -- Cassandra served writetime(binding) as microseconds since the epoch;
-    -- convert the maintained column to the same unit.
+    -- Mirrors the Cassandra read: Nothing when the row is absent or when
+    -- Cassandra had no writetime(binding) (NULL binding_time) — never
+    -- fabricated.
     pure $
-      mres <&> \t ->
-        TeamCreationTime (round (utcTimeToPOSIXSeconds t * 1_000_000))
+      do
+        mt <- mres
+        t <- mt
+        pure (TeamCreationTime (round (utcTimeToPOSIXSeconds t * 1_000_000)))
   DeleteTeam tid -> do
     logEffect "TeamStore.DeleteTeam"
     deleteTeam tid
@@ -258,13 +273,13 @@ createTeam mtid uid n i k b = do
 -- @deleted@ flag (only ever false on live rows).
 data TeamRow = TeamRow
   { trCreator :: UUID,
-    trBindingTime :: UTCTime,
+    trBindingTime :: Maybe UTCTime,
     trName :: Text,
     trIcon :: Text,
     trIconKey :: Maybe Text,
     trDeleted :: Bool,
     trStatus :: Maybe Text,
-    trStatusTime :: UTCTime,
+    trStatusTime :: Maybe UTCTime,
     trBinding :: Maybe Text,
     trSplashScreen :: Maybe Text,
     trSearchVisibility :: Maybe Text
@@ -283,7 +298,11 @@ toTeamData tid tr = do
           & teamId .~ Id tid
           & teamIconKey .~ tr.trIconKey
           & teamSplashScreen .~ fromMaybe DefaultIcon splash
-  pure (TeamData team status (Just tr.trStatusTime))
+      -- The legacy @deleted@ flag is only ever true on rows whose Cassandra
+      -- delete rewrote the status; surface such rows as PendingDelete so the
+      -- requeue scan keeps retrying their deletion.
+      status' = if tr.trDeleted then PendingDelete else status
+  pure (TeamData team status' tr.trStatusTime)
 
 getTeam :: (PGConstraints r) => TeamId -> Sem r (Maybe TeamData)
 getTeam tid = do
@@ -341,12 +360,13 @@ deleteTeam tid = do
 markTeamDeletedAndRemoveTeamMembers :: (PGConstraints r) => TeamId -> Sem r ()
 markTeamDeletedAndRemoveTeamMembers tid = do
   runStatement (teamStatusToText PendingDelete, toUUID tid) markTeamDeletedStatement
-  let go start = do
-        page <- teamMemberPage tid start (unsafeRange 2000 :: Range 1 HardTruncationLimit Int32)
-        for_ page $ \row -> removeTeamMember tid (userIdOf row)
-        when (length page == 2000) $
-          go (Just (userIdOf (last page)))
-  go Nothing
+  -- Set-based removal of the member row and all auxiliary rows: one
+  -- transaction instead of a per-member round trip per page.
+  runTransactionWithRetry ReadCommitted Write $ do
+    Transaction.statement (toUUID tid) deleteTeamMembersByTeamStatement
+    Transaction.statement (toUUID tid) deleteUserTeamsByTeamStatement
+    Transaction.statement (toUUID tid) deleteBillingTeamMembersByTeamStatement
+    Transaction.statement (toUUID tid) deleteTeamAdminsByTeamStatement
 
 --------------------------------------------------------------------------------
 -- team_member
@@ -355,32 +375,36 @@ utcmToUTC :: UTCTimeMillis -> UTCTime
 utcmToUTC = fromUTCTimeMillis
 
 -- | Raw team_member row as stored: user, perms (int8 pair), invited_by,
--- invited_at, legalhold status.
+-- invited_at, legalhold status, perms write time.
 type RawTeamMemberRow =
   ( UUID,
     Int64,
     Int64,
     Maybe UUID,
     Maybe UTCTime,
-    Maybe Text
+    Maybe Text,
+    UTCTime
   )
 
 userIdOf :: RawTeamMemberRow -> UserId
-userIdOf (u, _, _, _, _, _) = Id u
+userIdOf (u, _, _, _, _, _, _) = Id u
 
 data RawTeamMember = RawTeamMember
   { rtmUser :: UserId,
     rtmPermissions :: Permissions,
     rtmInvitedBy :: Maybe UserId,
     rtmInvitedAt :: Maybe UTCTimeMillis,
-    rtmLegalHoldStatus :: Maybe UserLegalHoldStatus
+    rtmLegalHoldStatus :: Maybe UserLegalHoldStatus,
+    -- | Cassandra's @writetime(perms)@ carried in the maintained @perms_write_time@
+    -- column; served as 'Info.permissionsWriteTime'.
+    rtmPermsTime :: UTCTime
   }
 
 decodeRawTeamMemberRow :: RawTeamMemberRow -> Either Text RawTeamMember
-decodeRawTeamMemberRow (u, permsSelf, permsCopy, minvu, minvt, mlh) = do
+decodeRawTeamMemberRow (u, permsSelf, permsCopy, minvu, minvt, mlh, permsTime) = do
   perms' <- pairToPermissions (permsSelf, permsCopy)
   mlh' <- traverse userLegalHoldStatusFromText mlh
-  pure (RawTeamMember (Id u) perms' (Id <$> minvu) (toUTCTimeMillis <$> minvt) mlh')
+  pure (RawTeamMember (Id u) perms' (Id <$> minvu) (toUTCTimeMillis <$> minvt) mlh' permsTime)
 
 rawTeamMemberRowToTeamMember :: RawTeamMemberRow -> Maybe TeamMember
 rawTeamMemberRowToTeamMember row = do
@@ -446,8 +470,8 @@ teamMember :: (PGConstraints r) => TeamId -> UserId -> Sem r (Maybe TeamMember)
 teamMember t u = do
   mres <- runStatement (toUUID t, toUUID u) selectTeamMemberStatement
   pure $ case mres of
-    Just (ps, pc, minvu, minvt, mlh) ->
-      rawTeamMemberRowToTeamMember (toUUID u, ps, pc, minvu, minvt, mlh)
+    Just (ps, pc, minvu, minvt, mlh, permsTime) ->
+      rawTeamMemberRowToTeamMember (toUUID u, ps, pc, minvu, minvt, mlh, permsTime)
     Nothing -> Nothing
 
 -- | One page of a team's members, keyset-paginated by user_id.
@@ -473,10 +497,12 @@ teamMembersCollected tid = go Nothing []
 
 teamMembersWithLimit :: (PGConstraints r) => TeamId -> Range 1 HardTruncationLimit Int32 -> Sem r TeamMemberList
 teamMembersWithLimit t maxMembers = do
-  page <- teamMemberPage t Nothing maxMembers
-  let ms = mapMaybe rawTeamMemberRowToTeamMember page
+  -- Fetch one extra row to detect truncation, mirroring the Cassandra
+  -- implementation (limit + 1, then take limit).
+  page <- teamMemberPage t Nothing (unsafeRange (fromRange maxMembers + 1))
+  let ms = mapMaybe rawTeamMemberRowToTeamMember (take (fromIntegral (fromRange maxMembers)) page)
   pure $
-    if fromIntegral (length page) == (fromRange maxMembers :: Int32)
+    if length page > fromIntegral (fromRange maxMembers)
       then newTeamMemberList ms ListTruncated
       else newTeamMemberList ms ListComplete
 
@@ -486,10 +512,10 @@ teamMembersLimited t u = do
   pure (mapMaybe rawTeamMemberRowToTeamMember (V.toList rows))
 
 -- | Mirrors the Cassandra @selectTeamMembers'@ row: the permissions write time
--- is not reproducible in Postgres and is taken from the current time.
+-- is Cassandra's @writetime(perms)@, carried over into the @perms_write_time@
+-- column by the copy loop and maintained by the dual-write leg via now().
 teamMemberInfos :: (PGConstraints r) => TeamId -> [UserId] -> Sem r [Info.TeamMemberInfo]
 teamMemberInfos t u = do
-  now <- embed @IO getCurrentTime
   rows <- runStatement (toUUID t, V.fromList (toUUID <$> u)) selectTeamMembersInStatement
   pure $
     mapMaybe
@@ -499,7 +525,7 @@ teamMemberInfos t u = do
             Info.TeamMemberInfo
               { Info.userId = rtm.rtmUser,
                 Info.permissions = rtm.rtmPermissions,
-                Info.permissionsWriteTime = toUTCTimeMillis now
+                Info.permissionsWriteTime = toUTCTimeMillis rtm.rtmPermsTime
               }
       )
       (V.toList rows)
@@ -513,21 +539,22 @@ teamIdsOf uid tids = map Id . V.toList <$> runStatement (toUUID uid, V.fromList 
 usersTeams :: (PGConstraints r) => [UserId] -> Sem r (Map UserId TeamId)
 usersTeams uids = do
   pairs <-
-    catMaybes
-      <$> traverse
-        ( \uid -> do
-            mtid <- runStatement (toUUID uid) selectOneUserTeamStatement
-            pure ((uid,) . Id <$> mtid)
-        )
-        uids
-  pure $ foldl' (\m (k, v) -> Map.insert k v m) Map.empty pairs
+    V.toList
+      <$> runStatement (V.fromList (toUUID <$> uids)) selectUserTeamsForUsersStatement
+  pure $
+    foldl'
+      (\m (uid, tid) -> Map.insert (Id uid) (Id tid) m)
+      Map.empty
+      pairs
 
 --------------------------------------------------------------------------------
 -- migration row loaders (shared with Wire.TeamStore.Migration)
 
 -- | Upsert one @team@ row (copy-loop path: full row, no auxiliary rows).
--- The status/binding times are set by the statement (Cassandra writetimes are
--- not carried over); 'trStatusTime' is unused on this path.
+-- The Cassandra writetimes carried in 'trStatusTime'/'trBindingTime' are
+-- stored in the maintained @status_time@/@binding_time@ columns (NULL when
+-- Cassandra has no writetime); the insert is deliberately do-nothing on
+-- conflict so a stale snapshot can never clobber a newer dual-written row.
 migrateTeamRow :: (PGConstraints r) => TeamRow -> UUID -> Sem r ()
 migrateTeamRow tr tid =
   runStatement
@@ -546,7 +573,7 @@ migrateTeamRow tr tid =
     migrateTeamStatement
 
 migrateTeamMemberRow :: (PGConstraints r) => UUID -> RawTeamMemberRow -> Sem r ()
-migrateTeamMemberRow tid (u, ps, pc, minvu, minvt, mlh) =
+migrateTeamMemberRow tid (u, ps, pc, minvu, minvt, mlh, permsTime) =
   runStatement
     ( tid,
       u,
@@ -554,7 +581,8 @@ migrateTeamMemberRow tid (u, ps, pc, minvu, minvt, mlh) =
       pc,
       minvu,
       minvt,
-      mlh
+      mlh,
+      permsTime
     )
     migrateTeamMemberStatement
 
@@ -573,11 +601,11 @@ migrateTeamAdminRow (t, u) = runStatement (t, u) insertTeamAdminStatement
 selectTeamStatement ::
   Hasql.Statement
     UUID
-    (Maybe (UUID, Text, Text, Maybe Text, Bool, Maybe Text, UTCTime, UTCTime, Maybe Text, Maybe Text, Maybe Text))
+    (Maybe (UUID, Text, Text, Maybe Text, Bool, Maybe Text, Maybe UTCTime, Maybe UTCTime, Maybe Text, Maybe Text, Maybe Text))
 selectTeamStatement =
   [maybeStatement|
     select creator :: uuid, name :: text, icon :: text, icon_key :: text?, deleted :: bool,
-           status :: text?, status_time :: timestamptz, binding_time :: timestamptz, binding :: text?,
+           status :: text?, status_time :: timestamptz?, binding_time :: timestamptz?, binding :: text?,
            splash_screen :: text?, search_visibility :: text?
       from team
      where team = $1 :: uuid
@@ -602,10 +630,10 @@ getTeamBinding tid = do
     Just t -> either (const Nothing) Just (teamBindingFromText t)
     Nothing -> Nothing
 
-selectTeamCreationTimeStatement :: Hasql.Statement UUID (Maybe UTCTime)
+selectTeamCreationTimeStatement :: Hasql.Statement UUID (Maybe (Maybe UTCTime))
 selectTeamCreationTimeStatement =
   [maybeStatement|
-    select binding_time :: timestamptz from team where team = $1 :: uuid
+    select binding_time :: timestamptz? from team where team = $1 :: uuid
   |]
 
 selectSearchVisibilityStatement :: Hasql.Statement UUID (Maybe (Maybe Text))
@@ -620,8 +648,8 @@ insertTeamStatement ::
     ()
 insertTeamStatement =
   [resultlessStatement|
-    insert into team (team, creator, name, icon, icon_key, deleted, status, binding)
-    values ($1 :: uuid, $2 :: uuid, $3 :: text, $4 :: text, $5 :: text?, false, $6 :: text, $7 :: text)
+    insert into team (team, creator, name, icon, icon_key, deleted, status, binding, status_time, binding_time)
+    values ($1 :: uuid, $2 :: uuid, $3 :: text, $4 :: text, $5 :: text?, false, $6 :: text, $7 :: text, now(), now())
     on conflict (team) do update
       set creator = ($2 :: uuid),
           name = ($3 :: text),
@@ -688,11 +716,11 @@ updateSearchVisibilityStatement =
 selectTeamMemberStatement ::
   Hasql.Statement
     (UUID, UUID)
-    (Maybe (Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text))
+    (Maybe (Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text, UTCTime))
 selectTeamMemberStatement =
   [maybeStatement|
     select perms_self :: int8, perms_copy :: int8, invited_by :: uuid?,
-           invited_at :: timestamptz?, legalhold_status :: text?
+           invited_at :: timestamptz?, legalhold_status :: text?, perms_write_time :: timestamptz
       from team_member
      where team = $1 :: uuid and user_id = $2 :: uuid
   |]
@@ -702,7 +730,7 @@ selectTeamMembersStatement ::
 selectTeamMembersStatement =
   [vectorStatement|
     select user_id :: uuid, perms_self :: int8, perms_copy :: int8, invited_by :: uuid?,
-           invited_at :: timestamptz?, legalhold_status :: text?
+           invited_at :: timestamptz?, legalhold_status :: text?, perms_write_time :: timestamptz
       from team_member
      where team = $1 :: uuid
      order by user_id
@@ -714,7 +742,7 @@ selectTeamMembersFromStatement ::
 selectTeamMembersFromStatement =
   [vectorStatement|
     select user_id :: uuid, perms_self :: int8, perms_copy :: int8, invited_by :: uuid?,
-           invited_at :: timestamptz?, legalhold_status :: text?
+           invited_at :: timestamptz?, legalhold_status :: text?, perms_write_time :: timestamptz
       from team_member
      where team = $1 :: uuid and user_id > $2 :: uuid
      order by user_id
@@ -726,7 +754,7 @@ selectTeamMembersInStatement ::
 selectTeamMembersInStatement =
   [vectorStatement|
     select user_id :: uuid, perms_self :: int8, perms_copy :: int8, invited_by :: uuid?,
-           invited_at :: timestamptz?, legalhold_status :: text?
+           invited_at :: timestamptz?, legalhold_status :: text?, perms_write_time :: timestamptz
       from team_member
      where team = $1 :: uuid and user_id = any ($2 :: uuid[])
      order by user_id
@@ -738,20 +766,21 @@ insertTeamMemberStatement ::
     ()
 insertTeamMemberStatement =
   [resultlessStatement|
-    insert into team_member (team, user_id, perms_self, perms_copy, invited_by, invited_at)
-    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: uuid?, $6 :: timestamptz?)
+    insert into team_member (team, user_id, perms_self, perms_copy, invited_by, invited_at, perms_write_time)
+    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: uuid?, $6 :: timestamptz?, now())
     on conflict (team, user_id) do update
       set perms_self = ($3 :: int8),
           perms_copy = ($4 :: int8),
           invited_by = ($5 :: uuid?),
-          invited_at = ($6 :: timestamptz?)
+          invited_at = ($6 :: timestamptz?),
+          perms_write_time = now()
   |]
 
 updatePermissionsStatement :: Hasql.Statement (Int64, Int64, UUID, UUID) ()
 updatePermissionsStatement =
   [resultlessStatement|
     update team_member
-       set perms_self = ($1 :: int8), perms_copy = ($2 :: int8)
+       set perms_self = ($1 :: int8), perms_copy = ($2 :: int8), perms_write_time = now()
      where team = ($3 :: uuid) and user_id = ($4 :: uuid)
   |]
 
@@ -759,6 +788,31 @@ deleteTeamMemberStatement :: Hasql.Statement (UUID, UUID) ()
 deleteTeamMemberStatement =
   [resultlessStatement|
     delete from team_member where team = $1 :: uuid and user_id = $2 :: uuid
+  |]
+
+-- | Set-based deletes used by 'markTeamDeletedAndRemoveTeamMembers'.
+deleteTeamMembersByTeamStatement :: Hasql.Statement UUID ()
+deleteTeamMembersByTeamStatement =
+  [resultlessStatement|
+    delete from team_member where team = $1 :: uuid
+  |]
+
+deleteUserTeamsByTeamStatement :: Hasql.Statement UUID ()
+deleteUserTeamsByTeamStatement =
+  [resultlessStatement|
+    delete from user_team where team = $1 :: uuid
+  |]
+
+deleteBillingTeamMembersByTeamStatement :: Hasql.Statement UUID ()
+deleteBillingTeamMembersByTeamStatement =
+  [resultlessStatement|
+    delete from billing_team_member where team = $1 :: uuid
+  |]
+
+deleteTeamAdminsByTeamStatement :: Hasql.Statement UUID ()
+deleteTeamAdminsByTeamStatement =
+  [resultlessStatement|
+    delete from team_admin where team = $1 :: uuid
   |]
 
 insertUserTeamStatement :: Hasql.Statement (UUID, UUID) ()
@@ -780,10 +834,24 @@ selectUserTeamsStatement =
     select team :: uuid from user_team where user_id = $1 :: uuid order by team
   |]
 
+-- | Batched @usersTeams@: one round trip for many users.
+selectUserTeamsForUsersStatement :: Hasql.Statement (Vector UUID) (Vector (UUID, UUID))
+selectUserTeamsForUsersStatement =
+  [vectorStatement|
+    select user_id :: uuid, team :: uuid from user_team where user_id = any ($1 :: uuid[]) order by user_id, team
+  |]
+
 selectOneUserTeamStatement :: Hasql.Statement UUID (Maybe UUID)
 selectOneUserTeamStatement =
   [maybeStatement|
     select team :: uuid from user_team where user_id = $1 :: uuid limit 1
+  |]
+
+-- | Batched @GetTeamsBindings@: one round trip for many teams.
+selectTeamBindingsInStatement :: Hasql.Statement (Vector UUID) (Vector (UUID, Text))
+selectTeamBindingsInStatement =
+  [vectorStatement|
+    select team :: uuid, binding :: text from team where team = any ($1 :: uuid[])
   |]
 
 selectUserTeamsInStatement :: Hasql.Statement (UUID, Vector UUID) (Vector UUID)
@@ -832,44 +900,30 @@ listTeamAdminsStatement =
     select user_id :: uuid from team_admin where team = $1 :: uuid
   |]
 
--- | Full-table upsert used by the migration copy-loop: unlike
--- 'insertTeamStatement' it writes every column including splash screen and
--- search visibility, and does not touch the maintained writetime columns.
+-- | Copy-loop insert used by the migration: unlike 'insertTeamStatement' it
+-- writes every column including splash screen and search visibility, carries
+-- the Cassandra writetimes, and does nothing on conflict so re-runs and stale
+-- snapshot pages can never overwrite newer dual-written rows.
 migrateTeamStatement ::
   Hasql.Statement
-    (UUID, UUID, Text, Text, Maybe Text, Text, UTCTime, Text, UTCTime, Maybe Text, Maybe Text)
+    (UUID, UUID, Text, Text, Maybe Text, Text, Maybe UTCTime, Text, Maybe UTCTime, Maybe Text, Maybe Text)
     ()
 migrateTeamStatement =
   [resultlessStatement|
     insert into team
       (team, creator, name, icon, icon_key, status, status_time, binding, binding_time, splash_screen, search_visibility)
     values
-      ($1 :: uuid, $2 :: uuid, $3 :: text, $4 :: text, $5 :: text?, $6 :: text, $7 :: timestamptz, $8 :: text, $9 :: timestamptz, $10 :: text?, $11 :: text?)
-    on conflict (team) do update
-      set creator = ($2 :: uuid),
-          name = ($3 :: text),
-          icon = ($4 :: text),
-          icon_key = ($5 :: text?),
-          status = ($6 :: text),
-          status_time = ($7 :: timestamptz),
-          binding = ($8 :: text),
-          binding_time = ($9 :: timestamptz),
-          splash_screen = ($10 :: text?),
-          search_visibility = ($11 :: text?)
+      ($1 :: uuid, $2 :: uuid, $3 :: text, $4 :: text, $5 :: text?, $6 :: text, $7 :: timestamptz?, $8 :: text, $9 :: timestamptz?, $10 :: text?, $11 :: text?)
+    on conflict (team) do nothing
   |]
 
 migrateTeamMemberStatement ::
   Hasql.Statement
-    (UUID, UUID, Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text)
+    (UUID, UUID, Int64, Int64, Maybe UUID, Maybe UTCTime, Maybe Text, UTCTime)
     ()
 migrateTeamMemberStatement =
   [resultlessStatement|
-    insert into team_member (team, user_id, perms_self, perms_copy, invited_by, invited_at, legalhold_status)
-    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: uuid?, $6 :: timestamptz?, $7 :: text?)
-    on conflict (team, user_id) do update
-      set perms_self = ($3 :: int8),
-          perms_copy = ($4 :: int8),
-          invited_by = ($5 :: uuid?),
-          invited_at = ($6 :: timestamptz?),
-          legalhold_status = ($7 :: text?)
+    insert into team_member (team, user_id, perms_self, perms_copy, invited_by, invited_at, legalhold_status, perms_write_time)
+    values ($1 :: uuid, $2 :: uuid, $3 :: int8, $4 :: int8, $5 :: uuid?, $6 :: timestamptz?, $7 :: text?, $8 :: timestamptz)
+    on conflict (team, user_id) do nothing
   |]

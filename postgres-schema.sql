@@ -1770,9 +1770,9 @@ CREATE TABLE public.team (
     splash_screen text,
     deleted boolean DEFAULT false NOT NULL,
     status text NOT NULL,
-    status_time timestamp with time zone DEFAULT now() NOT NULL,
+    status_time timestamp with time zone,
     binding text NOT NULL,
-    binding_time timestamp with time zone DEFAULT now() NOT NULL,
+    binding_time timestamp with time zone,
     search_visibility text
 );
 
@@ -1817,7 +1817,8 @@ CREATE TABLE public.team_member (
     perms_copy bigint NOT NULL,
     invited_by uuid,
     invited_at timestamp with time zone,
-    legalhold_status text
+    legalhold_status text,
+    perms_write_time timestamp with time zone NOT NULL
 );
 
 
