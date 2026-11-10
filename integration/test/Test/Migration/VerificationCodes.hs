@@ -108,6 +108,14 @@ testVerificationCodesMigration = do
       assertCode owner3 code3
       -- Verify via the pure Postgres interpreter.
       (owner2 %. "email") >>= \email -> loginWith2ndFactor domain email defPassword code2' >>= assertStatus 200
+      -- Throttle paths: a second generation inside the throttle window hits
+      -- @lookupThrottle@ and keeps the first code (createCodeOverwritePrevious
+      -- returns the existing code instead of inserting a new one). This
+      -- exercises the @vcodes_throttle@ write/read path of the Postgres
+      -- interpreter, including the throttle row the dual-write interpreter
+      -- wrote and the copy loop backfilled for owner1's/owner2's codes.
+      regenerateCode owner3
+      assertCode owner3 code3
 
     -- P5 postgresql with a short verification timeout: an expired code must
     -- vanish for the Postgres interpreter (the expires_at guard reproduces

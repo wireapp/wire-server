@@ -68,19 +68,22 @@ migrateVerificationCodesLoop ::
   ClientState ->
   Hasql.Pool ->
   Log.Logger ->
+  -- | Counter of copied @vcodes@ rows.
+  Prometheus.Counter ->
+  -- | Counter of copied @vcodes_throttle@ rows.
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   IO ()
-migrateVerificationCodesLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
+migrateVerificationCodesLoop migOpts cassClient pgPool logger migCounter migThrottleCounter migFinished migFailed migDuration =
   migrationLoop
     logger
     "verification codes"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "verification codes")
-    (migrateAllVCodes migOpts migCounter migDuration >> migrateAllVCodesThrottle migOpts migCounter migDuration)
+    (migrateAllVCodes migOpts migCounter migDuration >> migrateAllVCodesThrottle migOpts migThrottleCounter migDuration)
 
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
@@ -206,11 +209,11 @@ migrateAllVCodesThrottle ::
   Prometheus.Counter ->
   Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllVCodesThrottle migOpts migCounter migDuration = do
+migrateAllVCodesThrottle migOpts migThrottleCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllVCodesThrottle")
   withCount (paginateSem selectAllVCodesThrottle (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(key, _, _, _) -> handleErrors (toByteString' key) (migrateVCodesThrottleRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row@(key, _, _, _) -> handleErrors (toByteString' key) (migrateVCodesThrottleRow migOpts migThrottleCounter migDuration row)))
 
 migrateVCodesThrottleRow ::
   ( PGConstraints r,
