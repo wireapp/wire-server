@@ -126,9 +126,9 @@ testMeetingMLSAddParticipant = do
 testMeetingMLSRemoveParticipantEmitsMeetingDelete :: (HasCallStack) => App ()
 testMeetingMLSRemoveParticipantEmitsMeetingDelete = do
   (alice, _tid, [bob]) <- createTeam OwnDomain 2
-  alice1 <- createMLSClient def alice
-  bob1 <- createMLSClient def bob
-  _ <- uploadNewKeyPackage def bob1
+  aliceC <- createMLSClient def alice
+  bobC <- createMLSClient def bob
+  _ <- uploadNewKeyPackage def bobC
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -136,10 +136,10 @@ testMeetingMLSRemoveParticipantEmitsMeetingDelete = do
   convQid <- meeting %. "qualified_conversation"
   conv <- getConversation alice convQid >>= getJSON 200
   convId <- objConvId conv
-  createGroup def alice1 convId
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  createGroup def aliceC convId
+  void $ createAddCommit aliceC convId [bob] >>= sendAndConsumeCommitBundle
   withWebSockets [alice, bob] $ \[aliceWs, bobWs] -> do
-    void $ createRemoveCommit alice1 convId [bob1] >>= sendAndConsumeCommitBundle
+    void $ createRemoveCommit aliceC convId [bobC] >>= sendAndConsumeCommitBundle
     deleteNotif <- awaitMatch isMeetingDeleteNotif bobWs
     assertMeetingNotif deleteNotif (meeting %. "qualified_id")
     deleteNotif %. "payload.0.qualified_conversation" `shouldMatch` convQid
