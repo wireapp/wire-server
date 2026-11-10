@@ -154,10 +154,7 @@ migrateProposalRow migOpts migCounter migDuration (groupId, epoch, ref, origin, 
         [resultlessStatement|
           INSERT INTO mls_proposal_refs (group_id, epoch, ref, origin, proposal, expires_at)
           VALUES ($1 :: bytea, $2 :: int8, $3 :: bytea, $4 :: int4?, $5 :: bytea, now () + make_interval(secs => $6 :: int))
-          ON CONFLICT (group_id, epoch, ref) DO UPDATE
-          SET origin = ($4 :: int4?),
-              proposal = ($5 :: bytea),
-              expires_at = now () + make_interval(secs => $6 :: int)
+          ON CONFLICT (group_id, epoch, ref) DO NOTHING
         |]
 
     handleTimeout =
