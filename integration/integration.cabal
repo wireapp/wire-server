@@ -185,6 +185,7 @@ library
     Test.Migration.ConversationCodes
     Test.Migration.CustomBackend
     Test.Migration.DomainRegistration
+    Test.Migration.ListItems
     Test.Migration.MeetingLinks
     Test.Migration.Nonce
     Test.Migration.PasswordReset

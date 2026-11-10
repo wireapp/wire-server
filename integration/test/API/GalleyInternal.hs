@@ -54,6 +54,13 @@ putTeamMember user team perms = do
       ]
       req
 
+-- | Internal galley @delete-user@: removes the local user from their teams
+-- and conversations and erases their clients.
+deleteInternalUser :: (HasCallStack, MakesValue user) => user -> App Response
+deleteInternalUser user = do
+  req <- baseRequest user Galley Unversioned "/i/user"
+  submit "DELETE" req
+
 getTeamFeature :: (HasCallStack, MakesValue domain_) => domain_ -> String -> String -> App Response
 getTeamFeature domain_ tid featureName = do
   req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
