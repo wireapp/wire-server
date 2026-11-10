@@ -1410,126 +1410,113 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "every remote domain's answer is merged" $
       \(remoteUsers :: Map Domain (Map UserId ContactStatus)) (localUserIds :: [UserId]) ctx base ->
         ioProperty do
-          let remote = onlyRemoteDomains remoteUsers
+          let remote = Map.delete localDomain' remoteUsers
               qUids =
-                toQualifiedUids (Map.keys <$> remote)
-                  <> toQualifiedUids (Map.singleton localDomain' localUserIds)
+                Map.keys (qualified remote) <> [Qualified uid localDomain' | uid <- localUserIds]
           result <-
             runOnRequesterBackend
               (requesterBackendFor ctx)
               (remoteHandlerFor base <$> remote)
               (getContactStatusesImpl lself qUids)
-          pure $ result === expectedStatuses remote
+          pure $ result === qualified remote
 
     prop "a failing remote domain has no entries, other domains are unaffected" $
-      \(upUsers :: Map Domain (Map UserId ContactStatus)) downUsers ctx base ->
-        ioProperty do
-          let up = onlyRemoteDomains upUsers
-              down = onlyRemoteDomains (Map.difference downUsers up)
-          result <-
-            runOnRequesterBackend
-              (requesterBackendFor ctx)
-              (remoteHandlerFor base <$> up)
-              ( getContactStatusesImpl
-                  lself
-                  (toQualifiedUids (Map.keys <$> up) <> toQualifiedUids down)
-              )
-          pure $ result === expectedStatuses up
+      \(upUsers :: Map Domain (Map UserId ContactStatus))
+       (downUsers :: Map Domain (Map UserId ContactStatus))
+       ctx
+       base ->
+          ioProperty do
+            let up = Map.delete localDomain' upUsers
+                down = Map.delete localDomain' (Map.difference downUsers up)
+            result <-
+              runOnRequesterBackend
+                (requesterBackendFor ctx)
+                (remoteHandlerFor base <$> up)
+                ( getContactStatusesImpl
+                    lself
+                    (Map.keys (qualified up) <> Map.keys (qualified down))
+                )
+            pure $ result === qualified up
 
     -- The contactability rule is tested on users that are contactable by
     -- construction. Negative cases remove exactly one ingredient.
     prop "proteus user is contactable iff a client has a prekey" $
       \base ctx targetMls -> ioProperty do
-        let user = makeActiveWith (Just (S.singleton BaseProtocolProteusTag)) base
+        let proteusUser = makeActiveWith (Just (S.singleton BaseProtocolProteusTag)) base
             mlsOnlyUser = makeActiveWith (Just (S.singleton BaseProtocolMLSTag)) base
-        conjoin
-          <$> sequence
-            [ statusOf ctx targetMls user [proteusClient]
-                `shouldBeStatus` Just (ContactStatus Contactable),
-              statusOf ctx targetMls user [proteusClient {hasPrekey = False}]
-                `shouldBeStatus` Just (ContactStatus NonContactable),
-              statusOf ctx targetMls user [] `shouldBeStatus` Just (ContactStatus NonContactable),
-              counterexample "user does not support Proteus"
-                <$> ( statusOf ctx targetMls mlsOnlyUser [proteusClient]
-                        `shouldBeStatus` Just (ContactStatus NonContactable)
-                    )
-            ]
+            status user clients = statusOf ctx (mkFakeBackend targetMls [(user, clients)]) user
+        checks
+          [ ("client with prekey", status proteusUser [proteusClient], contactable),
+            ( "client without prekey",
+              status proteusUser [proteusClient {hasPrekey = False}],
+              nonContactable
+            ),
+            ("no client", status proteusUser [], nonContactable),
+            ("user does not support Proteus", status mlsOnlyUser [proteusClient], nonContactable)
+          ]
 
     prop "missing or empty supported protocols default to proteus" $
       \base ctx targetMls -> ioProperty do
-        let status protos = statusOf ctx targetMls (makeActiveWith protos base) [proteusClient]
-        conjoin
-          <$> sequence
-            [ status Nothing `shouldBeStatus` Just (ContactStatus Contactable),
-              status (Just mempty) `shouldBeStatus` Just (ContactStatus Contactable)
-            ]
+        let status protos =
+              let user = makeActiveWith protos base
+               in statusOf ctx (mkFakeBackend targetMls [(user, [proteusClient])]) user
+        checks
+          [ ("missing protocols", status Nothing, contactable),
+            ("empty protocols", status (Just mempty), contactable)
+          ]
 
     prop "MLS user is contactable, each missing ingredient makes it non-contactable" $
-      \base ctx suite -> ioProperty do
-        let ctx' = ctx {mlsAvailable = True, allowedCipherSuites = S.singleton suite}
+      \base suite -> ioProperty do
+        let ctx = ContactStatusContext True (S.singleton suite)
             user = makeActiveWith (Just (S.singleton BaseProtocolMLSTag)) base
+            proteusOnlyUser = makeActiveWith (Just (S.singleton BaseProtocolProteusTag)) base
             client = mlsClient suite
-            nonContactable = Just (ContactStatus NonContactable)
-        conjoin
-          <$> sequence
-            [ statusOf ctx' True user [client] `shouldBeStatus` Just (ContactStatus Contactable),
-              counterexample "target server MLS off"
-                <$> (statusOf ctx' False user [client] `shouldBeStatus` nonContactable),
-              counterexample "requester MLS unavailable"
-                <$> ( statusOf ctx' {mlsAvailable = False} True user [client]
-                        `shouldBeStatus` nonContactable
-                    ),
-              counterexample "no allowed cipher suite"
-                <$> ( statusOf ctx' {allowedCipherSuites = mempty} True user [client]
-                        `shouldBeStatus` nonContactable
-                    ),
-              counterexample "no signature key"
-                <$> ( statusOf ctx' True user [client {signatureSuites = mempty}]
-                        `shouldBeStatus` nonContactable
-                    ),
-              counterexample "no key package"
-                <$> ( statusOf ctx' True user [client {keyPackageSuites = mempty}]
-                        `shouldBeStatus` nonContactable
-                    ),
-              counterexample "expired key package"
-                <$> ( statusOfOnBackend
-                        ctx'
-                        (mkFakeBackend True [(user, [client])])
-                          { keyPackageLifetime = expiredLifetime
-                          }
-                        user
-                        `shouldBeStatus` nonContactable
-                    ),
-              counterexample "user does not support MLS"
-                <$> ( statusOf
-                        ctx'
-                        True
-                        (makeActiveWith (Just (S.singleton BaseProtocolProteusTag)) base)
-                        [client]
-                        `shouldBeStatus` nonContactable
-                    )
-            ]
+            withClients clients = mkFakeBackend True [(user, clients)]
+            backend = withClients [client]
+        checks
+          [ ("contactable", statusOf ctx backend user, contactable),
+            ( "target server MLS off",
+              statusOf ctx backend {serverMls = False} user,
+              nonContactable
+            ),
+            ( "requester MLS unavailable",
+              statusOf ctx {mlsAvailable = False} backend user,
+              nonContactable
+            ),
+            ( "no allowed cipher suite",
+              statusOf ctx {allowedCipherSuites = mempty} backend user,
+              nonContactable
+            ),
+            ( "no signature key",
+              statusOf ctx (withClients [client {signatureSuites = mempty}]) user,
+              nonContactable
+            ),
+            ( "no key package",
+              statusOf ctx (withClients [client {keyPackageSuites = mempty}]) user,
+              nonContactable
+            ),
+            ( "expired key package",
+              statusOf ctx backend {keyPackageLifetime = expiredLifetime} user,
+              nonContactable
+            ),
+            ( "user does not support MLS",
+              statusOf ctx (mkFakeBackend True [(proteusOnlyUser, [client])]) proteusOnlyUser,
+              nonContactable
+            )
+          ]
 
     prop "one capable client among incapable ones makes a user contactable, wherever it is" $
-      \base ctx suite -> ioProperty do
-        let ctx' = ctx {mlsAvailable = True, allowedCipherSuites = S.singleton suite}
-            incapable =
-              FakeClient {hasPrekey = False, signatureSuites = mempty, keyPackageSuites = mempty}
+      \base suite -> ioProperty do
+        let ctx = ContactStatusContext True (S.singleton suite)
             user = makeActiveWith (Just (S.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag])) base
-            statusWith clients = statusOf ctx' True user clients
-        conjoin
-          <$> sequence
-            [ statusWith [incapable, incapable]
-                `shouldBeStatus` Just (ContactStatus NonContactable),
-              statusWith [incapable, proteusClient]
-                `shouldBeStatus` Just (ContactStatus Contactable),
-              statusWith [proteusClient, incapable]
-                `shouldBeStatus` Just (ContactStatus Contactable),
-              statusWith [incapable, mlsClient suite]
-                `shouldBeStatus` Just (ContactStatus Contactable),
-              statusWith [mlsClient suite, incapable]
-                `shouldBeStatus` Just (ContactStatus Contactable)
-            ]
+            status clients = statusOf ctx (mkFakeBackend True [(user, clients)]) user
+        checks
+          [ ("only incapable clients", status [incapableClient, incapableClient], nonContactable),
+            ("proteus client last", status [incapableClient, proteusClient], contactable),
+            ("proteus client first", status [proteusClient, incapableClient], contactable),
+            ("MLS client last", status [incapableClient, mlsClient suite], contactable),
+            ("MLS client first", status [mlsClient suite, incapableClient], contactable)
+          ]
 
     prop "MLS needs one allowed cipher suite with both a signature key and a key package" $
       \base suiteA -> ioProperty do
@@ -1542,79 +1529,59 @@ spec = describe "UserSubsystem.Interpreter" do
                 }
             user = makeActiveWith (Just (S.singleton BaseProtocolMLSTag)) base
             client signatures keyPackages =
-              FakeClient
-                { hasPrekey = False,
-                  signatureSuites = S.fromList signatures,
+              incapableClient
+                { signatureSuites = S.fromList signatures,
                   keyPackageSuites = S.fromList keyPackages
                 }
-            statusWith c = statusOf ctx True user [c]
-        conjoin
-          <$> sequence
-            [ counterexample "second allowed suite is enough"
-                <$> ( statusWith (client [suiteB] [suiteB])
-                        `shouldBeStatus` Just (ContactStatus Contactable)
-                    ),
-              counterexample "other suites do not matter"
-                <$> ( statusWith (client [suiteA, suiteC] [suiteA, suiteC])
-                        `shouldBeStatus` Just (ContactStatus Contactable)
-                    ),
-              counterexample "signature key and key package for different suites"
-                <$> ( statusWith (client [suiteA] [suiteB])
-                        `shouldBeStatus` Just (ContactStatus NonContactable)
-                    ),
-              counterexample "suite is not allowed"
-                <$> ( statusWith (client [suiteC] [suiteC])
-                        `shouldBeStatus` Just (ContactStatus NonContactable)
-                    )
-            ]
+            status c = statusOf ctx (mkFakeBackend True [(user, [c])]) user
+        checks
+          [ ("second allowed suite is enough", status (client [suiteB] [suiteB]), contactable),
+            ( "other suites do not matter",
+              status (client [suiteA, suiteC] [suiteA, suiteC]),
+              contactable
+            ),
+            ( "signature key and key package for different suites",
+              status (client [suiteA] [suiteB]),
+              nonContactable
+            ),
+            ("suite is not allowed", status (client [suiteC] [suiteC]), nonContactable)
+          ]
 
     prop "requester context is derived from the server flag and the requester team's MLS config" $
       \base suite -> ioProperty do
         let user = makeActiveWith (Just (S.singleton BaseProtocolMLSTag)) base
-            statusWith serverMls features =
+            status serverMls features =
               statusViaRequester
                 (mkFakeBackend serverMls [(user, [mlsClient suite])]) {features = features}
                 user
-        conjoin
-          <$> sequence
-            [ statusWith True (mlsFeatures FeatureStatusEnabled [ProtocolMLSTag] [suite])
-                `shouldBeStatus` Just (ContactStatus Contactable),
-              counterexample "server MLS off"
-                <$> ( statusWith False (mlsFeatures FeatureStatusEnabled [ProtocolMLSTag] [suite])
-                        `shouldBeStatus` Just (ContactStatus NonContactable)
-                    ),
-              counterexample "team feature disabled"
-                <$> ( statusWith True (mlsFeatures FeatureStatusDisabled [ProtocolMLSTag] [suite])
-                        `shouldBeStatus` Just (ContactStatus NonContactable)
-                    ),
-              counterexample "MLS not a supported protocol of the team"
-                <$> ( statusWith
-                        True
-                        (mlsFeatures FeatureStatusEnabled [ProtocolProteusTag] [suite])
-                        `shouldBeStatus` Just (ContactStatus NonContactable)
-                    ),
-              counterexample "cipher suite not allowed by the team"
-                <$> ( statusWith
-                        True
-                        (mlsFeatures FeatureStatusEnabled [ProtocolMLSTag] [nextSuite suite])
-                        `shouldBeStatus` Just (ContactStatus NonContactable)
-                    )
-            ]
+            enabled = mlsFeatures FeatureStatusEnabled [ProtocolMLSTag] [suite]
+        checks
+          [ ("all enabled", status True enabled, contactable),
+            ("server MLS off", status False enabled, nonContactable),
+            ( "team feature disabled",
+              status True (mlsFeatures FeatureStatusDisabled [ProtocolMLSTag] [suite]),
+              nonContactable
+            ),
+            ( "MLS not a supported protocol of the team",
+              status True (mlsFeatures FeatureStatusEnabled [ProtocolProteusTag] [suite]),
+              nonContactable
+            ),
+            ( "cipher suite not allowed by the team",
+              status True (mlsFeatures FeatureStatusEnabled [ProtocolMLSTag] [nextSuite suite]),
+              nonContactable
+            )
+          ]
 
     prop "deleted users are non-contactable, pending-invitation users are left out" $
       \base ctx targetMls -> ioProperty do
         let status s =
-              statusOf
-                ctx
-                targetMls
-                (base {status = Just s, supportedProtocols = Nothing} :: StoredUser)
-                [proteusClient]
-        conjoin
-          <$> sequence
-            [ status Active `shouldBeStatus` Just (ContactStatus Contactable),
-              status Deleted `shouldBeStatus` Just (ContactStatus NonContactable),
-              status PendingInvitation `shouldBeStatus` Nothing
-            ]
+              let user = base {status = Just s, supportedProtocols = Nothing} :: StoredUser
+               in statusOf ctx (mkFakeBackend targetMls [(user, [proteusClient])]) user
+        checks
+          [ ("active", status Active, contactable),
+            ("deleted", status Deleted, nonContactable),
+            ("pending invitation", status PendingInvitation, Nothing)
+          ]
 
     prop "local route and remote route evaluate the same users identically" $
       \ctx targetMls (users :: [(StoredUser, [FakeClient])]) (unknownIds :: [UserId]) ->
@@ -1623,6 +1590,7 @@ spec = describe "UserSubsystem.Interpreter" do
               known = [user.id | user <- backend.storedUsers]
               uids = known <> unknownIds
               asLocal = [Qualified uid (tDomain lself) | uid <- uids]
+              -- REVIEW: Have variance over domains?
               asRemote = [Qualified uid targetDomain | uid <- uids]
           -- both requesters have the same server flag and features, so they derive the same
           -- effective MLS availability
@@ -1647,15 +1615,14 @@ spec = describe "UserSubsystem.Interpreter" do
     makeActiveWith :: Maybe (S.Set BaseProtocolTag) -> StoredUser -> StoredUser
     makeActiveWith protos user = user {status = Just Active, supportedProtocols = protos}
 
-    -- Status of a single user on a backend with the given server MLS flag.
-    statusOf ::
-      ContactStatusContext -> Bool -> StoredUser -> [FakeClient] -> IO (Maybe ContactStatus)
-    statusOf ctx serverMls user clients =
-      statusOfOnBackend ctx (mkFakeBackend serverMls [(user, clients)]) user
-
-    statusOfOnBackend :: ContactStatusContext -> FakeBackend -> StoredUser -> IO (Maybe ContactStatus)
-    statusOfOnBackend ctx backend user =
+    -- Status of a single user, evaluated on the given backend with the given context.
+    statusOf :: ContactStatusContext -> FakeBackend -> StoredUser -> IO (Maybe ContactStatus)
+    statusOf ctx backend user =
       Map.lookup user.id <$> runFakeBackend backend (getLocalContactStatusesImpl ctx [user.id])
+
+    contactable, nonContactable :: Maybe ContactStatus
+    contactable = Just (ContactStatus Contactable)
+    nonContactable = Just (ContactStatus NonContactable)
 
     -- Status of a local user, as seen by a requester on the given backend. Unlike 'statusOf', this
     -- derives the 'ContactStatusContext' from the backend's server flag and team features.
@@ -1669,10 +1636,11 @@ spec = describe "UserSubsystem.Interpreter" do
     nextSuite :: CipherSuiteTag -> CipherSuiteTag
     nextSuite suite = if suite == maxBound then minBound else succ suite
 
-    -- QuickCheck has no monadic '==='. This keeps results as 'Property', so
-    -- 'conjoin' still reports all failing checks.
-    shouldBeStatus :: IO (Maybe ContactStatus) -> Maybe ContactStatus -> IO Property
-    shouldBeStatus actual expected = (=== expected) <$> actual
+    -- Runs all (name, actual status, expected status) rows and reports every failing name.
+    checks :: [(String, IO (Maybe ContactStatus), Maybe ContactStatus)] -> IO Property
+    checks rows =
+      conjoin <$> for rows \(name, actual, expected) ->
+        counterexample name . (=== expected) <$> actual
 
     -- Requester whose derived 'ContactStatusContext' is the given one.
     requesterBackendFor :: ContactStatusContext -> FakeBackend
@@ -1682,20 +1650,12 @@ spec = describe "UserSubsystem.Interpreter" do
     targetDomain = Domain "target.example.com"
     lself = toLocalUnsafe localDomain' (Id UUID.nil)
 
-    toQualifiedUids :: Map Domain [UserId] -> [Qualified UserId]
-    toQualifiedUids domainsToUids =
-      [Qualified uid domain | (domain, uids) <- Map.toList domainsToUids, uid <- uids]
-
-    onlyRemoteDomains :: Map Domain a -> Map Domain a
-    onlyRemoteDomains = Map.delete localDomain'
-
-    expectedStatuses ::
-      Map Domain (Map UserId ContactStatus) -> Map (Qualified UserId) ContactStatus
-    expectedStatuses domainToUserStatuses =
+    qualified :: Map Domain (Map UserId a) -> Map (Qualified UserId) a
+    qualified byDomain =
       Map.fromList
-        [ (Qualified uid domain, status)
-        | (domain, userStatuses) <- Map.toList domainToUserStatuses,
-          (uid, status) <- Map.toList userStatuses
+        [ (Qualified uid domain, x)
+        | (domain, byUser) <- Map.toList byDomain,
+          (uid, x) <- Map.toList byUser
         ]
 
     -- A remote backend that stores all given users, each with the given status.
@@ -1710,7 +1670,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
     -- Contactable proteus client
     proteusClient :: FakeClient
-    proteusClient = FakeClient {hasPrekey = True, signatureSuites = mempty, keyPackageSuites = mempty}
+    proteusClient = incapableClient {hasPrekey = True}
 
 -- | What a backend stores about a client: a prekey, MLS signature keys and key
 -- packages (the latter two per cipher suite).
@@ -1722,14 +1682,15 @@ data FakeClient = FakeClient
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FakeClient)
 
+-- | Neither contactable via Proteus nor via MLS.
+incapableClient :: FakeClient
+incapableClient =
+  FakeClient {hasPrekey = False, signatureSuites = mempty, keyPackageSuites = mempty}
+
 -- | Contactable via MLS with the given cipher suite only.
 mlsClient :: CipherSuiteTag -> FakeClient
 mlsClient suite =
-  FakeClient
-    { hasPrekey = False,
-      signatureSuites = S.singleton suite,
-      keyPackageSuites = S.singleton suite
-    }
+  incapableClient {signatureSuites = S.singleton suite, keyPackageSuites = S.singleton suite}
 
 -- | Data required to simulate a fake backend
 --
