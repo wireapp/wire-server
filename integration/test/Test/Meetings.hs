@@ -1167,14 +1167,14 @@ testMeetingJoinByLink = withLicensedBackend $ \dom -> do
 -- conversation. No creator or conversation membership is required;
 -- password-protected links require the matching password on both verbs.
 testMeetingLinkJoin :: (HasCallStack) => App ()
-testMeetingLinkJoin = withLicensedBackend $ \_dom -> do
+testMeetingLinkJoin = withLicensedBackend $ \dom -> do
   -- Meeting join codes live in the Postgres code store only. In
   -- cassandra-only mode meeting creation fails closed with 500
   -- @link-unavailable@: assert that instead of the positive path below.
   codeStorage <- readServiceConfig Galley %. "postgresMigration.conversationCodes" >>= asString
   let isCassandraCodeStore = codeStorage == "cassandra"
 
-  (alice, _tid, [bob]) <- createTeam OwnDomain 2
+  (alice, _tid, [bob]) <- createTeam dom 2
   now <- liftIO getCurrentTime
   let newMeeting = defaultMeetingJson "Link Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
   when isCassandraCodeStore $ do
@@ -1251,7 +1251,7 @@ testMeetingLinkJoin = withLicensedBackend $ \_dom -> do
 -- being a team member. Refreshing the link rotates the code so the stale
 -- value stops working, while an already-joined guest keeps their membership.
 testMeetingLinkTempGuest :: (HasCallStack) => App ()
-testMeetingLinkTempGuest = do
+testMeetingLinkTempGuest = withLicensedBackend $ \dom -> do
   -- Meeting join codes live in the Postgres code store only: a cassandra-only
   -- code store cannot hold them, so meeting creation fails closed with 500
   -- @link-unavailable@. Assert that instead of the positive path below; the
@@ -1260,7 +1260,7 @@ testMeetingLinkTempGuest = do
   codeStorage <- readServiceConfig Galley %. "postgresMigration.conversationCodes" >>= asString
   let isCassandraCodeStore = codeStorage == "cassandra"
 
-  (owner, _tid, _) <- createTeam OwnDomain 1
+  (owner, _tid, _) <- createTeam dom 1
 
   when isCassandraCodeStore $ do
     -- Creation fails closed: no code store, no link.
@@ -1281,7 +1281,7 @@ testMeetingLinkTempGuest = do
     -- The temporary guest is an ephemeral account: no email/phone/SSO,
     -- expiring after the server session token timeout (24h in prod; the
     -- integration environment overrides it to a few seconds).
-    guest <- ephemeralUser OwnDomain
+    guest <- ephemeralUser dom
     expiresAtStr <- guest %. "expires_at" >>= asString
     expiresAt <-
       assertJust ("could not parse expires_at: " <> expiresAtStr)
@@ -1343,7 +1343,7 @@ testMeetingLinkTempGuest = do
     postMeetingJoin guest domain key code (Just meetingLinkPassword) >>= assertLabel 404 "meeting-not-found"
 
     -- A second temporary guest joins via the refreshed link+password.
-    guest2 <- ephemeralUser OwnDomain
+    guest2 <- ephemeralUser dom
     postMeetingJoin guest2 domain newKey newCode Nothing >>= assertLabel 403 "invalid-meeting-password"
     postMeetingJoin guest2 domain newKey newCode (Just meetingLinkPassword) >>= assertStatus 200
 
