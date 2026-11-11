@@ -72,6 +72,7 @@ library
     Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.BackgroundJobs
+    Wire.API.Backup
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config
@@ -206,6 +207,7 @@ library
     Wire.API.Routes.Public.Brig.TOTP
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
+    Wire.API.Routes.Public.Cargohold.Backup
     Wire.API.Routes.Public.Galley
     Wire.API.Routes.Public.Galley.Bot
     Wire.API.Routes.Public.Galley.Conversation
@@ -765,6 +767,7 @@ test-suite wire-api-tests
     , hex
     , hspec
     , hspec-wai
+    , http-api-data
     , http-types
     , imports
     , lens
