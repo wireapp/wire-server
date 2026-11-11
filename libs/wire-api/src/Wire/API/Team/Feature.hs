@@ -125,7 +125,6 @@ module Wire.API.Team.Feature
     MeetingsPremiumConfig (..),
     BackgroundEffectsConfig (..),
     TotpConfig,
-    TotpConfigB (..),
     Features,
     AllFeatures,
     NpProject (..),
