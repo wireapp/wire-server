@@ -790,7 +790,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   msg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
-  MLSMessageResponseUpdates . map lcuUpdate
+  MLSMessageResponseUpdates . map lcuUpdate . fst
     <$> postMLSMessage
       loc
       (tUntagged sender)

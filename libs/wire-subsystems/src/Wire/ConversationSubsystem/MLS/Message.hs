@@ -148,11 +148,8 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
   assertMLSEnabled
   imsg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage smsg
   (ctype, cnvOrSub) <- getConvFromGroupId imsg.groupId
-  events <-
-    map lcuEvent
-      <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) (enableOutOfSyncCheckFromVersion v) imsg
-  t <- toUTCTimeMillis <$> Now.get
-  pure $ MLSMessageSendingStatus events t
+  (updates, t) <- postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) (enableOutOfSyncCheckFromVersion v) imsg
+  pure $ MLSMessageSendingStatus (map lcuEvent updates) t
 
 postMLSTargetedMessagesFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
@@ -768,7 +765,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       updateOutOfSyncFlag senderIdentity.client lConvOrSub'
       let convOrSub' = tUnqualified lConvOrSub'
           mems = cmIntersect (void convOrSub.members) convOrSub'.members
-      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage mems
+      void $ propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage mems
       pure lConvOrSub'
     pure (events, newClients, lConvOrSub')
 
@@ -781,7 +778,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   -- send application message
   for_ bundle.appMessage $ \msg -> do
     let convOrSub' = tUnqualified lConvOrSub'
-    propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage convOrSub'.members
+    void $ propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage convOrSub'.members
 
   pure events
 
@@ -940,13 +937,18 @@ postMLSMessage ::
   Maybe ConnId ->
   EnableOutOfSyncCheck ->
   IncomingMessage ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UTCTimeMillis)
 postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg = do
   runInputConst oosCheck $
     foldQualified
       loc
       (postMLSMessageToLocalConv qusr c con msg ctype)
-      (postMLSMessageToRemoteConv loc qusr c con msg)
+      ( \rconv -> do
+          updates <- postMLSMessageToRemoteConv loc qusr c con msg rconv
+          -- The federation response does not include the owning backend's timestamp.
+          t <- toUTCTimeMillis <$> Now.get
+          pure (updates, t)
+      )
       qconvOrSub
 
 getSenderIdentity ::
@@ -981,13 +983,13 @@ postMLSMessageToLocalConv ::
   IncomingMessage ->
   ConvType ->
   Local ConvOrSubConvId ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UTCTimeMillis)
 postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr msg.groupId ctype convOrSubId
   validateMessage qusr c lConvOrSub Nothing msg
 
-  propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
-  pure []
+  t <- propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
+  pure ([], t)
 
 validateMessage ::
   ( HasProposalEffects r,

@@ -63,7 +63,7 @@ propagateMessage ::
   Maybe ConnId ->
   RawMLS Message ->
   ClientMap a ->
-  Sem r ()
+  Sem r UTCTimeMillis
 propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   propagateMLSData qusr mSenderClient lConvOrSub con (EdMLSMessage msg.raw) defMessageMetadata msg.raw cm
 
@@ -84,7 +84,7 @@ propagateTransientMessage ::
   ClientMap a ->
   Sem r ()
 propagateTransientMessage qusr mSenderClient lConvOrSub con bytes cm =
-  propagateMLSData qusr mSenderClient lConvOrSub con (EdMLSTransientMessage bytes) (defMessageMetadata {mmTransient = True}) bytes cm
+  void $ propagateMLSData qusr mSenderClient lConvOrSub con (EdMLSTransientMessage bytes) (defMessageMetadata {mmTransient = True}) bytes cm
 
 propagateMLSData ::
   ( Member BackendNotificationQueueAccess r,
@@ -102,7 +102,7 @@ propagateMLSData ::
   MessageMetadata ->
   ByteString ->
   ClientMap a ->
-  Sem r ()
+  Sem r UTCTimeMillis
 propagateMLSData qusr mSenderClient lConvOrSub con eventData metadata rawMessage cm = do
   now <- Now.get
   let mlsConv = (.conv) <$> lConvOrSub
@@ -152,6 +152,7 @@ propagateMLSData qusr mSenderClient lConvOrSub con eventData metadata rawMessage
         if mm.mmTransient
           then sendBundle =<< makeMLSTransientMessageBundle (RemoteMLSTransientMessage remoteMessage)
           else fedQueueClient @'OnMLSMessageSentTag remoteMessage
+  pure $ toUTCTimeMillis now
   where
     cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
 
