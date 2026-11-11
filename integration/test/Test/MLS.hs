@@ -51,11 +51,13 @@ testSendMessageNoReturnToSender = do
   -- the message
   withWebSockets [alice1, alice2, bob1, bob2] $ \(wsSender : wss) -> do
     mp <- createApplicationMessage convId alice1 "hello, bob"
-    bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
-      resp.status `shouldMatchInt` 201
+    response <- postMLSMessage mp.sender mp.message >>= getJSON 201
     for_ wss $ \ws -> do
       n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
+      -- The sender and recipients must store the same message timestamp for
+      -- reply quote verification to succeed.
+      nPayload n %. "time" `shouldMatch` (response %. "time")
     expectFailure (const $ pure ())
       $ awaitMatch
         ( \n ->
