@@ -99,20 +99,29 @@ type GalleyApi =
            ConversationUpdateRequest
            ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
-    :<|> FedEndpoint
+    :<|> Named
+           "send-mls-message@v4"
+           ( UnnamedFedEndpointWithMods
+               '[Until 'V5]
+               "send-mls-message"
+               MLSMessageSendRequest
+               MLSMessageResponse
+           )
+    :<|> FedEndpointWithMods
+           '[From 'V5]
            "send-mls-message"
            MLSMessageSendRequest
-           MLSMessageResponse
+           MLSMessageResponseV5
     :<|> FedEndpointWithMods
            '[From 'V5]
            "send-mls-targeted-message"
            MLSMessageSendRequest
-           MLSMessageResponse
+           MLSMessageResponseV5
     :<|> FedEndpointWithMods
            '[From 'V5]
            "send-mls-transient-message"
            MLSMessageSendRequest
-           MLSMessageResponse
+           MLSMessageResponseV5
     :<|> FedEndpoint
            "send-mls-commit-bundle"
            MLSMessageSendRequest
@@ -554,6 +563,29 @@ data MLSMessageResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 
 instance ToSchema MLSMessageResponse
+
+-- | Every V5 send success carries the owning backend's event timestamp.
+data MLSMessageResponseV5
+  = MLSMessageResponseV5Error MLSMessageResponse
+  | MLSMessageResponseV5Success MLSMessageSendSuccess
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponseV5)
+
+instance ToSchema MLSMessageResponseV5
+
+data MLSMessageSendSuccess = MLSMessageSendSuccess
+  { updates :: [ConversationUpdate],
+    time :: UTCTimeMillis
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageSendSuccess)
+
+instance ToSchema MLSMessageSendSuccess
+
+mlsMessageResponseV5ToLegacy :: MLSMessageResponseV5 -> MLSMessageResponse
+mlsMessageResponseV5ToLegacy = \case
+  MLSMessageResponseV5Error e -> e
+  MLSMessageResponseV5Success success -> MLSMessageResponseUpdates success.updates
 
 data GetGroupInfoRequest = GetGroupInfoRequest
   { -- | Conversation (or subconversation) is assumed to be owned by the target

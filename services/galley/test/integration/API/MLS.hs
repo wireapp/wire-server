@@ -950,9 +950,9 @@ testRemoteToLocal = do
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
-      MLSMessageResponseUpdates updates <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+      MLSMessageResponseV5Success success <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
       liftIO $ do
-        updates @?= []
+        success.updates @?= []
         WS.assertMatch_ (5 # Second) ws $
           wsAssertMLSMessage (fmap Conv qcnv) bob (mpMessage message)
 
@@ -995,7 +995,7 @@ testRemoteToLocalWrongConversation = do
             }
 
     resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
-    liftIO $ resp @?= MLSMessageResponseError MLSGroupConversationMismatch
+    liftIO $ resp @?= MLSMessageResponseV5Error (MLSMessageResponseError MLSGroupConversationMismatch)
 
 testRemoteNonMemberToLocal :: (HasCallStack) => TestM ()
 testRemoteNonMemberToLocal = do
@@ -1032,7 +1032,7 @@ testRemoteNonMemberToLocal = do
     fedGalleyClient <- view tsFedGalleyClient
     resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
     liftIO $ do
-      resp @?= MLSMessageResponseError ConvNotFound
+      resp @?= MLSMessageResponseV5Error (MLSMessageResponseError ConvNotFound)
 
 -- | The group exists in mls-test-cli's store, but not in wire-server's database.
 propNonExistingConv :: (HasCallStack) => TestM ()

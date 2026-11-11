@@ -44,6 +44,7 @@ federationSitemap =
     :<|> Named @"send-message" federationSendMessage
     :<|> Named @"update-conversation" federationUpdateConversation
     :<|> Named @"mls-welcome" federationMlsSendWelcome
+    :<|> Named @"send-mls-message@v4" (\domain request -> mlsMessageResponseV5ToLegacy <$> federationSendMLSMessage domain request)
     :<|> Named @"send-mls-message" federationSendMLSMessage
     :<|> Named @"send-mls-targeted-message" federationSendMLSTargetedMessage
     :<|> Named @"send-mls-transient-message" federationSendMLSTransientMessage

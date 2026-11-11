@@ -268,15 +268,15 @@ data ConversationSubsystem m a where
   FederationSendMLSMessage ::
     Domain ->
     MLSMessageSendRequest ->
-    ConversationSubsystem m MLSMessageResponse
+    ConversationSubsystem m MLSMessageResponseV5
   FederationSendMLSTargetedMessage ::
     Domain ->
     MLSMessageSendRequest ->
-    ConversationSubsystem m MLSMessageResponse
+    ConversationSubsystem m MLSMessageResponseV5
   FederationSendMLSTransientMessage ::
     Domain ->
     MLSMessageSendRequest ->
-    ConversationSubsystem m MLSMessageResponse
+    ConversationSubsystem m MLSMessageResponseV5
   FederationSendMLSCommitBundle ::
     Domain ->
     MLSMessageSendRequest ->

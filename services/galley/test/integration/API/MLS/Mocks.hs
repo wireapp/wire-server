@@ -74,8 +74,8 @@ welcomeMockByDomain reachables = do
 sendMessageMock :: Mock LByteString
 sendMessageMock =
   "send-mls-message"
-    ~> MLSMessageResponseUpdates
-      []
+    ~> MLSMessageResponseV5Success
+      (MLSMessageSendSuccess [] (toUTCTimeMillis (read "2026-01-01 00:00:00 UTC")))
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
