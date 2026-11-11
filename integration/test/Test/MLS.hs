@@ -195,6 +195,30 @@ testMixedProtocolUpgrade secondDomain = do
   bindResponse (putConversationProtocol bob convId "invalid") $ \resp -> do
     resp.status `shouldMatchInt` 400
 
+testMixedProtocolLegacyTeamOne2One :: (HasCallStack) => App ()
+testMixedProtocolLegacyTeamOne2One = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  for_ [[], [bob]] $ \others -> do
+    conv <-
+      postConversation alice defProteus {qualifiedUsers = others, team = Just tid}
+        >>= getJSON 201
+    conv %. "type" `shouldMatchInt` 0
+    convId <- objConvId conv
+
+    putConversationProtocol alice convId "mixed"
+      >>= assertLabel 403 "invalid-protocol-transition"
+
+    unchanged <- getConversation alice (convIdToQidObject convId) >>= getJSON 200
+    unchanged %. "protocol" `shouldMatch` "proteus"
+    assertFieldMissing unchanged "group_id"
+
+    -- A named group with the same members is not a legacy team 1:1.
+    namedConvId <-
+      postConversation alice defProteus {qualifiedUsers = others, team = Just tid, name = Just "Group"}
+        >>= getJSON 201
+        >>= objConvId
+    putConversationProtocol alice namedConvId "mixed" >>= assertStatus 200
+
 testMixedProtocolNonTeam :: (HasCallStack) => Domain -> App ()
 testMixedProtocolNonTeam secondDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, secondDomain]
