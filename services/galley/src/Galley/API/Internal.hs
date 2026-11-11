@@ -298,6 +298,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -325,6 +326,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MeetingsConfig) (updateLockStatus @MeetingsConfig)
     <@> mkNamedAPI @'("ilock", MeetingsPremiumConfig) (updateLockStatus @MeetingsPremiumConfig)
     <@> mkNamedAPI @'("ilock", BackgroundEffectsConfig) (updateLockStatus @BackgroundEffectsConfig)
+    <@> mkNamedAPI @'("ilock", AutomaticBackupsConfig) (updateLockStatus @AutomaticBackupsConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 

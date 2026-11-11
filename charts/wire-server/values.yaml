@@ -354,6 +354,14 @@ galley:
           defaults:
             status: disabled
             lockStatus: locked
+        automaticBackups:
+          defaults:
+            status: disabled
+            lockStatus: unlocked
+            config:
+              schedule: weekly
+              enforced: false
+              serverOnly: false
     aws:
       region: "eu-west-1"
     proxy: {}

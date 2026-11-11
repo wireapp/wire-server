@@ -375,6 +375,8 @@ type SternAPI =
     :<|> Named "put-route-meetings-premium-config" (MkFeatureStatusPutRoute MeetingsPremiumConfig)
     :<|> Named "get-route-background-effects-config" (MkFeatureGetRoute BackgroundEffectsConfig)
     :<|> Named "put-route-background-effects-config" (MkFeatureStatusPutRoute BackgroundEffectsConfig)
+    :<|> Named "get-route-automatic-backups-config" (MkFeatureGetRoute AutomaticBackupsConfig)
+    :<|> Named "put-route-automatic-backups-config" (MkFeatureStatusPutRoute AutomaticBackupsConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
@@ -532,6 +534,7 @@ type SternAPI =
     :<|> Named "lock-unlock-route-meetings-config" (MkFeatureLockUnlockRoute MeetingsConfig)
     :<|> Named "lock-unlock-route-meetings-premium-config" (MkFeatureLockUnlockRoute MeetingsPremiumConfig)
     :<|> Named "lock-unlock-route-background-effects-config" (MkFeatureLockUnlockRoute BackgroundEffectsConfig)
+    :<|> Named "lock-unlock-route-automatic-backups-config" (MkFeatureLockUnlockRoute AutomaticBackupsConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger

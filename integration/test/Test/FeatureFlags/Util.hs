@@ -252,6 +252,18 @@ defAllFeatures =
       "meetings" .= enabled,
       "meetingsPremium" .= enabledLocked,
       "backgroundEffects" .= enabledLocked,
+      "automaticBackups"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "schedule" .= "weekly",
+                  "enforced" .= False,
+                  "serverOnly" .= False
+                ]
+          ],
       "preventAdminlessGroups"
         .= object
           [ "lockStatus" .= "unlocked",

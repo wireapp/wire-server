@@ -121,6 +121,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut MeetingsConfig
     :<|> Until 'V17 ::> IFeatureStatusLockStatusPut MeetingsPremiumConfig
     :<|> Until 'V17 ::> IFeatureStatusLockStatusPut BackgroundEffectsConfig
+    :<|> IFeatureStatusLockStatusPut AutomaticBackupsConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

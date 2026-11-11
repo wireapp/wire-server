@@ -124,6 +124,9 @@ module Wire.API.Team.Feature
     MeetingsConfig (..),
     MeetingsPremiumConfig (..),
     BackgroundEffectsConfig (..),
+    AutomaticBackupsConfig,
+    AutomaticBackupsConfigB (..),
+    BackupSchedule (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -296,6 +299,7 @@ data FeatureSingleton cfg where
   FeatureSingletonMeetingsConfig :: FeatureSingleton MeetingsConfig
   FeatureSingletonMeetingsPremiumConfig :: FeatureSingleton MeetingsPremiumConfig
   FeatureSingletonBackgroundEffectsConfig :: FeatureSingleton BackgroundEffectsConfig
+  FeatureSingletonAutomaticBackupsConfig :: FeatureSingleton AutomaticBackupsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -2465,6 +2469,75 @@ instance IsFeatureConfig BackgroundEffectsConfig where
 instance ToObjectSchema BackgroundEffectsConfig where
   objectSchema = pure BackgroundEffectsConfig
 
+--------------------------------------------------------------------------------
+-- AutomaticBackups Feature
+
+data BackupSchedule = BackupDaily | BackupWeekly | BackupMonthly
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema BackupSchedule
+  deriving (Arbitrary) via (GenericUniform BackupSchedule)
+
+instance ToSchema BackupSchedule where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "daily" BackupDaily,
+          element "weekly" BackupWeekly,
+          element "monthly" BackupMonthly
+        ]
+
+data AutomaticBackupsConfigB t f = AutomaticBackupsConfig
+  { schedule :: Wear t f BackupSchedule,
+    enforced :: Wear t f Bool,
+    serverOnly :: Wear t f Bool
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (AutomaticBackupsConfigB Covered)
+
+deriving instance ApplicativeB (AutomaticBackupsConfigB Covered)
+
+deriving instance TraversableB (AutomaticBackupsConfigB Covered)
+
+type AutomaticBackupsConfig = AutomaticBackupsConfigB Bare Identity
+
+deriving instance Eq AutomaticBackupsConfig
+
+deriving instance Show AutomaticBackupsConfig
+
+deriving via (RenderableTypeName AutomaticBackupsConfig) instance (RenderableSymbol AutomaticBackupsConfig)
+
+deriving via (GenericUniform AutomaticBackupsConfig) instance (Arbitrary AutomaticBackupsConfig)
+
+deriving via (BarbieFeature AutomaticBackupsConfigB) instance (ParseDbFeature AutomaticBackupsConfig)
+
+deriving via (BarbieFeature AutomaticBackupsConfigB) instance (ToSchema AutomaticBackupsConfig)
+
+deriving via (Schema AutomaticBackupsConfig) instance (ToJSON AutomaticBackupsConfig)
+
+deriving via (Schema AutomaticBackupsConfig) instance (FromJSON AutomaticBackupsConfig)
+
+instance Default AutomaticBackupsConfig where
+  def = AutomaticBackupsConfig BackupWeekly False False
+
+instance (Typeable f, FieldF f) => ToSchema (AutomaticBackupsConfigB Covered f) where
+  schema =
+    object $
+      AutomaticBackupsConfig
+        <$> (.schedule) .= fieldF "schedule" schema
+        <*> (.enforced) .= fieldF "enforced" schema
+        <*> (.serverOnly) .= fieldF "serverOnly" schema
+
+instance Default (LockableFeature AutomaticBackupsConfig) where
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
+
+instance ToObjectSchema AutomaticBackupsConfig where
+  objectSchema = field "config" schema
+
+instance IsFeatureConfig AutomaticBackupsConfig where
+  type FeatureSymbol AutomaticBackupsConfig = "automaticBackups"
+  featureSingleton = FeatureSingletonAutomaticBackupsConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -2569,7 +2642,8 @@ type Features =
     CellsInternalConfig,
     MeetingsConfig,
     MeetingsPremiumConfig,
-    BackgroundEffectsConfig
+    BackgroundEffectsConfig,
+    AutomaticBackupsConfig
   ]
 
 -- | list of available features as a record

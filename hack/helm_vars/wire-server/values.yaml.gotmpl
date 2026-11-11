@@ -430,6 +430,14 @@ galley:
           defaults:
             status: enabled
             lockStatus: unlocked
+        automaticBackups:
+          defaults:
+            status: disabled
+            lockStatus: unlocked
+            config:
+              schedule: weekly
+              enforced: false
+              serverOnly: false
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo

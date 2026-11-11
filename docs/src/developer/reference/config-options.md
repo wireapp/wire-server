@@ -855,6 +855,31 @@ config:
           lockStatus: locked
 ```
 
+### Automatic Backups
+
+Feature toggle for `automaticBackups`. It carries a config with the backup
+`schedule` (`daily`, `weekly` or `monthly`), `enforced` (whether users must
+back up) and `serverOnly` (whether backups are stored on the server only).
+The lock status for individual teams can be changed via the internal API
+(`PUT /i/teams/:tid/features/automaticBackups/(un)?locked`).
+
+Example default configuration:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      automaticBackups:
+        defaults:
+          status: disabled
+          lockStatus: unlocked
+          config:
+            schedule: weekly
+            enforced: false
+            serverOnly: false
+```
+
 ### Apps
 
 Feature toggle for `apps`.

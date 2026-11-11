@@ -170,4 +170,6 @@ instance GetFeatureConfig MeetingsPremiumConfig
 
 instance GetFeatureConfig BackgroundEffectsConfig
 
+instance GetFeatureConfig AutomaticBackupsConfig
+
 instance GetFeatureConfig PreventAdminlessGroupsConfig

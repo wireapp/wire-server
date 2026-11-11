@@ -440,6 +440,13 @@ newtype instance FeatureDefaults BackgroundEffectsConfig
   deriving (FromJSON, ToJSON) via Defaults (LockableFeature BackgroundEffectsConfig)
   deriving (ParseFeatureDefaults) via OptionalField BackgroundEffectsConfig
 
+newtype instance FeatureDefaults AutomaticBackupsConfig
+  = AutomaticBackupsDefaults (LockableFeature AutomaticBackupsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature AutomaticBackupsConfig)
+  deriving (ParseFeatureDefaults) via OptionalField AutomaticBackupsConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 
