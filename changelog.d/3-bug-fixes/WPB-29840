@@ -1,0 +1,1 @@
+Fix MLS timestamp mismatches that break reply quotes. Federated sends require federation API V5 on both backends.
