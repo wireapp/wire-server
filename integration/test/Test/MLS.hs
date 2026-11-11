@@ -68,6 +68,26 @@ testSendMessageNoReturnToSender = do
         )
         wsSender
 
+testSendMessageToRemoteConversationTimestamp :: (HasCallStack) => App ()
+testSendMessageToRemoteConversationTimestamp = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, alice2, bob1] <- traverse (createMLSClient def) [alice, alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, alice2]
+  -- Bob hosts the conversation on the other backend; Alice sends through her
+  -- own backend, which forwards the message to Bob's backend over federation.
+  convId <- createNewGroup def bob1
+  void $ createAddCommit bob1 convId [alice] >>= sendAndConsumeCommitBundle
+
+  withWebSockets [alice2, bob1] $ \wss -> do
+    mp <- createApplicationMessage convId alice1 "hello, bob"
+    response <- postMLSMessage mp.sender mp.message >>= getJSON 201
+    for_ wss $ \ws -> do
+      n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+      nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
+      -- Check both a recipient on the owning backend and Alice's other client,
+      -- which receives the event through federation.
+      nPayload n %. "time" `shouldMatch` (response %. "time")
+
 testPastStaleApplicationMessage :: (HasCallStack) => Domain -> App ()
 testPastStaleApplicationMessage otherDomain = do
   [alice, bob, charlie, dave, eve] <-
