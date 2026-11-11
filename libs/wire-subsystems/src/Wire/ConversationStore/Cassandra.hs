@@ -343,10 +343,11 @@ updateToMLSProtocol ::
   (Member (Embed IO) r) =>
   ClientState ->
   ConvId ->
+  ReceiptMode ->
   Sem r ()
-updateToMLSProtocol client cnv =
+updateToMLSProtocol client cnv recMode =
   runEmbedded (runClient client) . embed . retry x5 $
-    write Cql.updateToMLSConv (params LocalQuorum (cnv, ProtocolMLSTag))
+    write Cql.updateToMLSConv (params LocalQuorum (cnv, ProtocolMLSTag, recMode))
 
 updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
 updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
@@ -970,9 +971,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   UpdateToMixedProtocol cid groupId epoch -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
     updateToMixedProtocol client cid groupId epoch
-  UpdateToMLSProtocol cid -> do
+  UpdateToMLSProtocol cid recMode -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
-    updateToMLSProtocol client cid
+    updateToMLSProtocol client cid recMode
   UpdateChannelAddPermissions cid cap -> do
     logEffect "ConversationStore.UpdateChannelAddPermissions"
     embedClient client $ updateChannelAddPermissions cid cap
@@ -1308,12 +1309,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> updateToMixedProtocol client cid groupId epoch
         True -> interpretConversationStoreToPostgres (ConvStore.updateToMixedProtocol cid groupId epoch)
-  UpdateToMLSProtocol cid -> do
+  UpdateToMLSProtocol cid recMode -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
-        False -> updateToMLSProtocol client cid
-        _ -> interpretConversationStoreToPostgres (ConvStore.updateToMLSProtocol cid)
+        False -> updateToMLSProtocol client cid recMode
+        _ -> interpretConversationStoreToPostgres (ConvStore.updateToMLSProtocol cid recMode)
   UpdateChannelAddPermissions cid cap -> do
     logEffect "ConversationStore.UpdateChannelAddPermissions"
     withMigrationLockAndCleanup client LockShared (Left cid) $

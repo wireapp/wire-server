@@ -922,24 +922,17 @@ testNewConversationReceiptMode :: (HasCallStack) => ConversationProtocol -> App 
 testNewConversationReceiptMode proto = do
   alice <- randomUser OwnDomain def
   conv <- postConversation alice (defConv proto) {receiptMode = Just 11} >>= getJSON 201
-  let expectedReceiptMode = case proto of
-        ConversationProtocolProteus -> 11
-        ConversationProtocolMLS -> 0
+  let expectedReceiptMode = 11
   conv %. "receipt_mode" `shouldMatchInt` expectedReceiptMode
 
 testConversationReceiptModeUpdate :: (HasCallStack) => ConversationProtocol -> App ()
 testConversationReceiptModeUpdate proto = do
   alice <- randomUser OwnDomain def
   conv <- postConversation alice (defConv proto) {receiptMode = Just 11} >>= getJSON 201
-  receiptMode <- bindResponse (updateReceiptMode alice conv (12 :: Int)) $ \resp -> case proto of
-    ConversationProtocolProteus -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "data.receipt_mode" `shouldMatchInt` 12
-      pure 12
-    ConversationProtocolMLS -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "mls-receipts-not-allowed"
-      pure 0
+  receiptMode <- bindResponse (updateReceiptMode alice conv (12 :: Int)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "data.receipt_mode" `shouldMatchInt` 12
+    pure 12
 
   bindResponse (getConversation alice conv) $ \resp -> do
     resp.status `shouldMatchInt` 200

@@ -507,13 +507,9 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
     when (Data.convReceiptMode storedConv == Just (cruReceiptMode action)) noChanges
     E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
     pure $ mkPerformActionResult action
-
   ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
     throw ConversationSubsystemErrorConvNotFound
-  ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
-    -- cannot update receipt mode of MLS conversations
-    when (convProtocolTag conv == ProtocolMLSTag) $
-      throw ConversationSubsystemErrorMLSReadReceiptsNotAllowed
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) = pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throw ConversationSubsystemErrorConvNotFound
 
 instance IsConversationAction 'ConversationUpdateProtocolTag where
@@ -537,13 +533,12 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
       )
 
   performAction lconv qusr _conId action = do
-    let lcnv = fmap (.id_) lconv
-        storedConv = tUnqualified lconv
-    case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
+    let storedConv = tUnqualified lconv
+    case (protocolTag storedConv.protocol, action, convTeam storedConv) of
       (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-        let gid = Serialisation.newGroupId (convType (tUnqualified lconv)) $ Conv <$> tUntagged lcnv
+        let gid = Serialisation.newGroupId (convType storedConv) $ Conv . (.id_) <$> tUntagged lconv
             epoch = Epoch 0
-        E.updateToMixedProtocol (tUnqualified lcnv) gid epoch
+        E.updateToMixedProtocol storedConv.id_ gid epoch
         pure $ mkPerformActionResult action
       (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
         mig <- getFeatureForTeam tid
@@ -552,7 +547,8 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         ok <- checkMigrationCriteria now mlsConv mig
         unless ok $ throw ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
         removeExtraneousClients qusr lconv
-        E.updateToMLSProtocol (tUnqualified lcnv)
+        let recMode = fromMaybe def $ Data.convReceiptMode storedConv
+        E.updateToMLSProtocol storedConv.id_ recMode
         pure $ mkPerformActionResult action
       (ProtocolProteusTag, ProtocolProteusTag, _) ->
         noChanges

@@ -97,7 +97,7 @@ data ConversationStore m a where
   SetGroupInfo :: ConvId -> Maybe GroupInfoData -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   UpdateToMixedProtocol :: ConvId -> GroupId -> Epoch -> ConversationStore m ()
-  UpdateToMLSProtocol :: ConvId -> ConversationStore m ()
+  UpdateToMLSProtocol :: ConvId -> ReceiptMode -> ConversationStore m ()
   -- This function only exists to ensure that the cassandra row about team ->
   -- conv relationshop is deleted from Cassandra. This action should be deleted
   -- when we drop support for Cassandra.

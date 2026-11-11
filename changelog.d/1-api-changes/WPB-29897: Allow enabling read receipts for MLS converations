@@ -1,0 +1,1 @@
+Receipt mode is no longer restricted to be 0 for MLS conversations and updating it no longer throws an error.
