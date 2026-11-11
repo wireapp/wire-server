@@ -209,6 +209,15 @@ Two endpoints resolve a handle outside of `GET /search/contacts`.
 
 `HEAD /handles/{handle}` only tells whether a handle is in use (HTTP 200) or free (HTTP 404). It returns no user data. None of the settings on this page apply to it.
 
+## Test a change
+
+The backend uses a changed setting for the next search request. A change to the `searchVisibilityInbound` team feature updates the search index entries of all members of the team. The search index can need some seconds before the new value is visible in search results.
+
+Clients keep a local cache of users that they already know, for example from earlier searches, connections and conversations. A client can show these users in the search UI, also when the backend does not return them. Thus a test in a client can show results that do not agree with the settings. To test a change, use one of these methods:
+
+- Log in with a new client that has no local data, for example a private browser window with the web app.
+- Send `GET /search/contacts` directly to the backend with the access token of the searcher.
+
 ## What these settings do not control
 
 - **Search inside the own team.** Members of a team always find each other, unless the target has per-user searchability `false` or the searcher has the role `partner`.
