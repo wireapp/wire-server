@@ -172,12 +172,15 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
   assertMLSEnabled
   firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
   (ctype, qualifiedConvOrSubId) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
-  foldQualified
-    lusr
-    (\convOrSubId -> validateAndPropagateTargetedMessages (tUntagged lusr) client ctype convOrSubId batch.messages)
-    (postMLSTargetedMessagesToRemoteConv lusr client ctype batch)
-    qualifiedConvOrSubId
-  t <- toUTCTimeMillis <$> Now.get
+  t <-
+    foldQualified
+      lusr
+      (\convOrSubId -> validateAndPropagateTargetedMessages (tUntagged lusr) client ctype convOrSubId batch.messages)
+      ( \remoteConv -> do
+          postMLSTargetedMessagesToRemoteConv lusr client ctype batch remoteConv
+          toUTCTimeMillis <$> Now.get
+      )
+      qualifiedConvOrSubId
   pure $ MLSMessageSendingStatus [] t
 
 postMLSTransientTargetedMessageFromLocalUser ::
@@ -202,12 +205,15 @@ postMLSTransientTargetedMessageFromLocalUser lusr client batch = do
   firstMessage <- note (mlsProtocolError "transient targeted message batch is empty") (listToMaybe batch.transientMessages)
   let message = transientTargetedMessageData firstMessage.value
   (ctype, qualifiedConvOrSubId) <- getConvFromGroupId message.groupId
-  foldQualified
-    lusr
-    (validateAndPropagateTransientTargetedMessages (tUntagged lusr) client ctype message.groupId batch.transientMessages)
-    (postMLSTargetedMessagesToRemoteConv lusr client ctype batch)
-    qualifiedConvOrSubId
-  t <- toUTCTimeMillis <$> Now.get
+  t <-
+    foldQualified
+      lusr
+      (validateAndPropagateTransientTargetedMessages (tUntagged lusr) client ctype message.groupId batch.transientMessages)
+      ( \remoteConv -> do
+          postMLSTargetedMessagesToRemoteConv lusr client ctype batch remoteConv
+          toUTCTimeMillis <$> Now.get
+      )
+      qualifiedConvOrSubId
   pure $ MLSMessageSendingStatus [] t
 
 postMLSTransientMessageFromLocalUser ::
@@ -237,12 +243,15 @@ postMLSTransientMessageFromLocalUser lusr client raw = do
   unless (aad.protocolVersion == defaultProtocolVersion) $
     throw ConversationSubsystemErrorMLSUnsupportedMessage
   (ctype, qConvOrSub) <- getConvFromGroupId groupContext.groupId
-  foldQualified
-    lusr
-    (validateAndPropagateTransientMessage (tUntagged lusr) client ctype groupContext.groupId raw)
-    (postTransientMessageToRemoteConv lusr client raw)
-    qConvOrSub
-  t <- toUTCTimeMillis <$> Now.get
+  t <-
+    foldQualified
+      lusr
+      (validateAndPropagateTransientMessage (tUntagged lusr) client ctype groupContext.groupId raw)
+      ( \remoteConv -> do
+          postTransientMessageToRemoteConv lusr client raw remoteConv
+          toUTCTimeMillis <$> Now.get
+      )
+      qConvOrSub
   pure $ MLSMessageSendingStatus [] t
 
 validateAndPropagateTransientMessage ::
@@ -262,7 +271,7 @@ validateAndPropagateTransientMessage ::
   GroupId ->
   RawMLS TransientMessage ->
   Local ConvOrSubConvId ->
-  Sem r ()
+  Sem r UTCTimeMillis
 validateAndPropagateTransientMessage sender client ctype groupId raw lconv = do
   lconvOrSub <- fetchConvOrSub sender groupId ctype lconv
   let convOrSub = tUnqualified lconvOrSub
@@ -337,7 +346,7 @@ validateAndPropagateTransientTargetedMessages ::
   GroupId ->
   [RawMLS TransientTargetedMessage] ->
   Local ConvOrSubConvId ->
-  Sem r ()
+  Sem r UTCTimeMillis
 validateAndPropagateTransientTargetedMessages _sender _client _ctype _groupId [] _lconv =
   throw $ mlsProtocolError "transient targeted message batch is empty"
 validateAndPropagateTransientTargetedMessages sender client ctype groupId messages@(_ : _) lconv = do
@@ -360,8 +369,8 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
           SubConv conv subConv -> (conv.mcId, Just subConv.scSubConvId)
       qcnv = fst <$> qualifiedConv
       subConvId = snd (qUnqualified qualifiedConv)
+  now <- Now.get
   for_ validated $ \(raw, recipientClient) -> do
-    now <- Now.get
     let event =
           Event
             { evtConv = qcnv,
@@ -389,6 +398,7 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
                   recipientClient = recipientClient.ciClient,
                   message = Base64ByteString raw.raw
                 }
+  pure $ toUTCTimeMillis now
 
 validateTargetedMessage ::
   ( Member (Error ConversationSubsystemError) r,
@@ -500,7 +510,7 @@ validateAndPropagateTargetedMessages ::
   ConvType ->
   Local ConvOrSubConvId ->
   [RawMLS PersistentTargetedMessage] ->
-  Sem r ()
+  Sem r UTCTimeMillis
 validateAndPropagateTargetedMessages _sender _client _ctype _lconv [] =
   throw $ mlsProtocolError "targeted message batch is empty"
 validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMessage : _) = do
@@ -522,8 +532,8 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
           SubConv c s -> (c.mcId, Just s.scSubConvId)
       qcnv = fst <$> qt
       sconv = snd (qUnqualified qt)
+  now <- Now.get
   for_ validated $ \(raw, recipientClient) -> do
-    now <- Now.get
     let event =
           Event
             { evtConv = qcnv,
@@ -552,6 +562,7 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
                   recipientClient = recipientClient.ciClient,
                   message = Base64ByteString raw.raw
                 }
+  pure $ toUTCTimeMillis now
   where
     firstGroupId = (persistentTargetedMessageData firstMessage.value).groupId
 

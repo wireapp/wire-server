@@ -835,7 +835,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE esca
       foldQualified
         loc
         ( \convOrSubId -> do
-            validateAndPropagateTransientTargetedMessages (tUntagged sender) req.senderClient ctype groupId batch.transientMessages convOrSubId
+            void $ validateAndPropagateTransientTargetedMessages (tUntagged sender) req.senderClient ctype groupId batch.transientMessages convOrSubId
             pure (MLSMessageResponseUpdates [])
         )
         (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
@@ -847,7 +847,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE esca
       foldQualified
         loc
         ( \convOrSubId -> do
-            validateAndPropagateTargetedMessages (tUntagged sender) req.senderClient ctype convOrSubId batch.messages
+            void $ validateAndPropagateTargetedMessages (tUntagged sender) req.senderClient ctype convOrSubId batch.messages
             pure (MLSMessageResponseUpdates [])
         )
         (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
@@ -893,7 +893,7 @@ sendMLSTransientMessage remoteDomain req = handleMLSMessageErrors $ do
   foldQualified
     loc
     ( \localConv -> do
-        validateAndPropagateTransientMessage (tUntagged sender) req.senderClient ctype aad.groupContext.groupId (RawMLS messageBytes transient) localConv
+        void $ validateAndPropagateTransientMessage (tUntagged sender) req.senderClient ctype aad.groupContext.groupId (RawMLS messageBytes transient) localConv
         pure (MLSMessageResponseUpdates [])
     )
     (\_ -> throw $ mlsProtocolError "federated transient message was not sent to its conversation backend")

@@ -82,9 +82,9 @@ propagateTransientMessage ::
   Maybe ConnId ->
   ByteString ->
   ClientMap a ->
-  Sem r ()
+  Sem r UTCTimeMillis
 propagateTransientMessage qusr mSenderClient lConvOrSub con bytes cm =
-  void $ propagateMLSData qusr mSenderClient lConvOrSub con (EdMLSTransientMessage bytes) (defMessageMetadata {mmTransient = True}) bytes cm
+  propagateMLSData qusr mSenderClient lConvOrSub con (EdMLSTransientMessage bytes) (defMessageMetadata {mmTransient = True}) bytes cm
 
 propagateMLSData ::
   ( Member BackendNotificationQueueAccess r,

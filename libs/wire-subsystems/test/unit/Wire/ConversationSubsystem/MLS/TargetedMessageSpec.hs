@@ -316,12 +316,13 @@ runTargetedWithPushes fx messages =
         . interpretNowConst defaultTime
         . noopLogger
         $ do
-          validateAndPropagateTargetedMessages
-            (Qualified fx.senderUser (Domain "example.com"))
-            fx.senderClient
-            RegularConv
-            (qualifyAs (toLocalUnsafe (Domain "example.com") fx.senderUser) (Conv fx.conversation.id_))
-            messages
+          void $
+            validateAndPropagateTargetedMessages
+              (Qualified fx.senderUser (Domain "example.com"))
+              fx.senderClient
+              RegularConv
+              (qualifyAs (toLocalUnsafe (Domain "example.com") fx.senderUser) (Conv fx.conversation.id_))
+              messages
           get
 
 targetedMessageIndexMap :: Fixture -> IndexMap
