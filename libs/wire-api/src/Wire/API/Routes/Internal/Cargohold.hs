@@ -18,6 +18,7 @@
 module Wire.API.Routes.Internal.Cargohold where
 
 import Control.Lens
+import Data.Id (ClientId, UserId)
 import Data.OpenApi
 import Imports
 import Servant
@@ -30,6 +31,22 @@ type InternalAPI =
   "i"
     :> ( Named "i_status" ("status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ())
            :<|> Named "i_get_asset" ("assets" :> Capture "key" AssetKey :> Get '[Servant.JSON] Text)
+           :<|> Named
+                  "i-delete-backups-client"
+                  ( "backups"
+                      :> "users"
+                      :> Capture "uid" UserId
+                      :> "clients"
+                      :> Capture "cid" ClientId
+                      :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 204 "Backups deleted"] ()
+                  )
+           :<|> Named
+                  "i-delete-backups-user"
+                  ( "backups"
+                      :> "users"
+                      :> Capture "uid" UserId
+                      :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 204 "Backups deleted"] ()
+                  )
        )
 
 swaggerDoc :: OpenApi
