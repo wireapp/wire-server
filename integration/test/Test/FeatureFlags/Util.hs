@@ -263,6 +263,18 @@ defAllFeatures =
                   "compulsory_for_owners_and_admins" .= False
                 ]
           ],
+      "automaticBackups"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "schedule" .= "weekly",
+                  "enforced" .= False,
+                  "serverOnly" .= False
+                ]
+          ],
       "preventAdminlessGroups"
         .= object
           [ "lockStatus" .= "unlocked",

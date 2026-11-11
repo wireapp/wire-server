@@ -248,5 +248,9 @@ data:
         mfa-totp:
           {{- toYaml (index .settings.featureFlags "mfa-totp") | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.automaticBackups }}
+        automaticBackups:
+          {{- toYaml .settings.featureFlags.automaticBackups | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

@@ -556,3 +556,4 @@ instance SetFeatureConfig MeetingsPremiumConfig
 instance SetFeatureConfig BackgroundEffectsConfig
 
 instance SetFeatureConfig TotpConfig
+instance SetFeatureConfig AutomaticBackupsConfig
