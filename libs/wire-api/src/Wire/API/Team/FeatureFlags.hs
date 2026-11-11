@@ -440,6 +440,13 @@ newtype instance FeatureDefaults BackgroundEffectsConfig
   deriving (FromJSON, ToJSON) via Defaults (LockableFeature BackgroundEffectsConfig)
   deriving (ParseFeatureDefaults) via OptionalField BackgroundEffectsConfig
 
+newtype instance FeatureDefaults TotpConfig
+  = TotpDefaults (LockableFeature TotpConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature TotpConfig)
+  deriving (ParseFeatureDefaults) via OptionalField TotpConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 

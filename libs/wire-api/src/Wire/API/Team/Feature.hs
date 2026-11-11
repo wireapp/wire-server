@@ -124,6 +124,7 @@ module Wire.API.Team.Feature
     MeetingsConfig (..),
     MeetingsPremiumConfig (..),
     BackgroundEffectsConfig (..),
+    TotpConfig,
     Features,
     AllFeatures,
     NpProject (..),
@@ -296,6 +297,7 @@ data FeatureSingleton cfg where
   FeatureSingletonMeetingsConfig :: FeatureSingleton MeetingsConfig
   FeatureSingletonMeetingsPremiumConfig :: FeatureSingleton MeetingsPremiumConfig
   FeatureSingletonBackgroundEffectsConfig :: FeatureSingleton BackgroundEffectsConfig
+  FeatureSingletonTotpConfig :: FeatureSingleton TotpConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -2439,6 +2441,57 @@ instance ToObjectSchema MeetingsPremiumConfig where
   objectSchema = pure MeetingsPremiumConfig
 
 --------------------------------------------------------------------------------
+-- TotpConfig
+
+-- | Feature flag controlling TOTP (Time-based One-Time Password) MFA settings
+-- for a team. The backend persists and returns the two booleans without
+-- enforcing any behaviour — enforcement is a future concern (WPB-29745).
+data TotpConfigB t f = TotpConfig
+  { requireForAllMembers :: Wear t f Bool,
+    compulsoryForOwnersAndAdmins :: Wear t f Bool
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (TotpConfigB Covered)
+
+deriving instance ApplicativeB (TotpConfigB Covered)
+
+deriving instance TraversableB (TotpConfigB Covered)
+
+type TotpConfig = TotpConfigB Bare Identity
+
+deriving instance Eq TotpConfig
+
+deriving instance Show TotpConfig
+
+deriving via (RenderableTypeName TotpConfig) instance (RenderableSymbol TotpConfig)
+
+deriving via (GenericUniform TotpConfig) instance (Arbitrary TotpConfig)
+
+deriving via (BarbieFeature TotpConfigB) instance (ParseDbFeature TotpConfig)
+
+deriving via (BarbieFeature TotpConfigB) instance (ToSchema TotpConfig)
+
+instance Default TotpConfig where
+  def = TotpConfig False False
+
+instance (Typeable f, FieldF f) => ToSchema (TotpConfigB Covered f) where
+  schema =
+    object $
+      TotpConfig
+        <$> requireForAllMembers .= fieldF "require_for_all_members" schema
+        <*> compulsoryForOwnersAndAdmins .= fieldF "compulsory_for_owners_and_admins" schema
+
+instance Default (LockableFeature TotpConfig) where
+  def = defLockedFeature
+
+instance ToObjectSchema TotpConfig where
+  objectSchema = field "config" schema
+
+instance IsFeatureConfig TotpConfig where
+  type FeatureSymbol TotpConfig = "mfa-totp"
+  featureSingleton = FeatureSingletonTotpConfig
+
 -- BackgroundEffects Feature
 
 {-# DEPRECATED BackgroundEffectsConfig "Deprecated (WPB-27912): no longer affects meeting behaviour; kept for API compatibility." #-}
@@ -2569,7 +2622,8 @@ type Features =
     CellsInternalConfig,
     MeetingsConfig,
     MeetingsPremiumConfig,
-    BackgroundEffectsConfig
+    BackgroundEffectsConfig,
+    TotpConfig
   ]
 
 -- | list of available features as a record
