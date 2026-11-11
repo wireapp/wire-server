@@ -540,7 +540,22 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
     case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
-      (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
+      (ProtocolProteusTag, ProtocolMixedTag, Just tid) -> do
+        -- Legacy team 1:1s use the separate, canonical MLS 1:1 conversation.
+        -- Do not migrate their backing group in place.
+        when
+          ( isNothing storedConv.metadata.cnvmName
+              && storedConv.metadata.cnvmGroupConvType `elem` [Nothing, Just GroupConversation]
+              && null storedConv.remoteMembers
+              && length storedConv.localMembers <= 2
+          )
+          $ do
+            users <- E.getUsers (map (.id_) storedConv.localMembers)
+            when
+              ( length users == length storedConv.localMembers
+                  && all ((== Just tid) . userTeam) users
+              )
+              $ throw ConversationSubsystemErrorConvInvalidProtocolTransition
         let gid = Serialisation.newGroupId (convType (tUnqualified lconv)) $ Conv <$> tUntagged lcnv
             epoch = Epoch 0
         E.updateToMixedProtocol (tUnqualified lcnv) gid epoch

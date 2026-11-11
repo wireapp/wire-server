@@ -1,0 +1,1 @@
+Prevent legacy Proteus team 1:1 conversations from being migrated in place as MLS groups, which could split messages between the migrated group and the canonical MLS 1:1 conversation.
