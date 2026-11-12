@@ -1,0 +1,2 @@
+Meeting join links are now gated behind the deployment's licence. To enable them, set the optional top-level `license` Helm value to a licence payload that covers invitation links. Unset, or if it does not cover invitation links, the meeting join-by-link endpoints return `403 id-feature-error`.
+Licence payloads follow the 2026-10-08 RFC: `license_content` with `entitlements`, and `schema_version` 1 is the only accepted version.

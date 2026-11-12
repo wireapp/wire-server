@@ -30,18 +30,20 @@ import System.Exit (ExitCode (..))
 import System.Process
 import Testlib.Prelude
 
--- | Execute a SQL statement against galley's Postgres database by spawning
--- @psql@ with the connection parameters read from galley's configuration.
--- The optional top-level @postgresqlPassword@ secret file takes precedence
--- over the optional inline @postgresql.password@ value — same precedence as
--- galley (see 'lookupPassword' for the accepted file formats). Fails if
--- @psql@ exits non-zero.
-execSql :: (HasCallStack) => Text -> App ()
-execSql sql = do
+-- | Execute a SQL statement against the given backend's galley Postgres
+-- database by spawning @psql@ with the connection parameters read from
+-- galley's configuration. Dynamic backends share the static Postgres server
+-- and differ only in @postgresql.dbname@, which is taken from the backend
+-- resource. The optional top-level @postgresqlPassword@ secret file takes
+-- precedence over the optional inline @postgresql.password@ value — same
+-- precedence as galley (see 'lookupPassword' for the accepted file formats).
+-- Fails if @psql@ exits non-zero.
+execSql :: (HasCallStack) => BackendResource -> Text -> App ()
+execSql resource sql = do
   cfg <- readServiceConfig Galley
   host <- cfgStr cfg "postgresql.host"
   port <- cfgStr cfg "postgresql.port"
-  dbname <- cfgStr cfg "postgresql.dbname"
+  let dbname = resource.berPostgresqlDBName
   user <- cfgStr cfg "postgresql.user"
   mPassword <- lookupPassword cfg
   baseEnv <- liftIO getEnvironment

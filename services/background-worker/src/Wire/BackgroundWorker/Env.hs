@@ -115,7 +115,8 @@ data Env = Env
     passwordHashingOptions :: !PasswordHashingOptions,
     checkGroupInfo :: !(Maybe Bool),
     convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
-    passwordHashingRateLimitEnv :: RateLimitEnv
+    passwordHashingRateLimitEnv :: RateLimitEnv,
+    license :: Maybe Text
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -198,6 +199,7 @@ mkEnv opts galleyOpts = do
       guestLinkTTLSeconds = galleyOpts._settings._guestLinkTTLSeconds
       passwordHashingOptions = galleyOpts._settings._passwordHashingOptions
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
+      license = opts.license
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   arbiterConnStr <- mkArbiterConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword

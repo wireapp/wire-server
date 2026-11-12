@@ -62,6 +62,7 @@ settings:
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Brig
   federationDomain: example.com
+  # license: <base64url licence payload>  # leave unset: the default backend stays unlicensed (see testMeetingJoinByLinkPaywalled)
   federationProtocols: ["mls", "proteus"]
   mlsPrivateKeyPaths:
     removal:

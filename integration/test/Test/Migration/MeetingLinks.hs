@@ -33,7 +33,7 @@ import Data.Time.Clock
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
 import SetupHelpers
-import Test.Meetings (defaultMeetingJson, getMeetingIdAndDomain, linkKeyAndCode)
+import Test.Meetings (defaultMeetingJson, getMeetingIdAndDomain, linkKeyAndCode, withLicensedBackendR)
 import Testlib.PG (execSql)
 import Testlib.Prelude
 import Text.Regex.TDFA ((=~))
@@ -69,8 +69,8 @@ backfillSql =
   \WHERE conversation_codes.expires_at <= now();"
 
 testMeetingJoinCodeBackfill :: (HasCallStack) => App ()
-testMeetingJoinCodeBackfill = do
-  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+testMeetingJoinCodeBackfill = withLicensedBackendR $ \backend dom -> do
+  (owner, _tid, [bob]) <- createTeam dom 2
   now <- liftIO getCurrentTime
   let newMeeting = defaultMeetingJson "Backfill Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
 
@@ -84,7 +84,7 @@ testMeetingJoinCodeBackfill = do
   meetingBId <- T.unpack . UUID.toText <$> liftIO UUIDV4.nextRandom
   creatorId <- owner %. "id" >>= asString
   convAId <- meetingA %. "conversation" %. "qualified_id" %. "id" >>= asString
-  execSql
+  execSql backend
     . T.pack
     $ "INSERT INTO meetings (id, title, creator, start_time, end_time, tzid, mtype,"
     <> " conversation_id, invited_emails, trial, created_at, updated_at)"
@@ -104,7 +104,7 @@ testMeetingJoinCodeBackfill = do
   -- stale row (ON CONFLICT ... WHERE expires_at <= now()) instead of
   -- treating the key as occupied forever.
   meetingCId <- T.unpack . UUID.toText <$> liftIO UUIDV4.nextRandom
-  execSql
+  execSql backend
     . T.pack
     $ "INSERT INTO meetings (id, title, creator, start_time, end_time, tzid, mtype,"
     <> " conversation_id, invited_emails, trial, created_at, updated_at)"
@@ -117,7 +117,7 @@ testMeetingJoinCodeBackfill = do
     <> " '"
     <> convAId
     <> "', '{}', false, now(), now())"
-  execSql
+  execSql backend
     . T.pack
     $ "INSERT INTO conversation_codes (key, conversation, password, value, expires_at, target)"
     <> " VALUES ('"
@@ -128,7 +128,7 @@ testMeetingJoinCodeBackfill = do
 
   -- (3) Run the one-off backfill migration (first pass); B gains a link and
   -- A's link stays byte-identical.
-  execSql (T.pack backfillSql)
+  execSql backend (T.pack backfillSql)
   linkB <- fetchLink owner meetingBId
   let expected = "meeting-join/\\?key=[A-Za-z0-9_-]{20}&code=[A-Za-z0-9_-]{6,20}&domain=" <> domain
   assertBool ("unexpected backfilled meeting link: " <> linkB) (linkB =~ expected)
@@ -155,7 +155,7 @@ testMeetingJoinCodeBackfill = do
   -- (5) Idempotence: a second pass must change nothing — B's and C's links
   -- (their codes were created/replaced in the first pass) are byte-identical,
   -- and A's is untouched.
-  execSql (T.pack backfillSql)
+  execSql backend (T.pack backfillSql)
   linkB' <- fetchLink owner meetingBId
   assertBool "backfill must not rotate an existing meeting's link" (linkB' == linkB)
   linkC' <- fetchLink owner meetingCId

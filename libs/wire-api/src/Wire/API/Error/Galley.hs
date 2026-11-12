@@ -397,6 +397,15 @@ type instance MapError 'MLSHistoryClientDuplication = 'StaticError 400 "mls-hist
 
 type instance MapError 'MeetingNotFound = 'StaticError 404 "meeting-not-found" "Meeting not found"
 
+type instance MapError 'MeetingNotLicensed = MeetingNotLicensedStatic
+
+type instance MapError 'LinkUnavailable = MeetingLinkErrorStatic
+
+type instance ErrorEffect (e :: MeetingError) = Error MeetingError
+
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: MeetingError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+
 type instance MapError 'CodeStoreNotFound = 'StaticError 404 "code-store-not-found" "Code store not found"
 
 -- | Errors raised by the meetings subsystem, exposed at the API level via
@@ -410,6 +419,7 @@ data MeetingError
   | -- | No join link can be produced: the code store cannot hold meeting
     -- codes, or no join-link URI is configured for the user's domain.
     LinkUnavailable
+  | MeetingNotLicensed
   deriving stock (Eq, Show)
 
 -- | The individual failure modes of meeting time validation.
@@ -437,6 +447,7 @@ meetingErrorToDyn = \case
       500
       "link-unavailable"
       "Cannot produce a meeting join link: the code store must run in postgresql or migration-to-postgresql mode and a join-link URI must be configured for the user's domain"
+  MeetingNotLicensed -> DynError 403 "id-feature-error" "Not licensed on this backend"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
@@ -449,10 +460,13 @@ type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, 
 
 type MeetingLinkErrorStatic = 'StaticError 500 "link-unavailable" "No join link can be produced for this meeting"
 
+type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
+
 instance IsSwaggerError MeetingError where
   addToOpenApi =
     addStaticErrorToSwagger @MeetingErrorStatic
       . addStaticErrorToSwagger @MeetingLinkErrorStatic
+      . addStaticErrorToSwagger @MeetingNotLicensedStatic
 
 instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where
   interpretServerEffect = mapError meetingErrorToDyn

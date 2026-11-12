@@ -78,6 +78,7 @@ library
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , wire-licensing
     , wire-subsystems
 
   default-extensions:

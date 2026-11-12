@@ -89,6 +89,7 @@ let
     test-stats = [ "test-stats" ];
     team-info = [ "team-info" ];
     wire-server-enterprise = [ "wire-server-enterprise" ];
+    wire-licensing = [ "wire-licensing" ];
     migrate-features = [ "migrate-features" ];
     mlsstats = [ "mlsstats" ];
   };
@@ -307,6 +308,7 @@ let
       brig-templates
       background-worker
       wire-server-enterprise
+      wire-licensing
       pkgs.nginz
       pkgs.mls-test-cli
       pkgs.awscli2
@@ -338,44 +340,54 @@ let
     which
   ];
 
+  # quay.io/wire/wire-licensing does not exist yet: quay does not
+  # auto-create repositories, so skopeo's blob-exists check fails with
+  # "authentication required" and the CI image upload aborts. Exclude the
+  # standalone image until the repository is created (private, CI robot
+  # write access) — then empty this list. The CLI itself still ships in
+  # the `integration` image via staticExecs.
+  excludedImages = [ "wire-licensing" ];
+
   images = localMods@{ enableOptimization, enableDocs, enableTests }:
     let
       exes = staticExecs localMods;
-      allImages = attrsets.mapAttrs
-        (execName: drv:
-          pkgs.dockerTools.streamLayeredImage {
-            name = "quay.io/wire/${execName}";
-            maxLayers = 10;
-            contents = [
-              pkgs.cacert
-              pkgs.iana-etc
-              pkgs.dumb-init
-              pkgs.dockerTools.fakeNss
-              pkgs.dockerTools.usrBinEnv
-              drv
-              tmpDir
-            ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
-            # Any mkdir running in this step won't actually make it to the image,
-            # hence we use the tmpDir derivation in the contents
-            fakeRootCommands = ''
-              chmod 1777 tmp
-              chmod 1777 var/tmp
-            '';
-            config = {
-              Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
-              Env = [
-                "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
-                "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
-                "LANG=en_GB.UTF-8"
-                # Use stable conventions for tracing http in opentelemetry
-                # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
-                "OTEL_SEMCONV_STABILITY_OPT_IN=http"
-              ];
-              User = "65534";
-            };
-          }
-        )
-        exes;
+      allImages = builtins.removeAttrs
+        (attrsets.mapAttrs
+          (execName: drv:
+            pkgs.dockerTools.streamLayeredImage {
+              name = "quay.io/wire/${execName}";
+              maxLayers = 10;
+              contents = [
+                pkgs.cacert
+                pkgs.iana-etc
+                pkgs.dumb-init
+                pkgs.dockerTools.fakeNss
+                pkgs.dockerTools.usrBinEnv
+                drv
+                tmpDir
+              ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
+              # Any mkdir running in this step won't actually make it to the image,
+              # hence we use the tmpDir derivation in the contents
+              fakeRootCommands = ''
+                chmod 1777 tmp
+                chmod 1777 var/tmp
+              '';
+              config = {
+                Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
+                Env = [
+                  "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+                  "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
+                  "LANG=en_GB.UTF-8"
+                  # Use stable conventions for tracing http in opentelemetry
+                  # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
+                  "OTEL_SEMCONV_STABILITY_OPT_IN=http"
+                ];
+                User = "65534";
+              };
+            }
+          )
+          exes)
+        excludedImages;
     in
     allImages
     // {
@@ -404,7 +416,7 @@ let
 
   imagesList = pkgs.writeTextFile {
     name = "imagesList";
-    text = "${lib.concatStringsSep "\n" (builtins.attrNames (staticExecs localModsEnableAll))}";
+    text = "${lib.concatStringsSep "\n" (lib.subtractLists excludedImages (builtins.attrNames (staticExecs localModsEnableAll)))}";
   };
   wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll { } { }));
 

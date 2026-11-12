@@ -59,6 +59,8 @@ import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 import Wire.HashPassword (HashPassword, hashPassword8, verifyPassword)
+import Wire.Licensing.Effect (Licensing, getLicense)
+import Wire.Licensing.License (License (..), Meetings (..))
 import Wire.MeetingNotifier (MeetingNotifier, notifyMeetingEvent)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
@@ -154,7 +156,8 @@ interpretMeetingsSubsystem ::
     Member CodeStore r,
     Member Random.Random r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member Licensing r
   ) =>
   -- | System-wide meeting configuration.
   MeetingSystemConfig ->
@@ -624,6 +627,12 @@ getMeetingImpl zUser meetingId validityPeriod = do
           lift $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
     else pure Nothing
 
+-- | Throw the given error unless the deployment's license covers
+-- invitation links (WPB-29643).
+invitationLinksLicensed :: (Member Licensing r, Member (Error e) r) => e -> Sem r ()
+invitationLinksLicensed err =
+  getLicense >>= \l -> unless l.meetings.invitationLinks $ throw err
+
 -- | Unauthenticated check of a meeting join link (WPB-28989). Unlike
 -- 'getMeetingImpl' no creator/membership check and no meetings-feature gate
 -- are made: anyone holding the link may look the meeting up, exactly like
@@ -637,7 +646,9 @@ codeCheckMeetingLinkImpl ::
     Member Now r,
     Member HashPassword r,
     Member RateLimit r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (Error MeetingError) r,
+    Member Licensing r
   ) =>
   IpAddr ->
   Domain ->
@@ -647,6 +658,7 @@ codeCheckMeetingLinkImpl ::
   NominalDiffTime ->
   Sem r CodeCheckMeetingLinkResult
 codeCheckMeetingLinkImpl origIp domain key presentedValue mPassword validityPeriod = do
+  invitationLinksLicensed MeetingNotLicensed
   localDomain <- tDomain <$> input
   resolveLiveMeetingByKey localDomain domain key presentedValue validityPeriod >>= \case
     Nothing -> pure CodeCheckNotFound
@@ -677,7 +689,8 @@ codeCheckMeetingLinkImpl origIp domain key presentedValue mPassword validityPeri
 -- returned as 'JoinMeetingNotFound' rather than thrown because a throw from
 -- interpreter space is invisible to callers' local error handlers (PR #5571
 -- review lesson); only the strict link-production failure ('LinkUnavailable')
--- is thrown, and the join route declares it.
+-- and the license gate (which throws 'MeetingNotLicensed', as declared on the
+-- route) are thrown.
 joinMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member CodeStore r,
@@ -686,7 +699,8 @@ joinMeetingImpl ::
     Member RateLimit r,
     Member ConversationSubsystem r,
     Member TinyLog r,
-    Member (Error MeetingError) r
+    Member (Error MeetingError) r,
+    Member Licensing r
   ) =>
   Local UserId ->
   ConnId ->
@@ -696,7 +710,8 @@ joinMeetingImpl ::
   Maybe PlainTextPassword8 ->
   NominalDiffTime ->
   Sem r JoinMeetingResult
-joinMeetingImpl zUser connId domain key presentedValue mPassword validityPeriod =
+joinMeetingImpl zUser connId domain key presentedValue mPassword validityPeriod = do
+  invitationLinksLicensed MeetingNotLicensed
   resolveLiveMeetingByKey (tDomain zUser) domain key presentedValue validityPeriod >>= \case
     Nothing -> pure JoinMeetingNotFound
     Just (mHashedPw, meeting) -> do

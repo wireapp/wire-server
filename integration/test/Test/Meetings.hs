@@ -21,7 +21,8 @@ module Test.Meetings where
 
 import API.Galley
 import qualified API.GalleyInternal as I
-import Control.Monad.Reader (ask)
+import Control.Monad.Codensity (Codensity (runCodensity))
+import Control.Monad.Reader (ask, asks)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
@@ -30,8 +31,11 @@ import Data.Time.Format.ISO8601 (iso8601ParseM)
 import MLS.Util
 import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isConvLeaveNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
+import System.Environment (lookupEnv)
+import System.Process (readProcess)
 import System.Timeout (timeout)
 import Testlib.Prelude
+import Testlib.ResourcePool (acquireResources)
 import Text.Regex.TDFA ((=~))
 import UnliftIO.Concurrent (threadDelay)
 
@@ -1054,8 +1058,8 @@ testMeetingInteropV18ToV19 = do
 -- (rotating the code embedded in the @link@ URL), revokes the meeting
 -- conversation's guest link, and enforces creator-only access.
 testMeetingLinkRefresh :: (HasCallStack) => App ()
-testMeetingLinkRefresh = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+testMeetingLinkRefresh = withLicensedBackend $ \dom -> do
+  (owner, _tid, _members) <- createTeam dom 1
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -1091,7 +1095,7 @@ testMeetingLinkRefresh = do
   getConversationCode owner conv Nothing >>= assertLabel 404 "no-conversation-code"
 
   -- Only the creator may refresh.
-  (otherUser, _, _) <- createTeam OwnDomain 1
+  (otherUser, _, _) <- createTeam dom 1
   postMeetingLinkRefresh otherUser domain meetingId (object []) >>= assertStatus 404
 
   -- Refreshing a deleted meeting yields 404.
@@ -1102,6 +1106,29 @@ testMeetingLinkRefresh = do
   meeting2 <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
   postMeetingLinkRefresh owner domain2 meetingId2 (object ["password" .= ("short7" :: String)]) >>= assertStatus 400
+
+-- | Run the body against a dynamic backend whose galley is licensed for
+-- invitation links (WPB-29643): acquires a backend resource, generates a
+-- full-license payload with the wire-licensing CLI for the backend's
+-- domain, injects it into galley's config (@settings.license@), and starts
+-- the backend. No process-global state, so no locking is needed.
+withLicensedBackend :: (HasCallStack) => (String -> App a) -> App a
+withLicensedBackend k = withLicensedBackendR (\_ dom -> k dom)
+
+-- | As 'withLicensedBackend', but also exposes the backend resource (e.g. for
+-- 'Testlib.PG.execSql', which needs the backend's Postgres dbname).
+withLicensedBackendR :: (HasCallStack) => (BackendResource -> String -> App a) -> App a
+withLicensedBackendR k = do
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
+    let dom = backend.berDomain
+    cli <- liftIO (fromMaybe "wire-licensing" <$> lookupEnv "WIRE_LICENSING_CLI")
+    token <- liftIO (readProcess cli ["example", "full", "--domain", dom] "")
+    let overrides =
+          def
+            { galleyCfg = setField "settings.license" (Text.strip (Text.pack token))
+            }
+    runCodensity (startDynamicBackend backend overrides) $ \_ -> k backend dom
 
 -- | Extract the (key, code) query parameters from a meeting join link URL
 -- (@…/meeting-join/?key=\<key\>&code=\<code\>&domain=…@). The URL contains
@@ -1127,8 +1154,8 @@ linkKeyAndCode link = (lookupParam "key=", lookupParam "code=")
 -- The code value is the rotating capability: stale values (superseded by a
 -- refresh) yield 404.
 testMeetingJoinByLink :: (HasCallStack) => App ()
-testMeetingJoinByLink = do
-  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+testMeetingJoinByLink = withLicensedBackend $ \dom -> do
+  (owner, _tid, [bob]) <- createTeam dom 2
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -1171,15 +1198,14 @@ testMeetingJoinByLink = do
 -- conversation. No creator or conversation membership is required;
 -- password-protected links require the matching password on both verbs.
 testMeetingLinkJoin :: (HasCallStack) => App ()
-testMeetingLinkJoin = do
+testMeetingLinkJoin = withLicensedBackend $ \dom -> do
   -- Meeting join codes live in the Postgres code store only. In
   -- cassandra-only mode meeting creation fails closed with 500
   -- @link-unavailable@: assert that instead of the positive path below.
   codeStorage <- readServiceConfig Galley %. "postgresMigration.conversationCodes" >>= asString
   let isCassandraCodeStore = codeStorage == "cassandra"
 
-  (alice, _tid, [bob]) <- createTeam OwnDomain 2
-
+  (alice, _tid, [bob]) <- createTeam dom 2
   now <- liftIO getCurrentTime
   let newMeeting = defaultMeetingJson "Link Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
   when isCassandraCodeStore $ do
@@ -1256,7 +1282,7 @@ testMeetingLinkJoin = do
 -- being a team member. Refreshing the link rotates the code so the stale
 -- value stops working, while an already-joined guest keeps their membership.
 testMeetingLinkTempGuest :: (HasCallStack) => App ()
-testMeetingLinkTempGuest = do
+testMeetingLinkTempGuest = withLicensedBackend $ \dom -> do
   -- Meeting join codes live in the Postgres code store only: a cassandra-only
   -- code store cannot hold them, so meeting creation fails closed with 500
   -- @link-unavailable@. Assert that instead of the positive path below; the
@@ -1265,7 +1291,7 @@ testMeetingLinkTempGuest = do
   codeStorage <- readServiceConfig Galley %. "postgresMigration.conversationCodes" >>= asString
   let isCassandraCodeStore = codeStorage == "cassandra"
 
-  (owner, _tid, _) <- createTeam OwnDomain 1
+  (owner, _tid, _) <- createTeam dom 1
 
   when isCassandraCodeStore $ do
     -- Creation fails closed: no code store, no link.
@@ -1286,7 +1312,7 @@ testMeetingLinkTempGuest = do
     -- The temporary guest is an ephemeral account: no email/phone/SSO,
     -- expiring after the server session token timeout (24h in prod; the
     -- integration environment overrides it to a few seconds).
-    guest <- ephemeralUser OwnDomain
+    guest <- ephemeralUser dom
     expiresAtStr <- guest %. "expires_at" >>= asString
     expiresAt <-
       assertJust ("could not parse expires_at: " <> expiresAtStr)
@@ -1348,7 +1374,7 @@ testMeetingLinkTempGuest = do
     postMeetingJoin guest domain key code (Just meetingLinkPassword) >>= assertLabel 404 "meeting-not-found"
 
     -- A second temporary guest joins via the refreshed link+password.
-    guest2 <- ephemeralUser OwnDomain
+    guest2 <- ephemeralUser dom
     postMeetingJoin guest2 domain newKey newCode Nothing >>= assertLabel 403 "invalid-meeting-password"
     postMeetingJoin guest2 domain newKey newCode (Just meetingLinkPassword) >>= assertStatus 200
 
@@ -1384,8 +1410,8 @@ testMeetingAccessUpdateRejected = do
 -- password-protects the join link/code at creation time; short passwords are
 -- rejected at decode time.
 testMeetingCreatePassword :: (HasCallStack) => App ()
-testMeetingCreatePassword = do
-  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+testMeetingCreatePassword = withLicensedBackend $ \dom -> do
+  (owner, _tid, [bob]) <- createTeam dom 2
   domain <- objDomain owner
   now <- liftIO getCurrentTime
   let newMeeting =
@@ -1417,8 +1443,8 @@ testMeetingCreatePassword = do
     getMeetingCodeCheck bob domain key code (Just meetingLinkPassword) >>= assertStatus 200
 
 testMeetingLinkJoinNotFound :: (HasCallStack) => App ()
-testMeetingLinkJoinNotFound = do
-  (alice, _tid, _members) <- createTeam OwnDomain 1
+testMeetingLinkJoinNotFound = withLicensedBackend $ \dom -> do
+  (alice, _tid, _members) <- createTeam dom 1
   domain <- objDomain alice
   -- Format-valid but unknown credentials (Key: exactly 20 base64url chars,
   -- Value: 6-20); no code row exists for the key, so both verbs 404.
@@ -1426,3 +1452,26 @@ testMeetingLinkJoinNotFound = do
       code = replicate 12 'A'
   getMeetingCodeCheck alice domain key code Nothing >>= assertLabel 404 "meeting-not-found"
   postMeetingJoin alice domain key code Nothing >>= assertLabel 404 "meeting-not-found"
+
+-- | WPB-29643: on a deployment whose license does not cover invitation
+-- links (the default, unlicensed static backend), both join-by-link verbs
+-- return 403 id-feature-error before any link resolution. Meeting creation
+-- is NOT gated, and unknown keys do not leak a 404.
+testMeetingJoinByLinkPaywalled :: (HasCallStack) => App ()
+testMeetingJoinByLinkPaywalled = do
+  (owner, _tid, [bob]) <- createTeam OwnDomain 2
+  now <- liftIO getCurrentTime
+  meeting <-
+    postMeetings owner (defaultMeetingJson "Paywalled Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) [])
+      >>= getJSON 201
+  (_, domain) <- getMeetingIdAndDomain meeting
+  mLink <- lookupField meeting "link" >>= maybe (pure Nothing) asStringM
+  let unkKey = replicate 20 'A'
+      unkCode = replicate 12 'A'
+      (key, code) = maybe (unkKey, unkCode) linkKeyAndCode mLink
+  -- The meeting was created fine (201 above), but both link verbs paywall:
+  getMeetingCodeCheck bob domain key code Nothing >>= assertLabel 403 "id-feature-error"
+  postMeetingJoin bob domain key code Nothing >>= assertLabel 403 "id-feature-error"
+  -- A format-valid but unknown key hits the gate before resolution too.
+  getMeetingCodeCheck bob domain unkKey unkCode Nothing >>= assertLabel 403 "id-feature-error"
+  postMeetingJoin bob domain unkKey unkCode Nothing >>= assertLabel 403 "id-feature-error"

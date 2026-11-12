@@ -35,6 +35,7 @@ module Wire.Options.Galley
     federationProtocols,
     mlsPrivateKeyPaths,
     featureFlags,
+    license,
     defConcurrentDeletionEvents,
     JournalOpts (JournalOpts),
     queueName,
@@ -179,7 +180,10 @@ data Settings = Settings
     -- | Check group info
     _checkGroupInfo :: !(Maybe Bool),
     -- | Configuration for meetings
-    _meetings :: !(Maybe MeetingsConfig)
+    _meetings :: !(Maybe MeetingsConfig),
+    -- | Raw licence payload: base64url-encoded JSON 'LicenceSpec' as produced by
+    --   @wire-licensing encode@ / @example@. Unset means unlicensed.
+    _license :: !(Maybe Text)
   }
   deriving (Show, Generic)
 
