@@ -1,0 +1,349 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "gundeck",
+        "namespace": "fan-in-perf-ci",
+        "labels": {
+          "app.kubernetes.io/part-of": "fan-in-perf"
+        }
+      },
+      "data": {
+        "config.yaml": "{\"fanInPerfPostgresql\": {\"host\": \"postgres\", \"port\": \"5432\", \"user\": \"wire-server\", \"dbname\": \"fan_in_perf\"}, \"fanInPerfPostgresqlPassword\": \"/etc/benchmark-passwords/postgres-password\", \"fanInPerfPostgresqlPool\": {\"size\": 32, \"acquisitionTimeout\": \"5s\", \"idlenessTimeout\": \"600s\"}, \"cassandra\": {\"endpoint\": {\"host\": \"cassandra\", \"port\": 9042}, \"keyspace\": \"gundeck_perf\"}, \"rabbitmq\": {\"host\": \"rabbitmq\", \"port\": 5672, \"vHost\": \"/\", \"enableTls\": false}, \"gundeck\": {\"host\": \"0.0.0.0\", \"port\": 8086}, \"logLevel\": \"Warn\", \"logNetStrings\": false, \"brig\": {\"host\": \"unused-brig\", \"port\": 8082}, \"redis\": {\"host\": \"redis\", \"port\": 6379, \"connectionMode\": \"master\", \"enableTls\": false, \"insecureSkipVerifyTls\": false}, \"aws\": {\"queueName\": \"integration-gundeck-events\", \"region\": \"eu-central-1\", \"account\": \"123456789012\", \"arnEnv\": \"integration\", \"sqsEndpoint\": \"http://elasticmq:4568\", \"snsEndpoint\": \"http://127.0.0.1:9\"}, \"settings\": {\"httpPoolSize\": 1024, \"notificationTTL\": 24192200, \"perNativePushConcurrency\": 32, \"sqsThrottleMillis\": 1000, \"maxConcurrentNativePushes\": {\"hard\": 30, \"soft\": 10}, \"disabledAPIVersions\": [], \"cellsEventQueue\": \"cells_events\", \"consumableNotifications\": false}}"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "gundeck",
+        "namespace": "fan-in-perf-ci",
+        "labels": {
+          "app.kubernetes.io/part-of": "fan-in-perf"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "gundeck"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "gundeck",
+              "app.kubernetes.io/part-of": "fan-in-perf"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "nodeSelector": {
+              "kubernetes.io/hostname": "worker-14"
+            },
+            "containers": [
+              {
+                "name": "gundeck",
+                "image": "quay.io/wire/gundeck:xv5k6qbbpwhnrqp8y1q4ds36xnr52fq7",
+                "resources": {
+                  "requests": {
+                    "cpu": "2",
+                    "memory": "2Gi"
+                  },
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "2Gi"
+                  }
+                },
+                "args": [
+                  "-c",
+                  "/etc/benchmark/config.yaml",
+                  "+RTS",
+                  "-N2",
+                  "-RTS"
+                ],
+                "ports": [
+                  {
+                    "containerPort": 8086
+                  }
+                ],
+                "readinessProbe": {
+                  "tcpSocket": {
+                    "port": 8086
+                  },
+                  "periodSeconds": 5
+                },
+                "env": [
+                  {
+                    "name": "RABBITMQ_USERNAME",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "benchmark-passwords",
+                        "key": "rabbit-user"
+                      }
+                    }
+                  },
+                  {
+                    "name": "RABBITMQ_PASSWORD",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "benchmark-passwords",
+                        "key": "rabbit-password"
+                      }
+                    }
+                  },
+                  {
+                    "name": "AWS_ACCESS_KEY_ID",
+                    "value": "benchmark-only"
+                  },
+                  {
+                    "name": "AWS_SECRET_ACCESS_KEY",
+                    "value": "benchmark-only"
+                  },
+                  {
+                    "name": "AWS_EC2_METADATA_DISABLED",
+                    "value": "true"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "gundeck",
+                    "mountPath": "/etc/benchmark",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "passwords",
+                    "mountPath": "/etc/benchmark-passwords",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "restartPolicy": "Always",
+            "volumes": [
+              {
+                "name": "gundeck",
+                "configMap": {
+                  "name": "gundeck"
+                }
+              },
+              {
+                "name": "passwords",
+                "secret": {
+                  "secretName": "benchmark-passwords",
+                  "items": [
+                    {
+                      "key": "postgres-password",
+                      "path": "postgres-password"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "gundeck",
+        "namespace": "fan-in-perf-ci",
+        "labels": {
+          "app.kubernetes.io/part-of": "fan-in-perf"
+        }
+      },
+      "spec": {
+        "selector": {
+          "app": "gundeck"
+        },
+        "ports": [
+          {
+            "port": 8086,
+            "targetPort": 8086
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "cannon",
+        "namespace": "fan-in-perf-ci",
+        "labels": {
+          "app.kubernetes.io/part-of": "fan-in-perf"
+        }
+      },
+      "data": {
+        "config.yaml": "{\"fanInPerfPostgresql\": {\"host\": \"postgres\", \"port\": \"5432\", \"user\": \"wire-server\", \"dbname\": \"fan_in_perf\"}, \"fanInPerfPostgresqlPassword\": \"/etc/benchmark-passwords/postgres-password\", \"fanInPerfPostgresqlPool\": {\"size\": 32, \"acquisitionTimeout\": \"5s\", \"idlenessTimeout\": \"600s\"}, \"cassandra\": {\"endpoint\": {\"host\": \"cassandra\", \"port\": 9042}, \"keyspace\": \"gundeck_perf\"}, \"rabbitmq\": {\"host\": \"rabbitmq\", \"port\": 5672, \"vHost\": \"/\", \"enableTls\": false}, \"gundeck\": {\"host\": \"gundeck\", \"port\": 8086}, \"logLevel\": \"Warn\", \"logNetStrings\": false, \"cannon\": {\"host\": \"0.0.0.0\", \"port\": 8083, \"externalHost\": \"cannon\"}, \"drainOpts\": {\"gracePeriodSeconds\": 5, \"millisecondsBetweenBatches\": 500, \"minBatchSize\": 5}, \"notificationTTL\": 24192200, \"disabledAPIVersions\": []}"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "cannon",
+        "namespace": "fan-in-perf-ci",
+        "labels": {
+          "app.kubernetes.io/part-of": "fan-in-perf"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "cannon"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "cannon",
+              "app.kubernetes.io/part-of": "fan-in-perf"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "nodeSelector": {
+              "kubernetes.io/hostname": "worker-14"
+            },
+            "containers": [
+              {
+                "name": "cannon",
+                "image": "quay.io/wire/cannon:ljkb096ihh78l9r21vw0ckm0cdwfqi28",
+                "resources": {
+                  "requests": {
+                    "cpu": "2",
+                    "memory": "4Gi"
+                  },
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "4Gi"
+                  }
+                },
+                "args": [
+                  "-c",
+                  "/etc/benchmark/config.yaml",
+                  "+RTS",
+                  "-N2",
+                  "-M2G",
+                  "-RTS"
+                ],
+                "ports": [
+                  {
+                    "containerPort": 8083
+                  }
+                ],
+                "readinessProbe": {
+                  "tcpSocket": {
+                    "port": 8083
+                  },
+                  "periodSeconds": 5
+                },
+                "env": [
+                  {
+                    "name": "RABBITMQ_USERNAME",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "benchmark-passwords",
+                        "key": "rabbit-user"
+                      }
+                    }
+                  },
+                  {
+                    "name": "RABBITMQ_PASSWORD",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "benchmark-passwords",
+                        "key": "rabbit-password"
+                      }
+                    }
+                  },
+                  {
+                    "name": "AWS_ACCESS_KEY_ID",
+                    "value": "benchmark-only"
+                  },
+                  {
+                    "name": "AWS_SECRET_ACCESS_KEY",
+                    "value": "benchmark-only"
+                  },
+                  {
+                    "name": "AWS_EC2_METADATA_DISABLED",
+                    "value": "true"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "cannon",
+                    "mountPath": "/etc/benchmark",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "passwords",
+                    "mountPath": "/etc/benchmark-passwords",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "restartPolicy": "Always",
+            "volumes": [
+              {
+                "name": "cannon",
+                "configMap": {
+                  "name": "cannon"
+                }
+              },
+              {
+                "name": "passwords",
+                "secret": {
+                  "secretName": "benchmark-passwords",
+                  "items": [
+                    {
+                      "key": "postgres-password",
+                      "path": "postgres-password"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "cannon",
+        "namespace": "fan-in-perf-ci",
+        "labels": {
+          "app.kubernetes.io/part-of": "fan-in-perf"
+        }
+      },
+      "spec": {
+        "selector": {
+          "app": "cannon"
+        },
+        "ports": [
+          {
+            "port": 8083,
+            "targetPort": 8083
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+1,000 devices; 10 events/s target; 300 seconds.
+Warm repeat: database retained from baseline-1.
+Shared CI nodes: services worker-14, dependencies worker-4, generator worker-3.
