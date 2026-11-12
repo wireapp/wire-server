@@ -842,6 +842,7 @@ runRecursiveAuthUserApp = runClient . runApp . runUser . runAuth
     runClient :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor ClientSubsystem r
     runClient = runClientSubsystem runAuth runUser
 
+-- REVIEW: Wouldn't it make sense to use a realistic (stateful) mock here?
 noopCargoholdAPIAccess :: InterpreterFor CargoholdAPIAccess r
 noopCargoholdAPIAccess = interpret \case
   DeleteBackupsOfClient {} -> pure ()

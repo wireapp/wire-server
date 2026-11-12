@@ -30,12 +30,15 @@ import Network.HTTP.Types.Status (statusCode)
 import SetupHelpers
 import Testlib.Prelude
 
+-- REVIEW: Helpers should be below tests / using functions.
+
 --------------------------------------------------------------------------------
 -- Helpers
 
 featureName :: String
 featureName = "automaticBackups"
 
+-- REVIEW: Quite some duplication with disableBackups. extract base function?
 enableBackups :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
 enableBackups owner tid =
   bindResponse (setTeamFeatureConfig owner tid featureName (object ["status" .= "enabled"]))
@@ -91,6 +94,7 @@ uploadAndGetUrl user cid epoch = do
 testBackupRoundtrip :: (HasCallStack) => App ()
 testBackupRoundtrip = do
   (owner, _, _) <- backupTeam OwnDomain
+  -- REVIEW: Use cid and only a number if there is more than one. (Fix this in whole diff)
   c1 <- newClient owner
   let payload = BSC.pack "full backup content"
   bindResponse (uploadBackup owner c1 c1 1 payload) $ \resp -> do

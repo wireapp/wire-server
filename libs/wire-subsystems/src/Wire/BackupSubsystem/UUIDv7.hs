@@ -25,6 +25,8 @@ import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Imports
 
+-- REVIEW: Do we really need this? Can't we just use UUID v7 initialized with time via some lib?
+
 -- | Overwrites the first 48 bits with unix millis and the version nibble with 7 (RFC 9562).
 -- Input is a random (v4) UUID, its variant bits are already RFC-conformant.
 uuidV7 :: UTCTime -> UUID -> UUID

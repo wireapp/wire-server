@@ -428,10 +428,12 @@ beginMultipartBody sets t l =
 endMultipartBody' :: Builder
 endMultipartBody' = byteString $ cs "\r\n--frontier--\r\n"
 
+-- REVIEW: Use haddock to structure this module.
 -- BACKUPS
 --
 -- All helpers take the acting client (Z-Client) and the client the backup belongs to.
 
+-- REVIEW: zcid vs. cid needs haddock
 backupRequest ::
   (HasCallStack, MakesValue user) =>
   user ->
@@ -440,6 +442,7 @@ backupRequest ::
   String ->
   App HTTP.Request
 backupRequest user zcid cid suffix = do
+  -- REVIEW: Path segments should be a list
   req <- baseRequest user Cargohold Versioned $ "/backups/clients/" <> cid <> suffix
   pure $ req & zClient zcid & noRedirect
 
