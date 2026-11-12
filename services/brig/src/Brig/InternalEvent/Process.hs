@@ -36,6 +36,7 @@ import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
+import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
 import Wire.ClientStore (ClientStore)
 import Wire.ConnectionStore (ConnectionStore)
 import Wire.Events (Events)
@@ -70,6 +71,7 @@ onEvent ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member (Concurrency Unsafe) r,
+    Member CargoholdAPIAccess r,
     Member ClientStore r
   ) =>
   InternalNotification ->

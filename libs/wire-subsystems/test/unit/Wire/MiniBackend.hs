@@ -111,6 +111,7 @@ import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BlockListStore
 import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.CargoholdAPIAccess
 import Wire.ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Interpreter
@@ -274,6 +275,7 @@ type MiniBackendLowerEffects =
   '[ ClientSubsystem,
      Input ConversationSubsystemConfig,
      BrigAPIAccess,
+     CargoholdAPIAccess,
      UserClientIndexStore,
      BackendNotificationQueueAccess,
      ConversationSubsystem,
@@ -369,6 +371,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . mockConversationSubsystem
     . mockBackendNotificationQueueAccess
     . mockUserClientIndexStore
+    . noopCargoholdAPIAccess
     . mockBrigAPIAccess
     . runInputConst conversationCfg
     . runClientSubsystem undefined undefined
@@ -838,6 +841,11 @@ runRecursiveAuthUserApp = runClient . runApp . runUser . runAuth
 
     runClient :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor ClientSubsystem r
     runClient = runClientSubsystem runAuth runUser
+
+noopCargoholdAPIAccess :: InterpreterFor CargoholdAPIAccess r
+noopCargoholdAPIAccess = interpret \case
+  DeleteBackupsOfClient {} -> pure ()
+  DeleteBackupsOfUser {} -> pure ()
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case

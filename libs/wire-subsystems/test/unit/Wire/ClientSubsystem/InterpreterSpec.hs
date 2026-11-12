@@ -43,6 +43,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.Arbitrary
+import Wire.CargoholdAPIAccess
 import Wire.ClientStore hiding (claimPrekey)
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
@@ -69,11 +70,14 @@ data ClientSubsystemTestResult a = ClientSubsystemTestResult
     result :: Either ClientError a,
     deletions :: [InternalNotification],
     events :: [MiniEvent],
-    pushes :: [Push]
+    pushes :: [Push],
+    -- | backup deletions: (user, client, was the client still stored at call time)
+    backupDeletions :: [(UserId, ClientId, Bool)]
   }
 
 type ClientSubsystemTestEffects =
-  [ ClientStore,
+  [ CargoholdAPIAccess,
+    ClientStore,
     State ClientStoreState,
     Now,
     NotificationSubsystem,
@@ -91,7 +95,8 @@ type ClientSubsystemTestEffects =
     State [Push],
     State [MiniEvent],
     State [InternalNotification],
-    State MockAuthenticationState
+    State MockAuthenticationState,
+    State [(UserId, ClientId, Bool)]
   ]
 
 runClientSubsystemTest ::
@@ -106,8 +111,9 @@ runClientSubsystemTest users action =
           mockAuthenticationSubsystemInterpreter
           (runInMemoryUserSubsytemInterpreter users mempty)
           action
-      (authState, (deletions, (events, (pushes, result)))) =
+      (backupDeletions, (authState, (deletions, (events, (pushes, result))))) =
         run
+          . runState []
           . runState emptyMockAuthenticationState
           . runState @[InternalNotification] []
           . runState @[MiniEvent] []
@@ -127,8 +133,19 @@ runClientSubsystemTest users action =
           . interpretNowConst defaultTime
           . evalState emptyClientStoreState
           . runInMemoryClientStoreInterpreterWithState
+          . recordingCargoholdAPIAccess
           $ interpreted
-   in ClientSubsystemTestResult {authState, result = fromRight (error "unexpected federation error") result, deletions, events, pushes}
+   in ClientSubsystemTestResult {authState, backupDeletions, result = fromRight (error "unexpected federation error") result, deletions, events, pushes}
+
+-- | Records backup deletions, noting whether the client was still in 'ClientStore'.
+recordingCargoholdAPIAccess ::
+  (Member ClientStore r, Member (State [(UserId, ClientId, Bool)]) r) =>
+  InterpreterFor CargoholdAPIAccess r
+recordingCargoholdAPIAccess = interpret \case
+  DeleteBackupsOfClient uid cid -> do
+    present <- isJust <$> lookupClient uid cid
+    modify (<> [(uid, cid, present)])
+  DeleteBackupsOfUser {} -> pure ()
 
 expectRight ::
   (Show e, Show a) =>
@@ -249,6 +266,17 @@ spec = describe "ClientSubsystem.Interpreter" do
               testResult.events === [],
               assertSingle "push" testResult.pushes (assertClientPush uid Nothing EventTypeClientAdded)
             ]
+
+  prop "removing a client deletes its backups after the client row" $ \user conn (FakeLastPrekey lpk) ->
+    let uid = user.id
+        luid = toLocalUnsafe testDomain uid
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
+        testResult =
+          runClientSubsystemTest [user] do
+            void $ addClient luid Nothing (newClient PermanentClientType lpk)
+            removeClient uid conn clientId Nothing
+     in expectRight testResult.result $ \_ ->
+          testResult.backupDeletions === [(uid, clientId, False)]
 
   prop "legal hold client cannot be removed" $ \user conn (FakeLastPrekey lpk) ->
     let uid = user.id

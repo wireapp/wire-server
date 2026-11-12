@@ -120,6 +120,8 @@ import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
+import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
+import Wire.CargoholdAPIAccess qualified as CargoholdAPIAccess
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ConnectionStore
@@ -1026,6 +1028,7 @@ deleteSelfUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member CargoholdAPIAccess r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
@@ -1102,6 +1105,7 @@ verifyDeleteUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member CargoholdAPIAccess r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   VerifyDeleteUser ->
@@ -1134,6 +1138,7 @@ ensureAccountDeleted ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member CargoholdAPIAccess r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
@@ -1187,6 +1192,7 @@ deleteAccount ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member CargoholdAPIAccess r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   User ->
@@ -1210,6 +1216,7 @@ deleteAccount user = do
 
   Intra.rmUser uid (userAssets user)
   ClientStore.lookupClients uid >>= mapM_ (ClientStore.delete uid . (.clientId))
+  CargoholdAPIAccess.deleteBackupsOfUser uid
   luid <- embed $ qualifyLocal uid
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))
