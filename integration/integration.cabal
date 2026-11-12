@@ -112,6 +112,7 @@ library
     Test.Apps
     Test.Auth
     Test.B2B
+    Test.Backups
     Test.BlockedDomains
     Test.Bot
     Test.Brig
