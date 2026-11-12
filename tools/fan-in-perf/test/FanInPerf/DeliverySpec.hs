@@ -24,6 +24,35 @@ import Test.Hspec hiding (after, pending)
 
 spec :: Spec
 spec = describe "experimental delivery sessions" $ do
+  it "coalesces wakeups during HTTP catch-up without losing a signal" $ do
+    hub <- newWakeupHub
+    client <- newClient
+    let cursor = UUID.fromWords 0 0 0 7
+        caughtUp tag = atomically $ writeTQueue client.incoming $ encode $ object ["type" .= ("caught-up" :: Text), "tag" .= (tag :: Integer)]
+    withAsync (deliverWakeups hub cursor (send client) (receive client)) $ \_ -> do
+      first <- next client
+      first `shouldBe` object ["type" .= ("wakeup" :: Text), "tag" .= (1 :: Integer), "cursor" .= cursor]
+      atomically $ replicateM_ 20 (signal hub)
+      -- No payload pages or additional signals while the client fetches.
+      atomically (isEmptyTQueue client.outgoing) `shouldReturn` True
+      caughtUp 1
+      second <- next client
+      second `shouldBe` object ["type" .= ("wakeup" :: Text), "tag" .= (2 :: Integer), "cursor" .= cursor]
+      caughtUp 2
+      timeout 50_000 (atomically $ readTQueue client.outgoing) `shouldReturn` Nothing
+      atomically $ signal hub
+      expectType client "wakeup"
+
+  it "rejects invalid wakeup completion frames" $ do
+    for_ ["invalid", "{}", "{\"type\":\"caught-up\",\"tag\":2}", BL.replicate 1025 32] $ \body -> do
+      hub <- newWakeupHub
+      client <- newClient
+      withAsync (deliverWakeups hub UUID.nil (send client) (receive client)) $ \session -> do
+        expectType client "wakeup"
+        atomically $ writeTQueue client.incoming body
+        outcome <- timeout 2_000_000 $ waitCatch session
+        outcome `shouldSatisfy` maybe False isLeft
+
   it "delivers to two clients independently and resumes persisted progress" $ do
     hub <- newWakeupHub
     let first = UUID.fromWords 0 0 0 1

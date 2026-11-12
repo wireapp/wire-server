@@ -94,3 +94,35 @@ deliverEventsWithTiming observe hub initial fetch persist send receive = do
   -- ExceptionInLinkedThread, which escapes the adapter's synchronous exception
   -- handler and incorrectly turns ordinary disconnects into HTTP 500 errors.
   race_ receiveLoop (loop initial (1 :: Integer))
+
+-- | Availability-only stream. The initial signal carries the durable cursor for
+-- reconnect catch-up. While the device fetches/acks via HTTP, hub generations
+-- coalesce further signals. A caught-up message releases the next signal; it is
+-- not a durable event acknowledgement. No payloads are fetched here.
+deliverWakeups :: WakeupHub -> UUID -> (Value -> IO ()) -> IO BL.ByteString -> IO ()
+deliverWakeups hub cursor send receive = do
+  incoming <- newTBQueueIO 1
+  let receiveLoop = forever $ do
+        bytes <- receive
+        let parsed =
+              if BL.length bytes > 1024
+                then Nothing
+                else
+                  decode bytes
+                    >>= parseMaybe
+                      ( withObject "caught-up" $ \o -> do
+                          kind <- o .: "type"
+                          unless (kind == ("caught-up" :: Text)) $ fail "expected caught-up"
+                          o .: "tag"
+                      )
+        atomically $ writeTBQueue incoming (parsed :: Maybe Integer)
+      loop tag = do
+        generation <- atomically $ currentGeneration hub
+        send $ object ["type" .= ("wakeup" :: Text), "tag" .= tag, "cursor" .= cursor]
+        received <- atomically $ readTBQueue incoming
+        unless (received == Just tag) $ throwIO $ userError "invalid experimental caught-up message"
+        atomically $
+          void (awaitWakeup hub generation)
+            `orElse` (readTBQueue incoming >> throwSTM (userError "unexpected caught-up message"))
+        loop (tag + 1)
+  race_ receiveLoop (loop (1 :: Integer))

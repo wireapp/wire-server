@@ -49,6 +49,16 @@ class RenderingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             render(self.config, "load")
 
+    def test_fetch_percentage_is_forwarded_and_validated(self):
+        for stage in ["smoke", "load"]:
+            items = render(self.config, stage, fetch_percent=50)["items"]
+            job = next(x for x in items if x["kind"] == "Job")
+            args = job["spec"]["template"]["spec"]["containers"][0]["args"]
+            self.assertEqual(args[args.index("--fetch-percent") + 1], "50")
+        for percent in [-1, 101]:
+            with self.assertRaises(ValueError):
+                render(self.config, "load", fetch_percent=percent)
+
     def test_initialization_requires_empty_database(self):
         jobs = render(self.config, "schema")["items"]
         pg = next(j for j in jobs if j["metadata"]["name"] == "postgres-schema")

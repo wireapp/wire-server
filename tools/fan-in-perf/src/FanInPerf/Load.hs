@@ -69,11 +69,20 @@ data LoadStats = LoadStats
     ackLatencyTotalMs :: !Double,
     ackLatencyMaxMs :: !Double,
     ackLatencyHistogram :: !(Map Int Int),
+    confirmedLatencyTotalMs :: !Double,
+    confirmedLatencyMaxMs :: !Double,
+    confirmedLatencyHistogram :: !(Map Int Int),
     deviceProgress :: !(Map Int DeviceProgress),
     acknowledged :: !Int,
     latencyTotalMs :: !Double,
     latencyMaxMs :: !Double,
     latencyHistogram :: !(Map Int Int),
+    modeStats :: !(Map Text LoadStats),
+    fetchRequests :: !Int,
+    fetchedEvents :: !Int,
+    fetchTotalMs :: !Double,
+    wakeupFetchCount :: !Int,
+    wakeupFetchTotalMs :: !Double,
     publishSeconds :: !Double
   }
   deriving (Eq, Show)
@@ -107,11 +116,20 @@ emptyStats =
       ackLatencyTotalMs = 0,
       ackLatencyMaxMs = 0,
       ackLatencyHistogram = Map.empty,
+      confirmedLatencyTotalMs = 0,
+      confirmedLatencyMaxMs = 0,
+      confirmedLatencyHistogram = Map.empty,
       deviceProgress = Map.empty,
       acknowledged = 0,
       latencyTotalMs = 0,
       latencyMaxMs = 0,
       latencyHistogram = Map.empty,
+      modeStats = Map.empty,
+      fetchRequests = 0,
+      fetchedEvents = 0,
+      fetchTotalMs = 0,
+      wakeupFetchCount = 0,
+      wakeupFetchTotalMs = 0,
       publishSeconds = 0
     }
 
@@ -149,10 +167,42 @@ runLoad opts = do
         ]
       quantile _ [] = 0 :: Int
       quantile n ((bound, count) : rest) = if n <= count then bound else quantile (n - count) rest
+      fetchDevices = opts.devices * opts.service.fetchPercent `div` 100
+      modeSummary count s =
+        object
+          [ "devices" .= count,
+            "expected_deliveries" .= (count * final.published),
+            "received_deliveries" .= s.received,
+            "acknowledged_deliveries" .= s.acknowledged,
+            "missing_deliveries" .= max 0 (count * final.published - s.acknowledged),
+            "latency_mean_ms" .= (if s.received == 0 then 0 else s.latencyTotalMs / fromIntegral s.received),
+            "latency_max_ms" .= s.latencyMaxMs,
+            "latency_p95_upper_ms" .= quantile (ceiling (0.95 * fromIntegral s.received :: Double)) (Map.toAscList s.latencyHistogram),
+            "latency_p99_upper_ms" .= quantile (ceiling (0.99 * fromIntegral s.received :: Double)) (Map.toAscList s.latencyHistogram),
+            "confirmed_delivery_latency_mean_ms" .= (if s.acknowledged == 0 then 0 else s.confirmedLatencyTotalMs / fromIntegral s.acknowledged),
+            "confirmed_delivery_latency_max_ms" .= s.confirmedLatencyMaxMs,
+            "confirmed_delivery_latency_p95_upper_ms" .= quantile (ceiling (0.95 * fromIntegral s.acknowledged :: Double)) (Map.toAscList s.confirmedLatencyHistogram),
+            "ack_requests_sent" .= s.ackRequestsSent,
+            "ack_confirmations_received" .= s.ackConfirmations,
+            "ack_latency_mean_ms" .= (if s.ackConfirmations == 0 then 0 else s.ackLatencyTotalMs / fromIntegral s.ackConfirmations),
+            "ack_latency_max_ms" .= s.ackLatencyMaxMs,
+            "ack_latency_p95_upper_ms" .= quantile (ceiling (0.95 * fromIntegral s.ackConfirmations :: Double)) (Map.toAscList s.ackLatencyHistogram),
+            "fetch_requests" .= s.fetchRequests,
+            "fetched_events" .= s.fetchedEvents,
+            "events_per_fetch" .= (if s.fetchRequests == 0 then 0 else fromIntegral s.fetchedEvents / fromIntegral s.fetchRequests :: Double),
+            "fetch_mean_ms" .= (if s.fetchRequests == 0 then 0 else s.fetchTotalMs / fromIntegral s.fetchRequests),
+            "wakeup_to_first_fetch_mean_ms" .= (if s.wakeupFetchCount == 0 then 0 else s.wakeupFetchTotalMs / fromIntegral s.wakeupFetchCount)
+          ]
       summary =
         object
           [ "success" .= isRight result,
             "devices" .= opts.devices,
+            "fetch_percent" .= opts.service.fetchPercent,
+            "by_mode"
+              .= object
+                [ "direct" .= modeSummary (opts.devices - fetchDevices) (Map.findWithDefault emptyStats "direct" final.modeStats),
+                  "fetch" .= modeSummary fetchDevices (Map.findWithDefault emptyStats "fetch" final.modeStats)
+                ],
             "duration_seconds" .= opts.duration,
             "payload_padding_bytes" .= opts.payloadBytes,
             "expected_deliveries" .= expected,
@@ -209,13 +259,28 @@ runLoadWith opts actions stats report = do
   atomically $ modifyTVar' stats $ \s -> s {deviceProgress = Map.fromList [(index, DeviceProgress 0 0 Nothing False) | index <- [1 .. opts.devices]]}
   ready <- newTVarIO (0 :: Int)
   slots <- newTVarIO opts.connectConcurrency
-  let registerAll = for_ clients $ \device -> actions.register device >> actions.initialize device
+  let mode index = if index <= opts.devices * opts.service.fetchPercent `div` 100 then "fetch" else "direct"
+      modifyDelivery index update = atomically $ modifyTVar' stats $ \s ->
+        (update s) {modeStats = Map.alter (Just . update . fromMaybe emptyStats) (mode index) s.modeStats}
+      observeFetch index observation = modifyDelivery index $ \s ->
+        s
+          { fetchRequests = s.fetchRequests + 1,
+            fetchedEvents = s.fetchedEvents + observation.eventsFetched,
+            fetchTotalMs = s.fetchTotalMs + observation.requestMs,
+            wakeupFetchCount = s.wakeupFetchCount + maybe 0 (const 1) observation.wakeupToFetchMs,
+            wakeupFetchTotalMs = s.wakeupFetchTotalMs + fromMaybe 0 observation.wakeupToFetchMs
+          }
+      connect index device action =
+        if mode index == "fetch"
+          then withFetchClient actions device (observeFetch index) action
+          else withClient actions device action
+      registerAll = for_ clients $ \device -> actions.register device >> actions.initialize device
       deviceReader index device = do
         atomically $ do
           available <- readTVar slots
           check (available > 0)
           writeTVar slots (available - 1)
-        withClient actions device $ \socket -> do
+        connect index device $ \socket -> do
           let loop previous announced =
                 socket.receive >>= \case
                   Ready -> do
@@ -224,6 +289,7 @@ runLoadWith opts actions stats report = do
                       modifyTVar' slots (+ 1)
                     loop previous True
                   Acked _ -> failLoad "unexpected acknowledgement confirmation"
+                  Wakeup _ _ -> failLoad "unexpected raw wakeup"
                   Events tag rows -> do
                     receivedAt <- getMonotonicTimeNSec
                     let own =
@@ -241,7 +307,7 @@ runLoadWith opts actions stats report = do
                     unless (map fst own == take (length own) [previous + 1 ..]) $ failLoad "duplicate, missing or out-of-order event"
                     let latencies = [fromIntegral (receivedAt - min receivedAt sent) / 1000000 | (_, sent) <- own]
                     -- Record receipt before waiting for acknowledgement persistence.
-                    atomically $ modifyTVar' stats $ \s ->
+                    modifyDelivery index $ \s ->
                       s
                         { received = s.received + length own,
                           latencyTotalMs = s.latencyTotalMs + sum latencies,
@@ -250,12 +316,12 @@ runLoadWith opts actions stats report = do
                           deviceProgress = Map.adjust (\d -> d {lastReceived = previous + length own}) index s.deviceProgress
                         }
                     ackStarted <- getMonotonicTimeNSec
-                    atomically $ modifyTVar' stats $ \s ->
+                    modifyDelivery index $ \s ->
                       s
                         { deviceProgress = Map.adjust (\d -> d {pendingSince = Just ackStarted, ackSendCompleted = False}) index s.deviceProgress
                         }
                     socket.acknowledge tag
-                    atomically $ modifyTVar' stats $ \s ->
+                    modifyDelivery index $ \s ->
                       s
                         { ackSentDeliveries = s.ackSentDeliveries + length own,
                           ackRequestsSent = s.ackRequestsSent + 1,
@@ -265,10 +331,14 @@ runLoadWith opts actions stats report = do
                     unless (confirmation == Acked tag) $ failLoad "missing acknowledgement confirmation"
                     confirmedAt <- getMonotonicTimeNSec
                     let ackMs = fromIntegral (confirmedAt - ackStarted) / 1000000
-                    atomically $ modifyTVar' stats $ \s ->
+                        confirmedLatencies = [fromIntegral (confirmedAt - min confirmedAt sent) / 1000000 | (_, sent) <- own]
+                    modifyDelivery index $ \s ->
                       s
                         { acknowledged = s.acknowledged + length own,
                           ackConfirmations = s.ackConfirmations + 1,
+                          confirmedLatencyTotalMs = s.confirmedLatencyTotalMs + sum confirmedLatencies,
+                          confirmedLatencyMaxMs = maximum (s.confirmedLatencyMaxMs : confirmedLatencies),
+                          confirmedLatencyHistogram = foldl' (\hist ms -> Map.insertWith (+) (latencyBucket ms) 1 hist) s.confirmedLatencyHistogram confirmedLatencies,
                           ackLatencyTotalMs = s.ackLatencyTotalMs + ackMs,
                           ackLatencyMaxMs = max s.ackLatencyMaxMs ackMs,
                           ackLatencyHistogram = Map.insertWith (+) (latencyBucket ackMs) 1 s.ackLatencyHistogram,

@@ -845,3 +845,78 @@ Grafana query automatically includes the new labels.
 Restart Cannon after rebuilding, keeping the collector running. With the current
 `socat` workaround, stop `socat` before restarting `make cr`, then restart the
 forwarder once Cannon is listening. Repeat the same workload to compare stages.
+
+### Direct delivery versus wakeup + HTTP fetch
+
+Both `smoke` and `load` accept `--fetch-percent` (0–100, default 0):
+
+- `0`: all devices use `/i/fan-in-perf/events`, receiving payload pages and
+  acknowledging them over WebSocket (the previous behavior).
+- `100`: all devices use `/i/fan-in-perf/wakeups`. Cannon sends availability
+  signals, including the durable cursor on connection. Devices fetch pages of up
+  to 100 events from Gundeck's `/i/fan-in-perf/fetch` and acknowledge the last ID
+  through `/i/fan-in-perf/acknowledge`. Cannon does not fetch payloads for this mode.
+- `50`: half the devices use each path, receiving the same shared group events.
+  For load, `floor(devices * fetch-percent / 100)` devices fetch; the rest receive
+  directly. Smoke has two devices: percentages below 50 select zero fetch devices,
+  50–99 select one, and 100 selects both.
+
+Each fetch device runs one sequential fetch/ack loop until an empty page. It then
+sends `{"type":"caught-up","tag":N}` on its wakeup socket. This releases the next
+availability signal; it does **not** persist any acknowledgement. Cannon coalesces
+wakeups during catch-up, keeping one signal in flight per device. A generation
+snapshot prevents signals arriving during catch-up from being lost. Reconnecting
+starts at the durable device cursor, so an unacknowledged HTTP page can be replayed.
+No full production protocol, native SNS push, or client authentication is added;
+these remain opt-in, internal synthetic benchmark endpoints.
+
+The fetch client reports an acknowledgement confirmation only after a successful
+HTTP response. Its ready state requires an empty fetch. Failure of either fetch or
+ack aborts the run; ambiguous acknowledgements are not automatically retried.
+
+Load summaries retain their aggregate fields and add `fetch_percent` and `by_mode`
+(`direct` and `fetch`). Each mode reports its actual device count, expected/received/
+acknowledged deliveries, missing deliveries, publish-to-receive latency, publish-to-confirmed-ack latency,
+and acknowledgement round-trip latency. Fetch mode also reports successful HTTP fetch requests, fetched
+events, events per fetch, mean request time, and mean time from receiving a wakeup
+to completing its first fetch. Empty fetches count as requests; fetched events may
+include other runs' events, while delivery counts and latency include only this
+run. Missing deliveries are computed per mode so one path cannot hide the other.
+Server acknowledgement-stage histograms still measure the direct Cannon path;
+use client fetch timings and Gundeck pool metrics for HTTP fetch/ack.
+
+Start locally, using the existing service and database setup. Rebuild Cannon and
+fan-in-perf, then restart Cannon before testing the new route:
+
+```bash
+set -o pipefail
+cabal build exe:cannon exe:fan-in-perf 2>&1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'
+
+"$(cabal list-bin exe:fan-in-perf)" smoke --fetch-percent 0
+"$(cabal list-bin exe:fan-in-perf)" smoke --fetch-percent 100
+"$(cabal list-bin exe:fan-in-perf)" smoke --fetch-percent 50
+```
+
+After all three smoke cases pass, use this local matrix (six runs):
+
+| Devices | Fetch percentage | Publish rate | Duration | Drain limit |
+| --- | --- | --- | --- | --- |
+| 100 | 0, 50, 100 | 10/s | 60 s | 60 s |
+| 1,000 | 0, 50, 100 | 10/s | 60 s | 60 s |
+
+Example for the mixed case:
+
+```bash
+"$(cabal list-bin exe:fan-in-perf)" load \
+  --devices 100 --fetch-percent 50 --rate 10 --duration 60 \
+  --drain-seconds 60 --payload-bytes 256 \
+  --summary-json /tmp/fan-in-100-mixed.json
+```
+
+Keep resources and pool settings fixed. Use equivalent initial database conditions
+for comparisons; reset the fixture only with services/workers stopped, using the
+existing reset procedure. Retained-data runs must be labelled as such. Local tests
+validate the paths and metrics; later cluster tests can extend group sizes to
+1,000, 5,000 and 10,000 at the same three percentages. The Kubernetes renderer also
+accepts `--fetch-percent` for smoke/load Jobs; rebuilt Cannon and generator images
+are required before using it on a cluster.

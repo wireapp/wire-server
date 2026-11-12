@@ -38,6 +38,9 @@ tests =
       testCase "WebSocket identity headers are required" $ do
         response <- runSession (request $ setPath Wai.defaultRequest "/i/fan-in-perf/events") (app Nothing)
         simpleStatus response @?= status400,
+      testCase "wakeup WebSocket identity headers are required" $ do
+        response <- runSession (request $ setPath Wai.defaultRequest "/i/fan-in-perf/wakeups") (app Nothing)
+        simpleStatus response @?= status400,
       testCase "valid identity requires a WebSocket upgrade" $ do
         let req =
               (setPath Wai.defaultRequest "/i/fan-in-perf/events")

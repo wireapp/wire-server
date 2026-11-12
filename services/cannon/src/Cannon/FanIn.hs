@@ -9,7 +9,7 @@ import Data.Aeson (encode)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Id
-import FanInPerf.Delivery (deliverEventsWithTiming)
+import FanInPerf.Delivery (deliverEventsWithTiming, deliverWakeups)
 import FanInPerf.Fixture
 import FanInPerf.NotificationsStore
 import FanInPerf.ServerTiming (ObserveAck, registerAckTimings)
@@ -38,6 +38,14 @@ type API =
                :> WebSocketPending
            )
            :<|> Named
+                  "fan-in-perf-wakeups"
+                  ( "wakeups"
+                      :> Header' '[Required, Strict] "Z-User" UserId
+                      :> Header' '[Required, Strict] "Z-Client" ClientId
+                      :> Header' '[Required, Strict] "Z-Connection" ConnId
+                      :> WebSocketPending
+                  )
+           :<|> Named
                   "fan-in-perf-wakeup"
                   ("wakeup" :> StreamBody NoFraming WakeupJSON (SourceIO ByteString) :> PostNoContent)
        )
@@ -60,7 +68,7 @@ configure opts = for opts._optsFanInPerfPostgresql $ \config ->
 
 server :: Maybe Runtime -> WS.Env -> Server API
 server runtime wsEnv =
-  Named @"fan-in-perf-events" events :<|> Named @"fan-in-perf-wakeup" wakeup
+  Named @"fan-in-perf-events" (events False) :<|> Named @"fan-in-perf-wakeups" (events True) :<|> Named @"fan-in-perf-wakeup" wakeup
   where
     wakeup source = case runtime of
       Nothing -> throwError err404
@@ -70,7 +78,7 @@ server runtime wsEnv =
           Nothing -> throwError err413
           Just bytes | validWakeup bytes -> liftIO (atomically $ signal rt.hub) $> NoContent
           _ -> throwError err400
-    events user client connection pending = liftIO $ case runtime of
+    events fetchMode user client connection pending = liftIO $ case runtime of
       Nothing -> reject pending 404 "Not Found"
       Just rt -> do
         position <- tryAny $ resumePosition rt.store user client
@@ -91,14 +99,17 @@ server runtime wsEnv =
                     WS.registerLocal key ws
                     WS.registerRemote key (Just client)
                   withPingPong defaultPingPongOptions conn $ \socket ->
-                    deliverEventsWithTiming
-                      rt.observeAck
-                      rt.hub
-                      cursor
-                      (\after -> runOrAbort "fetch experimental events" rt.store $ fetchNotifications benchmarkStream after 100)
-                      (acknowledgeWithTimings rt.observeAck rt.store user client)
-                      (\value -> WS.sendMsgIO (encode value) ws)
-                      (Socket.receiveData socket)
+                    if fetchMode
+                      then deliverWakeups rt.hub cursor (\value -> WS.sendMsgIO (encode value) ws) (Socket.receiveData socket)
+                      else
+                        deliverEventsWithTiming
+                          rt.observeAck
+                          rt.hub
+                          cursor
+                          (\after -> runOrAbort "fetch experimental events" rt.store $ fetchNotifications benchmarkStream after 100)
+                          (acknowledgeWithTimings rt.observeAck rt.store user client)
+                          (\value -> WS.sendMsgIO (encode value) ws)
+                          (Socket.receiveData socket)
             result <- tryAny $ session `finally` WS.runWS wsEnv (terminate key ws)
             when (isLeft result) $ void $ tryAny $ Socket.sendClose conn ("experimental stream closed" :: Text)
 

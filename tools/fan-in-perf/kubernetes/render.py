@@ -5,7 +5,11 @@ import json
 import re
 
 
-def render(c, stage, run_id="smoke", devices=1000, rate=10, duration=300):
+def render(
+    c, stage, run_id="smoke", devices=1000, rate=10, duration=300, fetch_percent=0
+):
+    if not 0 <= fetch_percent <= 100:
+        raise ValueError("fetch-percent must be between 0 and 100")
     ns = c["namespace"]
     if (
         not re.fullmatch(r"fan-in-perf-[a-z0-9](?:[-a-z0-9]*[a-z0-9])?", ns)
@@ -404,6 +408,8 @@ queues { integration-gundeck-events {} }
             "http://gundeck:8086",
             "--cannon-url",
             "ws://cannon:8083",
+            "--fetch-percent",
+            str(fetch_percent),
         ]
         if stage == "load":
             args += [
@@ -430,6 +436,7 @@ if __name__ == "__main__":
         "stage", choices=["infra", "schema", "services", "smoke", "load"]
     )
     parser.add_argument("--run-id", default="baseline")
+    parser.add_argument("--fetch-percent", type=int, default=0)
     for name, default in [("devices", 1000), ("rate", 10), ("duration", 300)]:
         parser.add_argument("--" + name, type=int, default=default)
     args = parser.parse_args()
@@ -438,7 +445,13 @@ if __name__ == "__main__":
     print(
         json.dumps(
             render(
-                conf, args.stage, args.run_id, args.devices, args.rate, args.duration
+                conf,
+                args.stage,
+                args.run_id,
+                args.devices,
+                args.rate,
+                args.duration,
+                args.fetch_percent,
             ),
             indent=2,
         )
