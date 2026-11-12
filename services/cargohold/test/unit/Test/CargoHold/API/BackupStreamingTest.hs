@@ -26,11 +26,9 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
 import qualified Data.Map as Map
 import Data.Proxy
 import qualified Data.Set as Set
-import Data.Time (UTCTime (..), fromGregorian)
 import Data.Typeable (cast)
 import Imports
 import qualified Network.HTTP.Client as Http
@@ -44,7 +42,6 @@ import System.Timeout (timeout)
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Wire.API.Backup
 import Wire.API.Routes.API (hoistServerWithDomain)
 import Wire.API.Routes.Public.Cargohold.Backup (BackupAPI)
 import Wire.API.Routes.Version.Wai (versionMiddleware)
@@ -52,12 +49,13 @@ import Wire.API.Team.Feature (AutomaticBackupsConfig, FeatureStatus (..), Lockab
 import Wire.API.User (User (..), userId)
 import Wire.API.User.Client (UserClients (..))
 import Wire.BackupBlobStore
-import Wire.BackupStore (BackupStore (..), NewBackupFile (..))
 import Wire.BackupSubsystem
 import Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem)
 import Wire.BackupSubsystem.Rules (BackupLimits (..))
 import Wire.BrigAPIAccess
 import Wire.GalleyAPIAccess
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 
@@ -149,7 +147,7 @@ lockstepPopper received = do
         writeIORef next (i + 1)
         pure (chunk i)
 
--- | The real 'interpretBackupSubsystem'; brig, galley and the store are minimal fakes for one
+-- | The real 'interpretBackupSubsystem'; brig, galley and the blob store are minimal fakes for one
 -- user with client 'cid' in a team with the feature enabled.
 runSubsystem ::
   User ->
@@ -157,11 +155,11 @@ runSubsystem ::
   IORef (Maybe ByteString) ->
   Sem
     '[ BackupSubsystem,
-       BackupStore,
        BackupBlobStore,
        BrigAPIAccess,
        GalleyAPIAccess,
        Random,
+       Now,
        Input BackupLimits,
        Error BackupError,
        Error BlobUploadError,
@@ -176,11 +174,11 @@ runSubsystem user received stored =
     . fmap (either (error . show) Imports.id)
     . runError @BackupError
     . runInputConst limits
+    . nowToIO
     . randomToIO
     . fakeGalley
     . fakeBrig user
     . countingBlobStore received stored
-    . fakeStore
     . interpretBackupSubsystem
 
 limits :: BackupLimits
@@ -191,8 +189,8 @@ limits =
       maxFilesPerEpoch = 1
     }
 
--- | Copied from @Wire.MockInterpreters.BackupBlobStore@ (wire-subsystems tests): adds the length
--- of every consumed chunk to the 'TVar'.
+-- | Simplified copy of @Wire.MockInterpreters.BackupBlobStore@ (wire-subsystems tests): an
+-- empty store holding at most one blob; adds the length of every consumed chunk to the 'TVar'.
 countingBlobStore ::
   (Member (Embed IO) r, Member (Error BlobUploadError) r) =>
   TVar Word64 ->
@@ -206,22 +204,13 @@ countingBlobStore received stored = interpret $ \case
     body <- embed $ runConduitRes (src .| count .| foldC)
     when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
     writeIORef stored (Just body)
+    pure Nothing
+  ListBlobEpochs _ _ -> pure []
+  ListBlobs {} -> pure []
+  DeleteBlobVersion _ _ -> writeIORef stored Nothing
+  DeleteBlob _ -> writeIORef stored Nothing
   DeleteBlobs _ -> writeIORef stored Nothing
-  SignedDownloadUrl _ -> error "countingBlobStore: unexpected call"
-
--- | Empty store that accepts every insert.
-fakeStore :: InterpreterFor BackupStore r
-fakeStore = interpret $ \case
-  GetDeviceEpochCounts _ _ -> pure mempty
-  InsertBackupFile _ new ->
-    pure . Right $
-      BackupFile
-        { id = new.id,
-          kind = BackupFull,
-          size = new.size,
-          createdAt = toUTCTimeMillis (UTCTime (fromGregorian 2026 1 1) 0)
-        }
-  _ -> error "fakeStore: unexpected call"
+  _ -> error "countingBlobStore: unexpected call"
 
 fakeBrig :: User -> InterpreterFor BrigAPIAccess r
 fakeBrig user = interpret $ \case

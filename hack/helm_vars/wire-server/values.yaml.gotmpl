@@ -261,11 +261,6 @@ cargohold:
       s3Bucket: dummy-bucket
       s3Endpoint: http://fake-aws-s3:9000
     enableFederation: true # keep in sync with brig.config.enableFederation, galley.config.enableFederation and tags.federator!
-    postgresql:
-      host: "postgresql"
-      port: "5432"
-      user: wire-server
-      dbname: wire-server
     settings:
       # See helmfile for the real value
       federationDomain: integration.example.com
@@ -274,7 +269,8 @@ cargohold:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
-    pgPassword: "posty-the-gres"
+    # Test only, not a secret (>= 32 bytes)
+    backupHmacKey: "integration-test-backup-hmac-key-0123456789abcdef"
   {{- if .Values.uploadXml }}
   tests:
     config:

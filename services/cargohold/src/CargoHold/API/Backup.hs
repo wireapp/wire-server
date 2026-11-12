@@ -35,6 +35,6 @@ backupServer =
   Named @"backup-list-epochs" listEpochs
     :<|> Named @"backup-upload" (\u z c e len body -> uploadBackup u z c e len body.getAssetSource)
     :<|> Named @"backup-list-files" listFiles
-    :<|> Named @"backup-download" (\u z c e fid -> Just . AssetLocation <$> downloadUrl u z c e fid)
+    :<|> Named @"backup-download" (\u z c e k fid -> Just . AssetLocation <$> downloadUrl u z c e k fid)
     :<|> Named @"backup-delete-epoch" deleteEpochBackups
     :<|> Named @"backup-delete-client" deleteClientBackups

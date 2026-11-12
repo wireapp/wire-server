@@ -490,19 +490,6 @@ cargohold:
       #   - nginz-https.red.wire.example: assets.red.wire.example
       #   - nginz-https.green.wire.example: assets.green.wire.example
     proxy: {}
-    # Postgres connection settings (stores backup file metadata)
-    #
-    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-    # To set the password via a cargohold secret see `secrets.pgPassword`.
-    postgresql:
-      host: postgresql # DNS name without protocol
-      port: "5432"
-      user: wire-server
-      dbname: wire-server
-    postgresqlPool:
-      size: 100
-      acquisitionTimeout: 10s
-      idlenessTimeout: 10m
     settings:
       maxTotalBytes: 104857632 # limit to 100 MiB + 32 bytes
       maxTotalBytesStrict: 26214432 # limit to 25 MiB + 32 bytes
@@ -526,7 +513,10 @@ cargohold:
     automountServiceAccountToken: true
   secrets: {}
   # secrets:
-  #   pgPassword: <postgres-password>
+  #   # Automatic backups: secret (at least 32 bytes) to HMAC user and client ids in S3 keys.
+  #   # Unset: automatic backups are disabled. Never change it once set: existing backups
+  #   # become unreachable. Generate e.g. with `head -c 48 /dev/urandom | base64 -w0`.
+  #   backupHmacKey: <random-secret>
   podSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:

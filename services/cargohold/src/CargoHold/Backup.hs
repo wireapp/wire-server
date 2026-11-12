@@ -27,8 +27,6 @@ import CargoHold.App
 import CargoHold.Options (Opts (..), Settings (..))
 import qualified CargoHold.S3 as S3
 import Control.Error (runExceptT, throwE)
-import qualified Hasql.Pool as Hasql
-import Hasql.Pool.Extended (Pool)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
@@ -39,9 +37,9 @@ import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.BackupBlobStore
-import Wire.BackupStore (BackupStore)
-import Wire.BackupStore.Postgres (interpretBackupStoreToPostgres)
+import Wire.BackupBlobStore.Key
 import Wire.BackupSubsystem
+import Wire.BackupSubsystem.Disabled (interpretBackupSubsystemDisabled)
 import Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem)
 import Wire.BackupSubsystem.Rules (BackupLimits)
 import Wire.BrigAPIAccess (BrigAPIAccess)
@@ -53,22 +51,21 @@ import Wire.ParseException (ParseException)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.RpcException (RpcException)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 
 type BackupEffects =
   '[ BackupSubsystem,
-     BackupBlobStore,
-     BackupStore,
      BrigAPIAccess,
      GalleyAPIAccess,
      Rpc,
      Random,
+     Now,
      Input BackupLimits,
-     Input Pool,
      Error BackupError,
      Error BlobUploadError,
-     Error Hasql.UsageError,
      Error ParseException,
      Error RpcException,
      Error ClientError,
@@ -77,11 +74,15 @@ type BackupEffects =
      Embed IO
    ]
 
+-- | Without @backupHmacKey@ the subsystem is disabled and S3 is never touched.
 runBackupEffects :: Sem BackupEffects a -> Handler a
 runBackupEffects action = do
   env <- ask
   let opts = env.options
       disabled = foldMap expandVersionExp opts.settings.disabledAPIVersions
+      subsystem = case env.backupHmacKey of
+        Just k -> interpretBackupBlobStoreToS3 env k . interpretBackupSubsystem . raiseUnder
+        Nothing -> interpretBackupSubsystemDisabled
   result <-
     liftIO
       . runM
@@ -90,19 +91,16 @@ runBackupEffects action = do
       . internalError @ClientError
       . internalError @RpcException
       . internalError @ParseException
-      . internalError @Hasql.UsageError
       -- 'uploadBackupImpl' catches 'BlobLengthMismatch', this is a fallback.
       . mapError (\BlobLengthMismatch -> incompleteBody)
       . mapError backupErrorToWai
-      . runInputConst env.hasqlPool
       . runInputConst opts.settings.backupLimits
+      . nowToIO
       . randomToIO
       . runRpcWithHttp env.httpManager env.requestId
       . interpretGalleyAPIAccessToRpc disabled opts.galley
       . interpretBrigAccess opts.brig
-      . interpretBackupStoreToPostgres
-      . interpretBackupBlobStoreToS3 env
-      . interpretBackupSubsystem
+      . subsystem
       $ action
   either throwE pure result
 
@@ -121,12 +119,23 @@ interpretBackupBlobStoreToS3 ::
     Member (Error Wai.Error) r
   ) =>
   Env ->
+  BackupHmacKey ->
   InterpreterFor BackupBlobStore r
-interpretBackupBlobStoreToS3 env = interpret $ \case
-  PutBlob fid len src ->
-    runHandlerSem (S3.uploadBackupBlob (S3.backupKey fid) len src) >>= fromEither
-  SignedDownloadUrl fid -> runHandlerSem (S3.signedBackupURL (S3.backupKey fid))
-  DeleteBlobs fids -> traverse_ (runHandlerSem . S3.deleteObject . S3.backupKey) fids
+interpretBackupBlobStoreToS3 env k = interpret $ \case
+  PutBlob l len src -> runHandlerSem (S3.uploadBackupBlob (objectKey l) len src) >>= fromEither
+  BlobExists l -> runHandlerSem (S3.headObjectExists (objectKey l))
+  SignedDownloadUrl l -> runHandlerSem (S3.signedBackupURL (objectKey l))
+  ListBlobEpochs u c -> do
+    let p = renderPrefix k (ClientPrefix u c)
+    mapMaybe (parseEpochPrefix p) <$> runHandlerSem (S3.listCommonPrefixes p)
+  ListBlobs u c e -> do
+    let p = renderPrefix k (EpochPrefix u c e)
+        blob (key, size) = (\(kind, fileId) -> BackupBlob {kind, fileId, size}) <$> parseFileKey p key
+    mapMaybe blob <$> runHandlerSem (S3.listObjects p)
+  DeleteBlobVersion l version -> runHandlerSem (S3.deleteObject (objectKey l) version)
+  DeleteBlob l -> let key = renderKey k l in runHandlerSem (S3.deleteAllVersions key (== key))
+  DeleteBlobs p -> runHandlerSem (S3.deleteAllVersions (renderPrefix k p) (const True))
   where
+    objectKey = S3.S3AssetKey . renderKey k
     runHandlerSem :: (Member (Embed IO) r', Member (Error Wai.Error) r') => Handler x -> Sem r' x
     runHandlerSem h = embed (runAppT env (runExceptT h)) >>= fromEither

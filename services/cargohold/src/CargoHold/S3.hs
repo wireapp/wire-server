@@ -19,7 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module CargoHold.S3
-  ( S3AssetKey,
+  ( S3AssetKey (..),
     S3AssetMeta (..),
     AssetAuditLogMetadata (..),
     setAmzAuditLogMetadata,
@@ -31,7 +31,10 @@ module CargoHold.S3
     deleteV3,
     uploadBackupBlob,
     deleteObject,
-    backupKey,
+    headObjectExists,
+    listCommonPrefixes,
+    listObjects,
+    deleteAllVersions,
     mkKey,
     signedURL,
     signedBackupURL,
@@ -44,6 +47,7 @@ module CargoHold.S3
 where
 
 import Amazonka hiding (Error)
+import qualified Amazonka
 import Amazonka.S3
 import Amazonka.S3.Lens
 import qualified Amazonka.S3.StreamingUpload as SU
@@ -80,13 +84,13 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
+import Network.HTTP.Types.Status (status404)
 import qualified Network.HTTP.Types.URI as HTTPURI
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
 import Wire.API.Asset (AssetMIMEType)
-import Wire.API.Backup (BackupFileId (..))
 import Wire.BackupBlobStore (BlobUploadError (..))
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
@@ -152,17 +156,18 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src
           & createMultipartUpload_contentType ?~ MIME.showType ct
           & createMultipartUpload_metadata .~ metaHeaders tok prc mAuditLogMeta
   complete <- streamUpload logCtx createReq (fromIntegral cl) src
-  unless complete $ throwE incompleteBody
+  unless (isJust complete) $ throwE incompleteBody
   where
     ct = octets -- see note “overrideMimeTypeAsOctetStream”
 
 -- | Upload a backup file. Unlike 'uploadV3', no metadata is stored. 'BlobLengthMismatch' if the
--- stream length differs from the declared one; the S3 object may exist then.
+-- stream length differs from the declared one; the S3 object may exist then. Returns the
+-- @x-amz-version-id@ of the new object as answered by S3 ('Nothing' on unversioned buckets).
 uploadBackupBlob ::
   S3AssetKey ->
   Word64 ->
   ConduitM () ByteString (ResourceT IO) () ->
-  Handler (Either BlobUploadError ())
+  Handler (Either BlobUploadError (Maybe Text))
 uploadBackupBlob (S3AssetKey key) len src = do
   let logCtx = "remote" .= val "S3" ~~ "backup.key" .= key ~~ "backup.size" .= len
   Log.info $ logCtx ~~ msg (val "Uploading backup file")
@@ -171,15 +176,17 @@ uploadBackupBlob (S3AssetKey key) len src = do
         newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
           & createMultipartUpload_contentType ?~ MIME.showType octets
   complete <- streamUpload logCtx createReq len src
-  pure $ if complete then Right () else Left BlobLengthMismatch
+  pure $ case complete of
+    Nothing -> Left BlobLengthMismatch
+    Just r -> Right (fromObjectVersionId <$> r ^. completeMultipartUploadResponse_versionId)
 
--- | Stream @src@ to S3 as multipart upload. 'False' if the stream length differs from @len@.
+-- | Stream @src@ to S3 as multipart upload. 'Nothing' if the stream length differs from @len@.
 streamUpload ::
   (Log.Msg -> Log.Msg) ->
   CreateMultipartUpload ->
   Word64 ->
   ConduitM () ByteString (ResourceT IO) () ->
-  Handler Bool
+  Handler (Maybe CompleteMultipartUploadResponse)
 streamUpload logCtx createReq len src = do
   awsEnv <- asks (.aws)
   cntRef <- liftIO $ newIORef (0 :: Word64)
@@ -204,8 +211,8 @@ streamUpload logCtx createReq len src = do
     Right uploadResult -> do
       bytesSeen <- liftIO $ readIORef cntRef
       case uploadResult of
-        _ | bytesSeen /= len -> pure False
-        Right (_ :: CompleteMultipartUploadResponse) -> pure True
+        _ | bytesSeen /= len -> pure Nothing
+        Right r -> pure (Just r)
         Left ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) -> do
           Log.err $
             logCtx
@@ -256,18 +263,21 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         <*> Just (getAmzAuditLogMetadata h)
 
 deleteV3 :: V3.AssetKey -> Handler ()
-deleteV3 = deleteObject . mkKey
+deleteV3 = flip deleteObject Nothing . mkKey
 
--- | Idempotent: S3 does not fail for missing keys.
-deleteObject :: S3AssetKey -> Handler ()
-deleteObject (S3AssetKey key) = do
+-- | Deletes the given version, or plain delete if 'Nothing' (on a versioned bucket that only
+-- adds a delete marker). Idempotent: S3 does not fail for missing keys.
+deleteObject :: S3AssetKey -> Maybe Text -> Handler ()
+deleteObject (S3AssetKey key) version = do
   Log.debug $
     "remote" .= val "S3"
       ~~ "key" .= key
       ~~ msg (val "Deleting object")
   void $ exec req
   where
-    req b = newDeleteObject (BucketName b) (ObjectKey key)
+    req b =
+      newDeleteObject (BucketName b) (ObjectKey key)
+        & deleteObject_versionId .~ (ObjectVersionId <$> version)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> Handler ()
 updateMetadataV3 (s3Key . mkKey -> key) meta = do
@@ -334,8 +344,107 @@ signedURL path mbHost = do
                   ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
               pure hostAwsEnv
 
-backupKey :: BackupFileId -> S3AssetKey
-backupKey fid = S3AssetKey $ "backup/" <> UUID.toText fid.unBackupFileId
+-- | 'False' if S3 answers 404, throws on other errors.
+headObjectExists :: S3AssetKey -> Handler Bool
+headObjectExists (S3AssetKey key) =
+  execEither (\b -> newHeadObject (BucketName b) (ObjectKey key)) >>= \case
+    Right _ -> pure True
+    Left (ServiceError se) | se ^. serviceError_status == status404 -> pure False
+    Left e -> throwM (AWS.GeneralError e)
+
+-- | Common prefixes (delimiter @/@) directly below @prefix@, all pages.
+listCommonPrefixes :: Text -> Handler [Text]
+listCommonPrefixes prefix =
+  concatMap (mapMaybe (view commonPrefix_prefix) . fold . view listObjectsV2Response_commonPrefixes)
+    <$> listObjectsV2Pages prefix (Just '/')
+
+-- | Keys and sizes of all objects below @prefix@, all pages.
+listObjects :: Text -> Handler [(Text, Word64)]
+listObjects prefix =
+  concatMap (map entry . fold . view listObjectsV2Response_contents)
+    <$> listObjectsV2Pages prefix Nothing
+  where
+    entry o = (o ^. object_key . _ObjectKey, fromIntegral (o ^. object_size))
+
+listObjectsV2Pages :: Text -> Maybe Delimiter -> Handler [ListObjectsV2Response]
+listObjectsV2Pages prefix delimiter = go Nothing
+  where
+    go token = do
+      r <-
+        exec $ \b ->
+          newListObjectsV2 (BucketName b)
+            & listObjectsV2_prefix ?~ prefix
+            & listObjectsV2_delimiter .~ delimiter
+            & listObjectsV2_continuationToken .~ token
+      case (r ^. listObjectsV2Response_isTruncated, r ^. listObjectsV2Response_nextContinuationToken) of
+        (Just True, Just next) -> (r :) <$> go (Just next)
+        _ -> pure [r]
+
+-- | Deletes /all versions/ (and delete markers) of the objects below @prefix@ whose key passes
+-- @keep@. On a versioned bucket a plain delete only adds a delete marker, the encrypted data
+-- stays and is restorable. The RFC requires backups of a removed device to be deleted
+-- immediately.
+--
+-- Stores without @ListObjectVersions@ (S3 error @NotImplemented@) are unversioned: falls back
+-- to plain deletes of the listed objects.
+deleteAllVersions :: Text -> (Text -> Bool) -> Handler ()
+deleteAllVersions prefix keep = do
+  versions <-
+    listVersions prefix >>= \case
+      Right vs -> pure vs
+      Left (ServiceError se) | se ^. serviceError_code == ErrorCode "NotImplemented" -> do
+        Log.warn $
+          "remote" .= val "S3"
+            ~~ msg (val "ListObjectVersions not implemented, deleting without version ids")
+        map ((,Nothing) . fst) <$> listObjects prefix
+      Left e -> throwM (AWS.GeneralError e)
+  for_ (chunksOf 1000 (filter (keep . fst) versions)) deleteObjects
+  where
+    chunksOf n xs = case splitAt n xs of
+      ([], _) -> []
+      (c, rest) -> c : chunksOf n rest
+
+-- | All (key, version id) pairs below @prefix@, versions and delete markers, all pages.
+listVersions :: Text -> Handler (Either Amazonka.Error [(Text, Maybe ObjectVersionId)])
+listVersions prefix = go Nothing Nothing
+  where
+    go keyMarker versionMarker = do
+      res <-
+        execEither $ \b ->
+          newListObjectVersions (BucketName b)
+            & listObjectVersions_prefix ?~ prefix
+            & listObjectVersions_keyMarker .~ keyMarker
+            & listObjectVersions_versionIdMarker .~ versionMarker
+      case res of
+        Left e -> pure (Left e)
+        Right r -> do
+          let entries =
+                [ (k ^. _ObjectKey, v ^. objectVersion_versionId)
+                | v <- fold (r ^. listObjectVersionsResponse_versions),
+                  k <- toList (v ^. objectVersion_key)
+                ]
+                  <> [ (k ^. _ObjectKey, m ^. deleteMarkerEntry_versionId)
+                     | m <- fold (r ^. listObjectVersionsResponse_deleteMarkers),
+                       k <- toList (m ^. deleteMarkerEntry_key)
+                     ]
+              nextKey = r ^. listObjectVersionsResponse_nextKeyMarker
+          if r ^. listObjectVersionsResponse_isTruncated == Just True && isJust nextKey
+            then fmap (entries <>) <$> go nextKey (r ^. listObjectVersionsResponse_nextVersionIdMarker)
+            else pure (Right entries)
+
+-- | One @DeleteObjects@ request (at most 1000 objects), fails on any per-object error.
+deleteObjects :: [(Text, Maybe ObjectVersionId)] -> Handler ()
+deleteObjects objs = do
+  let ids = [newObjectIdentifier (ObjectKey k) & objectIdentifier_versionId .~ v | (k, v) <- objs]
+      del = newDelete & delete_objects .~ ids & delete_quiet ?~ True
+  r <- exec $ \b -> newDeleteObjects (BucketName b) del
+  let errs = fold (r ^. deleteObjectsResponse_errors)
+  unless (null errs) $ do
+    Log.err $
+      "remote" .= val "S3"
+        ~~ "errors" .= show errs
+        ~~ msg (val "Failed to delete backup objects")
+    throwE serverError
 
 -- | Signed backup download URL from the default AWS environment, also with @aws.multiIngress@:
 -- backup routes have no @Z-Host@ to pick an ingress.
@@ -475,6 +584,15 @@ exec ::
 exec req = do
   env <- asks (.aws)
   AWS.exec env req
+
+-- | Like 'exec', but returns errors instead of throwing them.
+execEither ::
+  (AWSRequest r) =>
+  (Text -> r) ->
+  Handler (Either Amazonka.Error (AWSResponse r))
+execEither req = do
+  env <- asks (.aws)
+  AWS.execute env (AWS.sendCatch env.amazonkaEnv (req env.s3Bucket))
 
 execCatch ::
   ( AWSRequest r,

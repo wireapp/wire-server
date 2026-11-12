@@ -14,17 +14,8 @@ galley:
   host: 127.0.0.1
   port: 8085
 
-postgresql:
-  host: 127.0.0.1
-  port: "5432"
-  user: wire-server
-  dbname: backendA
-  password: posty-the-gres
-
-postgresqlPool:
-  size: 20
-  acquisitionTimeout: 10s
-  idlenessTimeout: 10m
+# Test-only key, see test/resources/backup-hmac.key
+backupHmacKey: test/resources/backup-hmac.key
 
 aws:
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here
