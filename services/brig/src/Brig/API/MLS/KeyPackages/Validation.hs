@@ -18,6 +18,7 @@
 module Brig.API.MLS.KeyPackages.Validation
   ( -- * Main key package validation function
     validateUploadedKeyPackage,
+    validateUploadedKeyPackages,
     validateLifetime',
     mlsProtocolError,
   )
@@ -29,6 +30,7 @@ import Brig.App
 import Brig.Options
 import Control.Applicative
 import Data.ByteString qualified as LBS
+import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -53,23 +55,58 @@ validateUploadedKeyPackage ::
   ClientIdentity ->
   RawMLS KeyPackage ->
   Handler r (KeyPackageRef, CipherSuiteTag, KeyPackageData)
-validateUploadedKeyPackage identity kp = do
+validateUploadedKeyPackage identity kp =
+  fst <$> validateUploadedKeyPackageWithCache identity Map.empty kp
+
+-- | Validate all packages in one upload request, reusing the client's MLS
+-- public key for packages that use the same signature scheme.
+validateUploadedKeyPackages ::
+  (Member ClientStore r) =>
+  ClientIdentity ->
+  [RawMLS KeyPackage] ->
+  Handler r [(KeyPackageRef, CipherSuiteTag, KeyPackageData)]
+validateUploadedKeyPackages identity = go Map.empty
+  where
+    go _ [] = pure []
+    go keyCache (kp : kps) = do
+      (validated, keyCache') <- validateUploadedKeyPackageWithCache identity keyCache kp
+      (validated :) <$> go keyCache' kps
+
+validateUploadedKeyPackageWithCache ::
+  (Member ClientStore r) =>
+  ClientIdentity ->
+  Map.Map SignatureSchemeTag (Maybe LByteString) ->
+  RawMLS KeyPackage ->
+  Handler r ((KeyPackageRef, CipherSuiteTag, KeyPackageData), Map.Map SignatureSchemeTag (Maybe LByteString))
+validateUploadedKeyPackageWithCache identity keyCache kp = do
   (cs, lt) <- either mlsProtocolErrorFromValidationError pure $ validateKeyPackage (Just $ RegularClient identity) kp.value
 
   validateLifetime lt
 
   -- Authenticate signature key. This is performed only upon uploading a key
   -- package for a local client.
+  let signatureScheme = csSignatureScheme cs
   loc <- qualifyLocal ()
+  (mkey, keyCache') <-
+    foldQualified
+      loc
+      ( \_ -> case Map.lookup signatureScheme keyCache of
+          Just cachedKey -> pure (cachedKey, keyCache)
+          Nothing -> do
+            fetchedKey :: Maybe LByteString <-
+              lift . liftSem $
+                ClientStore.lookupMLSPublicKey
+                  (ciUser identity)
+                  (ciClient identity)
+                  signatureScheme
+            pure (fetchedKey, Map.insert signatureScheme fetchedKey keyCache)
+      )
+      (\_ -> pure (Nothing, keyCache))
+      (cidQualifiedClient identity)
+
   foldQualified
     loc
     ( \_ -> do
-        mkey :: Maybe LByteString <-
-          lift . liftSem $
-            ClientStore.lookupMLSPublicKey
-              (ciUser identity)
-              (ciClient identity)
-              (csSignatureScheme cs)
         key :: LByteString <-
           maybe
             (mlsProtocolError "No key associated to the given identity and signature scheme")
@@ -82,7 +119,7 @@ validateUploadedKeyPackage identity kp = do
     (cidQualifiedClient identity)
 
   let kpd = KeyPackageData kp.raw
-  pure (kpRef cs kpd, cs, kpd)
+  pure ((kpRef cs kpd, cs, kpd), keyCache')
 
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
