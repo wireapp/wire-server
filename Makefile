@@ -160,6 +160,9 @@ crm: c db-migrate
 # wire-subsystems.cabal (eg., name of test suite needs to follow a
 # pattern).
 #
+# ghcid exports WIRE_SUBSYSTEMS_TEST_ROOT to the package directory so the
+# fixtures resolve templates and test resources independently of the CWD.
+#
 # There some alternatives, but they are all either too slow or do not
 # watch / compile enough modules, or both.  Here is one just running
 # make c on a package in a loop for all package changes:
@@ -170,7 +173,9 @@ devtest:
 ifeq ("$(package)", "all")
 	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
 else
-	@ghcid --command 'cabal repl $(package):${package}-tests lib:$(package) --enable-multi-repl' --test='Main.main' \
+	@pkg_dir=$(firstword $(wildcard libs/$(package) services/$(package) tools/$(package) protected/libs/$(package) protected/services/$(package))) && \
+	  test -n "$$pkg_dir" && WIRE_SUBSYSTEMS_TEST_ROOT="$(CURDIR)/$$pkg_dir" ghcid \
+	  --command 'cabal repl $(package):${package}-tests lib:$(package) --enable-multi-repl' --test='Main.main' \
 	  || echo -e "\n\n\n*** usage: make devtest package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
 endif
 
