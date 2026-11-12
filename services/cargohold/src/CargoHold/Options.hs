@@ -26,12 +26,14 @@ import Control.Lens hiding (Level)
 import Data.Aeson (FromJSON (..), withText)
 import Data.Aeson.TH
 import Data.Domain
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.SuffixNamer
 import qualified Wire.API.Federation.Version as Federation
 import Wire.API.Routes.Version
+import Wire.BackupSubsystem.Rules (BackupLimits)
 
 -- | AWS CloudFront settings.
 data CloudFrontOpts = CloudFrontOpts
@@ -153,7 +155,8 @@ data Settings = Settings
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
     federationDomain :: !Domain,
     disabledAPIVersions :: !(Set VersionExp),
-    disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp)
+    disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp),
+    backupLimits :: !BackupLimits
   }
   deriving (Show, Generic)
 
@@ -170,6 +173,11 @@ data Opts = Opts
     federator :: Maybe Endpoint,
     -- | Brig endpoint
     brig :: !Endpoint,
+    galley :: !Endpoint,
+    -- | libpq connection parameters
+    postgresql :: !(Map Text Text),
+    postgresqlPassword :: !(Maybe FilePathSecrets),
+    postgresqlPool :: !PoolConfig,
     -- Logging
 
     -- | Log level (Debug, Info, etc)

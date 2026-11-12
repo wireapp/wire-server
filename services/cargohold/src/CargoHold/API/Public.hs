@@ -17,11 +17,13 @@
 
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
+import CargoHold.API.Backup (backupServer)
 import CargoHold.API.Error (unverifiedUser)
 import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
+import CargoHold.Backup (runBackupEffects)
 import CargoHold.Federation
 import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
@@ -42,12 +44,15 @@ import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString as URI
 import Wire.API.Asset
+import Wire.API.Routes.API (hoistServerWithDomain)
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Public.Cargohold.Backup (BackupAPI)
 import Wire.API.User (AccountStatus (..), User (userStatus, userTeam))
+import Wire.BackupSubsystem
 
 servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
@@ -59,6 +64,7 @@ servantSitemap =
     :<|> qualifiedAPI
     :<|> legacyAPI
     :<|> mainAPI
+    :<|> hoistServerWithDomain @BackupAPI runBackupEffects backupServer
   where
     userAPI :: forall tag. (tag ~ 'UserPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
     userAPI =
@@ -95,6 +101,8 @@ internalSitemap :: ServerT InternalAPI Handler
 internalSitemap =
   Named @"i_status" (pure ())
     :<|> Named @"i_get_asset" iDownloadAssetV3
+    :<|> Named @"i-delete-backups-client" (\u -> runBackupEffects . internalDeleteClientBackups u)
+    :<|> Named @"i-delete-backups-user" (runBackupEffects . internalDeleteUserBackups)
 
 -- | Like 'downloadAssetV3' below, but it works without user session token, and has a
 -- different route type.

@@ -22,6 +22,18 @@ data:
       host: brig
       port: 8080
 
+    galley:
+      host: galley
+      port: 8080
+
+    {{- with .Values.cargohold.config }}
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+    {{- end }}
+    {{- if hasKey $.Values.cargohold.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/cargohold/secrets/pgPassword
+    {{- end }}
+
     aws:
       {{- with .Values.cargohold.config.aws }}
       s3Bucket: {{ .s3Bucket }}
@@ -62,4 +74,5 @@ data:
       federationDomain: {{ $.Values.cargohold.config.settings.federationDomain }}
       disabledAPIVersions: {{ toJson .disabledAPIVersions }}
       disabledFederationAPIVersions: {{ toJson $.Values.apiVersions.disabledFederationAPIVersions }}
+      backupLimits: {{ toYaml .backupLimits | nindent 8 }}
       {{- end }}

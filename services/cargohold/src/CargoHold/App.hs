@@ -33,6 +33,7 @@ module CargoHold.App
     requestIdLens,
     localUnitLens,
     optionsLens,
+    hasqlPoolLens,
 
     -- * App Monad
     AppT,
@@ -62,6 +63,7 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
+import Hasql.Pool.Extended (Pool, initPostgresPool)
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -88,7 +90,8 @@ data Env = Env
     requestId :: RequestId,
     options :: Opt.Opts,
     localUnit :: Local (),
-    multiIngress :: Map Domain AWS.Env
+    multiIngress :: Map Domain AWS.Env,
+    hasqlPool :: Pool
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
@@ -101,8 +104,19 @@ newEnv opts = do
   http2Mgr <- initHttp2Manager
   awsEnv <- initAws opts.aws logger httpMgr
   multiIngressAWS <- initMultiIngressAWS logger httpMgr
-  let localDomain = toLocalUnsafe opts.settings.federationDomain ()
-  pure $ Env awsEnv logger httpMgr http2Mgr (RequestId defRequestId) opts localDomain multiIngressAWS
+  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  pure
+    Env
+      { aws = awsEnv,
+        appLogger = logger,
+        httpManager = httpMgr,
+        http2Manager = http2Mgr,
+        requestId = RequestId defRequestId,
+        options = opts,
+        localUnit = toLocalUnsafe opts.settings.federationDomain (),
+        multiIngress = multiIngressAWS,
+        hasqlPool
+      }
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map Domain AWS.Env)
     initMultiIngressAWS logger httpMgr =
