@@ -427,3 +427,72 @@ beginMultipartBody sets t l =
 -- via 'beginMultipartBody'.
 endMultipartBody' :: Builder
 endMultipartBody' = byteString $ cs "\r\n--frontier--\r\n"
+
+-- BACKUPS
+--
+-- All helpers take the acting client (Z-Client) and the client the backup belongs to.
+
+backupRequest ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  String ->
+  App HTTP.Request
+backupRequest user zcid cid suffix = do
+  req <- baseRequest user Cargohold Versioned $ "/backups/clients/" <> cid <> suffix
+  pure $ req & zClient zcid & noRedirect
+
+listBackupEpochs :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+listBackupEpochs user zcid cid =
+  backupRequest user zcid cid "/epochs" >>= submit "GET"
+
+uploadBackup ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Word32 ->
+  ByteString ->
+  App Response
+uploadBackup user zcid cid epoch bs =
+  uploadBackupBody user zcid cid epoch (HTTP.RequestBodyBS bs)
+
+-- | The body decides whether a Content-Length header is sent: 'HTTP.RequestBodyBS' and
+-- 'HTTP.RequestBodyStream' send one, 'HTTP.RequestBodyStreamChunked' does not.
+uploadBackupBody ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Word32 ->
+  HTTP.RequestBody ->
+  App Response
+uploadBackupBody user zcid cid epoch body = do
+  req <- backupRequest user zcid cid ("/epochs/" <> show epoch)
+  submit "POST" $ req & addBody body "application/octet-stream"
+
+listBackupFiles :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App Response
+listBackupFiles user zcid cid epoch =
+  backupRequest user zcid cid ("/epochs/" <> show epoch) >>= submit "GET"
+
+-- | Does not follow the redirect: the response is a 302 with a Location header.
+downloadBackup ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Word32 ->
+  String ->
+  App Response
+downloadBackup user zcid cid epoch fileId =
+  backupRequest user zcid cid ("/epochs/" <> show epoch <> "/files/" <> fileId)
+    >>= submit "GET"
+
+deleteBackupEpoch :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App Response
+deleteBackupEpoch user zcid cid epoch =
+  backupRequest user zcid cid ("/epochs/" <> show epoch) >>= submit "DELETE"
+
+deleteClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteClientBackups user zcid cid =
+  backupRequest user zcid cid "" >>= submit "DELETE"
