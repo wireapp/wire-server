@@ -35,6 +35,7 @@ import Polysemy.Error
 import SAML2.WebSSO qualified as SAML
 import Web.Cookie (SetCookie)
 import Web.Scim.Filter qualified as Scim
+import Wire.API.Bot.Service qualified as Bot
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.Locale
@@ -113,6 +114,7 @@ data BrigAPIAccess m a where
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAPIAccess m ()
   GetUserExportData :: UserId -> BrigAPIAccess m (Maybe TeamExportUser)
+  GetServiceConn :: ProviderId -> ServiceId -> BrigAPIAccess m (Maybe Bot.Service)
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]

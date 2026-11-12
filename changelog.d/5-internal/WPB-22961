@@ -1,0 +1,3 @@
+Backfill of brig's provider-platform service tables (`service_tag`, `service_prefix`, `service_whitelist`, `service_whitelist_rev` — the `service` projection table is retired, not migrated) from cassandra to postgres.
+
+New config keys: `migrateProviderService` (background-worker).

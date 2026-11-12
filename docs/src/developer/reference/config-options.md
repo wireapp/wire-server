@@ -2408,6 +2408,7 @@ background-worker:
     migrateCustomBackend: false
     migrateNonce: false
     migrateConnections: false
+    migrateProviderService: false
 ```
 
 #### Migration for existing installations
@@ -2444,6 +2445,7 @@ The current settings and their background-worker flags are:
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
+- `providerService` -> `migrateProviderService` (brig's provider-platform tables: `service`, `service_tag`, `service_prefix`, `service_whitelist`, `service_whitelist_rev`)
 **Migration pattern per migration setting**
 
 1. Prepare the selected migration setting(s) for migration by setting
@@ -2482,6 +2484,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
+       migrateProviderService: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2501,6 +2504,7 @@ The current settings and their background-worker flags are:
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateConnections: true
+       migrateProviderService: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2571,6 +2575,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
+       migrateProviderService: false
    ```
 
 **How to run migrations independently or in batches**

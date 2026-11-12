@@ -456,6 +456,8 @@ library
     Wire.ProposalStore.Cassandra
     Wire.ProviderServiceStore
     Wire.ProviderServiceStore.Cassandra
+    Wire.ProviderServiceStore.DualWrite
+    Wire.ProviderServiceStore.Migration
     Wire.ProviderServiceStore.Postgres
     Wire.RateLimit
     Wire.RateLimit.Interpreter
@@ -476,8 +478,6 @@ library
     Wire.ScimUserMetaStore
     Wire.ScimUserMetaStore.Cassandra
     Wire.ScimUserMetaStore.Mem
-    Wire.ServiceStore
-    Wire.ServiceStore.Cassandra
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SFT
