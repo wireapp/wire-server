@@ -152,6 +152,7 @@ import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore (BlockListStore)
 import Wire.BudgetStore
+import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem)
@@ -411,6 +412,7 @@ servantSitemap ::
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     HasBrigFederationAccess m r,
+    Member CargoholdAPIAccess r,
     Member BudgetStore r
   ) =>
   ServerT BrigAPI (Handler r)
@@ -1504,6 +1506,7 @@ deleteSelfUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member CargoholdAPIAccess r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
@@ -1526,6 +1529,7 @@ verifyDeleteUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member CargoholdAPIAccess r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.VerifyDeleteUser ->
