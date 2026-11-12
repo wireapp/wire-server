@@ -1,0 +1,15 @@
+**[Only relevant if you run your own ingress-nginx controller >= v1.12
+or set `tls.caNamespace`]** Since controller v1.12, ingress-nginx
+defaults to `annotations-risk-level: High` and silently rejects the
+federator ingress, which uses a `configuration-snippet` (risk
+"Critical"). The controller then serves its fake default certificate
+and federation fails with `certificate verify failed`. The bundled
+`ingress-nginx-controller` chart now sets `annotations-risk-level:
+Critical`; if you run your own controller, set it in its ConfigMap.
+Since v1.12, `allow-cross-namespace-resources` also defaults to
+`false`, so a federator CA secret in another namespace
+(`tls.caNamespace` in `nginx-ingress-services` / `integration`) is
+rejected the same way. Leave `tls.caNamespace` unset to use the
+`federator-ca-secret` in the release namespace, or set
+`allow-cross-namespace-resources: true` (applies to the whole
+controller).
