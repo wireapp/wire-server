@@ -119,6 +119,7 @@ type BackupAPI =
                :> "epochs"
                :> Capture "epoch" BackupEpoch
                :> "files"
+               :> Capture "kind" BackupKind
                :> Capture "id" BackupFileId
                :> MultiVerb
                     'GET

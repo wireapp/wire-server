@@ -243,9 +243,8 @@ library
     Wire.BackgroundJobsRunner.Interpreter
     Wire.BackupBlobStore
     Wire.BackupBlobStore.Key
-    Wire.BackupStore
-    Wire.BackupStore.Postgres
     Wire.BackupSubsystem
+    Wire.BackupSubsystem.Disabled
     Wire.BackupSubsystem.Interpreter
     Wire.BackupSubsystem.Rules
     Wire.BackupSubsystem.UUIDv7
@@ -667,7 +666,7 @@ test-suite wire-subsystems-tests
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BackupBlobStore.KeySpec
-    Wire.BackupStore.MockSpec
+    Wire.BackupSubsystem.DisabledSpec
     Wire.BackupSubsystem.InterpreterSpec
     Wire.BackupSubsystem.RulesSpec
     Wire.BackupSubsystem.UUIDv7Spec
@@ -695,7 +694,6 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.AuthenticationSubsystem
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BackupBlobStore
-    Wire.MockInterpreters.BackupStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore
     Wire.MockInterpreters.CodeStore

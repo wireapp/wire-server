@@ -350,10 +350,10 @@ onClientEvent orig conn e = do
 -- | Enqueue an orderly deletion of an existing client.
 --
 -- The client's backups are deleted in cargohold /after/ the client row is gone. Together
--- with the order in 'Wire.BackupSubsystem.Interpreter.uploadBackupImpl' (insert backup row,
+-- with the order in 'Wire.BackupSubsystem.Interpreter.uploadBackupImpl' (PUT the S3 object,
 -- then re-check the client) this guarantees that no backup outlives its client: either this
--- removal sees the uploader's row, or the uploader sees that the client is gone and rolls
--- back. Failure of the cargohold call propagates, i.e. the client removal fails.
+-- removal lists the uploaded object, or the uploader sees that the client is gone and deletes
+-- it. Failure of the cargohold call propagates, i.e. the client removal fails.
 execDelete ::
   ( Member DeleteQueue r,
     Member AuthenticationSubsystem r,

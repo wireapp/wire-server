@@ -69,6 +69,7 @@ data BackupSubsystem m a where
     ClientId ->
     ClientId ->
     BackupEpoch ->
+    BackupKind ->
     BackupFileId ->
     BackupSubsystem m URI
   DeleteEpochBackups :: Local UserId -> ClientId -> ClientId -> BackupEpoch -> BackupSubsystem m ()

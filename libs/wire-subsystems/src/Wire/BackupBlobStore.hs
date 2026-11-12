@@ -17,29 +17,53 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Blob storage of automatic backup files.
 module Wire.BackupBlobStore where
 
 import Conduit (ConduitT, ResourceT)
+import Data.Id (ClientId, UserId)
 import Imports
 import Polysemy
 import URI.ByteString (URI)
 import Wire.API.Backup
+import Wire.BackupBlobStore.Key (BackupLocation (..), BackupPrefix (..))
 
--- | Streamed length differed from the declared length.
 data BlobUploadError = BlobLengthMismatch
   deriving stock (Eq, Show)
 
+-- | A stored backup file as seen in a listing.
+data BackupBlob = BackupBlob
+  { kind :: BackupKind,
+    fileId :: BackupFileId,
+    size :: Word64
+  }
+  deriving stock (Eq, Show)
+
+-- | S3 operations on backup objects.
+--
+-- Deletes remove /all versions/: on a versioned bucket a plain delete only adds a delete
+-- marker, the encrypted data stays and is restorable. The RFC requires backups of a removed
+-- device to be deleted immediately.
 data BackupBlobStore m a where
   -- | The 'Word64' is the declared @Content-Length@. Interpreters fail with
-  -- 'BlobLengthMismatch' if the stream has a different length.
+  -- 'BlobLengthMismatch' if the stream has a different length. Returns the S3 @VersionId@
+  -- of the new object ('Nothing' if the bucket is unversioned).
   PutBlob ::
-    BackupFileId ->
+    BackupLocation ->
     Word64 ->
     ConduitT () ByteString (ResourceT IO) () ->
-    BackupBlobStore m ()
-  SignedDownloadUrl :: BackupFileId -> BackupBlobStore m URI
-  -- | Idempotent, missing keys are ignored.
-  DeleteBlobs :: [BackupFileId] -> BackupBlobStore m ()
+    BackupBlobStore m (Maybe Text)
+  BlobExists :: BackupLocation -> BackupBlobStore m Bool
+  SignedDownloadUrl :: BackupLocation -> BackupBlobStore m URI
+  -- | Epochs with at least one stored file, any order.
+  ListBlobEpochs :: UserId -> ClientId -> BackupBlobStore m [BackupEpoch]
+  -- | Files of an epoch, any order.
+  ListBlobs :: UserId -> ClientId -> BackupEpoch -> BackupBlobStore m [BackupBlob]
+  -- | Deletes exactly the given version, as returned by 'PutBlob'. 'Nothing' is a plain
+  -- delete (only correct if the bucket is unversioned). Idempotent.
+  DeleteBlobVersion :: BackupLocation -> Maybe Text -> BackupBlobStore m ()
+  -- | Deletes all versions of the key (see above why all). Idempotent.
+  DeleteBlob :: BackupLocation -> BackupBlobStore m ()
+  -- | Deletes all versions of all keys under the prefix (see above why all). Idempotent.
+  DeleteBlobs :: BackupPrefix -> BackupBlobStore m ()
 
 makeSem ''BackupBlobStore

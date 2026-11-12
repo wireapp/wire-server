@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.MockInterpreters.BackupBlobStore
-  ( inMemoryBackupBlobStoreInterpreter,
+  ( BlobVersions,
+    versionsOf,
+    inMemoryBackupBlobStoreInterpreter,
     countingBackupBlobStoreInterpreter,
     lockstepSource,
   )
@@ -26,6 +28,8 @@ import Conduit
 import Control.Concurrent.STM (retry)
 import Data.ByteString qualified as BS
 import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
 import Imports
@@ -35,19 +39,26 @@ import Polysemy.State
 import URI.ByteString
 import Wire.API.Backup
 import Wire.BackupBlobStore
+import Wire.BackupBlobStore.Key
+
+-- | Models a versioned bucket: version history per key, newest first, each with its
+-- version id. 'Nothing' is a delete marker.
+type BlobVersions = Map BackupLocation [(Int, Maybe ByteString)]
+
+-- | All versions of a key (including delete markers), newest first.
+versionsOf :: BackupLocation -> BlobVersions -> [Maybe ByteString]
+versionsOf l = map snd . Map.findWithDefault [] l
 
 inMemoryBackupBlobStoreInterpreter ::
-  ( Member (State (Map BackupFileId ByteString)) r,
+  ( Member (State BlobVersions) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
   InterpreterFor BackupBlobStore r
 inMemoryBackupBlobStoreInterpreter = interpreter (const (pure ()))
 
--- | Like 'inMemoryBackupBlobStoreInterpreter', but adds the length of every consumed chunk to
--- the 'TVar' (see 'lockstepSource').
 countingBackupBlobStoreInterpreter ::
-  ( Member (State (Map BackupFileId ByteString)) r,
+  ( Member (State BlobVersions) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
@@ -57,27 +68,56 @@ countingBackupBlobStoreInterpreter consumed =
   interpreter (atomically . modifyTVar' consumed . (+) . fromIntegral . BS.length)
 
 interpreter ::
-  ( Member (State (Map BackupFileId ByteString)) r,
+  ( Member (State BlobVersions) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
   (ByteString -> IO ()) ->
   InterpreterFor BackupBlobStore r
 interpreter onChunk = interpret $ \case
-  PutBlob fid len src -> do
+  PutBlob l len src -> do
     let counted = awaitForever (\c -> liftIO (onChunk c) >> yield c)
     body <- BS.concat <$> embed (runConduitRes (src .| counted .| sinkList))
     when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
-    modify (Map.insert fid body)
-  SignedDownloadUrl fid ->
+    Just . Text.pack . show <$> addVersion l (Just body)
+  BlobExists l -> gets (Map.member l . live)
+  SignedDownloadUrl l ->
     either (error . show) pure
       . parseURI strictURIParserOptions
       . Text.encodeUtf8
-      $ "https://blob.test/" <> UUID.toText (unBackupFileId fid)
-  DeleteBlobs fids -> modify (\m -> foldr Map.delete m fids)
+      $ "https://blob.test/" <> UUID.toText (unBackupFileId l.fileId)
+  ListBlobEpochs u c ->
+    gets $ Set.toDescList . Set.fromList . map (.epoch) . filter (\l -> l.user == u && l.client == c) . Map.keys . live
+  ListBlobs u c e ->
+    gets $
+      reverse
+        . map (\(l, b) -> BackupBlob {kind = l.kind, fileId = l.fileId, size = fromIntegral (BS.length b)})
+        . filter (\(l, _) -> l.user == u && l.client == c && l.epoch == e)
+        . Map.toList
+        . live
+  DeleteBlobVersion l Nothing -> void (addVersion l Nothing)
+  DeleteBlobVersion l (Just v) ->
+    modify $ Map.update (nonEmpty' . filter (\(i, _) -> Just i /= readMaybe (Text.unpack v))) l
+  DeleteBlob l -> modify (Map.delete l)
+  DeleteBlobs p -> modify (Map.filterWithKey (\l _ -> not (inPrefix p l)))
+  where
+    addVersion l v = do
+      h <- gets (Map.findWithDefault [] l)
+      let i = 1 + maximum (0 : map fst h)
+      modify (Map.insert l ((i, v) : h))
+      pure i
 
--- | @n@ chunks of @size@ bytes. Yields the next chunk only while at most 64 KiB produced bytes
--- are not yet consumed (per the 'TVar'), so it blocks forever if the consumer buffers the body.
+    nonEmpty' h = if null h then Nothing else Just h
+
+    live :: BlobVersions -> Map BackupLocation ByteString
+    live = Map.mapMaybe (\case (_, Just b) : _ -> Just b; _ -> Nothing)
+
+inPrefix :: BackupPrefix -> BackupLocation -> Bool
+inPrefix p l = case p of
+  UserPrefix u -> l.user == u
+  ClientPrefix u c -> l.user == u && l.client == c
+  EpochPrefix u c e -> l.user == u && l.client == c && l.epoch == e
+
 lockstepSource :: TVar Word64 -> Int -> Int -> ConduitT () ByteString (ResourceT IO) ()
 lockstepSource consumed n size = for_ [0 .. n - 1] $ \i -> do
   liftIO . atomically $ do

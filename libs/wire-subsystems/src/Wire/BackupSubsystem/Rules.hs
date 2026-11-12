@@ -27,7 +27,7 @@ module Wire.BackupSubsystem.Rules
 where
 
 import Data.Aeson (FromJSON)
-import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Imports
 import Wire.API.Backup
 
@@ -49,18 +49,20 @@ data UploadRejection = EpochNotAllowed | TooManyFiles | TooLarge
 -- of its epoch.
 checkUpload ::
   BackupLimits ->
-  Map BackupEpoch Word32 ->
+  -- | Stored epochs of the device
+  Set BackupEpoch ->
+  -- | Number of files in the target epoch
+  Word32 ->
   BackupEpoch ->
   Word64 ->
   Either UploadRejection BackupKind
-checkUpload limits counts e size = do
-  unless (e.unBackupEpoch >= 1 && epochAllowed (Map.keys counts)) $ Left EpochNotAllowed
-  let n = Map.findWithDefault 0 e counts
-      (kind, cap)
-        | n == 0 = (BackupFull, limits.maxFullBytes)
+checkUpload limits epochs files e size = do
+  unless (e.unBackupEpoch >= 1 && epochAllowed (Set.toAscList epochs)) $ Left EpochNotAllowed
+  let (kind, cap)
+        | files == 0 = (BackupFull, limits.maxFullBytes)
         | otherwise = (BackupIncremental, limits.maxIncrementalBytes)
   when (size > cap) $ Left TooLarge
-  unless (n < limits.maxFilesPerEpoch) $ Left TooManyFiles
+  unless (files < limits.maxFilesPerEpoch) $ Left TooManyFiles
   pure kind
   where
     epochAllowed :: [BackupEpoch] -> Bool
