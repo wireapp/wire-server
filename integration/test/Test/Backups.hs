@@ -68,19 +68,22 @@ backupLocation resp = do
 fetchUrl :: (HasCallStack) => String -> App Response
 fetchUrl url = externalRequest url >>= submit "GET"
 
-firstFileId :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App String
-firstFileId user zcid cid epoch =
+-- | Kind and id of the first listed file; both are needed for the download route
+firstFile :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App (String, String)
+firstFile user zcid cid epoch =
   bindResponse (listBackupFiles user zcid cid epoch) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "files.0.id" & asString
+    kind <- resp.json %. "files.0.kind" & asString
+    fid <- resp.json %. "files.0.id" & asString
+    pure (kind, fid)
 
 -- | Upload one file and return the presigned URL of its download redirect
 uploadAndGetUrl :: (HasCallStack, MakesValue user) => user -> String -> Word32 -> App String
 uploadAndGetUrl user cid epoch = do
   bindResponse (uploadBackup user cid cid epoch (BSC.pack "some backup")) $ \resp ->
     resp.status `shouldMatchInt` 200
-  fid <- firstFileId user cid cid epoch
-  bindResponse (downloadBackup user cid cid epoch fid) backupLocation
+  (kind, fid) <- firstFile user cid cid epoch
+  bindResponse (downloadBackupFile user cid cid epoch kind fid) backupLocation
 
 --------------------------------------------------------------------------------
 -- Tests
@@ -97,11 +100,11 @@ testBackupRoundtrip = do
   bindResponse (listBackupEpochs owner c1 c1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "epochs" `shouldMatch` [1 :: Int]
-  fid <- firstFileId owner c1 c1 1
-  bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> do
-    resp.json %. "files.0.kind" `shouldMatch` "full"
+  (kind, fid) <- firstFile owner c1 c1 1
+  kind `shouldMatch` "full"
+  bindResponse (listBackupFiles owner c1 c1 1) $ \resp ->
     resp.json %. "files.0.size" `shouldMatchInt` BS.length payload
-  url <- bindResponse (downloadBackup owner c1 c1 1 fid) backupLocation
+  url <- bindResponse (downloadBackupFile owner c1 c1 1 kind fid) backupLocation
   bindResponse (fetchUrl url) $ \resp -> do
     resp.status `shouldMatchInt` 200
     BSC.unpack resp.body `shouldMatch` BSC.unpack payload
@@ -263,8 +266,8 @@ testBackupLargeUploadRoundtrip = do
     resp.json %. "kind" `shouldMatch` "full"
     resp.json %. "size" `shouldMatchInt` total
   inputDigest <- liftIO $ hashFinalize . snd <$> readIORef state
-  fid <- firstFileId owner c1 c1 1
-  url <- bindResponse (downloadBackup owner c1 c1 1 fid) backupLocation
+  (kind, fid) <- firstFile owner c1 c1 1
+  url <- bindResponse (downloadBackupFile owner c1 c1 1 kind fid) backupLocation
   req <- externalRequest url
   manager <- asks (.manager)
   (status, outputDigest, received) <- liftIO $ HTTP.withResponse req manager $ \res -> do
@@ -278,3 +281,59 @@ testBackupLargeUploadRoundtrip = do
   status `shouldMatchInt` 200
   received `shouldMatchInt` total
   show (outputDigest :: Digest SHA256) `shouldMatch` show inputDigest
+
+testBackupKeysHideIds :: (HasCallStack) => App ()
+testBackupKeysHideIds = do
+  (owner, _, _) <- backupTeam OwnDomain
+  c1 <- newClient owner
+  uid <- objId owner
+  url <- uploadAndGetUrl owner c1 1
+  url `shouldContain` "/backup/"
+  for_ [("user id", uid), ("client id", c1)] $ \(what, plain) ->
+    when (plain `isInfixOf` url)
+      $ assertFailure ("presigned URL contains the plain " <> what)
+
+testBackupManyFiles :: (HasCallStack) => App ()
+testBackupManyFiles = do
+  (owner, _, _) <- backupTeam OwnDomain
+  c1 <- newClient owner
+  let nFiles = 1005 :: Int -- more than one S3 page and one DeleteObjects batch (1000)
+  bindResponse (uploadBackup owner c1 c1 1 (BSC.pack "x")) $ \resp ->
+    resp.json %. "kind" `shouldMatch` "full"
+  for_ [2 .. nFiles] $ \_ ->
+    bindResponse (uploadBackup owner c1 c1 1 (BSC.pack "x")) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "kind" `shouldMatch` "incremental"
+  bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    files <- resp.json %. "files" & asList
+    length files `shouldMatchInt` nFiles
+    (head files %. "kind") `shouldMatch` "full"
+  bindResponse (deleteBackupEpoch owner c1 c1 1) $ \resp -> resp.status `shouldMatchInt` 204
+  bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (listBackupEpochs owner c1 c1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "epochs" `shouldMatch` ([] :: [Int])
+
+testBackupEpochPrefixIsolation :: (HasCallStack) => App ()
+testBackupEpochPrefixIsolation = do
+  (owner, _, _) <- backupTeam OwnDomain
+  a <- newClient owner
+  b <- newClient owner
+  let upload cid epoch =
+        bindResponse (uploadBackup owner cid cid epoch (BSC.pack "x")) $ \resp ->
+          resp.status `shouldMatchInt` 200
+  upload a 1
+  upload a 1
+  upload a 2
+  upload b 1
+  bindResponse (deleteBackupEpoch owner a a 1) $ \resp -> resp.status `shouldMatchInt` 204
+  bindResponse (listBackupEpochs owner a a) $ \resp ->
+    resp.json %. "epochs" `shouldMatch` [2 :: Int]
+  bindResponse (listBackupFiles owner a a 1) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (listBackupFiles owner a a 2) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "files" & asList) >>= \fs -> length fs `shouldMatchInt` 1
+  bindResponse (listBackupFiles owner b b 1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "files" & asList) >>= \fs -> length fs `shouldMatchInt` 1

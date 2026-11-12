@@ -477,16 +477,17 @@ listBackupFiles user zcid cid epoch =
   backupRequest user zcid cid ("/epochs/" <> show epoch) >>= submit "GET"
 
 -- | Does not follow the redirect: the response is a 302 with a Location header.
-downloadBackup ::
+downloadBackupFile ::
   (HasCallStack, MakesValue user) =>
   user ->
   String ->
   String ->
   Word32 ->
   String ->
+  String ->
   App Response
-downloadBackup user zcid cid epoch fileId =
-  backupRequest user zcid cid ("/epochs/" <> show epoch <> "/files/" <> fileId)
+downloadBackupFile user zcid cid epoch kind fileId =
+  backupRequest user zcid cid ("/epochs/" <> show epoch <> "/files/" <> kind <> "/" <> fileId)
     >>= submit "GET"
 
 deleteBackupEpoch :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App Response

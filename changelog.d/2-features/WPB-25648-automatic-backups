@@ -1,1 +1,1 @@
-Add automatic backups: cargohold endpoints under /backups to upload, list, download and delete client backup files; new team feature automaticBackups (WPB-25648)
+Add automatic backups: cargohold endpoints under /backups to upload, list, download and delete client backup files, stored in S3 only (no database); new team feature automaticBackups (WPB-25648)
