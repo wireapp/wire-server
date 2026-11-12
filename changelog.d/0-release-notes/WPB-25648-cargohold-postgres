@@ -1,0 +1,2 @@
+Cargohold now requires PostgreSQL (automatic backups metadata). Operators must configure the `cargohold.config.postgresql` / `postgresqlPool` settings and set `cargohold.secrets.pgPassword`; see `docs/src/developer/reference/config-options.md`. Cargohold migrations are run by brig (`migrate-postgres`).
+Backup uploads can be up to 1 GiB. nginz allows 1024m bodies on `/backups` without request buffering. The chart has no per-path timeouts: the global `proxy_read_timeout` (1h) and `client_body_timeout` (60s) apply. Adjust ingress/proxy timeouts if clients upload slowly.

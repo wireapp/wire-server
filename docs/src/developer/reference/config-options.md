@@ -1466,6 +1466,22 @@ provides a lot of useful information.
 - `settings.maxTotalBytes` (integer, bytes): maximum upload size for team users.
 - `settings.maxTotalBytesStrict` (integer, bytes): stricter maximum upload size for non-team users (including ephemeral users).
 
+### Backups
+
+Cargohold stores backup metadata in Postgres; configure `postgresql`,
+`postgresqlPool` and `secrets.pgPassword` as described in "Configure PostgreSQL"
+below. Limits:
+
+```yaml
+settings:
+  backupLimits:
+    maxFullBytes: 1073741824      # first file of an epoch (1 GiB)
+    maxIncrementalBytes: 10485760 # later files of an epoch (10 MiB)
+    maxFilesPerEpoch: 3650
+```
+
+See `developer/backups.md` for details and known limitations.
+
 ## Settings in cannon
 
 ### Events websocket inactivity
