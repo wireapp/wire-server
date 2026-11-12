@@ -40,7 +40,7 @@ import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Aeson as A
 import Data.ByteString.Char8 qualified as BS8
 import Data.Code qualified as Code
-import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
+import Data.Misc (Fingerprint, PlainTextPassword8, Rsa, fromPlainTextPassword)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Test.Tasty qualified as T
@@ -51,9 +51,12 @@ import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
+import Wire.API.Provider.Service (ServiceKey, ServiceToken)
+import Wire.API.Provider.Service.Tag (ServiceTag)
 import Wire.API.Team.Feature
 import Wire.API.User.Auth (CookieId, CookieLabel, CookieType)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
+import Wire.API.User.Profile (Asset)
 import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree
@@ -70,7 +73,12 @@ tests =
       testRoundTrip @A.Value @DbConfig,
       testRoundTrip @Int32 @CookieType,
       testRoundTrip @Text @CookieLabel,
-      testRoundTrip @Int64 @CookieId
+      testRoundTrip @Int64 @CookieId,
+      testRoundTrip @ByteString @(Fingerprint Rsa),
+      testRoundTrip @Text @ServiceToken,
+      testRoundTrip @Int64 @ServiceTag,
+      testRoundTrip @A.Value @[ServiceKey],
+      testRoundTrip @A.Value @[Asset]
     ]
 
 testRoundTrip ::

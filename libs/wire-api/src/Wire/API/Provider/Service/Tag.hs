@@ -68,6 +68,7 @@ import Data.Type.Ord
 import GHC.TypeLits (KnownNat, Nat)
 import Imports
 import Web.HttpApiData (FromHttpApiData (parseUrlPiece))
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -210,6 +211,13 @@ instance Cql ServiceTag where
 
   toCql = CqlBigInt . tagToInt
 
+instance PostgresMarshall Int64 ServiceTag where
+  postgresMarshall = tagToInt
+
+instance PostgresUnmarshall Int64 ServiceTag where
+  postgresUnmarshall i =
+    maybe (Left $ Text.pack ("unexpected service tag: " ++ show i)) Right (intToTag i)
+
 --------------------------------------------------------------------------------
 -- Bounded ServiceTag Queries
 
@@ -334,7 +342,7 @@ match :: ServiceTag -> MatchAll
 match = MatchAll . Set.singleton
 
 newtype Bucket = Bucket Int32
-  deriving newtype (Cql, Show)
+  deriving newtype (Cql, Show, PostgresMarshall Int32, PostgresUnmarshall Int32)
 
 -- | Bucketing allows us to distribute individual tag bitmasks
 -- across multiple wide rows, if it should become necessary.
