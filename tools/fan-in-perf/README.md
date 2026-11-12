@@ -25,6 +25,9 @@ requirements (e.g. integration tests) and provide observability,
 `./docker-compose.yaml` describes the separated test environment. It also
 contains a Grafana LGTM stack with metrics fetchers.
 
+For a distributed test on the backend-integration-tests cluster without Terraform, see the
+[Kubernetes setup](kubernetes/README.md).
+
 ## Setup and run
 
 ### Firewall rules
@@ -745,3 +748,100 @@ For the next diagnostic run, keep the workload unchanged and use
 an acknowledgement confirmation; increase it too if you want to observe a single
 pending ack for longer than the default 30 seconds. Compare the counters with
 PostgreSQL pool waits, locks and queries, RabbitMQ queue depth, and service CPU.
+
+#### Server-side acknowledgement timings
+
+Cannon exposes `fanin_perf_server_ack_seconds{stage="..."}` histograms at
+`http://127.0.0.1:8083/i/metrics` when the experimental PostgreSQL configuration
+is enabled. These are separate from the load generator's client-side JSON.
+
+| Stage | Boundaries |
+| --- | --- |
+| `pool_acquire` | Start of the acknowledgement storage call to entry into its first acquired PostgreSQL session; includes effect dispatch and new-connection setup if needed |
+| `database_write` | Execution of the acknowledgement upsert on the acquired connection, including the database round trip and autocommit |
+| `persistence` | Entire acknowledgement storage operation, including acquisition, upsert and any retries |
+| `receive_queue` | Ack frame read by Cannon's receiver thread to validation/dequeue by its delivery loop |
+| `confirmation_send` | Sending the confirmation frame, including socket-write scheduling and existing send retries |
+| `receive_to_confirmation` | Ack frame read by Cannon to completion of the confirmation send |
+
+All measurements use monotonic time, in seconds. Labels are fixed stage names;
+there are no per-user or per-device metric labels. Only completed stages produce
+samples. Failed or cancelled writes/sends do not count as successful completions.
+`pool_acquire` measures the first acquisition of each ack operation; a retried
+session does not produce another acquisition sample. Successful retried writes
+are measured normally, and `persistence` includes the complete retry duration.
+The upsert statement and retry policy are unchanged.
+
+The existing `wire_hasql_pool_connection_acquisition_seconds` measures opening
+new connections, **not waiting for a pooled connection**. Use the new
+`pool_acquire` stage for that investigation. Stages overlap: acquisition and write
+are inside persistence, and the other stages are inside the receive-to-confirmation
+measurement. Do not add all six durations or subtract their percentiles.
+Server measurements do not include time before the receiver reads the frame or
+time after the send returns, so compare them with client ack-confirmation latency.
+
+Restart the services with the rebuilt binaries. The benchmark OTel collector now
+scrapes Cannon on `host.docker.internal:8083/i/metrics` every second. Restart it
+to load that configuration:
+
+```bash
+docker compose -f tools/fan-in-perf/docker-compose.yaml restart otel-collector
+curl -s http://127.0.0.1:8083/i/metrics | rg 'fanin_perf_server_ack_seconds'
+```
+
+Samples appear after acknowledgements are processed. If the collector is not
+running, start the benchmark Compose stack first. Ensure the benchmark Docker
+network can reach the host's port 8083; a working localhost curl alone does not
+prove container connectivity. Verify `up{job="fan-in-cannon"}` is 1 in Grafana.
+
+Mean duration by stage in milliseconds (one-minute window):
+
+```promql
+1000 * sum by (stage) (rate(fanin_perf_server_ack_seconds_sum{job="fan-in-cannon"}[1m]))
+  / sum by (stage) (rate(fanin_perf_server_ack_seconds_count{job="fan-in-cannon"}[1m]))
+```
+
+Approximate p95 by stage in milliseconds:
+
+```promql
+1000 * histogram_quantile(0.95,
+  sum by (stage, le) (rate(fanin_perf_server_ack_seconds_bucket{job="fan-in-cannon"}[1m]))
+)
+```
+
+Repeat the same workload. A high `pool_acquire` suggests pressure on pool capacity;
+a high `database_write` directs attention to database queries, locks, I/O or the
+network round trip. `receive_queue` and `confirmation_send` help distinguish
+Cannon scheduling and socket-write delays. The instrumentation adds some overhead;
+keep it enabled consistently when comparing runs.
+
+The receive handoff now has additional stages in the same histogram family:
+
+| Stage | Boundaries |
+| --- | --- |
+| `ack_parse` | WebSocket read returns → ack decoding completes; decoding and the numeric tag are explicitly evaluated in the receiver thread |
+| `ack_enqueue` | Parsing completes → the STM queue write returns |
+| `enqueue_to_dequeue` | Parsing completes, immediately before enqueue → queue read returns in the delivery thread, timestamped **inside** the timeout wrapper |
+| `ack_timeout_exit` | Queue read returns → `System.Timeout.timeout` returns to the delivery loop |
+| `ack_validate` | Timeout wrapper returns → the delivery loop validates the expected tag |
+| `event_page_send` | The preceding event-page send call starts → returns, including encoding and existing send retries |
+| `event_send_after_ack_read` | Ack read → preceding event-page send returns, or zero if the send had already returned |
+
+`enqueue_to_dequeue` includes enqueueing, not just residence in the queue. A
+precise STM commit timestamp would require unsafe instrumentation or additional
+synchronisation; neither is used here. Compare it with `ack_enqueue` rather than
+adding both. An enqueue completion timestamp can be later than dequeue when the
+producer is delayed after commit. All timings are elapsed time and can include
+thread scheduling and GC pauses.
+
+The broad `receive_queue` measurement is retained. Its subdivisions are
+`ack_parse`, `enqueue_to_dequeue`, `ack_timeout_exit` and `ack_validate`.
+`event_send_after_ack_read` overlaps those intervals and reveals whether the send
+call was still returning after the ack arrived; it is not an additional cost to
+sum. Send and validation samples are emitted for pages with a matching ack;
+parse/enqueue samples can also exist for invalid acknowledgements. The existing
+Grafana query automatically includes the new labels.
+
+Restart Cannon after rebuilding, keeping the collector running. With the current
+`socat` workaround, stop `socat` before restarting `make cr`, then restart the
+forwarder once Cannon is listening. Repeat the same workload to compare stages.

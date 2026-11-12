@@ -52,7 +52,7 @@ tests =
   where
     -- These HTTP routing tests must never access the DB or WebSocket environment.
     app runtime = serve (Proxy @FanIn.API) (FanIn.server runtime (error "unexpected WS environment access"))
-    enabled hub = app $ Just $ FanIn.Runtime (error "unexpected store access") hub
+    enabled hub = app $ Just $ FanIn.Runtime (error "unexpected store access") hub (\_ _ -> pure ())
     postWakeup body =
       SRequest
         ( (setPath Wai.defaultRequest "/i/fan-in-perf/wakeup")

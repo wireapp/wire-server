@@ -3,12 +3,14 @@ module FanInPerf.Delivery where
 
 import Control.Concurrent.Async (race_)
 import Control.Concurrent.STM (throwSTM)
-import Control.Exception (throwIO)
+import Control.Exception (evaluate, throwIO)
 import Data.Aeson
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString.Lazy qualified as BL
 import Data.UUID (UUID)
+import FanInPerf.ServerTiming
 import FanInPerf.Wakeup
+import GHC.Clock (getMonotonicTimeNSec)
 import Imports
 import System.IO.Error (userError)
 import System.Timeout (timeout)
@@ -16,10 +18,15 @@ import System.Timeout (timeout)
 -- Receive must be interruptible. The WebSocket adapter limits incoming frames.
 -- A separate reader detects disconnects even while waiting for a wakeup.
 deliverEvents :: WakeupHub -> UUID -> (UUID -> IO [(UUID, Value)]) -> (UUID -> IO ()) -> (Value -> IO ()) -> IO BL.ByteString -> IO ()
-deliverEvents hub initial fetch persist send receive = do
+deliverEvents = deliverEventsWithTiming (\_ _ -> pure ())
+
+-- | The receive timestamp is captured in the reader thread, before enqueueing.
+deliverEventsWithTiming :: ObserveAck -> WakeupHub -> UUID -> (UUID -> IO [(UUID, Value)]) -> (UUID -> IO ()) -> (Value -> IO ()) -> IO BL.ByteString -> IO ()
+deliverEventsWithTiming observe hub initial fetch persist send receive = do
   incoming <- newTBQueueIO 1
   let receiveLoop = forever $ do
         bytes <- receive
+        receivedAt <- getMonotonicTimeNSec
         let parsed =
               if BL.length bytes > 1024
                 then Nothing
@@ -31,7 +38,16 @@ deliverEvents hub initial fetch persist send receive = do
                           unless (kind == ("ack" :: Text)) $ fail "expected ack"
                           o .: "tag"
                       )
-        atomically $ writeTBQueue incoming (parsed :: Maybe Integer)
+        -- Force both the Maybe and its Integer here; otherwise decoding can
+        -- migrate into the delivery thread and obscure the handoff measurement.
+        forced <- evaluate $ case parsed :: Maybe Integer of
+          Nothing -> Nothing
+          Just ackTag -> ackTag `seq` Just ackTag
+        parsedAt <- getMonotonicTimeNSec
+        atomically $ writeTBQueue incoming (forced, receivedAt, parsedAt)
+        enqueuedAt <- getMonotonicTimeNSec
+        observeBetween observe AckParse receivedAt parsedAt
+        observeBetween observe AckEnqueue parsedAt enqueuedAt
       invalid = throwIO $ userError "invalid experimental acknowledgement"
       loop cursor tag = do
         -- Snapshot before fetching so a wakeup during catch-up cannot be lost.
@@ -45,12 +61,34 @@ deliverEvents hub initial fetch persist send receive = do
                 `orElse` (readTBQueue incoming >> throwSTM (userError "unexpected acknowledgement"))
             loop cursor tag
           _ -> do
+            eventSendStart <- getMonotonicTimeNSec
             send $ object ["type" .= ("events" :: Text), "tag" .= tag, "events" .= [object ["id" .= nid, "payload" .= payload] | (nid, payload) <- page]]
-            acknowledgement <- timeout 30_000_000 (atomically $ readTBQueue incoming)
-            unless (acknowledgement == Just (Just tag)) invalid
+            eventSendEnd <- getMonotonicTimeNSec
+            acknowledgement <- timeout 30_000_000 $ do
+              queued <- atomically $ readTBQueue incoming
+              dequeuedAt <- getMonotonicTimeNSec
+              pure (queued, dequeuedAt)
+            timeoutExitedAt <- getMonotonicTimeNSec
+            (receivedAt, parsedAt, dequeuedAt) <- case acknowledgement of
+              Just ((Just ackTag, receivedAt, parsedAt), dequeuedAt) | ackTag == tag -> pure (receivedAt, parsedAt, dequeuedAt)
+              _ -> invalid
+            validatedAt <- getMonotonicTimeNSec
+            -- EnqueueToDequeue starts before the STM write, not at its commit:
+            -- no unsafe IO in STM or additional synchronisation is needed.
+            observeBetween observe EnqueueToDequeue parsedAt dequeuedAt
+            observeBetween observe AckTimeoutExit dequeuedAt timeoutExitedAt
+            observeBetween observe AckValidate timeoutExitedAt validatedAt
+            observeBetween observe EventPageSend eventSendStart eventSendEnd
+            observeBetween observe EventSendAfterAckRead receivedAt eventSendEnd
+            observeBetween observe ReceiveQueue receivedAt validatedAt
             let next = fst (last page)
+            persistStart <- getMonotonicTimeNSec
             persist next
+            observeSince observe Persistence persistStart
+            sendStart <- getMonotonicTimeNSec
             send $ object ["type" .= ("acked" :: Text), "tag" .= tag]
+            observeSince observe ConfirmationSend sendStart
+            observeSince observe ReceiveToConfirmation receivedAt
             loop next (tag + 1)
   -- Propagate the original receive exception synchronously. Linking wraps it in
   -- ExceptionInLinkedThread, which escapes the adapter's synchronous exception

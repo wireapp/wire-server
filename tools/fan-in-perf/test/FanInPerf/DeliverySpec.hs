@@ -6,8 +6,10 @@ import Control.Exception qualified as E
 import Data.Aeson
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString.Lazy qualified as BL
+import Data.ByteString.Lazy.Char8 qualified as BL8
 import Data.UUID.Types qualified as UUID
 import FanInPerf.Delivery
+import FanInPerf.ServerTiming
 import FanInPerf.Wakeup
 import Imports
 import Network.HTTP.Types (status404)
@@ -15,6 +17,7 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp (testWithApplication)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import Network.WebSockets qualified as Socket
+import Prometheus qualified as P
 import System.IO.Error (userError)
 import System.Timeout (timeout)
 import Test.Hspec hiding (after, pending)
@@ -120,6 +123,62 @@ spec = describe "experimental delivery sessions" $ do
           Just Socket.ConnectionClosed -> pure ()
           _ -> expectationFailure "disconnect exception was wrapped or replaced"
         _ -> expectationFailure "disconnected session did not terminate"
+
+  it "exports independent fixed-label server timing histograms" $ do
+    observe <- registerAckTimings
+    observe PoolAcquire 0.01
+    observe DatabaseWrite 0.25
+    output <- BL8.unpack <$> P.exportMetricsAsText
+    output `shouldContain` "fanin_perf_server_ack_seconds_count{stage=\"pool_acquire\"} 1"
+    output `shouldContain` "fanin_perf_server_ack_seconds_sum{stage=\"database_write\"} 0.25"
+
+  it "measures receive queue, persistence, send and total confirmation time separately" $ do
+    hub <- newWakeupHub
+    client <- newClient
+    timings <- newTVarIO []
+    complete <- newEmptyTMVarIO
+    ackQueued <- newEmptyTMVarIO
+    let observe stage seconds = atomically $ do
+          modifyTVar' timings (<> [(stage, seconds)])
+          when (stage == ReceiveToConfirmation) $ putTMVar complete ()
+          when (stage == AckEnqueue) $ putTMVar ackQueued ()
+        fetch after = pure [(UUID.fromWords 0 0 0 1, Null) | after == UUID.nil]
+        persist _ = threadDelay 10000
+        delayedSend frame = do
+          when (parseMaybe (withObject "frame" (.: "type")) frame == Just ("acked" :: Text)) $ threadDelay 10000
+          send client frame
+          when (parseMaybe (withObject "frame" (.: "type")) frame == Just ("events" :: Text)) $ do
+            -- The peer can acknowledge before the event send call returns.
+            atomically $ takeTMVar ackQueued
+            threadDelay 10000
+    withAsync (deliverEventsWithTiming observe hub UUID.nil fetch persist delayedSend (receive client)) $ \_ -> do
+      expectType client "events"
+      ack client 1
+      timeout 2000000 (atomically $ takeTMVar complete) `shouldReturn` Just ()
+      samples <- readTVarIO timings
+      sort (map (show . fst) samples)
+        `shouldBe` sort
+          ( map
+              show
+              [ AckParse,
+                AckEnqueue,
+                EnqueueToDequeue,
+                AckValidate,
+                AckTimeoutExit,
+                EventPageSend,
+                EventSendAfterAckRead,
+                ReceiveQueue,
+                Persistence,
+                ConfirmationSend,
+                ReceiveToConfirmation
+              ]
+          )
+      all ((>= 0) . snd) samples `shouldBe` True
+      lookup Persistence samples `shouldSatisfy` maybe False (>= 0.005)
+      lookup ConfirmationSend samples `shouldSatisfy` maybe False (>= 0.005)
+      lookup EventSendAfterAckRead samples `shouldSatisfy` maybe False (>= 0.005)
+      lookup EnqueueToDequeue samples `shouldSatisfy` maybe False (>= 0.005)
+      lookup ReceiveToConfirmation samples `shouldSatisfy` maybe False (>= sum [seconds | (stage, seconds) <- samples, stage `elem` [ReceiveQueue, Persistence, ConfirmationSend]])
 
   it "does not persist progress for an invalid acknowledgement" $ do
     hub <- newWakeupHub

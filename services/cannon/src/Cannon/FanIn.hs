@@ -9,9 +9,10 @@ import Data.Aeson (encode)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Id
-import FanInPerf.Delivery (deliverEvents)
+import FanInPerf.Delivery (deliverEventsWithTiming)
 import FanInPerf.Fixture
 import FanInPerf.NotificationsStore
+import FanInPerf.ServerTiming (ObserveAck, registerAckTimings)
 import FanInPerf.Store
 import FanInPerf.Wakeup
 import Imports
@@ -51,11 +52,11 @@ instance Accept WakeupJSON where
 instance MimeUnrender WakeupJSON ByteString where
   mimeUnrender _ = Right . BL.toStrict
 
-data Runtime = Runtime {store :: Env, hub :: WakeupHub}
+data Runtime = Runtime {store :: Env, hub :: WakeupHub, observeAck :: ObserveAck}
 
 configure :: Opts -> IO (Maybe Runtime)
 configure opts = for opts._optsFanInPerfPostgresql $ \config ->
-  Runtime <$> configureStore config opts._optsFanInPerfPostgresqlPool opts._optsFanInPerfPostgresqlPassword <*> newWakeupHub
+  Runtime <$> configureStore config opts._optsFanInPerfPostgresqlPool opts._optsFanInPerfPostgresqlPassword <*> newWakeupHub <*> registerAckTimings
 
 server :: Maybe Runtime -> WS.Env -> Server API
 server runtime wsEnv =
@@ -90,11 +91,12 @@ server runtime wsEnv =
                     WS.registerLocal key ws
                     WS.registerRemote key (Just client)
                   withPingPong defaultPingPongOptions conn $ \socket ->
-                    deliverEvents
+                    deliverEventsWithTiming
+                      rt.observeAck
                       rt.hub
                       cursor
                       (\after -> runOrAbort "fetch experimental events" rt.store $ fetchNotifications benchmarkStream after 100)
-                      (\nid -> runOrAbort "acknowledge experimental events" rt.store $ ackNotification user client benchmarkStream nid)
+                      (acknowledgeWithTimings rt.observeAck rt.store user client)
                       (\value -> WS.sendMsgIO (encode value) ws)
                       (Socket.receiveData socket)
             result <- tryAny $ session `finally` WS.runWS wsEnv (terminate key ws)

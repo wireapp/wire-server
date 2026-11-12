@@ -94,6 +94,7 @@ library
     FanInPerf.Population
     FanInPerf.Produce
     FanInPerf.Run
+    FanInPerf.ServerTiming
     FanInPerf.Service
     FanInPerf.Settle
     FanInPerf.Smoke

@@ -6,16 +6,20 @@ import Data.Misc (Duration (..))
 import Data.Qualified (toLocalUnsafe)
 import Data.UUID (UUID)
 import FanInPerf.NotificationsStore
+import FanInPerf.NotificationsStore.Postgres (ackEpochStatement)
+import FanInPerf.ServerTiming
 import FanInPerf.Store
 import FanInPerf.Targets (localDomain)
+import GHC.Clock (getMonotonicTimeNSec)
 import Hasql.Pool.Extended (PoolConfig (..), initPostgresPool)
+import Hasql.Session qualified as Session
 import Hasql.TH
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted))
 import Imports
 import Util.Options (FilePathSecrets)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.Postgres (runStatement)
+import Wire.Postgres (runSessionWithRetry, runStatement)
 
 benchmarkGroup :: GroupId
 benchmarkGroup = GroupId "fan-in-perf-experimental"
@@ -45,3 +49,19 @@ resumePosition env user client =
         and a.group_id = $3 :: bytea and a.epoch = $4 :: int8
       where p.user_id = $1 :: uuid and p.client_id = $2 :: int8
     |]
+
+-- | Use the same statement and retry policy as ackNotification. Pool timing is
+-- for the first successful acquisition only; total persistence includes retries.
+acknowledgeWithTimings :: ObserveAck -> Env -> UserId -> ClientId -> UUID -> IO ()
+acknowledgeWithTimings observe env user client notification = do
+  first <- newIORef True
+  start <- getMonotonicTimeNSec
+  runOrAbort "acknowledge experimental events" env $ runSessionWithRetry $ do
+    acquired <- liftIO getMonotonicTimeNSec
+    initialAttempt <- liftIO $ atomicModifyIORef' first (\old -> (False, old))
+    when initialAttempt $ liftIO $ observe PoolAcquire (fromIntegral (acquired - start) / 1000000000)
+    writeStart <- liftIO getMonotonicTimeNSec
+    Session.statement
+      (user.toUUID, fromIntegral client.clientToWord64 :: Int64, benchmarkGroup.unGroupId, fromIntegral benchmarkEpoch.epochNumber :: Int64, notification)
+      ackEpochStatement
+    liftIO $ observeSince observe DatabaseWrite writeStart
