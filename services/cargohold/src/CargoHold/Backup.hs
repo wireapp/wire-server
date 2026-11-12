@@ -125,7 +125,7 @@ interpretBackupBlobStoreToS3 ::
 interpretBackupBlobStoreToS3 env = interpret $ \case
   PutBlob fid len src ->
     runHandlerSem (S3.uploadBackupBlob (S3.backupKey fid) len src) >>= fromEither
-  SignedDownloadUrl fid -> runHandlerSem (S3.signedURL (S3.backupKey fid) Nothing)
+  SignedDownloadUrl fid -> runHandlerSem (S3.signedBackupURL (S3.backupKey fid))
   DeleteBlobs fids -> traverse_ (runHandlerSem . S3.deleteObject . S3.backupKey) fids
   where
     runHandlerSem :: (Member (Embed IO) r', Member (Error Wai.Error) r') => Handler x -> Sem r' x

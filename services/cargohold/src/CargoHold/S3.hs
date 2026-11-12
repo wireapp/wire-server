@@ -34,6 +34,7 @@ module CargoHold.S3
     backupKey,
     mkKey,
     signedURL,
+    signedBackupURL,
     -- Legacy
     plainKey,
     otrKey,
@@ -262,12 +263,8 @@ deleteObject :: S3AssetKey -> Handler ()
 deleteObject (S3AssetKey key) = do
   Log.debug $
     "remote" .= val "S3"
-      ~~ "asset.key" .= key
-      ~~ msg (val "Deleting asset")
-  Log.debug $
-    "remote" .= val "S3"
-      ~~ "asset.key" .= key
-      ~~ msg (val "Deleting asset")
+      ~~ "key" .= key
+      ~~ msg (val "Deleting object")
   void $ exec req
   where
     req b = newDeleteObject (BucketName b) (ObjectKey key)
@@ -302,22 +299,8 @@ updateMetadataV3 (s3Key . mkKey -> key) meta = do
 signedURL :: (ToByteString p) => p -> Maybe Domain -> Handler URI
 signedURL path mbHost = do
   e <- awsEnvForHost
-  now <- liftIO getCurrentTime
-  ttl <- asks (.options.settings.downloadLinkTTL)
-  let req = newGetObject (BucketName e.s3Bucket) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
-  signed <-
-    presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req
-  toUri signed
+  presignedURL e path
   where
-    toUri x = case parseURI strictURIParserOptions x of
-      Left e -> do
-        Log.err $
-          "remote" .= val "S3"
-            ~~ "error" .= show e
-            ~~ msg (val "Failed to generate a signed URI")
-        throwE serverError
-      Right u -> pure u
-
     awsEnvForHost :: Handler AWS.Env
     awsEnvForHost = do
       multiIngressConf <- asks (.multiIngress)
@@ -353,6 +336,28 @@ signedURL path mbHost = do
 
 backupKey :: BackupFileId -> S3AssetKey
 backupKey fid = S3AssetKey $ "backup/" <> UUID.toText fid.unBackupFileId
+
+-- | Signed backup download URL from the default AWS environment, also with @aws.multiIngress@:
+-- backup routes have no @Z-Host@ to pick an ingress.
+signedBackupURL :: S3AssetKey -> Handler URI
+signedBackupURL key = asks (.aws) >>= \e -> presignedURL e key
+
+presignedURL :: (ToByteString p) => AWS.Env -> p -> Handler URI
+presignedURL e path = do
+  now <- liftIO getCurrentTime
+  ttl <- asks (.options.settings.downloadLinkTTL)
+  let key = ObjectKey . Text.decodeLatin1 $ toByteString' path
+      req = newGetObject (BucketName e.s3Bucket) key
+  signed <-
+    presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req
+  case parseURI strictURIParserOptions signed of
+    Left err -> do
+      Log.err $
+        "remote" .= val "S3"
+          ~~ "error" .= show err
+          ~~ msg (val "Failed to generate a signed URI")
+      throwE serverError
+    Right u -> pure u
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
