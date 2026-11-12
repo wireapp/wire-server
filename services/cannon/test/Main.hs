@@ -17,10 +17,13 @@
 
 module Main where
 
+import Cannon.FanIn qualified as FanIn
 import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Imports
+import Servant ((:<|>))
 import Test.Cannon.Dict qualified as D
+import Test.Cannon.FanIn qualified as FanInTests
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Routes.Internal.Cannon qualified as Internal
@@ -34,6 +37,7 @@ main =
           assertEqual
             "inconcistent sitemap"
             mempty
-            (pathsConsistencyCheck $ routesToPaths @Internal.API),
+            (pathsConsistencyCheck $ routesToPaths @(Internal.API :<|> FanIn.API)),
+        FanInTests.tests,
         D.tests
       ]

@@ -1,0 +1,22 @@
+{
+  "namespace": "fan-in-perf-ci",
+  "nodes": {
+    "services": "worker-14",
+    "dependencies": "worker-4",
+    "generator": "worker-3"
+  },
+  "storageClass": "hcloud-volumes",
+  "imagePullSecrets": [],
+  "images": {
+    "gundeck": "quay.io/wire/gundeck:xv5k6qbbpwhnrqp8y1q4ds36xnr52fq7",
+    "cannon": "quay.io/wire/cannon:ljkb096ihh78l9r21vw0ckm0cdwfqi28",
+    "gundeck-schema": "quay.io/wire/gundeck-schema:lk0pc5mcmxhbwa9sbk4mdv5n1sbjhjda",
+    "fan-in-perf": "quay.io/wire/fan-in-perf:ril5l8h2d4ssn06ighpj04iq7j4rjzh1",
+    "postgres": "quay.io/wire/fan-in-perf-postgres:17.11-partman",
+    "cassandra": "cassandra:4.1.11",
+    "rabbitmq": "rabbitmq:4.1.4-management-alpine",
+    "redis": "redis:7.2-alpine",
+    "elasticmq": "softwaremill/elasticmq-native:1.5.2",
+    "prometheus": "prom/prometheus:v3.5.0"
+  }
+}

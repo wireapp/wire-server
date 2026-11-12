@@ -22,6 +22,7 @@ library
     Cannon.API.Public
     Cannon.App
     Cannon.Dict
+    Cannon.FanIn
     Cannon.Options
     Cannon.RabbitMq
     Cannon.RabbitMqConsumerApp
@@ -97,6 +98,7 @@ library
     , exceptions                            >=0.6
     , extended
     , extra
+    , fan-in-perf
     , hashable                              >=1.2
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -109,6 +111,7 @@ library
     , prometheus-client
     , retry                                 >=0.7
     , safe-exceptions
+    , servant
     , servant-conduit
     , servant-server
     , strict                                >=0.3.2
@@ -197,6 +200,7 @@ test-suite cannon-tests
   other-modules:
     Paths_cannon
     Test.Cannon.Dict
+    Test.Cannon.FanIn
 
   hs-source-dirs:     test
   default-extensions:
@@ -248,18 +252,24 @@ test-suite cannon-tests
     -Wunused-packages -Wno-x-partial
 
   build-depends:
-      async
+      aeson
+    , async
     , base
     , bytestring
     , cannon
+    , fan-in-perf
+    , http-types
     , imports
     , metrics-wai
     , QuickCheck        >=2.7
     , random            >=1.0
+    , servant-server
     , tasty             >=0.8
     , tasty-hunit       >=0.8
     , tasty-quickcheck  >=0.8
     , uuid
+    , wai
+    , wai-extra
     , wire-api
 
   default-language:   GHC2021

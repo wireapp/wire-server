@@ -25,6 +25,7 @@ library
     Gundeck.Aws.Sns
     Gundeck.Client
     Gundeck.Env
+    Gundeck.FanInWorker
     Gundeck.Instances
     Gundeck.Monad
     Gundeck.Notification
@@ -132,6 +133,7 @@ library
     , exceptions                            >=0.4
     , extended
     , extra                                 >=1.1
+    , fan-in-perf
     , foldl
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai

@@ -25,6 +25,7 @@ import Bilge (ManagerSettings (..), defaultManagerSettings, newManager)
 import Cannon.API.Internal
 import Cannon.API.Public
 import Cannon.Dict qualified as D
+import Cannon.FanIn qualified as FanIn
 import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.Types hiding (Env)
@@ -66,7 +67,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry (withTracer)
 
-type CombinedAPI = CannonAPI :<|> Internal.API
+type CombinedAPI = CannonAPI :<|> Internal.API :<|> FanIn.API
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
@@ -95,6 +96,7 @@ run o = lowerCodensity $ do
   void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
   let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) Nothing
 
+  experimental <- lift $ FanIn.configure o
   otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
       middleware =
@@ -113,6 +115,7 @@ run o = lowerCodensity $ do
             server =
               hoistServer (Proxy @CannonAPI) (runCannonToServant envWithReqId) publicAPIServer
                 :<|> hoistServer (Proxy @Internal.API) (runCannonToServant envWithReqId) internalServer
+                :<|> FanIn.server experimental (env envWithReqId)
         serve (Proxy @CombinedAPI) server req cont
   tid <- lift myThreadId
 

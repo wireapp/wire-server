@@ -1,0 +1,340 @@
+Registering fresh devices
+Connecting devices (concurrency 20)
+ready=896/1000 published=0 received=0 ack_sent=0 not_received=0 received_unconfirmed=0 acknowledged=0 outstanding=0
+All devices connected; publishing
+ready=1000/1000 published=9 received=7817 ack_sent=7817 not_received=1183 received_unconfirmed=2937 acknowledged=4880 outstanding=4120
+ready=1000/1000 published=19 received=17670 ack_sent=17670 not_received=1330 received_unconfirmed=3049 acknowledged=14621 outstanding=4379
+ready=1000/1000 published=29 received=27711 ack_sent=27711 not_received=1289 received_unconfirmed=3769 acknowledged=23942 outstanding=5058
+ready=1000/1000 published=39 received=37844 ack_sent=37844 not_received=1156 received_unconfirmed=3266 acknowledged=34578 outstanding=4422
+ready=1000/1000 published=49 received=47657 ack_sent=47657 not_received=1343 received_unconfirmed=3626 acknowledged=44031 outstanding=4969
+ready=1000/1000 published=59 received=57709 ack_sent=57706 not_received=1291 received_unconfirmed=3784 acknowledged=53925 outstanding=5075
+ready=1000/1000 published=69 received=67427 ack_sent=67427 not_received=1573 received_unconfirmed=3146 acknowledged=64281 outstanding=4719
+ready=1000/1000 published=79 received=77713 ack_sent=77713 not_received=1287 received_unconfirmed=3504 acknowledged=74209 outstanding=4791
+ready=1000/1000 published=89 received=87309 ack_sent=87309 not_received=1691 received_unconfirmed=3826 acknowledged=83483 outstanding=5517
+ready=1000/1000 published=99 received=97502 ack_sent=97502 not_received=1498 received_unconfirmed=3523 acknowledged=93979 outstanding=5021
+ready=1000/1000 published=109 received=107391 ack_sent=107391 not_received=1609 received_unconfirmed=3001 acknowledged=104390 outstanding=4610
+ready=1000/1000 published=120 received=117653 ack_sent=117653 not_received=2347 received_unconfirmed=3870 acknowledged=113783 outstanding=6217
+ready=1000/1000 published=129 received=127593 ack_sent=127593 not_received=1407 received_unconfirmed=2987 acknowledged=124606 outstanding=4394
+ready=1000/1000 published=140 received=137692 ack_sent=137692 not_received=2308 received_unconfirmed=3506 acknowledged=134186 outstanding=5814
+ready=1000/1000 published=150 received=147600 ack_sent=147600 not_received=2400 received_unconfirmed=3690 acknowledged=143910 outstanding=6090
+ready=1000/1000 published=160 received=158179 ack_sent=158179 not_received=1821 received_unconfirmed=3515 acknowledged=154664 outstanding=5336
+ready=1000/1000 published=170 received=167986 ack_sent=167986 not_received=2014 received_unconfirmed=2776 acknowledged=165210 outstanding=4790
+ready=1000/1000 published=180 received=177848 ack_sent=177848 not_received=2152 received_unconfirmed=3289 acknowledged=174559 outstanding=5441
+ready=1000/1000 published=190 received=187663 ack_sent=187663 not_received=2337 received_unconfirmed=2846 acknowledged=184817 outstanding=5183
+ready=1000/1000 published=200 received=198228 ack_sent=198228 not_received=1772 received_unconfirmed=2535 acknowledged=195693 outstanding=4307
+ready=1000/1000 published=210 received=208270 ack_sent=208266 not_received=1730 received_unconfirmed=3124 acknowledged=205146 outstanding=4854
+ready=1000/1000 published=220 received=217904 ack_sent=217904 not_received=2096 received_unconfirmed=3075 acknowledged=214829 outstanding=5171
+ready=1000/1000 published=230 received=228057 ack_sent=228057 not_received=1943 received_unconfirmed=3055 acknowledged=225002 outstanding=4998
+ready=1000/1000 published=240 received=238237 ack_sent=238237 not_received=1763 received_unconfirmed=2799 acknowledged=235438 outstanding=4562
+ready=1000/1000 published=250 received=248197 ack_sent=248197 not_received=1803 received_unconfirmed=2679 acknowledged=245518 outstanding=4482
+ready=1000/1000 published=260 received=257417 ack_sent=257417 not_received=2583 received_unconfirmed=3288 acknowledged=254129 outstanding=5871
+ready=1000/1000 published=270 received=268064 ack_sent=268064 not_received=1936 received_unconfirmed=4384 acknowledged=263680 outstanding=6320
+ready=1000/1000 published=280 received=277722 ack_sent=277722 not_received=2278 received_unconfirmed=3366 acknowledged=274356 outstanding=5644
+ready=1000/1000 published=290 received=287486 ack_sent=287486 not_received=2514 received_unconfirmed=3288 acknowledged=284198 outstanding=5802
+ready=1000/1000 published=300 received=296915 ack_sent=296915 not_received=3085 received_unconfirmed=4012 acknowledged=292903 outstanding=7097
+ready=1000/1000 published=310 received=307876 ack_sent=307876 not_received=2124 received_unconfirmed=3835 acknowledged=304041 outstanding=5959
+ready=1000/1000 published=320 received=317677 ack_sent=317677 not_received=2323 received_unconfirmed=4392 acknowledged=313285 outstanding=6715
+ready=1000/1000 published=330 received=327543 ack_sent=327543 not_received=2457 received_unconfirmed=3603 acknowledged=323940 outstanding=6060
+ready=1000/1000 published=340 received=337466 ack_sent=337466 not_received=2534 received_unconfirmed=3297 acknowledged=334169 outstanding=5831
+ready=1000/1000 published=350 received=347323 ack_sent=347323 not_received=2677 received_unconfirmed=3531 acknowledged=343792 outstanding=6208
+ready=1000/1000 published=360 received=357879 ack_sent=357879 not_received=2121 received_unconfirmed=3943 acknowledged=353936 outstanding=6064
+ready=1000/1000 published=369 received=366641 ack_sent=366636 not_received=2359 received_unconfirmed=3579 acknowledged=363062 outstanding=5938
+ready=1000/1000 published=379 received=376781 ack_sent=376781 not_received=2219 received_unconfirmed=4366 acknowledged=372415 outstanding=6585
+ready=1000/1000 published=389 received=386684 ack_sent=386684 not_received=2316 received_unconfirmed=3118 acknowledged=383566 outstanding=5434
+ready=1000/1000 published=399 received=396726 ack_sent=396726 not_received=2274 received_unconfirmed=3560 acknowledged=393166 outstanding=5834
+ready=1000/1000 published=409 received=406456 ack_sent=406456 not_received=2544 received_unconfirmed=3802 acknowledged=402654 outstanding=6346
+ready=1000/1000 published=419 received=416619 ack_sent=416619 not_received=2381 received_unconfirmed=2867 acknowledged=413752 outstanding=5248
+ready=1000/1000 published=429 received=427144 ack_sent=427144 not_received=1856 received_unconfirmed=2951 acknowledged=424193 outstanding=4807
+ready=1000/1000 published=438 received=436249 ack_sent=436249 not_received=1751 received_unconfirmed=2974 acknowledged=433275 outstanding=4725
+ready=1000/1000 published=449 received=445870 ack_sent=445870 not_received=3130 received_unconfirmed=2999 acknowledged=442871 outstanding=6129
+ready=1000/1000 published=459 received=457168 ack_sent=457168 not_received=1832 received_unconfirmed=3258 acknowledged=453910 outstanding=5090
+ready=1000/1000 published=469 received=467057 ack_sent=467057 not_received=1943 received_unconfirmed=3219 acknowledged=463838 outstanding=5162
+ready=1000/1000 published=477 received=475372 ack_sent=475372 not_received=1628 received_unconfirmed=2924 acknowledged=472448 outstanding=4552
+ready=1000/1000 published=487 received=485460 ack_sent=485460 not_received=1540 received_unconfirmed=2977 acknowledged=482483 outstanding=4517
+ready=1000/1000 published=497 received=495729 ack_sent=495729 not_received=1271 received_unconfirmed=3330 acknowledged=492399 outstanding=4601
+ready=1000/1000 published=507 received=505002 ack_sent=505002 not_received=1998 received_unconfirmed=2580 acknowledged=502422 outstanding=4578
+ready=1000/1000 published=517 received=515733 ack_sent=515733 not_received=1267 received_unconfirmed=3346 acknowledged=512387 outstanding=4613
+ready=1000/1000 published=527 received=526013 ack_sent=526013 not_received=987 received_unconfirmed=2408 acknowledged=523605 outstanding=3395
+ready=1000/1000 published=537 received=535280 ack_sent=535280 not_received=1720 received_unconfirmed=2262 acknowledged=533018 outstanding=3982
+ready=1000/1000 published=547 received=545093 ack_sent=545093 not_received=1907 received_unconfirmed=2738 acknowledged=542355 outstanding=4645
+ready=1000/1000 published=557 received=554605 ack_sent=554605 not_received=2395 received_unconfirmed=2284 acknowledged=552321 outstanding=4679
+ready=1000/1000 published=567 received=565300 ack_sent=565300 not_received=1700 received_unconfirmed=3527 acknowledged=561773 outstanding=5227
+ready=1000/1000 published=577 received=575478 ack_sent=575478 not_received=1522 received_unconfirmed=3287 acknowledged=572191 outstanding=4809
+ready=1000/1000 published=587 received=585154 ack_sent=585154 not_received=1846 received_unconfirmed=4979 acknowledged=580175 outstanding=6825
+ready=1000/1000 published=597 received=594784 ack_sent=594784 not_received=2216 received_unconfirmed=3175 acknowledged=591609 outstanding=5391
+ready=1000/1000 published=607 received=605535 ack_sent=605535 not_received=1465 received_unconfirmed=4054 acknowledged=601481 outstanding=5519
+ready=1000/1000 published=617 received=613953 ack_sent=613953 not_received=3047 received_unconfirmed=4031 acknowledged=609922 outstanding=7078
+ready=1000/1000 published=627 received=624744 ack_sent=624738 not_received=2256 received_unconfirmed=3175 acknowledged=621569 outstanding=5431
+ready=1000/1000 published=637 received=634956 ack_sent=634956 not_received=2044 received_unconfirmed=3596 acknowledged=631360 outstanding=5640
+ready=1000/1000 published=648 received=645949 ack_sent=645949 not_received=2051 received_unconfirmed=3670 acknowledged=642279 outstanding=5721
+ready=1000/1000 published=658 received=654776 ack_sent=654776 not_received=3224 received_unconfirmed=2724 acknowledged=652052 outstanding=5948
+ready=1000/1000 published=668 received=666015 ack_sent=666015 not_received=1985 received_unconfirmed=3801 acknowledged=662214 outstanding=5786
+ready=1000/1000 published=678 received=676149 ack_sent=676149 not_received=1851 received_unconfirmed=4694 acknowledged=671455 outstanding=6545
+ready=1000/1000 published=687 received=685988 ack_sent=685988 not_received=1012 received_unconfirmed=2817 acknowledged=683171 outstanding=3829
+ready=1000/1000 published=698 received=695578 ack_sent=695578 not_received=2422 received_unconfirmed=3307 acknowledged=692271 outstanding=5729
+ready=1000/1000 published=708 received=705672 ack_sent=705672 not_received=2328 received_unconfirmed=2530 acknowledged=703142 outstanding=4858
+ready=1000/1000 published=718 received=715984 ack_sent=715984 not_received=2016 received_unconfirmed=3709 acknowledged=712275 outstanding=5725
+ready=1000/1000 published=728 received=725907 ack_sent=725907 not_received=2093 received_unconfirmed=3152 acknowledged=722755 outstanding=5245
+ready=1000/1000 published=738 received=736161 ack_sent=736157 not_received=1839 received_unconfirmed=3195 acknowledged=732966 outstanding=5034
+ready=1000/1000 published=748 received=746223 ack_sent=746223 not_received=1777 received_unconfirmed=2878 acknowledged=743345 outstanding=4655
+ready=1000/1000 published=758 received=755966 ack_sent=755966 not_received=2034 received_unconfirmed=3088 acknowledged=752878 outstanding=5122
+ready=1000/1000 published=768 received=765745 ack_sent=765741 not_received=2255 received_unconfirmed=3420 acknowledged=762325 outstanding=5675
+ready=1000/1000 published=778 received=775861 ack_sent=775861 not_received=2139 received_unconfirmed=3116 acknowledged=772745 outstanding=5255
+ready=1000/1000 published=788 received=785830 ack_sent=785830 not_received=2170 received_unconfirmed=3615 acknowledged=782215 outstanding=5785
+ready=1000/1000 published=798 received=795962 ack_sent=795962 not_received=2038 received_unconfirmed=3233 acknowledged=792729 outstanding=5271
+ready=1000/1000 published=808 received=805556 ack_sent=805556 not_received=2444 received_unconfirmed=3577 acknowledged=801979 outstanding=6021
+ready=1000/1000 published=818 received=816307 ack_sent=816304 not_received=1693 received_unconfirmed=2751 acknowledged=813556 outstanding=4444
+ready=1000/1000 published=828 received=826156 ack_sent=826156 not_received=1844 received_unconfirmed=2831 acknowledged=823325 outstanding=4675
+ready=1000/1000 published=838 received=836156 ack_sent=836156 not_received=1844 received_unconfirmed=3362 acknowledged=832794 outstanding=5206
+ready=1000/1000 published=848 received=846284 ack_sent=846281 not_received=1716 received_unconfirmed=3239 acknowledged=843045 outstanding=4955
+ready=1000/1000 published=858 received=856202 ack_sent=856202 not_received=1798 received_unconfirmed=2892 acknowledged=853310 outstanding=4690
+ready=1000/1000 published=868 received=865907 ack_sent=865907 not_received=2093 received_unconfirmed=3102 acknowledged=862805 outstanding=5195
+ready=1000/1000 published=878 received=875972 ack_sent=875972 not_received=2028 received_unconfirmed=3139 acknowledged=872833 outstanding=5167
+ready=1000/1000 published=888 received=886230 ack_sent=886230 not_received=1770 received_unconfirmed=2812 acknowledged=883418 outstanding=4582
+ready=1000/1000 published=898 received=895856 ack_sent=895856 not_received=2144 received_unconfirmed=2683 acknowledged=893173 outstanding=4827
+ready=1000/1000 published=908 received=905528 ack_sent=905528 not_received=2472 received_unconfirmed=3227 acknowledged=902301 outstanding=5699
+ready=1000/1000 published=918 received=916021 ack_sent=916021 not_received=1979 received_unconfirmed=3088 acknowledged=912933 outstanding=5067
+ready=1000/1000 published=928 received=926447 ack_sent=926447 not_received=1553 received_unconfirmed=3191 acknowledged=923256 outstanding=4744
+ready=1000/1000 published=938 received=936077 ack_sent=936077 not_received=1923 received_unconfirmed=2398 acknowledged=933679 outstanding=4321
+ready=1000/1000 published=948 received=946320 ack_sent=946320 not_received=1680 received_unconfirmed=3395 acknowledged=942925 outstanding=5075
+ready=1000/1000 published=958 received=956181 ack_sent=956181 not_received=1819 received_unconfirmed=3330 acknowledged=952851 outstanding=5149
+ready=1000/1000 published=968 received=966057 ack_sent=966051 not_received=1943 received_unconfirmed=3427 acknowledged=962630 outstanding=5370
+ready=1000/1000 published=978 received=976480 ack_sent=976480 not_received=1520 received_unconfirmed=3707 acknowledged=972773 outstanding=5227
+ready=1000/1000 published=988 received=986325 ack_sent=986325 not_received=1675 received_unconfirmed=3264 acknowledged=983061 outstanding=4939
+ready=1000/1000 published=998 received=996667 ack_sent=996667 not_received=1333 received_unconfirmed=3103 acknowledged=993564 outstanding=4436
+ready=1000/1000 published=1008 received=1005501 ack_sent=1005501 not_received=2499 received_unconfirmed=2988 acknowledged=1002513 outstanding=5487
+ready=1000/1000 published=1018 received=1015142 ack_sent=1015142 not_received=2858 received_unconfirmed=3762 acknowledged=1011380 outstanding=6620
+ready=1000/1000 published=1028 received=1025329 ack_sent=1025323 not_received=2671 received_unconfirmed=3110 acknowledged=1022219 outstanding=5781
+ready=1000/1000 published=1038 received=1035922 ack_sent=1035922 not_received=2078 received_unconfirmed=2992 acknowledged=1032930 outstanding=5070
+ready=1000/1000 published=1043 received=1041875 ack_sent=1041875 not_received=1125 received_unconfirmed=2874 acknowledged=1039001 outstanding=3999
+ready=1000/1000 published=1047 received=1045026 ack_sent=1045026 not_received=1974 received_unconfirmed=3241 acknowledged=1041785 outstanding=5215
+ready=1000/1000 published=1053 received=1051644 ack_sent=1051644 not_received=1356 received_unconfirmed=4819 acknowledged=1046825 outstanding=6175
+ready=1000/1000 published=1063 received=1061678 ack_sent=1061678 not_received=1322 received_unconfirmed=3201 acknowledged=1058477 outstanding=4523
+ready=1000/1000 published=1073 received=1071758 ack_sent=1071758 not_received=1242 received_unconfirmed=3502 acknowledged=1068256 outstanding=4744
+ready=1000/1000 published=1083 received=1081554 ack_sent=1081554 not_received=1446 received_unconfirmed=2841 acknowledged=1078713 outstanding=4287
+ready=1000/1000 published=1093 received=1091723 ack_sent=1091723 not_received=1277 received_unconfirmed=2936 acknowledged=1088787 outstanding=4213
+ready=1000/1000 published=1103 received=1101778 ack_sent=1101778 not_received=1222 received_unconfirmed=2970 acknowledged=1098808 outstanding=4192
+ready=1000/1000 published=1113 received=1111659 ack_sent=1111659 not_received=1341 received_unconfirmed=3154 acknowledged=1108505 outstanding=4495
+ready=1000/1000 published=1123 received=1121546 ack_sent=1121546 not_received=1454 received_unconfirmed=3353 acknowledged=1118193 outstanding=4807
+ready=1000/1000 published=1133 received=1131677 ack_sent=1131674 not_received=1323 received_unconfirmed=3266 acknowledged=1128411 outstanding=4589
+ready=1000/1000 published=1143 received=1141730 ack_sent=1141724 not_received=1270 received_unconfirmed=3044 acknowledged=1138686 outstanding=4314
+ready=1000/1000 published=1153 received=1151800 ack_sent=1151800 not_received=1200 received_unconfirmed=2467 acknowledged=1149333 outstanding=3667
+ready=1000/1000 published=1162 received=1161643 ack_sent=1161643 not_received=357 received_unconfirmed=2479 acknowledged=1159164 outstanding=2836
+ready=1000/1000 published=1172 received=1170638 ack_sent=1170638 not_received=1362 received_unconfirmed=3587 acknowledged=1167051 outstanding=4949
+ready=1000/1000 published=1182 received=1180875 ack_sent=1180875 not_received=1125 received_unconfirmed=3028 acknowledged=1177847 outstanding=4153
+ready=1000/1000 published=1192 received=1191048 ack_sent=1191048 not_received=952 received_unconfirmed=3194 acknowledged=1187854 outstanding=4146
+ready=1000/1000 published=1202 received=1200567 ack_sent=1200567 not_received=1433 received_unconfirmed=3179 acknowledged=1197388 outstanding=4612
+ready=1000/1000 published=1212 received=1210666 ack_sent=1210666 not_received=1334 received_unconfirmed=3419 acknowledged=1207247 outstanding=4753
+ready=1000/1000 published=1222 received=1220666 ack_sent=1220666 not_received=1334 received_unconfirmed=3300 acknowledged=1217366 outstanding=4634
+ready=1000/1000 published=1232 received=1230135 ack_sent=1230133 not_received=1865 received_unconfirmed=3777 acknowledged=1226358 outstanding=5642
+ready=1000/1000 published=1242 received=1240616 ack_sent=1240616 not_received=1384 received_unconfirmed=3364 acknowledged=1237252 outstanding=4748
+ready=1000/1000 published=1252 received=1250748 ack_sent=1250748 not_received=1252 received_unconfirmed=3883 acknowledged=1246865 outstanding=5135
+ready=1000/1000 published=1262 received=1260682 ack_sent=1260682 not_received=1318 received_unconfirmed=3385 acknowledged=1257297 outstanding=4703
+ready=1000/1000 published=1272 received=1270670 ack_sent=1270670 not_received=1330 received_unconfirmed=3432 acknowledged=1267238 outstanding=4762
+ready=1000/1000 published=1282 received=1280537 ack_sent=1280537 not_received=1463 received_unconfirmed=3841 acknowledged=1276696 outstanding=5304
+ready=1000/1000 published=1292 received=1290160 ack_sent=1290160 not_received=1840 received_unconfirmed=4006 acknowledged=1286154 outstanding=5846
+ready=1000/1000 published=1302 received=1300608 ack_sent=1300608 not_received=1392 received_unconfirmed=3263 acknowledged=1297345 outstanding=4655
+ready=1000/1000 published=1312 received=1309440 ack_sent=1309440 not_received=2560 received_unconfirmed=3153 acknowledged=1306287 outstanding=5713
+ready=1000/1000 published=1322 received=1320432 ack_sent=1320432 not_received=1568 received_unconfirmed=3659 acknowledged=1316773 outstanding=5227
+ready=1000/1000 published=1332 received=1330504 ack_sent=1330504 not_received=1496 received_unconfirmed=3678 acknowledged=1326826 outstanding=5174
+ready=1000/1000 published=1342 received=1340667 ack_sent=1340667 not_received=1333 received_unconfirmed=3209 acknowledged=1337458 outstanding=4542
+ready=1000/1000 published=1353 received=1350799 ack_sent=1350799 not_received=2201 received_unconfirmed=3621 acknowledged=1347178 outstanding=5822
+ready=1000/1000 published=1362 received=1360510 ack_sent=1360507 not_received=1490 received_unconfirmed=3441 acknowledged=1357069 outstanding=4931
+ready=1000/1000 published=1372 received=1370209 ack_sent=1370207 not_received=1791 received_unconfirmed=3088 acknowledged=1367121 outstanding=4879
+ready=1000/1000 published=1383 received=1380204 ack_sent=1380204 not_received=2796 received_unconfirmed=3029 acknowledged=1377175 outstanding=5825
+ready=1000/1000 published=1393 received=1390766 ack_sent=1390766 not_received=2234 received_unconfirmed=3240 acknowledged=1387526 outstanding=5474
+ready=1000/1000 published=1403 received=1400804 ack_sent=1400804 not_received=2196 received_unconfirmed=3597 acknowledged=1397207 outstanding=5793
+ready=1000/1000 published=1413 received=1410036 ack_sent=1410036 not_received=2964 received_unconfirmed=3254 acknowledged=1406782 outstanding=6218
+ready=1000/1000 published=1421 received=1419511 ack_sent=1419511 not_received=1489 received_unconfirmed=3974 acknowledged=1415537 outstanding=5463
+ready=1000/1000 published=1428 received=1427777 ack_sent=1427777 not_received=223 received_unconfirmed=1663 acknowledged=1426114 outstanding=1886
+ready=1000/1000 published=1438 received=1435517 ack_sent=1435517 not_received=2483 received_unconfirmed=2729 acknowledged=1432788 outstanding=5212
+ready=1000/1000 published=1445 received=1444032 ack_sent=1444032 not_received=968 received_unconfirmed=2685 acknowledged=1441347 outstanding=3653
+ready=1000/1000 published=1454 received=1452000 ack_sent=1452000 not_received=2000 received_unconfirmed=4024 acknowledged=1447976 outstanding=6024
+ready=1000/1000 published=1464 received=1461945 ack_sent=1461945 not_received=2055 received_unconfirmed=3748 acknowledged=1458197 outstanding=5803
+ready=1000/1000 published=1472 received=1469230 ack_sent=1469230 not_received=2770 received_unconfirmed=2798 acknowledged=1466432 outstanding=5568
+ready=1000/1000 published=1482 received=1479512 ack_sent=1479512 not_received=2488 received_unconfirmed=4204 acknowledged=1475308 outstanding=6692
+ready=1000/1000 published=1492 received=1489826 ack_sent=1489826 not_received=2174 received_unconfirmed=3666 acknowledged=1486160 outstanding=5840
+ready=1000/1000 published=1502 received=1499343 ack_sent=1499343 not_received=2657 received_unconfirmed=3381 acknowledged=1495962 outstanding=6038
+ready=1000/1000 published=1512 received=1509407 ack_sent=1509407 not_received=2593 received_unconfirmed=3756 acknowledged=1505651 outstanding=6349
+ready=1000/1000 published=1522 received=1519108 ack_sent=1519108 not_received=2892 received_unconfirmed=5646 acknowledged=1513462 outstanding=8538
+ready=1000/1000 published=1532 received=1529721 ack_sent=1529721 not_received=2279 received_unconfirmed=3495 acknowledged=1526226 outstanding=5774
+ready=1000/1000 published=1542 received=1539652 ack_sent=1539644 not_received=2348 received_unconfirmed=3367 acknowledged=1536285 outstanding=5715
+ready=1000/1000 published=1552 received=1549659 ack_sent=1549659 not_received=2341 received_unconfirmed=3448 acknowledged=1546211 outstanding=5789
+ready=1000/1000 published=1562 received=1559785 ack_sent=1559785 not_received=2215 received_unconfirmed=4025 acknowledged=1555760 outstanding=6240
+ready=1000/1000 published=1572 received=1569866 ack_sent=1569866 not_received=2134 received_unconfirmed=3400 acknowledged=1566466 outstanding=5534
+ready=1000/1000 published=1582 received=1579693 ack_sent=1579689 not_received=2307 received_unconfirmed=3247 acknowledged=1576446 outstanding=5554
+ready=1000/1000 published=1592 received=1589411 ack_sent=1589411 not_received=2589 received_unconfirmed=3246 acknowledged=1586165 outstanding=5835
+ready=1000/1000 published=1602 received=1599639 ack_sent=1599639 not_received=2361 received_unconfirmed=5356 acknowledged=1594283 outstanding=7717
+ready=1000/1000 published=1610 received=1608661 ack_sent=1608661 not_received=1339 received_unconfirmed=1921 acknowledged=1606740 outstanding=3260
+ready=1000/1000 published=1620 received=1618804 ack_sent=1618804 not_received=1196 received_unconfirmed=3564 acknowledged=1615240 outstanding=4760
+ready=1000/1000 published=1630 received=1628934 ack_sent=1628934 not_received=1066 received_unconfirmed=3247 acknowledged=1625687 outstanding=4313
+ready=1000/1000 published=1632 received=1632000 ack_sent=1632000 not_received=0 received_unconfirmed=0 acknowledged=1632000 outstanding=0
+ready=1000/1000 published=1641 received=1639696 ack_sent=1639696 not_received=1304 received_unconfirmed=2953 acknowledged=1636743 outstanding=4257
+ready=1000/1000 published=1651 received=1649695 ack_sent=1649695 not_received=1305 received_unconfirmed=3041 acknowledged=1646654 outstanding=4346
+ready=1000/1000 published=1661 received=1659563 ack_sent=1659563 not_received=1437 received_unconfirmed=3442 acknowledged=1656121 outstanding=4879
+ready=1000/1000 published=1670 received=1669421 ack_sent=1669421 not_received=579 received_unconfirmed=3382 acknowledged=1666039 outstanding=3961
+ready=1000/1000 published=1680 received=1678263 ack_sent=1678263 not_received=1737 received_unconfirmed=3359 acknowledged=1674904 outstanding=5096
+ready=1000/1000 published=1690 received=1687964 ack_sent=1687964 not_received=2036 received_unconfirmed=4011 acknowledged=1683953 outstanding=6047
+ready=1000/1000 published=1700 received=1698088 ack_sent=1698088 not_received=1912 received_unconfirmed=3771 acknowledged=1694317 outstanding=5683
+ready=1000/1000 published=1710 received=1708295 ack_sent=1708295 not_received=1705 received_unconfirmed=4176 acknowledged=1704119 outstanding=5881
+ready=1000/1000 published=1720 received=1718059 ack_sent=1718059 not_received=1941 received_unconfirmed=3524 acknowledged=1714535 outstanding=5465
+ready=1000/1000 published=1727 received=1724206 ack_sent=1724206 not_received=2794 received_unconfirmed=3668 acknowledged=1720538 outstanding=6462
+ready=1000/1000 published=1737 received=1735380 ack_sent=1735380 not_received=1620 received_unconfirmed=3560 acknowledged=1731820 outstanding=5180
+ready=1000/1000 published=1747 received=1745590 ack_sent=1745590 not_received=1410 received_unconfirmed=3593 acknowledged=1741997 outstanding=5003
+ready=1000/1000 published=1757 received=1755614 ack_sent=1755614 not_received=1386 received_unconfirmed=2937 acknowledged=1752677 outstanding=4323
+ready=1000/1000 published=1767 received=1765301 ack_sent=1765300 not_received=1699 received_unconfirmed=2613 acknowledged=1762688 outstanding=4312
+ready=1000/1000 published=1777 received=1775441 ack_sent=1775441 not_received=1559 received_unconfirmed=3572 acknowledged=1771869 outstanding=5131
+ready=1000/1000 published=1787 received=1785635 ack_sent=1785635 not_received=1365 received_unconfirmed=3736 acknowledged=1781899 outstanding=5101
+ready=1000/1000 published=1797 received=1795747 ack_sent=1795747 not_received=1253 received_unconfirmed=3138 acknowledged=1792609 outstanding=4391
+ready=1000/1000 published=1807 received=1805704 ack_sent=1805704 not_received=1296 received_unconfirmed=3318 acknowledged=1802386 outstanding=4614
+ready=1000/1000 published=1817 received=1815768 ack_sent=1815765 not_received=1232 received_unconfirmed=3150 acknowledged=1812618 outstanding=4382
+ready=1000/1000 published=1827 received=1825397 ack_sent=1825397 not_received=1603 received_unconfirmed=3695 acknowledged=1821702 outstanding=5298
+ready=1000/1000 published=1837 received=1835723 ack_sent=1835723 not_received=1277 received_unconfirmed=3141 acknowledged=1832582 outstanding=4418
+ready=1000/1000 published=1847 received=1845855 ack_sent=1845855 not_received=1145 received_unconfirmed=3462 acknowledged=1842393 outstanding=4607
+ready=1000/1000 published=1858 received=1855996 ack_sent=1855996 not_received=2004 received_unconfirmed=2820 acknowledged=1853176 outstanding=4824
+ready=1000/1000 published=1868 received=1865735 ack_sent=1865735 not_received=2265 received_unconfirmed=3224 acknowledged=1862511 outstanding=5489
+ready=1000/1000 published=1878 received=1875532 ack_sent=1875532 not_received=2468 received_unconfirmed=2929 acknowledged=1872603 outstanding=5397
+ready=1000/1000 published=1888 received=1885948 ack_sent=1885948 not_received=2052 received_unconfirmed=3314 acknowledged=1882634 outstanding=5366
+ready=1000/1000 published=1898 received=1895685 ack_sent=1895685 not_received=2315 received_unconfirmed=3102 acknowledged=1892583 outstanding=5417
+ready=1000/1000 published=1908 received=1904340 ack_sent=1904340 not_received=3660 received_unconfirmed=3988 acknowledged=1900352 outstanding=7648
+ready=1000/1000 published=1918 received=1915895 ack_sent=1915895 not_received=2105 received_unconfirmed=3392 acknowledged=1912503 outstanding=5497
+ready=1000/1000 published=1928 received=1925548 ack_sent=1925548 not_received=2452 received_unconfirmed=3354 acknowledged=1922194 outstanding=5806
+ready=1000/1000 published=1938 received=1935613 ack_sent=1935613 not_received=2387 received_unconfirmed=3177 acknowledged=1932436 outstanding=5564
+ready=1000/1000 published=1948 received=1945831 ack_sent=1945831 not_received=2169 received_unconfirmed=3281 acknowledged=1942550 outstanding=5450
+ready=1000/1000 published=1958 received=1956148 ack_sent=1956148 not_received=1852 received_unconfirmed=3229 acknowledged=1952919 outstanding=5081
+ready=1000/1000 published=1968 received=1966055 ack_sent=1966055 not_received=1945 received_unconfirmed=3352 acknowledged=1962703 outstanding=5297
+ready=1000/1000 published=1978 received=1976036 ack_sent=1976036 not_received=1964 received_unconfirmed=3427 acknowledged=1972609 outstanding=5391
+ready=1000/1000 published=1988 received=1985914 ack_sent=1985914 not_received=2086 received_unconfirmed=3737 acknowledged=1982177 outstanding=5823
+ready=1000/1000 published=1998 received=1995459 ack_sent=1995456 not_received=2541 received_unconfirmed=2991 acknowledged=1992468 outstanding=5532
+ready=1000/1000 published=2008 received=2005915 ack_sent=2005915 not_received=2085 received_unconfirmed=3513 acknowledged=2002402 outstanding=5598
+ready=1000/1000 published=2018 received=2015808 ack_sent=2015808 not_received=2192 received_unconfirmed=3044 acknowledged=2012764 outstanding=5236
+ready=1000/1000 published=2028 received=2026231 ack_sent=2026231 not_received=1769 received_unconfirmed=3538 acknowledged=2022693 outstanding=5307
+ready=1000/1000 published=2038 received=2035881 ack_sent=2035881 not_received=2119 received_unconfirmed=2986 acknowledged=2032895 outstanding=5105
+ready=1000/1000 published=2048 received=2045842 ack_sent=2045842 not_received=2158 received_unconfirmed=3279 acknowledged=2042563 outstanding=5437
+ready=1000/1000 published=2058 received=2056031 ack_sent=2056031 not_received=1969 received_unconfirmed=3449 acknowledged=2052582 outstanding=5418
+ready=1000/1000 published=2068 received=2066110 ack_sent=2066110 not_received=1890 received_unconfirmed=4156 acknowledged=2061954 outstanding=6046
+ready=1000/1000 published=2078 received=2075859 ack_sent=2075859 not_received=2141 received_unconfirmed=4037 acknowledged=2071822 outstanding=6178
+ready=1000/1000 published=2088 received=2086209 ack_sent=2086201 not_received=1791 received_unconfirmed=3728 acknowledged=2082481 outstanding=5519
+ready=1000/1000 published=2098 received=2095968 ack_sent=2095968 not_received=2032 received_unconfirmed=3750 acknowledged=2092218 outstanding=5782
+ready=1000/1000 published=2108 received=2105168 ack_sent=2105168 not_received=2832 received_unconfirmed=3998 acknowledged=2101170 outstanding=6830
+ready=1000/1000 published=2118 received=2116148 ack_sent=2116144 not_received=1852 received_unconfirmed=3886 acknowledged=2112262 outstanding=5738
+ready=1000/1000 published=2128 received=2126304 ack_sent=2126304 not_received=1696 received_unconfirmed=4583 acknowledged=2121721 outstanding=6279
+ready=1000/1000 published=2137 received=2134979 ack_sent=2134979 not_received=2021 received_unconfirmed=3166 acknowledged=2131813 outstanding=5187
+ready=1000/1000 published=2147 received=2144467 ack_sent=2144467 not_received=2533 received_unconfirmed=3442 acknowledged=2141025 outstanding=5975
+ready=1000/1000 published=2157 received=2154032 ack_sent=2154032 not_received=2968 received_unconfirmed=2963 acknowledged=2151069 outstanding=5931
+ready=1000/1000 published=2167 received=2164824 ack_sent=2164824 not_received=2176 received_unconfirmed=3520 acknowledged=2161304 outstanding=5696
+ready=1000/1000 published=2177 received=2174820 ack_sent=2174820 not_received=2180 received_unconfirmed=3422 acknowledged=2171398 outstanding=5602
+ready=1000/1000 published=2187 received=2183685 ack_sent=2183685 not_received=3315 received_unconfirmed=4046 acknowledged=2179639 outstanding=7361
+ready=1000/1000 published=2197 received=2195083 ack_sent=2195083 not_received=1917 received_unconfirmed=3474 acknowledged=2191609 outstanding=5391
+ready=1000/1000 published=2207 received=2204618 ack_sent=2204618 not_received=2382 received_unconfirmed=3400 acknowledged=2201218 outstanding=5782
+ready=1000/1000 published=2217 received=2214904 ack_sent=2214904 not_received=2096 received_unconfirmed=3901 acknowledged=2211003 outstanding=5997
+ready=1000/1000 published=2227 received=2224320 ack_sent=2224320 not_received=2680 received_unconfirmed=3927 acknowledged=2220393 outstanding=6607
+ready=1000/1000 published=2237 received=2235080 ack_sent=2235080 not_received=1920 received_unconfirmed=3353 acknowledged=2231727 outstanding=5273
+ready=1000/1000 published=2247 received=2245084 ack_sent=2245084 not_received=1916 received_unconfirmed=3345 acknowledged=2241739 outstanding=5261
+ready=1000/1000 published=2257 received=2254820 ack_sent=2254820 not_received=2180 received_unconfirmed=3637 acknowledged=2251183 outstanding=5817
+ready=1000/1000 published=2267 received=2264488 ack_sent=2264488 not_received=2512 received_unconfirmed=4056 acknowledged=2260432 outstanding=6568
+ready=1000/1000 published=2277 received=2274970 ack_sent=2274970 not_received=2030 received_unconfirmed=3737 acknowledged=2271233 outstanding=5767
+ready=1000/1000 published=2287 received=2284852 ack_sent=2284852 not_received=2148 received_unconfirmed=3597 acknowledged=2281255 outstanding=5745
+ready=1000/1000 published=2297 received=2294940 ack_sent=2294940 not_received=2060 received_unconfirmed=3665 acknowledged=2291275 outstanding=5725
+ready=1000/1000 published=2307 received=2304763 ack_sent=2304763 not_received=2237 received_unconfirmed=3560 acknowledged=2301203 outstanding=5797
+ready=1000/1000 published=2317 received=2315269 ack_sent=2315269 not_received=1731 received_unconfirmed=3033 acknowledged=2312236 outstanding=4764
+ready=1000/1000 published=2327 received=2325109 ack_sent=2325109 not_received=1891 received_unconfirmed=3235 acknowledged=2321874 outstanding=5126
+ready=1000/1000 published=2337 received=2333626 ack_sent=2333626 not_received=3374 received_unconfirmed=3403 acknowledged=2330223 outstanding=6777
+ready=1000/1000 published=2346 received=2343305 ack_sent=2343305 not_received=2695 received_unconfirmed=2446 acknowledged=2340859 outstanding=5141
+ready=1000/1000 published=2356 received=2353932 ack_sent=2353932 not_received=2068 received_unconfirmed=3053 acknowledged=2350879 outstanding=5121
+ready=1000/1000 published=2366 received=2363903 ack_sent=2363903 not_received=2097 received_unconfirmed=3170 acknowledged=2360733 outstanding=5267
+ready=1000/1000 published=2376 received=2374116 ack_sent=2374116 not_received=1884 received_unconfirmed=3180 acknowledged=2370936 outstanding=5064
+ready=1000/1000 published=2386 received=2383676 ack_sent=2383676 not_received=2324 received_unconfirmed=3558 acknowledged=2380118 outstanding=5882
+ready=1000/1000 published=2396 received=2394132 ack_sent=2394132 not_received=1868 received_unconfirmed=2899 acknowledged=2391233 outstanding=4767
+ready=1000/1000 published=2406 received=2403988 ack_sent=2403988 not_received=2012 received_unconfirmed=2812 acknowledged=2401176 outstanding=4824
+ready=1000/1000 published=2416 received=2414149 ack_sent=2414149 not_received=1851 received_unconfirmed=2630 acknowledged=2411519 outstanding=4481
+ready=1000/1000 published=2425 received=2423059 ack_sent=2423059 not_received=1941 received_unconfirmed=2728 acknowledged=2420331 outstanding=4669
+ready=1000/1000 published=2435 received=2432871 ack_sent=2432871 not_received=2129 received_unconfirmed=3131 acknowledged=2429740 outstanding=5260
+ready=1000/1000 published=2445 received=2443034 ack_sent=2443034 not_received=1966 received_unconfirmed=2955 acknowledged=2440079 outstanding=4921
+ready=1000/1000 published=2455 received=2453083 ack_sent=2453083 not_received=1917 received_unconfirmed=2726 acknowledged=2450357 outstanding=4643
+ready=1000/1000 published=2465 received=2463162 ack_sent=2463162 not_received=1838 received_unconfirmed=2727 acknowledged=2460435 outstanding=4565
+ready=1000/1000 published=2475 received=2472344 ack_sent=2472344 not_received=2656 received_unconfirmed=2643 acknowledged=2469701 outstanding=5299
+ready=1000/1000 published=2485 received=2482903 ack_sent=2482903 not_received=2097 received_unconfirmed=3237 acknowledged=2479666 outstanding=5334
+ready=1000/1000 published=2495 received=2493040 ack_sent=2493040 not_received=1960 received_unconfirmed=4462 acknowledged=2488578 outstanding=6422
+ready=1000/1000 published=2505 received=2503038 ack_sent=2503038 not_received=1962 received_unconfirmed=3643 acknowledged=2499395 outstanding=5605
+ready=1000/1000 published=2515 received=2512860 ack_sent=2512860 not_received=2140 received_unconfirmed=2642 acknowledged=2510218 outstanding=4782
+ready=1000/1000 published=2524 received=2522032 ack_sent=2522032 not_received=1968 received_unconfirmed=1507 acknowledged=2520525 outstanding=3475
+ready=1000/1000 published=2532 received=2530643 ack_sent=2530643 not_received=1357 received_unconfirmed=3411 acknowledged=2527232 outstanding=4768
+ready=1000/1000 published=2542 received=2540476 ack_sent=2540476 not_received=1524 received_unconfirmed=3764 acknowledged=2536712 outstanding=5288
+ready=1000/1000 published=2552 received=2550708 ack_sent=2550708 not_received=1292 received_unconfirmed=2504 acknowledged=2548204 outstanding=3796
+ready=1000/1000 published=2562 received=2560681 ack_sent=2560681 not_received=1319 received_unconfirmed=2761 acknowledged=2557920 outstanding=4080
+ready=1000/1000 published=2572 received=2570412 ack_sent=2570412 not_received=1588 received_unconfirmed=2950 acknowledged=2567462 outstanding=4538
+ready=1000/1000 published=2582 received=2580665 ack_sent=2580665 not_received=1335 received_unconfirmed=3615 acknowledged=2577050 outstanding=4950
+ready=1000/1000 published=2592 received=2590674 ack_sent=2590674 not_received=1326 received_unconfirmed=3347 acknowledged=2587327 outstanding=4673
+ready=1000/1000 published=2602 received=2600682 ack_sent=2600682 not_received=1318 received_unconfirmed=3048 acknowledged=2597634 outstanding=4366
+ready=1000/1000 published=2612 received=2610503 ack_sent=2610503 not_received=1497 received_unconfirmed=3550 acknowledged=2606953 outstanding=5047
+ready=1000/1000 published=2622 received=2620645 ack_sent=2620645 not_received=1355 received_unconfirmed=3661 acknowledged=2616984 outstanding=5016
+ready=1000/1000 published=2632 received=2630626 ack_sent=2630623 not_received=1374 received_unconfirmed=3264 acknowledged=2627362 outstanding=4638
+ready=1000/1000 published=2642 received=2640710 ack_sent=2640710 not_received=1290 received_unconfirmed=3003 acknowledged=2637707 outstanding=4293
+ready=1000/1000 published=2652 received=2650583 ack_sent=2650583 not_received=1417 received_unconfirmed=3284 acknowledged=2647299 outstanding=4701
+ready=1000/1000 published=2662 received=2660743 ack_sent=2660743 not_received=1257 received_unconfirmed=3898 acknowledged=2656845 outstanding=5155
+ready=1000/1000 published=2672 received=2670795 ack_sent=2670795 not_received=1205 received_unconfirmed=3289 acknowledged=2667506 outstanding=4494
+ready=1000/1000 published=2682 received=2680572 ack_sent=2680569 not_received=1428 received_unconfirmed=3250 acknowledged=2677322 outstanding=4678
+ready=1000/1000 published=2692 received=2690730 ack_sent=2690730 not_received=1270 received_unconfirmed=3257 acknowledged=2687473 outstanding=4527
+ready=1000/1000 published=2702 received=2700601 ack_sent=2700601 not_received=1399 received_unconfirmed=3922 acknowledged=2696679 outstanding=5321
+ready=1000/1000 published=2712 received=2710737 ack_sent=2710737 not_received=1263 received_unconfirmed=3422 acknowledged=2707315 outstanding=4685
+ready=1000/1000 published=2722 received=2720772 ack_sent=2720772 not_received=1228 received_unconfirmed=3304 acknowledged=2717468 outstanding=4532
+ready=1000/1000 published=2732 received=2730524 ack_sent=2730524 not_received=1476 received_unconfirmed=4539 acknowledged=2725985 outstanding=6015
+ready=1000/1000 published=2742 received=2740277 ack_sent=2740277 not_received=1723 received_unconfirmed=3589 acknowledged=2736688 outstanding=5312
+ready=1000/1000 published=2753 received=2750950 ack_sent=2750950 not_received=2050 received_unconfirmed=3223 acknowledged=2747727 outstanding=5273
+ready=1000/1000 published=2762 received=2761070 ack_sent=2761068 not_received=930 received_unconfirmed=2959 acknowledged=2758111 outstanding=3889
+ready=1000/1000 published=2773 received=2770934 ack_sent=2770934 not_received=2066 received_unconfirmed=3032 acknowledged=2767902 outstanding=5098
+ready=1000/1000 published=2782 received=2780402 ack_sent=2780402 not_received=1598 received_unconfirmed=3630 acknowledged=2776772 outstanding=5228
+ready=1000/1000 published=2793 received=2791011 ack_sent=2791011 not_received=1989 received_unconfirmed=4115 acknowledged=2786896 outstanding=6104
+ready=1000/1000 published=2803 received=2800261 ack_sent=2800261 not_received=2739 received_unconfirmed=3672 acknowledged=2796589 outstanding=6411
+ready=1000/1000 published=2813 received=2810851 ack_sent=2810851 not_received=2149 received_unconfirmed=3203 acknowledged=2807648 outstanding=5352
+ready=1000/1000 published=2823 received=2820779 ack_sent=2820779 not_received=2221 received_unconfirmed=3516 acknowledged=2817263 outstanding=5737
+ready=1000/1000 published=2833 received=2829987 ack_sent=2829987 not_received=3013 received_unconfirmed=3314 acknowledged=2826673 outstanding=6327
+ready=1000/1000 published=2843 received=2840578 ack_sent=2840574 not_received=2422 received_unconfirmed=3473 acknowledged=2837105 outstanding=5895
+ready=1000/1000 published=2850 received=2847517 ack_sent=2847517 not_received=2483 received_unconfirmed=3891 acknowledged=2843626 outstanding=6374
+ready=1000/1000 published=2856 received=2854228 ack_sent=2854228 not_received=1772 received_unconfirmed=5772 acknowledged=2848456 outstanding=7544
+ready=1000/1000 published=2866 received=2863968 ack_sent=2863968 not_received=2032 received_unconfirmed=3500 acknowledged=2860468 outstanding=5532
+ready=1000/1000 published=2876 received=2874239 ack_sent=2874239 not_received=1761 received_unconfirmed=3389 acknowledged=2870850 outstanding=5150
+ready=1000/1000 published=2886 received=2884382 ack_sent=2884382 not_received=1618 received_unconfirmed=3410 acknowledged=2880972 outstanding=5028
+ready=1000/1000 published=2896 received=2894139 ack_sent=2894139 not_received=1861 received_unconfirmed=3307 acknowledged=2890832 outstanding=5168
+ready=1000/1000 published=2906 received=2904422 ack_sent=2904422 not_received=1578 received_unconfirmed=3465 acknowledged=2900957 outstanding=5043
+ready=1000/1000 published=2916 received=2914388 ack_sent=2914388 not_received=1612 received_unconfirmed=3717 acknowledged=2910671 outstanding=5329
+ready=1000/1000 published=2925 received=2923424 ack_sent=2923424 not_received=1576 received_unconfirmed=4029 acknowledged=2919395 outstanding=5605
+ready=1000/1000 published=2935 received=2932654 ack_sent=2932654 not_received=2346 received_unconfirmed=3047 acknowledged=2929607 outstanding=5393
+Publishing finished; draining acknowledgements
+ready=1000/1000 published=2943 received=2942922 ack_sent=2942922 not_received=78 received_unconfirmed=2027 acknowledged=2940895 outstanding=2105
+{
+    "achieved_publish_rate": 9.808175462178337,
+    "ack_confirmations_received": 855168,
+    "ack_latency_max_ms": 2655.085962,
+    "ack_latency_mean_ms": 339.5304424283029,
+    "ack_latency_p50_upper_ms": 512,
+    "ack_latency_p95_upper_ms": 512,
+    "ack_latency_p99_upper_ms": 1024,
+    "ack_not_sent_deliveries": 0,
+    "ack_requests_sent": 855168,
+    "ack_sent_deliveries": 2943000,
+    "ack_sent_unconfirmed_deliveries": 0,
+    "acknowledged_deliveries": 2943000,
+    "attempted": 2943,
+    "devices": 1000,
+    "duration_seconds": 300,
+    "expected_deliveries": 2943000,
+    "lagging_devices": [],
+    "latency_max_ms": 2606.913601,
+    "latency_mean_ms": 196.25198205626788,
+    "latency_p50_upper_ms": 256,
+    "latency_p95_upper_ms": 512,
+    "latency_p99_upper_ms": 1024,
+    "missing_deliveries": 0,
+    "not_received_deliveries": 0,
+    "payload_padding_bytes": 256,
+    "publish_errors": 0,
+    "publish_seconds": 300.055806643,
+    "published": 2943,
+    "received_deliveries": 2943000,
+    "received_unconfirmed_deliveries": 0,
+    "success": true,
+    "target_publish_rate": 10
+}
+PASS: all published events acknowledged by all devices

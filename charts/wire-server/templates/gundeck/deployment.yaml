@@ -37,6 +37,14 @@ spec:
             matchLabels:
               app: gundeck
       volumes:
+        {{- if and .Values.gundeck.config.postgresql (hasKey .Values.gundeck.secrets "pgPassword") }}
+        - name: "gundeck-postgresql-password"
+          secret:
+            secretName: gundeck
+            items:
+              - key: pgPassword
+                path: pgPassword
+        {{- end }}
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
@@ -69,6 +77,11 @@ spec:
             {{- toYaml .Values.gundeck.podSecurityContext | nindent 12 }}
         {{- end }}
           volumeMounts:
+          {{- if and .Values.gundeck.config.postgresql (hasKey .Values.gundeck.secrets "pgPassword") }}
+          - name: "gundeck-postgresql-password"
+            mountPath: "/etc/wire/gundeck/secrets"
+            readOnly: true
+          {{- end }}
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
           {{- if eq (include "useCassandraTLS" .Values.gundeck.config.cassandra) "true" }}

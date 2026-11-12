@@ -28,6 +28,7 @@
 , exceptions
 , extended
 , extra
+, fan-in-perf
 , foldl
 , hedis
 , hs-opentelemetry-instrumentation-wai
@@ -116,6 +117,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    fan-in-perf
     foldl
     hedis
     hs-opentelemetry-instrumentation-wai

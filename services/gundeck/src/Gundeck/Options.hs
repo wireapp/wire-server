@@ -24,6 +24,7 @@ import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
@@ -135,6 +136,10 @@ data Opts = Opts
     _gundeck :: !Endpoint,
     _brig :: !Endpoint,
     _cassandra :: !CassandraOpts,
+    -- | Optional PostgreSQL store for the experimental fan-in benchmark.
+    _fanInPerfPostgresql :: !(Maybe (Map Text Text)),
+    _fanInPerfPostgresqlPool :: !(Maybe PoolConfig),
+    _fanInPerfPostgresqlPassword :: !(Maybe FilePathSecrets),
     _redis :: !RedisEndpoint,
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
     _aws :: !AWSOpts,

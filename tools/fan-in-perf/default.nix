@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-pretty
 , async
 , base
 , bytestring
@@ -16,17 +17,20 @@
 , hasql-transaction
 , hspec
 , hspec-discover
+, http-client
 , http-types
 , imports
 , lib
 , megaparsec
 , mmzk-typeid
+, network-uri
 , optparse-applicative
 , polysemy
 , postgresql-connection-string
 , prometheus-client
 , QuickCheck
 , random
+, stm
 , text
 , time
 , types-common
@@ -35,7 +39,10 @@
 , uuid-types
 , vector
 , wai
+, wai-extra
+, wai-websockets
 , warp
+, websockets
 , wire-api
 , wire-subsystems
 }:
@@ -47,6 +54,7 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    aeson-pretty
     async
     base
     bytestring
@@ -57,15 +65,18 @@ mkDerivation {
     hasql-resource-pool
     hasql-th
     hasql-transaction
+    http-client
     http-types
     imports
     megaparsec
     mmzk-typeid
+    network-uri
     optparse-applicative
     polysemy
     postgresql-connection-string
     prometheus-client
     random
+    stm
     text
     time
     types-common
@@ -75,6 +86,7 @@ mkDerivation {
     vector
     wai
     warp
+    websockets
     wire-api
     wire-subsystems
   ];
@@ -98,12 +110,18 @@ mkDerivation {
     prometheus-client
     QuickCheck
     random
+    stm
     text
     time
     types-common
+    unliftio
     uuid-types
     vector
     wai
+    wai-extra
+    wai-websockets
+    warp
+    websockets
     wire-api
     wire-subsystems
   ];

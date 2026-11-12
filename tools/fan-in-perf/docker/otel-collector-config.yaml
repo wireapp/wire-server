@@ -20,6 +20,11 @@ receivers:
           scrape_interval: 1s
           static_configs:
             - targets: ['postgres-exporter-fan-in-perf:9187']
+        - job_name: 'fan-in-cannon'
+          metrics_path: /i/metrics
+          scrape_interval: 1s
+          static_configs:
+            - targets: ['host.docker.internal:8083']
         - job_name: 'fan-in-perf'
           scrape_interval: 1s
           static_configs:

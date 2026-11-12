@@ -80,7 +80,10 @@ library
     FanInPerf.Consume
     FanInPerf.ConsumeStats
     FanInPerf.Database
+    FanInPerf.Delivery
+    FanInPerf.Fixture
     FanInPerf.GcImpact
+    FanInPerf.Load
     FanInPerf.Metrics
     FanInPerf.NotificationsAdmin
     FanInPerf.NotificationsAdmin.Postgres
@@ -91,17 +94,22 @@ library
     FanInPerf.Population
     FanInPerf.Produce
     FanInPerf.Run
+    FanInPerf.ServerTiming
+    FanInPerf.Service
     FanInPerf.Settle
+    FanInPerf.Smoke
     FanInPerf.Stats
     FanInPerf.Store
     FanInPerf.Summary
     FanInPerf.Targets
     FanInPerf.TargetSpecParser
     FanInPerf.Terminal
+    FanInPerf.Wakeup
     FanInPerf.Worker
 
   build-depends:
     , aeson
+    , aeson-pretty
     , async
     , base
     , bytestring
@@ -112,15 +120,18 @@ library
     , hasql-resource-pool
     , hasql-th
     , hasql-transaction
+    , http-client
     , http-types
     , imports
     , megaparsec
     , mmzk-typeid
+    , network-uri
     , optparse-applicative
     , polysemy
     , postgresql-connection-string
     , prometheus-client
     , random
+    , stm
     , text
     , time
     , types-common
@@ -130,6 +141,7 @@ library
     , vector
     , wai
     , warp
+    , websockets
     , wire-api
     , wire-subsystems
 
@@ -155,6 +167,7 @@ test-suite fan-in-perf-tests
     FanInPerf.ConsumeSpec
     FanInPerf.ConsumeStatsSpec
     FanInPerf.DatabaseSpec
+    FanInPerf.DeliverySpec
     FanInPerf.GcImpactSpec
     FanInPerf.MetricsSpec
     FanInPerf.NotificationsAdminSpec
@@ -163,12 +176,15 @@ test-suite fan-in-perf-tests
     FanInPerf.PoolSpec
     FanInPerf.PopulationSpec
     FanInPerf.ProduceSpec
+    FanInPerf.ServiceSpec
     FanInPerf.SettleSpec
+    FanInPerf.SmokeSpec
     FanInPerf.StatsSpec
     FanInPerf.SummarySpec
     FanInPerf.TargetSpecParserSpec
     FanInPerf.TargetsSpec
     FanInPerf.TerminalSpec
+    FanInPerf.WakeupSpec
 
   build-depends:
     , aeson
@@ -190,12 +206,18 @@ test-suite fan-in-perf-tests
     , prometheus-client
     , QuickCheck
     , random
+    , stm
     , text
     , time
     , types-common
+    , unliftio
     , uuid-types
     , vector
     , wai
+    , wai-extra
+    , wai-websockets
+    , warp
+    , websockets
     , wire-api
     , wire-subsystems
 

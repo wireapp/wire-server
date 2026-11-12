@@ -1,0 +1,22 @@
+{
+  "namespace": "fan-in-perf-ci",
+  "nodes": {
+    "services": "REPLACE-service-node-hostname",
+    "dependencies": "REPLACE-dependency-node-hostname",
+    "generator": "REPLACE-generator-node-hostname"
+  },
+  "storageClass": "",
+  "imagePullSecrets": [],
+  "images": {
+    "gundeck": "REPLACE-registry/gundeck:REPLACE-commit",
+    "cannon": "REPLACE-registry/cannon:REPLACE-commit",
+    "gundeck-schema": "REPLACE-registry/gundeck-schema:REPLACE-commit",
+    "fan-in-perf": "REPLACE-registry/fan-in-perf:REPLACE-commit",
+    "postgres": "REPLACE-registry/fan-in-perf-postgres:17.11-partman",
+    "cassandra": "cassandra:4.1.11",
+    "rabbitmq": "rabbitmq:4.1.4-management-alpine",
+    "redis": "redis:7.2-alpine",
+    "elasticmq": "softwaremill/elasticmq-native:1.5.2",
+    "prometheus": "prom/prometheus:v3.5.0"
+  }
+}

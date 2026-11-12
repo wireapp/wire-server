@@ -1,6 +1,7 @@
 # Standalone environment for fan-in-perf: PostgreSQL (with pg_partman),
 # postgres-exporters, an OTel collector and Grafana. Independent of
-# deploy/dockerephemeral; both use host port 5432, so don't run them in parallel.
+# deploy/dockerephemeral: host port 55432 keeps this database separate from
+# the regular PostgreSQL on 5432; both stacks can run together.
 #
 #   docker compose -f tools/fan-in-perf/docker-compose.yaml up -d --build
 name: fan-in-perf
@@ -17,7 +18,7 @@ services:
     container_name: fan_in_perf_postgres
     build: ./docker/postgres
     ports:
-      - 5432:5432
+      - "127.0.0.1:55432:5432"
     networks:
       - fan_in_perf
     volumes:

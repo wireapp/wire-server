@@ -21,6 +21,7 @@
 , exceptions
 , extended
 , extra
+, fan-in-perf
 , hashable
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -36,6 +37,7 @@
 , random
 , retry
 , safe-exceptions
+, servant
 , servant-conduit
 , servant-server
 , strict
@@ -82,6 +84,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    fan-in-perf
     hashable
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -94,6 +97,7 @@ mkDerivation {
     prometheus-client
     retry
     safe-exceptions
+    servant
     servant-conduit
     servant-server
     strict
@@ -114,17 +118,23 @@ mkDerivation {
   ];
   executableHaskellDepends = [ base imports types-common ];
   testHaskellDepends = [
+    aeson
     async
     base
     bytestring
+    fan-in-perf
+    http-types
     imports
     metrics-wai
     QuickCheck
     random
+    servant-server
     tasty
     tasty-hunit
     tasty-quickcheck
     uuid
+    wai
+    wai-extra
     wire-api
   ];
   benchmarkHaskellDepends = [ async base criterion imports uuid ];

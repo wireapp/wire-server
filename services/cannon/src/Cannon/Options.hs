@@ -36,6 +36,9 @@ module Cannon.Options
     rabbitMqMaxConnections,
     rabbitMqMaxChannels,
     notificationTTL,
+    fanInPerfPostgresql,
+    fanInPerfPostgresqlPool,
+    fanInPerfPostgresqlPassword,
     Opts (..),
     gracePeriodSeconds,
     millisecondsBetweenBatches,
@@ -52,9 +55,11 @@ import Control.Lens (makeFields)
 import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
 import Data.Default
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended (AmqpEndpoint)
 import System.Logger.Extended (Level, LogFormat)
+import Util.Options (FilePathSecrets)
 import Wire.API.Routes.Version
 
 data Cannon = Cannon
@@ -130,7 +135,10 @@ data Opts = Opts
     _optsRabbitMqMaxConnections :: Int,
     -- | Maximum number of rabbitmq channels per connection. Must be strictly positive.
     _optsRabbitMqMaxChannels :: Int,
-    _optsNotificationTTL :: Int
+    _optsNotificationTTL :: Int,
+    _optsFanInPerfPostgresql :: !(Maybe (Map Text Text)),
+    _optsFanInPerfPostgresqlPool :: !(Maybe PoolConfig),
+    _optsFanInPerfPostgresqlPassword :: !(Maybe FilePathSecrets)
   }
   deriving (Show, Generic)
 
@@ -159,3 +167,6 @@ instance FromJSON Opts where
       <*> o .:? "rabbitMqMaxConnections" .!= 1000
       <*> o .:? "rabbitMqMaxChannels" .!= 300
       <*> o .: "notificationTTL"
+      <*> o .:? "fanInPerfPostgresql"
+      <*> o .:? "fanInPerfPostgresqlPool"
+      <*> o .:? "fanInPerfPostgresqlPassword"

@@ -13,12 +13,16 @@ module FanInPerf.Options
     Command (..),
     Options (..),
     optionsInfo,
+    Invocation (..),
+    invocationInfo,
   )
 where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as T
+import FanInPerf.Load (LoadOptions, loadParser)
 import FanInPerf.NotificationsAdmin (SchemaShape (..))
+import FanInPerf.Smoke (SmokeOptions, smokeParser)
 import FanInPerf.TargetSpecParser (parseTargetSpec)
 import FanInPerf.Targets
 import Hasql.Transaction.Sessions (IsolationLevel (..))
@@ -133,6 +137,18 @@ data Options = Options
     -- | file for the summary of a run as JSON; only the load commands take it
     summaryJson :: Maybe FilePath
   }
+
+data Invocation = DatabaseRun Options | SmokeRun SmokeOptions | LoadRun LoadOptions
+
+invocationInfo :: ParserInfo Invocation
+invocationInfo =
+  info
+    ( ( hsubparser (O.command "load" (info (LoadRun <$> loadParser) (progDesc "Load the experimental Gundeck/Cannon path")) <> O.command "smoke" (info (SmokeRun <$> smokeParser) (progDesc "Check the running Gundeck/Cannon delivery path without database access")))
+          <|> (DatabaseRun <$> optionsParser)
+      )
+        <**> helper
+    )
+    (fullDesc <> progDesc "Notification fan-in benchmarks and service smoke test")
 
 optionsInfo :: ParserInfo Options
 optionsInfo =

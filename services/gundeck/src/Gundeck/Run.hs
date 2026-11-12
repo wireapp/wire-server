@@ -43,19 +43,24 @@ import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
+import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Database.Redis qualified as Redis
+import FanInPerf.Service qualified as FanInPerf
+import FanInPerf.Wakeup (wakeupQueue)
 import Gundeck.API.Internal as Internal (InternalAPI, servantSitemap)
 import Gundeck.API.Public as Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
+import Gundeck.FanInWorker qualified as FanInWorker
 import Gundeck.Monad
 import Gundeck.Options hiding (host, port)
+import Gundeck.Presence.Data qualified as Presence
 import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
@@ -98,8 +103,12 @@ run opts = withTracer \tracer -> do
   wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
 
-  app <- middleware env <*> pure (mkApp env)
-  inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
+  (experimental, participants) <- FanInPerf.configureService (opts ^. fanInPerfPostgresql) (opts ^. fanInPerfPostgresqlPool) (opts ^. fanInPerfPostgresqlPassword) (runDirect env publishExperimentalWakeup)
+  app <- middleware env <*> pure (experimental (mkApp env))
+  let withWorker action = case opts ^. fanInPerfPostgresql of
+        Just _ -> Async.withAsync (FanInWorker.runWorker logger (opts ^. rabbitmq) (env ^. manager) participants (\users -> runDirect env $ runWithDefaultRedis $ Presence.listAll users)) $ \worker -> Async.link worker >> action
+        _ -> action
+  withWorker (inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing)) `finally` do
     Log.info logger $ Log.msg (Log.val "Shutting down ...")
     shutdown (env ^. cstate)
     Async.cancel lst
@@ -117,6 +126,25 @@ run opts = withTracer \tracer -> do
       liftIO $ createUserNotificationsExchange chan
       liftIO $ createDeadUserNotificationsExchange chan
       liftIO $ createCellsNotificationsQueue chan
+      when (isJust (opts ^. fanInPerfPostgresql)) $
+        liftIO $
+          void $
+            declareQueue chan newQueue {queueName = wakeupQueue, queueDurable = True, queueAutoDelete = False}
+
+    publishExperimentalWakeup :: Gundeck ()
+    publishExperimentalWakeup = do
+      chan <- getRabbitMqChan
+      liftIO $
+        void $
+          publishMsg
+            chan
+            ""
+            wakeupQueue
+            newMsg
+              { msgBody = Aeson.encode FanInPerf.wakeupPayload,
+                msgContentType = Just "application/json",
+                msgDeliveryMode = Just Persistent
+              }
 
     createUserNotificationsExchange :: Channel -> IO ()
     createUserNotificationsExchange chan = do
