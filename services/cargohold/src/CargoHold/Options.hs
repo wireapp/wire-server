@@ -26,7 +26,6 @@ import Control.Lens hiding (Level)
 import Data.Aeson (FromJSON (..), withText)
 import Data.Aeson.TH
 import Data.Domain
-import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -174,10 +173,10 @@ data Opts = Opts
     -- | Brig endpoint
     brig :: !Endpoint,
     galley :: !Endpoint,
-    -- | libpq connection parameters
-    postgresql :: !(Map Text Text),
-    postgresqlPassword :: !(Maybe FilePathSecrets),
-    postgresqlPool :: !PoolConfig,
+    -- | File with the secret (at least 32 bytes) used to HMAC user and client ids in backup S3
+    -- keys. Unset: automatic backups are disabled. Never change it once set: existing backups
+    -- become unreachable.
+    backupHmacKey :: !(Maybe FilePathSecrets),
     -- Logging
 
     -- | Log level (Debug, Info, etc)

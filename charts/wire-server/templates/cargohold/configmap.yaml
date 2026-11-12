@@ -26,12 +26,8 @@ data:
       host: galley
       port: 8080
 
-    {{- with .Values.cargohold.config }}
-    postgresql: {{ toYaml .postgresql | nindent 6 }}
-    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- end }}
-    {{- if $.Values.cargohold.secrets.pgPassword }}
-    postgresqlPassword: /etc/wire/cargohold/secrets/pgPassword
+    {{- if $.Values.cargohold.secrets.backupHmacKey }}
+    backupHmacKey: /etc/wire/cargohold/secrets/backupHmacKey
     {{- end }}
 
     aws:

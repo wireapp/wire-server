@@ -24,6 +24,7 @@ module CargoHold.App
   ( -- * Environment
     Env (..),
     newEnv,
+    loadBackupHmacKey,
     closeEnv,
     awsLens,
     multiIngressLens,
@@ -33,7 +34,7 @@ module CargoHold.App
     requestIdLens,
     localUnitLens,
     optionsLens,
-    hasqlPoolLens,
+    backupHmacKeyLens,
 
     -- * App Monad
     AppT,
@@ -58,12 +59,13 @@ import Control.Error (ExceptT, runExceptT)
 import Control.Exception (catch, throwIO)
 import Control.Lens (lensField, lensRules, makeLensesWith, non, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import qualified Data.ByteString as BS
 import Data.Domain (Domain)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Text as Text
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
-import Hasql.Pool.Extended (Pool, initPostgresPool)
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -78,6 +80,7 @@ import Util.Options
 import Util.SuffixNamer
 import Wire.API.Routes.Internal.Brig (BrigInternalClient)
 import qualified Wire.API.Routes.Internal.Brig as IBrig
+import Wire.BackupBlobStore.Key (BackupHmacKey, mkBackupHmacKey)
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -91,7 +94,8 @@ data Env = Env
     options :: Opt.Opts,
     localUnit :: Local (),
     multiIngress :: Map Domain AWS.Env,
-    hasqlPool :: Pool
+    -- | 'Nothing': automatic backups are disabled.
+    backupHmacKey :: Maybe BackupHmacKey
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
@@ -104,7 +108,7 @@ newEnv opts = do
   http2Mgr <- initHttp2Manager
   awsEnv <- initAws opts.aws logger httpMgr
   multiIngressAWS <- initMultiIngressAWS logger httpMgr
-  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  backupHmacKey <- traverse loadBackupHmacKey opts.backupHmacKey
   pure
     Env
       { aws = awsEnv,
@@ -115,7 +119,7 @@ newEnv opts = do
         options = opts,
         localUnit = toLocalUnsafe opts.settings.federationDomain (),
         multiIngress = multiIngressAWS,
-        hasqlPool
+        backupHmacKey
       }
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map Domain AWS.Env)
@@ -129,6 +133,15 @@ newEnv opts = do
 
     patchS3DownloadEndpoint :: AWSEndpoint -> AWSOpts
     patchS3DownloadEndpoint e = (opts ^. Opt.awsLens) & Opt.s3DownloadEndpointLens ?~ e
+
+-- | Reads the raw bytes of the file (one trailing newline stripped). Fails if the key is too
+-- short; the message never contains the content.
+loadBackupHmacKey :: FilePathSecrets -> IO BackupHmacKey
+loadBackupHmacKey (FilePathSecrets path) = do
+  raw <- BS.readFile path
+  let stripped = fromMaybe raw (BS.stripSuffix "\n" raw)
+  either (\e -> error ("Invalid option backupHmacKey: " <> Text.unpack e)) pure $
+    mkBackupHmacKey stripped
 
 -- | Validate (some) options (`Opts`)
 --

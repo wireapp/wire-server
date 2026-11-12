@@ -108,7 +108,6 @@ library
     , errors                 >=1.4
     , exceptions             >=0.6
     , extended
-    , hasql-resource-pool
     , HsOpenSSL              >=0.11
     , http-client            >=0.7
     , http-client-openssl    >=0.2
@@ -315,6 +314,7 @@ test-suite cargohold-tests
     Test.CargoHold.API.AuditLogTest
     Test.CargoHold.API.BackupStreamingTest
     Test.CargoHold.API.LogJSON
+    Test.CargoHold.BackupHmacKeyTest
     Test.CargoHold.S3Test
 
   default-extensions:
@@ -388,7 +388,6 @@ test-suite cargohold-tests
     , tasty-hunit
     , tasty-quickcheck       >=0.10
     , text                   >=1.1
-    , time
     , types-common
     , unix
     , unliftio

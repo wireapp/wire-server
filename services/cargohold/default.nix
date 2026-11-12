@@ -25,7 +25,6 @@
 , exceptions
 , extended
 , federator
-, hasql-resource-pool
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -108,7 +107,6 @@ mkDerivation {
     errors
     exceptions
     extended
-    hasql-resource-pool
     HsOpenSSL
     http-client
     http-client-openssl
@@ -206,7 +204,6 @@ mkDerivation {
     tasty-hunit
     tasty-quickcheck
     text
-    time
     types-common
     unix
     unliftio

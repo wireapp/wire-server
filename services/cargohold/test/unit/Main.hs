@@ -20,8 +20,9 @@ module Main (main) where
 import Imports
 import qualified Test.CargoHold.API.AuditLogTest as AuditLog
 import qualified Test.CargoHold.API.BackupStreamingTest as BackupStreaming
+import qualified Test.CargoHold.BackupHmacKeyTest as BackupHmacKey
 import qualified Test.CargoHold.S3Test as S3
 import Test.Tasty
 
 main :: IO ()
-main = defaultMain (testGroup "Cargohold Unit" [AuditLog.tests, BackupStreaming.tests, S3.tests])
+main = defaultMain (testGroup "Cargohold Unit" [AuditLog.tests, BackupStreaming.tests, BackupHmacKey.tests, S3.tests])
