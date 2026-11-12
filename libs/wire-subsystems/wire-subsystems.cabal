@@ -242,11 +242,13 @@ library
     Wire.BackgroundJobsRunner
     Wire.BackgroundJobsRunner.Interpreter
     Wire.BackupBlobStore
+    Wire.BackupBlobStore.Key
     Wire.BackupStore
     Wire.BackupStore.Postgres
     Wire.BackupSubsystem
     Wire.BackupSubsystem.Interpreter
     Wire.BackupSubsystem.Rules
+    Wire.BackupSubsystem.UUIDv7
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BlockListStore.DualWrite
@@ -664,9 +666,11 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.BackupBlobStore.KeySpec
     Wire.BackupStore.MockSpec
     Wire.BackupSubsystem.InterpreterSpec
     Wire.BackupSubsystem.RulesSpec
+    Wire.BackupSubsystem.UUIDv7Spec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.AdminlessGroupsSpec
@@ -752,6 +756,7 @@ test-suite wire-subsystems-tests
     , crypton-x509-store
     , filepath
     , hspec
+    , http-api-data
     , QuickCheck
     , quickcheck-instances
     , random
