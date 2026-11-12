@@ -750,5 +750,6 @@ test-suite wire-subsystems-tests
     , random
     , scientific
     , string-conversions
+    , template-haskell
     , wai
     , wire-subsystems
