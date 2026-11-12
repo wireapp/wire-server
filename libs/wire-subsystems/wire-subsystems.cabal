@@ -241,6 +241,7 @@ library
     Wire.BackgroundJobsPublisher.RabbitMQ
     Wire.BackgroundJobsRunner
     Wire.BackgroundJobsRunner.Interpreter
+    Wire.BackupBlobStore
     Wire.BackupStore
     Wire.BackupStore.Postgres
     Wire.BackupSubsystem.Rules
@@ -685,6 +686,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.AppStore
     Wire.MockInterpreters.AuthenticationSubsystem
     Wire.MockInterpreters.BackgroundJobPublisher
+    Wire.MockInterpreters.BackupBlobStore
     Wire.MockInterpreters.BackupStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore
