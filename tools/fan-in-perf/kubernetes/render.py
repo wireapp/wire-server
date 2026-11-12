@@ -337,7 +337,11 @@ queues { integration-gundeck-events {} }
             gundeck=dict(host="0.0.0.0", port=8086),
             brig=dict(host="unused-brig", port=8082),
             redis=dict(
-                host="redis", port=6379, connectionMode="master", enableTls=False
+                host="redis",
+                port=6379,
+                connectionMode="master",
+                enableTls=False,
+                insecureSkipVerifyTls=False,
             ),
             aws=dict(
                 queueName="integration-gundeck-events",
@@ -365,8 +369,10 @@ queues { integration-gundeck-events {} }
                 name,
                 "services",
                 "2",
-                "2Gi",
-                ["-c", "/etc/benchmark/config.yaml", "+RTS", "-N2", "-RTS"],
+                "4Gi" if name == "cannon" else "2Gi",
+                ["-c", "/etc/benchmark/config.yaml", "+RTS", "-N2"]
+                + (["-M2G"] if name == "cannon" else [])
+                + ["-RTS"],
                 port,
             )
             x["env"] = rabbit_env + [

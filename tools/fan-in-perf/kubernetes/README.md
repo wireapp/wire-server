@@ -11,7 +11,10 @@ A separate namespace does not isolate CPU, memory, disk or network contention.
 
 The first target is a reproducible distributed baseline, not production readiness:
 
-- One Gundeck and one Cannon on the services node, each with 2 CPU/2 GiB and `-N2`.
+- Gundeck on the services node with 2 CPU/2 GiB and `-N2`.
+- Cannon on the same node with 2 CPU/4 GiB and `-N2 -M2G` (2 GiB maximum
+  GHC heap, with container headroom for other memory). The initial 5,000-device
+  run exhausted its previous 1 GiB heap; record this budget change in comparisons.
 - PostgreSQL 17 + pg_partman, Cassandra, Redis, RabbitMQ, ElasticMQ and Prometheus
   on the dependencies node (4.5 CPU and roughly 10 GiB requested in total).
 - A separate generator node, with a 2 CPU/2 GiB Job and `-N2`.

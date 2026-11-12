@@ -68,6 +68,7 @@ class RenderingTests(unittest.TestCase):
         )
         config = json.loads(cfg["data"]["config.yaml"])
         self.assertEqual(config["aws"]["snsEndpoint"], "http://127.0.0.1:9")
+        self.assertIs(config["redis"]["insecureSkipVerifyTls"], False)
         cannon = next(
             x
             for x in items
