@@ -38,13 +38,13 @@ featureName = "automaticBackups"
 
 enableBackups :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
 enableBackups owner tid =
-  bindResponse (setTeamFeatureConfig owner tid featureName (object ["status" .= "enabled"])) $
-    \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (setTeamFeatureConfig owner tid featureName (object ["status" .= "enabled"]))
+    $ \resp -> resp.status `shouldMatchInt` 200
 
 disableBackups :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
 disableBackups owner tid =
-  bindResponse (setTeamFeatureConfig owner tid featureName (object ["status" .= "disabled"])) $
-    \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (setTeamFeatureConfig owner tid featureName (object ["status" .= "disabled"]))
+    $ \resp -> resp.status `shouldMatchInt` 200
 
 newClient :: (HasCallStack, MakesValue user) => user -> App String
 newClient user = addClient user def >>= getJSON 201 >>= objId
