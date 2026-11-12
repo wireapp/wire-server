@@ -58,7 +58,11 @@ data World = World
     dropA1From :: Maybe Int,
     lookups :: Int,
     -- | Make 'GetDeviceEpochCounts' report no files, simulating a concurrent upload.
-    hideCounts :: Bool
+    hideCounts :: Bool,
+    -- | 'LookupClients' calls from this one on (1-based) throw 'BackupErrTooManyFiles'.
+    failLookupFrom :: Maybe Int,
+    -- | 'InsertBackupFile' throws 'BackupErrTooManyFiles'.
+    failInsert :: Bool
   }
 
 type Blobs = Map BackupFileId ByteString
@@ -117,7 +121,9 @@ world0 =
       feature = FeatureStatusEnabled,
       dropA1From = Nothing,
       lookups = 0,
-      hideCounts = False
+      hideCounts = False,
+      failLookupFrom = Nothing,
+      failInsert = False
     }
 
 -- | Runs the program; returns final store and blob state and the result.
@@ -153,10 +159,14 @@ runBackup w counter prog = do
     Right (blobs, (store, r)) -> pure (store, blobs, r)
 
 hideCountsWhenAsked ::
-  (Member BackupStore r, Member (State World) r) => Sem r a -> Sem r a
+  (Member BackupStore r, Member (State World) r, Member (Error BackupError) r) =>
+  Sem r a ->
+  Sem r a
 hideCountsWhenAsked = intercept $ \case
   GetDeviceEpochCounts u c -> gets (.hideCounts) >>= bool (getDeviceEpochCounts u c) (pure mempty)
-  InsertBackupFile l f -> insertBackupFile l f
+  InsertBackupFile l f -> do
+    gets (.failInsert) >>= \b -> when b (throw BackupErrTooManyFiles)
+    insertBackupFile l f
   ListBackupFiles u c e -> listBackupFiles u c e
   LookupBackupFile u c e f -> lookupBackupFile u c e f
   DeleteBackupFileRow f -> deleteBackupFileRow f
@@ -164,13 +174,14 @@ hideCountsWhenAsked = intercept $ \case
   DeleteClientRows u c -> deleteClientRows u c
   DeleteUserRows u -> deleteUserRows u
 
-mockBrig :: (Member (State World) r) => User -> InterpreterFor BrigAPIAccess r
+mockBrig :: (Member (State World) r, Member (Error BackupError) r) => User -> InterpreterFor BrigAPIAccess r
 mockBrig base = interpret $ \case
   GetUsers uids ->
     pure [base {userTeam = if u == uC then Nothing else Just teamT} | u <- uids]
   LookupClients uids -> do
     modify (\w -> w {lookups = w.lookups + 1})
     w <- get
+    when (maybe False (w.lookups >=) w.failLookupFrom) $ throw BackupErrTooManyFiles
     let drop' = maybe False (w.lookups >=) w.dropA1From
         cs = if drop' then Map.adjust (Set.delete a1) uA w.clients else w.clients
     pure . UserClients $ Map.restrictKeys cs (Set.fromList uids)
@@ -277,6 +288,26 @@ spec = describe "BackupSubsystem" $ do
   it "upload by removed client is rolled back" $ do
     (st, blobs, res) <- runBackup world0 {dropA1From = Just 2} Nothing $ upload uA a1 a1 1 "x"
     void res `shouldBe` Left BackupErrForbidden
+    st `shouldBe` mempty
+    blobs `shouldBe` mempty
+
+  it "failing client re-check rolls back row and blob" $ do
+    (st, blobs, res) <- runBackup world0 {failLookupFrom = Just 2} Nothing $ upload uA a1 a1 1 "x"
+    void res `shouldBe` Left BackupErrTooManyFiles
+    st `shouldBe` mempty
+    blobs `shouldBe` mempty
+
+  it "failing insert deletes blob" $ do
+    (st, blobs, res) <- runBackup world0 {failInsert = True} Nothing $ upload uA a1 a1 1 "x"
+    void res `shouldBe` Left BackupErrTooManyFiles
+    st `shouldBe` mempty
+    blobs `shouldBe` mempty
+
+  it "incomplete body leaves no row or blob" $ do
+    (st, blobs, res) <-
+      runBackup world0 Nothing $
+        uploadBackup (loc uA) a1 a1 (BackupEpoch 1) 10 (yield "abc")
+    void res `shouldBe` Left BackupErrIncompleteBody
     st `shouldBe` mempty
     blobs `shouldBe` mempty
 

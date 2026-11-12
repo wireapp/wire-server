@@ -83,6 +83,8 @@ interpretBackupSubsystem = interpret $ \case
 -- happens while we stream, its delete finds no row yet. So the row is inserted first and the
 -- client is looked up again afterwards: if it is gone, we roll back row and blob ourselves.
 -- Either the removal sees our row, or we see the removal; no backup outlives its client.
+-- This assumes brig client reads are consistent with its writes. Any error after the blob
+-- was written rolls back blob (and row, once inserted) via 'rollingBack'.
 uploadBackupImpl ::
   ( Member BackupStore r,
     Member BackupBlobStore r,
@@ -113,15 +115,27 @@ uploadBackupImpl uid zcid cid e len src = do
     deleteBlobs [fid]
     throw BackupErrIncompleteBody
   let new = NewBackupFile {id = fid, user = uid, client = cid, epoch = e, size = len}
-  file <-
-    insertBackupFile limits new
-      >>= either (\rej -> deleteBlobs [fid] >> throw (rejectionError rej)) pure
-  stillThere <- Set.member cid <$> clientsOf uid
-  unless stillThere $ do
-    deleteBackupFileRow fid
-    deleteBlobs [fid]
-    throw BackupErrForbidden
-  pure file
+  rollingBack (deleteBlobs [fid]) $ do
+    file <- insertBackupFile limits new >>= either (throw . rejectionError) pure
+    rollingBack (deleteBackupFileRow fid) $ do
+      stillThere <- Set.member cid <$> clientsOf uid
+      unless stillThere $ throw BackupErrForbidden
+    pure file
+
+-- | Runs the cleanup if the action fails with a 'BackupError' or 'BlobUploadError', then
+-- rethrows the original error. A failing cleanup does not mask it. Exceptions outside the
+-- 'Error' effects are not caught.
+rollingBack ::
+  forall r a.
+  (Member (Error BackupError) r, Member (Error BlobUploadError) r) =>
+  Sem r () ->
+  Sem r a ->
+  Sem r a
+rollingBack cleanup act =
+  act `catch` rethrow @BackupError `catch` rethrow @BlobUploadError
+  where
+    rethrow :: forall e. (Member (Error e) r) => e -> Sem r a
+    rethrow err = void (try @BackupError (try @BlobUploadError cleanup)) >> throw err
 
 rejectionError :: UploadRejection -> BackupError
 rejectionError = \case

@@ -30,7 +30,7 @@ data:
     postgresql: {{ toYaml .postgresql | nindent 6 }}
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
     {{- end }}
-    {{- if hasKey $.Values.cargohold.secrets "pgPassword" }}
+    {{- if $.Values.cargohold.secrets.pgPassword }}
     postgresqlPassword: /etc/wire/cargohold/secrets/pgPassword
     {{- end }}
 
