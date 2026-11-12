@@ -23,26 +23,43 @@ import Conduit
 import Control.Concurrent.STM (check)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (toByteString')
+import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
+import qualified Data.Map as Map
 import Data.Proxy
+import qualified Data.Set as Set
 import Data.Time (UTCTime (..), fromGregorian)
-import qualified Data.UUID as UUID
+import Data.Typeable (cast)
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types (hContentType, methodPost, statusCode)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import Servant (Context (..), serveWithContext)
 import System.Timeout (timeout)
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Backup
 import Wire.API.Routes.API (hoistServerWithDomain)
 import Wire.API.Routes.Public.Cargohold.Backup (BackupAPI)
 import Wire.API.Routes.Version.Wai (versionMiddleware)
+import Wire.API.Team.Feature (AutomaticBackupsConfig, FeatureStatus (..), LockableFeature (..))
+import Wire.API.User (User (..), userId)
+import Wire.API.User.Client (UserClients (..))
+import Wire.BackupBlobStore
+import Wire.BackupStore (BackupStore (..), NewBackupFile (..))
 import Wire.BackupSubsystem
+import Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem)
+import Wire.BackupSubsystem.Rules (BackupLimits (..))
+import Wire.BrigAPIAccess
+import Wire.GalleyAPIAccess
+import Wire.Sem.Random (Random)
+import Wire.Sem.Random.IO (randomToIO)
 
 tests :: TestTree
 tests =
@@ -51,6 +68,9 @@ tests =
     [ testCase "backup upload streams through HTTP stack" uploadStreams,
       testCase "backup upload without Content-Length is rejected" uploadChunked
     ]
+
+cid :: ClientId
+cid = ClientId 1
 
 chunkCount, chunkSize :: Int
 chunkCount = 64
@@ -82,16 +102,18 @@ uploadChunked = do
 -- | POSTs @body@ to the upload route served by 'backupServer' in warp, returns the status.
 postUpload :: TVar Word64 -> IORef (Maybe ByteString) -> Http.RequestBody -> IO Int
 postUpload received stored body = do
-  let app =
+  base <- generate arbitrary
+  tid <- generate arbitrary
+  let user = base {userTeam = Just tid}
+      app =
         versionMiddleware mempty $
           serveWithContext
             (Proxy @BackupAPI)
             (Domain "example.com" :. EmptyContext)
             ( hoistServerWithDomain @BackupAPI
-                (liftIO . runM . fakeUploads received stored)
+                (liftIO . runSubsystem user received stored)
                 backupServer
             )
-      cid = ClientId 1
   testWithApplication (pure app) $ \port -> do
     mgr <- Http.newManager Http.defaultManagerSettings
     let req =
@@ -100,7 +122,7 @@ postUpload received stored body = do
               Http.method = methodPost,
               Http.path = "/v19/backups/clients/" <> toByteString' cid <> "/epochs/1",
               Http.requestHeaders =
-                [ ("Z-User", toByteString' (Id @() UUID.nil)),
+                [ ("Z-User", toByteString' (userId user)),
                   ("Z-Client", toByteString' cid),
                   (hContentType, "application/octet-stream")
                 ],
@@ -127,24 +149,89 @@ lockstepPopper received = do
         writeIORef next (i + 1)
         pure (chunk i)
 
--- | Only uploads are supported: consumes the stream like a blob store would.
-fakeUploads ::
-  (Member (Embed IO) r) =>
+-- | The real 'interpretBackupSubsystem'; brig, galley and the store are minimal fakes for one
+-- user with client 'cid' in a team with the feature enabled.
+runSubsystem ::
+  User ->
   TVar Word64 ->
   IORef (Maybe ByteString) ->
-  InterpreterFor BackupSubsystem r
-fakeUploads received stored = interpret $ \case
-  UploadBackup _ _ _ _ len src -> embed $ do
+  Sem
+    '[ BackupSubsystem,
+       BackupStore,
+       BackupBlobStore,
+       BrigAPIAccess,
+       GalleyAPIAccess,
+       Random,
+       Input BackupLimits,
+       Error BackupError,
+       Error BlobUploadError,
+       Embed IO
+     ]
+    a ->
+  IO a
+runSubsystem user received stored =
+  fmap (either (error . show) Imports.id)
+    . runM
+    . runError @BlobUploadError
+    . fmap (either (error . show) Imports.id)
+    . runError @BackupError
+    . runInputConst limits
+    . randomToIO
+    . fakeGalley
+    . fakeBrig user
+    . countingBlobStore received stored
+    . fakeStore
+    . interpretBackupSubsystem
+
+limits :: BackupLimits
+limits =
+  BackupLimits
+    { maxFullBytes = 2 ^ (30 :: Int),
+      maxIncrementalBytes = 0,
+      maxFilesPerEpoch = 1
+    }
+
+-- | Copied from @Wire.MockInterpreters.BackupBlobStore@ (wire-subsystems tests): adds the length
+-- of every consumed chunk to the 'TVar'.
+countingBlobStore ::
+  (Member (Embed IO) r, Member (Error BlobUploadError) r) =>
+  TVar Word64 ->
+  IORef (Maybe ByteString) ->
+  InterpreterFor BackupBlobStore r
+countingBlobStore received stored = interpret $ \case
+  PutBlob _ len src -> do
     let count = awaitForever $ \c -> do
           liftIO . atomically $ modifyTVar' received (+ fromIntegral (BS.length c))
           yield c
-    body <- runConduitRes (src .| count .| foldC)
+    body <- embed $ runConduitRes (src .| count .| foldC)
+    when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
     writeIORef stored (Just body)
-    pure
+  DeleteBlobs _ -> writeIORef stored Nothing
+  SignedDownloadUrl _ -> error "countingBlobStore: unexpected call"
+
+-- | Empty store that accepts every insert.
+fakeStore :: InterpreterFor BackupStore r
+fakeStore = interpret $ \case
+  GetDeviceEpochCounts _ _ -> pure mempty
+  InsertBackupFile _ new ->
+    pure . Right $
       BackupFile
-        { id = BackupFileId UUID.nil,
+        { id = new.id,
           kind = BackupFull,
-          size = len,
+          size = new.size,
           createdAt = toUTCTimeMillis (UTCTime (fromGregorian 2026 1 1) 0)
         }
-  _ -> error "fakeUploads: unsupported operation"
+  _ -> error "fakeStore: unexpected call"
+
+fakeBrig :: User -> InterpreterFor BrigAPIAccess r
+fakeBrig user = interpret $ \case
+  GetUsers _ -> pure [user]
+  LookupClients _ -> pure . UserClients $ Map.singleton (userId user) (Set.singleton cid)
+  _ -> error "fakeBrig: unexpected call"
+
+fakeGalley :: InterpreterFor GalleyAPIAccess r
+fakeGalley = interpret $ \case
+  GetFeatureConfigForTeam _ -> do
+    let feat :: LockableFeature AutomaticBackupsConfig = def {status = FeatureStatusEnabled}
+    pure . fromMaybe (error "fakeGalley: unexpected feature") $ cast feat
+  _ -> error "fakeGalley: unexpected call"

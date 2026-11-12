@@ -372,12 +372,16 @@ test-suite cargohold-tests
     , cargohold
     , cargohold-types
     , conduit
+    , containers
+    , data-default
     , extended
     , http-client
     , http-types
     , imports
     , mime                   >=0.4
     , polysemy
+    , polysemy-wire-zoo
+    , QuickCheck
     , servant-server
     , stm
     , tasty                  >=1.0
@@ -389,7 +393,6 @@ test-suite cargohold-tests
     , unix
     , unliftio
     , uri-bytestring         >=0.2
-    , uuid
     , warp
     , wire-api
     , wire-subsystems

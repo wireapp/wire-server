@@ -190,12 +190,16 @@ mkDerivation {
     bytestring-conversion
     cargohold-types
     conduit
+    containers
+    data-default
     extended
     http-client
     http-types
     imports
     mime
     polysemy
+    polysemy-wire-zoo
+    QuickCheck
     servant-server
     stm
     tasty
@@ -207,7 +211,6 @@ mkDerivation {
     unix
     unliftio
     uri-bytestring
-    uuid
     warp
     wire-api
     wire-subsystems
