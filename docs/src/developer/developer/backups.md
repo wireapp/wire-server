@@ -13,6 +13,8 @@ applied by brig.
 
 ## API (public, via nginz `/backups`)
 
+Available from API version V19 (prefix `/v19/backups`).
+
 All paths are under `/backups/clients/{cid}/epochs`:
 
 - `GET /` list epochs with files.
@@ -56,6 +58,15 @@ Failure of the cargohold call propagates, i.e. the client removal fails.
 - Client removal deletes the client row first, then the backups. If the
   cargohold call fails after the row deletion, a retry hits `ClientNotFound`
   and that client's backups can be orphaned. This is inherent to the ordering.
+- Client removal (`DELETE /clients/:cid`, and eviction of an old client when
+  `POST /clients` adds one) and account deletion now synchronously call
+  cargohold. If cargohold or Postgres is unavailable these fail with 5xx.
+  After a failed removal the client row may already be gone, so a retry sees
+  `ClientNotFound` and that client's backups may be orphaned. Follow-up:
+  best-effort deletion plus a sweep.
+- Bot accounts are deleted without backup cleanup (`deleteBot` in
+  `Brig.Provider.API` only calls `ClientStore.delete`). Bots are assumed unable
+  to upload (no team feature); not verified in code.
 
 ## Timeouts
 
