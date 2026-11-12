@@ -427,10 +427,20 @@ listVersions prefix = go Nothing Nothing
                      | m <- fold (r ^. listObjectVersionsResponse_deleteMarkers),
                        k <- toList (m ^. deleteMarkerEntry_key)
                      ]
-              nextKey = r ^. listObjectVersionsResponse_nextKeyMarker
-          if r ^. listObjectVersionsResponse_isTruncated == Just True && isJust nextKey
-            then fmap (entries <>) <$> go nextKey (r ^. listObjectVersionsResponse_nextVersionIdMarker)
-            else pure (Right entries)
+              markers =
+                (,)
+                  <$> r ^. listObjectVersionsResponse_nextKeyMarker
+                  <*> r ^. listObjectVersionsResponse_nextVersionIdMarker
+          case (r ^. listObjectVersionsResponse_isTruncated, markers) of
+            (Just True, Just (k, v)) -> fmap (entries <>) <$> go (Just k) (Just v)
+            (Just True, Nothing) -> do
+              -- Stopping here would leave versions behind.
+              Log.err $
+                "remote" .= val "S3"
+                  ~~ "prefix" .= prefix
+                  ~~ msg (val "ListObjectVersions truncated without next markers")
+              throwE serverError
+            _ -> pure (Right entries)
 
 -- | One @DeleteObjects@ request (at most 1000 objects), fails on any per-object error.
 deleteObjects :: [(Text, Maybe ObjectVersionId)] -> Handler ()
