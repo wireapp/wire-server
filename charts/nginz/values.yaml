@@ -176,6 +176,11 @@ nginx_conf:
       - all
       max_body_size: "0"
       disable_request_buffering: true
+    - path: /backups
+      envs:
+      - all
+      max_body_size: 1024m
+      disable_request_buffering: true
     - path: /bot/assets
       envs:
       - all
