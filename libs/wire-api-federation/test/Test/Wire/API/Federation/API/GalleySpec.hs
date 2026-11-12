@@ -43,6 +43,8 @@ spec = describe "Wire.API.Federation.API.Galley" $ do
     let timestamp = toUTCTimeMillis (read "2026-11-11 10:54:51.693 UTC")
         legacySuccess = MLSMessageResponseUpdates []
         timedSuccess = MLSMessageResponseV5Success (MLSMessageSendSuccess [] timestamp)
+        timedSuccessJSON =
+          [r|{"tag":"MLSMessageResponseV5Success","contents":{"updates":[],"time":"2026-11-11T10:54:51.693Z"}}|]
 
     it "keeps the V0-V4 success format unchanged" $ do
       toJSON legacySuccess
@@ -56,6 +58,12 @@ spec = describe "Wire.API.Federation.API.Galley" $ do
 
     it "preserves the required V5 timestamp" $ do
       eitherDecode (encode timedSuccess) `shouldBe` Right timedSuccess
+
+    it "encodes the expected V5 success JSON structure" $ do
+      eitherDecode @Value (encode timedSuccess) `shouldBe` eitherDecode @Value timedSuccessJSON
+
+    it "decodes an explicit V5 success JSON response" $ do
+      eitherDecode timedSuccessJSON `shouldBe` Right timedSuccess
 
     it "round-trips legacy errors" $ do
       let response = MLSMessageResponseProtocolError "invalid message"
