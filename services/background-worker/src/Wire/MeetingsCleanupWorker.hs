@@ -112,13 +112,12 @@ runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
     -- the real interpreter keeps cleanup on the same configured licence
     -- payload as galley (missingLicense is still served when the payload is
     -- unset or unparseable).
-    $ runLicense
+    . runLicense
       (Licensing.Domain (domainText env.federationDomain))
       env.license
-      ( interpretMeetingsSubsystem
-          MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
-          (Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize)
-      )
+    . interpretMeetingsSubsystem
+      MeetingSystemConfig {legacyTimeZone = defaultLegacyTimeZone, validityPeriod, pastEditPeriod = 0}
+    $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
 
 data WorkerException = WorkerException Text
   deriving stock (Show)
