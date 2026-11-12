@@ -24,6 +24,7 @@ import Wire.MockInterpreters.ActivationCodeStore as MockInterpreters
 import Wire.MockInterpreters.AppStore as MockInterpreters
 import Wire.MockInterpreters.AuthenticationSubsystem as MockInterpreters
 import Wire.MockInterpreters.BackgroundJobPublisher as MockInterpreters
+import Wire.MockInterpreters.BackupBlobStore as MockInterpreters
 import Wire.MockInterpreters.BackupStore as MockInterpreters
 import Wire.MockInterpreters.BlockListStore as MockInterpreters
 import Wire.MockInterpreters.ClientStore as MockInterpreters
