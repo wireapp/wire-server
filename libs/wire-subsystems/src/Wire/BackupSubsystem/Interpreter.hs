@@ -19,6 +19,7 @@ module Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem) where
 
 import Conduit (ConduitT, ResourceT)
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
@@ -31,20 +32,23 @@ import Wire.API.Team.Feature
 import Wire.API.User (User (userTeam))
 import Wire.API.User.Client (UserClients (..))
 import Wire.BackupBlobStore
-import Wire.BackupStore
+import Wire.BackupBlobStore.Key
 import Wire.BackupSubsystem
 import Wire.BackupSubsystem.Rules
+import Wire.BackupSubsystem.UUIDv7
 import Wire.BrigAPIAccess
 import Wire.GalleyAPIAccess
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 
 interpretBackupSubsystem ::
-  ( Member BackupStore r,
-    Member BackupBlobStore r,
+  ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
     Member GalleyAPIAccess r,
     Member Random r,
+    Member Now r,
     Member (Input BackupLimits) r,
     Member (Error BackupError) r,
     Member (Error BlobUploadError) r
@@ -54,43 +58,54 @@ interpretBackupSubsystem = interpret $ \case
   ListEpochs luid zcid cid -> do
     let uid = tUnqualified luid
     checkRead uid zcid cid
-    BackupEpochs . Map.keys <$> getDeviceEpochCounts uid cid
+    BackupEpochs . Set.toAscList . Set.fromList <$> listBlobEpochs uid cid
   UploadBackup luid zcid cid e len src -> uploadBackupImpl (tUnqualified luid) zcid cid e len src
   ListFiles luid zcid cid e -> do
     let uid = tUnqualified luid
     checkRead uid zcid cid
-    files <- listBackupFiles uid cid e
-    when (null files) $ throw BackupErrNotFound
-    pure (BackupFiles files)
-  DownloadUrl luid zcid cid e fid -> do
+    blobs <- listBlobs uid cid e
+    when (null blobs) $ throw BackupErrNotFound
+    pure . BackupFiles . map toFile $ sortOn (\b -> (b.kind, b.fileId)) blobs
+  DownloadUrl luid zcid cid e kind fid -> do
     let uid = tUnqualified luid
+        l = BackupLocation {user = uid, client = cid, epoch = e, kind, fileId = fid}
     checkRead uid zcid cid
-    _ <- lookupBackupFile uid cid e fid >>= note BackupErrNotFound
-    signedDownloadUrl fid
+    unlessM (blobExists l) $ throw BackupErrNotFound
+    signedDownloadUrl l
   DeleteEpochBackups luid zcid cid e -> do
     let uid = tUnqualified luid
     checkWrite uid zcid cid
-    deleteEpochRows uid cid e >>= deleteBlobs
+    deleteBlobs (EpochPrefix uid cid e)
   DeleteClientBackups luid zcid cid -> do
     let uid = tUnqualified luid
     checkWrite uid zcid cid
-    deleteClientRows uid cid >>= deleteBlobs
-  InternalDeleteClientBackups uid cid -> deleteClientRows uid cid >>= deleteBlobs
-  InternalDeleteUserBackups uid -> deleteUserRows uid >>= deleteBlobs
+    deleteBlobs (ClientPrefix uid cid)
+  InternalDeleteClientBackups uid cid -> deleteBlobs (ClientPrefix uid cid)
+  InternalDeleteUserBackups uid -> deleteBlobs (UserPrefix uid)
 
--- | Upload order matters, because brig deletes a client's backups when the client is removed
--- (see the Haddock at @execDelete@ in "Wire.ClientSubsystem.Interpreter"). If that removal
--- happens while we stream, its delete finds no row yet. So the row is inserted first and the
--- client is looked up again afterwards: if it is gone, we roll back row and blob ourselves.
--- Either the removal sees our row, or we see the removal; no backup outlives its client.
--- This assumes brig client reads are consistent with its writes. Any error after the blob
--- was written rolls back blob (and row, once inserted) via 'rollingBack'.
+toFile :: BackupBlob -> BackupFile
+toFile b =
+  BackupFile
+    { id = b.fileId,
+      kind = b.kind,
+      size = b.size,
+      createdAt = toUTCTimeMillis (uuidV7Time b.fileId.unBackupFileId)
+    }
+
+-- | Upload one backup file.
+--
+-- Ordering invariant: PUT the object first, /then/ ask brig whether the client still exists;
+-- if not, delete exactly that version and fail. Brig deletes the client before deleting its
+-- backups (see 'Wire.ClientSubsystem.Interpreter.execDelete'), so either brig's prefix
+-- deletion lists the object, or this re-check sees the client gone. No orphan either way.
+-- This assumes brig client reads are consistent with its writes and the store has strong
+-- list-after-write consistency.
 uploadBackupImpl ::
-  ( Member BackupStore r,
-    Member BackupBlobStore r,
+  ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
     Member GalleyAPIAccess r,
     Member Random r,
+    Member Now r,
     Member (Input BackupLimits) r,
     Member (Error BackupError) r,
     Member (Error BlobUploadError) r
@@ -108,19 +123,19 @@ uploadBackupImpl uid zcid cid e len src = do
   feat <- getFeatureConfigForTeam @_ @AutomaticBackupsConfig tid
   unless (feat.status == FeatureStatusEnabled) $ throw BackupErrFeatureDisabled
   limits <- input
-  counts <- getDeviceEpochCounts uid cid
-  either (throw . rejectionError) (const (pure ())) (checkUpload limits counts e len)
-  fid <- BackupFileId <$> Random.uuid
-  putBlob fid len src `catch` \BlobLengthMismatch -> do
-    deleteBlobs [fid]
-    throw BackupErrIncompleteBody
-  let new = NewBackupFile {id = fid, user = uid, client = cid, epoch = e, size = len}
-  rollingBack (deleteBlobs [fid]) $ do
-    file <- insertBackupFile limits new >>= either (throw . rejectionError) pure
-    rollingBack (deleteBackupFileRow fid) $ do
-      stillThere <- Set.member cid <$> clientsOf uid
-      unless stillThere $ throw BackupErrForbidden
-    pure file
+  epochs <- Set.fromList <$> listBlobEpochs uid cid
+  n <- fromIntegral . length <$> listBlobs uid cid e
+  kind <- either (throw . rejectionError) pure (checkUpload limits epochs n e len)
+  fid <- BackupFileId <$> (uuidV7 <$> Now.get <*> Random.uuid)
+  let l = BackupLocation {user = uid, client = cid, epoch = e, kind, fileId = fid}
+  version <-
+    putBlob l len src `catch` \BlobLengthMismatch -> do
+      deleteBlob l
+      throw BackupErrIncompleteBody
+  rollingBack (deleteBlobVersion l version) $ do
+    stillThere <- Set.member cid <$> clientsOf uid
+    unless stillThere $ throw BackupErrForbidden
+  pure (toFile BackupBlob {kind, fileId = fid, size = len})
 
 -- | Runs the cleanup if the action fails with a 'BackupError' or 'BlobUploadError', then
 -- rethrows the original error. A failing cleanup does not mask it. Exceptions outside the

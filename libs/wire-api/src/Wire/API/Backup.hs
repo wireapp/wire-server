@@ -25,6 +25,7 @@ module Wire.API.Backup
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (uuidSchema)
 import Data.Json.Util (UTCTimeMillis)
@@ -74,6 +75,21 @@ instance ToSchema BackupKind where
         [ element "full" BackupFull,
           element "incremental" BackupIncremental
         ]
+
+instance ToHttpApiData BackupKind where
+  toUrlPiece BackupFull = "full"
+  toUrlPiece BackupIncremental = "incremental"
+
+instance FromHttpApiData BackupKind where
+  parseUrlPiece "full" = Right BackupFull
+  parseUrlPiece "incremental" = Right BackupIncremental
+  parseUrlPiece _ = Left "backup kind must be full or incremental"
+
+instance S.ToParamSchema BackupKind where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_ ?~ ["full", "incremental"]
 
 data BackupFile = BackupFile
   { id :: BackupFileId,

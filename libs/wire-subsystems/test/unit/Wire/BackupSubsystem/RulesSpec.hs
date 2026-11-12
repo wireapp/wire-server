@@ -17,8 +17,7 @@
 
 module Wire.BackupSubsystem.RulesSpec (spec) where
 
-import Data.Bifunctor (first)
-import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -33,11 +32,14 @@ limits =
       maxFilesPerEpoch = 3650
     }
 
-counts :: [(Word32, Word32)] -> Map BackupEpoch Word32
-counts = Map.fromList . map (first BackupEpoch)
-
+-- | @check [(epoch, files)] target size@
 check :: [(Word32, Word32)] -> Word32 -> Word64 -> Either UploadRejection BackupKind
-check m e = checkUpload limits (counts m) (BackupEpoch e)
+check m e =
+  checkUpload
+    limits
+    (Set.fromList (map (BackupEpoch . fst) m))
+    (fromMaybe 0 (lookup e m))
+    (BackupEpoch e)
 
 spec :: Spec
 spec = describe "Rules.checkUpload" $ do

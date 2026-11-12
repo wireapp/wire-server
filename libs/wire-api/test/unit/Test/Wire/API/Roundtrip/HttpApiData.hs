@@ -23,6 +23,7 @@ import Servant.API
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
+import Wire.API.Backup qualified
 import Wire.API.Routes.Version qualified
 import Wire.API.User qualified
 import Wire.API.User.Search qualified
@@ -37,7 +38,10 @@ tests =
       testRoundTrip @Wire.API.User.Search.EmailVerificationFilter,
       testRoundTrip @Wire.API.Routes.Version.Version,
       testRoundTrip @Wire.API.Routes.Version.VersionNumber,
-      testRoundTrip @Data.Id.TOTPCredentialId
+      testRoundTrip @Data.Id.TOTPCredentialId,
+      testRoundTrip @Wire.API.Backup.BackupKind,
+      testProperty "BackupKind url pieces" $
+        map toUrlPiece [minBound .. maxBound :: Wire.API.Backup.BackupKind] === ["full", "incremental"]
     ]
 
 testRoundTrip ::
