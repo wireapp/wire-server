@@ -28,8 +28,9 @@ import Wire.API.Routes.Public.Cargohold.Backup (BackupAPI)
 import Wire.BackupSubsystem
 
 -- | 'backup-download' never answers 'Nothing': a missing file is thrown as 'BackupErrNotFound'
--- like in @assets-download@. The list routes never throw 'BackupErrForbidden' or
--- 'BackupErrFeatureDisabled' (the subsystem only checks read access there).
+-- like in @assets-download@. The list routes never throw 'BackupErrForbidden' (the subsystem only
+-- checks read access there), but all routes may throw 'BackupErrFeatureDisabled' when the
+-- backup feature is disabled (no HMAC key configured).
 backupServer :: (Member BackupSubsystem r) => ServerT BackupAPI (Sem r)
 backupServer =
   Named @"backup-list-epochs" listEpochs

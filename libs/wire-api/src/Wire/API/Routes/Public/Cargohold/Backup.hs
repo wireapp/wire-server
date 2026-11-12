@@ -59,6 +59,7 @@ type BackupAPI =
     ( Summary "List the epochs that have backup files for a client"
         :> From 'V19
         :> CanThrow 'BackupNotFound
+        :> CanThrow 'BackupFeatureDisabled
         :> ZLocalUser
         :> ZClient
         :> "backups"
@@ -96,6 +97,7 @@ type BackupAPI =
                :> From 'V19
                :> Description DownloadLinkDescription
                :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupFeatureDisabled
                :> ZLocalUser
                :> ZClient
                :> "backups"
@@ -111,6 +113,7 @@ type BackupAPI =
                :> From 'V19
                :> Description DownloadLinkDescription
                :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupFeatureDisabled
                :> ZLocalUser
                :> ZClient
                :> "backups"

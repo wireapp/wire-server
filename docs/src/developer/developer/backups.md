@@ -33,8 +33,8 @@ Limits (`cargohold.settings.backupLimits`): first file of an epoch up to
 
 ### Why list + per-file redirect
 
-Presigned URLs are bearer links with a short TTL. Listing returns file ids
-only; each download asks for its own redirect, so URLs are minted when needed
+Presigned URLs are bearer links with a short TTL. Listing returns id, kind,
+size and createdAt (no URLs); each download asks for its own redirect, so URLs are minted when needed
 and expire quickly. Nothing is pre-signed in bulk.
 
 ## Storage layout
