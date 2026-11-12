@@ -97,7 +97,6 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamStore
@@ -237,8 +236,6 @@ miscAPI =
     <@> mkNamedAPI @"test-get-clients" (\uid -> clientIds uid <$> getClients [uid])
     <@> mkNamedAPI @"test-add-client" createClient
     <@> mkNamedAPI @"remove-client" removeClient
-    <@> mkNamedAPI @"add-service" createService
-    <@> mkNamedAPI @"delete-service" deleteService
     <@> mkNamedAPI @"i-add-bot" addBot
     <@> mkNamedAPI @"delete-bot" rmBot
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend

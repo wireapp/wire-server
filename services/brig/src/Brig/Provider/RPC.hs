@@ -21,8 +21,6 @@ module Brig.Provider.RPC
     ServiceError (..),
     createBot,
     -- Internal RPC
-    setServiceConn,
-    removeServiceConn,
     addBotMember,
     removeBotMember,
   )
@@ -34,7 +32,7 @@ import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.RPC
 import Control.Error
-import Control.Lens (set, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Catch
 import Control.Retry (recovering)
 import Data.Aeson
@@ -51,8 +49,6 @@ import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import URI.ByteString
 import Wire.API.Bot qualified as Galley
-import Wire.API.Bot.Service (serviceEnabled)
-import Wire.API.Bot.Service qualified as Galley
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Provider (httpsUrl)
 import Wire.API.Provider.External
@@ -136,57 +132,6 @@ extLogError scon e =
 
 --------------------------------------------------------------------------------
 -- Internal RPC
-
--- | Set service connection information in galley.
-setServiceConn :: ServiceConn -> AppT r ()
-setServiceConn scon = do
-  Log.debug $
-    remote "galley"
-      . field "provider" (toByteString pid)
-      . field "service" (toByteString sid)
-      . msg (val "Setting service connection")
-  void $ wrapHttp $ galleyRequest POST req
-  where
-    pid = sconProvider scon
-    sid = sconService scon
-    ref = Galley.newServiceRef sid pid
-    url = sconBaseUrl scon
-    tok = NonEmpty.head (sconAuthTokens scon)
-    fps = toList (sconFingerprints scon)
-    req =
-      path "/i/services"
-        . contentJson
-        . lbytes (encode svc)
-        . expect2xx
-    svc =
-      Galley.newService ref url tok fps
-        & set serviceEnabled (sconEnabled scon)
-
--- | Remove service connection information from galley.
-removeServiceConn ::
-  ( MonadReader Env m,
-    MonadUnliftIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
-  ) =>
-  ProviderId ->
-  ServiceId ->
-  m ()
-removeServiceConn pid sid = do
-  Log.debug $
-    remote "galley"
-      . field "provider" (toByteString pid)
-      . field "service" (toByteString sid)
-      . msg (val "Removing service connection")
-  void $ galleyRequest DELETE req
-  where
-    req =
-      path "/i/services"
-        . contentJson
-        . lbytes (encode (Galley.newServiceRef sid pid))
-        . expect2xx
 
 -- | Tell galley to add a service bot as a member to a conversation.
 addBotMember ::
