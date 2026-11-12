@@ -1087,7 +1087,12 @@ testMeetingLinkRefresh = withLicensedBackend $ \dom -> do
 -- domain, injects it into galley's config (@settings.license@), and starts
 -- the backend. No process-global state, so no locking is needed.
 withLicensedBackend :: (HasCallStack) => (String -> App a) -> App a
-withLicensedBackend k = do
+withLicensedBackend k = withLicensedBackendR (\_ dom -> k dom)
+
+-- | As 'withLicensedBackend', but also exposes the backend resource (e.g. for
+-- 'Testlib.PG.execSql', which needs the backend's Postgres dbname).
+withLicensedBackendR :: (HasCallStack) => (BackendResource -> String -> App a) -> App a
+withLicensedBackendR k = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let dom = backend.berDomain
@@ -1097,7 +1102,7 @@ withLicensedBackend k = do
           def
             { galleyCfg = setField "settings.license" (Text.strip (Text.pack token))
             }
-    runCodensity (startDynamicBackend backend overrides) $ \_ -> k dom
+    runCodensity (startDynamicBackend backend overrides) $ \_ -> k backend dom
 
 -- | Extract the (key, code) query parameters from a meeting join link URL
 -- (@…/meeting-join/?key=\<key\>&code=\<code\>&domain=…@). The URL contains
