@@ -1468,9 +1468,30 @@ provides a lot of useful information.
 
 ### Backups
 
-Cargohold stores backup metadata in Postgres; configure `postgresql`,
-`postgresqlPool` and `secrets.pgPassword` as described in "Configure PostgreSQL"
-below. Limits:
+Cargohold stores backups in S3 only (no database). Backups need a secret used
+to HMAC user and client ids in S3 keys. It is optional: without it, backups are
+not configured (upload and read routes return 403 `backup-feature-disabled`,
+deletes are no-ops).
+
+```yaml
+# Helm
+cargohold:
+  secrets:
+    backupHmacKey: <random-secret> # at least 32 bytes
+```
+
+```yaml
+# cargohold.yaml
+backupHmacKey: /path/to/backup-hmac-key # file; at least 32 bytes
+```
+
+If set but shorter than 32 bytes or unreadable, cargohold refuses to start.
+**Never change or lose this secret**: rotation makes all existing backups
+unreachable and undeletable via the API.
+
+The S3 store must provide strong list-after-write consistency (e.g. AWS S3,
+Cloudflare R2, MinIO, Garage); see `developer/backups.md` for the table and
+versioned bucket handling. Limits:
 
 ```yaml
 settings:
