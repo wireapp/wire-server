@@ -32,9 +32,11 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
+import UnliftIO.Exception (tryAny)
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.BackupBlobStore
 import Wire.BackupBlobStore.Key
@@ -71,7 +73,9 @@ type BackupEffects =
      Error ClientError,
      TinyLog,
      Error Wai.Error,
-     Embed IO
+     Resource,
+     Embed IO,
+     Final IO
    ]
 
 -- | Without @backupHmacKey@ the subsystem is disabled and S3 is never touched.
@@ -85,7 +89,9 @@ runBackupEffects action = do
         Nothing -> interpretBackupSubsystemDisabled
   result <-
     liftIO
-      . runM
+      . runFinal
+      . embedToFinal @IO
+      . resourceToIOFinal
       . runError @Wai.Error
       . loggerToTinyLog env.appLogger
       . internalError @ClientError
@@ -115,6 +121,7 @@ internalError =
 
 interpretBackupBlobStoreToS3 ::
   ( Member (Embed IO) r,
+    Member TinyLog r,
     Member (Error BlobUploadError) r,
     Member (Error Wai.Error) r
   ) =>
@@ -137,5 +144,17 @@ interpretBackupBlobStoreToS3 env k = interpret $ \case
   DeleteBlobs p -> runHandlerSem (S3.deleteAllVersions (renderPrefix k p) (const True))
   where
     objectKey = S3.S3AssetKey . renderKey k
-    runHandlerSem :: (Member (Embed IO) r', Member (Error Wai.Error) r') => Handler x -> Sem r' x
-    runHandlerSem h = embed (runAppT env (runExceptT h)) >>= fromEither
+    -- Exceptions become 'Wai.Error's: 'Resource' discards a failing rollback only if it fails
+    -- via 'Error', an exception would mask the original failure.
+    runHandlerSem ::
+      (Member (Embed IO) r', Member TinyLog r', Member (Error Wai.Error) r') =>
+      Handler x ->
+      Sem r' x
+    runHandlerSem h =
+      embed (tryAny (runAppT env (runExceptT h))) >>= \case
+        Right res -> fromEither res
+        Left ex -> case Imports.fromException ex of
+          Just (waiErr :: Wai.Error) -> throw waiErr
+          Nothing -> do
+            P.err (Log.msg ("S3 backup operation failed: " <> displayException ex))
+            throw serverError

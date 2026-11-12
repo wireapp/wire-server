@@ -37,6 +37,7 @@ import Network.Wai.Handler.Warp (testWithApplication)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, runResource)
 import Servant (Context (..), serveWithContext)
 import System.Timeout (timeout)
 import Test.QuickCheck (arbitrary, generate)
@@ -163,6 +164,7 @@ runSubsystem ::
        Input BackupLimits,
        Error BackupError,
        Error BlobUploadError,
+       Resource,
        Embed IO
      ]
     a ->
@@ -170,6 +172,7 @@ runSubsystem ::
 runSubsystem user received stored =
   fmap (either (error . show) Imports.id)
     . runM
+    . runResource
     . runError @BlobUploadError
     . fmap (either (error . show) Imports.id)
     . runError @BackupError

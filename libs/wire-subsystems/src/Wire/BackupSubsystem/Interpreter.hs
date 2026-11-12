@@ -27,6 +27,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, onException)
 import Wire.API.Backup
 import Wire.API.Team.Feature
 import Wire.API.User (User (userTeam))
@@ -51,7 +52,8 @@ interpretBackupSubsystem ::
     Member Now r,
     Member (Input BackupLimits) r,
     Member (Error BackupError) r,
-    Member (Error BlobUploadError) r
+    Member (Error BlobUploadError) r,
+    Member Resource r
   ) =>
   InterpreterFor BackupSubsystem r
 interpretBackupSubsystem = interpret $ \case
@@ -108,7 +110,8 @@ uploadBackupImpl ::
     Member Now r,
     Member (Input BackupLimits) r,
     Member (Error BackupError) r,
-    Member (Error BlobUploadError) r
+    Member (Error BlobUploadError) r,
+    Member Resource r
   ) =>
   UserId ->
   ClientId ->
@@ -132,25 +135,14 @@ uploadBackupImpl uid zcid cid e len src = do
     putBlob l len src `catch` \BlobLengthMismatch -> do
       deleteBlob l
       throw BackupErrIncompleteBody
-  rollingBack (deleteBlobVersion l version) $ do
-    stillThere <- Set.member cid <$> clientsOf uid
-    unless stillThere $ throw BackupErrForbidden
+  -- 'onException': rolled back on /any/ failure (every 'Error' effect interpreted before
+  -- 'Resource', and exceptions), the original failure is surfaced. A failing rollback is
+  -- discarded by the 'Resource' interpreter, so it never masks the original failure.
+  let recheck = do
+        stillThere <- Set.member cid <$> clientsOf uid
+        unless stillThere $ throw BackupErrForbidden
+  recheck `onException` deleteBlobVersion l version
   pure (toFile BackupBlob {kind, fileId = fid, size = len})
-
--- | Runs the cleanup if the action fails with a 'BackupError' or 'BlobUploadError', then
--- rethrows the original error. A failing cleanup does not mask it. Exceptions outside the
--- 'Error' effects are not caught.
-rollingBack ::
-  forall r a.
-  (Member (Error BackupError) r, Member (Error BlobUploadError) r) =>
-  Sem r () ->
-  Sem r a ->
-  Sem r a
-rollingBack cleanup act =
-  act `catch` rethrow @BackupError `catch` rethrow @BlobUploadError
-  where
-    rethrow :: forall e. (Member (Error e) r) => e -> Sem r a
-    rethrow err = void (try @BackupError (try @BlobUploadError cleanup)) >> throw err
 
 rejectionError :: UploadRejection -> BackupError
 rejectionError = \case

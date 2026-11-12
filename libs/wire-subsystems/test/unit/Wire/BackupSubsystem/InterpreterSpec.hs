@@ -21,6 +21,7 @@ import Conduit (yield)
 import Data.ByteString qualified as BS
 import Data.Default (def)
 import Data.Domain
+import Data.Function qualified as Function
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.Map qualified as Map
@@ -33,6 +34,7 @@ import Imports hiding (id)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, runResource)
 import Polysemy.State
 import System.Timeout (timeout)
 import Test.Hspec
@@ -61,9 +63,15 @@ data World = World
     lookups :: Int,
     -- | The next 'ListBlobs' returns nothing, simulating a concurrent upload.
     emptyListingOnce :: Bool,
-    -- | 'LookupClients' calls from this one on (1-based) throw 'BackupErrTooManyFiles'.
-    failLookupFrom :: Maybe Int
+    -- | 'LookupClients' calls from this one on (1-based) throw 'BrigDown'.
+    failLookupFrom :: Maybe Int,
+    -- | 'DeleteBlobVersion' throws 'StoreDown'.
+    failDeleteVersion :: Bool
   }
+
+-- | Failures of brig and the store other than 'BackupError', like RPC errors in cargohold.
+data MockFailure = BrigDown | StoreDown
+  deriving (Eq, Show)
 
 type Effs =
   '[ BackupSubsystem,
@@ -74,10 +82,12 @@ type Effs =
      Random,
      Now,
      Error BackupError,
+     Error MockFailure,
+     Error BlobUploadError,
+     Resource,
      State World,
      State UTCTime,
      State BlobVersions,
-     Error BlobUploadError,
      Embed IO
    ]
 
@@ -122,7 +132,8 @@ world0 =
       dropA1From = Nothing,
       lookups = 0,
       emptyListingOnce = False,
-      failLookupFrom = Nothing
+      failLookupFrom = Nothing,
+      failDeleteVersion = False
     }
 
 runBackup ::
@@ -130,30 +141,45 @@ runBackup ::
   Maybe (TVar Word64) ->
   Sem Effs a ->
   IO (BlobVersions, Either BackupError a)
-runBackup w counter prog = do
-  base <- generate arbitrary
-  res <-
-    runM
-      . runError @BlobUploadError
-      . runState mempty
-      . evalState t0
-      . evalState w
-      . runError @BackupError
-      . interpretNowAsState
-      . runRandomPure
-      . runInputConst limits
-      . mockGalley
-      . mockBrig base
-      . ( \p -> case counter of
-            Nothing -> inMemoryBackupBlobStoreInterpreter p
-            Just t -> countingBackupBlobStoreInterpreter t p
-        )
-      . emptyListingWhenAsked
-      . interpretBackupSubsystem
-      $ prog
-  either (error . show) pure res
+runBackup w counter prog =
+  fmap (either (error . show) Function.id) <$> runBackupWithFailures w counter prog
 
-emptyListingWhenAsked :: (Member BackupBlobStore r, Member (State World) r) => Sem r a -> Sem r a
+-- | Like 'runBackup', but returns 'MockFailure's.
+runBackupWithFailures ::
+  World ->
+  Maybe (TVar Word64) ->
+  Sem Effs a ->
+  IO (BlobVersions, Either MockFailure (Either BackupError a))
+runBackupWithFailures w counter prog = do
+  base <- generate arbitrary
+  fmap (either (error . show) Function.id)
+    <$> ( runM
+            . runState mempty
+            . evalState t0
+            . evalState w
+            . runResource
+            . runError @BlobUploadError
+            . runError @MockFailure
+            . runError @BackupError
+            . interpretNowAsState
+            . runRandomPure
+            . runInputConst limits
+            . mockGalley
+            . mockBrig base
+            . ( \p -> case counter of
+                  Nothing -> inMemoryBackupBlobStoreInterpreter p
+                  Just t -> countingBackupBlobStoreInterpreter t p
+              )
+            . emptyListingWhenAsked
+            . interpretBackupSubsystem
+            $ prog
+        )
+
+-- | Also fails 'DeleteBlobVersion' if asked.
+emptyListingWhenAsked ::
+  (Member BackupBlobStore r, Member (State World) r, Member (Error MockFailure) r) =>
+  Sem r a ->
+  Sem r a
 emptyListingWhenAsked = intercept $ \case
   ListBlobs u c e -> do
     hide <- gets (.emptyListingOnce)
@@ -163,18 +189,20 @@ emptyListingWhenAsked = intercept $ \case
   BlobExists l -> blobExists l
   SignedDownloadUrl l -> signedDownloadUrl l
   ListBlobEpochs u c -> listBlobEpochs u c
-  DeleteBlobVersion l v -> deleteBlobVersion l v
+  DeleteBlobVersion l v -> do
+    whenM (gets (.failDeleteVersion)) $ throw StoreDown
+    deleteBlobVersion l v
   DeleteBlob l -> deleteBlob l
   DeleteBlobs p -> deleteBlobs p
 
-mockBrig :: (Member (State World) r, Member (Error BackupError) r) => User -> InterpreterFor BrigAPIAccess r
+mockBrig :: (Member (State World) r, Member (Error MockFailure) r) => User -> InterpreterFor BrigAPIAccess r
 mockBrig base = interpret $ \case
   GetUsers uids ->
     pure [base {userTeam = if u == uC then Nothing else Just teamT} | u <- uids]
   LookupClients uids -> do
     modify (\w -> w {lookups = w.lookups + 1})
     w <- get
-    when (maybe False (w.lookups >=) w.failLookupFrom) $ throw BackupErrTooManyFiles
+    when (maybe False (w.lookups >=) w.failLookupFrom) $ throw BrigDown
     let drop' = maybe False (w.lookups >=) w.dropA1From
         cs = if drop' then Map.adjust (Set.delete a1) uA w.clients else w.clients
     pure . UserClients $ Map.restrictKeys cs (Set.fromList uids)
@@ -360,10 +388,21 @@ spec = describe "BackupSubsystem" $ do
     void res `shouldBe` Left BackupErrForbidden
     blobs `shouldBe` mempty
 
-  it "failing client re-check rolls back" $ do
-    (blobs, res) <- runBackup world0 {failLookupFrom = Just 2} Nothing $ upload uA a1 a1 1 "x"
-    void res `shouldBe` Left BackupErrTooManyFiles
+  it "failing client re-check (non-BackupError) rolls back, original error surfaced" $ do
+    (blobs, res) <- runBackupWithFailures world0 {failLookupFrom = Just 2} Nothing $ upload uA a1 a1 1 "x"
+    void <$> res `shouldBe` Left BrigDown
     blobs `shouldBe` mempty
+
+  it "failing rollback does not mask the original error" $ do
+    let w = world0 {failLookupFrom = Just 2, failDeleteVersion = True}
+    (blobs, res) <- runBackupWithFailures w Nothing $ upload uA a1 a1 1 "x"
+    void <$> res `shouldBe` Left BrigDown
+    Map.size blobs `shouldBe` 1
+
+  it "failing rollback after client gone surfaces forbidden" $ do
+    let w = world0 {dropA1From = Just 2, failDeleteVersion = True}
+    (_, res) <- runBackupWithFailures w Nothing $ upload uA a1 a1 1 "x"
+    void <$> res `shouldBe` Right (Left BackupErrForbidden)
 
   it "incomplete body leaves no version" $ do
     (blobs, res) <-
