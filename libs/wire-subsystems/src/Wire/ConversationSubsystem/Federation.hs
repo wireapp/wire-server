@@ -836,10 +836,14 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors MLSMessageRespo
       when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
       foldQualified
         loc
-        (fmap (MLSMessageResponseV5Success . MLSMessageSendSuccess [])
-        . validateAndPropagateTransientTargetedMessages
-            (tUntagged sender) req.senderClient ctype groupId
-            batch.transientMessages)
+        ( fmap (MLSMessageResponseV5Success . MLSMessageSendSuccess [])
+            . validateAndPropagateTransientTargetedMessages
+              (tUntagged sender)
+              req.senderClient
+              ctype
+              groupId
+              batch.transientMessages
+        )
         (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
         qConvOrSub
     (_, Right batch) -> do
@@ -891,10 +895,14 @@ sendMLSTransientMessage remoteDomain req = handleMLSMessageErrors MLSMessageResp
   when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
   foldQualified
     loc
-    (fmap (MLSMessageResponseV5Success . MLSMessageSendSuccess [])
-    . validateAndPropagateTransientMessage
-        (tUntagged sender) req.senderClient ctype aad.groupContext.groupId
-        (RawMLS messageBytes transient))
+    ( fmap (MLSMessageResponseV5Success . MLSMessageSendSuccess [])
+        . validateAndPropagateTransientMessage
+          (tUntagged sender)
+          req.senderClient
+          ctype
+          aad.groupContext.groupId
+          (RawMLS messageBytes transient)
+    )
     (\_ -> throw $ mlsProtocolError "federated transient message was not sent to its conversation backend")
     qConvOrSub
 
