@@ -17,10 +17,13 @@
 
 module Wire.MockInterpreters.BackupBlobStore
   ( inMemoryBackupBlobStoreInterpreter,
+    countingBackupBlobStoreInterpreter,
+    lockstepSource,
   )
 where
 
-import Conduit (runConduitRes, sinkList, (.|))
+import Conduit
+import Control.Concurrent.STM (retry)
 import Data.ByteString qualified as BS
 import Data.Map qualified as Map
 import Data.Text.Encoding qualified as Text
@@ -39,9 +42,31 @@ inMemoryBackupBlobStoreInterpreter ::
     Member (Embed IO) r
   ) =>
   InterpreterFor BackupBlobStore r
-inMemoryBackupBlobStoreInterpreter = interpret $ \case
+inMemoryBackupBlobStoreInterpreter = interpreter (const (pure ()))
+
+-- | Like 'inMemoryBackupBlobStoreInterpreter', but adds the length of every consumed chunk to
+-- the 'TVar' (see 'lockstepSource').
+countingBackupBlobStoreInterpreter ::
+  ( Member (State (Map BackupFileId ByteString)) r,
+    Member (Error BlobUploadError) r,
+    Member (Embed IO) r
+  ) =>
+  TVar Word64 ->
+  InterpreterFor BackupBlobStore r
+countingBackupBlobStoreInterpreter consumed =
+  interpreter (atomically . modifyTVar' consumed . (+) . fromIntegral . BS.length)
+
+interpreter ::
+  ( Member (State (Map BackupFileId ByteString)) r,
+    Member (Error BlobUploadError) r,
+    Member (Embed IO) r
+  ) =>
+  (ByteString -> IO ()) ->
+  InterpreterFor BackupBlobStore r
+interpreter onChunk = interpret $ \case
   PutBlob fid len src -> do
-    body <- BS.concat <$> embed (runConduitRes (src .| sinkList))
+    let counted = awaitForever (\c -> liftIO (onChunk c) >> yield c)
+    body <- BS.concat <$> embed (runConduitRes (src .| counted .| sinkList))
     when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
     modify (Map.insert fid body)
   SignedDownloadUrl fid ->
@@ -50,3 +75,12 @@ inMemoryBackupBlobStoreInterpreter = interpret $ \case
       . Text.encodeUtf8
       $ "https://blob.test/" <> UUID.toText (unBackupFileId fid)
   DeleteBlobs fids -> modify (\m -> foldr Map.delete m fids)
+
+-- | @n@ chunks of @size@ bytes. Yields the next chunk only while at most 64 KiB produced bytes
+-- are not yet consumed (per the 'TVar'), so it blocks forever if the consumer buffers the body.
+lockstepSource :: TVar Word64 -> Int -> Int -> ConduitT () ByteString (ResourceT IO) ()
+lockstepSource consumed n size = for_ [0 .. n - 1] $ \i -> do
+  liftIO . atomically $ do
+    c <- readTVar consumed
+    unless (fromIntegral (i * size) - c <= 64 * 1024) retry
+  yield (BS.replicate size (fromIntegral i))

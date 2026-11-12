@@ -244,6 +244,8 @@ library
     Wire.BackupBlobStore
     Wire.BackupStore
     Wire.BackupStore.Postgres
+    Wire.BackupSubsystem
+    Wire.BackupSubsystem.Interpreter
     Wire.BackupSubsystem.Rules
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
@@ -662,6 +664,7 @@ test-suite wire-subsystems-tests
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BackupStore.MockSpec
+    Wire.BackupSubsystem.InterpreterSpec
     Wire.BackupSubsystem.RulesSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
