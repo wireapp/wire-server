@@ -17,8 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Pure upload rules for automatic backups, shared by the store interpreters (which apply them
--- atomically with the insert) and the subsystem.
+-- | Pure upload rules for automatic backups. The subsystem calls them with the epoch set and file
+-- count taken from S3 listings. Not atomic with the upload; races are tolerated (RFC spec,
+-- "Races (tolerated)").
 module Wire.BackupSubsystem.Rules
   ( BackupLimits (..),
     UploadRejection (..),
@@ -44,8 +45,8 @@ data BackupLimits = BackupLimits
 data UploadRejection = EpochNotAllowed | TooManyFiles | TooLarge
   deriving stock (Eq, Show)
 
--- | Decide whether a file of the given size may be stored at the given epoch, given the file count
--- per stored epoch of the device. Returns the kind of the new file: full iff it is the first file
+-- | Decide whether a file of the given size may be stored at the given epoch, given the stored
+-- epochs and the file count of the target epoch (both from S3 listings). Returns the kind of the new file: full iff it is the first file
 -- of its epoch.
 checkUpload ::
   BackupLimits ->

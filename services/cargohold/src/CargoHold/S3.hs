@@ -378,6 +378,13 @@ listObjectsV2Pages prefix delimiter = go Nothing
             & listObjectsV2_continuationToken .~ token
       case (r ^. listObjectsV2Response_isTruncated, r ^. listObjectsV2Response_nextContinuationToken) of
         (Just True, Just next) -> (r :) <$> go (Just next)
+        (Just True, Nothing) -> do
+          -- Stopping here would undercount or leave orphans.
+          Log.err $
+            "remote" .= val "S3"
+              ~~ "prefix" .= prefix
+              ~~ msg (val "ListObjectsV2 truncated without continuation token")
+          throwE serverError
         _ -> pure [r]
 
 -- | Deletes /all versions/ (and delete markers) of the objects below @prefix@ whose key passes
