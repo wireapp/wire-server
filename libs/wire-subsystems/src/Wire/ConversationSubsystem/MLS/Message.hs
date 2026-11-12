@@ -798,12 +798,19 @@ notifyNewMeetingMembers qUser before after =
           let beforeUsers = Set.fromList (map (.id_) beforeConv.mcLocalMembers)
               afterUsers = Set.fromList (map (.id_) afterConv.mcLocalMembers)
               addedUsers = newLocalMeetingMembers beforeUsers afterUsers
+              removedUsers = newLocalMeetingMembers afterUsers beforeUsers
           unless (null addedUsers) $
             notifyMeetingMembersAdded
               qUser
               (Qualified afterConv.mcId (tDomain after))
               afterConv.mcMetadata.cnvmTeam
               addedUsers
+          unless (null removedUsers) $
+            notifyMeetingMembersRemoved
+              qUser
+              (Qualified afterConv.mcId (tDomain after))
+              afterConv.mcMetadata.cnvmTeam
+              removedUsers
     _ -> pure ()
   where
     isMeetingConv conv =

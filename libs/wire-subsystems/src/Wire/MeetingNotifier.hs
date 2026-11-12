@@ -18,8 +18,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.MeetingNotifier
-  ( MeetingNotifier (NotifyMeetingMembersAdded, NotifyMeetingEvent),
+  ( MeetingNotifier (NotifyMeetingMembersAdded, NotifyMeetingMembersRemoved, NotifyMeetingEvent),
     notifyMeetingMembersAdded,
+    notifyMeetingMembersRemoved,
     notifyMeetingEvent,
   )
 where
@@ -43,6 +44,14 @@ data MeetingNotifier m a where
     Qualified ConvId ->
     Maybe TeamId ->
     [UserId] ->
+    MeetingNotifier m ()
+  -- | Post-commit member-remove hook: notify the users removed by a successful
+  -- membership commit from a meeting conversation. Delivered fire-and-forget.
+  NotifyMeetingMembersRemoved ::
+    Qualified UserId -> -- commit originator (the remover)
+    Qualified ConvId ->
+    Maybe TeamId ->
+    [UserId] -> -- removed users (local domain)
     MeetingNotifier m ()
   -- | Create/update/delete lifecycle event. Delivered synchronously.
   NotifyMeetingEvent ::

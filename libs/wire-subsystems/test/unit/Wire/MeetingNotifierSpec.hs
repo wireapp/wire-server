@@ -63,7 +63,7 @@ spec = do
               }
 
       pushes <-
-        runMemberAdded now [meeting] $
+        runMeetingNotifier now [meeting] $
           notifyMeetingMembersAdded
             (Qualified actor domain)
             (Qualified convId domain)
@@ -86,7 +86,7 @@ spec = do
           domain = Domain "local.example.com"
 
       pushes <-
-        runMemberAdded now [] $
+        runMeetingNotifier now [] $
           notifyMeetingMembersAdded
             (Qualified actor domain)
             (Qualified convId domain)
@@ -106,7 +106,7 @@ spec = do
           meeting = storedMeeting meetingId otherConvId now (addUTCTime 60 now)
 
       pushes <-
-        runMemberAdded now [meeting] $
+        runMeetingNotifier now [meeting] $
           notifyMeetingMembersAdded
             (Qualified actor domain)
             (Qualified convId domain)
@@ -115,7 +115,58 @@ spec = do
 
       pushes `shouldBe` []
 
-runMemberAdded ::
+    it "pushes a meeting-delete event to each removed member for each alive meeting" $ do
+      let now = UTCTime (ModifiedJulianDay 60000) 0
+          actor = Id $ read "00000000-0000-0000-0000-000000000001"
+          removedUser = Id $ read "00000000-0000-0000-0000-000000000002"
+          convId = Id $ read "00000000-0000-0000-0000-000000000003"
+          meetingId = Id $ read "00000000-0000-0000-0000-000000000004"
+          domain = Domain "local.example.com"
+          meeting = storedMeeting meetingId convId now (addUTCTime 60 now)
+          expectedEvent =
+            MeetingEvent.Event
+              { evtType = MeetingEvent.Delete,
+                evtMeeting = Qualified meetingId domain,
+                evtConv = Qualified convId domain,
+                evtFrom = MeetingEvent.EventFromUser (Qualified actor domain),
+                evtTime = now,
+                evtTeam = Nothing
+              }
+
+      pushes <-
+        runMeetingNotifier now [meeting] $
+          notifyMeetingMembersRemoved
+            (Qualified actor domain)
+            (Qualified convId domain)
+            Nothing
+            [removedUser]
+
+      length pushes `shouldBe` 1
+      let push = head pushes
+      push.recipients `shouldBe` [userRecipient removedUser]
+      push.route `shouldBe` PushV2.RouteAny
+      case fromJSON (Object push.json) :: Result MeetingEvent.Event of
+        Error err -> expectationFailure err
+        Success event -> event `shouldBe` expectedEvent
+
+    it "does not push removal when no alive meeting exists" $ do
+      let now = UTCTime (ModifiedJulianDay 60000) 0
+          actor = Id $ read "00000000-0000-0000-0000-000000000001"
+          removedUser = Id $ read "00000000-0000-0000-0000-000000000002"
+          convId = Id $ read "00000000-0000-0000-0000-000000000003"
+          domain = Domain "local.example.com"
+
+      pushes <-
+        runMeetingNotifier now [] $
+          notifyMeetingMembersRemoved
+            (Qualified actor domain)
+            (Qualified convId domain)
+            Nothing
+            [removedUser]
+
+      pushes `shouldBe` []
+
+runMeetingNotifier ::
   UTCTime ->
   [Store.StoredMeeting] ->
   Sem
@@ -129,7 +180,7 @@ runMemberAdded ::
      ]
     () ->
   IO [Push]
-runMemberAdded now meetings =
+runMeetingNotifier now meetings =
   runM
     . execState ([] :: [Push])
     . discardTinyLogs

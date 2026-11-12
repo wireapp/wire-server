@@ -28,7 +28,7 @@ import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import Data.Time.Format.ISO8601 (iso8601ParseM)
 import MLS.Util
-import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
+import Notifications (isConvCreateMeetingNotif, isConvDeleteMeetingNotif, isConvLeaveNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingMemberAddNotif, isMeetingUpdateNotif, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -125,6 +125,32 @@ testMeetingMLSAddParticipant = do
     res.status `shouldMatchInt` 200
     (length <$> (res.json %. "members.others" & asList)) `shouldMatchInt` 1
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
+
+-- | Kicking a member from a meeting conversation must emit a
+-- @meeting.delete@ event targeted at the removed member so their clients drop
+-- the meeting view. Remaining members must not receive it.
+testMeetingMLSRemoveParticipantEmitsMeetingDelete :: (HasCallStack) => App ()
+testMeetingMLSRemoveParticipantEmitsMeetingDelete = do
+  (alice, _tid, [bob]) <- createTeam OwnDomain 2
+  aliceC <- createMLSClient def alice
+  bobC <- createMLSClient def bob
+  _ <- uploadNewKeyPackage def bobC
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+  meeting <- postMeetings alice (defaultMeetingJson "MLS Meeting" startTime endTime []) >>= getJSON 201
+  convQid <- meeting %. "qualified_conversation"
+  conv <- getConversation alice convQid >>= getJSON 200
+  convId <- objConvId conv
+  createGroup def aliceC convId
+  void $ createAddCommit aliceC convId [bob] >>= sendAndConsumeCommitBundle
+  withWebSockets [alice, bob] $ \[aliceWs, bobWs] -> do
+    void $ createRemoveCommit aliceC convId [bobC] >>= sendAndConsumeCommitBundle
+    deleteNotif <- awaitMatch isMeetingDeleteNotif bobWs
+    assertMeetingNotif deleteNotif (meeting %. "qualified_id")
+    deleteNotif %. "payload.0.qualified_conversation" `shouldMatch` convQid
+    void $ awaitMatch isConvLeaveNotif aliceWs
+    assertNoEvent 2 aliceWs
 
 -- | Helper to extract meetingId and domain from a meeting JSON object
 getMeetingIdAndDomain :: (HasCallStack) => Value -> App (String, String)

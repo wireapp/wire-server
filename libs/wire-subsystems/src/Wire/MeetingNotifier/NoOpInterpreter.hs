@@ -28,4 +28,5 @@ import Wire.MeetingNotifier
 discardMeetingNotifier :: InterpreterFor MeetingNotifier r
 discardMeetingNotifier = interpret $ \case
   NotifyMeetingMembersAdded {} -> pure ()
+  NotifyMeetingMembersRemoved {} -> pure ()
   NotifyMeetingEvent {} -> pure ()
