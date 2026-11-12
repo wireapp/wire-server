@@ -143,6 +143,8 @@ import Wire.PropertySubsystem
 import Wire.PropertySubsystem.Interpreter
 import Wire.ProviderServiceStore
 import Wire.ProviderServiceStore.Cassandra
+import Wire.ProviderServiceStore.DualWrite
+import Wire.ProviderServiceStore.Postgres
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
@@ -436,7 +438,14 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretBlockListStoreToPostgres
         MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
 
-      providerServiceStore = interpretProviderServiceStoreToCassandra e.casClient
+      providerServiceStore = case e.postgresMigration.providerService of
+        CassandraStorage -> interpretProviderServiceStoreToCassandra e.casClient
+        MigrationToPostgresql -> interpretProviderServiceStoreToCassandraAndPostgres e.casClient
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretProviderServiceStoreToPostgres
+            . raiseUnder2
 
       nonceStore = case e.postgresMigration.nonce of
         CassandraStorage -> interpretNonceStoreToCassandra e.casClient
