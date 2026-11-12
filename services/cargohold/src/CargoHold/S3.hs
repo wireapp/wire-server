@@ -29,6 +29,9 @@ module CargoHold.S3
     getMetadataV3,
     updateMetadataV3,
     deleteV3,
+    uploadBackupBlob,
+    deleteObject,
+    backupKey,
     mkKey,
     signedURL,
     -- Legacy
@@ -82,6 +85,8 @@ import System.Logger.Message (msg, val, (.=), (~~))
 import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
 import Wire.API.Asset (AssetMIMEType)
+import Wire.API.Backup (BackupFileId (..))
+import Wire.BackupBlobStore (BlobUploadError (..))
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
   deriving (Eq, Show, ToByteString)
@@ -133,65 +138,78 @@ uploadV3 ::
   ConduitM () ByteString (ResourceT IO) () ->
   Handler ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src = do
-  Log.info $
-    "remote" .= val "S3"
-      ~~ "asset.owner" .= toByteString prc
-      ~~ "asset.key" .= key
-      ~~ "asset.type" .= MIME.showType ct
-      ~~ "asset.size" .= cl
-      ~~ msg (val "Uploading asset")
-
+  let logCtx =
+        "remote" .= val "S3"
+          ~~ "asset.owner" .= toByteString prc
+          ~~ "asset.key" .= key
+          ~~ "asset.type" .= MIME.showType ct
+          ~~ "asset.size" .= cl
+  Log.info $ logCtx ~~ msg (val "Uploading asset")
   awsEnv <- asks (.aws)
-
-  -- build the “initiate multipart” request
   let createReq =
         newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
           & createMultipartUpload_contentType ?~ MIME.showType ct
           & createMultipartUpload_metadata .~ metaHeaders tok prc mAuditLogMeta
+  complete <- streamUpload logCtx createReq (fromIntegral cl) src
+  unless complete $ throwE incompleteBody
+  where
+    ct = octets -- see note “overrideMimeTypeAsOctetStream”
 
-  cntRef <- liftIO $ newIORef (0 :: Int)
+-- | Upload a backup file. Unlike 'uploadV3', no metadata is stored. 'BlobLengthMismatch' if the
+-- stream length differs from the declared one; the S3 object may exist then.
+uploadBackupBlob ::
+  S3AssetKey ->
+  Word64 ->
+  ConduitM () ByteString (ResourceT IO) () ->
+  Handler (Either BlobUploadError ())
+uploadBackupBlob (S3AssetKey key) len src = do
+  let logCtx = "remote" .= val "S3" ~~ "backup.key" .= key ~~ "backup.size" .= len
+  Log.info $ logCtx ~~ msg (val "Uploading backup file")
+  awsEnv <- asks (.aws)
+  let createReq =
+        newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
+          & createMultipartUpload_contentType ?~ MIME.showType octets
+  complete <- streamUpload logCtx createReq len src
+  pure $ if complete then Right () else Left BlobLengthMismatch
+
+-- | Stream @src@ to S3 as multipart upload. 'False' if the stream length differs from @len@.
+streamUpload ::
+  (Log.Msg -> Log.Msg) ->
+  CreateMultipartUpload ->
+  Word64 ->
+  ConduitM () ByteString (ResourceT IO) () ->
+  Handler Bool
+streamUpload logCtx createReq len src = do
+  awsEnv <- asks (.aws)
+  cntRef <- liftIO $ newIORef (0 :: Word64)
 
   -- byte counter for validating that an upload was completely uploaded from the client
   let countC = awaitForever $ \bs -> do
-        liftIO $ modifyIORef' cntRef (+ BS.length bs)
+        liftIO $ modifyIORef' cntRef (+ fromIntegral (BS.length bs))
         yield bs
 
   result <-
     liftIO . try . runResourceT . runConduit $
       src
         .| chunksOfCE (fromIntegral defaultChunkSize)
-        .| isolate (fromIntegral cl)
+        .| isolate (fromIntegral len)
         .| countC
         .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
 
   case result of
     Left (e :: SomeException) -> do
-      Log.err $
-        "remote" .= val "S3"
-          ~~ "asset.owner" .= toByteString prc
-          ~~ "asset.key" .= key
-          ~~ "asset.type" .= MIME.showType ct
-          ~~ "asset.size" .= cl
-          ~~ msg ("Unhandled error while uploading asset: " <> show e)
+      Log.err $ logCtx ~~ msg ("Unhandled error while uploading: " <> show e)
       throwE serverError
     Right uploadResult -> do
       bytesSeen <- liftIO $ readIORef cntRef
-      when (bytesSeen /= (fromIntegral cl)) $ do
-        throwE incompleteBody
-
       case uploadResult of
-        Right (_ :: CompleteMultipartUploadResponse) -> pure ()
+        _ | bytesSeen /= len -> pure False
+        Right (_ :: CompleteMultipartUploadResponse) -> pure True
         Left ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) -> do
           Log.err $
-            "remote" .= val "S3"
-              ~~ "asset.owner" .= toByteString prc
-              ~~ "asset.key" .= key
-              ~~ "asset.type" .= MIME.showType ct
-              ~~ "asset.size" .= cl
-              ~~ msg ("Multipart upload failed – aborted: " <> (show (abortResponse, exception)))
+            logCtx
+              ~~ msg ("Multipart upload failed – aborted: " <> show (abortResponse, exception))
           throwE serverError
-  where
-    ct = octets -- see note “overrideMimeTypeAsOctetStream”
 
 -- | Turn a 'ResourceT IO' action into a pure @Conduit@.
 --
@@ -237,7 +255,11 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         <*> Just (getAmzAuditLogMetadata h)
 
 deleteV3 :: V3.AssetKey -> Handler ()
-deleteV3 (s3Key . mkKey -> key) = do
+deleteV3 = deleteObject . mkKey
+
+-- | Idempotent: S3 does not fail for missing keys.
+deleteObject :: S3AssetKey -> Handler ()
+deleteObject (S3AssetKey key) = do
   Log.debug $
     "remote" .= val "S3"
       ~~ "asset.key" .= key
@@ -328,6 +350,9 @@ signedURL path mbHost = do
                     .= show hostAwsEnv.amazonkaDownloadEndpoint
                   ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
               pure hostAwsEnv
+
+backupKey :: BackupFileId -> S3AssetKey
+backupKey fid = S3AssetKey $ "backup/" <> UUID.toText fid.unBackupFileId
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key

@@ -10,6 +10,22 @@ brig:
   host: 127.0.0.1
   port: 8082
 
+galley:
+  host: 127.0.0.1
+  port: 8085
+
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  user: wire-server
+  dbname: backendA
+  password: posty-the-gres
+
+postgresqlPool:
+  size: 20
+  acquisitionTimeout: 10s
+  idlenessTimeout: 10m
+
 aws:
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here
   s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
@@ -33,6 +49,10 @@ settings:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: []
   disabledFederationAPIVersions: []
+  backupLimits:
+    maxFullBytes: 1073741824
+    maxIncrementalBytes: 10485760
+    maxFilesPerEpoch: 3650
 
 logLevel: Warn
 logNetStrings: false

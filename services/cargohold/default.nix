@@ -25,6 +25,7 @@
 , exceptions
 , extended
 , federator
+, hasql-resource-pool
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -43,6 +44,8 @@
 , mmorph
 , mtl
 , optparse-applicative
+, polysemy
+, polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
 , resourcet
@@ -51,6 +54,7 @@
 , servant
 , servant-client
 , servant-server
+, stm
 , tagged
 , tasty
 , tasty-ant-xml
@@ -70,8 +74,10 @@
 , wai
 , wai-extra
 , wai-utilities
+, warp
 , wire-api
 , wire-api-federation
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -102,6 +108,7 @@ mkDerivation {
     errors
     exceptions
     extended
+    hasql-resource-pool
     HsOpenSSL
     http-client
     http-client-openssl
@@ -113,6 +120,8 @@ mkDerivation {
     metrics-core
     metrics-wai
     mime
+    polysemy
+    polysemy-wire-zoo
     prometheus-client
     QuickCheck
     resourcet
@@ -136,6 +145,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
@@ -179,17 +189,28 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cargohold-types
+    conduit
     extended
+    http-client
+    http-types
     imports
     mime
+    polysemy
+    servant-server
+    stm
     tasty
+    tasty-hunit
     tasty-quickcheck
     text
+    time
     types-common
     unix
     unliftio
     uri-bytestring
+    uuid
+    warp
     wire-api
+    wire-subsystems
   ];
   description = "Asset Storage API";
   license = lib.licenses.agpl3Only;
