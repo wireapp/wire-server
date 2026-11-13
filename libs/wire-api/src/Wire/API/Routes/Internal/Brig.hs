@@ -69,7 +69,6 @@ import Data.Range
 import Data.Schema hiding (swaggerDoc)
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
-import Data.Time (UTCTime)
 import GHC.TypeLits
 import Imports hiding (head)
 import Network.HTTP.Client qualified as HTTP
@@ -753,26 +752,7 @@ type API =
            :<|> SAMLIdPAPI
            :<|> DeleteApp
            :<|> GetAppIds
-           :<|> UserPendingActivationAPI
        )
-
-type UserPendingActivationAPI =
-  Named
-    "put-user-pending-activation"
-    ( Summary "Add a pending activation row (for migration testing only)"
-        :> "users"
-        :> "pending-activation"
-        :> Capture "uid" Id.UserId
-        :> Servant.ReqBody '[Servant.JSON] UTCTime
-        :> Put '[Servant.JSON] NoContent
-    )
-    :<|> Named
-           "get-user-pending-activations"
-           ( Summary "List pending activation rows (for migration testing only)"
-               :> "users"
-               :> "pending-activation"
-               :> MultiVerb1 'GET '[Servant.JSON] (Respond 200 "" [(Id.UserId, UTCTime)])
-           )
 
 type SAMLIdPAPI =
   "idp"

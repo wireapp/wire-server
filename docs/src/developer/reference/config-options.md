@@ -2404,7 +2404,6 @@ background-worker:
     migrateTeamFeatures: false
     migrateDomainRegistration: false
     migrateBlockList: false
-    migrateUsersPendingActivation: false
     migratePasswordReset: false
     migrateCustomBackend: false
     migrateNonce: false
@@ -2441,7 +2440,6 @@ The current settings and their background-worker flags are:
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
-- `userPendingActivation` -> `migrateUsersPendingActivation`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
@@ -2467,7 +2465,6 @@ The current settings and their background-worker flags are:
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
          blockList: cassandra
-         userPendingActivation: cassandra
          passwordReset: cassandra
          customBackend: cassandra
          budget: cassandra
@@ -2481,7 +2478,6 @@ The current settings and their background-worker flags are:
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
-       migrateUsersPendingActivation: false
        migratePasswordReset: false
        migrateCustomBackend: false
        migrateNonce: false
@@ -2502,7 +2498,6 @@ The current settings and their background-worker flags are:
        migrateDomainRegistration: true
        migrateUsers: true
        migrateBlockList: true
-       migrateUsersPendingActivation: false
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateConnections: true
@@ -2532,7 +2527,6 @@ The current settings and their background-worker flags are:
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
    - `blockList`: `wire_block_list_migration_finished`
-   - `userPendingActivation`: `wire_users_pending_activation_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
    - `nonce`: `wire_nonce_migration_finished`
@@ -2552,7 +2546,6 @@ The current settings and their background-worker flags are:
          domainRegistration: postgresql
          user: postgresql
          blockList: cassandra
-         userPendingActivation: cassandra
          passwordReset: postgresql
          customBackend: postgresql
          budget: postgresql
@@ -2566,7 +2559,6 @@ The current settings and their background-worker flags are:
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
-       migrateUsersPendingActivation: false
        migratePasswordReset: false
        migrateCustomBackend: false
        migrateNonce: false
@@ -2660,7 +2652,6 @@ migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
 migrateBlockList: false
-migrateUsersPendingActivation: false
 migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
