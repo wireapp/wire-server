@@ -618,11 +618,9 @@ spar:
       blockList: {{ .Values.blockListStore }}
       passwordReset: {{ .Values.passwordReset }}
       customBackend: {{ .Values.customBackendStore }}
-      budget: {{ .Values.budgetStore }}
-      nonce: {{ .Values.nonceStore }}
-      connections: {{ .Values.connectionsStore }}
       scimTokens: {{ .Values.scimTokensStore }}
       scimExternalIds: {{ .Values.scimExternalIdsStore }}
+    logLevel: Debug
       samlUsers: {{ .Values.samlUsersStore }}
     logLevel: Debug
     domain: zinfra.io

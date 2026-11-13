@@ -51,6 +51,7 @@ library
     Spar.Schema.V21
     Spar.Schema.V22
     Spar.Schema.V23
+    Spar.Schema.V24
     Spar.Schema.V3
     Spar.Schema.V4
     Spar.Schema.V5
@@ -153,7 +154,6 @@ library
     , optparse-applicative
     , polysemy
     , polysemy-check         >=0.9
-    , polysemy-conc
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
