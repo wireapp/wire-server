@@ -150,8 +150,6 @@ library
     , mtl                                   >=2.2
     , network-uri                           >=2.6
     , polysemy
-    , polysemy-conc
-    , polysemy-wire-zoo
     , prometheus-client
     , psqueues                              >=0.2.2
     , raw-strings-qq
