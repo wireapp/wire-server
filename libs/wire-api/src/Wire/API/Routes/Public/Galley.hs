@@ -28,6 +28,7 @@ import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.CustomBackend
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Routes.Public.Galley.LegalHold
+import Wire.API.Routes.Public.Galley.License
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.Routes.Public.Galley.Meetings
 import Wire.API.Routes.Public.Galley.Messaging
@@ -45,6 +46,7 @@ type GalleyAPI =
     :<|> FeatureAPI
     :<|> MLSAPI
     :<|> MeetingsAPI
+    :<|> LicenseAPI
     :<|> CustomBackendAPI
     :<|> LegalHoldAPI
     :<|> TeamMemberAPI

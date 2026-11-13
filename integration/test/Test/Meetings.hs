@@ -21,8 +21,13 @@ module Test.Meetings where
 
 import API.Galley
 import qualified API.GalleyInternal as I
+import Control.Lens (has, (.~))
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader (ask, asks)
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Lens as AL (key, _Bool)
+import qualified Data.ByteString.Base64.URL as B64
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
@@ -1107,28 +1112,66 @@ testMeetingLinkRefresh = withLicensedBackend $ \dom -> do
   (meetingId2, domain2) <- getMeetingIdAndDomain meeting2
   postMeetingLinkRefresh owner domain2 meetingId2 (object ["password" .= ("short7" :: String)]) >>= assertStatus 400
 
--- | Run the body against a dynamic backend whose galley is licensed for
--- invitation links (WPB-29643): acquires a backend resource, generates a
--- full-license payload with the wire-licensing CLI for the backend's
--- domain, injects it into galley's config (@settings.license@), and starts
--- the backend. No process-global state, so no locking is needed.
-withLicensedBackend :: (HasCallStack) => (String -> App a) -> App a
-withLicensedBackend k = withLicensedBackendR (\_ dom -> k dom)
-
--- | As 'withLicensedBackend', but also exposes the backend resource (e.g. for
+-- | Run the dynamic backend with a licence whose meetings flags are the given
+-- triple @(invitation_links, emails_sending, calendars_integration)@: the CLI's
+-- example payload is patched with the requested flags, so tests can exercise
+-- flag combinations independently (e.g. join links licensed while email
+-- sending is off). Also exposes the backend resource (e.g. for
 -- 'Testlib.PG.execSql', which needs the backend's Postgres dbname).
-withLicensedBackendR :: (HasCallStack) => (BackendResource -> String -> App a) -> App a
-withLicensedBackendR k = do
+withLicensedBackendFlagsR :: (HasCallStack) => Bool -> Bool -> Bool -> (BackendResource -> String -> App a) -> App a
+withLicensedBackendFlagsR invitationLinks emailsSending calendarsIntegration k = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let dom = backend.berDomain
-    cli <- liftIO (fromMaybe "wire-licensing" <$> lookupEnv "WIRE_LICENSING_CLI")
-    token <- liftIO (readProcess cli ["example", "full", "--domain", dom] "")
+    payload <- licensedPayloadFor dom (invitationLinks, emailsSending, calendarsIntegration)
     let overrides =
           def
-            { galleyCfg = setField "settings.license" (Text.strip (Text.pack token))
+            { galleyCfg = setField "settings.license" payload
             }
     runCodensity (startDynamicBackend backend overrides) $ \_ -> k backend dom
+
+-- | Licensed backend with all meetings flags enabled.
+withLicensedBackend :: (HasCallStack) => (String -> App a) -> App a
+withLicensedBackend = withLicensedBackendFlags True True True
+
+-- | As 'withLicensedBackendFlags', but also exposes the backend resource (e.g.
+-- for 'Testlib.PG.execSql', which needs the backend's Postgres dbname).
+withLicensedBackendR :: (HasCallStack) => (BackendResource -> String -> App a) -> App a
+withLicensedBackendR = withLicensedBackendFlagsR True True True
+
+-- | Run the body against a dynamic backend whose galley is licensed with the
+-- given meetings flags.
+withLicensedBackendFlags ::
+  (HasCallStack) => Bool -> Bool -> Bool -> (String -> App a) -> App a
+withLicensedBackendFlags invitationLinks emailsSending calendarsIntegration k =
+  withLicensedBackendFlagsR invitationLinks emailsSending calendarsIntegration (\_ dom -> k dom)
+
+-- | Produce a base64url licence payload from the licensing CLI's example,
+-- with the three meetings flags overwritten by the given triple.
+licensedPayloadFor :: String -> (Bool, Bool, Bool) -> App Text.Text
+licensedPayloadFor dom (invitationLinks, emailsSending, calendarsIntegration) = do
+  cli <- liftIO (fromMaybe "wire-licensing" <$> lookupEnv "WIRE_LICENSING_CLI")
+  token <- liftIO (readProcess cli ["example", "full", "--domain", dom] "")
+  value <- case A.decode' @A.Value (LBS.fromStrict (B64.decodeLenient (Text.encodeUtf8 (Text.strip (Text.pack token))))) of
+    Just v -> pure v
+    Nothing -> fail "failed to decode license payload as JSON"
+  let meetingsFlag name = AL.key (fromString "license_content") . AL.key (fromString "meetings") . AL.key (fromString name)
+      patched =
+        value
+          & meetingsFlag "invitation_links" . AL._Bool .~ invitationLinks
+          & meetingsFlag "emails_sending" . AL._Bool .~ emailsSending
+          & meetingsFlag "calendars_integration" . AL._Bool .~ calendarsIntegration
+  -- Fail loudly if the CLI payload shape drifted and the meetings flags are
+  -- missing, instead of silently deploying an unpatched license. Setting a
+  -- flag to its current value is a legitimate no-op (`example full` enables
+  -- all flags), so comparing the patched payload for inequality would misfire.
+  unless
+    ( has (meetingsFlag "invitation_links" . AL._Bool) value
+        && has (meetingsFlag "emails_sending" . AL._Bool) value
+        && has (meetingsFlag "calendars_integration" . AL._Bool) value
+    )
+    (fail "license payload shape drift: license_content.meetings flags missing or not boolean")
+  pure (Text.decodeUtf8 (B64.encode (LBS.toStrict (A.encode patched))))
 
 -- | Extract the (key, code) query parameters from a meeting join link URL
 -- (@…/meeting-join/?key=\<key\>&code=\<code\>&domain=…@). The URL contains
