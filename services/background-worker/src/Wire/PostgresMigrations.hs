@@ -29,7 +29,6 @@ import Wire.ConnectionStore.Migration (migrateConnectionsLoop)
 import Wire.ConversationStore.Migration qualified as ConversationStore
 import Wire.CustomBackendStore.Migration
 import Wire.DomainRegistrationStore.Migration
-import Wire.InvitationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.NonceStore.Migration
 import Wire.PasswordResetCodeStore.Migration
@@ -130,24 +129,6 @@ users migOpts = do
   Log.info logger $ Log.msg (Log.val "started user migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling user migration")
-    cancel migrationLoop
-
-invitations :: MigrationOptions -> AppT IO CleanupAction
-invitations migOpts = do
-  cassClient <- asks (.cassandraBrig)
-  pgPool <- asks (.hasqlPool)
-  logger <- asks (.logger)
-  Log.info logger $ Log.msg (Log.val "starting invitations migration")
-  count <- register $ counter $ Prometheus.Info "wire_invitations_migrated_to_pg" "Number of invitations migrated to Postgresql"
-  finished <- register $ counter $ Prometheus.Info "wire_invitations_migration_finished" "Whether the invitations migration to Postgresql is finished successfully"
-  failed <- register $ counter $ Prometheus.Info "wire_invitations_migration_failed" "Whether the invitations migration to Postgresql has failed"
-  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_invitations_migration_duration_seconds" "Duration of invitations migration attempts") defaultBuckets
-
-  migrationLoop <- async . lift $ migrateInvitationsLoop migOpts cassClient pgPool logger count finished failed duration
-
-  Log.info logger $ Log.msg (Log.val "started invitations migration")
-  pure $ do
-    Log.info logger $ Log.msg (Log.val "cancelling invitations migration")
     cancel migrationLoop
 
 blockList :: MigrationOptions -> AppT IO CleanupAction
