@@ -2443,7 +2443,6 @@ background-worker:
     migrateConversations: false
     migrateConversationCodes: false
     migrateTeamFeatures: false
-    migrateTeamMembers: false
     migrateDomainRegistration: false
     migrateBlockList: false
     migratePasswordReset: false
@@ -2479,9 +2478,7 @@ The current settings and their background-worker flags are:
 - `conversation` -> `migrateConversations`
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
-- `teamStore` -> `migrateTeamMembers`
 - `domainRegistration` -> `migrateDomainRegistration`
-- `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
@@ -2519,7 +2516,6 @@ The current settings and their background-worker flags are:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
-       migrateTeamMembers: false
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
@@ -2540,7 +2536,6 @@ The current settings and their background-worker flags are:
        migrateConversations: true
        migrateConversationCodes: true
        migrateTeamFeatures: true
-       migrateTeamMembers: true
        migrateDomainRegistration: true
        migrateUsers: true
        migrateBlockList: true
@@ -2561,7 +2556,6 @@ The current settings and their background-worker flags are:
      `wire_user_remote_convs_migration_finished`
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
-   - `teamStore`: `wire_team_members_migration_finished`
    - `domainRegistration`: `wire_domain_registration_migration_finished`
    - `user`: `wire_user_migration_finished`
 
@@ -2605,7 +2599,6 @@ The current settings and their background-worker flags are:
        migrateConversations: false
        migrateConversationCodes: false
        migrateTeamFeatures: false
-       migrateTeamMembers: false
        migrateDomainRegistration: false
        migrateUsers: false
        migrateBlockList: false
