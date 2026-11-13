@@ -120,12 +120,6 @@ run opts galleyOpts = do
         runAppT env $
           withNamedLogger "migrate-connections" $
             Migrations.connections opts.migrationOptions
-  cleanupPushTokensMigration <-
-    if opts.migratePushTokens
-      then
-        runAppT env $
-          withNamedLogger "migrate-push-tokens" $
-            Migrations.pushTokens opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
@@ -151,8 +145,6 @@ run opts galleyOpts = do
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
-              <*> Concurrently cleanupNotificationsMigration
-              <*> Concurrently cleanupPushTokensMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
