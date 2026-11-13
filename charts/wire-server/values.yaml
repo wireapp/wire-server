@@ -1070,7 +1070,6 @@ background-worker:
     migrateConnections: false
     # This will start the migration of team invitation data.
     # It's important to set `settings.postgresMigration.invitations` to `migration-to-postgresql`
-    migrateInvitations: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
