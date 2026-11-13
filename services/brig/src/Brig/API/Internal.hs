@@ -1120,3 +1120,5 @@ deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> 
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
+
+-- | The raw key is the normalized (lowercase, plus-stripped) email address.

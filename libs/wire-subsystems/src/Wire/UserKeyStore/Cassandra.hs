@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.UserKeyStore.Cassandra (interpretUserKeyStoreCassandra) where
+module Wire.UserKeyStore.Cassandra
+  ( claimKeyImpl,
+    interpretUserKeyStoreCassandra,
+  )
+where
 
 import Cassandra
 import Data.Id
@@ -101,6 +105,8 @@ deleteKeyForUserImpl uid k = do
 
 keyInsert :: PrepQuery W (Text, UserId) ()
 keyInsert = "INSERT INTO user_keys (key, user) VALUES (?, ?)"
+
+-- | Unpaged full scan feeding the Cassandra-to-Postgres copy loop.
 
 keySelect :: PrepQuery R (Identity Text) (Identity UserId)
 keySelect = "SELECT user FROM user_keys WHERE key = ?"

@@ -168,6 +168,7 @@ nonce migOpts = do
     Log.info logger $ Log.msg (Log.val "cancelling nonce migration")
     cancel migrationLoop
 
+
 passwordReset :: MigrationOptions -> AppT IO CleanupAction
 passwordReset migOpts = do
   cassClient <- asks (.cassandraBrig)
