@@ -1133,9 +1133,13 @@ testGhostMemberRowRepair = do
   mp <- createRemoveCommit alice1 convId [bob1]
   void $ sendAndConsumeCommitBundle mp
   -- bob1 is in membersToBeRemoved for the remove commit, so the harness never
-  -- lets it consume that commit and its local group state goes stale; reset it
-  -- or the re-add welcome trips the existing-client assertion in consumeWelcome.
-  setClientGroupState bob1 def
+  -- lets it consume that commit and its local group state goes stale; reset
+  -- the group state (keeping the keystore with bob1's registered signature
+  -- key, or the re-add KP upload fails with 400 'Unrecognised signature key')
+  -- or the re-add welcome trips the existing-client assertion in
+  -- consumeWelcome.
+  gs0 <- getClientGroupState bob1
+  setClientGroupState bob1 def {keystore = gs0.keystore, credType = gs0.credType}
   void $ uploadNewKeyPackage def bob1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
