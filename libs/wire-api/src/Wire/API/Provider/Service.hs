@@ -34,6 +34,7 @@ module Wire.API.Provider.Service
     -- * Service
     Service (..),
     ServiceToken (..),
+    ServiceConn (..),
     ServiceProfile (..),
     ServiceProfilePage (..),
 
@@ -60,7 +61,7 @@ import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
-import Data.Misc (HttpsUrl (..), PlainTextPassword6)
+import Data.Misc (Fingerprint, HttpsUrl (..), PlainTextPassword6, Rsa)
 import Data.OpenApi qualified as S
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Proxy
@@ -283,6 +284,21 @@ instance S.ToSchema ServiceToken where
       tok = "sometoken"
 
 deriving instance Cql ServiceToken
+
+--------------------------------------------------------------------------------
+-- ServiceConn
+
+-- | Connection information of a service, as used by brig's provider API to
+-- talk to the service backend.
+data ServiceConn = ServiceConn
+  { sconProvider :: !ProviderId,
+    sconService :: !ServiceId,
+    sconBaseUrl :: !HttpsUrl,
+    sconAuthTokens :: !(NonEmpty ServiceToken),
+    sconFingerprints :: !(NonEmpty (Fingerprint Rsa)),
+    sconEnabled :: !Bool
+  }
+  deriving stock (Eq, Show)
 
 --------------------------------------------------------------------------------
 -- ServiceProfile

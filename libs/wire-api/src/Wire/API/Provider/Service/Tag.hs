@@ -354,7 +354,7 @@ unfoldTags s = case map tagToInt (Set.toList (fromRange s)) of
   [t] -> [t]
   ts@[t, u] -> (t .|. u) : ts
   ts@[t, u, v] -> (t .|. u) : (t .|. v) : (u .|. v) : (t .|. u .|. v) : ts
-  _ -> error "Brig.Provider.DB.Tag: unfoldTags: Too many tags."
+  _ -> error "Wire.API.Provider.Service.Tag: unfoldTags: Too many tags."
 
 unfoldTagsInto :: Range 1 3 (Set ServiceTag) -> [Int64] -> [Int64]
 unfoldTagsInto xs ys =
