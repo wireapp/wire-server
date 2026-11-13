@@ -29,7 +29,7 @@ import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, wait)
 import Control.Concurrent.Async qualified as Async
-import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
+import Control.Lens (to, view, (%~), (.~), (?~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -66,19 +66,20 @@ import Wire.API.Presence
 import Wire.API.Push.V2
 import Prelude qualified
 
-tests :: IO TestSetup -> TestTree
-tests s =
+tests :: PresenceStore -> IO TestSetup -> TestTree
+tests store s =
   testGroup
     "API tests"
     [ testGroup
         "Push"
-        [ test s "Replace presence" replacePresence,
-          test s "Remove stale presence" removeStalePresence,
-          test s "Single user push" singleUserPush,
-          test s "Single user push with large message" singleUserPushLargeMessage,
-          test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
-          test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
-        ],
+        ( [ test s "Replace presence" replacePresence,
+            test s "Remove stale presence" removeStalePresence,
+            test s "Single user push" singleUserPush,
+            test s "Single user push with large message" singleUserPushLargeMessage,
+            test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback
+          ]
+            <> [test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown | store == PresenceRedis]
+        ),
       testGroup
         "Notifications"
         [ test s "No notifications" testNoNotifs,
@@ -110,8 +111,7 @@ tests s =
         ],
       testGroup
         "Redis migration"
-        [ test s "redis migration should work" testRedisMigration
-        ],
+        [test s "redis migration should work" testRedisMigration | store == PresenceRedis],
       -- TODO: The following tests require (at the moment), the usage real AWS
       --       services so they are kept in a separate group to simplify testing
       testGroup
@@ -272,14 +272,13 @@ sendMultipleUsers = do
 storeNotificationsEvenWhenRedisIsDown :: TestM ()
 storeNotificationsEvenWhenRedisIsDown = do
   ally <- randomId
-  origRedisEndpoint <- view $ tsOpts . redis
+  origRedisEndpoint <- view $ tsOpts . redis . to (fromMaybe (error "redis endpoint required for redis-only test"))
   let proxyPort = 10112
   redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. O.host) (origRedisEndpoint ^. O.port) proxyPort
   withSettingsOverrides
     ( \gundeckSettings ->
         gundeckSettings
-          & redis . Gundeck.Options.host .~ "localhost"
-          & redis . Gundeck.Options.port .~ proxyPort
+          & redis ?~ (origRedisEndpoint & O.host .~ "localhost" & O.port .~ proxyPort)
     )
     $ do
       let pload = textPayload "hello"
@@ -753,7 +752,7 @@ testRedisMigration = do
     password <- ("REDIS_PASSWORD",) <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
     pure $ catMaybes [username, password]
 
-  withEnvOverrides redis2CredsAsRedis1Creds $ withSettingsOverrides (redis .~ redis2) $ do
+  withEnvOverrides redis2CredsAsRedis1Creds $ withSettingsOverrides (redis ?~ redis2) $ do
     g <- view tsGundeck
     retrievedPresence <-
       map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)

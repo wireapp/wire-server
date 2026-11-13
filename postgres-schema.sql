@@ -1697,6 +1697,22 @@ CREATE TABLE public.password_reset (
 ALTER TABLE public.password_reset OWNER TO "wire-server";
 
 --
+-- Name: presence; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.presence (
+    user_id uuid NOT NULL,
+    conn_id text NOT NULL,
+    resource text NOT NULL,
+    client_id text,
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.presence OWNER TO "wire-server";
+
+--
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2206,6 +2222,14 @@ ALTER TABLE ONLY public.nonce
 
 ALTER TABLE ONLY public.password_reset
     ADD CONSTRAINT password_reset_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: presence presence_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.presence
+    ADD CONSTRAINT presence_pkey PRIMARY KEY (user_id, conn_id);
 
 
 --
@@ -2748,6 +2772,13 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: presence_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX presence_expires_at_idx ON public.presence USING btree (expires_at);
 
 
 --

@@ -59,6 +59,7 @@ import Gundeck.Options hiding (host, port)
 import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended (Pool (rawPool))
 import Imports
 import Network.AMQP
 import Network.AMQP.Types
@@ -81,11 +82,16 @@ import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry
+import Wire.PostgresMigrations qualified as PostgresMigrations
 
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (rThreads, env) <- createEnv opts
   let logger = env ^. applog
+
+  case env ^. presenceBackend of
+    PresenceBackendPostgres p -> PostgresMigrations.runAllMigrations (rawPool p) logger
+    PresenceBackendRedis _ _ -> pure ()
 
   runDirect env setUpRabbitMqExchangesAndQueues
 
@@ -97,7 +103,6 @@ run opts = withTracer \tracer -> do
   lst <- Async.async $ Aws.execute (env ^. awsEnv) (Aws.listen throttleMillis (runDirect env . onEvent))
   wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
-
   app <- middleware env <*> pure (mkApp env)
   inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
     Log.info logger $ Log.msg (Log.val "Shutting down ...")
@@ -105,9 +110,13 @@ run opts = withTracer \tracer -> do
     Async.cancel lst
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
+    forM_ wtbs Async.cancel
     forM_ rThreads Async.cancel
-    Redis.disconnect =<< takeMVar (env ^. rstate)
-    whenJust (env ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
+    case env ^. presenceBackend of
+      PresenceBackendRedis r mAdd -> do
+        Redis.disconnect =<< takeMVar r
+        whenJust mAdd $ (=<<) Redis.disconnect . takeMVar
+      PresenceBackendPostgres _ -> pure ()
     Log.close (env ^. applog)
   where
     setUpRabbitMqExchangesAndQueues :: Gundeck ()
@@ -178,3 +187,4 @@ collectAuthMetrics env = do
       mbRemaining <- readAuthExpiration env
       gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000
+
