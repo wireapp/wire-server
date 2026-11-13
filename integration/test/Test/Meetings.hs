@@ -21,7 +21,7 @@ module Test.Meetings where
 
 import API.Galley
 import qualified API.GalleyInternal as I
-import Control.Lens ((.~))
+import Control.Lens (has, (.~))
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader (ask, asks)
 import qualified Data.Aeson as A
@@ -1161,9 +1161,16 @@ licensedPayloadFor dom (invitationLinks, emailsSending, calendarsIntegration) = 
           & meetingsFlag "invitation_links" . AL._Bool .~ invitationLinks
           & meetingsFlag "emails_sending" . AL._Bool .~ emailsSending
           & meetingsFlag "calendars_integration" . AL._Bool .~ calendarsIntegration
-  -- Fail loudly if the CLI payload shape drifted and patching was a no-op,
-  -- instead of silently deploying the unpatched license.
-  when (patched == value) $ fail "license payload patch had no effect: unexpected payload shape"
+  -- Fail loudly if the CLI payload shape drifted and the meetings flags are
+  -- missing, instead of silently deploying an unpatched license. Setting a
+  -- flag to its current value is a legitimate no-op (`example full` enables
+  -- all flags), so comparing the patched payload for inequality would misfire.
+  unless
+    ( has (meetingsFlag "invitation_links" . AL._Bool) value
+        && has (meetingsFlag "emails_sending" . AL._Bool) value
+        && has (meetingsFlag "calendars_integration" . AL._Bool) value
+    )
+    (fail "license payload shape drift: license_content.meetings flags missing or not boolean")
   pure (Text.decodeUtf8 (B64.encode (LBS.toStrict (A.encode patched))))
 
 -- | Extract the (key, code) query parameters from a meeting join link URL
